@@ -27,7 +27,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	prehogv1ac "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"
 	"github.com/gravitational/teleport/lib/tbot/config"
@@ -86,11 +85,8 @@ func sendTelemetry(
 	log.Infof("Anonymous telemetry is enabled. Find out more about Machine ID's anonymous telemetry at %s", telemetryDocs)
 
 	data := &prehogv1a.TbotStartEvent{
-		RunMode: prehogv1a.TbotStartEvent_RUN_MODE_DAEMON,
-		// Default to reporting the "token" join method to account for
-		// scenarios where initial join has onboarding configured but future
-		// starts renew using credentials.
-		JoinType: string(types.JoinMethodToken),
+		RunMode:  prehogv1a.TbotStartEvent_RUN_MODE_DAEMON,
+		JoinType: string(cfg.Onboarding.JoinMethod),
 		Version:  teleport.Version,
 	}
 	if cfg.Oneshot {
@@ -99,9 +95,6 @@ func sendTelemetry(
 	if helper := envGetter(helperEnv); helper != "" {
 		data.Helper = helper
 		data.HelperVersion = envGetter(helperVersionEnv)
-	}
-	if cfg.Onboarding != nil && cfg.Onboarding.JoinMethod != "" {
-		data.JoinType = string(cfg.Onboarding.JoinMethod)
 	}
 	for _, dest := range cfg.Destinations {
 		switch {

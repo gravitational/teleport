@@ -214,7 +214,10 @@ export function MenuItem({
         title={item.isDisabled && item.disabledText}
         onClick={handleClick}
       >
-        <item.Icon color={item.isDisabled && 'text.disabled'} fontSize={2} />
+        <item.Icon
+          color={item.isDisabled ? 'text.disabled' : null}
+          fontSize={2}
+        />
         <Flex
           gap={2}
           flex="1"

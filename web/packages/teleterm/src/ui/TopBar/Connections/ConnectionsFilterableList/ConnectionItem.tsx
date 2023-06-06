@@ -98,7 +98,7 @@ export function ConnectionItem(props: ConnectionItemProps) {
             <span
               css={`
                 font-size: 10px;
-                background: rgba(255, 255, 255, 0.25);
+                background: ${props => props.theme.colors.spotBackground[2]};
                 opacity: 0.85;
                 padding: 1px 2px;
                 margin-right: 4px;

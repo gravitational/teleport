@@ -367,7 +367,7 @@ func BuildRoleARN(username, region, accountID string) (string, error) {
 		return username, nil
 	}
 	resource := username
-	if !strings.HasPrefix(resource, "role/") {
+	if !IsPartialRoleARN(resource) {
 		resource = fmt.Sprintf("role/%s", username)
 	}
 	roleARN := &arn.ARN{
@@ -434,4 +434,29 @@ func CheckARNPartitionAndAccount(ARN *arn.ARN, wantPartition, wantAccountID stri
 		return trace.BadParameter("expected AWS account ID %q but got %q", wantAccountID, ARN.AccountID)
 	}
 	return nil
+}
+
+// IsRoleARN returns true if the provided string is a AWS role ARN.
+func IsRoleARN(roleARN string) bool {
+	if _, err := ParseRoleARN(roleARN); err == nil {
+		return true
+	}
+
+	return IsPartialRoleARN(roleARN)
+}
+
+// IsPartialRoleARN returns true if the provided role ARN only contains the
+// resource name.
+func IsPartialRoleARN(roleARN string) bool {
+	return strings.HasPrefix(roleARN, "role/")
+}
+
+// IsUserARN returns true if the provided string is a AWS user ARN.
+func IsUserARN(userARN string) bool {
+	resourceName := userARN
+	if parsed, err := arn.Parse(userARN); err == nil {
+		resourceName = parsed.Resource
+	}
+
+	return strings.HasPrefix(resourceName, "user/")
 }

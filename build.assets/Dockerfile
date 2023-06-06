@@ -1,13 +1,9 @@
 # This Dockerfile makes the "build box" the container used to:
-# * build Teleport Connect
 # * run test and linters in CI
 # * building other Docker images
 #
 # For Teleport releases we're using CentOS 7 box to keep the binaries compatible
 # with older Linux distributions (glibc 2.17+).
-#
-# This image uses Ubuntu 20.04 as a base as Connect links against glibc and
-# we want to keep the required version as low as possible.
 #
 # Check the README to learn how to safely introduce changes to Dockerfiles.
 
@@ -298,7 +294,7 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
-RUN TAG='v1.53.1' && \
+RUN TAG='v1.53.2' && \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 
