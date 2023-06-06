@@ -17,16 +17,15 @@ limitations under the License.
 package services
 
 import (
-	"encoding/json"
-
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/trace"
 )
 
 // UnmarshalDevice unmarshals a DeviceV1 resource and runs CheckAndSetDefaults.
 func UnmarshalDevice(raw []byte) (*types.DeviceV1, error) {
 	dev := &types.DeviceV1{}
-	if err := json.Unmarshal(raw, dev); err != nil {
+	if err := utils.FastUnmarshal(raw, dev); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return dev, trace.Wrap(dev.CheckAndSetDefaults())
@@ -34,7 +33,7 @@ func UnmarshalDevice(raw []byte) (*types.DeviceV1, error) {
 
 // MarshalDevice marshals a DeviceV1 resource.
 func MarshalDevice(dev *types.DeviceV1) ([]byte, error) {
-	devBytes, err := json.Marshal(dev)
+	devBytes, err := utils.FastMarshal(dev)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
