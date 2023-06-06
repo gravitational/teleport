@@ -35,18 +35,18 @@ type PresenceMaintainer interface {
 
 const mfaChallengeInterval = time.Second * 30
 
-// PresenceOptions allows passing optional overrides
+// presenceOptions allows passing optional overrides
 // to RunPresenceTask. Mainly used by tests.
-type PresenceOptions struct {
+type presenceOptions struct {
 	Clock clockwork.Clock
 }
 
 // PresenceOption a functional option for RunPresenceTask.
-type PresenceOption func(p *PresenceOptions)
+type PresenceOption func(p *presenceOptions)
 
 // WithPresenceClock sets the clock to be used by RunPresenceTask.
 func WithPresenceClock(clock clockwork.Clock) PresenceOption {
-	return func(p *PresenceOptions) {
+	return func(p *presenceOptions) {
 		p.Clock = clock
 	}
 }
@@ -56,7 +56,7 @@ func WithPresenceClock(clock clockwork.Clock) PresenceOption {
 func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, promptMFAChallenge PromptMFAChallengeHandler, opts ...PresenceOption) error {
 	fmt.Fprintf(term, "\r\nTeleport > MFA presence enabled\r\n")
 
-	o := &PresenceOptions{
+	o := &presenceOptions{
 		Clock: clockwork.NewRealClock(),
 	}
 
