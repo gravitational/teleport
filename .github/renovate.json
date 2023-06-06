@@ -31,6 +31,28 @@
     },
     {
       "matchManagers": ["gomod"],
+      "enabled": false,
+      "matchFiles": ["go.mod"],
+      "groupName": "Teleport - Go",
+      "packageNames": [
+        "github.com/alecthomas/kingpin/v2",
+        "github.com/aquasecurity/libbpfgo",
+        "github.com/coreos/go-oidc",
+        "github.com/go-mysql-org/go-mysql",
+        "github.com/go-redis/redis/v9",
+        "github.com/go-webauthn/webauthn",
+        "github.com/gogo/protobuf",
+        "github.com/gravitational/ttlmap",
+        "github.com/julienschmidt/httprouter",
+        "github.com/keys-pub/go-libfido2",
+        "github.com/microsoft/go-mssqldb",
+        "github.com/vulcand/predicate",
+        "go.mongodb.org/mongo-driver",
+        "golang.org/x/crypto"
+      ]
+    },
+    {
+      "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["api/go.mod"],
