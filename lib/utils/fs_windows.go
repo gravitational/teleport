@@ -26,8 +26,16 @@ limitations under the License.
 // locking. Repeatedly removing them on unlock when acquiring dozens of locks in a short timespan
 // was causing flock.Flock.TryRLock to return either "access denied" or "The process cannot access
 // the file because it is being used by another process".
+
+import "strings"
+
 const lockPostfix = ".lock.tmp"
 
 func getPlatformLockFilePath(path string) string {
+	// If target file is itself dedicated lockfile, we don't create another lockfile, since
+	// we don't intend to read/write the target file itself.
+	if strings.HasSuffix(path, ".lock") {
+		return path
+	}
 	return path + lockPostfix
 }

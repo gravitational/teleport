@@ -172,6 +172,7 @@
     "TOUCHID",
     "Tele",
     "Templating",
+    "TESTDEVICE",
     "Tmkx",
     "Toboth",
     "Traefik",
@@ -296,6 +297,7 @@
     "cqlsh",
     "createkey",
     "createnongalleryapp",
+    "createrole",
     "creds",
     "crond",
     "customizability",
@@ -751,5 +753,7 @@
     "znmqk",
     "zxvf"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

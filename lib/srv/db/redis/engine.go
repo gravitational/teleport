@@ -25,7 +25,6 @@ import (
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
-	"github.com/coreos/go-semver/semver"
 	"github.com/go-redis/redis/v9"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/srv/db/redis/protocol"
@@ -315,21 +315,14 @@ func (e *Engine) isAWSIAMAuthSupported(ctx context.Context, sessionCtx *common.S
 	return ok
 }
 
-// checkDBSupportsIAMAuth returns whether the given database supports IAM auth.
+// checkDBSupportsIAMAuth returns whether the given database is an ElastiCache
+// database that supports IAM auth.
 // AWS ElastiCache Redis supports IAM auth for redis version 7+.
 func checkDBSupportsIAMAuth(database types.Database) (bool, error) {
 	if !database.IsElastiCache() {
 		return false, nil
 	}
-	version, ok := database.GetLabel("engine-version")
-	if !ok {
-		return false, trace.NotFound("database missing engine-version label")
-	}
-	v, err := semver.NewVersion(strings.TrimPrefix(version, "v"))
-	if err != nil {
-		return false, trace.Wrap(err, "failed to parse engine-version")
-	}
-	return v.Major >= 7, nil
+	return iam.CheckElastiCacheSupportsIAMAuth(database)
 }
 
 // checkUserIAMAuthIsEnabled returns whether a given ElastiCache user has IAM auth

@@ -243,3 +243,7 @@ func statusErrorFromC(res C.int32_t) error {
 func solveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, trace.BadParameter("called solveTPMEnrollChallenge on darwin")
 }
+
+func solveTPMAuthnDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return nil, trace.BadParameter("called solveTPMAuthnDeviceChallenge on darwin")
+}

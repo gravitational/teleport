@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
@@ -161,17 +162,23 @@ func (b *Bot) Run(ctx context.Context) error {
 			}
 		})
 	}
-	if b.cfg.Debug && b.cfg.DiagAddr != "" {
+
+	if b.cfg.DiagAddr != "" {
 		eg.Go(func() error {
 			b.log.WithField("addr", b.cfg.DiagAddr).Info(
-				"DiagAddr configured, diagnostics service will be started.",
+				"diag_addr configured, diagnostics service will be started.",
 			)
 			mux := http.NewServeMux()
-			mux.HandleFunc("/debug/pprof/", pprof.Index)
-			mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
-			mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
-			mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
-			mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+			mux.Handle("/metrics", promhttp.Handler())
+			// Only expose pprof when `-d` is provided.
+			if b.cfg.Debug {
+				b.log.Info("debug mode enabled, profiling endpoints will be served on the diagnostics service.")
+				mux.HandleFunc("/debug/pprof/", pprof.Index)
+				mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+				mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+				mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+				mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+			}
 			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				w.WriteHeader(http.StatusNotFound)
 				msg := "404 - Not Found\n\nI'm a little tbot,\nshort and stout,\nthe page you seek,\nis not about."
