@@ -571,6 +571,89 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 	}
 }
 
+func TestGetAWSIAMCreds(t *testing.T) {
+	t.Parallel()
+	clock := clockwork.NewFakeClock()
+	ctx := context.Background()
+
+	for name, tt := range map[string]struct {
+		db                   types.Database
+		stsMock              *mocks.STSMock
+		username             string
+		expectedKeyId        string
+		expectedAssumedRoles []string
+		expectedExternalIDs  []string
+		expectErr            require.ErrorAssertionFunc
+	}{
+		"username is full role ARN": {
+			db:                   newMongoAtlasDatabase(t, types.AWS{}),
+			stsMock:              &mocks.STSMock{},
+			username:             "arn:aws:iam::123456789012:role/role-name",
+			expectedKeyId:        "arn:aws:iam::123456789012:role/role-name",
+			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/role-name"},
+			expectedExternalIDs:  []string{""},
+			expectErr:            require.NoError,
+		},
+		"username is partial role ARN": {
+			db: newMongoAtlasDatabase(t, types.AWS{}),
+			stsMock: &mocks.STSMock{
+				// This is the role returned by the STS GetCallerIdentity.
+				ARN: "arn:aws:iam::222222222222:role/teleport-service-role",
+			},
+			username:             "role/role-name",
+			expectedKeyId:        "arn:aws:iam::222222222222:role/role-name",
+			expectedAssumedRoles: []string{"arn:aws:iam::222222222222:role/role-name"},
+			expectedExternalIDs:  []string{""},
+			expectErr:            require.NoError,
+		},
+		"unable to fetch account ID": {
+			db: newMongoAtlasDatabase(t, types.AWS{}),
+			stsMock: &mocks.STSMock{
+				ARN: "",
+			},
+			username:  "role/role-name",
+			expectErr: require.Error,
+		},
+		"chained IAM role": {
+			db: newMongoAtlasDatabase(t, types.AWS{
+				ExternalID:    "123123",
+				AssumeRoleARN: "arn:aws:iam::222222222222:role/teleport-service-role-external",
+			}),
+			stsMock: &mocks.STSMock{
+				ARN: "arn:aws:iam::111111111111:role/teleport-service-role",
+			},
+			username:      "role/role-name",
+			expectedKeyId: "arn:aws:iam::222222222222:role/role-name",
+			expectedAssumedRoles: []string{
+				"arn:aws:iam::222222222222:role/teleport-service-role-external",
+				"arn:aws:iam::222222222222:role/role-name",
+			},
+			expectedExternalIDs: []string{"123123", ""},
+			expectErr:           require.NoError,
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			auth, err := NewAuth(AuthConfig{
+				Clock:      clock,
+				AuthClient: new(authClientMock),
+				Clients: &cloud.TestCloudClients{
+					STS: tt.stsMock,
+				},
+			})
+			require.NoError(t, err)
+
+			keyId, _, _, err := auth.GetAWSIAMCreds(ctx, &Session{
+				Database:     tt.db,
+				DatabaseUser: tt.username,
+			})
+			tt.expectErr(t, err)
+			require.Equal(t, tt.expectedKeyId, keyId)
+			require.ElementsMatch(t, tt.expectedAssumedRoles, tt.stsMock.GetAssumedRoleARNs())
+			require.ElementsMatch(t, tt.expectedExternalIDs, tt.stsMock.GetAssumedRoleExternalIDs())
+		})
+	}
+}
+
 func newAzureRedisDatabase(t *testing.T, resourceID string) types.Database {
 	t.Helper()
 
@@ -612,6 +695,23 @@ func newCloudSQLDatabase(t *testing.T, projectID, instanceID string) types.Datab
 			ProjectID:  projectID,
 			InstanceID: instanceID,
 		},
+	})
+	require.NoError(t, err)
+	return database
+}
+
+func newMongoAtlasDatabase(t *testing.T, aws types.AWS) types.Database {
+	t.Helper()
+
+	database, err := types.NewDatabaseV3(types.Metadata{
+		Name: "test-database",
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolMongoDB,
+		URI:      "test.xxxxxxx.mongodb.net",
+		MongoAtlas: types.MongoAtlas{
+			Name: "test",
+		},
+		AWS: aws,
 	})
 	require.NoError(t, err)
 	return database
