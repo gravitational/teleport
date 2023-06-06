@@ -17,6 +17,7 @@ limitations under the License.
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"strings"
@@ -26,6 +27,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 // MarshalConfig specifies marshaling options
@@ -636,5 +638,44 @@ func (u *UnknownResource) UnmarshalJSON(raw []byte) error {
 	u.Raw = make([]byte, len(raw))
 	u.ResourceHeader = h
 	copy(u.Raw, raw)
+	return nil
+}
+
+type bootstrapResourcesType struct {
+	LocalResources  []types.Resource
+	DeviceResources []types.DeviceV1
+}
+
+func FilterBootstrapResourcesByType(resources ...types.Resource) (filteredResources bootstrapResourcesType) {
+	for _, res := range resources {
+		switch r := res.(type) {
+		case *types.DeviceV1:
+			filteredResources.DeviceResources = append(filteredResources.DeviceResources, *r)
+		default:
+			filteredResources.LocalResources = append(filteredResources.LocalResources, r)
+		}
+	}
+
+	return
+}
+
+type BootstrapDeviceResource func(context.Context, backend.Backend, *types.DeviceV1) error
+
+var eDeviceBootstrapper BootstrapDeviceResource
+var eDeviceBootsrapMutex sync.RWMutex
+
+func RegisterDeviceBootstrapper(kind string, bootstrapper BootstrapDeviceResource) {
+	eDeviceBootsrapMutex.Lock()
+	defer eDeviceBootsrapMutex.Unlock()
+	eDeviceBootstrapper = bootstrapper
+}
+
+func BootstrapDevices(ctx context.Context, b backend.Backend, devices []types.DeviceV1) error {
+	for _, dev := range devices {
+		if err := eDeviceBootstrapper(ctx, b, &dev); err != nil {
+			return trace.Wrap(err)
+		}
+
+	}
 	return nil
 }

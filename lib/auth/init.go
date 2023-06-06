@@ -271,8 +271,13 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 			if err := checkResourceConsistency(ctx, asrv.keyStore, domainName, cfg.BootstrapResources...); err != nil {
 				return nil, trace.Wrap(err, "refusing to bootstrap backend")
 			}
-			if err := local.CreateResources(ctx, cfg.Backend, cfg.BootstrapResources...); err != nil {
+			resources := services.FilterBootstrapResourcesByType(cfg.BootstrapResources...)
+			if err := local.CreateResources(ctx, cfg.Backend, resources.LocalResources...); err != nil {
 				return nil, trace.Wrap(err, "backend bootstrap failed")
+			}
+
+			if err := services.BootstrapDevices(ctx, cfg.Backend, resources.DeviceResources); err != nil {
+				return nil, trace.Wrap(err, "device resource bootstrap failed")
 			}
 		} else {
 			log.Warnf("Ignoring %v bootstrap resources (previously initialized)", len(cfg.BootstrapResources))
