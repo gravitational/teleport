@@ -1790,3 +1790,101 @@ func TestValidateAccessRequestClusterNames(t *testing.T) {
 		})
 	}
 }
+
+type mockResourceLister struct {
+	resources []types.ResourceWithLabels
+}
+
+func (m *mockResourceLister) ListResources(ctx context.Context, _ proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	return &types.ListResourcesResponse{
+		Resources: m.resources,
+	}, nil
+}
+
+func TestGetResourceDetails(t *testing.T) {
+	clusterName := "cluster"
+
+	presence := &mockResourceLister{
+		resources: []types.ResourceWithLabels{
+			newNode(t, "node1", "hostname 1"),
+			newAppServer(t, "app1", "friendly app 1", types.OriginDynamic),
+			newAppServer(t, "app2", "friendly app 2", types.OriginDynamic),
+			newAppServer(t, "app3", "friendly app 3", types.OriginOkta),
+			newUserGroup(t, "group1", "friendly group 1", types.OriginOkta),
+		},
+	}
+	resourceIDs := []types.ResourceID{
+		newResourceID(clusterName, types.KindNode, "node1"),
+		newResourceID(clusterName, types.KindAppServer, "app1"),
+		newResourceID(clusterName, types.KindAppServer, "app2"),
+		newResourceID(clusterName, types.KindAppServer, "app3"),
+		newResourceID(clusterName, types.KindUserGroup, "group1"),
+	}
+
+	ctx := context.Background()
+
+	details, err := GetResourceDetails(ctx, clusterName, presence, resourceIDs)
+	require.NoError(t, err)
+
+	require.Equal(t, "hostname 1", details[types.ResourceIDToString(newResourceID(clusterName, types.KindNode, "node1"))].Hostname)
+	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindNode, "node1"))].FriendlyName)
+
+	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app1"))].Hostname)
+	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app1"))].FriendlyName)
+
+	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app2"))].Hostname)
+	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app2"))].FriendlyName)
+
+	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app3"))].Hostname)
+	require.Equal(t, "friendly app 3", details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app3"))].FriendlyName)
+
+	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindUserGroup, "group1"))].Hostname)
+	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(newResourceID(clusterName, types.KindUserGroup, "group1"))].FriendlyName)
+}
+
+func newNode(t *testing.T, name, hostname string) types.Server {
+	node, err := types.NewServer(name, types.KindNode,
+		types.ServerSpecV2{
+			Hostname: hostname,
+		})
+	require.NoError(t, err)
+	return node
+}
+
+func newAppServer(t *testing.T, name, description, origin string) types.AppServer {
+	app, err := types.NewAppV3(types.Metadata{
+		Name:        name,
+		Description: description,
+		Labels: map[string]string{
+			types.OriginLabel: origin,
+		},
+	},
+		types.AppSpecV3{
+			URI:        "https://some-addr.com",
+			PublicAddr: "https://some-addr.com",
+		})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, "test-hostname", "test-hostID")
+	require.NoError(t, err)
+	return appServer
+}
+
+func newUserGroup(t *testing.T, name, description, origin string) types.UserGroup {
+	userGroup, err := types.NewUserGroup(types.Metadata{
+		Name:        name,
+		Description: description,
+		Labels: map[string]string{
+			types.OriginLabel: origin,
+		},
+	})
+	require.NoError(t, err)
+	return userGroup
+}
+
+func newResourceID(clusterName, kind, name string) types.ResourceID {
+	return types.ResourceID{
+		ClusterName: clusterName,
+		Kind:        kind,
+		Name:        name,
+	}
+}
