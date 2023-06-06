@@ -12,7 +12,7 @@
       "enabled": true,
       "matchFiles": ["go.mod"],
       "groupName": "Teleport - Go",
-      "excludeDepNames": [
+      "excludePackageNames": [
         "github.com/alecthomas/kingpin/v2",
         "github.com/aquasecurity/libbpfgo",
         "github.com/coreos/go-oidc",
@@ -54,7 +54,7 @@
       "enabled": true,
       "matchFiles": ["assets/aws/go.mod"],
       "groupName": "Assets - AWS ",
-      "excludeDepNames": [
+      "excludePackageNames": [
         "github.com/alecthomas/kingpin/v2"
       ]
     },
@@ -71,7 +71,7 @@
       "enabled": true,
       "matchFiles": ["build.assets/tooling/go.mod"],
       "groupName": "Build Assets - Tooling",
-      "excludeDepNames": [
+      "excludePackageNames": [
         "github.com/alecthomas/kingpin/v2"
       ]
     },
