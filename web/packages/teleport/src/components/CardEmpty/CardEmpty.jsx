@@ -27,7 +27,7 @@ export default function CardEmpty(props) {
       m="0 auto"
       maxWidth="600px"
       textAlign="center"
-      color="text.primary"
+      color="text.main"
       style={{ borderRadius: '6px' }}
       {...styles}
     >

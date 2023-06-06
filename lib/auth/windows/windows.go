@@ -21,6 +21,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/asn1"
+	"encoding/json"
 	"encoding/pem"
 	"fmt"
 	"time"
@@ -30,6 +31,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 const (
@@ -44,6 +46,20 @@ type certRequest struct {
 	csrPEM      []byte
 	crlEndpoint string
 	keyDER      []byte
+}
+
+func createUsersExtension(groups []string) (pkix.Extension, error) {
+	value, err := json.Marshal(struct {
+		CreateUser bool     `json:"createUser"`
+		Groups     []string `json:"groups"`
+	}{true, groups})
+	if err != nil {
+		return pkix.Extension{}, trace.Wrap(err)
+	}
+	return pkix.Extension{
+		Id:    tlsca.CreateWindowsUserOID,
+		Value: value,
+	}, nil
 }
 
 func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
@@ -76,6 +92,14 @@ func getCertRequest(req *GenerateCredentialsRequest) (*certRequest, error) {
 			EnhancedKeyUsageExtension,
 			san,
 		},
+	}
+
+	if req.CreateUser {
+		createUser, err := createUsersExtension(req.Groups)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		csr.ExtraExtensions = append(csr.ExtraExtensions, createUser)
 	}
 
 	if req.ActiveDirectorySID != "" {
@@ -145,6 +169,10 @@ type GenerateCredentialsRequest struct {
 	// CAType is the certificate authority type used to generate the certificate.
 	// This is used to proper generate the CRL LDAP path.
 	CAType types.CertAuthType
+	// CreateUser specifies if Windows user should be created if missing
+	CreateUser bool
+	// Groups are groups that user should be member of
+	Groups []string
 }
 
 // GenerateWindowsDesktopCredentials generates a private key / certificate pair for the given

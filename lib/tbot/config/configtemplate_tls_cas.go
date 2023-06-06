@@ -28,8 +28,8 @@ import (
 )
 
 const (
-	// defaultHostCAPath is the default filename for the host CA certificate
-	defaultHostCAPath = "teleport-host-ca.crt"
+	// DefaultHostCAPath is the default filename for the host CA certificate
+	DefaultHostCAPath = "teleport-host-ca.crt"
 
 	// defaultUserCAPath is the default filename for the user CA certificate
 	defaultUserCAPath = "teleport-user-ca.crt"
@@ -59,7 +59,7 @@ func (t *TemplateTLSCAs) CheckAndSetDefaults() error {
 	// that configurable.
 
 	if t.HostCAPath == "" {
-		t.HostCAPath = defaultHostCAPath
+		t.HostCAPath = DefaultHostCAPath
 	}
 
 	if t.UserCAPath == "" {
@@ -107,8 +107,8 @@ func concatCACerts(cas []types.CertAuthority) []byte {
 
 func (t *TemplateTLSCAs) Render(
 	ctx context.Context,
-	bot Bot,
-	_, _ *identity.Identity,
+	bot provider,
+	_ *identity.Identity,
 	destination *DestinationConfig,
 ) error {
 	hostCAs, err := bot.GetCertAuthorities(ctx, types.HostCA)

@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -803,10 +804,9 @@ type OktaAccessPoint interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 
-	// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-	// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-	// will be updated if possible.
-	UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error)
+	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+	// since the last transition.
+	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
 
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
@@ -1006,6 +1006,16 @@ type Cache interface {
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
+
+	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
+	// GetOktaAssignment returns the specified Okta assignment resources.
+	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
+
+	// ListUserGroups returns a paginated list of all user group resources.
+	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
+	// GetUserGroup returns the specified user group resources.
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
 
 	// IntegrationsGetter defines read/list methods for integrations.
 	services.IntegrationsGetter
@@ -1263,11 +1273,10 @@ func (w *OktaWrapper) UpdateOktaAssignment(ctx context.Context, assignment types
 	return w.NoCache.UpdateOktaAssignment(ctx, assignment)
 }
 
-// UpdateOktaAssignmentActionStatuses will update the statuses for all actions in an Okta assignment if the
-// status is a valid transition. If a transition is invalid, it will be logged and the rest of the action statuses
-// will be updated if possible.
-func (w *OktaWrapper) UpdateOktaAssignmentActionStatuses(ctx context.Context, name, status string) (types.OktaAssignment, error) {
-	return w.NoCache.UpdateOktaAssignmentActionStatuses(ctx, name, status)
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+// since the last transition.
+func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
+	return w.NoCache.UpdateOktaAssignmentStatus(ctx, name, status, timeHasPassed)
 }
 
 // DeleteOktaAssignment removes the specified Okta assignment resource.

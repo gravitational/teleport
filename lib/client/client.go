@@ -21,6 +21,7 @@ import (
 	"context"
 	"crypto/tls"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -30,6 +31,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
@@ -47,6 +49,7 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -89,6 +92,11 @@ type NodeClient struct {
 
 	mu      sync.Mutex
 	closers []io.Closer
+
+	// ProxyPublicAddr is the web proxy public addr, as opposed to the local proxy
+	// addr set in TC.WebProxyAddr. This is needed to report the correct address
+	// to SSH_TELEPORT_WEBPROXY_ADDR used by some features like "teleport status".
+	ProxyPublicAddr string
 }
 
 // AddCloser adds an [io.Closer] that will be closed when the
@@ -564,11 +572,22 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		Init: initReq,
 	}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
+		err = trail.FromGRPC(err)
+		// Older versions will NOT reply with a MFARequired response in the
+		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
+		// In this case for all protocols other than SSH fall back to reissuing
+		// certs without MFA.
+		if errors.Is(err, auth.ErrNoMFADevices) {
+			if params.usage() != proto.UserCertsRequest_SSH {
+				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 	mfaChal := resp.GetMFAChallenge()
@@ -577,16 +596,16 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 	}
 	mfaResp, err := promptMFAChallenge(ctx, proxy.teleportClient.WebProxyAddr, mfaChal)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 
 	resp, err = stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 	certResp := resp.GetCert()
 	if certResp == nil {
@@ -636,6 +655,11 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		params.AccessRequests = activeRequests.AccessRequests
 	}
 
+	attestationStatement, err := keys.GetAttestationStatement(key.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &proto.UserCertsRequest{
 		PublicKey:             key.MarshalSSHPublicKey(),
 		Username:              tlsCert.Subject.CommonName,
@@ -651,6 +675,7 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		Usage:                 params.usage(),
 		Format:                proxy.teleportClient.CertificateFormat,
 		RequesterName:         params.RequesterName,
+		AttestationStatement:  attestationStatement.ToProto(),
 	}, nil
 }
 
@@ -850,6 +875,8 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer authClient.Close()
+
 	ws, err := authClient.CreateAppSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -859,6 +886,8 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer accessPoint.Close()
+
 	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1115,6 +1144,8 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		ALPNSNIAuthDialClusterName: clusterName,
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
 		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(proxyAddr),
+		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
+		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1582,8 +1613,11 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	env[teleport.EnvSSHSessionInvited] = string(encoded)
+
+	// Overwrite "SSH_SESSION_WEBPROXY_ADDR" with the public addr reported by the proxy. Otherwise,
+	// this would be set to the localhost addr (tc.WebProxyAddr) used for Web UI client connections.
+	env[teleport.SSHSessionWebproxyAddr] = c.ProxyPublicAddr
 
 	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
 	if err != nil {
@@ -1642,6 +1676,15 @@ func (c *NodeClient) RunCommand(ctx context.Context, command []string) error {
 	}
 
 	return nil
+}
+
+// AddEnv add environment variable to SSH session. This method needs to be called
+// before the session is created.
+func (c *NodeClient) AddEnv(key, value string) {
+	if c.TC.extraEnvs == nil {
+		c.TC.extraEnvs = make(map[string]string)
+	}
+	c.TC.extraEnvs[key] = value
 }
 
 func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan *ssh.Request) {
@@ -1956,8 +1999,13 @@ func GetPaginatedSessions(ctx context.Context, fromUTC, toUTC time.Time, pageSiz
 		if remaining := max - len(sessions); remaining < pageSize {
 			pageSize = remaining
 		}
-		nextEvents, eventKey, err := authClient.SearchSessionEvents(fromUTC, toUTC,
-			pageSize, order, prevEventKey, nil /* where condition */, "" /* session ID */)
+		nextEvents, eventKey, err := authClient.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+			From:     fromUTC,
+			To:       toUTC,
+			Limit:    pageSize,
+			Order:    order,
+			StartKey: prevEventKey,
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

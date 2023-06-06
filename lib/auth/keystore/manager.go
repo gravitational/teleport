@@ -57,8 +57,8 @@ func WithDigestAlgorithm(alg crypto.Hash) RSAKeyOption {
 type backend interface {
 	// DeleteUnusedKeys deletes all keys from the KeyStore if they are:
 	// 1. Labeled by this KeyStore when they were created
-	// 2. Not included in the argument usedKeys
-	DeleteUnusedKeys(ctx context.Context, usedKeys [][]byte) error
+	// 2. Not included in the argument activeKeys
+	DeleteUnusedKeys(ctx context.Context, activeKeys [][]byte) error
 
 	// generateRSA creates a new RSA private key and returns its identifier and
 	// a crypto.Signer. The returned identifier can be passed to getSigner

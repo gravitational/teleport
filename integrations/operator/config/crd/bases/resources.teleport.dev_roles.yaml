@@ -74,6 +74,13 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_roles:
+                    description: DatabaseRoles is a list of databases roles for automatic
+                      user creation.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   db_service_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -81,8 +88,15 @@ spec:
                       allow/deny access to Database Services.
                     type: object
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  desktop_groups:
+                    description: DesktopGroups is a list of groups for created desktop
+                      users to be added to
                     items:
                       type: string
                     nullable: true
@@ -94,6 +108,12 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  group_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: GroupLabels is a map of labels used as part of the
+                      RBAC system.
+                    type: object
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -470,6 +490,13 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_roles:
+                    description: DatabaseRoles is a list of databases roles for automatic
+                      user creation.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   db_service_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -477,8 +504,15 @@ spec:
                       allow/deny access to Database Services.
                     type: object
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  desktop_groups:
+                    description: DesktopGroups is a list of groups for created desktop
+                      users to be added to
                     items:
                       type: string
                     nullable: true
@@ -490,6 +524,12 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  group_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: GroupLabels is a map of labels used as part of the
+                      RBAC system.
+                    type: object
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -845,7 +885,7 @@ spec:
                           format: int32
                           type: integer
                         value:
-                          description: Value specifies the valueg to be used in the
+                          description: Value specifies the value to be used in the
                             cert extension.
                           type: string
                       type: object
@@ -861,6 +901,14 @@ spec:
                       is set to the idle duration.
                     format: duration
                     type: string
+                  create_db_user:
+                    description: CreateDatabaseUser enabled automatic database user
+                      creation.
+                    type: boolean
+                  create_desktop_user:
+                    description: CreateDesktopUser allows users to be automatically
+                      created on a Windows desktop
+                    type: boolean
                   create_host_user:
                     description: CreateHostUser allows users to be automatically created
                       on a host
@@ -965,7 +1013,7 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request stategy
+                    description: RequestAccess defines the access request strategy
                       (optional|note|always) where optional is the default.
                     type: string
                   request_prompt:
@@ -1128,6 +1176,13 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_roles:
+                    description: DatabaseRoles is a list of databases roles for automatic
+                      user creation.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   db_service_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -1135,8 +1190,15 @@ spec:
                       allow/deny access to Database Services.
                     type: object
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  desktop_groups:
+                    description: DesktopGroups is a list of groups for created desktop
+                      users to be added to
                     items:
                       type: string
                     nullable: true
@@ -1148,6 +1210,12 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  group_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: GroupLabels is a map of labels used as part of the
+                      RBAC system.
+                    type: object
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -1524,6 +1592,13 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_roles:
+                    description: DatabaseRoles is a list of databases roles for automatic
+                      user creation.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
                   db_service_labels:
                     additionalProperties:
                       x-kubernetes-preserve-unknown-fields: true
@@ -1531,8 +1606,15 @@ spec:
                       allow/deny access to Database Services.
                     type: object
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  desktop_groups:
+                    description: DesktopGroups is a list of groups for created desktop
+                      users to be added to
                     items:
                       type: string
                     nullable: true
@@ -1544,6 +1626,12 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  group_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: GroupLabels is a map of labels used as part of the
+                      RBAC system.
+                    type: object
                   host_groups:
                     description: HostGroups is a list of groups for created users
                       to be added to
@@ -1899,7 +1987,7 @@ spec:
                           format: int32
                           type: integer
                         value:
-                          description: Value specifies the valueg to be used in the
+                          description: Value specifies the value to be used in the
                             cert extension.
                           type: string
                       type: object
@@ -1915,6 +2003,14 @@ spec:
                       is set to the idle duration.
                     format: duration
                     type: string
+                  create_db_user:
+                    description: CreateDatabaseUser enabled automatic database user
+                      creation.
+                    type: boolean
+                  create_desktop_user:
+                    description: CreateDesktopUser allows users to be automatically
+                      created on a Windows desktop
+                    type: boolean
                   create_host_user:
                     description: CreateHostUser allows users to be automatically created
                       on a host
@@ -2019,7 +2115,7 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request stategy
+                    description: RequestAccess defines the access request strategy
                       (optional|note|always) where optional is the default.
                     type: string
                   request_prompt:

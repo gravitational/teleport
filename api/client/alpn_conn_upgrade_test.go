@@ -240,6 +240,7 @@ func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, constants.WebAPIConnUpgrade, r.URL.Path)
 		require.Equal(t, upgradeType, r.Header.Get(constants.WebAPIConnUpgradeHeader))
+		require.Equal(t, constants.WebAPIConnUpgradeConnectionType, r.Header.Get(constants.WebAPIConnUpgradeConnectionHeader))
 
 		hj, ok := w.(http.Hijacker)
 		require.True(t, ok)

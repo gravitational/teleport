@@ -818,7 +818,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 
 	require.True(t, cfg.Databases.Enabled)
 	require.Empty(t, cmp.Diff(cfg.Databases.AzureMatchers,
-		[]services.AzureMatcher{
+		[]types.AzureMatcher{
 			{
 				Subscriptions:  []string{"sub1", "sub2"},
 				ResourceGroups: []string{"group1", "group2"},
@@ -839,11 +839,11 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			},
 		}))
 	require.Empty(t, cmp.Diff(cfg.Databases.AWSMatchers,
-		[]services.AWSMatcher{
+		[]types.AWSMatcher{
 			{
 				Types:   []string{"rds"},
 				Regions: []string{"us-west-1"},
-				AssumeRole: services.AssumeRole{
+				AssumeRole: &types.AssumeRole{
 					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
 					ExternalID: "externalID123",
 				},
@@ -872,7 +872,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Types, []string{"ec2"})
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.RoleARN, "arn:aws:iam::123456789012:role/DBDiscoverer")
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalID, "externalID123")
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, services.InstallerParams{
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, &types.InstallerParams{
 		InstallTeleport: true,
 		JoinMethod:      "iam",
 		JoinToken:       defaults.IAMInviteTokenName,
@@ -3384,6 +3384,145 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 	}
 }
 
+func TestApplyConfig_JamfService(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Write a password file, valid configs require one.
+	const password = "supersecret!!1!"
+	passwordFile := filepath.Join(tempDir, "test_jamf_password.txt")
+	require.NoError(t,
+		os.WriteFile(passwordFile, []byte(password+"\n"), 0400),
+		"WriteFile(%q) failed", passwordFile)
+
+	minimalYAML := fmt.Sprintf(`
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama
+  password_file: %v
+`, passwordFile)
+
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr string
+		want    servicecfg.JamfConfig
+	}{
+		{
+			name: "minimal config",
+			yaml: minimalYAML,
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:     true,
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+					Username:    "llama",
+					Password:    password,
+				},
+			},
+		},
+		{
+			name: "all fields",
+			yaml: minimalYAML + `  name: jamf2
+  sync_delay: 1m
+  exit_on_sync: true
+  inventory:
+  - filter_rsql: 1==1
+    sync_period_partial: 4h
+    sync_period_full: 48h
+    on_missing: NOOP
+  - {}`,
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:     true,
+					Name:        "jamf2",
+					SyncDelay:   types.Duration(1 * time.Minute),
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+					Username:    "llama",
+					Password:    password,
+					Inventory: []*types.JamfInventoryEntry{
+						{
+							FilterRsql:        "1==1",
+							SyncPeriodPartial: types.Duration(4 * time.Hour),
+							SyncPeriodFull:    types.Duration(48 * time.Hour),
+							OnMissing:         "NOOP",
+						},
+						{},
+					},
+				},
+				ExitOnSync: true,
+			},
+		},
+
+		{
+			name:    "listen_addr not supported",
+			yaml:    minimalYAML + `  listen_addr: localhost:55555`,
+			wantErr: "listen_addr",
+		},
+		{
+			name: "password_file empty",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama`,
+			wantErr: "password_file required",
+		},
+		{
+			name: "password_file invalid",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama
+  password_file: /path/to/file/that/doesnt/exist.txt`,
+			wantErr: "password_file",
+		},
+		{
+			name: "spec is validated",
+			yaml: minimalYAML + `  inventory:
+  - on_missing: BANANA`,
+			wantErr: "on_missing",
+		},
+
+		{
+			name: "absent config ignored",
+			yaml: ``,
+		},
+		{
+			name: "empty config ignored",
+			yaml: `jamf_service: {}`,
+		},
+		{
+			name: "disabled config is validated",
+			yaml: `
+jamf_service:
+  enabled: false
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama`,
+			wantErr: "password_file",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fc, err := ReadConfig(strings.NewReader(test.yaml))
+			require.NoError(t, err, "ReadConfig failed")
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = ApplyFileConfig(fc, cfg)
+			if test.wantErr == "" {
+				require.NoError(t, err, "ApplyFileConfig failed")
+			} else {
+				assert.ErrorContains(t, err, test.wantErr, "ApplyFileConfig error mismatch")
+				return
+			}
+
+			if diff := cmp.Diff(test.want, cfg.Jamf, protocmp.Transform()); diff != "" {
+				t.Errorf("ApplyFileConfig: JamfConfig mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestAuthHostedPlugins(t *testing.T) {
 	t.Parallel()
 
@@ -3566,11 +3705,11 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 			},
 			expectedDiscovery: servicecfg.DiscoveryConfig{
 				Enabled: true,
-				AzureMatchers: []services.AzureMatcher{
+				AzureMatchers: []types.AzureMatcher{
 					{
 						Subscriptions: []string{"abcd"},
 						Types:         []string{"aks", "vm"},
-						Params: services.InstallerParams{
+						Params: &types.InstallerParams{
 							JoinMethod:      "azure",
 							JoinToken:       "azure-token",
 							ScriptName:      "default-installer",
@@ -3592,7 +3731,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 			},
 			expectedDiscovery: servicecfg.DiscoveryConfig{
 				Enabled: true,
-				AzureMatchers: []services.AzureMatcher{
+				AzureMatchers: []types.AzureMatcher{
 					{
 						Subscriptions: []string{"abcd"},
 						Types:         []string{"aks"},
@@ -3740,6 +3879,65 @@ func TestApplyOktaConfig(t *testing.T) {
 			if err == nil {
 				require.Equal(t, expectedOkta, cfg.Okta)
 			}
+		})
+	}
+}
+
+func TestAssistKey(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		desc        string
+		input       string
+		expectKey   string
+		expectError bool
+	}{
+		{
+			desc: "api token is set",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+      api_token_path: testdata/test-api-key
+`,
+			expectKey: "123-abc-zzz",
+		},
+		{
+			desc: "api token file does not exist",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+      api_token_path: testdata/non-existent-file
+`,
+			expectError: true,
+		},
+		{
+			desc: "missing api token doesn't error",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+`,
+			expectKey: "",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(strings.NewReader(tc.input))
+			require.NoError(t, err)
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.Equal(t, tc.expectKey, cfg.Proxy.AssistAPIKey)
 		})
 	}
 }

@@ -87,8 +87,8 @@ const StyledPlayer = styled.div`
 
 function useSshPlayer(clusterId: string, sid: string) {
   const tty = React.useMemo(() => {
-    const url = cfg.getTerminalSessionUrl({ clusterId, sid });
-    return new TtyPlayer(new EventProvider({ url }));
+    const prefixUrl = cfg.getSshPlaybackPrefixUrl({ clusterId, sid });
+    return new TtyPlayer(new EventProvider({ url: prefixUrl }));
   }, [sid, clusterId]);
 
   // to trigger re-render when tty state changes

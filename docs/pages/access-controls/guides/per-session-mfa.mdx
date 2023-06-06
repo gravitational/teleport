@@ -24,7 +24,6 @@ their on-disk Teleport certificates.
 
 <Details
   title="Version warning"
-  opened={false}
   scope={["oss", "enterprise"]}
   scopeOnly={true}
   min="6.1"
@@ -192,19 +191,8 @@ spec:
   allow:
     node_labels:
       env: dev
-    kubernetes_labels:
-      env: dev
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
-    db_labels:
-      'env': dev
-    db_users:
-    - '*'
-    db_names:
-    - '*'
-  deny: {}
+    logins:
+      - jerry
 ---
 # access-prod.yaml
 kind: role
@@ -218,37 +206,27 @@ spec:
   allow:
     node_labels:
       env: prod
-    kubernetes_labels:
-      env: prod
-    kubernetes_resources:
-      - kind: pod
-        namespace: "*"
-        name: "*"
-    db_labels:
-      'env': prod
-    db_users:
-    - '*'
-    db_names:
-    - '*'
+    logins:
+      - jerry
   deny: {}
 ```
 
 Olga then assigns both roles to all engineers, including Jerry.
 
-When Jerry logs into node `dev1.example.com` (with label `env: dev`), nothing
+When Jerry logs into node `dev1.example.com` (with label `env: dev` as login `jerry`), nothing
 special happens:
 
 ```code
-$ tsh ssh dev1.example.com
+$ tsh ssh jerry@dev1.example.com
 
 # jerry@dev1.example.com >
 ```
 
-But when Jerry logs into node `prod3.example.com` (with label `env: prod`), he
+But when Jerry logs into node `rod3.example.com` (with label `env: prod` as login `jerry`), he
 gets prompted for an MFA check:
 
 ```code
-$ tsh ssh prod3.example.com
+$ tsh ssh jerry@prod3.example.com
 # Tap any security key <tap>
 
 # jerry@prod3.example.com >

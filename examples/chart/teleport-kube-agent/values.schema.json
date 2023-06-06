@@ -292,8 +292,8 @@
             "type": "string",
             "default": "public.ecr.aws/gravitational/teleport-distroless"
         },
-        "entrepriseImage": {
-            "$id": "#/properties/entrepriseImage",
+        "enterpriseImage": {
+            "$id": "#/properties/enterpriseImage",
             "type": "string",
             "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
         },

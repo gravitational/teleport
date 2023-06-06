@@ -87,7 +87,7 @@ exports[`empty state for enterprise, can create 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   min-height: 32px;
@@ -100,7 +100,6 @@ exports[`empty state for enterprise, can create 1`] = `
 .c12:hover,
 .c12:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c12:active {
@@ -318,7 +317,7 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -330,7 +329,6 @@ exports[`failed state 1`] = `
 .c30:hover,
 .c30:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c30:active {
@@ -361,15 +359,102 @@ exports[`failed state 1`] = `
   transition: color 0.3s;
   color: #FFFFFF;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
-.c38 {
+.c40 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
+}
+
+.c38 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c38 .c20 {
+  color: inherit;
+}
+
+.c38:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c38:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c38:hover:enabled,
+.c38:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c38:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c41 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c41 .c20 {
+  color: inherit;
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c41:hover:enabled,
+.c41:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c41:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c19 {
@@ -389,7 +474,7 @@ exports[`failed state 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-right: 4px;
-  color: text.contrast;
+  color: #FFFFFF;
 }
 
 .c27 {
@@ -471,7 +556,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c36 {
+.c37 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -522,6 +607,7 @@ exports[`failed state 1`] = `
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
 }
@@ -584,7 +670,7 @@ exports[`failed state 1`] = `
 }
 
 .c24 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c24 tbody tr:hover {
@@ -599,6 +685,19 @@ exports[`failed state 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c36 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 
 .c4 {
@@ -627,29 +726,12 @@ exports[`failed state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c37 .c20 {
+.c39 .c20 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c37:hover .c20,
-.c37:focus .c20 {
-  opacity: 1;
-}
-
-.c37:disabled {
-  cursor: default;
-}
-
-.c37:disabled .c20 {
-  opacity: 0.1;
+.c39 .c20:before {
+  padding-left: 1px;
 }
 
 .c13 {
@@ -714,7 +796,7 @@ exports[`failed state 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -879,7 +961,7 @@ exports[`failed state 1`] = `
           >
             <div
               class="c23"
-              color="text.contrast"
+              color="text.main"
               style="text-transform: uppercase;"
             >
               Showing 
@@ -1179,7 +1261,7 @@ exports[`failed state 1`] = `
                 LAUNCH
                 <span
                   class="c20 c34 icon icon-caret-down "
-                  color="text.secondary"
+                  color="text.slightlyMuted"
                   font-size="2"
                 />
               </button>
@@ -1247,30 +1329,30 @@ exports[`failed state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c5"
+        class="c36"
       >
         <div
-          class="c36"
+          class="c37"
           width="100%"
         >
           <div
             class="c22"
           >
             <button
-              class="c37"
+              class="c38 c39"
               title="Previous page"
             >
               <span
-                class="c20 c38 icon icon-arrow-left-circle "
+                class="c20 c40 icon icon-arrow-left-circle "
                 font-size="3"
               />
             </button>
             <button
-              class="c37"
+              class="c41 c39"
               title="Next page"
             >
               <span
-                class="c20 c38 icon icon-arrow-right-circle "
+                class="c20 c40 icon icon-arrow-right-circle "
                 font-size="3"
               />
             </button>
@@ -1350,7 +1432,7 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -1362,7 +1444,6 @@ exports[`loaded state 1`] = `
 .c30:hover,
 .c30:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
 .c30:active {
@@ -1393,15 +1474,102 @@ exports[`loaded state 1`] = `
   transition: color 0.3s;
   color: #FFFFFF;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
-.c38 {
+.c40 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
+}
+
+.c38 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c38 .c20 {
+  color: inherit;
+}
+
+.c38:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c38:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c38:hover:enabled,
+.c38:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c38:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c41 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c41 .c20 {
+  color: inherit;
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c41:hover:enabled,
+.c41:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c41:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c19 {
@@ -1421,7 +1589,7 @@ exports[`loaded state 1`] = `
   line-height: 16px;
   margin: 0px;
   margin-right: 4px;
-  color: text.contrast;
+  color: #FFFFFF;
 }
 
 .c27 {
@@ -1503,7 +1671,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c36 {
+.c37 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1554,6 +1722,7 @@ exports[`loaded state 1`] = `
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
 }
@@ -1616,7 +1785,7 @@ exports[`loaded state 1`] = `
 }
 
 .c24 tbody tr {
-  border-bottom: 1px solid #0C143D;
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
 .c24 tbody tr:hover {
@@ -1631,6 +1800,19 @@ exports[`loaded state 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c36 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 
 .c4 {
@@ -1659,29 +1841,12 @@ exports[`loaded state 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c37 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c37 .c20 {
+.c39 .c20 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c37:hover .c20,
-.c37:focus .c20 {
-  opacity: 1;
-}
-
-.c37:disabled {
-  cursor: default;
-}
-
-.c37:disabled .c20 {
-  opacity: 0.1;
+.c39 .c20:before {
+  padding-left: 1px;
 }
 
 .c13 {
@@ -1746,7 +1911,7 @@ exports[`loaded state 1`] = `
 }
 
 .c11::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -1917,7 +2082,7 @@ exports[`loaded state 1`] = `
           >
             <div
               class="c23"
-              color="text.contrast"
+              color="text.main"
               style="text-transform: uppercase;"
             >
               Showing 
@@ -2217,7 +2382,7 @@ exports[`loaded state 1`] = `
                 LAUNCH
                 <span
                   class="c20 c34 icon icon-caret-down "
-                  color="text.secondary"
+                  color="text.slightlyMuted"
                   font-size="2"
                 />
               </button>
@@ -2285,30 +2450,30 @@ exports[`loaded state 1`] = `
         </tbody>
       </table>
       <nav
-        class="c5"
+        class="c36"
       >
         <div
-          class="c36"
+          class="c37"
           width="100%"
         >
           <div
             class="c22"
           >
             <button
-              class="c37"
+              class="c38 c39"
               title="Previous page"
             >
               <span
-                class="c20 c38 icon icon-arrow-left-circle "
+                class="c20 c40 icon icon-arrow-left-circle "
                 font-size="3"
               />
             </button>
             <button
-              class="c37"
+              class="c41 c39"
               title="Next page"
             >
               <span
-                class="c20 c38 icon icon-arrow-right-circle "
+                class="c20 c40 icon icon-arrow-right-circle "
                 font-size="3"
               />
             </button>
@@ -2410,7 +2575,7 @@ exports[`readonly empty state 1`] = `
     </div>
     <div
       class="c3"
-      color="text.primary"
+      color="text.main"
     >
       <div
         class="c4"

@@ -84,7 +84,7 @@ export default class CustomRange extends React.Component {
     return (
       <StyledDateRange>
         <StyledCloseButton title="Close" onClick={this.props.onClosePicker}>
-          <CloseIcon color="primary" />
+          <CloseIcon color="dark" />
         </StyledCloseButton>
         <DayPicker
           className="Selectable"

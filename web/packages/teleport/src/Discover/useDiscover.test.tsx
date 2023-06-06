@@ -33,15 +33,6 @@ import cfg from 'teleport/config';
 import { useDiscover, DiscoverProvider } from './useDiscover';
 import { SERVERS } from './SelectResource/resources';
 
-const crypto = require('crypto');
-
-// eslint-disable-next-line jest/require-hook
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
-  },
-});
-
 describe('emitting events', () => {
   const ctx = createTeleportContext();
   let wrapper;
@@ -292,6 +283,8 @@ describe('emitting events', () => {
           resource: DiscoverEventResource.Server,
           stepStatus: DiscoverEventStatus.Error,
           stepStatusError: 'some error message',
+          selectedResourcesCount: 0,
+          autoDiscoverResourcesCount: 0,
         },
       })
     );

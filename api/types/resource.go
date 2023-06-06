@@ -245,6 +245,19 @@ func (r ResourcesWithLabels) AsKubeServers() ([]KubeServer, error) {
 	return servers, nil
 }
 
+// AsUserGroups converts each resource into type UserGroup.
+func (r ResourcesWithLabels) AsUserGroups() ([]UserGroup, error) {
+	userGroups := make([]UserGroup, 0, len(r))
+	for _, resource := range r {
+		userGroup, ok := resource.(UserGroup)
+		if !ok {
+			return nil, trace.BadParameter("expected types.UserGroup, got: %T", resource)
+		}
+		userGroups = append(userGroups, userGroup)
+	}
+	return userGroups, nil
+}
+
 // GetVersion returns resource version
 func (h *ResourceHeader) GetVersion() string {
 	return h.Version

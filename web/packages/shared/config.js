@@ -16,8 +16,8 @@ limitations under the License.
 
 const cfg = {
   dateTimeFormat: 'yyyy-MM-dd HH:mm:ss',
-
   dateFormat: 'yyyy-MM-dd',
+  shortFormat: 'MMM dd, yyyy',
 };
 
 export default cfg;

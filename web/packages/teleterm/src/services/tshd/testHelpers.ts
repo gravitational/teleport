@@ -26,10 +26,12 @@ export const makeServer = (props: Partial<tsh.Server> = {}): tsh.Server => ({
   ...props,
 });
 
+export const databaseUri = '/clusters/teleport-local/dbs/foo';
+
 export const makeDatabase = (
   props: Partial<tsh.Database> = {}
 ): tsh.Database => ({
-  uri: '/clusters/teleport-local/dbs/foo',
+  uri: databaseUri,
   name: 'foo',
   protocol: 'postgres',
   type: 'self-hosted',
@@ -49,3 +51,43 @@ export const makeKube = (props: Partial<tsh.Kube> = {}): tsh.Kube => ({
 
 export const makeLabelsList = (labels: Record<string, string>): tsh.Label[] =>
   Object.entries(labels).map(([name, value]) => ({ name, value }));
+
+export const makeRootCluster = (
+  props: Partial<tsh.Cluster> = {}
+): tsh.Cluster => ({
+  uri: '/clusters/teleport-local',
+  name: 'teleport-local',
+  connected: true,
+  leaf: false,
+  proxyHost: 'teleport-local:3080',
+  authClusterId: '73c4746b-d956-4f16-9848-4e3469f70762',
+  loggedInUser: {
+    activeRequestsList: [],
+    assumedRequests: {},
+    name: 'admin',
+    acl: {},
+    sshLoginsList: [],
+    rolesList: [],
+    requestableRolesList: [],
+    suggestedReviewersList: [],
+  },
+  ...props,
+});
+
+export const makeGateway = (props: Partial<tsh.Gateway> = {}): tsh.Gateway => ({
+  uri: '/gateways/foo',
+  targetName: 'sales-production',
+  targetUri: databaseUri,
+  targetUser: 'alice',
+  localAddress: 'localhost',
+  localPort: '1337',
+  protocol: 'postgres',
+  gatewayCliCommand: {
+    path: '/foo/psql',
+    argsList: ['psql', 'localhost:1337'],
+    envList: [],
+    preview: 'psql localhost:1337',
+  },
+  targetSubresourceName: 'bar',
+  ...props,
+});

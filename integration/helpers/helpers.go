@@ -47,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -205,11 +206,13 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
 
-	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
-		key.MarshalSSHPublicKey(), username, ttl,
-		constants.CertificateFormatStandard,
-		tc.Secrets.SiteName, "",
-	)
+	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+		Key:            key.MarshalSSHPublicKey(),
+		Username:       username,
+		TTL:            ttl,
+		Compatibility:  constants.CertificateFormatStandard,
+		RouteToCluster: tc.Secrets.SiteName,
+	})
 	require.NoError(t, err)
 
 	key.Cert = sshCert
@@ -256,8 +259,15 @@ func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 	if err != nil {
 		t.Fatalf("failed to create linear backoff: %v", err)
 	}
+	ctx := context.Background()
 	for {
-		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, types.EventOrderAscending, "")
+		events, _, err := cli.SearchEvents(ctx, events.SearchEventsRequest{
+			From:       startTime,
+			To:         time.Now().Add(time.Hour),
+			EventTypes: []string{eventType},
+			Limit:      100,
+			Order:      types.EventOrderAscending,
+		})
 		if err != nil {
 			t.Fatalf("failed to call SearchEvents: %v", err)
 		}
@@ -445,4 +455,17 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	require.NoError(t, err, "database server didn't start after 10s")
 
 	return db
+}
+
+// MustCreateListener creates a tcp listener at 127.0.0.1 with random port.
+func MustCreateListener(t *testing.T) net.Listener {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
 }

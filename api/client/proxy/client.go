@@ -60,10 +60,8 @@ func (f SSHDialerFunc) Dial(ctx context.Context, network string, addr string, co
 // ClientConfig contains configuration needed for a Client
 // to be able to connect to the cluster.
 type ClientConfig struct {
-	// ProxyWebAddress is the address of the Proxy Web server.
-	ProxyWebAddress string
-	// ProxySSHAddress is the address of the Proxy SSH server.
-	ProxySSHAddress string
+	// ProxyAddress is the address of the Proxy server.
+	ProxyAddress string
 	// TLSRoutingEnabled indicates if the cluster is using TLS Routing.
 	TLSRoutingEnabled bool
 	// TLSConfig contains the tls.Config required for mTLS connections.
@@ -98,11 +96,8 @@ type ClientConfig struct {
 // CheckAndSetDefaults ensures required options are present and
 // sets the default value of any that are omitted.
 func (c *ClientConfig) CheckAndSetDefaults() error {
-	if c.ProxyWebAddress == "" {
-		return trace.BadParameter("missing required parameter ProxyWebAddress")
-	}
-	if c.ProxySSHAddress == "" {
-		return trace.BadParameter("missing required parameter ProxySSHAddress")
+	if c.ProxyAddress == "" {
+		return trace.BadParameter("missing required parameter ProxyAddress")
 	}
 	if c.SSHDialer == nil {
 		return trace.BadParameter("missing required parameter SSHDialer")
@@ -297,16 +292,10 @@ func newGRPCClient(ctx context.Context, cfg *ClientConfig) (_ *Client, err error
 	dialCtx, cancel := context.WithTimeout(ctx, cfg.DialTimeout)
 	defer cancel()
 
-	// Dial web proxy with TLS Routing.
-	addr := cfg.ProxySSHAddress
-	if cfg.TLSRoutingEnabled {
-		addr = cfg.ProxyWebAddress
-	}
-
 	c := &clusterName{}
 	conn, err := grpc.DialContext(
 		dialCtx,
-		addr,
+		cfg.ProxyAddress,
 		append([]grpc.DialOption{
 			grpc.WithContextDialer(newDialerForGRPCClient(ctx, cfg)),
 			grpc.WithTransportCredentials(&clusterCredentials{TransportCredentials: cfg.creds(), clusterName: c}),
@@ -395,7 +384,7 @@ func newSSHClient(ctx context.Context, cfg *ClientConfig) (*Client, error) {
 		Timeout:           cfg.SSHConfig.Timeout,
 	}
 
-	clt, err := cfg.SSHDialer.Dial(ctx, "tcp", cfg.ProxySSHAddress, clientCfg)
+	clt, err := cfg.SSHDialer.Dial(ctx, "tcp", cfg.ProxyAddress, clientCfg)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -460,7 +449,7 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 	case c.cfg.TLSRoutingEnabled:
 		return client.Config{
 			Context:                    ctx,
-			Addrs:                      []string{c.cfg.ProxyWebAddress},
+			Addrs:                      []string{c.cfg.ProxyAddress},
 			Credentials:                []client.Credentials{c.cfg.clientCreds()},
 			ALPNSNIAuthDialClusterName: cluster,
 			CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
@@ -480,7 +469,7 @@ func (c *Client) ClientConfig(ctx context.Context, cluster string) client.Config
 				default:
 				}
 
-				conn, err := dialSSH(dialCtx, c.sshClient, c.cfg.ProxySSHAddress, "@"+cluster, nil)
+				conn, err := dialSSH(dialCtx, c.sshClient, c.cfg.ProxyAddress, "@"+cluster, nil)
 				return conn, trace.Wrap(err)
 			}),
 		}
@@ -519,7 +508,7 @@ func (c *Client) DialHost(ctx context.Context, target, cluster string, keyring a
 
 	conn, details, err := c.transport.DialHost(ctx, target, cluster, nil, keyring)
 	if err != nil {
-		return nil, ClusterDetails{}, trace.Wrap(err)
+		return nil, ClusterDetails{}, trace.ConnectionProblem(err, "failed connecting to host %s: %v", target, err)
 	}
 
 	return conn, ClusterDetails{FIPS: details.FipsEnabled}, nil
@@ -540,7 +529,7 @@ func (c *Client) dialHostSSH(ctx context.Context, target, cluster string, keyrin
 		keyring = nil
 	}
 
-	conn, err := dialSSH(ctx, c.sshClient, c.cfg.ProxySSHAddress, target+"@"+cluster, keyring)
+	conn, err := dialSSH(ctx, c.sshClient, c.cfg.ProxyAddress, target+"@"+cluster, keyring)
 	return conn, ClusterDetails{FIPS: details.FIPSEnabled}, trace.Wrap(err)
 }
 

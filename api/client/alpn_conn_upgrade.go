@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
 // IsALPNConnUpgradeRequired returns true if a tunnel is required through a HTTP
@@ -162,35 +163,17 @@ func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config, withP
 func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	logrus.Debugf("ALPN connection upgrade for %v.", addr)
 
-	conn, err := d.dialer.DialContext(ctx, network, addr)
+	tlsConn, err := tlsutils.TLSDial(ctx, d.dialer, network, addr, d.tlsConfig.Clone())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// matching the behavior of tls.Dial
-	cfg := d.tlsConfig
-	if cfg == nil {
-		cfg = &tls.Config{}
-	}
-	if cfg.ServerName == "" {
-		colonPos := strings.LastIndex(addr, ":")
-		if colonPos == -1 {
-			colonPos = len(addr)
-		}
-		hostname := addr[:colonPos]
-
-		cfg = cfg.Clone()
-		cfg.ServerName = hostname
-	}
-
-	tlsConn := tls.Client(conn, cfg)
 	upgradeURL := url.URL{
 		Host:   addr,
 		Scheme: "https",
 		Path:   constants.WebAPIConnUpgrade,
 	}
 
-	conn, err = upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
+	conn, err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
 	if err != nil {
 		return nil, trace.NewAggregate(tlsConn.Close(), err)
 	}
@@ -211,6 +194,18 @@ func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) (n
 	}
 
 	req.Header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
+
+	// Set "Connection" header to meet RFC spec:
+	// https://datatracker.ietf.org/doc/html/rfc2616#section-14.42
+	// Quote: "the upgrade keyword MUST be supplied within a Connection header
+	// field (section 14.10) whenever Upgrade is present in an HTTP/1.1
+	// message."
+	//
+	// Some L7 load balancers/reverse proxies like "ngrok" and "tailscale"
+	// require this header to be set to complete the upgrade flow. The header
+	// must be set on both the upgrade request here and the 101 Switching
+	// Protocols response from the server.
+	req.Header.Add(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
 
 	// Send the request and check if upgrade is successful.
 	if err = req.Write(conn); err != nil {

@@ -25,7 +25,7 @@ const kind = ({ kind, theme }) => {
   if (kind === 'secondary') {
     return {
       backgroundColor: theme.colors.spotBackground[0],
-      color: theme.colors.text.primary,
+      color: theme.colors.text.main,
       fontWeight: 400,
     };
   }

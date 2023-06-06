@@ -19,12 +19,12 @@ package auth
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"fmt"
 	"io"
 	"net"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -44,14 +44,16 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
-	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -102,6 +104,7 @@ var (
 
 // GRPCServer is GPRC Auth Server API
 type GRPCServer struct {
+	auditlogpb.UnimplementedAuditLogServiceServer
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
@@ -168,7 +171,7 @@ func (g *GRPCServer) SendKeepAlives(stream proto.AuthService_SendKeepAlivesServe
 			return trace.Wrap(err)
 		}
 		keepAlive, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			g.Debugf("Connection closed.")
 			return nil
 		}
@@ -226,7 +229,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 
 	for {
 		request, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 		if err != nil {
@@ -363,11 +366,6 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
-	if clusterName, err := auth.GetClusterName(); err == nil {
-		// we might want to enforce a filter for older clients in certain conditions
-		maybeFilterCertAuthorityWatches(stream.Context(), clusterName.GetClusterName(), auth.Checker.RoleNames(), &servicesWatch)
-	}
-
 	watcher, err := auth.NewWatcher(stream.Context(), servicesWatch)
 	if err != nil {
 		return trace.Wrap(err)
@@ -395,56 +393,6 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		}
 	}
 }
-
-// maybeFilterCertAuthorityWatches will add filters to the CertAuthority
-// WatchKinds in the watch if the client is authenticated as just a `Node` with
-// no other roles and if the client is older than the cutoff version, and if the
-// WatchKind for KindCertAuthority is trivial, i.e. it's a WatchKind{Kind:
-// KindCertAuthority} with no other fields set. In any other case we will assume
-// that the client knows what it's doing and the cache watcher will still send
-// everything.
-//
-// DELETE IN 10.0, no supported clients should require this at that point
-func maybeFilterCertAuthorityWatches(ctx context.Context, clusterName string, roleNames []string, watch *types.Watch) {
-	if len(roleNames) != 1 || roleNames[0] != string(types.RoleNode) {
-		return
-	}
-
-	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
-	if !ok {
-		log.Debug("no client version found in grpc context")
-		return
-	}
-
-	clientVersion, err := semver.NewVersion(clientVersionString)
-	if err != nil {
-		log.WithError(err).Debugf("couldn't parse client version %q", clientVersionString)
-		return
-	}
-
-	// we treat the entire previous major version as "old" for this version
-	// check, even if there might have been backports; compliant clients will
-	// supply their own filter anyway
-	if !clientVersion.LessThan(certAuthorityFilterVersionCutoff) {
-		return
-	}
-
-	for i, k := range watch.Kinds {
-		if k.Kind != types.KindCertAuthority || !k.IsTrivial() {
-			continue
-		}
-
-		log.Debugf("Injecting filter for CertAuthority watch for Node-only watcher with version %v", clientVersion)
-		watch.Kinds[i].Filter = types.CertAuthorityFilter{
-			types.HostCA: clusterName,
-			types.UserCA: types.Wildcard,
-		}.IntoMap()
-	}
-}
-
-// certAuthorityFilterVersionCutoff is the version starting from which we stop
-// injecting filters for CertAuthority watches in maybeFilterCertAuthorityWatches.
-var certAuthorityFilterVersionCutoff = *semver.New("9.0.0")
 
 // resourceLabel returns the label for the provided types.Event
 func resourceLabel(event types.Event) string {
@@ -585,6 +533,21 @@ func (g *GRPCServer) GetInventoryStatus(ctx context.Context, req *proto.Inventor
 	}
 
 	rsp, err := auth.GetInventoryStatus(ctx, *req)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	return &rsp, nil
+}
+
+// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+func (g *GRPCServer) GetInventoryConnectedServiceCounts(ctx context.Context, _ *proto.InventoryConnectedServiceCountsRequest) (*proto.InventoryConnectedServiceCounts, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trail.ToGRPC(err)
+	}
+
+	rsp, err := auth.GetInventoryConnectedServiceCounts()
 	if err != nil {
 		return nil, trail.ToGRPC(err)
 	}
@@ -2086,7 +2049,7 @@ func (g *GRPCServer) MaintainSessionPresence(stream proto.AuthService_MaintainSe
 
 	for {
 		req, err := stream.Recv()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return nil
 		}
 
@@ -2439,20 +2402,30 @@ func (g *GRPCServer) GenerateUserSingleUseCerts(stream proto.AuthService_Generat
 	}
 
 	mfaRequired := proto.MFARequired_MFA_REQUIRED_UNSPECIFIED
-	if required, err := isMFARequiredForSingleUseCertRequest(ctx, actx, initReq); err == nil {
-		// If MFA is not required to gain access to the resource then let the client
-		// know and abort the ceremony.
-		if !required {
-			return trace.Wrap(stream.Send(&proto.UserSingleUseCertsResponse{
-				Response: &proto.UserSingleUseCertsResponse_MFAChallenge{
-					MFAChallenge: &proto.MFAAuthenticateChallenge{
-						MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
-					},
-				},
-			}))
-		}
+	clusterName, err := actx.GetClusterName()
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-		mfaRequired = proto.MFARequired_MFA_REQUIRED_YES
+	// Only check if MFA is required for resources within the current cluster. Determining if
+	// MFA is required for a resource in a leaf cluster will result in a not found error and
+	// prevent users from accessing resources in leaf clusters.
+	if initReq.RouteToCluster == "" || clusterName.GetClusterName() == initReq.RouteToCluster {
+		if required, err := isMFARequiredForSingleUseCertRequest(ctx, actx, initReq); err == nil {
+			// If MFA is not required to gain access to the resource then let the client
+			// know and abort the ceremony.
+			if !required {
+				return trace.Wrap(stream.Send(&proto.UserSingleUseCertsResponse{
+					Response: &proto.UserSingleUseCertsResponse_MFAChallenge{
+						MFAChallenge: &proto.MFAAuthenticateChallenge{
+							MFARequired: proto.MFARequired_MFA_REQUIRED_NO,
+						},
+					},
+				}))
+			}
+
+			mfaRequired = proto.MFARequired_MFA_REQUIRED_YES
+		}
 	}
 
 	// 2. send MFAChallenge
@@ -2511,11 +2484,11 @@ func validateUserSingleUseCertRequest(ctx context.Context, actx *grpcContext, re
 		return trace.BadParameter("unknown certificate Usage %q", req.Usage)
 	}
 
-	if isDBLocalProxyTunnelCertReq(req) {
-		// don't limit the cert expiry to 1 minute for db local proxy tunnel,
+	if isLocalProxyCertReq(req) {
+		// don't limit the cert expiry to 1 minute for db local proxy tunnel or kube local proxy,
 		// because the certs will be kept in-memory by the client to protect
 		// against cert/key exfiltration. When MFA is required, cert expiration
-		// time is bounded by the lifetime of the local proxy tunnel process.
+		// time is bounded by the lifetime of the local proxy process.
 		return nil
 	}
 
@@ -2558,12 +2531,18 @@ func isMFARequiredForSingleUseCertRequest(ctx context.Context, actx *grpcContext
 	return resp.Required, nil
 }
 
-// isDBLocalProxyTunnelCertReq returns whether a cert request is for
+// isLocalProxyCertReq returns whether a cert request is for
 // a database cert and the requester is a local proxy tunnel.
-func isDBLocalProxyTunnelCertReq(req *proto.UserCertsRequest) bool {
-	return req.Usage == proto.UserCertsRequest_Database &&
-		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL
+func isLocalProxyCertReq(req *proto.UserCertsRequest) bool {
+	return (req.Usage == proto.UserCertsRequest_Database &&
+		req.RequesterName == proto.UserCertsRequest_TSH_DB_LOCAL_PROXY_TUNNEL) ||
+		(req.Usage == proto.UserCertsRequest_Kubernetes &&
+			req.RequesterName == proto.UserCertsRequest_TSH_KUBE_LOCAL_PROXY)
 }
+
+// ErrNoMFADevices is returned when an MFA ceremony is performed without possible devices to
+// complete the challenge with.
+var ErrNoMFADevices = trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
 
 func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService_GenerateUserSingleUseCertsServer, mfaRequired proto.MFARequired) (*types.MFADevice, error) {
 	ctx := stream.Context()
@@ -2576,7 +2555,7 @@ func userSingleUseCertsAuthChallenge(gctx *grpcContext, stream proto.AuthService
 		return nil, trace.Wrap(err)
 	}
 	if challenge.TOTP == nil && challenge.WebauthnChallenge == nil {
-		return nil, trace.AccessDenied("MFA is required to access this resource but user has no MFA devices; use 'tsh mfa add' to register MFA devices")
+		return nil, ErrNoMFADevices
 	}
 
 	challenge.MFARequired = mfaRequired
@@ -2613,14 +2592,17 @@ func userSingleUseCertsGenerate(ctx context.Context, actx *grpcContext, req prot
 		return nil, trace.BadParameter("can't parse client IP from peer info: %v", err)
 	}
 
-	// Generate the cert.
-	certs, err := actx.generateUserCerts(
-		ctx, req,
+	// MFA certificates are supposed to be always pinned to IP, but it was decided to turn this off until
+	// IP pinning comes out of preview. Here we would add option to pin the cert, see commit of this comment for restoring.
+	opts := []certRequestOption{
 		certRequestMFAVerified(mfaDev.Id),
 		certRequestPreviousIdentityExpires(actx.Identity.GetIdentity().Expires),
 		certRequestLoginIP(clientIP),
 		certRequestDeviceExtensions(actx.Identity.GetIdentity().DeviceExtensions),
-	)
+	}
+
+	// Generate the cert.
+	certs, err := actx.generateUserCerts(ctx, req, opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2930,6 +2912,84 @@ func (g *GRPCServer) GetSSODiagnosticInfo(ctx context.Context, req *proto.GetSSO
 		return nil, trace.Wrap(err)
 	}
 	return info, nil
+}
+
+// GetServerInfos returns a stream of ServerInfos.
+func (g *GRPCServer) GetServerInfos(_ *emptypb.Empty, stream proto.AuthService_GetServerInfosServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	infos := auth.GetServerInfos(stream.Context())
+	for infos.Next() {
+		si, ok := infos.Item().(*types.ServerInfoV1)
+		if !ok {
+			log.Warnf("Skipping unexpected instance type %T, expected %T.", infos.Item(), si)
+		}
+		if err := stream.Send(si); err != nil {
+			infos.Done()
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(infos.Done())
+}
+
+// GetServerInfo returns a ServerInfo by name.
+func (g *GRPCServer) GetServerInfo(ctx context.Context, req *types.ResourceRequest) (*types.ServerInfoV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	si, err := auth.ServerWithRoles.GetServerInfo(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	serverInfoV1, ok := si.(*types.ServerInfoV1)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected Server Info type %T", si)
+	}
+	return serverInfoV1, nil
+}
+
+// UpsertServerInfo upserts a ServerInfo.
+func (g *GRPCServer) UpsertServerInfo(ctx context.Context, si *types.ServerInfoV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.ServerWithRoles.UpsertServerInfo(ctx, si); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteServerInfo deletes a ServerInfo by name.
+func (g *GRPCServer) DeleteServerInfo(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.ServerWithRoles.DeleteServerInfo(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllServerInfos deletes all ServerInfos.
+func (g *GRPCServer) DeleteAllServerInfos(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.ServerWithRoles.DeleteAllServerInfos(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 // GetTrustedCluster retrieves a Trusted Cluster by name.
@@ -3449,7 +3509,14 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(req.StartDate, req.EndDate, req.Namespace, req.EventTypes, int(req.Limit), types.EventOrder(req.Order), req.StartKey)
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       req.StartDate,
+		To:         req.EndDate,
+		EventTypes: req.EventTypes,
+		Limit:      int(req.Limit),
+		Order:      types.EventOrder(req.Order),
+		StartKey:   req.StartKey,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3478,7 +3545,13 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil, "")
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		From:     req.StartDate,
+		To:       req.EndDate,
+		Limit:    int(req.Limit),
+		Order:    types.EventOrder(req.Order),
+		StartKey: req.StartKey,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4210,6 +4283,13 @@ func (g *GRPCServer) ListResources(ctx context.Context, req *proto.ListResources
 			}
 
 			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_KubeCluster{KubeCluster: cluster}}
+		case types.KindUserGroup:
+			userGroup, ok := resource.(*types.UserGroupV1)
+			if !ok {
+				return nil, trace.BadParameter("user group has invalid type %T", resource)
+			}
+
+			protoResource = &proto.PaginatedResource{Resource: &proto.PaginatedResource_UserGroup{UserGroup: userGroup}}
 		default:
 			return nil, trace.NotImplemented("resource type %s doesn't support pagination", req.ResourceType)
 		}
@@ -5046,6 +5126,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	proto.RegisterAuthServiceServer(server, authServer)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
+	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5056,6 +5137,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	trustpb.RegisterTrustServiceServer(server, trust)
+
+	// Initialize and register the assist service.
+	assistSrv, err := assistv1.NewService(&assistv1.ServiceConfig{
+		Backend: cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	assist.RegisterAssistServiceServer(server, assistSrv)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
@@ -5134,4 +5224,67 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			alog:       g.AuthServer,
 		},
 	}, nil
+}
+
+// GetUnstructuredEvents searches for events on the backend and sends them back in an unstructured format.
+func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.GetUnstructuredEventsRequest) (*auditlogpb.EventsUnstructured, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       req.StartDate.AsTime(),
+		To:         req.EndDate.AsTime(),
+		EventTypes: req.EventTypes,
+		Limit:      int(req.Limit),
+		Order:      types.EventOrder(req.Order),
+		StartKey:   req.StartKey,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	unstructuredEvents := make([]*auditlogpb.EventUnstructured, 0, len(rawEvents))
+	for _, event := range rawEvents {
+		unstructuredEvent, err := apievents.ToUnstructured(event)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		unstructuredEvents = append(unstructuredEvents, unstructuredEvent)
+	}
+
+	return &auditlogpb.EventsUnstructured{
+		Items:   unstructuredEvents,
+		LastKey: lastkey,
+	}, nil
+}
+
+// StreamUnstructuredSessionEventsServer streams all events from a given session recording as an unstructured format.
+func (g *GRPCServer) StreamUnstructuredSessionEventsServer(req *auditlogpb.StreamUnstructuredSessionEventsRequest, stream auditlogpb.AuditLogService_StreamUnstructuredSessionEventsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c, e := auth.ServerWithRoles.StreamSessionEvents(stream.Context(), session.ID(req.SessionId), int64(req.StartIndex))
+
+	for {
+		select {
+		case event, more := <-c:
+			if !more {
+				return nil
+			}
+			// convert event to JSON
+			eventJson, err := apievents.ToUnstructured(event)
+			if err != nil {
+				return trail.ToGRPC(trace.Wrap(err))
+			}
+			if err := stream.Send(eventJson); err != nil {
+				return trail.ToGRPC(trace.Wrap(err))
+			}
+		case err := <-e:
+			return trail.ToGRPC(trace.Wrap(err))
+		}
+	}
 }

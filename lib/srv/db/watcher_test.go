@@ -228,9 +228,11 @@ func TestWatcherCloudFetchers(t *testing.T) {
 	require.NoError(t, err)
 	redshiftServerlessDatabase.SetStatusAWS(redshiftServerlessDatabase.GetAWS())
 	setDiscoveryGroupLabel(redshiftServerlessDatabase, "")
+	redshiftServerlessDatabase.SetOrigin(types.OriginCloud)
 	// Test an Azure fetcher.
 	azSQLServer, azSQLServerDatabase := makeAzureSQLServer(t, "discovery-azure", "group")
 	setDiscoveryGroupLabel(azSQLServerDatabase, "")
+	azSQLServerDatabase.SetOrigin(types.OriginCloud)
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
@@ -250,12 +252,12 @@ func TestWatcherCloudFetchers(t *testing.T) {
 			}),
 			AzureManagedSQLServer: azure.NewManagedSQLClientByAPI(&azure.ARMSQLManagedServerMock{}),
 		},
-		AzureMatchers: []services.AzureMatcher{{
+		AzureMatchers: []types.AzureMatcher{{
 			Subscriptions: []string{"sub"},
 			Types:         []string{services.AzureMatcherSQLServer},
 			ResourceTags:  types.Labels{types.Wildcard: []string{types.Wildcard}},
 		}},
-		AWSMatchers: []services.AWSMatcher{{
+		AWSMatchers: []types.AWSMatcher{{
 			Types:   []string{services.AWSMatcherRDS, services.AWSMatcherRedshiftServerless},
 			Regions: []string{"us-east-1"},
 			Tags:    types.Labels{types.Wildcard: []string{types.Wildcard}},

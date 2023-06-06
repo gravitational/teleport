@@ -19,7 +19,7 @@ import React from 'react';
 import Box from 'design/Box';
 import Text from 'design/Text';
 
-import { ButtonPrimary } from 'design';
+import { ButtonPrimary, ButtonSecondary } from 'design';
 
 import { InstructionsContainer } from './common';
 
@@ -28,13 +28,14 @@ import type { CommonInstructionsProps } from './common';
 export function SixthStageInstructions(props: CommonInstructionsProps) {
   return (
     <InstructionsContainer>
-      <Text>Close the "Create policy tab"</Text>
+      <Text>
+        Close the tab for "Create Policy" and go back to the tab for{' '}
+        <strong>Create Role</strong>
+      </Text>
 
       <Text mt={5}>
         Refresh the list of policies and select the policy you just created
       </Text>
-
-      <Text mt={5}>Search for the policy you just created and select it</Text>
 
       <Text mt={5}>
         Click <strong>Next: Tags</strong> and then <strong>Next: Review</strong>
@@ -46,6 +47,9 @@ export function SixthStageInstructions(props: CommonInstructionsProps) {
 
       <Box mt={5}>
         <ButtonPrimary onClick={() => props.onNext()}>Next</ButtonPrimary>
+        <ButtonSecondary ml={3} onClick={() => props.onPrev()}>
+          Back
+        </ButtonSecondary>
       </Box>
     </InstructionsContainer>
   );

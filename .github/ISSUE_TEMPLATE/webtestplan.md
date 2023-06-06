@@ -520,6 +520,14 @@ Checking that you can view, create, and delete locks.
   - [ ] Creating a lock with message and TTL correctly create the lock.
   - [ ] Create a lock without message and TTL, they should be optional.
 
+## Enroll new resources using Discover Wizard
+Use Discover Wizard to enroll new resources and access them:
+
+- [ ] SSH Server
+- [ ] Self-Hosted PostgreSQL
+- [ ] AWS RDS PostgreSQL
+- [ ] Kubernetes
+- [ ] Windows Desktop Active Directory
 
 ## Teleport Connect
 

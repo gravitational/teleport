@@ -347,8 +347,8 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 // The only mandatory requirement is a date range (UTC).
 //
 // This function may never return more than 1 MiB of event data.
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes}, "")
+func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.searchEventsWithFilter(req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
 }
 
 func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, lastKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
@@ -472,16 +472,16 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed sessions.
-func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
+func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
-	if cond != nil {
-		condFn, err := utils.ToFieldsCondition(cond)
+	if req.Cond != nil {
+		condFn, err := utils.ToFieldsCondition(req.Cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condition = condFn
 	}
-	return l.searchEventsWithFilter(fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter, sessionID)
+	return l.searchEventsWithFilter(req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
 }
 
 type searchEventsFilter struct {

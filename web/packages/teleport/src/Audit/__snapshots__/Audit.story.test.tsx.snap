@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`list of all events 1`] = `
-.c19 {
+.c21 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -20,7 +20,7 @@ exports[`list of all events 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -29,42 +29,128 @@ exports[`list of all events 1`] = `
   width: 87px;
 }
 
-.c19:hover,
-.c19:focus {
+.c21:hover,
+.c21:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
-.c19:active {
+.c21:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c19:disabled {
+.c21:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c14 {
+.c15 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
-}
-
-.c16 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
 }
 
 .c18 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
+}
+
+.c20 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
   margin-right: 16px;
   padding: 4px;
   font-size: 16px;
+}
+
+.c12 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c12 .c14 {
+  color: inherit;
+}
+
+.c12:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c12:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c12:hover:enabled,
+.c12:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c12:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c16 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c16 .c14 {
+  color: inherit;
+}
+
+.c16:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c16:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c16:hover:enabled,
+.c16:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c16:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c9 {
@@ -97,10 +183,11 @@ exports[`list of all events 1`] = `
   display: flex;
 }
 
-.c15 {
+.c17 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -109,39 +196,39 @@ exports[`list of all events 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c15 > thead > tr > th,
-.c15 > tbody > tr > th,
-.c15 > tfoot > tr > th,
-.c15 > thead > tr > td,
-.c15 > tbody > tr > td,
-.c15 > tfoot > tr > td {
+.c17 > thead > tr > th,
+.c17 > tbody > tr > th,
+.c17 > tfoot > tr > th,
+.c17 > thead > tr > td,
+.c17 > tbody > tr > td,
+.c17 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c15 > thead > tr > th:first-child,
-.c15 > tbody > tr > th:first-child,
-.c15 > tfoot > tr > th:first-child,
-.c15 > thead > tr > td:first-child,
-.c15 > tbody > tr > td:first-child,
-.c15 > tfoot > tr > td:first-child {
+.c17 > thead > tr > th:first-child,
+.c17 > tbody > tr > th:first-child,
+.c17 > tfoot > tr > th:first-child,
+.c17 > thead > tr > td:first-child,
+.c17 > tbody > tr > td:first-child,
+.c17 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c15 > thead > tr > th:last-child,
-.c15 > tbody > tr > th:last-child,
-.c15 > tfoot > tr > th:last-child,
-.c15 > thead > tr > td:last-child,
-.c15 > tbody > tr > td:last-child,
-.c15 > tfoot > tr > td:last-child {
+.c17 > thead > tr > th:last-child,
+.c17 > tbody > tr > th:last-child,
+.c17 > tfoot > tr > th:last-child,
+.c17 > thead > tr > td:last-child,
+.c17 > tbody > tr > td:last-child,
+.c17 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c15 > tbody > tr > td {
+.c17 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c15 > thead > tr > th {
+.c17 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -155,22 +242,22 @@ exports[`list of all events 1`] = `
   white-space: nowrap;
 }
 
-.c15 > thead > tr > th .c13 {
+.c17 > thead > tr > th .c14 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c15 > tbody > tr > td {
+.c17 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c15 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c17 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c15 tbody tr:hover {
+.c17 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -190,29 +277,12 @@ exports[`list of all events 1`] = `
   border-radius: 8px;
 }
 
-.c12 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c12 .c13 {
+.c13 .c14 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c12:hover .c13,
-.c12:focus .c13 {
-  opacity: 1;
-}
-
-.c12:disabled {
-  cursor: default;
-}
-
-.c12:disabled .c13 {
-  opacity: 0.1;
+.c13 .c14:before {
+  padding-left: 1px;
 }
 
 .c10 {
@@ -233,7 +303,7 @@ exports[`list of all events 1`] = `
 }
 
 .c10:disabled {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
   cursor: wait;
 }
 
@@ -299,14 +369,14 @@ exports[`list of all events 1`] = `
 }
 
 .c4::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c20 {
+.c22 {
   background: #000000;
   border: 2px solid #9F85FF;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   cursor: pointer;
   display: flex;
   align-items: center;
@@ -318,19 +388,19 @@ exports[`list of all events 1`] = `
   transition: all 0.3s;
 }
 
-.c20:hover,
-.c20:active,
-.c20:focus {
+.c22:hover,
+.c22:active,
+.c22:focus {
   background: #0C143D;
   color: #FFFFFF;
 }
 
-.c20:active {
+.c22:active {
   box-shadow: none;
   opacity: 0.56;
 }
 
-.c17 {
+.c19 {
   display: flex;
   align-items: center;
   min-width: 130px;
@@ -376,7 +446,7 @@ exports[`list of all events 1`] = `
         >
           <div
             class="c9"
-            color="text.primary"
+            color="text.main"
             style="white-space: nowrap; text-transform: uppercase;"
           >
             Showing 
@@ -385,12 +455,12 @@ exports[`list of all events 1`] = `
             </strong>
              - 
             <strong>
-              181
+              196
             </strong>
              of
              
             <strong>
-              181
+              196
             </strong>
           </div>
           <button
@@ -403,22 +473,22 @@ exports[`list of all events 1`] = `
           class="c11"
         >
           <button
-            class="c12"
+            class="c12 c13"
             disabled=""
             title="Previous page"
           >
             <span
-              class="c13 c14 icon icon-arrow-left-circle "
+              class="c14 c15 icon icon-arrow-left-circle "
               font-size="3"
             />
           </button>
           <button
-            class="c12"
+            class="c16 c13"
             disabled=""
             title="Next page"
           >
             <span
-              class="c13 c14 icon icon-arrow-right-circle "
+              class="c14 c15 icon icon-arrow-right-circle "
               font-size="3"
             />
           </button>
@@ -426,7 +496,7 @@ exports[`list of all events 1`] = `
       </div>
     </nav>
     <table
-      class="c15"
+      class="c17"
     >
       <thead>
         <tr>
@@ -434,7 +504,7 @@ exports[`list of all events 1`] = `
             <a>
               Type
               <span
-                class="c13 c16 icon icon-chevrons-expand-vertical "
+                class="c14 c18 icon icon-chevrons-expand-vertical "
                 title="sort items"
               />
             </a>
@@ -448,7 +518,7 @@ exports[`list of all events 1`] = `
             <a>
               Created (UTC)
               <span
-                class="c13 c16 icon icon-chevron-down "
+                class="c14 c18 icon icon-chevron-down "
                 title="sort items desc"
               />
             </a>
@@ -464,10 +534,262 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Okta assignment failed to clean up
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Okta assignment [assignment-id], source [source], user [mike] cleanup has failed
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Okta assignment has been cleaned up
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Okta assignment [assignment-id], source [source], user [mike] has been successfully cleaned up
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Okta assignment failed to process
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Okta assignment [assignment-id], source [source], user [mike] processing has failed
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Okta assignment has been processed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Okta assignment [assignment-id], source [source], user [mike] has been successfully processed
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-warning c14 c20"
+                font-size="3"
+              />
+              Okta synchronization failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            Okta synchronization failed
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Okta applications have been updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            [5] added, [1] updated, [7] deleted
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Okta groups have been updated
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            [5] added, [1] updated, [7] deleted
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-05-08T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               OpenSearch Request Failed
@@ -487,7 +809,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -500,10 +822,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               OpenSearch Request
@@ -523,7 +845,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -536,10 +858,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SAML IdP service provider delete failed
@@ -559,7 +881,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -572,10 +894,46 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              SAML IdP service provider delete failed
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [mike] failed to delete all service providers
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-25T19:21:36.144Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               All SAML IdP service provider deleted
@@ -595,7 +953,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -608,10 +966,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SAML IdP service provider delete failed
@@ -631,7 +989,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -644,10 +1002,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SAML IdP service provider deleted
@@ -667,7 +1025,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -680,10 +1038,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SAML IdP service provider update failed
@@ -703,7 +1061,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -716,10 +1074,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SAML IdP service provider updated
@@ -739,7 +1097,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -752,10 +1110,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SAML IdP service provider create failed
@@ -775,7 +1133,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -788,10 +1146,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SAML IdP service provider created
@@ -811,7 +1169,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -824,10 +1182,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SAML IdP authentication
@@ -847,7 +1205,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -860,10 +1218,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SAML IdP authentication
@@ -883,7 +1241,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -896,10 +1254,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SAML IdP authentication
@@ -919,7 +1277,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -932,10 +1290,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Login Rule Deleted
@@ -955,7 +1313,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -968,10 +1326,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Login Rule Created
@@ -991,7 +1349,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1004,10 +1362,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Update
@@ -1027,7 +1385,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1040,10 +1398,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Enrollment
@@ -1063,7 +1421,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1076,10 +1434,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Enrollment
@@ -1099,7 +1457,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1112,10 +1470,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Enroll Token Spent
@@ -1135,7 +1493,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1148,10 +1506,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Enroll Token Spent
@@ -1171,7 +1529,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1184,10 +1542,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Delete
@@ -1207,7 +1565,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1220,10 +1578,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Delete
@@ -1243,7 +1601,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1256,10 +1614,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Enroll Token Create
@@ -1279,7 +1637,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1292,10 +1650,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Enroll Token Create
@@ -1315,7 +1673,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1328,10 +1686,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Authenticate
@@ -1351,7 +1709,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1364,10 +1722,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Authenticate
@@ -1387,7 +1745,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1400,10 +1758,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Register
@@ -1423,7 +1781,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1436,10 +1794,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Device Register
@@ -1459,7 +1817,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1472,10 +1830,262 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Device Update
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has updated a device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Device Authenticate
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has failed to authenticate their device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Device Enrollment
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has failed to enroll their device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Device Enroll Token Spent
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has spent a device enroll token
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Device Enroll Token Create
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] created a device enroll token
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Device Delete
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has deleted a device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-info_outline c14 c20"
+                font-size="3"
+              />
+              Device Register
+            </div>
+          </td>
+          <td
+            style="word-break: break-word;"
+          >
+            User [[object Object]] has registered a device
+          </td>
+          <td
+            style="min-width: 120px;"
+          >
+            2023-01-12T19:28:36.842Z
+          </td>
+          <td
+            align="right"
+          >
+            <button
+              class="c21"
+              kind="border"
+              width="87px"
+            >
+              Details
+            </button>
+          </td>
+        </tr>
+        <tr>
+          <td
+            style="vertical-align: inherit;"
+          >
+            <div
+              class="c19"
+            >
+              <span
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               DynamoDB Request
@@ -1495,7 +2105,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1508,10 +2118,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               DynamoDB Request Failed
@@ -1531,7 +2141,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1544,10 +2154,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Instance Joined
@@ -1567,7 +2177,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1580,10 +2190,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Bot Joined
@@ -1603,7 +2213,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1616,10 +2226,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-shared c13 c18"
+                class="c14 c20 icon icon-folder-shared c14 c20"
                 font-size="3"
               />
               Directory Sharing Write Failed
@@ -1639,7 +2249,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1652,10 +2262,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-shared c13 c18"
+                class="c14 c20 icon icon-folder-shared c14 c20"
                 font-size="3"
               />
               Directory Sharing Write
@@ -1675,7 +2285,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1688,10 +2298,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-shared c13 c18"
+                class="c14 c20 icon icon-folder-shared c14 c20"
                 font-size="3"
               />
               Directory Sharing Read Failed
@@ -1711,7 +2321,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1724,10 +2334,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-shared c13 c18"
+                class="c14 c20 icon icon-folder-shared c14 c20"
                 font-size="3"
               />
               Directory Sharing Read
@@ -1747,7 +2357,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1760,10 +2370,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-shared c13 c18"
+                class="c14 c20 icon icon-folder-shared c14 c20"
                 font-size="3"
               />
               Directory Sharing Start Failed
@@ -1783,7 +2393,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1796,10 +2406,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-shared c13 c18"
+                class="c14 c20 icon icon-folder-shared c14 c20"
                 font-size="3"
               />
               Directory Sharing Started
@@ -1819,7 +2429,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1832,10 +2442,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               App Session DynamoDB Request
@@ -1855,7 +2465,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1868,10 +2478,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               App Session DynamoDB Request
@@ -1891,7 +2501,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1904,10 +2514,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-code c13 c18"
+                class="c14 c20 icon icon-code c14 c20"
                 font-size="3"
               />
               Application Deleted
@@ -1927,7 +2537,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1940,10 +2550,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-code c13 c18"
+                class="c14 c20 icon icon-code c14 c20"
                 font-size="3"
               />
               Application Updated
@@ -1963,7 +2573,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -1976,10 +2586,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-code c13 c18"
+                class="c14 c20 icon icon-code c14 c20"
                 font-size="3"
               />
               Application Created
@@ -1999,7 +2609,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2012,10 +2622,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Elasticsearch Request
@@ -2035,7 +2645,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2048,10 +2658,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Elasticsearch Request
@@ -2071,7 +2681,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2084,10 +2694,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Elasticsearch Request
@@ -2107,7 +2717,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2120,10 +2730,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SSM Command Execution Failed
@@ -2143,7 +2753,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2156,10 +2766,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SSM Command Executed
@@ -2179,7 +2789,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2192,10 +2802,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-kubernetes c13 c18"
+                class="c14 c20 icon icon-kubernetes c14 c20"
                 font-size="3"
               />
               Kubernetes Deleted
@@ -2215,7 +2825,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2228,10 +2838,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-kubernetes c13 c18"
+                class="c14 c20 icon icon-kubernetes c14 c20"
                 font-size="3"
               />
               Kubernetes Updated
@@ -2251,7 +2861,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2264,10 +2874,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-kubernetes c13 c18"
+                class="c14 c20 icon icon-kubernetes c14 c20"
                 font-size="3"
               />
               Kubernetes Created
@@ -2287,7 +2897,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2300,10 +2910,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               App Session Ended
@@ -2323,7 +2933,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2336,10 +2946,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Session Recording Accessed
@@ -2359,7 +2969,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2372,10 +2982,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Resource Access Request Search
@@ -2395,7 +3005,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2408,10 +3018,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Cassandra Register
@@ -2431,7 +3041,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2444,10 +3054,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Cassandra Batch
@@ -2467,7 +3077,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2480,10 +3090,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Cassandra Execute
@@ -2503,7 +3113,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2516,10 +3126,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Cassandra Prepare Event
@@ -2539,7 +3149,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2552,10 +3162,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Database Malformed Packet
@@ -2575,7 +3185,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2588,10 +3198,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               SQLServer RPC Request
@@ -2611,7 +3221,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2624,10 +3234,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SSO Test Flow Login Failed
@@ -2647,7 +3257,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2660,10 +3270,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               SSO Test Flow Login
@@ -2683,7 +3293,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2696,10 +3306,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Change Database
@@ -2719,7 +3329,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2732,10 +3342,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Create Database
@@ -2755,7 +3365,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2768,10 +3378,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Drop Database
@@ -2791,7 +3401,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2804,10 +3414,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Shut Down
@@ -2827,7 +3437,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2840,10 +3450,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Kill Process
@@ -2863,7 +3473,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2876,10 +3486,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Debug
@@ -2899,7 +3509,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2912,10 +3522,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Upgrade Window Start Updated
@@ -2935,7 +3545,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2948,10 +3558,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Refresh
@@ -2971,7 +3581,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -2984,10 +3594,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Statement Close
@@ -3007,7 +3617,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3020,10 +3630,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Statement Fetch
@@ -3043,7 +3653,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3056,10 +3666,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Statement Execute
@@ -3079,7 +3689,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3092,10 +3702,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Statement Bulk Execute
@@ -3115,7 +3725,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3128,10 +3738,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Statement Reset
@@ -3151,7 +3761,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3164,10 +3774,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Statement Send Long Data
@@ -3187,7 +3797,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3200,10 +3810,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               MySQL Statement Prepare
@@ -3223,7 +3833,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3236,10 +3846,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-keypair c13 c18"
+                class="c14 c20 icon icon-keypair c14 c20"
                 font-size="3"
               />
               Certificate Issued
@@ -3259,7 +3869,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3272,10 +3882,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Session Connected
@@ -3295,7 +3905,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3308,10 +3918,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               X11 Forwarding Request Failed
@@ -3331,7 +3941,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3344,10 +3954,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               X11 Forwarding Requested
@@ -3367,7 +3977,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3380,10 +3990,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               PostgreSQL Function Call
@@ -3403,7 +4013,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3416,10 +4026,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               PostgreSQL Statement Close
@@ -3439,7 +4049,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3452,10 +4062,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               PostgreSQL Statement Execute
@@ -3475,7 +4085,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3488,10 +4098,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               PostgreSQL Statement Bind
@@ -3511,7 +4121,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3524,10 +4134,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               PostgreSQL Statement Parse
@@ -3547,7 +4157,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3560,10 +4170,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Privilege Token Created
@@ -3583,7 +4193,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3596,10 +4206,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-clipboard-text c13 c18"
+                class="c14 c20 icon icon-clipboard-text c14 c20"
                 font-size="3"
               />
               Clipboard Data Received
@@ -3619,7 +4229,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3632,10 +4242,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-clipboard-text c13 c18"
+                class="c14 c20 icon icon-clipboard-text c14 c20"
                 font-size="3"
               />
               Clipboard Data Sent
@@ -3655,7 +4265,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3668,10 +4278,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-desktop c13 c18"
+                class="c14 c20 icon icon-desktop c14 c20"
                 font-size="3"
               />
               Windows Desktop Session Denied
@@ -3691,7 +4301,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3704,10 +4314,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-desktop c13 c18"
+                class="c14 c20 icon icon-desktop c14 c20"
                 font-size="3"
               />
               Windows Desktop Session Ended
@@ -3727,7 +4337,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3740,10 +4350,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-desktop c13 c18"
+                class="c14 c20 icon icon-desktop c14 c20"
                 font-size="3"
               />
               Windows Desktop Session Started
@@ -3763,7 +4373,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3776,10 +4386,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Database Deleted
@@ -3799,7 +4409,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3812,10 +4422,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Database Updated
@@ -3835,7 +4445,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3848,10 +4458,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Database Created
@@ -3871,7 +4481,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3884,10 +4494,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-unlock c13 c18"
+                class="c14 c20 icon icon-unlock c14 c20"
                 font-size="3"
               />
               Lock Deleted
@@ -3907,7 +4517,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3920,10 +4530,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-lock c13 c18"
+                class="c14 c20 icon icon-lock c14 c20"
                 font-size="3"
               />
               Lock Created
@@ -3943,7 +4553,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3956,10 +4566,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-vpn_key c13 c18"
+                class="c14 c20 icon icon-vpn_key c14 c20"
                 font-size="3"
               />
               Recovery Code Use Failed
@@ -3979,7 +4589,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -3992,10 +4602,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Recovery Token Created
@@ -4015,7 +4625,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4028,10 +4638,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-vpn_key c13 c18"
+                class="c14 c20 icon icon-vpn_key c14 c20"
                 font-size="3"
               />
               Recovery Code Used
@@ -4051,7 +4661,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4064,10 +4674,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-keypair c13 c18"
+                class="c14 c20 icon icon-keypair c14 c20"
                 font-size="3"
               />
               Recovery Codes Generated
@@ -4087,7 +4697,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4100,10 +4710,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Database Session Ended
@@ -4123,7 +4733,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4136,10 +4746,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Database Query Failed
@@ -4159,7 +4769,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4172,10 +4782,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Database Query
@@ -4195,7 +4805,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4208,10 +4818,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-database c13 c18"
+                class="c14 c20 icon icon-database c14 c20"
                 font-size="3"
               />
               Database Session Started
@@ -4231,7 +4841,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4244,10 +4854,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Session Ended
@@ -4267,7 +4877,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4280,10 +4890,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Session Ended
@@ -4303,7 +4913,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4316,7 +4926,7 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <a
                 href="/web/cluster/im-a-cluster/session/941a4c65-c6cd-11ea-9bef-482ae3513733?recordingType=ssh"
@@ -4325,7 +4935,7 @@ exports[`list of all events 1`] = `
                 title="Open Session Player"
               >
                 <span
-                  class="c13 c18 icon icon-terminal c20"
+                  class="c14 c20 icon icon-terminal c22"
                   font-size="3"
                 />
               </a>
@@ -4346,7 +4956,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4359,10 +4969,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-credit-card c13 c18"
+                class="c14 c20 icon icon-credit-card c14 c20"
                 font-size="3"
               />
               Billing Information Updated
@@ -4382,7 +4992,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4395,10 +5005,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-credit-card c13 c18"
+                class="c14 c20 icon icon-credit-card c14 c20"
                 font-size="3"
               />
               Credit Card Added
@@ -4418,7 +5028,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4431,10 +5041,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-credit-card c13 c18"
+                class="c14 c20 icon icon-credit-card c14 c20"
                 font-size="3"
               />
               Credit Card Deleted
@@ -4454,7 +5064,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4467,10 +5077,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-credit-card c13 c18"
+                class="c14 c20 icon icon-credit-card c14 c20"
                 font-size="3"
               />
               Credit Card Updated
@@ -4490,7 +5100,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4503,10 +5113,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               MFA Device Deleted
@@ -4526,7 +5136,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4539,10 +5149,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               MFA Device Added
@@ -4562,7 +5172,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4575,10 +5185,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-kubernetes c13 c18"
+                class="c14 c20 icon icon-kubernetes c14 c20"
                 font-size="3"
               />
               Kubernetes Request
@@ -4598,7 +5208,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4611,10 +5221,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               App Session Data
@@ -4634,7 +5244,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4647,10 +5257,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               App Session Started
@@ -4670,7 +5280,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4683,10 +5293,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Command Execution
@@ -4706,7 +5316,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4719,10 +5329,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               App Session Data
@@ -4742,7 +5352,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4755,10 +5365,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               App Session Started
@@ -4778,7 +5388,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4791,10 +5401,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               OIDC Auth Connector Created
@@ -4814,7 +5424,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4827,10 +5437,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               GITHUB Auth Connector Deleted
@@ -4850,7 +5460,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4863,10 +5473,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               GITHUB Auth Connector Created
@@ -4886,7 +5496,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4899,10 +5509,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               User Password Updated
@@ -4922,7 +5532,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4935,10 +5545,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Access Request Deleted
@@ -4958,7 +5568,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -4971,10 +5581,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Access Request Updated
@@ -4994,7 +5604,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5007,10 +5617,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Access Request Created
@@ -5030,7 +5640,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5043,10 +5653,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Reset Password Token Created
@@ -5066,7 +5676,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5079,10 +5689,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               User Created
@@ -5102,7 +5712,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5115,10 +5725,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               User Updated
@@ -5138,7 +5748,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5151,10 +5761,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               User Deleted
@@ -5174,7 +5784,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5187,10 +5797,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Session Data
@@ -5210,7 +5820,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5223,10 +5833,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Session Data
@@ -5246,7 +5856,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5259,10 +5869,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Session Command
@@ -5282,7 +5892,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5295,10 +5905,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Symlink Failed
@@ -5318,7 +5928,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5331,10 +5941,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Symlink
@@ -5354,7 +5964,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5367,10 +5977,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Readlink Failed
@@ -5390,7 +6000,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5403,10 +6013,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Readlink
@@ -5426,7 +6036,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5439,10 +6049,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Rename Failed
@@ -5462,7 +6072,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5475,10 +6085,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Rename
@@ -5498,7 +6108,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5511,10 +6121,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Stat Failed
@@ -5534,7 +6144,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5547,10 +6157,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Stat
@@ -5570,7 +6180,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5583,10 +6193,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Realpath Failed
@@ -5606,7 +6216,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5619,10 +6229,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Realpath
@@ -5642,7 +6252,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5655,10 +6265,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Rmdir Failed
@@ -5678,7 +6288,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5691,10 +6301,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Rmdir
@@ -5714,7 +6324,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5727,10 +6337,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Mkdir Failed
@@ -5750,7 +6360,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5763,10 +6373,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Mkdir
@@ -5786,7 +6396,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5799,10 +6409,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Remove Failed
@@ -5822,7 +6432,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5835,10 +6445,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Remove
@@ -5858,7 +6468,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5871,10 +6481,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Readdir Failed
@@ -5894,7 +6504,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5907,10 +6517,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Readdir
@@ -5930,7 +6540,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5943,10 +6553,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Opendir Failed
@@ -5966,7 +6576,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -5979,10 +6589,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Opendir
@@ -6002,7 +6612,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6015,10 +6625,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Fsetstat Failed
@@ -6038,7 +6648,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6051,10 +6661,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Fsetstat
@@ -6074,7 +6684,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6087,10 +6697,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Setstat Failed
@@ -6110,7 +6720,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6123,10 +6733,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Setstat
@@ -6146,7 +6756,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6159,10 +6769,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Fstat Failed
@@ -6182,7 +6792,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6195,10 +6805,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Fstat
@@ -6218,7 +6828,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6231,10 +6841,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Lstat Failed
@@ -6254,7 +6864,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6267,10 +6877,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Lstat
@@ -6290,7 +6900,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6303,10 +6913,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Write Failed
@@ -6326,7 +6936,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6339,10 +6949,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Write
@@ -6362,7 +6972,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6375,10 +6985,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Read Failed
@@ -6398,7 +7008,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6411,10 +7021,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Read
@@ -6434,7 +7044,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6447,10 +7057,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Close Failed
@@ -6470,7 +7080,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6483,10 +7093,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Close
@@ -6506,7 +7116,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6519,10 +7129,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Open Failed
@@ -6542,7 +7152,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6555,10 +7165,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-folder-plus c13 c18"
+                class="c14 c20 icon icon-folder-plus c14 c20"
                 font-size="3"
               />
               SFTP Open
@@ -6578,7 +7188,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6591,10 +7201,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-file_upload c13 c18"
+                class="c14 c20 icon icon-file_upload c14 c20"
                 font-size="3"
               />
               SCP Upload
@@ -6614,7 +7224,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6627,10 +7237,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-get_app c13 c18"
+                class="c14 c20 icon icon-get_app c14 c20"
                 font-size="3"
               />
               SCP Download Failed
@@ -6650,7 +7260,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6663,10 +7273,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-get_app c13 c18"
+                class="c14 c20 icon icon-get_app c14 c20"
                 font-size="3"
               />
               SCP Download
@@ -6686,7 +7296,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6699,10 +7309,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               User Joined
@@ -6722,7 +7332,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6735,10 +7345,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Terminal Resize
@@ -6758,7 +7368,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6771,10 +7381,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Session Started
@@ -6794,7 +7404,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6807,10 +7417,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Session File Access
@@ -6830,7 +7440,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6843,10 +7453,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-terminal c13 c18"
+                class="c14 c20 icon icon-terminal c14 c20"
                 font-size="3"
               />
               Session Network Connection
@@ -6866,7 +7476,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6879,10 +7489,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Local Login Failed
@@ -6902,7 +7512,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6915,10 +7525,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Auth Attempt Failed
@@ -6938,7 +7548,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6951,10 +7561,10 @@ exports[`list of all events 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c17"
+              class="c19"
             >
               <span
-                class="c13 c18 icon icon-info_outline c13 c18"
+                class="c14 c20 icon icon-info_outline c14 c20"
                 font-size="3"
               />
               Local Login
@@ -6974,7 +7584,7 @@ exports[`list of all events 1`] = `
             align="right"
           >
             <button
-              class="c19"
+              class="c21"
               kind="border"
               width="87px"
             >
@@ -6995,7 +7605,7 @@ exports[`loaded audit log screen 1`] = `
   width: 210px;
 }
 
-.c23 {
+.c25 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -7014,7 +7624,7 @@ exports[`loaded audit log screen 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   background: rgba(255,255,255,0);
   border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
@@ -7023,42 +7633,128 @@ exports[`loaded audit log screen 1`] = `
   width: 87px;
 }
 
-.c23:hover,
-.c23:focus {
+.c25:hover,
+.c25:focus {
   background: rgba(255,255,255,0.07);
-  border: 1px solid undefined;
 }
 
-.c23:active {
+.c25:active {
   background: rgba(255,255,255,0.13);
 }
 
-.c23:disabled {
+.c25:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
 }
 
-.c18 {
+.c19 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
-}
-
-.c20 {
-  display: inline-block;
-  transition: color 0.3s;
-  color: #FFFFFF;
 }
 
 .c22 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
+}
+
+.c24 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
   margin-right: 16px;
   padding: 4px;
   font-size: 16px;
+}
+
+.c16 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c16 .c18 {
+  color: inherit;
+}
+
+.c16:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c16:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c16:hover:enabled,
+.c16:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c16:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c20 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c20 .c18 {
+  color: inherit;
+}
+
+.c20:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c20:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c20:hover:enabled,
+.c20:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c20:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c14 {
@@ -7107,20 +7803,20 @@ exports[`loaded audit log screen 1`] = `
   outline: none;
   min-height: 40px;
   height: fit-content;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
   background-color: transparent;
   box-shadow: none;
 }
 
 .c4 .react-select__control .react-select__dropdown-indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c4 .react-select__control:hover,
 .c4 .react-select__control:focus,
 .c4 .react-select__control:active {
-  border: 1px solid rgba(255,255,255,0.56);
+  border: 1px solid rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -7141,7 +7837,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c4 .react-select__control--is-focused {
-  border-color: rgba(255,255,255,0.56);
+  border-color: rgba(255,255,255,0.72);
   background-color: rgba(255,255,255,0.07);
   cursor: pointer;
 }
@@ -7155,7 +7851,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c4 .react-select__placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c4 .react-select__multi-value {
@@ -7201,7 +7897,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c4 .react-select__clear-indicator {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c4 .react-select__clear-indicator:hover,
@@ -7235,20 +7931,20 @@ exports[`loaded audit log screen 1`] = `
 
 .c4 .react-select--is-disabled,
 .c4 .react-select__control--is-disabled {
-  color: rgba(255,255,255,0.18);
-  border: 1px solid rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
+  border: 1px solid rgba(255,255,255,0.36);
 }
 
 .c4 .react-select--is-disabled .react-select__single-value,
 .c4 .react-select__control--is-disabled .react-select__single-value,
 .c4 .react-select--is-disabled .react-select__placeholder,
 .c4 .react-select__control--is-disabled .react-select__placeholder {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c4 .react-select--is-disabled .react-select__indicator,
 .c4 .react-select__control--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.18);
+  color: rgba(255,255,255,0.36);
 }
 
 .c1 {
@@ -7291,10 +7987,11 @@ exports[`loaded audit log screen 1`] = `
   padding-bottom: 24px;
 }
 
-.c19 {
+.c21 {
   background: #222C59;
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
   border-top-left-radius: 0px;
@@ -7303,39 +8000,39 @@ exports[`loaded audit log screen 1`] = `
   border-bottom-left-radius: 8px;
 }
 
-.c19 > thead > tr > th,
-.c19 > tbody > tr > th,
-.c19 > tfoot > tr > th,
-.c19 > thead > tr > td,
-.c19 > tbody > tr > td,
-.c19 > tfoot > tr > td {
+.c21 > thead > tr > th,
+.c21 > tbody > tr > th,
+.c21 > tfoot > tr > th,
+.c21 > thead > tr > td,
+.c21 > tbody > tr > td,
+.c21 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c19 > thead > tr > th:first-child,
-.c19 > tbody > tr > th:first-child,
-.c19 > tfoot > tr > th:first-child,
-.c19 > thead > tr > td:first-child,
-.c19 > tbody > tr > td:first-child,
-.c19 > tfoot > tr > td:first-child {
+.c21 > thead > tr > th:first-child,
+.c21 > tbody > tr > th:first-child,
+.c21 > tfoot > tr > th:first-child,
+.c21 > thead > tr > td:first-child,
+.c21 > tbody > tr > td:first-child,
+.c21 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c19 > thead > tr > th:last-child,
-.c19 > tbody > tr > th:last-child,
-.c19 > tfoot > tr > th:last-child,
-.c19 > thead > tr > td:last-child,
-.c19 > tbody > tr > td:last-child,
-.c19 > tfoot > tr > td:last-child {
+.c21 > thead > tr > th:last-child,
+.c21 > tbody > tr > th:last-child,
+.c21 > tfoot > tr > th:last-child,
+.c21 > thead > tr > td:last-child,
+.c21 > tbody > tr > td:last-child,
+.c21 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c19 > tbody > tr > td {
+.c21 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c19 > thead > tr > th {
+.c21 > thead > tr > th {
   background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
@@ -7349,22 +8046,22 @@ exports[`loaded audit log screen 1`] = `
   white-space: nowrap;
 }
 
-.c19 > thead > tr > th .c17 {
+.c21 > thead > tr > th .c18 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c19 > tbody > tr > td {
+.c21 > tbody > tr > td {
   color: #FFFFFF;
   line-height: 16px;
 }
 
-.c19 tbody tr {
-  border-bottom: 1px solid #0C143D;
+.c21 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c19 tbody tr:hover {
+.c21 tbody tr:hover {
   background-color: rgba(255,255,255,0.07);
 }
 
@@ -7384,29 +8081,12 @@ exports[`loaded audit log screen 1`] = `
   border-radius: 8px;
 }
 
-.c16 {
-  background: none;
-  border: none;
-  cursor: pointer;
-}
-
-.c16 .c17 {
+.c17 .c18 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c16:hover .c17,
-.c16:focus .c17 {
-  opacity: 1;
-}
-
-.c16:disabled {
-  cursor: default;
-}
-
-.c16:disabled .c17 {
-  opacity: 0.1;
+.c17 .c18:before {
+  padding-left: 1px;
 }
 
 .c11 {
@@ -7471,11 +8151,11 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c21 {
+.c23 {
   display: flex;
   align-items: center;
   min-width: 130px;
@@ -7590,7 +8270,7 @@ exports[`loaded audit log screen 1`] = `
         >
           <div
             class="c14"
-            color="text.primary"
+            color="text.main"
             style="white-space: nowrap; text-transform: uppercase;"
           >
             Showing 
@@ -7612,22 +8292,22 @@ exports[`loaded audit log screen 1`] = `
           class="c15"
         >
           <button
-            class="c16"
+            class="c16 c17"
             disabled=""
             title="Previous page"
           >
             <span
-              class="c17 c18 icon icon-arrow-left-circle "
+              class="c18 c19 icon icon-arrow-left-circle "
               font-size="3"
             />
           </button>
           <button
-            class="c16"
+            class="c20 c17"
             disabled=""
             title="Next page"
           >
             <span
-              class="c17 c18 icon icon-arrow-right-circle "
+              class="c18 c19 icon icon-arrow-right-circle "
               font-size="3"
             />
           </button>
@@ -7635,7 +8315,7 @@ exports[`loaded audit log screen 1`] = `
       </div>
     </nav>
     <table
-      class="c19"
+      class="c21"
     >
       <thead>
         <tr>
@@ -7643,7 +8323,7 @@ exports[`loaded audit log screen 1`] = `
             <a>
               Type
               <span
-                class="c17 c20 icon icon-chevrons-expand-vertical "
+                class="c18 c22 icon icon-chevrons-expand-vertical "
                 title="sort items"
               />
             </a>
@@ -7657,7 +8337,7 @@ exports[`loaded audit log screen 1`] = `
             <a>
               Created (UTC)
               <span
-                class="c17 c20 icon icon-chevron-down "
+                class="c18 c22 icon icon-chevron-down "
                 title="sort items desc"
               />
             </a>
@@ -7673,10 +8353,10 @@ exports[`loaded audit log screen 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c21"
+              class="c23"
             >
               <span
-                class="c17 c22 icon icon-info_outline c17 c22"
+                class="c18 c24 icon icon-info_outline c18 c24"
                 font-size="3"
               />
               User Updated
@@ -7696,7 +8376,7 @@ exports[`loaded audit log screen 1`] = `
             align="right"
           >
             <button
-              class="c23"
+              class="c25"
               kind="border"
               width="87px"
             >
@@ -7709,10 +8389,10 @@ exports[`loaded audit log screen 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c21"
+              class="c23"
             >
               <span
-                class="c17 c22 icon icon-info_outline c17 c22"
+                class="c18 c24 icon icon-info_outline c18 c24"
                 font-size="3"
               />
               User Deleted
@@ -7732,7 +8412,7 @@ exports[`loaded audit log screen 1`] = `
             align="right"
           >
             <button
-              class="c23"
+              class="c25"
               kind="border"
               width="87px"
             >
@@ -7745,10 +8425,10 @@ exports[`loaded audit log screen 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c21"
+              class="c23"
             >
               <span
-                class="c17 c22 icon icon-question-circle c17 c22"
+                class="c18 c24 icon icon-question-circle c18 c24"
                 font-size="3"
               />
               Unknown Event
@@ -7768,7 +8448,7 @@ exports[`loaded audit log screen 1`] = `
             align="right"
           >
             <button
-              class="c23"
+              class="c25"
               kind="border"
               width="87px"
             >
@@ -7781,10 +8461,10 @@ exports[`loaded audit log screen 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c21"
+              class="c23"
             >
               <span
-                class="c17 c22 icon icon-terminal c17 c22"
+                class="c18 c24 icon icon-terminal c18 c24"
                 font-size="3"
               />
               Session File Access
@@ -7804,7 +8484,7 @@ exports[`loaded audit log screen 1`] = `
             align="right"
           >
             <button
-              class="c23"
+              class="c25"
               kind="border"
               width="87px"
             >
@@ -7817,10 +8497,10 @@ exports[`loaded audit log screen 1`] = `
             style="vertical-align: inherit;"
           >
             <div
-              class="c21"
+              class="c23"
             >
               <span
-                class="c17 c22 icon icon-terminal c17 c22"
+                class="c18 c24 icon icon-terminal c18 c24"
                 font-size="3"
               />
               Session Network Connection
@@ -7840,7 +8520,7 @@ exports[`loaded audit log screen 1`] = `
             align="right"
           >
             <button
-              class="c23"
+              class="c25"
               kind="border"
               width="87px"
             >

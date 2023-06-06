@@ -26,7 +26,7 @@ sets the affinity:
       - --agent-namespace=NAMESPACE
       - --base-image=public.ecr.aws/gravitational/teleport-distroless
       - --version-server=https://my-custom-version-server/v1
-      - --release-channel=custom/preview
+      - --version-channel=custom/preview
       image: public.ecr.aws/gravitational/teleport-kube-agent-updater:14.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -49,7 +49,7 @@ sets the affinity:
         failureThreshold: 6
         httpGet:
           path: /readyz
-          port: diag
+          port: healthz
         initialDelaySeconds: 5
         periodSeconds: 5
         timeoutSeconds: 5
@@ -70,7 +70,7 @@ sets the tolerations:
       - --agent-namespace=NAMESPACE
       - --base-image=public.ecr.aws/gravitational/teleport-distroless
       - --version-server=https://my-custom-version-server/v1
-      - --release-channel=custom/preview
+      - --version-channel=custom/preview
       image: public.ecr.aws/gravitational/teleport-kube-agent-updater:14.0.0-dev
       imagePullPolicy: IfNotPresent
       livenessProbe:
@@ -93,7 +93,7 @@ sets the tolerations:
         failureThreshold: 6
         httpGet:
           path: /readyz
-          port: diag
+          port: healthz
         initialDelaySeconds: 5
         periodSeconds: 5
         timeoutSeconds: 5

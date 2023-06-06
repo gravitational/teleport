@@ -332,7 +332,7 @@ func TestInstanceHeartbeat(t *testing.T) {
 	controller.RegisterControlStream(upstream, proto.UpstreamInventoryHello{
 		ServerID: serverID,
 		Version:  teleport.Version,
-		Services: []types.SystemRole{types.RoleNode},
+		Services: []types.SystemRole{types.RoleNode, types.RoleApp},
 	})
 
 	// verify that control stream handle is now accessible
@@ -344,6 +344,13 @@ func TestInstanceHeartbeat(t *testing.T) {
 		expect(instanceHeartbeatOk),
 		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
 	)
+
+	// verify the service counter shows the correct number for the given services.
+	require.Equal(t, uint64(1), controller.serviceCounter.get(types.RoleNode))
+	require.Equal(t, uint64(1), controller.serviceCounter.get(types.RoleApp))
+
+	// this service was not seen, so it should be 0.
+	require.Equal(t, uint64(0), controller.serviceCounter.get(types.RoleOkta))
 
 	auth.mu.Lock()
 	auth.lastInstance.AppendControlLog(types.InstanceControlLogEntry{
@@ -499,6 +506,14 @@ func TestInstanceHeartbeat(t *testing.T) {
 		)
 	}
 
+	// verify the service counter shows the correct number for the given services.
+	require.Equal(t, map[types.SystemRole]uint64{
+		types.RoleApp:  1,
+		types.RoleNode: 1,
+	}, controller.ConnectedServiceCounts())
+	require.Equal(t, uint64(1), controller.ConnectedServiceCount(types.RoleNode))
+	require.Equal(t, uint64(1), controller.ConnectedServiceCount(types.RoleApp))
+
 	// verify that none of the qualified events were ever heartbeat because
 	// a reset always occurred.
 	var unqualifiedIncludes int
@@ -542,6 +557,75 @@ func TestInstanceHeartbeat(t *testing.T) {
 	logSize := len(auth.lastInstance.GetControlLog())
 	auth.mu.Unlock()
 	require.Greater(t, logSize, 2)
+
+	// verify the service counter now shows no connected services.
+	require.Equal(t, map[types.SystemRole]uint64{
+		types.RoleApp:  0,
+		types.RoleNode: 0,
+	}, controller.ConnectedServiceCounts())
+	require.Equal(t, uint64(0), controller.ConnectedServiceCount(types.RoleNode))
+	require.Equal(t, uint64(0), controller.ConnectedServiceCount(types.RoleApp))
+}
+
+// TestUpdateLabels verifies that an instance's labels can be updated over an
+// inventory control stream.
+func TestUpdateLabels(t *testing.T) {
+	t.Parallel()
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// Set up fake in-memory control stream.
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	upstreamHello := proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	}
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: "auth",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	downstreamHandle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+		return downstream, nil
+	}, upstreamHello)
+
+	// Wait for upstream hello.
+	select {
+	case msg := <-upstream.Recv():
+		require.Equal(t, upstreamHello, msg)
+	case <-ctx.Done():
+		require.Fail(t, "never got upstream hello")
+	}
+	require.NoError(t, upstream.Send(ctx, downstreamHello))
+	controller.RegisterControlStream(upstream, upstreamHello)
+
+	// Verify that control stream upstreamHandle is now accessible.
+	upstreamHandle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// Update labels.
+	labels := map[string]string{"a": "1", "b": "2"}
+	require.NoError(t, upstreamHandle.UpdateLabels(ctx, proto.LabelUpdateKind_SSHServer, labels))
+
+	require.Eventually(t, func() bool {
+		require.Equal(t, labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServer))
+		return true
+	}, time.Second, 100*time.Millisecond)
 }
 
 type eventOpts struct {

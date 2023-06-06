@@ -15,11 +15,33 @@ limitations under the License.
 */
 
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 
+import { useLocalStorage } from 'shared/hooks/useLocalStorage';
+import { OpenAIIcon } from 'design/SVGIcon/OpenAI';
+
+import { useHistory, useLocation } from 'react-router';
+
 import { NavigationCategory } from 'teleport/Navigation/categories';
+
+import { useTeleport } from 'teleport';
+
+import { KeysEnum } from 'teleport/services/localStorage';
+
+import cfg from 'teleport/config';
+
+import {
+  TeleportIcon,
+  Tooltip,
+  TooltipButton,
+  TooltipFooter,
+  TooltipLogos,
+  TooltipLogosSpacer,
+  TooltipTitle,
+  TooltipTitleBackground,
+} from './AssistTooltip';
 
 interface NavigationSwitcherProps {
   onChange: (value: NavigationCategory) => void;
@@ -42,7 +64,7 @@ const Container = styled.div`
 `;
 
 const ActiveValue = styled.div<OpenProps>`
-  border: 1px solid ${props => props.theme.colors.text.secondary};
+  border: 1px solid ${props => props.theme.colors.text.slightlyMuted};
   border-radius: 4px;
   padding: 12px 16px;
   width: 190px;
@@ -51,7 +73,7 @@ const ActiveValue = styled.div<OpenProps>`
   cursor: pointer;
 
   &:focus {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
 
@@ -73,7 +95,7 @@ const Dropdown = styled.div<OpenProps>`
 `;
 
 const DropdownItem = styled.div<ActiveProps & OpenProps>`
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   padding: 12px 16px;
   width: 190px;
   font-weight: ${p => (p.active ? 700 : 400)};
@@ -95,7 +117,7 @@ const Arrow = styled.div<OpenProps>`
   top: 50%;
   right: 16px;
   transform: translate(0, -50%);
-  color: ${props => props.theme.colors.text.primary}
+  color: ${props => props.theme.colors.text.main}
   line-height: 0;
 
   svg {
@@ -103,13 +125,38 @@ const Arrow = styled.div<OpenProps>`
     transition: 0.1s linear transform;
 
     path {
-    fill: ${props => props.theme.colors.text.primary}
-  }
+      fill: ${props => props.theme.colors.text.main}
+    }
   }
 `;
 
+const Background = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 98;
+  background: rgba(0, 0, 0, 0.6);
+`;
+
 export function NavigationSwitcher(props: NavigationSwitcherProps) {
-  const [open, setOpen] = useState(false);
+  const ctx = useTeleport();
+  const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
+
+  const location = useLocation();
+  const isAssistRoute = location.pathname.startsWith(cfg.routes.assistBase);
+
+  const [showAssist, setShowAssist] = useLocalStorage(
+    KeysEnum.SHOW_ASSIST_POPUP,
+    assistEnabled && !isAssistRoute
+  );
+
+  const theme = useTheme();
+
+  const [open, setOpen] = useState(showAssist);
+
+  const history = useHistory();
 
   const ref = useRef<HTMLDivElement>();
   const activeValueRef = useRef<HTMLDivElement>();
@@ -119,11 +166,17 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
+      // prevent the dropdown from closing when the assist tooltip is visible
+      // this prevents the switcher from closing when the user closes the discover modal
+      if (showAssist) {
+        return;
+      }
+
       if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
         setOpen(false);
       }
     },
-    [ref.current]
+    [showAssist, ref.current]
   );
 
   useEffect(() => {
@@ -202,8 +255,14 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   const handleChange = useCallback(
     (value: NavigationCategory) => {
+      setShowAssist(false);
+
       if (props.value !== value) {
         props.onChange(value);
+      }
+
+      if (value === NavigationCategory.Assist) {
+        history.push(cfg.routes.assistBase);
       }
 
       setOpen(false);
@@ -214,6 +273,10 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
   const items = [];
 
   for (const [index, item] of props.items.entries()) {
+    if (item === NavigationCategory.Assist && !assistEnabled) {
+      continue;
+    }
+
     items.push(
       <DropdownItem
         ref={index === 0 ? firstValueRef : null}
@@ -231,6 +294,30 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   return (
     <Container ref={ref}>
+      {showAssist && (
+        <>
+          <Background />
+          <Tooltip>
+            <TooltipTitle>
+              <TooltipTitleBackground>New!</TooltipTitleBackground>
+            </TooltipTitle>{' '}
+            Try out Teleport Assist, a GPT-4-powered AI assistant that leverages
+            your infrastructure
+            <TooltipFooter>
+              <TooltipLogos>
+                <OpenAIIcon size={30} />
+                <TooltipLogosSpacer>+</TooltipLogosSpacer>
+                <TeleportIcon light={theme.name === 'light'} />
+              </TooltipLogos>
+
+              <TooltipButton onClick={() => setShowAssist(false)}>
+                Close
+              </TooltipButton>
+            </TooltipFooter>
+          </Tooltip>
+        </>
+      )}
+
       <ActiveValue
         ref={activeValueRef}
         onClick={() => setOpen(!open)}

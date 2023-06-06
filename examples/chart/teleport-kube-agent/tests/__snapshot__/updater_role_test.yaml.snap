@@ -19,14 +19,26 @@ sets the correct role rules:
       - list
     - apiGroups:
       - ""
+      resources:
+      - secrets
+      verbs:
+      - watch
+      - list
+    - apiGroups:
+      - ""
       resourceNames:
       - RELEASE-NAME-shared-state
       resources:
       - secrets
       verbs:
       - get
-      - watch
-      - list
+    - apiGroups:
+      - ""
+      resources:
+      - events
+      verbs:
+      - create
+      - patch
     - apiGroups:
       - apps
       resources:
@@ -46,4 +58,19 @@ sets the correct role rules:
       - deployments
       - statefulsets
       verbs:
+      - update
+    - apiGroups:
+      - coordination.k8s.io
+      resources:
+      - leases
+      verbs:
+      - create
+    - apiGroups:
+      - coordination.k8s.io
+      resourceNames:
+      - RELEASE-NAME
+      resources:
+      - leases
+      verbs:
+      - get
       - update

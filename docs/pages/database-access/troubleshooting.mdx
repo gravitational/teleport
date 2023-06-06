@@ -137,3 +137,22 @@ Now Alice can connect to any database in the Teleport cluster using any database
 This example is intentionally simple; we could have configured Alice's permissions using more fine-grained control.
 For more detailed information about database access controls and how to restrict
 access see the [RBAC](../database-access/rbac.mdx) documentation.
+
+## Connection to MySQL database results in "Unknown system variable 'query_cache_size'" error
+
+When TLS Routing is disable by default, the Teleport Proxy Service returns `8.0.0-Teleport` as the MySQL server version. In some cases, like connecting with a GUI Client, this can result in obtaining an `Unknown system variable 'query_cache_size'` error that indicates that MySQL capabilities were not properly negotiated between the MySQL client and server.
+
+One way to solve this issue is to [use the TLS Routing
+feature](../management/operations/tls-routing.mdx), where the Teleport Proxy
+Service propagates the correct MySQL server version via TLS Routing extensions.
+
+If migration to TLS Routing is not possible, another way to bypass this error is
+to use the [Teleport local proxy
+command](../connect-your-client/gui-clients.mdx#get-connection-information),
+which allows you to establish a TLS Routing connection to the Teleport Proxy
+Service even if TLS Routing was not enabled on the Teleport cluster.
+
+```yaml
+proxy_service:
+  mysql_server_version: "8.0.4"
+```

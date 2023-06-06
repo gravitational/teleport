@@ -43,6 +43,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -465,6 +466,109 @@ func TestLocalProxyClosesConnOnError(t *testing.T) {
 	_, err = conn.Read(buf)
 	require.Error(t, err)
 	require.ErrorIs(t, err, io.EOF, "connection should have been closed by local proxy")
+}
+
+func TestKubeMiddleware(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	clock := clockwork.NewFakeClockAt(now)
+	var certReissuer KubeCertReissuer
+
+	ca := mustGenSelfSignedCert(t)
+	kube1Cert := mustGenCertSignedWithCA(t, ca,
+		withIdentity(tlsca.Identity{
+			Username:          "test-user",
+			Groups:            []string{"test-group"},
+			KubernetesCluster: "kube1",
+		}),
+		withClock(clock),
+	)
+	kube2Cert := mustGenCertSignedWithCA(t, ca,
+		withIdentity(tlsca.Identity{
+			Username:          "test-user",
+			Groups:            []string{"test-group"},
+			KubernetesCluster: "kube2",
+		}),
+		withClock(clock),
+	)
+	newCert := mustGenCertSignedWithCA(t, ca,
+		withIdentity(tlsca.Identity{
+			Username:          "test-user",
+			Groups:            []string{"test-group"},
+			KubernetesCluster: "kube1newCert",
+		}),
+		withClock(clock),
+	)
+
+	certReissuer = func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+		return newCert, nil
+	}
+
+	testCases := []struct {
+		name            string
+		reqClusterName  string
+		startCerts      KubeClientCerts
+		clock           clockwork.Clock
+		overwrittenCert tls.Certificate
+		wantErr         string
+	}{
+		{
+			name:           "kube cluster not found",
+			reqClusterName: "kube3",
+			startCerts:     KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			clock:          clockwork.NewFakeClockAt(now),
+			wantErr:        "no client cert found for kube3",
+		},
+		{
+			name:            "expired cert reissued",
+			reqClusterName:  "kube1",
+			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			clock:           clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
+			overwrittenCert: newCert,
+			wantErr:         "",
+		},
+		{
+			name:            "success kube1",
+			reqClusterName:  "kube1",
+			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			clock:           clockwork.NewFakeClockAt(now),
+			overwrittenCert: kube1Cert,
+			wantErr:         "",
+		},
+		{
+			name:            "success kube2",
+			reqClusterName:  "kube2",
+			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			clock:           clockwork.NewFakeClockAt(now),
+			overwrittenCert: kube2Cert,
+			wantErr:         "",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			req := http.Request{
+				TLS: &tls.ConnectionState{
+					ServerName: tt.reqClusterName,
+				},
+			}
+			km := NewKubeMiddleware(tt.startCerts, certReissuer, tt.clock, nil)
+
+			// HandleRequest will reissue certificate if needed
+			km.HandleRequest(responsewriters.NewMemoryResponseWriter(), &req)
+
+			certs, err := km.OverwriteClientCerts(&req)
+
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, 1, len(certs))
+				require.Equal(t, tt.overwrittenCert, certs[0])
+			}
+		})
+	}
 }
 
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {

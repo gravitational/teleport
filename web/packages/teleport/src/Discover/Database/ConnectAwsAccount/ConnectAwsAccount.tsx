@@ -18,7 +18,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Box,
-  ButtonLink,
+  ButtonText,
   Text,
   ButtonPrimary,
   Indicator,
@@ -37,22 +37,37 @@ import {
   IntegrationKind,
   integrationService,
 } from 'teleport/services/integrations';
-import { integrationRWE } from 'teleport/Discover/yamlTemplates';
+import { integrationRWEAndDbCU } from 'teleport/Discover/yamlTemplates';
 import useTeleport from 'teleport/useTeleport';
 
-import { ActionButtons, HeaderSubtitle, HeaderWithBackBtn } from '../../Shared';
+import { ActionButtons, HeaderSubtitle, Header } from '../../Shared';
 
-import { DbMeta, useDiscover } from '../../useDiscover';
+import {
+  DbMeta,
+  DiscoverUrlLocationState,
+  useDiscover,
+} from '../../useDiscover';
 
 export function ConnectAwsAccount() {
   const { storeUser } = useTeleport();
-  const { prevStep, nextStep, agentMeta, updateAgentMeta, eventState } =
-    useDiscover();
+  const {
+    prevStep,
+    nextStep,
+    agentMeta,
+    updateAgentMeta,
+    eventState,
+    resourceSpec,
+    currentStep,
+  } = useDiscover();
 
-  // TODO(lisa): also need to check for verb `use` which is pending
-  // work.
-  const access = storeUser.getIntegrationsAccess();
-  const hasAccess = access.create && access.list;
+  const integrationAccess = storeUser.getIntegrationsAccess();
+  const databaseAccess = storeUser.getDatabaseAccess();
+  const hasAccess =
+    integrationAccess.create &&
+    integrationAccess.list &&
+    // Required access after integrating:
+    integrationAccess.use && // required to list AWS RDS db's
+    databaseAccess.create; // required to enroll AWS RDS db
   const { attempt, run } = useAttempt(hasAccess ? 'processing' : '');
 
   const [awsIntegrations, setAwsIntegrations] = useState<Option[]>([]);
@@ -84,7 +99,7 @@ export function ConnectAwsAccount() {
   if (!hasAccess) {
     return (
       <Box maxWidth="700px">
-        <Header prevStep={prevStep} />
+        <Heading />
         <Box maxWidth="700px">
           <Text mt={4} width="100px">
             You don’t have the required permissions for integrating.
@@ -95,7 +110,7 @@ export function ConnectAwsAccount() {
           <Flex minHeight="215px" mt={3}>
             <TextEditor
               readOnly={true}
-              data={[{ content: integrationRWE, type: 'yaml' }]}
+              data={[{ content: integrationRWEAndDbCU, type: 'yaml' }]}
             />
           </Flex>
         </Box>
@@ -106,7 +121,7 @@ export function ConnectAwsAccount() {
   if (attempt.status === 'processing') {
     return (
       <Box maxWidth="700px">
-        <Header prevStep={prevStep} />
+        <Heading />
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
@@ -117,7 +132,7 @@ export function ConnectAwsAccount() {
   if (attempt.status === 'failed') {
     return (
       <Box maxWidth="700px">
-        <Header prevStep={prevStep} />
+        <Heading />
         <Alert kind="danger" children={attempt.statusText} />
         <ButtonPrimary mt={2} onClick={fetchAwsIntegrations}>
           Retry
@@ -133,21 +148,31 @@ export function ConnectAwsAccount() {
 
     updateAgentMeta({
       ...(agentMeta as DbMeta),
-      awsIntegrationName: selectedAwsIntegration.value,
+      integrationName: selectedAwsIntegration.value,
     });
 
-    // TODO(lisa): Need to add a new event to emit for this screen.
     nextStep();
   }
 
   const hasAwsIntegrations = awsIntegrations.length > 0;
+
+  // When a user clicks to create a new AWS integration, we
+  // define location state to preserve all the states required
+  // to resume from this step when the user comes back to discover route
+  // after successfully finishing enrolling integration.
   const locationState = {
     pathname: cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc),
-    state: { discoverEventId: eventState?.id },
+    state: {
+      discover: {
+        eventState,
+        resourceSpec,
+        currentStep,
+      },
+    } as DiscoverUrlLocationState,
   };
   return (
     <Box maxWidth="700px">
-      <Header prevStep={prevStep} />
+      <Heading />
       <Box mb={3}>
         <Validation>
           {({ validator }) => (
@@ -170,9 +195,9 @@ export function ConnectAwsAccount() {
                       options={awsIntegrations}
                     />
                   </Box>
-                  <ButtonLink as={Link} to={locationState} pl={0}>
+                  <ButtonText as={Link} to={locationState} pl={0}>
                     Or click here to set up a different AWS account
-                  </ButtonLink>
+                  </ButtonText>
                 </>
               ) : (
                 <ButtonPrimary
@@ -187,6 +212,7 @@ export function ConnectAwsAccount() {
               )}
 
               <ActionButtons
+                onPrev={prevStep}
                 onProceed={() => proceedWithExistingIntegration(validator)}
                 disableProceed={!hasAwsIntegrations || !selectedAwsIntegration}
               />
@@ -198,11 +224,9 @@ export function ConnectAwsAccount() {
   );
 }
 
-const Header = ({ prevStep }: { prevStep(): void }) => (
+const Heading = () => (
   <>
-    <HeaderWithBackBtn onPrev={prevStep}>
-      Connect to your AWS Account
-    </HeaderWithBackBtn>
+    <Header>Connect to your AWS Account</Header>
     <HeaderSubtitle>
       Instead of storing long-lived static credentials, Teleport will request
       short-lived credentials from AWS to perform operations automatically.

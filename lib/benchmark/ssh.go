@@ -37,42 +37,35 @@ type SSHBenchmark struct {
 
 // BenchBuilder returns a WorkloadFunc for the given benchmark suite.
 func (s SSHBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportClient) (WorkloadFunc, error) {
+	var resources []types.Server
 	if s.Random {
 		if tc.Host != "all" {
 			return nil, trace.BadParameter("random ssh bench commands must use the format <user>@all <command>")
 		}
 
-		fn, err := s.random(ctx, tc)
-		return fn, trace.Wrap(err)
+		clt, err := tc.ConnectToCluster(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		defer clt.Close()
+
+		resources, err = apiclient.GetAllResources[types.Server](ctx, clt.AuthClient, tc.ResourceFilter(types.KindNode))
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if len(resources) == 0 {
+			return nil, trace.BadParameter("no target hosts available")
+		}
 	}
 
 	return func(ctx context.Context) error {
-		return tc.SSH(ctx, s.Command, false)
-	}, nil
-}
+		var opts []func(*client.SSHOptions)
+		if len(resources) > 0 {
+			opts = append(opts, client.WithHostAddress(chooseRandomHost(resources)))
+		}
 
-// random creates a [WorkloadFunc] that executes the provided command on
-// a random host that the user has access to. If hosts disappear or go
-// offline during the benchmark they will not be removed from the list and
-// can have a negative impact on the results.
-func (s SSHBenchmark) random(ctx context.Context, tc *client.TeleportClient) (WorkloadFunc, error) {
-	clt, err := tc.ConnectToCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	defer clt.Close()
-
-	resources, err := apiclient.GetAllResources[types.Server](ctx, clt.AuthClient, tc.ResourceFilter(types.KindNode))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if len(resources) == 0 {
-		return nil, trace.BadParameter("no target hosts available")
-	}
-
-	return func(ctx context.Context) error {
-		return tc.SSH(ctx, s.Command, false, client.WithHostAddress(chooseRandomHost(resources)))
+		return tc.SSH(ctx, s.Command, false, opts...)
 	}, nil
 }
 

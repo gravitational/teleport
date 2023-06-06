@@ -84,7 +84,7 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 		},
 		{
-			name: "error when discover metadata dones't have id",
+			name: "error when discover metadata doesn't have id",
 			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverResourceSelectionEvent{
 				UiDiscoverResourceSelectionEvent: &usageeventsv1.UIDiscoverResourceSelectionEvent{
 					Metadata: &usageeventsv1.DiscoverMetadata{Id: ""},
@@ -209,6 +209,25 @@ func TestConvertUsageEvent(t *testing.T) {
 						Sso:      true,
 					},
 					Status: &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+		},
+		{
+			name: "integration enroll started event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStartEvent{
+				UiIntegrationEnrollStartEvent: &usageeventsv1.UIIntegrationEnrollStartEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_OIDC},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollStartEvent{
+				UiIntegrationEnrollStartEvent: &prehogv1a.UIIntegrationEnrollStartEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_OIDC,
+					},
 				},
 			}},
 		},

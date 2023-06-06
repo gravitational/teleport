@@ -19,6 +19,7 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
@@ -197,8 +198,8 @@ message HostCertsRequest {
 // OpenSSHCertRequest specifies certificate-generation parameters
 // for a certificates used to connect to Agentless nodes.
 message OpenSSHCertRequest {
-  // Username is the Teleport username.
-  string Username = 1 [(gogoproto.jsontag) = "username"];
+  reserved 1; // Username, jsontag "username"
+  reserved "Username";
   // PublicKey is the public key to sign.
   bytes PublicKey = 2 [(gogoproto.jsontag) = "public_key"];
   // TTL is the duration the certificate will be valid for.
@@ -206,8 +207,13 @@ message OpenSSHCertRequest {
     (gogoproto.jsontag) = "ttl",
     (gogoproto.casttype) = "Duration"
   ];
-  // Cluster is the Teleport cluster name.
+  // Cluster is the Teleport cluster name the target node is connected to.
   string Cluster = 4 [(gogoproto.jsontag) = "cluster"];
+  // User is the Teleport user the certificate will be generated for.
+  types.UserV2 User = 5 [(gogoproto.jsontag) = "user"];
+  // Roles are the roles of the Teleport user the certificate will be
+  // generated for.
+  repeated types.RoleV6 Roles = 6 [(gogoproto.jsontag) = "roles"];
 }
 
 // OpenSSHCert is a SSH certificate signed by OpenSSH CA.
@@ -314,8 +320,10 @@ message UserCertsRequest {
   enum Requester {
     // UNSPECIFIED is set when the requester in unknown.
     UNSPECIFIED = 0;
-    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh local proxy tunnel.
+    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh db local proxy tunnel.
     TSH_DB_LOCAL_PROXY_TUNNEL = 1;
+    // TSH_KUBE_LOCAL_PROXY is set when the request was sent by a tsh kube local proxy.
+    TSH_KUBE_LOCAL_PROXY = 2;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
@@ -329,6 +337,9 @@ message UserCertsRequest {
   // This login is used when performing RBAC checks to determine if MFA is required
   // to access the resource.
   string SSHLogin = 19;
+
+  // AttestationStatement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -577,6 +588,10 @@ message Features {
   bool Plugins = 15 [(gogoproto.jsontag) = "plugins"];
   // AutomaticUpgrades enables Automatic Upgrades for the agents/services.
   bool AutomaticUpgrades = 16 [(gogoproto.jsontag) = "automatic_upgrades"];
+  // IsUsageBased enables some usage-based billing features
+  bool IsUsageBased = 17 [(gogoproto.jsontag) = "is_usage_based"];
+  // Assist enables the Assistant feature
+  bool Assist = 18 [(gogoproto.jsontag) = "assist"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -955,8 +970,9 @@ message DatabaseCSRRequest {
   bytes CSR = 1 [(gogoproto.jsontag) = "csr"];
   // ClusterName is the name of the cluster the request is for.
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
-  // SignWithDatabaseCA deprecated.
+
   reserved 3;
+  reserved "SignWithDatabaseCA";
 }
 
 // DatabaseCSRResponse contains the signed database certificate.
@@ -1603,6 +1619,8 @@ message ChangeUserAuthenticationRequest {
   MFARegisterResponse NewMFARegisterResponse = 3 [(gogoproto.jsontag) = "new_mfa_register_response,omitempty"];
   // NewDeviceName is the name of a new mfa or passwordless device.
   string NewDeviceName = 4 [(gogoproto.jsontag) = "new_device_name,omitempty"];
+  // LoginIP is an IP that will be embedded in the new client's certificate for web session if successful.
+  string LoginIP = 5 [(gogoproto.jsontag) = "login_ip,omitempty"];
 }
 
 // ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
@@ -1774,7 +1792,6 @@ message CreateRegisterChallengeRequest {
 
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
-  reserved 4;
   // Resource is the resource itself.
   oneof resource {
     // DatabaseServer represents a DatabaseServer resource.
@@ -1793,7 +1810,12 @@ message PaginatedResource {
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
     // DatabaseService represents a DatabaseService resource.
     types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
+    // UserGroup represents a UserGroup resource.
+    types.UserGroupV1 UserGroup = 10 [(gogoproto.jsontag) = "user_group,omitempty"];
   }
+
+  reserved 4;
+  reserved "KubeService";
 }
 
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
@@ -2050,6 +2072,8 @@ message DownstreamInventoryOneOf {
     DownstreamInventoryHello Hello = 1;
     // Ping triggers an upstream pong (used for testing/debug).
     DownstreamInventoryPing Ping = 2;
+    // UpdateLabels updates the instance's labels.
+    DownstreamInventoryUpdateLabels UpdateLabels = 3;
   }
 }
 
@@ -2082,6 +2106,9 @@ message UpstreamInventoryHello {
   // instance can claim its hostname to be). This value exists only to assist users in correlating
   // instance resources with hosts.
   string Hostname = 4;
+  // ExternalUpgrader identifies the external upgrader that the instance is configured to
+  // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
+  string ExternalUpgrader = 5;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
@@ -2114,6 +2141,32 @@ message DownstreamInventoryHello {
   string ServerID = 2;
 }
 
+// LabelUpdateKind is the type of service to update labels for.
+enum LabelUpdateKind {
+  // SSHServer is an SSH server.
+  SSHServer = 0;
+}
+
+// InventoryUpdateLabelsRequest is used to request that a specified instance
+// update its labels.
+message InventoryUpdateLabelsRequest {
+  // ServerID advertises the server ID of the instance.
+  string ServerID = 1;
+  // Kind is the type of service to update labels for.
+  LabelUpdateKind Kind = 2;
+  // Labels is the new set of labels for the instance.
+  map<string, string> Labels = 3;
+}
+
+// DownstreamInventoryUpdateLabels is the message sent down the inventory
+// control stream to update the instance's labels.
+message DownstreamInventoryUpdateLabels {
+  // Kind is the type of service to update labels for.
+  LabelUpdateKind Kind = 1;
+  // Labels is the new set of labels for the instance.
+  map<string, string> Labels = 2;
+}
+
 // InventoryHeartbeat announces information about instance state.
 message InventoryHeartbeat {
   // SSHServer is a complete ssh server spec to be heartbeated (note: the full spec is heartbeated
@@ -2135,6 +2188,15 @@ message InventoryStatusSummary {
   // Connected is a summary of the instances connected to the current auth server.  Only set if
   // the Connected flag in the status request is true.
   repeated UpstreamInventoryHello Connected = 1 [(gogoproto.nullable) = false];
+}
+
+// InventoryConnectedServiceCountsRequest requests inventory connected service counts.
+message InventoryConnectedServiceCountsRequest {}
+
+// InventoryConnectedServiceCounts is the connected service counts seen in the inventory.
+message InventoryConnectedServiceCounts {
+  // ServiceCounts is the count of each connected service seen in the inventory.
+  map<string, uint64> ServiceCounts = 1 [(gogoproto.castkey) = "github.com/gravitational/teleport/api/types.SystemRole"];
 }
 
 // InventoryPingRequest is used to request that the specified server be sent an inventory ping
@@ -2287,6 +2349,9 @@ service AuthService {
 
   // GetInventoryStatus gets information about current instance inventory.
   rpc GetInventoryStatus(InventoryStatusRequest) returns (InventoryStatusSummary);
+
+  // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+  rpc GetInventoryConnectedServiceCounts(InventoryConnectedServiceCountsRequest) returns (InventoryConnectedServiceCounts);
 
   // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
   rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
@@ -2616,6 +2681,17 @@ service AuthService {
 
   // GetSSODiagnosticInfo returns SSO diagnostic info records.
   rpc GetSSODiagnosticInfo(GetSSODiagnosticInfoRequest) returns (types.SSODiagnosticInfo);
+
+  // GetServerInfos returns a stream of ServerInfos.
+  rpc GetServerInfos(google.protobuf.Empty) returns (stream types.ServerInfoV1);
+  // GetServerInfo returns a ServerInfo by name.
+  rpc GetServerInfo(types.ResourceRequest) returns (types.ServerInfoV1);
+  // UpsertServerInfo upserts a ServerInfo.
+  rpc UpsertServerInfo(types.ServerInfoV1) returns (google.protobuf.Empty);
+  // DeleteServerInfo deletes a ServerInfo by name.
+  rpc DeleteServerInfo(types.ResourceRequest) returns (google.protobuf.Empty);
+  // DeleteAllServerInfos deletes all ServerInfos.
+  rpc DeleteAllServerInfos(google.protobuf.Empty) returns (google.protobuf.Empty);
 
   // GetTrustedCluster gets a Trusted Cluster resource by name.
   rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);

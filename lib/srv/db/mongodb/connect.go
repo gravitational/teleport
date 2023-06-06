@@ -32,7 +32,19 @@ import (
 	"go.mongodb.org/mongo-driver/x/mongo/driver/ocsp"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/topology"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+)
+
+const (
+	// awsSecretTokenKey is the authenticator property name used to pass AWS
+	// session token. This name is defined by the mongo driver.
+	awsSecretTokenKey = "AWS_SESSION_TOKEN"
+	// awsIAMSource is the authenticator source value used when authenticating
+	// using AWS IAM.
+	// https://www.mongodb.com/docs/manual/reference/connection-string/#mongodb-urioption-urioption.authSource
+	awsIAMSource = "$external"
 )
 
 // connect returns connection to a MongoDB server.
@@ -124,10 +136,7 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
-		// MongoDB uses full certificate Subject field as a username.
-		Username: "CN=" + sessionCtx.DatabaseUser,
-	})
+	authenticator, err := e.getAuthenticator(ctx, sessionCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -151,6 +160,57 @@ func (e *Engine) getConnectionOptions(ctx context.Context, sessionCtx *common.Se
 				&auth.HandshakeOptions{Authenticator: authenticator})
 		}),
 	}, nil
+}
+
+func (e *Engine) getAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
+	isAtlasDB := sessionCtx.Database.GetType() == types.DatabaseTypeMongoAtlas
+
+	// Currently, the MongoDB Atlas IAM Authentication doesn't work with IAM
+	// users. Here we provide a better error message to the users.
+	if isAtlasDB && awsutils.IsUserARN(sessionCtx.DatabaseUser) {
+		return nil, trace.BadParameter("MongoDB Atlas AWS IAM Authentication with IAM users is not supported.")
+	}
+
+	switch {
+	case isAtlasDB && awsutils.IsRoleARN(sessionCtx.DatabaseUser):
+		return e.getAWSAuthenticator(ctx, sessionCtx)
+	default:
+		e.Log.Debug("Authenticating to database using certificates.")
+		authenticator, err := auth.CreateAuthenticator(auth.MongoDBX509, &auth.Cred{
+			// MongoDB uses full certificate Subject field as a username.
+			Username: "CN=" + sessionCtx.DatabaseUser,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return authenticator, nil
+	}
+}
+
+// getAWSAuthenticator fetches the AWS credentials and initializes the MongoDB
+// authenticator.
+func (e *Engine) getAWSAuthenticator(ctx context.Context, sessionCtx *common.Session) (auth.Authenticator, error) {
+	e.Log.Debug("Authenticating to database using AWS IAM authentication.")
+
+	username, password, sessToken, err := e.Auth.GetAWSIAMCreds(ctx, sessionCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authenticator, err := auth.CreateAuthenticator(auth.MongoDBAWS, &auth.Cred{
+		Source:   awsIAMSource,
+		Username: username,
+		Password: password,
+		Props: map[string]string{
+			awsSecretTokenKey: sessToken,
+		},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return authenticator, nil
 }
 
 // getConnectionString returns connection string for the server.

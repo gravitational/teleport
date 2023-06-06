@@ -69,6 +69,7 @@ func (s *Server) CreateAppSession(ctx context.Context, req types.CreateAppSessio
 	}
 	certs, err := s.generateUserCert(certRequest{
 		user:           user,
+		loginIP:        identity.LoginIP,
 		publicKey:      publicKey,
 		checker:        checker,
 		ttl:            ttl,
@@ -337,6 +338,10 @@ func (s *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLI
 	identity tlsca.Identity, checker services.AccessChecker,
 ) (types.WebSession, error) {
 	// TODO(mdwn): implement a module.Features() check.
+
+	if req.SAMLSession == nil {
+		return nil, trace.BadParameter("required SAML session is not populated")
+	}
 
 	// Create services.WebSession for this session.
 	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{

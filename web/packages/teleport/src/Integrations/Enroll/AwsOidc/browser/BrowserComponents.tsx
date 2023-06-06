@@ -23,6 +23,7 @@ export const BrowserContainer = styled.div`
   border-radius: 5px;
   width: 100%;
   box-shadow: 0px 0px 20px 0px rgba(0, 0, 0, 0.43);
+  color: white;
 `;
 
 export const BrowserTitleBarContainer = styled.div`

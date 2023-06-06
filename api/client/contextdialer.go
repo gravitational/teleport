@@ -45,6 +45,9 @@ type dialConfig struct {
 	// connection upgrade. This is only effective when alpnConnUpgradeRequired
 	// is true.
 	alpnConnUpgradeWithPing bool
+	// proxyHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
+	// Used by proxy's web server to make calls on behalf of connected clients.
+	proxyHeaderGetter PROXYHeaderGetter
 }
 
 // WithInsecureSkipVerify specifies if dialing insecure when using an HTTPS proxy.
@@ -68,6 +71,14 @@ func WithALPNConnUpgrade(alpnConnUpgradeRequired bool) DialOption {
 func WithALPNConnUpgradePing(alpnConnUpgradeWithPing bool) DialOption {
 	return func(cfg *dialProxyConfig) {
 		cfg.alpnConnUpgradeWithPing = alpnConnUpgradeWithPing
+	}
+}
+
+// WithPROXYHeaderGetter provides PROXY headers signer so client's real IP could be propagated.
+// Used by proxy's web server to make calls on behalf of connected clients.
+func WithPROXYHeaderGetter(proxyHeaderGetter PROXYHeaderGetter) DialProxyOption {
+	return func(cfg *dialProxyConfig) {
+		cfg.proxyHeaderGetter = proxyHeaderGetter
 	}
 }
 
@@ -96,9 +107,34 @@ func newDirectDialer(keepAlivePeriod, dialTimeout time.Duration) *net.Dialer {
 	}
 }
 
-func newProxyURLDialer(proxyURL *url.URL, dialer *net.Dialer, opts ...DialProxyOption) ContextDialer {
+func newProxyURLDialer(proxyURL *url.URL, dialer ContextDialer, opts ...DialProxyOption) ContextDialer {
 	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
 		return DialProxyWithDialer(ctx, proxyURL, addr, dialer, opts...)
+	})
+}
+
+// NewPROXYHeaderDialer makes a new dialer that can propagate client IP if signed PROXY header getter is present
+func NewPROXYHeaderDialer(dialer ContextDialer, headerGetter PROXYHeaderGetter) ContextDialer {
+	return ContextDialerFunc(func(ctx context.Context, network, addr string) (net.Conn, error) {
+		conn, err := dialer.DialContext(ctx, network, addr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if headerGetter != nil {
+			signedHeader, err := headerGetter()
+			if err != nil {
+				conn.Close()
+				return nil, trace.Wrap(err)
+			}
+			_, err = conn.Write(signedHeader)
+			if err != nil {
+				conn.Close()
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		return conn, nil
 	})
 }
 
@@ -136,9 +172,15 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 		// Base direct dialer.
 		var dialer ContextDialer = netDialer
 
+		// Wrap with PROXY header dialer if getter is present.
+		// Used by Proxy's web server to propagate real client IP when making calls on behalf of connected clients
+		if cfg.proxyHeaderGetter != nil {
+			dialer = NewPROXYHeaderDialer(dialer, cfg.proxyHeaderGetter)
+		}
+
 		// Wrap with proxy URL dialer if proxy URL is detected.
 		if proxyURL := utils.GetProxyURL(addr); proxyURL != nil {
-			dialer = newProxyURLDialer(proxyURL, netDialer, opts...)
+			dialer = newProxyURLDialer(proxyURL, dialer, opts...)
 		}
 
 		// Wrap with alpnConnUpgradeDialer if upgrade is required for TLS Routing.
