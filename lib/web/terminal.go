@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -111,23 +110,25 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 	defer span.End()
 
 	return &TerminalHandler{
-		log: logrus.WithFields(logrus.Fields{
-			trace.Component: teleport.ComponentWebsocket,
-			"session_id":    cfg.SessionData.ID.String(),
-		}),
-		ctx:                cfg.SessionCtx,
-		authProvider:       cfg.AuthProvider,
-		localAuthProvider:  cfg.LocalAuthProvider,
-		displayLogin:       cfg.DisplayLogin,
-		sessionData:        cfg.SessionData,
-		keepAliveInterval:  cfg.KeepAliveInterval,
-		proxyHostPort:      cfg.ProxyHostPort,
-		interactiveCommand: cfg.InteractiveCommand,
-		term:               cfg.Term,
-		router:             cfg.Router,
-		proxySigner:        cfg.PROXYSigner,
-		tracer:             cfg.tracer,
-		participantMode:    cfg.ParticipantMode,
+		sshBaseHandler: sshBaseHandler{
+			log: logrus.WithFields(logrus.Fields{
+				trace.Component: teleport.ComponentWebsocket,
+				"session_id":    cfg.SessionData.ID.String(),
+			}),
+			ctx:                cfg.SessionCtx,
+			authProvider:       cfg.AuthProvider,
+			localAuthProvider:  cfg.LocalAuthProvider,
+			sessionData:        cfg.SessionData,
+			keepAliveInterval:  cfg.KeepAliveInterval,
+			proxyHostPort:      cfg.ProxyHostPort,
+			interactiveCommand: cfg.InteractiveCommand,
+			router:             cfg.Router,
+			tracer:             cfg.tracer,
+		},
+		displayLogin:    cfg.DisplayLogin,
+		term:            cfg.Term,
+		proxySigner:     cfg.PROXYSigner,
+		participantMode: cfg.ParticipantMode,
 	}, nil
 }
 
@@ -212,14 +213,37 @@ func (t *TerminalHandlerConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
+// sshBaseHandler is a base handler for web SSH connections.
+type sshBaseHandler struct {
+	// log holds the structured logger.
+	log *logrus.Entry
+	// ctx is a web session context for the currently logged-in user.
+	ctx *SessionContext
+	// authProvider is used to fetch nodes and sessions from the backend.
+	authProvider AuthProvider
+	// proxyHostPort is the address of the server to connect to.
+	proxyHostPort string
+	// keepAliveInterval is the interval for sending ping frames to a web client.
+	// This value is pulled from the cluster network config and
+	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
+	keepAliveInterval time.Duration
+	// The server data for the active session.
+	sessionData session.Session
+	// router is used to dial the host
+	router *proxy.Router
+	// tracer creates spans
+	tracer oteltrace.Tracer
+	// localAuthProvider is used to fetch user information from the
+	// local cluster when connecting to agentless nodes.
+	localAuthProvider agentless.AuthProvider
+	// interactiveCommand is a command to execute.
+	interactiveCommand []string
+}
+
 // TerminalHandler connects together an SSH session with a web-based
 // terminal via a web socket.
 type TerminalHandler struct {
-	// log holds the structured logger.
-	log *logrus.Entry
-
-	// ctx is a web session context for the currently logged in user.
-	ctx *SessionContext
+	sshBaseHandler
 
 	// displayLogin is the login name to display in the UI.
 	displayLogin string
@@ -233,40 +257,13 @@ type TerminalHandler struct {
 	// terminalCancel is used to signal when the terminal session is closing.
 	terminalCancel context.CancelFunc
 
-	// authProvider is used to fetch nodes and sessions from the backend.
-	authProvider AuthProvider
-
-	// localAuthProvider is used to fetch user information from the
-	// local cluster when connecting to agentless nodes.
-	localAuthProvider agentless.AuthProvider
-
 	closeOnce sync.Once
-
-	// keepAliveInterval is the interval for sending ping frames to web client.
-	// This value is pulled from the cluster network config and
-	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
-	keepAliveInterval time.Duration
-
-	// proxyHostPort is the address of the server to connect to.
-	proxyHostPort string
-
-	// interactiveCommand is a command to execute.
-	interactiveCommand []string
 
 	// term is the initial PTY size.
 	term session.TerminalParams
 
-	// The server data for the active session.
-	sessionData session.Session
-
-	// router is used to dial the host
-	router *proxy.Router
-
 	// proxySigner is used to sign PROXY header and securely propagate client IP information
 	proxySigner multiplexer.PROXYHeaderSigner
-
-	// tracer creates spans
-	tracer oteltrace.Tracer
 
 	// participantMode is the mode that determines what you can do when you join an active session.
 	participantMode types.SessionParticipantMode
@@ -305,17 +302,6 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	sendError := func(errMsg string, err error, ws *websocket.Conn) {
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketError,
-			Payload: fmt.Sprintf("%s: %s", errMsg, err.Error()),
-		}
-
-		envelopeBytes, _ := proto.Marshal(envelope)
-		ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-	}
-
 	var sessionMetadataResponse []byte
 
 	// If the displayLogin is set then use it in the session metadata instead of the
@@ -330,7 +316,7 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		sendError("unable to marshal session response", err, ws)
+		t.sendError("unable to marshal session response", err, ws)
 		return
 	}
 
@@ -342,13 +328,13 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	envelopeBytes, err := proto.Marshal(envelope)
 	if err != nil {
-		sendError("unable to marshal session data event for web client", err, ws)
+		t.sendError("unable to marshal session data event for web client", err, ws)
 		return
 	}
 
 	err = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
 	if err != nil {
-		sendError("unable to write message to socket", err, ws)
+		t.sendError("unable to write message to socket", err, ws)
 		return
 	}
 
@@ -368,33 +354,6 @@ func (t *TerminalHandler) Close() error {
 		t.terminalCancel()
 	})
 	return nil
-}
-
-// startPingLoop starts a loop that will continuously send a ping frame through the websocket
-// to prevent the connection between web client and teleport proxy from becoming idle.
-// Interval is determined by the keep_alive_interval config set by user (or default).
-// Loop will terminate when there is an error sending ping frame or when terminal session is closed.
-func (t *TerminalHandler) startPingLoop(ws *websocket.Conn) {
-	t.log.Debugf("Starting websocket ping loop with interval %v.", t.keepAliveInterval)
-	tickerCh := time.NewTicker(t.keepAliveInterval)
-	defer tickerCh.Stop()
-
-	for {
-		select {
-		case <-tickerCh.C:
-			// A short deadline is used here to detect a broken connection quickly.
-			// If this is just a temporary issue, we will retry shortly anyway.
-			deadline := time.Now().Add(time.Second)
-			if err := ws.WriteControl(websocket.PingMessage, nil, deadline); err != nil {
-				t.log.WithError(err).Error("Unable to send ping frame to web client")
-				t.Close()
-				return
-			}
-		case <-t.terminalContext.Done():
-			t.log.Debug("Terminating websocket ping loop.")
-			return
-		}
-	}
 }
 
 // handler is the main websocket loop. It creates a Teleport client and then
@@ -439,7 +398,7 @@ func (t *TerminalHandler) handler(ws *websocket.Conn, r *http.Request) {
 	})
 
 	// Start sending ping frames through websocket to client.
-	go t.startPingLoop(ws)
+	go startPingLoop(t.terminalContext, ws, t.keepAliveInterval, t.log, t.Close)
 
 	// Pump raw terminal in/out and audit events into the websocket.
 	go t.streamTerminal(ws, tc)
@@ -508,7 +467,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*
 // used to access nodes which require per-session mfa. The ceremony is performed directly
 // to make use of the authProvider already established for the session instead of leveraging
 // the TeleportClient which would require dialing the auth server a second time.
-func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient) ([]ssh.AuthMethod, error) {
+func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, wsStream *WSStream) ([]ssh.AuthMethod, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
 	defer span.End()
 
@@ -591,7 +550,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	}
 
 	span.AddEvent("prompting user with mfa challenge")
-	assertion, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
+	assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -630,7 +589,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 }
 
 func promptMFAChallenge(
-	stream *TerminalStream,
+	stream *WSStream,
 	codec mfaCodec,
 ) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
@@ -655,12 +614,16 @@ func promptMFAChallenge(
 	}
 }
 
+type connectWithMFAFn = func(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error)
+
 // connectToHost establishes a connection to the target host. To reduce connection
 // latency if per session mfa is required, connections are tried with the existing
 // certs and with single use certs after completing the mfa ceremony. Only one of
 // the operations will succeed, and if per session mfa will not gain access to the
 // target it will abort before prompting a user to perform the ceremony.
-func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient) (*client.NodeClient, error) {
+func (t *sshBaseHandler) connectToHost(ctx context.Context, ws WSConn,
+	tc *client.TeleportClient, connectToNodeWithMFA connectWithMFAFn,
+) (*client.NodeClient, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/connectToHost")
 	defer span.End()
 
@@ -700,7 +663,7 @@ func (t *TerminalHandler) connectToHost(ctx context.Context, ws *websocket.Conn,
 	// function returns early
 	go func() {
 		// try performing mfa and then connecting with the single use certs
-		clt, err := t.connectToNodeWithMFA(mfaCtx, ws, tc, accessChecker, getAgent, signer)
+		clt, err := connectToNodeWithMFA(mfaCtx, ws, tc, accessChecker, getAgent, signer)
 		mfaResultC <- clientRes{clt: clt, err: err}
 	}()
 
@@ -759,7 +722,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 
 	defer t.terminalCancel()
 
-	nc, err := t.connectToHost(ctx, ws, tc)
+	nc, err := t.connectToHost(ctx, ws, tc, t.connectToNodeWithMFA)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failure connecting to host")
 		t.writeError(err)
@@ -786,7 +749,7 @@ func (t *TerminalHandler) streamTerminal(ws *websocket.Conn, tc *client.Teleport
 
 // connectToNode attempts to connect to the host with the already
 // provisioned certs for the user.
-func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	conn, _, err := t.router.DialHost(ctx, ws.RemoteAddr(), ws.LocalAddr(), t.sessionData.ServerID, strconv.Itoa(t.sessionData.ServerHostPort), tc.SiteName, accessChecker, getAgent, signer)
 	if err != nil {
 		t.log.WithError(err).Warn("Unable to stream terminal - failed to dial host.")
@@ -818,13 +781,19 @@ func (t *TerminalHandler) connectToNode(ctx context.Context, ws *websocket.Conn,
 
 // connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the
 // host with the retrieved single use certs.
-func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws *websocket.Conn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
+func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
-	authMethods, err := t.issueSessionMFACerts(ctx, tc)
+	authMethods, err := t.issueSessionMFACerts(ctx, tc, &t.stream.WSStream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	return t.connectToNodeWithMFABase(ctx, ws, tc, accessChecker, getAgent, signer, authMethods)
+}
+
+// connectToNodeWithMFABase attempts to dial the host with the provided auth
+// methods.
+func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator, authMethods []ssh.AuthMethod) (*client.NodeClient, error) {
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.HostLogin,
 		Auth:            authMethods,
@@ -1032,6 +1001,14 @@ func WithTerminalStreamFileTransferHandlers(fileTransferRequestC chan<- *session
 	}
 }
 
+func NewWStream(ws WSConn) *WSStream {
+	return &WSStream{
+		ws:      ws,
+		encoder: unicode.UTF8.NewEncoder(),
+		decoder: unicode.UTF8.NewDecoder(),
+	}
+}
+
 // NewTerminalStream creates a stream that manages reading and writing
 // data over the provided [websocket.Conn]
 func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*TerminalStream, error) {
@@ -1041,9 +1018,11 @@ func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*Term
 	}
 
 	t := &TerminalStream{
-		ws:      ws,
-		encoder: unicode.UTF8.NewEncoder(),
-		decoder: unicode.UTF8.NewDecoder(),
+		WSStream: WSStream{
+			ws:      ws,
+			encoder: unicode.UTF8.NewEncoder(),
+			decoder: unicode.UTF8.NewDecoder(),
+		},
 	}
 
 	for _, opt := range opts {
@@ -1053,9 +1032,7 @@ func NewTerminalStream(ws *websocket.Conn, opts ...func(*TerminalStream)) (*Term
 	return t, nil
 }
 
-// TerminalStream manages the [websocket.Conn] to the web UI
-// for a terminal session.
-type TerminalStream struct {
+type WSStream struct {
 	// encoder is used to encode UTF-8 strings.
 	encoder *encoding.Encoder
 	// decoder is used to decode UTF-8 strings.
@@ -1064,6 +1041,17 @@ type TerminalStream struct {
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
 	buffer []byte
+
+	// mu protects writes to ws
+	mu sync.Mutex
+	// ws the connection to the UI
+	ws WSConn
+}
+
+// TerminalStream manages the [websocket.Conn] to the web UI
+// for a terminal session.
+type TerminalStream struct {
+	WSStream
 
 	// once ensures that all channels are closed at most one time.
 	once sync.Once
@@ -1075,25 +1063,20 @@ type TerminalStream struct {
 	// fileTransferDecisionC is a channel to facilitate responding to a file transfer
 	// with an approval or denial
 	fileTransferDecisionC chan<- *session.FileTransferDecisionParams
-
-	// mu protects writes to ws
-	mu sync.Mutex
-	// ws the connection to the UI
-	ws *websocket.Conn
 }
 
 // Replace \n with \r\n so the message is correctly aligned.
 var replacer = strings.NewReplacer("\r\n", "\r\n", "\n", "\r\n")
 
 // writeError displays an error in the terminal window.
-func (t *TerminalStream) writeError(err error) error {
+func (t *WSStream) writeError(err error) error {
 	_, writeErr := replacer.WriteString(t, err.Error())
 	return trace.Wrap(writeErr)
 }
 
 // writeChallenge encodes and writes the challenge to the
 // websocket in the correct format.
-func (t *TerminalStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, codec mfaCodec) error {
+func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, codec mfaCodec) error {
 	// Send the challenge over the socket.
 	msg, err := codec.encode(challenge, defaults.WebsocketWebauthnChallenge)
 	if err != nil {
@@ -1107,7 +1090,7 @@ func (t *TerminalStream) writeChallenge(challenge *client.MFAAuthenticateChallen
 
 // readChallenge reads and decodes the challenge response from the
 // websocket in the correct format.
-func (t *TerminalStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
+func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
 	// Read the challenge response.
 	ty, bytes, err := t.ws.ReadMessage()
 	if err != nil {
@@ -1124,7 +1107,7 @@ func (t *TerminalStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthentica
 
 // writeAuditEvent encodes and writes the audit event to the
 // websocket in the correct format.
-func (t *TerminalStream) writeAuditEvent(event []byte) error {
+func (t *WSStream) writeAuditEvent(event []byte) error {
 	// UTF-8 encode the error message and then wrap it in a raw envelope.
 	encodedPayload, err := t.encoder.String(string(event))
 	if err != nil {
@@ -1149,7 +1132,7 @@ func (t *TerminalStream) writeAuditEvent(event []byte) error {
 }
 
 // Write wraps the data bytes in a raw envelope and sends.
-func (t *TerminalStream) Write(data []byte) (n int, err error) {
+func (t *WSStream) Write(data []byte) (n int, err error) {
 	// UTF-8 encode data and wrap it in a raw envelope.
 	encodedPayload, err := t.encoder.String(string(data))
 	if err != nil {
@@ -1176,9 +1159,7 @@ func (t *TerminalStream) Write(data []byte) (n int, err error) {
 	return len(data), nil
 }
 
-// Read unwraps the envelope and either fills out the passed in bytes or
-// performs an action on the connection (sending window-change request).
-func (t *TerminalStream) Read(out []byte) (n int, err error) {
+func (t *WSStream) readMessage(out []byte) (string, []byte, int, error) {
 	if len(t.buffer) > 0 {
 		n := copy(out, t.buffer)
 		if n == len(t.buffer) {
@@ -1186,7 +1167,7 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		} else {
 			t.buffer = t.buffer[n:]
 		}
-		return n, nil
+		return "", nil, n, nil
 	}
 
 	ty, bytes, err := t.ws.ReadMessage()
@@ -1195,29 +1176,63 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		// the websocket copy loop
 		if errors.Is(err, io.EOF) || errors.Is(err, net.ErrClosed) ||
 			websocket.IsCloseError(err, websocket.CloseAbnormalClosure, websocket.CloseGoingAway, websocket.CloseNormalClosure) {
-			return 0, io.EOF
+			return "", nil, 0, io.EOF
 		}
 
-		return 0, trace.Wrap(err)
+		return "", nil, 0, trace.Wrap(err)
 	}
 
 	if ty != websocket.BinaryMessage {
-		return 0, trace.BadParameter("expected binary message, got %v", ty)
+		return "", nil, 0, trace.BadParameter("expected binary message, got %v", ty)
 	}
 
 	var envelope Envelope
 	err = proto.Unmarshal(bytes, &envelope)
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return "", nil, 0, trace.Wrap(err)
 	}
 
 	var data []byte
 	data, err = t.decoder.Bytes([]byte(envelope.GetPayload()))
 	if err != nil {
-		return 0, trace.Wrap(err)
+		return "", nil, 0, trace.Wrap(err)
 	}
 
-	switch envelope.GetType() {
+	return envelope.Type, data, 0, nil
+}
+
+// Read unwraps the envelope and either fills out the passed in bytes or
+// performs an action on the connection (sending window-change request).
+func (t *WSStream) Read(out []byte) (n int, err error) {
+	messageType, data, n, err := t.readMessage(out)
+	if err != nil || n > 0 {
+		return n, err
+	}
+
+	switch messageType {
+	// the session was closed
+	case defaults.WebsocketClose:
+		return 0, io.EOF
+	case defaults.WebsocketRaw:
+		n := copy(out, data)
+		// if payload size is greater than [out], store the remaining
+		// part in the buffer to be processed on the next Read call
+		if len(data) > n {
+			t.buffer = data[n:]
+		}
+		return n, nil
+	default:
+		return 0, trace.BadParameter("unknown prefix type: %v", messageType)
+	}
+}
+
+func (t *TerminalStream) Read(out []byte) (n int, err error) {
+	messageType, data, n, err := t.readMessage(out)
+	if err != nil || n > 0 {
+		return n, err
+	}
+
+	switch messageType {
 	// the session was closed
 	case defaults.WebsocketClose:
 		return 0, io.EOF
@@ -1297,11 +1312,28 @@ func (t *TerminalStream) Read(out []byte) (n int, err error) {
 		}
 		return 0, nil
 	default:
-		return 0, trace.BadParameter("unknown prefix type: %v", envelope.GetType())
+		return 0, trace.BadParameter("unknown prefix type: %v", messageType)
 	}
 }
 
-// Close send a close message on the web socket
+// Close sends a close message on the web socket and closes the web socket.
+func (t *WSStream) Close() error {
+	// Send close envelope to web terminal upon exit without an error.
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketClose,
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return trace.NewAggregate(err, t.ws.Close())
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
+}
+
+// Close sends a close message on the web socket
 // prior to closing the web socket altogether.
 func (t *TerminalStream) Close() error {
 	t.once.Do(func() {
@@ -1318,19 +1350,7 @@ func (t *TerminalStream) Close() error {
 		}
 	})
 
-	// Send close envelope to web terminal upon exit without an error.
-	envelope := &Envelope{
-		Version: defaults.WebsocketVersion,
-		Type:    defaults.WebsocketClose,
-	}
-	envelopeBytes, err := proto.Marshal(envelope)
-	if err != nil {
-		return trace.NewAggregate(err, t.ws.Close())
-	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	return trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
+	return t.WSStream.Close()
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.

@@ -120,14 +120,15 @@
     "NOKEY",
     "NOPASSWD",
     "NVGJ",
+    "Obxo",
     "ODBC",
     "OIDC",
-    "OTLP",
-    "Obxo",
     "Olsi",
     "Olsia",
+    "OpenAI",
     "Opsgenie",
     "Orapki",
+    "OTLP",
     "PFDEBUG",
     "PFSELFTEST",
     "PGPASSWORD",
@@ -298,6 +299,7 @@
     "cqlsh",
     "createkey",
     "createnongalleryapp",
+    "createrole",
     "creds",
     "crond",
     "customizability",
@@ -752,5 +754,7 @@
     "znmqk",
     "zxvf"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

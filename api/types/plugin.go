@@ -32,8 +32,24 @@ const (
 	PluginTypeUnknown PluginType = ""
 	// PluginTypeSlack is the Slack access request plugin
 	PluginTypeSlack = "slack"
+	// PluginTypeOpenAI is the OpenAI plugin
+	PluginTypeOpenAI = "openai"
 	// PluginTypeOkta is the Okta plugin
 	PluginTypeOkta = "okta"
+	// PluginTypeJamf is the Jamf MDM plugin
+	PluginTypeJamf = "jamf"
+)
+
+// PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
+type PluginSubkind string
+
+const (
+	// PluginSubkindUnknown is returned when no plugin subkind matches.
+	PluginSubkindUnknown PluginSubkind = ""
+	// PluginSubkindMDM represents MDM plugins collectively
+	PluginSubkindMDM = "mdm"
+	// PluginSubkindAccess represents access request plugins collectively
+	PluginSubkindAccess = "access"
 )
 
 // Plugin represents a plugin instance
@@ -100,6 +116,28 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 		if err := p.Credentials.GetOauth2AccessToken().CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+	case *PluginSpecV1_Openai:
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
+		}
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
+		}
+	case *PluginSpecV1_Jamf:
+		if settings.Jamf.JamfSpec.ApiEndpoint == "" {
+			return trace.BadParameter("api endpoint must be set")
+		}
+		if p.Credentials == nil {
+			return trace.BadParameter("credentials must be set")
+		}
+		if p.Credentials.GetIdSecret().Id == "" || p.Credentials.GetIdSecret().Secret == "" {
+			return trace.BadParameter("Jamf plugin requires Jamf account username and password")
 		}
 	case *PluginSpecV1_Okta:
 		// Check settings.
@@ -250,8 +288,12 @@ func (p *PluginV1) GetType() PluginType {
 	switch p.Spec.Settings.(type) {
 	case *PluginSpecV1_SlackAccessPlugin:
 		return PluginTypeSlack
+	case *PluginSpecV1_Openai:
+		return PluginTypeOpenAI
 	case *PluginSpecV1_Okta:
 		return PluginTypeOkta
+	case *PluginSpecV1_Jamf:
+		return PluginTypeJamf
 	default:
 		return PluginTypeUnknown
 	}

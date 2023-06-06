@@ -36,15 +36,6 @@ import type {
   NodeMeta,
 } from 'teleport/Discover/useDiscover';
 
-const crypto = require('crypto');
-
-// eslint-disable-next-line jest/require-hook
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
-  },
-});
-
 describe('onProceed correctly deduplicates, removes static traits, updates meta, and calls updateUser', () => {
   const ctx = createTeleportContext();
   jest.spyOn(ctx.userService, 'fetchUser').mockResolvedValue(getMockUser());
