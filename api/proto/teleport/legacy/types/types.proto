@@ -5092,6 +5092,8 @@ message PluginSpecV1 {
     PluginOpenAISettings openai = 3;
     // Settings for the Okta plugin
     PluginOktaSettings okta = 4;
+    // Settings for device trust jamf plugin
+    PluginJamfSettings jamf = 5;
   }
 }
 
@@ -5119,6 +5121,13 @@ message PluginOpenAISettings {
   option (gogoproto.equal) = true;
 }
 
+// Defines settings for Jamf plugin.
+message PluginJamfSettings {
+  option (gogoproto.equal) = true;
+  // Jamf service spec
+  JamfSpecV1 jamf_spec = 1;
+}
+
 // Defines settings for the Okta plugin.
 message PluginOktaSettings {
   option (gogoproto.equal) = true;
@@ -5131,7 +5140,14 @@ message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
     PluginBearerTokenCredentials bearer_token = 2;
+    PluginIdSecretCredential id_secret = 3;
   }
+}
+
+// PluginIdSecretCredential can be OAuth2-like client_id and client_secret or username and password.
+message PluginIdSecretCredential {
+  string id = 1;
+  string secret = 2;
 }
 
 message PluginOAuth2AuthorizationCodeCredentials {
@@ -5166,6 +5182,7 @@ message PluginCredentialsV1 {
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
     PluginBearerTokenCredentials bearer_token = 2;
+    PluginIdSecretCredential id_secret = 3;
     PluginStaticCredentialsRef static_credentials_ref = 4;
   }
 }
@@ -5638,6 +5655,7 @@ message WatchStatusSpecV1 {
 
 // JamfSpecV1 is the base configuration for the Jamf MDM service.
 message JamfSpecV1 {
+  option (gogoproto.equal) = true;
   // Enabled toggles the service on or off.
   bool enabled = 1 [(gogoproto.jsontag) = "enabled,omitempty"];
   // Name of the service device source.
@@ -5672,6 +5690,7 @@ message JamfSpecV1 {
 
 // JamfInventoryEntry is an inventory sync entry for [JamfSpecV1].
 message JamfInventoryEntry {
+  option (gogoproto.equal) = true;
   // Jamf Pro API RSQL filter, used when querying endpoints like
   // "/api/v1/computers-inventory".
   // See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
