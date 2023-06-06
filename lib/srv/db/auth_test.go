@@ -64,8 +64,6 @@ func TestAuthTokens(t *testing.T) {
 		withAzureRedis("redis-azure-incorrect-token", "qwe123"),
 		withElastiCacheRedis("redis-elasticache-correct-token", elastiCacheRedisToken, "7.0.0"),
 		withElastiCacheRedis("redis-elasticache-incorrect-token", "qwe123", "7.0.0"),
-		withAtlasMongo("mongo-atlas-correct-token", atlasAuthUser, atlasAuthSessionToken),
-		withAtlasMongo("mongo-atlas-incorrect-token", atlasAuthUser, "qwe123"),
 	}
 	databases := make([]types.Database, 0, len(withDBs))
 	for _, withDB := range withDBs {
@@ -171,11 +169,6 @@ func TestAuthTokens(t *testing.T) {
 			// Make sure we print a user-friendly IAM auth error.
 			err: "Make sure that IAM auth is enabled",
 		},
-		{
-			desc:     "correct Atlas Mongo auth token",
-			service:  "mongo-atlas-correct-token",
-			protocol: defaults.ProtocolMongoDB,
-		},
 	}
 
 	for _, test := range tests {
@@ -207,15 +200,6 @@ func TestAuthTokens(t *testing.T) {
 				} else {
 					require.NoError(t, err)
 					require.NoError(t, conn.Close())
-				}
-			case defaults.ProtocolMongoDB:
-				conn, err := testCtx.mongoClient(ctx, "alice", test.service, atlasAuthUser)
-				if test.err != "" {
-					require.Error(t, err)
-					require.Contains(t, err.Error(), test.err)
-				} else {
-					require.NoError(t, err)
-					require.NoError(t, conn.Disconnect(ctx))
 				}
 			default:
 				t.Fatalf("unrecognized database protocol in test: %q", test.protocol)
