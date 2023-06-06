@@ -18,8 +18,7 @@
 * CLI
   * Added support for creating Windows desktops via `tctl`. [#27250](https://github.com/gravitational/teleport/pull/27250)
   * Fixed issue with `tctl get all` not returning locks. [#27294](https://github.com/gravitational/teleport/pull/27294)
-  * Added auto-completion for Teleport binaries. See Improve the CLI experience: enable shell completion in https://goteleport.com/docs/reference/cli/
-    to enable. [#27093](https://github.com/gravitational/teleport/pull/27093)
+  * Added auto-completion for Teleport binaries. See [Improve the CLI experience: enable shell completion](https://goteleport.com/docs/reference/cli/#improve-the-cli-experience-enable-shell-completion) in the CLI reference to enable. [#27093](https://github.com/gravitational/teleport/pull/27093)
 * Server Access
   * Fixed issue with access requests in headless mode. [#27241](https://github.com/gravitational/teleport/pull/27241)
   * Fixed issue with port forwarding configuration being cached in `tsh` profile. [#27208](https://github.com/gravitational/teleport/pull/27208)
