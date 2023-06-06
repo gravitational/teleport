@@ -3,12 +3,12 @@ authors: Trent Clarke (trent@goteleport.com)
 state: Draft
 ---
 
-# RFD 0XXX - Delivering more secure AMIs
+# RFD 0120 - Delivering hardened AMIs
 
 # Required Approvers
-* Engineering: @r0mant
-* Security: (@reedloden && @jentfoo)
-* Product: (@xinding33 || @klizhentas)
+* Engineering: `@r0mant`
+* Security: `@reedloden && @jentfoo`
+* Product: `@xinding33 || @klizhentas`
 
 ## What
 
