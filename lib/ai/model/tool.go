@@ -70,6 +70,8 @@ func (c *commandExecutionTool) Run(ctx context.Context, input string) (string, e
 	return "", trace.NotImplemented("not implemented")
 }
 
+// parseInput is called in a special case if the planned tool is commandExecutionTool.
+// This is because commandExecutionTool is handled differently from most other tools and forcibly terminates the thought loop.
 func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInput, *invalidOutputError) {
 	output, err := parseJSONFromModel[commandExecutionToolInput](input)
 	if err != nil {
