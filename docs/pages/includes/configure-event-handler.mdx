@@ -5,7 +5,7 @@ Run the `configure` command to generate a sample configuration. Replace
 `mytenant.teleport.sh` with the DNS name of your Teleport Enterprise Cloud tenant:
 
 ```code
-$ ./teleport-event-handler configure . mytenant.teleport.sh:443
+$ teleport-event-handler configure . mytenant.teleport.sh:443
 ```
 
 </TabItem>
@@ -16,7 +16,7 @@ Run the `configure` command to generate a sample configuration. Replace
 Service:
 
 ```code
-$ ./teleport-event-handler configure . teleport.example.com:443
+$ teleport-event-handler configure . teleport.example.com:443
 ```
 
 </TabItem>
@@ -54,10 +54,6 @@ Teleport event handler (=teleport.version=)
 [2] Generated sample teleport-event-handler role and user file teleport-event-handler-role.yaml
 [3] Generated sample fluentd configuration file fluent.conf
 [4] Generated plugin configuration file teleport-event-handler.toml
-
-Follow-along with our getting started guide:
-
-https://goteleport.com/docs/management/export-audit-events/fluentd/
 ```
 
 The plugin generates several setup files:
