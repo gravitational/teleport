@@ -121,6 +121,7 @@ func NewTerminal(ctx context.Context, cfg TerminalHandlerConfig) (*TerminalHandl
 			sessionData:        cfg.SessionData,
 			keepAliveInterval:  cfg.KeepAliveInterval,
 			proxyHostPort:      cfg.ProxyHostPort,
+			proxyPublicAddr:    cfg.ProxyPublicAddr,
 			interactiveCommand: cfg.InteractiveCommand,
 			router:             cfg.Router,
 			tracer:             cfg.tracer,
@@ -154,6 +155,8 @@ type TerminalHandlerConfig struct {
 	KeepAliveInterval time.Duration
 	// ProxyHostPort is the address of the server to connect to.
 	ProxyHostPort string
+	// ProxyPublicAddr is the public web proxy address.
+	ProxyPublicAddr string
 	// InteractiveCommand is a command to execute.
 	InteractiveCommand []string
 	// Router determines how connections to nodes are created
@@ -223,6 +226,8 @@ type sshBaseHandler struct {
 	authProvider AuthProvider
 	// proxyHostPort is the address of the server to connect to.
 	proxyHostPort string
+	// proxyPublicAddr is the public web proxy address.
+	proxyPublicAddr string
 	// keepAliveInterval is the interval for sending ping frames to a web client.
 	// This value is pulled from the cluster network config and
 	// guaranteed to be set to a nonzero value as it's enforced by the configuration.
@@ -467,7 +472,7 @@ func (t *TerminalHandler) makeClient(ctx context.Context, ws *websocket.Conn) (*
 // used to access nodes which require per-session mfa. The ceremony is performed directly
 // to make use of the authProvider already established for the session instead of leveraging
 // the TeleportClient which would require dialing the auth server a second time.
-func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient) ([]ssh.AuthMethod, error) {
+func (t *sshBaseHandler) issueSessionMFACerts(ctx context.Context, tc *client.TeleportClient, wsStream *WSStream) ([]ssh.AuthMethod, error) {
 	ctx, span := t.tracer.Start(ctx, "terminal/issueSessionMFACerts")
 	defer span.End()
 
@@ -550,7 +555,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 	}
 
 	span.AddEvent("prompting user with mfa challenge")
-	assertion, err := promptMFAChallenge(t.stream, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
+	assertion, err := promptMFAChallenge(wsStream, protobufMFACodec{})(ctx, tc.WebProxyAddr, challenge)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -589,7 +594,7 @@ func (t *TerminalHandler) issueSessionMFACerts(ctx context.Context, tc *client.T
 }
 
 func promptMFAChallenge(
-	stream *TerminalStream,
+	stream *WSStream,
 	codec mfaCodec,
 ) client.PromptMFAChallengeHandler {
 	return func(ctx context.Context, proxyAddr string, c *authproto.MFAAuthenticateChallenge) (*authproto.MFAAuthenticateResponse, error) {
@@ -776,6 +781,8 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *clien
 		return nil, trace.NewAggregate(err, conn.Close())
 	}
 
+	clt.ProxyPublicAddr = t.proxyPublicAddr
+
 	return clt, nil
 }
 
@@ -783,11 +790,17 @@ func (t *sshBaseHandler) connectToNode(ctx context.Context, ws WSConn, tc *clien
 // host with the retrieved single use certs.
 func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator) (*client.NodeClient, error) {
 	// perform mfa ceremony and retrieve new certs
-	authMethods, err := t.issueSessionMFACerts(ctx, tc)
+	authMethods, err := t.issueSessionMFACerts(ctx, tc, &t.stream.WSStream)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	return t.connectToNodeWithMFABase(ctx, ws, tc, accessChecker, getAgent, signer, authMethods)
+}
+
+// connectToNodeWithMFABase attempts to dial the host with the provided auth
+// methods.
+func (t *sshBaseHandler) connectToNodeWithMFABase(ctx context.Context, ws WSConn, tc *client.TeleportClient, accessChecker services.AccessChecker, getAgent teleagent.Getter, signer agentless.SignerCreator, authMethods []ssh.AuthMethod) (*client.NodeClient, error) {
 	sshConfig := &ssh.ClientConfig{
 		User:            tc.HostLogin,
 		Auth:            authMethods,
@@ -807,6 +820,8 @@ func (t *TerminalHandler) connectToNodeWithMFA(ctx context.Context, ws WSConn, t
 	if err != nil {
 		return nil, trace.NewAggregate(err, conn.Close())
 	}
+
+	nc.ProxyPublicAddr = t.proxyPublicAddr
 
 	return nc, nil
 }

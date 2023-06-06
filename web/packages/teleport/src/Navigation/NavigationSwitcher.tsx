@@ -166,11 +166,17 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
+      // prevent the dropdown from closing when the assist tooltip is visible
+      // this prevents the switcher from closing when the user closes the discover modal
+      if (showAssist) {
+        return;
+      }
+
       if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
         setOpen(false);
       }
     },
-    [ref.current]
+    [showAssist, ref.current]
   );
 
   useEffect(() => {

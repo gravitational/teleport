@@ -14,15 +14,18 @@ else
 GRPCBOX ?= $(GRPCBOX_BASE_NAME):$(BUILDBOX_VERSION)
 endif
 
+# Allow overriding the docker implementation to use for ex. podman.
+DOCKER ?= docker
+
 # GRPCBOX_RUN has the necessary invocation to run a command inside the grpcbox.
 # Use this variable to run it from other Makefiles.
-GRPCBOX_RUN := docker run -it --rm -v "$$(pwd)/../:/workdir" -w /workdir $(GRPCBOX)
+GRPCBOX_RUN := $(DOCKER) run -it --rm -v "$$(pwd)/../:/workdir" -w /workdir $(GRPCBOX)
 
 # grpcbox builds a codegen-focused buildbox.
 # It's leaner, meaner, faster and not supposed to compile code.
 .PHONY: grpcbox
 grpcbox:
-	DOCKER_BUILDKIT=1 docker build \
+	DOCKER_BUILDKIT=1 $(DOCKER) build \
 		--build-arg BUF_VERSION=$(BUF_VERSION) \
 		--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 		--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \

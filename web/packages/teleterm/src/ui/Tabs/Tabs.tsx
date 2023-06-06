@@ -75,7 +75,6 @@ export function Tabs(props: Props) {
         ml="1"
         mr="2"
         size={0}
-        color="light"
         disabled={disableNew}
         title={newTabTooltip}
         onClick={onNew}
@@ -107,7 +106,7 @@ const Separator = styled.div`
   height: 23px;
   width: 1px;
   margin: 0 1px;
-  background: ${props => props.theme.colors.text.muted};
+  background: ${props => props.theme.colors.spotBackground[2]};
 `;
 
 const StyledTabs = styled(Box)`

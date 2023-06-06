@@ -18,9 +18,7 @@ import React from 'react';
 import { Flex, Text, Box } from 'design';
 import styled from 'styled-components';
 
-export const IntegrationTile = styled(Flex).attrs({
-  'data-testid': 'tile',
-})`
+export const IntegrationTile = styled(Flex)`
   color: inherit;
   text-decoration: none;
   flex-direction: column;

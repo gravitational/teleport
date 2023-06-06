@@ -1225,7 +1225,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
 func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
-	if matcher.InstallParams.PublicProxyAddr != "" {
+	if matcher.InstallParams != nil && matcher.InstallParams.PublicProxyAddr != "" {
 		return matcher.InstallParams.PublicProxyAddr
 	}
 	if fc.ProxyServer != "" {
@@ -1247,21 +1247,21 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
-			services.AWSMatcher{
+			types.AWSMatcher{
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
-				AssumeRole: services.AssumeRole{
+				AssumeRole: &types.AssumeRole{
 					RoleARN:    matcher.AssumeRoleARN,
 					ExternalID: matcher.ExternalID,
 				},
 				Tags:   matcher.Tags,
-				Params: installParams,
-				SSM:    &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+				Params: &installParams,
+				SSM:    &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		m := services.AzureMatcher{
+		m := types.AzureMatcher{
 			Subscriptions:  matcher.Subscriptions,
 			ResourceGroups: matcher.ResourceGroups,
 			Types:          matcher.Types,
@@ -1270,7 +1270,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		if matcher.InstallParams != nil {
-			m.Params = services.InstallerParams{
+			m.Params = &types.InstallerParams{
 				JoinMethod:      matcher.InstallParams.JoinParams.Method,
 				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
 				ScriptName:      matcher.InstallParams.ScriptName,
@@ -1283,7 +1283,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	for _, matcher := range fc.Discovery.GCPMatchers {
 		cfg.Discovery.GCPMatchers = append(
 			cfg.Discovery.GCPMatchers,
-			services.GCPMatcher{
+			types.GCPMatcher{
 				Types:      matcher.Types,
 				Locations:  matcher.Locations,
 				Tags:       matcher.Tags,
@@ -1356,11 +1356,11 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	for _, matcher := range fc.Databases.AWSMatchers {
 		cfg.Databases.AWSMatchers = append(cfg.Databases.AWSMatchers,
-			services.AWSMatcher{
+			types.AWSMatcher{
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
 				Tags:    matcher.Tags,
-				AssumeRole: services.AssumeRole{
+				AssumeRole: &types.AssumeRole{
 					RoleARN:    matcher.AssumeRoleARN,
 					ExternalID: matcher.ExternalID,
 				},
@@ -1368,7 +1368,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {
 		cfg.Databases.AzureMatchers = append(cfg.Databases.AzureMatchers,
-			services.AzureMatcher{
+			types.AzureMatcher{
 				Subscriptions:  matcher.Subscriptions,
 				ResourceGroups: matcher.ResourceGroups,
 				Types:          matcher.Types,

@@ -1,5 +1,29 @@
 # Changelog
 
+## 14.0.0 (xx/xx/23)
+
+### Breaking Changes
+
+Please familiarize yourself with the following potentially disruptive changes
+in Teleport 14 before upgrading.
+
+#### `tsh db` --db-user and --db-name defaults
+
+In Teleport 14 `tsh db` sub-commands will check if `--db-user` or `--db-name`
+flags are required and not provided by the user, and attempt to choose a default
+value.
+If the user's role(s) matching the database's labels have the `create_db_user`
+option enabled, then the Teleport user's username will be chosen as the default
+for `--db-user`.
+Otherwise, a default is chosen by examining the allowed `db_users` and
+`db_names` in the user's role(s) that apply for the given database.
+
+If, after applying user traits, only one non-wildcard db name/user is allowed,
+`tsh` will use it as the default value for the corresponding flag.
+Prior versions of Teleport would return an error from `tsh db` commands if those
+flags were empty (the only exception is Redis, where it would choose the Redis
+username "default" for `--db-user`).
+
 ## 13.0.1 (05/xx/23)
 
 * Helm Charts
@@ -171,6 +195,23 @@ Quay.io registry was deprecated in Teleport 11 and starting with Teleport 13,
 Teleport container images are no longer being published to it.
 
 Users should use the public ECR registry: https://goteleport.com/docs/installation/#docker.
+
+#### Helm chart uses `distroless`-based container image by default
+
+Starting with Teleport 13, the Helm charts `teleport-cluster` and `teleport-kube-agent`
+are deploying distroless Teleport images by default. Those images are slimmer
+and more secure but contain less tooling (e.g. neither `bash` nor
+`apt` are available).
+
+The Debian-based images are deprecated and will be removed in Teleport 14.
+The chart image can be reverted back to the Debian-based images by setting:
+```yaml
+image: "public.ecr.aws/gravitational/teleport"
+```
+
+For debugging purposes, a "debug" image is available and contains BusyBox,
+which includes a shell and most common POSIX executables:
+`public.ecr.aws/gravitational/teleport-distroless`.
 
 ## 12.3.0 (05/01/23)
 
