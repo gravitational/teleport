@@ -1185,16 +1185,26 @@ func TestSessionRecordingConfigRBAC(t *testing.T) {
 	})
 }
 
-// time go test ./lib/auth -bench=. -run=^$ -v
+// go test ./lib/auth -bench=. -run=^$ -v -benchtime 1x
 // goos: darwin
 // goarch: amd64
 // pkg: github.com/gravitational/teleport/lib/auth
 // cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
 // BenchmarkListNodes
-// BenchmarkListNodes-16    	       1	1000469673 ns/op	518721960 B/op	 8344858 allocs/op
+// BenchmarkListNodes/simple_labels
+// BenchmarkListNodes/simple_labels-16                    1        1079886286 ns/op        525128104 B/op   8831939 allocs/op
+// BenchmarkListNodes/simple_expression
+// BenchmarkListNodes/simple_expression-16                1         770118479 ns/op        432667432 B/op   6514790 allocs/op
+// BenchmarkListNodes/labels
+// BenchmarkListNodes/labels-16                           1        1931843502 ns/op        741444360 B/op  15159333 allocs/op
+// BenchmarkListNodes/expression
+// BenchmarkListNodes/expression-16                       1        1040855282 ns/op        509643128 B/op   8120970 allocs/op
+// BenchmarkListNodes/complex_labels
+// BenchmarkListNodes/complex_labels-16                   1        2274376396 ns/op        792948904 B/op  17084107 allocs/op
+// BenchmarkListNodes/complex_expression
+// BenchmarkListNodes/complex_expression-16               1        1518800599 ns/op        738532920 B/op  12483748 allocs/op
 // PASS
-// ok  	github.com/gravitational/teleport/lib/auth	3.695s
-// go test ./lib/auth -bench=. -run=^$ -v  19.02s user 3.87s system 244% cpu 9.376 total
+// ok      github.com/gravitational/teleport/lib/auth      11.679s
 func BenchmarkListNodes(b *testing.B) {
 	const nodeCount = 50_000
 	const roleCount = 32
