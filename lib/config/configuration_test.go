@@ -844,8 +844,8 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 				Types:   []string{"rds"},
 				Regions: []string{"us-west-1"},
 				AssumeRole: &types.AssumeRole{
-					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
-					ExternalID: "externalID123",
+					RoleArn:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalId: "externalID123",
 				},
 			},
 		}))
@@ -870,14 +870,14 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.True(t, cfg.Discovery.Enabled)
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Regions, []string{"eu-central-1"})
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Types, []string{"ec2"})
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.RoleARN, "arn:aws:iam::123456789012:role/DBDiscoverer")
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalID, "externalID123")
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.RoleArn, "arn:aws:iam::123456789012:role/DBDiscoverer")
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalId, "externalID123")
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, &types.InstallerParams{
 		InstallTeleport: true,
 		JoinMethod:      "iam",
 		JoinToken:       defaults.IAMInviteTokenName,
 		ScriptName:      "default-installer",
-		SSHDConfig:      defaults.SSHDConfigPath,
+		SshdConfig:      defaults.SSHDConfigPath,
 	})
 
 	require.True(t, cfg.Okta.Enabled)

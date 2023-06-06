@@ -1749,11 +1749,11 @@ type InstallParams struct {
 
 func (ip *InstallParams) Parse() (types.InstallerParams, error) {
 	install := types.InstallerParams{
-		JoinMethod:      ip.JoinParams.Method,
+		JoinMethod:      string(ip.JoinParams.Method),
 		JoinToken:       ip.JoinParams.TokenName,
 		ScriptName:      ip.ScriptName,
 		InstallTeleport: true,
-		SSHDConfig:      ip.SSHDConfig,
+		SshdConfig:      ip.SSHDConfig,
 	}
 
 	if ip.InstallTeleport == "" {

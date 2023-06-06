@@ -104,7 +104,7 @@ func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients clo
 			fetcher := newEC2InstanceFetcher(ec2FetcherConfig{
 				Matcher:   matcher,
 				Region:    region,
-				Document:  matcher.SSM.DocumentName,
+				Document:  matcher.Ssm.DocumentName,
 				EC2Client: ec2Client,
 				Labels:    matcher.Tags,
 			})
@@ -208,7 +208,7 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		parameters = map[string]string{
 			ParamToken:          cfg.Matcher.Params.JoinToken,
 			ParamScriptName:     cfg.Matcher.Params.ScriptName,
-			ParamSSHDConfigPath: cfg.Matcher.Params.SSHDConfig,
+			ParamSSHDConfigPath: cfg.Matcher.Params.SshdConfig,
 		}
 	}
 

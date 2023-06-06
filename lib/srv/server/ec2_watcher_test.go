@@ -148,7 +148,7 @@ func TestEC2Watcher(t *testing.T) {
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"teleport": {"yes"}},
-			SSM:     &types.AWSSSM{},
+			Ssm:     &types.AWSSSM{},
 		},
 		{
 			Params: &types.InstallerParams{
@@ -157,7 +157,7 @@ func TestEC2Watcher(t *testing.T) {
 			Types:   []string{"EC2"},
 			Regions: []string{"us-west-2"},
 			Tags:    map[string]utils.Strings{"env": {"dev"}},
-			SSM:     &types.AWSSSM{},
+			Ssm:     &types.AWSSSM{},
 		},
 	}
 	ctx := context.Background()

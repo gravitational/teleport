@@ -690,7 +690,7 @@ func buildSSMDocumentCreators(ssm ssmiface.SSMAPI, targetCfg targetConfig, proxy
 		}
 		ssmCreator := awsSSMDocumentCreator{
 			ssm:      ssm,
-			Name:     matcher.SSM.DocumentName,
+			Name:     matcher.Ssm.DocumentName,
 			Contents: EC2DiscoverySSMDocument(proxyAddr),
 		}
 		creators = append(creators, &ssmCreator)
@@ -1104,7 +1104,7 @@ func isTargetAWSAssumeRoleForMatchers(matchers []types.AWSMatcher, target string
 	return findAWSMatcherIs(matchers, func(m *types.AWSMatcher) bool {
 		assumeRoleARN := ""
 		if m.AssumeRole != nil {
-			assumeRoleARN = m.AssumeRole.RoleARN
+			assumeRoleARN = m.AssumeRole.RoleArn
 		}
 		return assumeRoleARN == target
 	})
@@ -1140,7 +1140,7 @@ func matchersForTarget(matchers []types.AWSMatcher, target awslib.Identity, targ
 		return filter(matchers, func(matcher types.AWSMatcher) bool {
 			assumeRoleARN := ""
 			if matcher.AssumeRole != nil {
-				assumeRoleARN = matcher.AssumeRole.RoleARN
+				assumeRoleARN = matcher.AssumeRole.RoleArn
 			}
 			return assumeRoleARN == targetARN
 		})
@@ -1148,7 +1148,7 @@ func matchersForTarget(matchers []types.AWSMatcher, target awslib.Identity, targ
 	return filter(matchers, func(matcher types.AWSMatcher) bool {
 		assumeRoleARN := ""
 		if matcher.AssumeRole != nil {
-			assumeRoleARN = matcher.AssumeRole.RoleARN
+			assumeRoleARN = matcher.AssumeRole.RoleArn
 		}
 		return assumeRoleARN == ""
 	})
@@ -1213,7 +1213,7 @@ func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases
 	for _, matcher := range matchers {
 		assumeRoleARN := ""
 		if matcher.AssumeRole != nil {
-			assumeRoleARN = matcher.AssumeRole.RoleARN
+			assumeRoleARN = matcher.AssumeRole.RoleArn
 		}
 
 		if assumeRoleARN == "" || !supportsAWSAssumeRole(matcher) {

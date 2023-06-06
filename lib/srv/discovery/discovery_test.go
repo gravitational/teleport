@@ -368,7 +368,7 @@ func TestDiscoveryServer(t *testing.T) {
 					Types:   []string{"ec2"},
 					Regions: []string{"eu-central-1"},
 					Tags:    map[string]utils.Strings{"teleport": {"yes"}},
-					SSM:     &types.AWSSSM{DocumentName: "document"},
+					Ssm:     &types.AWSSSM{DocumentName: "document"},
 					Params: &types.InstallerParams{
 						InstallTeleport: true,
 					},
@@ -453,8 +453,8 @@ func TestDiscoveryKube(t *testing.T) {
 					Regions: []string{"eu-west-1"},
 					Tags:    map[string]utils.Strings{"env": {"prod"}},
 					AssumeRole: &types.AssumeRole{
-						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
-						ExternalID: "external-id",
+						RoleArn:    "arn:aws:iam::123456789012:role/teleport-role",
+						ExternalId: "external-id",
 					},
 				},
 				{
@@ -462,8 +462,8 @@ func TestDiscoveryKube(t *testing.T) {
 					Regions: []string{"eu-west-1"},
 					Tags:    map[string]utils.Strings{"env": {"prod"}},
 					AssumeRole: &types.AssumeRole{
-						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role2",
-						ExternalID: "external-id2",
+						RoleArn:    "arn:aws:iam::123456789012:role/teleport-role2",
+						ExternalId: "external-id2",
 					},
 				},
 			},
@@ -601,7 +601,7 @@ func TestDiscoveryKube(t *testing.T) {
 				{
 					Types:      []string{"gke"},
 					Locations:  []string{"*"},
-					ProjectIDs: []string{"p1"},
+					ProjectIds: []string{"p1"},
 					Tags:       map[string]utils.Strings{"env": {"prod"}},
 				},
 			},
@@ -994,7 +994,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", mainDiscoveryGroup)
 	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US", mainDiscoveryGroup)
 
-	role := types.AssumeRole{RoleARN: "arn:aws:iam::123456789012:role/test-role", ExternalID: "test123"}
+	role := types.AssumeRole{RoleArn: "arn:aws:iam::123456789012:role/test-role", ExternalId: "test123"}
 	awsRDSDBWithRole := awsRDSDB.Copy()
 	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
 	awsRDSDBWithRole.SetAWSExternalID("test123")

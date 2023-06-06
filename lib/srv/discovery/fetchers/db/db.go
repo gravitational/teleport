@@ -121,7 +121,7 @@ func MakeAzureFetchers(clients cloud.AzureClients, matchers []types.AzureMatcher
 
 // makeRDSInstanceFetcher returns RDS instance fetcher for the provided region and tags.
 func makeRDSInstanceFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
-	rds, err := clients.GetAWSRDSClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	rds, err := clients.GetAWSRDSClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleArn, assumeRole.ExternalId))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -137,7 +137,7 @@ func makeRDSInstanceFetcher(ctx context.Context, clients cloud.AWSClients, regio
 
 // makeRDSAuroraFetcher returns RDS Aurora fetcher for the provided region and tags.
 func makeRDSAuroraFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
-	rds, err := clients.GetAWSRDSClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	rds, err := clients.GetAWSRDSClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleArn, assumeRole.ExternalId))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -153,7 +153,7 @@ func makeRDSAuroraFetcher(ctx context.Context, clients cloud.AWSClients, region 
 
 // makeRDSProxyFetcher returns RDS proxy fetcher for the provided region and tags.
 func makeRDSProxyFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
-	rds, err := clients.GetAWSRDSClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	rds, err := clients.GetAWSRDSClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleArn, assumeRole.ExternalId))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -168,7 +168,7 @@ func makeRDSProxyFetcher(ctx context.Context, clients cloud.AWSClients, region s
 
 // makeRedshiftFetcher returns Redshift fetcher for the provided region and tags.
 func makeRedshiftFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
-	redshift, err := clients.GetAWSRedshiftClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	redshift, err := clients.GetAWSRedshiftClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleArn, assumeRole.ExternalId))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -182,7 +182,7 @@ func makeRedshiftFetcher(ctx context.Context, clients cloud.AWSClients, region s
 
 // makeElastiCacheFetcher returns ElastiCache fetcher for the provided region and tags.
 func makeElastiCacheFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
-	elastiCache, err := clients.GetAWSElastiCacheClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	elastiCache, err := clients.GetAWSElastiCacheClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleArn, assumeRole.ExternalId))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -196,7 +196,7 @@ func makeElastiCacheFetcher(ctx context.Context, clients cloud.AWSClients, regio
 
 // makeMemoryDBFetcher returns MemoryDB fetcher for the provided region and tags.
 func makeMemoryDBFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
-	memorydb, err := clients.GetAWSMemoryDBClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	memorydb, err := clients.GetAWSMemoryDBClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleArn, assumeRole.ExternalId))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -211,7 +211,7 @@ func makeMemoryDBFetcher(ctx context.Context, clients cloud.AWSClients, region s
 // makeRedshiftServerlessFetcher returns Redshift Serverless fetcher for the
 // provided region and tags.
 func makeRedshiftServerlessFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
-	client, err := clients.GetAWSRedshiftServerlessClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	client, err := clients.GetAWSRedshiftServerlessClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleArn, assumeRole.ExternalId))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -242,8 +242,8 @@ func filterDatabasesByLabels(databases types.Databases, labels types.Labels, log
 // applyAssumeRoleToDatabases applies assume role settings from fetcher to databases.
 func applyAssumeRoleToDatabases(databases types.Databases, assumeRole types.AssumeRole) {
 	for _, db := range databases {
-		db.SetAWSAssumeRole(assumeRole.RoleARN)
-		db.SetAWSExternalID(assumeRole.ExternalID)
+		db.SetAWSAssumeRole(assumeRole.RoleArn)
+		db.SetAWSExternalID(assumeRole.ExternalId)
 	}
 }
 
