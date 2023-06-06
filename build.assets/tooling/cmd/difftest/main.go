@@ -169,6 +169,10 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.New {
+			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
+				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
+				continue
+			}
 			methods = append(methods, "^"+n.RefName+dollarSign)
 			dirs[dir] = struct{}{}
 		}
@@ -178,7 +182,7 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.Changed {
-			if slices.Contains(testsToSkip, n.RefName) {
+			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}

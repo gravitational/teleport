@@ -26,7 +26,6 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
@@ -44,15 +43,15 @@ func toTypeLabels(labels map[string]string) types.Labels {
 	return result
 }
 
-func makeAWSMatchersForType(matcherType, region string, tags map[string]string) []services.AWSMatcher {
-	return []services.AWSMatcher{{
+func makeAWSMatchersForType(matcherType, region string, tags map[string]string) []types.AWSMatcher {
+	return []types.AWSMatcher{{
 		Types:   []string{matcherType},
 		Regions: []string{region},
 		Tags:    toTypeLabels(tags),
 	}}
 }
 
-func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []services.AWSMatcher) []common.Fetcher {
+func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []types.AWSMatcher) []common.Fetcher {
 	t.Helper()
 
 	fetchers, err := MakeAWSFetchers(context.Background(), clients, matchers)
@@ -66,7 +65,7 @@ func mustMakeAWSFetchers(t *testing.T, clients cloud.AWSClients, matchers []serv
 	return fetchers
 }
 
-func mustMakeAzureFetchers(t *testing.T, clients cloud.AzureClients, matchers []services.AzureMatcher) []common.Fetcher {
+func mustMakeAzureFetchers(t *testing.T, clients cloud.AzureClients, matchers []types.AzureMatcher) []common.Fetcher {
 	t.Helper()
 
 	fetchers, err := MakeAzureFetchers(clients, matchers)
@@ -101,7 +100,7 @@ func mustGetDatabases(t *testing.T, fetchers []common.Fetcher) types.Databases {
 // Tests will cover:
 //   - that fetchers use the configured assume role when using AWS cloud clients.
 //   - that databases discovered and created by fetchers have the assumed role used to discover them populated.
-var testAssumeRole = services.AssumeRole{
+var testAssumeRole = types.AssumeRole{
 	RoleARN:    "arn:aws:iam::123456789012:role/test-role",
 	ExternalID: "externalID123",
 }
@@ -110,7 +109,7 @@ var testAssumeRole = services.AssumeRole{
 type awsFetcherTest struct {
 	name          string
 	inputClients  *cloud.TestCloudClients
-	inputMatchers []services.AWSMatcher
+	inputMatchers []types.AWSMatcher
 	wantDatabases types.Databases
 }
 
@@ -141,7 +140,7 @@ func testAWSFetchers(t *testing.T, tests ...awsFetcherTest) {
 }
 
 // copyDatabasesWithAWSAssumeRole copies input databases and sets a given AWS assume role for each copy.
-func copyDatabasesWithAWSAssumeRole(role services.AssumeRole, databases ...types.Database) types.Databases {
+func copyDatabasesWithAWSAssumeRole(role types.AssumeRole, databases ...types.Database) types.Databases {
 	if len(databases) == 0 {
 		return databases
 	}
@@ -154,13 +153,13 @@ func copyDatabasesWithAWSAssumeRole(role services.AssumeRole, databases ...types
 }
 
 // copyAWSMatchersWithAssumeRole copies input AWS matchers and sets a given AWS assume role for each copy.
-func copyAWSMatchersWithAssumeRole(role services.AssumeRole, matchers ...services.AWSMatcher) []services.AWSMatcher {
+func copyAWSMatchersWithAssumeRole(role types.AssumeRole, matchers ...types.AWSMatcher) []types.AWSMatcher {
 	if len(matchers) == 0 {
 		return matchers
 	}
-	out := make([]services.AWSMatcher, 0, len(matchers))
+	out := make([]types.AWSMatcher, 0, len(matchers))
 	for _, m := range matchers {
-		m.AssumeRole = role
+		m.AssumeRole = &role
 		out = append(out, m)
 	}
 	return out

@@ -634,12 +634,16 @@
               "slug": "/management/join-services-to-your-cluster/azure/"
             },
             {
-              "title": "Joining Services via Kubernetes ServiceAccount",
+              "title": "Via Kubernetes ServiceAccount",
               "slug": "/management/join-services-to-your-cluster/kubernetes/",
               "forScopes": [
                 "oss",
                 "enterprise"
               ]
+            },
+            {
+              "title": "Via GCP",
+              "slug": "/management/join-services-to-your-cluster/gcp/"
             },
             {
               "title": "Via a Join Token",
@@ -1280,7 +1284,17 @@
         },
         {
           "title": "Access Controls",
-          "slug": "/database-access/rbac/"
+          "slug": "/database-access/rbac/",
+          "entries": [
+            {
+              "title": "RBAC",
+              "slug": "/database-access/rbac/configuring-access/"
+            },
+            {
+              "title": "Automatic User Provisioning (Preview)",
+              "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
+            }
+          ]
         },
         {
           "title": "Architecture",
@@ -2774,6 +2788,11 @@
     {
       "source": "/adopters/",
       "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     }
   ]

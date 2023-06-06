@@ -41,7 +41,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
       options: --cap-add=SYS_ADMIN --privileged
       env: 
         TELEPORT_GET_VERSION: v12.1.0
