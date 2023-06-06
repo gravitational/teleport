@@ -2,7 +2,7 @@
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ .Release.Name }}-delete-hook
+  name: {{ template "teleport-kube-agent.deleteHookServiceAccountName" . }}
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-delete
@@ -65,7 +65,7 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ .Values.serviceAccount.name | default (printf "%s-delete-hook" .Release.Name) }}
+      serviceAccountName: {{ template "teleport-kube-agent.deleteHookServiceAccountName" . }}
       restartPolicy: OnFailure
 {{- if .Values.tolerations }}
       tolerations:
