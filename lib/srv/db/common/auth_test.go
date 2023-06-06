@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
@@ -455,7 +454,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		"Redshift": {
 			database: newRedshiftDatabase(t,
 				withCA(fixtures.SAMLOktaCertPEM),
-				withAssumeRole(services.AssumeRole{
+				withAssumeRole(types.AssumeRole{
 					RoleARN:    "arn:aws:iam::123456789012:role/RedshiftRole",
 					ExternalID: "externalRedshift",
 				})),
@@ -474,7 +473,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		},
 		"Redshift Serverless": {
 			database: newRedshiftServerlessDatabase(t,
-				withAssumeRole(services.AssumeRole{
+				withAssumeRole(types.AssumeRole{
 					RoleARN:    "arn:aws:iam::123456789012:role/RedshiftServerlessRole",
 					ExternalID: "externalRedshiftServerless",
 				})),
@@ -494,7 +493,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		},
 		"RDS Proxy": {
 			database: newRDSProxyDatabase(t, "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
-				withAssumeRole(services.AssumeRole{
+				withAssumeRole(types.AssumeRole{
 					RoleARN:    "arn:aws:iam::123456789012:role/RDSProxyRole",
 					ExternalID: "externalRDSProxy",
 				})),
@@ -512,7 +511,7 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		},
 		"ElastiCache Redis": {
 			database: newElastiCacheRedisDatabase(t,
-				withAssumeRole(services.AssumeRole{
+				withAssumeRole(types.AssumeRole{
 					RoleARN:    "arn:aws:iam::123456789012:role/RedisRole",
 					ExternalID: "externalElastiCacheRedis",
 				})),
@@ -725,7 +724,7 @@ func withCA(ca string) databaseSpecOpt {
 	}
 }
 
-func withAssumeRole(assumeRole services.AssumeRole) databaseSpecOpt {
+func withAssumeRole(assumeRole types.AssumeRole) databaseSpecOpt {
 	return func(spec *types.DatabaseSpecV3) {
 		spec.AWS.AssumeRoleARN = assumeRole.RoleARN
 		spec.AWS.ExternalID = assumeRole.ExternalID
