@@ -910,11 +910,7 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 // SupportAWSIAMRoleARNAsUsers returns true for database types that support AWS
 // IAM roles as database users.
 func (d *DatabaseV3) SupportAWSIAMRoleARNAsUsers() bool {
-	if d.GetType() == DatabaseTypeMongoAtlas {
-		return true
-	}
-
-	return false
+	return d.GetType() == DatabaseTypeMongoAtlas
 }
 
 const (
