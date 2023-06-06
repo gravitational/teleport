@@ -22,7 +22,15 @@ import {
   LabelCell,
   ClickableLabelCell,
 } from './Cells';
-import { StyledPanel } from './StyledTable';
+import { StyledPanel, StyledTableWrapper } from './StyledTable';
 
-export { Cell, TextCell, DateCell, LabelCell, ClickableLabelCell, StyledPanel };
+export {
+  Cell,
+  TextCell,
+  DateCell,
+  LabelCell,
+  ClickableLabelCell,
+  StyledPanel,
+  StyledTableWrapper,
+};
 export default Table;
