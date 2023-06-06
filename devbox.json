@@ -6,7 +6,6 @@
     "gci@0.9.1",
     "git",
     "github:nixos/nixpkgs/757a0d107c238d031652a8c09d1f6bf1b6f523a3#go",
-    "gotestsum@latest",
     "libiconvReal@1.16",
     "libfido2@1.13.0",
     "nodejs@16.18.1",
