@@ -141,6 +141,7 @@ func NewPresetAccessRole() types.Role {
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
 					types.NewRule(types.KindInstance, RO()),
+					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -210,6 +211,11 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindPlugin, RW()),
 			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 			types.NewRule(types.KindBilling, RW()),
+			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+		},
+		teleport.PresetAccessRoleName: {
+			// Allow assist access to access role. This role only allow access
+			// to the assist console, not any other cluster resources.
 			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 		},
 	}
