@@ -101,8 +101,8 @@ func mustGetDatabases(t *testing.T, fetchers []common.Fetcher) types.Databases {
 //   - that fetchers use the configured assume role when using AWS cloud clients.
 //   - that databases discovered and created by fetchers have the assumed role used to discover them populated.
 var testAssumeRole = types.AssumeRole{
-	RoleArn:    "arn:aws:iam::123456789012:role/test-role",
-	ExternalId: "externalID123",
+	RoleARN:    "arn:aws:iam::123456789012:role/test-role",
+	ExternalID: "externalID123",
 }
 
 // awsFetcherTest is a common test struct for AWS fetchers.
@@ -133,8 +133,8 @@ func testAWSFetchers(t *testing.T, tests ...awsFetcherTest) {
 			wantDBs := copyDatabasesWithAWSAssumeRole(testAssumeRole, test.wantDatabases...)
 			fetchers := mustMakeAWSFetchers(t, test.inputClients, matchers)
 			require.ElementsMatch(t, wantDBs, mustGetDatabases(t, fetchers))
-			require.Equal(t, []string{testAssumeRole.RoleArn}, stsMock.GetAssumedRoleARNs())
-			require.Equal(t, []string{testAssumeRole.ExternalId}, stsMock.GetAssumedRoleExternalIDs())
+			require.Equal(t, []string{testAssumeRole.RoleARN}, stsMock.GetAssumedRoleARNs())
+			require.Equal(t, []string{testAssumeRole.ExternalID}, stsMock.GetAssumedRoleExternalIDs())
 		})
 	}
 }

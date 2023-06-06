@@ -1251,12 +1251,12 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
 				AssumeRole: &types.AssumeRole{
-					RoleArn:    matcher.AssumeRoleARN,
-					ExternalId: matcher.ExternalID,
+					RoleARN:    matcher.AssumeRoleARN,
+					ExternalID: matcher.ExternalID,
 				},
 				Tags:   matcher.Tags,
 				Params: &installParams,
-				Ssm:    &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+				SSM:    &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
 
@@ -1271,7 +1271,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 		if matcher.InstallParams != nil {
 			m.Params = &types.InstallerParams{
-				JoinMethod:      string(matcher.InstallParams.JoinParams.Method),
+				JoinMethod:      matcher.InstallParams.JoinParams.Method,
 				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
 				ScriptName:      matcher.InstallParams.ScriptName,
 				PublicProxyAddr: getInstallerProxyAddr(matcher, fc),
@@ -1287,7 +1287,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Types:      matcher.Types,
 				Locations:  matcher.Locations,
 				Tags:       matcher.Tags,
-				ProjectIds: matcher.ProjectIDs,
+				ProjectIDs: matcher.ProjectIDs,
 			},
 		)
 	}
@@ -1361,8 +1361,8 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 				Regions: matcher.Regions,
 				Tags:    matcher.Tags,
 				AssumeRole: &types.AssumeRole{
-					RoleArn:    matcher.AssumeRoleARN,
-					ExternalId: matcher.ExternalID,
+					RoleARN:    matcher.AssumeRoleARN,
+					ExternalID: matcher.ExternalID,
 				},
 			})
 	}

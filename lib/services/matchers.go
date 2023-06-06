@@ -48,8 +48,8 @@ func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatc
 // AWS IAM role ARN and external ID from AWS metadata.
 func AssumeRoleFromAWSMetadata(meta *types.AWS) types.AssumeRole {
 	return types.AssumeRole{
-		RoleArn:    meta.AssumeRoleARN,
-		ExternalId: meta.ExternalID,
+		RoleARN:    meta.AssumeRoleARN,
+		ExternalID: meta.ExternalID,
 	}
 }
 

@@ -455,8 +455,8 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 			database: newRedshiftDatabase(t,
 				withCA(fixtures.SAMLOktaCertPEM),
 				withAssumeRole(types.AssumeRole{
-					RoleArn:    "arn:aws:iam::123456789012:role/RedshiftRole",
-					ExternalId: "externalRedshift",
+					RoleARN:    "arn:aws:iam::123456789012:role/RedshiftRole",
+					ExternalID: "externalRedshift",
 				})),
 			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
 				t.Helper()
@@ -474,8 +474,8 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		"Redshift Serverless": {
 			database: newRedshiftServerlessDatabase(t,
 				withAssumeRole(types.AssumeRole{
-					RoleArn:    "arn:aws:iam::123456789012:role/RedshiftServerlessRole",
-					ExternalId: "externalRedshiftServerless",
+					RoleARN:    "arn:aws:iam::123456789012:role/RedshiftServerlessRole",
+					ExternalID: "externalRedshiftServerless",
 				})),
 			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
 				t.Helper()
@@ -494,8 +494,8 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		"RDS Proxy": {
 			database: newRDSProxyDatabase(t, "my-proxy.proxy-abcdefghijklmnop.us-east-1.rds.amazonaws.com:5432",
 				withAssumeRole(types.AssumeRole{
-					RoleArn:    "arn:aws:iam::123456789012:role/RDSProxyRole",
-					ExternalId: "externalRDSProxy",
+					RoleARN:    "arn:aws:iam::123456789012:role/RDSProxyRole",
+					ExternalID: "externalRDSProxy",
 				})),
 			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
 				t.Helper()
@@ -512,8 +512,8 @@ func TestAuthGetAWSTokenWithAssumedRole(t *testing.T) {
 		"ElastiCache Redis": {
 			database: newElastiCacheRedisDatabase(t,
 				withAssumeRole(types.AssumeRole{
-					RoleArn:    "arn:aws:iam::123456789012:role/RedisRole",
-					ExternalId: "externalElastiCacheRedis",
+					RoleARN:    "arn:aws:iam::123456789012:role/RedisRole",
+					ExternalID: "externalElastiCacheRedis",
 				})),
 			checkGetAuthFn: func(t *testing.T, auth Auth, sessionCtx *Session) {
 				t.Helper()
@@ -726,8 +726,8 @@ func withCA(ca string) databaseSpecOpt {
 
 func withAssumeRole(assumeRole types.AssumeRole) databaseSpecOpt {
 	return func(spec *types.DatabaseSpecV3) {
-		spec.AWS.AssumeRoleARN = assumeRole.RoleArn
-		spec.AWS.ExternalID = assumeRole.ExternalId
+		spec.AWS.AssumeRoleARN = assumeRole.RoleARN
+		spec.AWS.ExternalID = assumeRole.ExternalID
 	}
 }
 

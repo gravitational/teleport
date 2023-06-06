@@ -139,8 +139,8 @@ func TestAWSIAM(t *testing.T) {
 		}
 	}
 	assumedRole := types.AssumeRole{
-		RoleArn:    "arn:aws:iam::123456789012:role/role-to-assume",
-		ExternalId: "externalid123",
+		RoleARN:    "arn:aws:iam::123456789012:role/role-to-assume",
+		ExternalID: "externalid123",
 	}
 	configurator, err := NewIAM(ctx, IAMConfig{
 		AccessPoint: &mockAccessPoint{},
@@ -216,12 +216,12 @@ func TestAWSIAM(t *testing.T) {
 				PolicyName: aws.String(policyName),
 			}
 			database := tt.database.Copy()
-			if assumeRole.RoleArn != "" {
+			if assumeRole.RoleARN != "" {
 				testName += " with assumed role"
 				getRolePolicyInput.RoleName = aws.String("role-to-assume")
 				meta := database.GetAWS()
-				meta.AssumeRoleARN = assumeRole.RoleArn
-				meta.ExternalID = assumeRole.ExternalId
+				meta.AssumeRoleARN = assumeRole.RoleARN
+				meta.ExternalID = assumeRole.ExternalID
 				database.SetStatusAWS(meta)
 			}
 			t.Run(testName, func(t *testing.T) {

@@ -208,8 +208,8 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 						s.ctx,
 						region,
 						cloud.WithAssumeRole(
-							matcherAssumeRole.RoleArn,
-							matcherAssumeRole.ExternalId,
+							matcherAssumeRole.RoleARN,
+							matcherAssumeRole.ExternalID,
 						),
 					)
 					if err != nil {
@@ -308,7 +308,7 @@ func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatche
 		return trace.Wrap(err)
 	}
 	for _, matcher := range matchers {
-		for _, projectID := range matcher.ProjectIds {
+		for _, projectID := range matcher.ProjectIDs {
 			for _, location := range matcher.Locations {
 				for _, t := range matcher.Types {
 					switch t {
