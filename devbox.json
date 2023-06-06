@@ -20,10 +20,11 @@
     "path:build.assets/flake#golangci-lint",
     "path:build.assets/flake#protoc-gen-gogo",
     "path:build.assets/flake#grpc-tools",
-    "path:build.assets/flake#rust"
+    "path:build.assets/flake#rust",
+    "gotestsum@latest"
   ],
   "shell": {
-    "init_hook": null
+    "init_hook": "export TELEPORT_DEVBOX=1"
   },
   "nixpkgs": {
     "commit": "f91ee3065de91a3531329a674a45ddcb3467a650"

@@ -48,6 +48,11 @@
     "go_1_20": {
       "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#go_1_20"
     },
+    "gotestsum@latest": {
+      "last_modified": "2023-05-01T16:53:22Z",
+      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#gotestsum",
+      "version": "1.10.0"
+    },
     "kubernetes-helm@3.11.1": {
       "last_modified": "2023-02-28T22:11:13Z",
       "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#kubernetes-helm",
