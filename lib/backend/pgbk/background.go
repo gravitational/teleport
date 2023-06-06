@@ -8,6 +8,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgtype"
+	"github.com/jackc/pgx/v4"
 	"github.com/jackc/pgx/v4/pgxpool"
 	"github.com/sirupsen/logrus"
 
@@ -106,7 +107,10 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 
 	b.log.WithField("slot_name", slotName).Info("Setting up change feed.")
 	if _, err := conn.Exec(ctx,
-		"SELECT * FROM pg_create_logical_replication_slot($1, 'wal2json', true)", slotName); err != nil {
+		"SELECT * FROM pg_create_logical_replication_slot($1, 'wal2json', true)",
+		pgx.QuerySimpleProtocol(true),
+		slotName,
+	); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -116,17 +120,18 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 
 	for {
 		t0 := time.Now()
-		rows, err := conn.Query(ctx, `
-			SELECT
-				data->>'action',
-				decode(COALESCE(data->'columns'->0->>'value', data->'identity'->0->>'value'), 'hex'),
-				decode(data->'columns'->1->>'value', 'hex'),
-				(data->'columns'->2->>'value')::timestamp
-			FROM (
-				SELECT data::jsonb as data
-				FROM pg_logical_slot_get_changes($1::text, NULL, NULL,
-					'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')
-			) AS jdata;`, slotName)
+		rows, err := conn.Query(ctx,
+			`SELECT
+  data->>'action',
+  decode(COALESCE(data->'columns'->0->>'value', data->'identity'->0->>'value'), 'hex'),
+  decode(data->'columns'->1->>'value', 'hex'),
+  (data->'columns'->2->>'value')::timestamp
+FROM (
+  SELECT data::jsonb as data
+  FROM pg_logical_slot_get_changes($1::text, NULL, NULL,
+    'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')
+) AS jdata;`,
+			slotName)
 		if err != nil {
 			return trace.Wrap(err)
 		}

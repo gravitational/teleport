@@ -204,10 +204,10 @@ var _ backend.Backend = (*Backend)(nil)
 func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	var r int64
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
-		tag, err := p.Exec(ctx, `
-			INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3)
-			ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires
-			WHERE kv.expires IS NOT NULL AND kv.expires <= now()`,
+		tag, err := p.Exec(ctx,
+			"INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3) "+
+				"ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires "+
+				"WHERE kv.expires IS NOT NULL AND kv.expires <= now()",
 			i.Key, i.Value, toPgTime(i.Expires))
 		if err != nil {
 			return trace.Wrap(err)
@@ -227,9 +227,9 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 // Put writes item
 func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
-		_, err := p.Exec(ctx, `
-			INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3)
-			ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires`,
+		_, err := p.Exec(ctx,
+			"INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3) "+
+				"ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires",
 			i.Key, i.Value, toPgTime(i.Expires))
 		return trace.Wrap(err)
 	}); err != nil {
@@ -292,9 +292,9 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	var expires pgtype.Timestamp
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		found, value, expires.Time = false, nil, time.Time{}
-		err := p.QueryRow(ctx, `
-			SELECT value, expires FROM kv
-			WHERE key = $1 AND (expires IS NULL OR expires > now())`,
+		err := p.QueryRow(ctx,
+			"SELECT value, expires FROM kv "+
+				"WHERE key = $1 AND (expires IS NULL OR expires > now())",
 			key).Scan(&value, &expires)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
@@ -328,10 +328,10 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		r.Items = nil
 		var k, v []byte
 		var e pgtype.Timestamp
-		_, err := p.QueryFunc(ctx, `
-			SELECT key, value, expires FROM kv
-			WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > now())
-			LIMIT $3`,
+		_, err := p.QueryFunc(ctx,
+			"SELECT key, value, expires FROM kv "+
+				"WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > now()) "+
+				"LIMIT $3",
 			[]any{startKey, endKey, limit}, []any{&k, &v, &e},
 			func(pgx.QueryFuncRow) error {
 				r.Items = append(r.Items, backend.Item{
