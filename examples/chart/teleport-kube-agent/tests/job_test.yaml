@@ -79,6 +79,23 @@ tests:
       - matchSnapshot:
         path: spec.template.spec
 
+  - it: should create ServiceAccount for post-delete hook with a custom name if serviceAccount.name is set and serviceAccount.create is true
+    template: delete_hook.yaml
+    documentIndex: 0
+    values:
+      - ../.lint/backwards-compatibility.yaml
+    set:
+      serviceAccount:
+        create: true
+        name: lint-serviceaccount
+    asserts:
+      - containsDocument:
+          kind: ServiceAccount
+          apiVersion: v1
+      - equal:
+          path: metadata.name
+          value: lint-serviceaccount
+
   - it: should create Role for post-delete hook by default
     template: delete_hook.yaml
     values:
@@ -111,11 +128,11 @@ tests:
       - not: true
         containsDocument:
           kind: ServiceAccount
-          apiVersion: rbac.authorization.k8s.io/v1
+          apiVersion: v1
       - matchSnapshot:
         path: spec.template.spec
 
-  - it: should inherit ServiceAccount name from values if serviceAccount.create is false
+  - it: should inherit ServiceAccount name from values and not create serviceAccount if serviceAccount.create is false and serviceAccount.name is set
     template: delete_hook.yaml
     # ServiceAccount is not created in this mode
     # first 2 items are Role, RoleBinding, 2nd (zero-indexed) is the Job
@@ -127,6 +144,10 @@ tests:
         create: false
         name: lint-serviceaccount
     asserts:
+      - not: true
+        containsDocument:
+          kind: ServiceAccount
+          apiVersion: v1
       - equal:
           path: spec.template.spec.serviceAccountName
           value: lint-serviceaccount
@@ -173,7 +194,7 @@ tests:
       - not: true
         containsDocument:
           kind: ServiceAccount
-          apiVersion: rbac.authorization.k8s.io/v1
+          apiVersion: v1
       - not: true
         containsDocument:
           kind: Role
