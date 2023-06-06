@@ -11,23 +11,7 @@
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["go.mod"],
-      "groupName": "Teleport - Go",
-      "excludePackageNames": [
-        "github.com/alecthomas/kingpin/v2",
-        "github.com/aquasecurity/libbpfgo",
-        "github.com/coreos/go-oidc",
-        "github.com/go-mysql-org/go-mysql",
-        "github.com/go-redis/redis/v9",
-        "github.com/go-webauthn/webauthn",
-        "github.com/gogo/protobuf",
-        "github.com/gravitational/ttlmap",
-        "github.com/julienschmidt/httprouter",
-        "github.com/keys-pub/go-libfido2",
-        "github.com/microsoft/go-mssqldb",
-        "github.com/vulcand/predicate",
-        "go.mongodb.org/mongo-driver",
-        "golang.org/x/crypto"
-      ]
+      "groupName": "Teleport - Go"
     },
     {
       "matchManagers": ["gomod"],
@@ -82,6 +66,15 @@
     },
     {
       "matchManagers": ["gomod"],
+      "enabled": false,
+      "matchFiles": ["assets/aws/go.mod"],
+      "groupName": "Assets - AWS ",
+      "packageNames": [
+        "github.com/alecthomas/kingpin/v2"
+      ]
+    },
+    {
+      "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["assets/backport/go.mod"],
@@ -92,8 +85,14 @@
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["build.assets/tooling/go.mod"],
+      "groupName": "Build Assets - Tooling"
+    },
+    {
+      "matchManagers": ["gomod"],
+      "enabled": false,
+      "matchFiles": ["build.assets/tooling/go.mod"],
       "groupName": "Build Assets - Tooling",
-      "excludePackageNames": [
+      "packageNames": [
         "github.com/alecthomas/kingpin/v2"
       ]
     },
