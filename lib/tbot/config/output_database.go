@@ -32,8 +32,10 @@ const DatabaseOutputType = "database"
 type DatabaseSubtype string
 
 var (
-	// UnspecifiedDatabaseSubtype works with most databases and is the default.
+	// UnspecifiedDatabaseSubtype is the unset value
 	UnspecifiedDatabaseSubtype DatabaseSubtype = ""
+	// StandardDatabaseSubtype works with most databases and is the default.
+	StandardDatabaseSubtype DatabaseSubtype = "tls"
 	// MongoDatabaseSubtype indicates credentials should be generated which
 	// are compatible with MongoDB.
 	MongoDatabaseSubtype DatabaseSubtype = "mongo"
@@ -42,7 +44,7 @@ var (
 	CockroachDatabaseSubtype DatabaseSubtype = "cockroach"
 
 	databaseSubtypes = []DatabaseSubtype{
-		UnspecifiedDatabaseSubtype,
+		StandardDatabaseSubtype,
 		MongoDatabaseSubtype,
 		CockroachDatabaseSubtype,
 	}
@@ -78,6 +80,9 @@ func (o *DatabaseOutput) templates() []template {
 	if o.Subtype == CockroachDatabaseSubtype {
 		templates = append(templates, &templateCockroach{})
 	}
+	if o.Subtype == StandardDatabaseSubtype {
+		templates = append(templates, &templateTLS{})
+	}
 	return templates
 }
 
@@ -103,6 +108,10 @@ func (o *DatabaseOutput) Init() error {
 func (o *DatabaseOutput) CheckAndSetDefaults() error {
 	if o.Service == "" {
 		return trace.BadParameter("service must not be empty")
+	}
+
+	if o.Subtype == UnspecifiedDatabaseSubtype {
+		o.Subtype = StandardDatabaseSubtype
 	}
 
 	if !slices.Contains(databaseSubtypes, o.Subtype) {
