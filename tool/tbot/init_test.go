@@ -214,6 +214,7 @@ func TestInitMaybeACLs(t *testing.T) {
 // testInitSymlinksTemplate is a config template with a configurable symlinks
 // mode and ACLs disabled.
 const testInitSymlinksTemplate = `
+version: v2
 auth_server: example.com
 outputs:
 - type: identity
