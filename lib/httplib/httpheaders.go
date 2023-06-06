@@ -28,7 +28,7 @@ import (
 	"golang.org/x/exp/maps"
 )
 
-var defaultContentSecurityPolicy map[string]string = map[string]string{
+var defaultContentSecurityPolicy = map[string]string{
 	"default-src": "'self'",
 	// specify CSP directives not covered by `default-src`
 	"base-uri":        "'self'",
@@ -43,7 +43,7 @@ var defaultContentSecurityPolicy map[string]string = map[string]string{
 	"style-src":  "'self' 'unsafe-inline'",
 }
 
-var defaultFontSrc map[string]string = map[string]string{"font-src": "'self' data:"}
+var defaultFontSrc = map[string]string{"font-src": "'self' data:"}
 
 // combineCSPMaps combines multiple CSP maps into a single map.
 // When multiple of the input cspMaps have the same key, the
@@ -143,7 +143,7 @@ func SetRedirectPageContentSecurityPolicy(h http.Header, scriptSrc string) {
 	cspString := getContentSecurityPolicyString(
 		defaultContentSecurityPolicy,
 		map[string]string{
-			"script-src": fmt.Sprintf("'%s'", scriptSrc),
+			"script-src": "'" + scriptSrc + "'",
 		},
 	)
 
