@@ -88,6 +88,7 @@ interface ExecEvent {
   event: EventType.EXEC;
   exitError?: string;
 }
+
 type SessionEvent = ExecEvent | { event: string };
 
 const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
@@ -253,14 +254,16 @@ async function convertServerMessage(
 
     const eventsResp = await api.fetch(sessionUrl + '/events');
     const sessionExists = eventsResp.status === 200;
-    const eventsData = (await eventsResp.json()) as {
-      events: SessionEvent[];
-    };
-    const execEvent = eventsData.events.find(isExecEvent);
 
     let msg;
     let errorMsg;
     if (sessionExists) {
+      // Get events only if the session exists. Otherwise, eventsData.events can be empty
+      // if the command execution failed.
+      const eventsData = (await eventsResp.json()) as {
+        events: SessionEvent[];
+      };
+      const execEvent = eventsData.events?.find(isExecEvent);
       // The offset here is set base on A/B test that was run between me, myself and I.
       const stream = await api.fetch(
         sessionUrl + '/stream?offset=0&bytes=4096',

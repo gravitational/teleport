@@ -949,6 +949,7 @@ lint-sh:
 	find . -type f \( -name '*.sh' -or -name '*.sh.tmpl' \) -not -path "*/node_modules/*" | xargs \
 		shellcheck \
 		--exclude=SC2086 \
+		--exclude=SC1091 \
 		$(SH_LINT_FLAGS)
 
 	# lint AWS AMI scripts
