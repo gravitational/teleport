@@ -140,7 +140,7 @@ func (u *Uploader) writeSessionError(sessionID session.ID, err error) error {
 		return trace.BadParameter("missing session ID")
 	}
 	path := u.sessionErrorFilePath(sessionID)
-	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0600))
+	return trace.ConvertSystemError(os.WriteFile(path, []byte(err.Error()), 0o600))
 }
 
 func (u *Uploader) checkSessionError(sessionID session.ID) (bool, error) {
@@ -405,7 +405,7 @@ func (u *Uploader) startUpload(ctx context.Context, fileName string) error {
 		file:         sessionFile,
 		fileUnlockFn: unlock,
 	}
-	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0600)
+	upload.checkpointFile, err = os.OpenFile(u.checkpointFilePath(sessionID), os.O_RDWR|os.O_CREATE, 0o600)
 	if err != nil {
 		if err := upload.Close(); err != nil {
 			u.log.WithError(err).Warningf("Failed to close upload.")

@@ -38,6 +38,10 @@ func (e *MockEmitter) EmitAuditEvent(ctx context.Context, event events.AuditEven
 	return nil
 }
 
+func (e *MockEmitter) EmitSessionRecordingEvent(ctx context.Context, event events.AuditEvent) error {
+	return e.EmitAuditEvent(ctx, event)
+}
+
 // LastEvent returns the last emitted event.
 func (e *MockEmitter) LastEvent() events.AuditEvent {
 	e.mu.RLock()

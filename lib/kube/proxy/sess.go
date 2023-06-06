@@ -329,7 +329,7 @@ type session struct {
 
 	recorder events.StreamWriter
 
-	emitter apievents.Emitter
+	emitter events.SessionEmitter
 
 	podName string
 
@@ -562,7 +562,7 @@ func (s *session) launch() error {
 		SessionRecording:          s.ctx.recordingConfig.GetMode(),
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
+	if err := s.emitter.EmitSessionRecordingEvent(s.forwarder.ctx, sessionStartEvent); err != nil {
 		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
 
@@ -661,7 +661,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 
 			// Report the updated window size to the event log (this is so the sessions
 			// can be replayed correctly).
-			if err := s.recorder.EmitAuditEvent(s.forwarder.ctx, resizeEvent); err != nil {
+			if err := s.recorder.EmitSessionRecordingEvent(s.forwarder.ctx, resizeEvent); err != nil {
 				s.forwarder.log.WithError(err).Warn("Failed to emit terminal resize event.")
 			}
 		}
@@ -779,7 +779,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 
 		}
 
-		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, execEvent); err != nil {
+		if err := s.emitter.EmitSessionRecordingEvent(s.forwarder.ctx, execEvent); err != nil {
 			s.forwarder.log.WithError(err).Warn("Failed to emit exec event.")
 		}
 
@@ -799,7 +799,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			BytesReceived: s.io.CountWritten(),
 		}
 
-		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionDataEvent); err != nil {
+		if err := s.emitter.EmitSessionRecordingEvent(s.forwarder.ctx, sessionDataEvent); err != nil {
 			s.forwarder.log.WithError(err).Warn("Failed to emit session data event.")
 		}
 
@@ -823,7 +823,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			SessionRecording:          s.ctx.recordingConfig.GetMode(),
 		}
 
-		if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
+		if err := s.emitter.EmitSessionRecordingEvent(s.forwarder.ctx, sessionEndEvent); err != nil {
 			s.forwarder.log.WithError(err).Warn("Failed to emit session end event.")
 		}
 	}, nil
@@ -881,7 +881,7 @@ func (s *session) join(p *party) error {
 		},
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionJoinEvent); err != nil {
+	if err := s.emitter.EmitSessionRecordingEvent(s.forwarder.ctx, sessionJoinEvent); err != nil {
 		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
 
@@ -1017,7 +1017,7 @@ func (s *session) unlockedLeave(id uuid.UUID) (bool, error) {
 		},
 	}
 
-	if err := s.emitter.EmitAuditEvent(s.forwarder.ctx, sessionLeaveEvent); err != nil {
+	if err := s.emitter.EmitSessionRecordingEvent(s.forwarder.ctx, sessionLeaveEvent); err != nil {
 		s.forwarder.log.WithError(err).Warn("Failed to emit event.")
 	}
 

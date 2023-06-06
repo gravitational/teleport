@@ -412,7 +412,7 @@ func (s *Service) emitCommandEvent(eventBytes []byte) {
 			Path:       argv[0],
 			Argv:       argv[1:],
 		}
-		if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionCommandEvent); err != nil {
+		if err := ctx.Emitter.EmitSessionRecordingEvent(ctx.Context, sessionCommandEvent); err != nil {
 			log.WithError(err).Warn("Failed to emit command event.")
 		}
 
@@ -470,7 +470,7 @@ func (s *Service) emitDiskEvent(eventBytes []byte) {
 		ReturnCode: event.ReturnCode,
 	}
 	// Logs can be DoS by event failures here
-	_ = ctx.Emitter.EmitAuditEvent(ctx.Context, sessionDiskEvent)
+	_ = ctx.Emitter.EmitSessionRecordingEvent(ctx.Context, sessionDiskEvent)
 }
 
 // emit4NetworkEvent will parse and emit IPv4 events to the Audit Log.
@@ -532,7 +532,7 @@ func (s *Service) emit4NetworkEvent(eventBytes []byte) {
 		SrcAddr:    srcAddr.String(),
 		TCPVersion: 4,
 	}
-	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
+	if err := ctx.Emitter.EmitSessionRecordingEvent(ctx.Context, sessionNetworkEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit network event.")
 	}
 }
@@ -602,7 +602,7 @@ func (s *Service) emit6NetworkEvent(eventBytes []byte) {
 		SrcAddr:    srcAddr.String(),
 		TCPVersion: 6,
 	}
-	if err := ctx.Emitter.EmitAuditEvent(ctx.Context, sessionNetworkEvent); err != nil {
+	if err := ctx.Emitter.EmitSessionRecordingEvent(ctx.Context, sessionNetworkEvent); err != nil {
 		log.WithError(err).Warn("Failed to emit network event.")
 	}
 }

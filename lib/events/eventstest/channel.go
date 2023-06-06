@@ -50,6 +50,10 @@ func (e *ChannelEmitter) EmitAuditEvent(ctx context.Context, event events.AuditE
 	}
 }
 
+func (e *ChannelEmitter) EmitSessionRecordingEvent(ctx context.Context, event events.AuditEvent) error {
+	return e.EmitAuditEvent(ctx, event)
+}
+
 func (e *ChannelEmitter) C() <-chan events.AuditEvent {
 	return e.events
 }

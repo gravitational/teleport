@@ -54,7 +54,7 @@ type Query struct {
 // AuditConfig is the audit events emitter configuration.
 type AuditConfig struct {
 	// Emitter is used to emit audit events.
-	Emitter events.Emitter
+	Emitter libevents.SessionEmitter
 }
 
 // Check validates the config.
@@ -155,7 +155,7 @@ func (a *audit) OnQuery(ctx context.Context, session *Session, query Query) {
 
 // EmitEvent emits the provided audit event using configured emitter.
 func (a *audit) EmitEvent(ctx context.Context, event events.AuditEvent) {
-	if err := a.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
+	if err := a.cfg.Emitter.EmitSessionRecordingEvent(ctx, event); err != nil {
 		a.log.WithError(err).Errorf("Failed to emit audit event: %s - %s.", event.GetType(), event.GetID())
 	}
 }

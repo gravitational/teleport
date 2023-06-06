@@ -31,9 +31,9 @@ import (
 )
 
 type tcpServer struct {
-	audit  common.Audit
-	hostID string
-	log    logrus.FieldLogger
+	newEmitter func(sessionID string) (common.Audit, error)
+	hostID     string
+	log        logrus.FieldLogger
 }
 
 // handleConnection handles connection from a TCP application.
@@ -52,14 +52,20 @@ func (s *tcpServer) handleConnection(ctx context.Context, clientConn net.Conn, i
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := s.audit.OnSessionStart(ctx, s.hostID, identity, app); err != nil {
+
+	emitter, err := s.newEmitter(identity.RouteToApp.SessionID)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := emitter.OnSessionStart(ctx, s.hostID, identity, app); err != nil {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		if err := s.audit.OnSessionEnd(ctx, s.hostID, identity, app); err != nil {
+		if err := emitter.OnSessionEnd(ctx, s.hostID, identity, app); err != nil {
 			s.log.WithError(err).Warnf("Failed to emit session end event for app %v.", app.GetName())
 		}
 	}()
+
 	err = utils.ProxyConn(ctx, clientConn, serverConn)
 	if err != nil {
 		return trace.Wrap(err)

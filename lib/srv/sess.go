@@ -2052,9 +2052,9 @@ func (s *session) emitAuditEvent(ctx context.Context, event apievents.AuditEvent
 		}
 		s.setRecorder(newRecorder)
 
-		return trace.Wrap(newRecorder.EmitAuditEvent(ctx, event))
+		return trace.Wrap(newRecorder.EmitSessionRecordingEvent(ctx, event))
 	default:
-		return trace.Wrap(rec.EmitAuditEvent(ctx, event))
+		return trace.Wrap(rec.EmitSessionRecordingEvent(ctx, event))
 	}
 }
 

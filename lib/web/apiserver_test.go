@@ -8121,12 +8121,14 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 
 	kubeServer, err := kubeproxy.NewTLSServer(kubeproxy.TLSServerConfig{
 		ForwarderConfig: kubeproxy.ForwarderConfig{
-			Namespace:         apidefaults.Namespace,
-			Keygen:            keyGen,
-			ClusterName:       cfg.authServer.ClusterName(),
-			Authz:             proxyAuthorizer,
-			AuthClient:        client,
-			StreamEmitter:     client,
+			Namespace:   apidefaults.Namespace,
+			Keygen:      keyGen,
+			ClusterName: cfg.authServer.ClusterName(),
+			Authz:       proxyAuthorizer,
+			AuthClient:  client,
+			StreamEmitter: &sessionEmitter{
+				StreamEmitter: client,
+			},
 			DataDir:           t.TempDir(),
 			CachingAuthClient: client,
 			HostID:            hostID,
@@ -8196,6 +8198,14 @@ func startKubeWithoutCleanup(ctx context.Context, t *testing.T, cfg startKubeOpt
 	return kubeServer, func() error {
 		return <-errChan
 	}, listener.Addr()
+}
+
+type sessionEmitter struct {
+	events.StreamEmitter
+}
+
+func (s *sessionEmitter) EmitSessionRecordingEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return s.StreamEmitter.EmitAuditEvent(ctx, event)
 }
 
 func marshalRBACError(t *testing.T, w http.ResponseWriter) {

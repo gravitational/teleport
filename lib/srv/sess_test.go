@@ -143,7 +143,6 @@ func TestIsApprovedFileTransfer(t *testing.T) {
 		reqID          string
 		location       string
 	}{
-
 		{
 			name:           "no file request found with supplied ID",
 			expectedResult: false,
@@ -743,6 +742,10 @@ func (m *mockRecorder) Done() <-chan struct{} {
 
 func (m *mockRecorder) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	return m.emitter.EmitAuditEvent(ctx, event)
+}
+
+func (m *mockRecorder) EmitSessionRecordingEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return m.emitter.EmitSessionRecordingEvent(ctx, event)
 }
 
 type trackerService struct {

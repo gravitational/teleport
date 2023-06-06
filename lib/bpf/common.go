@@ -25,7 +25,7 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
-	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -73,7 +73,7 @@ type SessionContext struct {
 	PID int
 
 	// Emitter is used to record events for a particular session
-	Emitter apievents.Emitter
+	Emitter events.SessionEmitter
 
 	// Events is the set of events (command, disk, or network) to record for
 	// this session.
@@ -81,8 +81,7 @@ type SessionContext struct {
 }
 
 // NOP is used on either non-Linux systems or when BPF support is not enabled.
-type NOP struct {
-}
+type NOP struct{}
 
 // Close closes the NOP service. Note this function does nothing.
 func (s *NOP) Close(bool) error {

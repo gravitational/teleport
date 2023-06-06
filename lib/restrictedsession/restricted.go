@@ -41,13 +41,11 @@ var log = logrus.WithFields(logrus.Fields{
 	trace.Component: teleport.ComponentRestrictedSession,
 })
 
-var (
-	lostRestrictedEvents = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: teleport.MetricLostRestrictedEvents,
-			Help: "Number of lost restricted events.",
-		},
-	)
+var lostRestrictedEvents = prometheus.NewCounter(
+	prometheus.CounterOpts{
+		Name: teleport.MetricLostRestrictedEvents,
+		Help: "Number of lost restricted events.",
+	},
 )
 
 //go:embed bytecode
@@ -292,7 +290,7 @@ func (l *auditEventLoop) loop() {
 			continue
 		}
 
-		if err = ctx.Emitter.EmitAuditEvent(ctx.Context, event); err != nil {
+		if err = ctx.Emitter.EmitSessionRecordingEvent(ctx.Context, event); err != nil {
 			log.WithError(err).Warn("Failed to emit network event.")
 		}
 	}

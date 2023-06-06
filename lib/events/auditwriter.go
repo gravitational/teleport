@@ -173,8 +173,8 @@ func bytesToSessionPrintEvents(b []byte) []apievents.AuditEvent {
 	return result
 }
 
-// AuditWriter wraps session stream
-// and writes audit events to it
+// AuditWriter wraps a session stream and writes session-related audit events to it.
+// A different emitter should be used for non-session events.
 type AuditWriter struct {
 	mtx            sync.Mutex
 	cfg            AuditWriterConfig
@@ -281,7 +281,15 @@ func (a *AuditWriter) maybeSetBackoff(backoffUntil time.Time) bool {
 	}
 }
 
-// EmitAuditEvent emits audit event
+// EmitSessionRecordingEvent emits a session recording event if session recording is enabled.
+func (a *AuditWriter) EmitSessionRecordingEvent(ctx context.Context, event apievents.AuditEvent) error {
+	if !a.cfg.RecordOutput {
+		return nil
+	}
+
+	return a.EmitAuditEvent(ctx, event)
+}
+
 func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	// Event modification is done under lock and in the same goroutine
 	// as the caller to avoid data races and event copying

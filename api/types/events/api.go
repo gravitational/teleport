@@ -82,6 +82,13 @@ type Emitter interface {
 type Stream interface {
 	// Emitter allows stream to emit audit event in the context of the event stream
 	Emitter
+	// StreamManager allows the stream to be managed
+	StreamManager
+}
+
+// SteamManager is used to manage a continuous ordered sequence of events
+// associated with a session.
+type StreamManager interface {
 	// Status returns channel broadcasting updates about the stream state:
 	// last event index that was uploaded and the upload ID
 	Status() <-chan StreamStatus

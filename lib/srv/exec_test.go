@@ -78,7 +78,7 @@ func TestEmitExecAuditEvent(t *testing.T) {
 		XXX_sizecache:        0,
 	}
 
-	var tests = []struct {
+	tests := []struct {
 		inCommand  string
 		inError    error
 		outCommand string

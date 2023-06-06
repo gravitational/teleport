@@ -105,6 +105,11 @@ func (*DiscardStream) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 	return nil
 }
 
+// EmitSessionRecordingEvent discards audit event
+func (d *DiscardStream) EmitSessionRecordingEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return d.EmitAuditEvent(ctx, event)
+}
+
 // NewDiscardEmitter returns a no-op discard emitter
 func NewDiscardEmitter() *DiscardEmitter {
 	return &DiscardEmitter{}
@@ -122,6 +127,11 @@ func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 		"event_index": event.GetIndex(),
 	}).Debugf("Discarding event")
 	return nil
+}
+
+// EmitSessionRecordingEvent discards audit event
+func (d *DiscardEmitter) EmitSessionRecordingEvent(ctx context.Context, event apievents.AuditEvent) error {
+	return d.EmitAuditEvent(ctx, event)
 }
 
 // CreateAuditStream creates a stream that discards all events

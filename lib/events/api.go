@@ -799,17 +799,45 @@ type UploadMetadataGetter interface {
 	GetUploadMetadata(sid session.ID) UploadMetadata
 }
 
+// SessionEmitter is for emitters that need to emit session recording events.
+type SessionEmitter interface {
+	// EmitSessionRecordingEvent emits a single audit event if session recording is enabled.
+	EmitSessionRecordingEvent(ctx context.Context, event apievents.AuditEvent) error
+}
+
+// SessionEmitter is for emitters that need to emit audit and session
+// recording events.
+type AuditSessionEmitter interface {
+	apievents.Emitter
+	SessionEmitter
+}
+
 // StreamWriter implements io.Writer to be plugged into the multi-writer
-// associated with every session. It forwards session stream to the audit log
+// associated with every session. It forwards session stream to the audit log.
 type StreamWriter interface {
 	io.Writer
-	apievents.Stream
+	SessionEmitter
+	apievents.StreamManager
+}
+
+// AuditStreamWriter is a StreamWriter that can also emit audit events.
+type AuditStreamWriter interface {
+	apievents.Emitter
+	StreamWriter
 }
 
 // StreamEmitter supports submitting single events and streaming
-// session events
+// session events.
 type StreamEmitter interface {
 	apievents.Emitter
+	Streamer
+}
+
+// SessionStreamEmitter supports submitting single session or audit
+// events and streaming session events.
+type SessionStreamEmitter interface {
+	apievents.Emitter
+	SessionEmitter
 	Streamer
 }
 

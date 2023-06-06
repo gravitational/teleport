@@ -50,7 +50,7 @@ func TestAuditWriter(t *testing.T) {
 		})
 
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			err := test.writer.EmitSessionRecordingEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		err := test.writer.Complete(test.ctx)
@@ -127,7 +127,7 @@ func TestAuditWriter(t *testing.T) {
 
 		start := time.Now()
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			err := test.writer.EmitSessionRecordingEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		log.Debugf("Emitted %v events in %v.", len(inEvents), time.Since(start))
@@ -181,7 +181,7 @@ func TestAuditWriter(t *testing.T) {
 
 		start := time.Now()
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			err := test.writer.EmitSessionRecordingEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		log.Debugf("Emitted all events in %v.", time.Since(start))
@@ -240,7 +240,7 @@ func TestAuditWriter(t *testing.T) {
 
 		start := time.Now()
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			err := test.writer.EmitSessionRecordingEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		elapsedTime := time.Since(start)
@@ -274,7 +274,7 @@ func TestAuditWriter(t *testing.T) {
 		})
 		for _, event := range inEvents {
 			require.Empty(t, event.GetClusterName())
-			require.NoError(t, test.writer.EmitAuditEvent(test.ctx, event))
+			require.NoError(t, test.writer.EmitSessionRecordingEvent(test.ctx, event))
 		}
 		test.Close(context.Background())
 		require.Equal(t, len(inEvents), len(emittedEvents))
@@ -296,10 +296,10 @@ func TestAuditWriter(t *testing.T) {
 
 		// First event will not fail since it is processed in the goroutine.
 		events := events.GenerateTestSession(events.SessionParams{SessionID: string(test.sid)})
-		require.NoError(t, test.writer.EmitAuditEvent(test.ctx, events[1]))
+		require.NoError(t, test.writer.EmitSessionRecordingEvent(test.ctx, events[1]))
 
 		// Subsequent events will fail.
-		err := test.writer.EmitAuditEvent(test.ctx, events[1])
+		err := test.writer.EmitSessionRecordingEvent(test.ctx, events[1])
 		require.Error(t, err)
 
 		require.Eventually(t, func() bool {
@@ -310,6 +310,37 @@ func TestAuditWriter(t *testing.T) {
 				return false
 			}
 		}, 300*time.Millisecond, 100*time.Millisecond)
+	})
+
+	t.Run("NoSessionRecording", func(t *testing.T) {
+		test := newAuditWriterTest(t, nil, withRecordOutput(false))
+		defer test.cancel()
+
+		sessEvents := events.GenerateTestSession(events.SessionParams{
+			PrintEvents: 100,
+			SessionID:   string(test.sid),
+		})
+
+		for _, event := range sessEvents {
+			err := test.writer.EmitSessionRecordingEvent(test.ctx, event)
+			require.NoError(t, err)
+		}
+		err := test.writer.Complete(test.ctx)
+		require.NoError(t, err)
+
+		uploads, err := test.uploader.ListUploads(test.ctx)
+		require.NoError(t, err)
+		require.Len(t, uploads, 1)
+
+		// There will always be at least one empty event
+		parts, err := test.uploader.GetParts(uploads[0].ID)
+		require.NoError(t, err)
+		require.Len(t, parts, 1)
+
+		reader := events.NewProtoReader(bytes.NewReader(parts[0]))
+		out, err := reader.ReadAll(test.ctx)
+		require.NoError(t, err)
+		require.Len(t, out, 0)
 	})
 }
 
@@ -330,6 +361,12 @@ func withBackoff(timeout, dur time.Duration) auditWriterOption {
 	return func(c *events.AuditWriterConfig) {
 		c.BackoffTimeout = timeout
 		c.BackoffDuration = dur
+	}
+}
+
+func withRecordOutput(recordOutput bool) auditWriterOption {
+	return func(c *events.AuditWriterConfig) {
+		c.RecordOutput = recordOutput
 	}
 }
 

@@ -124,7 +124,7 @@ type ForwarderConfig struct {
 	CachingAuthClient auth.ReadKubernetesAccessPoint
 	// StreamEmitter is used to create audit streams
 	// and emit audit events
-	StreamEmitter events.StreamEmitter
+	StreamEmitter events.SessionStreamEmitter
 	// DataDir is a data dir to store logs
 	DataDir string
 	// Namespace is a namespace of the proxy server (not a K8s namespace)
@@ -1495,7 +1495,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		SessionRecording: ctx.recordingConfig.GetMode(),
 	}
 
-	if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionStartEvent); err != nil {
+	if err := f.cfg.StreamEmitter.EmitSessionRecordingEvent(f.ctx, sessionStartEvent); err != nil {
 		f.log.WithError(err).Warn("Failed to emit event.")
 	}
 
@@ -1516,7 +1516,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 	}
 
 	defer func() {
-		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, execEvent); err != nil {
+		if err := f.cfg.StreamEmitter.EmitSessionRecordingEvent(f.ctx, execEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit exec event.")
 		}
 
@@ -1539,7 +1539,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 			SessionRecording:          ctx.recordingConfig.GetMode(),
 		}
 
-		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, sessionEndEvent); err != nil {
+		if err := f.cfg.StreamEmitter.EmitSessionRecordingEvent(f.ctx, sessionEndEvent); err != nil {
 			f.log.WithError(err).Warn("Failed to emit session end event.")
 		}
 	}()
@@ -1800,7 +1800,7 @@ func (f *Forwarder) portForward(authCtx *authContext, w http.ResponseWriter, req
 		if !success {
 			portForward.Code = events.PortForwardFailureCode
 		}
-		if err := f.cfg.StreamEmitter.EmitAuditEvent(f.ctx, portForward); err != nil {
+		if err := f.cfg.StreamEmitter.EmitSessionRecordingEvent(f.ctx, portForward); err != nil {
 			f.log.WithError(err).Warn("Failed to emit event.")
 		}
 	}

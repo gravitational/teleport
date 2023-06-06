@@ -206,9 +206,16 @@ func (process *TeleportProcess) initKubernetesService(log *logrus.Entry, conn *C
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	recConfig, err := accessPoint.GetSessionRecordingConfig(process.ExitContext())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	streamEmitter := &events.StreamerAndEmitter{
-		Emitter:  asyncEmitter,
-		Streamer: streamer,
+		Emitter:               asyncEmitter,
+		Streamer:              streamer,
+		EmitSessionRecordings: recConfig.GetMode() != types.RecordOff,
 	}
 
 	var publicAddr string

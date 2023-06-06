@@ -239,8 +239,7 @@ func NewLoggingEmitter() *LoggingEmitter {
 }
 
 // LoggingEmitter logs all events with info level
-type LoggingEmitter struct {
-}
+type LoggingEmitter struct{}
 
 // EmitAuditEvent logs audit event, skips session print events, session
 // disk events and app session request events, because they are very verbose.
@@ -291,10 +290,19 @@ func (m *MultiEmitter) EmitAuditEvent(ctx context.Context, event apievents.Audit
 	return trace.NewAggregate(errors...)
 }
 
-// StreamerAndEmitter combines streamer and emitter to create stream emitter
+// StreamerAndEmitter combines a streamer and an emitter to create stream emitter
 type StreamerAndEmitter struct {
 	Streamer
 	apievents.Emitter
+	EmitSessionRecordings bool
+}
+
+func (s *StreamerAndEmitter) EmitSessionRecordingEvent(ctx context.Context, event apievents.AuditEvent) error {
+	if !s.EmitSessionRecordings {
+		return nil
+	}
+
+	return s.EmitAuditEvent(ctx, event)
 }
 
 // CheckingStreamerConfig provides parameters for streamer

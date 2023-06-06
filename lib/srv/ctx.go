@@ -977,7 +977,7 @@ func (c *ServerContext) reportStats(conn utils.Stater) {
 	if !c.srv.UseTunnel() {
 		sessionDataEvent.ConnectionMetadata.LocalAddr = c.ServerConn.LocalAddr().String()
 	}
-	if err := c.GetServer().EmitAuditEvent(c.GetServer().Context(), sessionDataEvent); err != nil {
+	if err := c.EmitSessionRecordingEvent(c.GetServer().Context(), sessionDataEvent); err != nil {
 		c.WithError(err).Warn("Failed to emit session data event.")
 	}
 
@@ -1343,4 +1343,12 @@ func (c *ServerContext) GetExecRequest() (Exec, error) {
 		return nil, trace.NotFound("execRequest has not been set")
 	}
 	return c.execRequest, nil
+}
+
+func (c *ServerContext) EmitSessionRecordingEvent(ctx context.Context, event apievents.AuditEvent) error {
+	if c.SessionRecordingConfig.GetMode() == types.RecordOff {
+		return nil
+	}
+
+	return c.GetServer().EmitAuditEvent(ctx, event)
 }
