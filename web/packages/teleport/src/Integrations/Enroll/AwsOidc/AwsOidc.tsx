@@ -15,11 +15,19 @@
  */
 
 import React, { useCallback, useEffect, useState, useRef } from 'react';
+import { useLocation } from 'react-router';
 import styled from 'styled-components';
 
 import { SwitchTransition, Transition } from 'react-transition-group';
 
+import {
+  IntegrationEnrollEvent,
+  IntegrationEnrollEventData,
+  IntegrationEnrollKind,
+  userEventService,
+} from 'teleport/services/userEvent';
 import { Header, HeaderSubtitle } from 'teleport/Discover/Shared';
+import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
 import { Browser } from 'teleport/Integrations/Enroll/AwsOidc/browser/Browser';
 import { IAMHomeScreen } from 'teleport/Integrations/Enroll/AwsOidc/IAM/IAMHomeScreen';
 import { Cursor } from 'teleport/Integrations/Enroll/AwsOidc/browser/Cursor';
@@ -123,7 +131,13 @@ export function AwsOidc() {
 
   const transitionRef = useRef<'prev' | 'next'>('next');
 
+  const location = useLocation<DiscoverUrlLocationState>();
+
   const [stage, setStage] = useState(Stage.Initial);
+  const [eventData] = useState<IntegrationEnrollEventData>({
+    id: crypto.randomUUID(),
+    kind: IntegrationEnrollKind.AwsOidc,
+  });
   const [showRestartAnimation, setShowRestartAnimation] = useState(false);
   const [awsOidc, setAwsOidc] = useState<AwsOidc>({
     thumbprint: '',
@@ -139,6 +153,18 @@ export function AwsOidc() {
     setStage(currentStageConfig.restartStage);
     setShowRestartAnimation(false);
   }, [currentStageConfig]);
+
+  useEffect(() => {
+    // If a user came from the discover wizard,
+    // discover wizard will send of appropriate events.
+    if (location.state?.discover) {
+      return;
+    }
+
+    emitEvent(IntegrationEnrollEvent.Started);
+    // Only send event once on init.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (currentStage.end) {
@@ -160,6 +186,13 @@ export function AwsOidc() {
       return () => window.clearTimeout(id);
     }
   }, [currentStage, currentStageIndex, showRestartAnimation]);
+
+  function emitEvent(event: IntegrationEnrollEvent) {
+    userEventService.captureIntegrationEnrollEvent({
+      event,
+      eventData,
+    });
+  }
 
   function updateState(nextStage: Stage, awsOidc?: AwsOidc) {
     if (nextStage > stage) {
@@ -264,6 +297,7 @@ export function AwsOidc() {
                 {currentStageConfig.instructionStep ===
                   InstructionStep.Seventh && (
                   <SeventhStageInstructions
+                    emitEvent={emitEvent}
                     awsOidc={awsOidc}
                     onPrev={updatedAwsOidc =>
                       updateState(Stage.AssignPolicyToRole, updatedAwsOidc)
