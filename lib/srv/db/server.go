@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -133,6 +134,8 @@ type Config struct {
 	// ConnectionMonitor monitors and closes connections if session controls
 	// prevent the connections.
 	ConnectionMonitor ConnMonitor
+	// ShutdownPollPeriod defines the shutdown poll period.
+	ShutdownPollPeriod time.Duration
 
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
@@ -248,6 +251,11 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 			return trace.Wrap(err)
 		}
 	}
+
+	if c.ShutdownPollPeriod == 0 {
+		c.ShutdownPollPeriod = defaults.ShutdownPollPeriod
+	}
+
 	return nil
 }
 
@@ -280,6 +288,13 @@ type Server struct {
 	mu sync.RWMutex
 	// log is used for logging.
 	log *logrus.Entry
+	// activeConnections counts the number of database active connections.
+	activeConnections int32
+	// connContext context used by connection resources. Canceling will cause
+	// active connections to drop.
+	connContext context.Context
+	// closeConnFunc is the cancel function of the connContext context.
+	closeConnFunc context.CancelFunc
 }
 
 // monitoredDatabases is a collection of databases from different sources
@@ -358,12 +373,13 @@ func New(ctx context.Context, config Config) (*Server, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx, cancel := context.WithCancel(ctx)
+	closeCtx, closeCancelFunc := context.WithCancel(ctx)
+	connCtx, connCancelFunc := context.WithCancel(ctx)
 	server := &Server{
 		cfg:              config,
 		log:              logrus.WithField(trace.Component, teleport.ComponentDatabase),
-		closeContext:     ctx,
-		closeFunc:        cancel,
+		closeContext:     closeCtx,
+		closeFunc:        closeCancelFunc,
 		dynamicLabels:    make(map[string]*labels.Dynamic),
 		heartbeats:       make(map[string]*srv.Heartbeat),
 		proxiedDatabases: config.Databases.ToMap(),
@@ -375,6 +391,8 @@ func New(ctx context.Context, config Config) (*Server, error) {
 			ClusterName:   clustername.GetClusterName(),
 			AcceptedUsage: []string{teleport.UsageDatabaseOnly},
 		},
+		connContext:   connCtx,
+		closeConnFunc: connCancelFunc,
 	}
 
 	// Update TLS config to require client certificate.
@@ -769,15 +787,48 @@ func (s *Server) startServiceHeartbeat() error {
 	return nil
 }
 
-// Close stops proxying all server's databases and frees up other resources.
+// Close stops proxying all server's databases, drops active connections, and
+// frees up other resources.
 func (s *Server) Close() error {
+	s.closeConnFunc()
 	return trace.Wrap(s.close(s.closeContext))
 }
 
 // Shutdown performs a graceful shutdown.
 func (s *Server) Shutdown(ctx context.Context) error {
-	// TODO wait active connections.
-	return trace.Wrap(s.close(ctx))
+	err := s.close(ctx)
+
+	activeConnections := s.getActiveConnections()
+	if activeConnections == 0 {
+		return err
+	}
+
+	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
+	lastReport := time.Time{}
+	ticker := time.NewTicker(s.cfg.ShutdownPollPeriod)
+	defer ticker.Stop()
+
+loop:
+	for {
+		select {
+		case <-ticker.C:
+			activeConnections = s.getActiveConnections()
+			if activeConnections == 0 {
+				break loop
+			}
+
+			if time.Since(lastReport) > 10*s.cfg.ShutdownPollPeriod {
+				s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
+				lastReport = time.Now()
+			}
+		case <-ctx.Done():
+			s.log.Infof("Context canceled wait, returning.")
+			break loop
+		}
+	}
+
+	s.closeConnFunc()
+	return err
 }
 
 func (s *Server) close(ctx context.Context) error {
@@ -803,11 +854,16 @@ func (s *Server) close(ctx context.Context) error {
 
 // Wait will block while the server is running.
 func (s *Server) Wait() error {
-	<-s.closeContext.Done()
-	if err := s.closeContext.Err(); err != nil && err != context.Canceled {
-		return trace.Wrap(err)
+	var errors []error
+	for _, ctx := range []context.Context{s.closeContext, s.connContext} {
+		<-ctx.Done()
+
+		if err := ctx.Err(); err != nil && err != context.Canceled {
+			errors = append(errors, err)
+		}
 	}
-	return nil
+
+	return trace.NewAggregate(errors...)
 }
 
 // ForceHeartbeat is used by tests to force-heartbeat all registered databases.
@@ -845,11 +901,14 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 	// Now that the handshake has completed and the client has sent us a
 	// certificate, extract identity information from it.
-	ctx, err := s.middleware.WrapContextWithUser(s.closeContext, tlsConn)
+	ctx, err := s.middleware.WrapContextWithUser(s.connContext, tlsConn)
 	if err != nil {
 		log.WithError(err).Error("Failed to extract identity from connection.")
 		return
 	}
+	// Track active connections.
+	s.trackActiveConnections(1)
+	defer s.trackActiveConnections(-1)
 	// Dispatch the connection for processing by an appropriate database
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
@@ -886,7 +945,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 		go func() {
 			// Use the server closing context to make sure that upload
 			// continues beyond the session lifetime.
-			err := streamWriter.Close(s.closeContext)
+			err := streamWriter.Close(s.connContext)
 			if err != nil {
 				sessionCtx.Log.WithError(err).Warn("Failed to close stream writer.")
 			}
@@ -981,7 +1040,7 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Audit:        audit,
 		AuthClient:   s.cfg.AuthClient,
 		CloudClients: s.cfg.CloudClients,
-		Context:      s.closeContext,
+		Context:      s.connContext,
 		Clock:        s.cfg.Clock,
 		Log:          sessionCtx.Log,
 		Users:        s.cfg.CloudUsers,
@@ -1128,10 +1187,21 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 
 	go func() {
 		<-ctx.Done()
-		if err := tracker.Close(s.closeContext); err != nil {
+		if err := tracker.Close(s.connContext); err != nil {
 			s.log.WithError(err).Debugf("Failed to close session tracker for session %v", sessionCtx.ID)
 		}
 	}()
 
 	return nil
+}
+
+// getActiveConnections returns the number of active database connections.
+func (s *Server) getActiveConnections() int32 {
+	return atomic.LoadInt32(&s.activeConnections)
+}
+
+// trackActiveConnections adds the delta to the number of active database
+// connections.
+func (s *Server) trackActiveConnections(delta int32) int32 {
+	return atomic.AddInt32(&s.activeConnections, delta)
 }

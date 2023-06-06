@@ -35,7 +35,7 @@ import (
 // newStreamWriter creates a streamer that will be used to stream the
 // requests that occur within this session to the audit log.
 func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWriter, error) {
-	recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(s.closeContext)
+	recConfig, err := s.cfg.AccessPoint.GetSessionRecordingConfig(s.connContext)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -45,14 +45,14 @@ func (s *Server) newStreamWriter(sessionCtx *common.Session) (libevents.StreamWr
 	}
 	// TODO(r0mant): Add support for record-at-proxy.
 	// Create a sync or async streamer depending on configuration of cluster.
-	streamer, err := s.newStreamer(s.closeContext, sessionCtx.ID, recConfig)
+	streamer, err := s.newStreamer(s.connContext, sessionCtx.ID, recConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	// Audit stream is using server context, not session context,
 	// to make sure that session is uploaded even after it is closed
 	return libevents.NewAuditWriter(libevents.AuditWriterConfig{
-		Context:      s.closeContext,
+		Context:      s.connContext,
 		Streamer:     streamer,
 		Clock:        s.cfg.Clock,
 		SessionID:    session.ID(sessionCtx.ID),
