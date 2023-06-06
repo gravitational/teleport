@@ -249,7 +249,8 @@ buildbox-connect:
 #
 .PHONY:teleterm
 teleterm: buildbox-connect
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX_CONNECT) \
+	# Always run this image as user 1000, as the Node base image assumes that.
+	docker run $(DOCKERFLAGS) -u 1000:1000 $(BUILDBOX_CONNECT) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
