@@ -1280,7 +1280,17 @@
         },
         {
           "title": "Access Controls",
-          "slug": "/database-access/rbac/"
+          "slug": "/database-access/rbac/",
+          "entries": [
+            {
+              "title": "RBAC",
+              "slug": "/database-access/rbac/configuring-access/"
+            },
+            {
+              "title": "Automatic User Provisioning (Preview)",
+              "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
+            }
+          ]
         },
         {
           "title": "Architecture",
@@ -1730,16 +1740,16 @@
     },
     "teleport": {
       "major_version": "13",
-      "version": "13.0.4",
+      "version": "13.1.0",
       "golang": "1.20",
       "plugin": {
-        "version": "13.0.4"
+        "version": "13.1.0"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:13.0.4",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.0.4",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.0.4",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.0.4"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:13.1.0",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.1.0",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.1.0",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.1.0"
     },
     "terraform": {
       "version": "1.0.0"

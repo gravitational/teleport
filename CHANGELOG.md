@@ -1,5 +1,32 @@
 # Changelog
 
+## 13.1.0 (06/05/23)
+
+* SAML IdP
+  * Fixed issue with SAML IdP advertising incorrect public address in some cases. [#27376](https://github.com/gravitational/teleport/pull/27376)
+  * Fixed issue with SAML IdP authentication failing on subsequent attempts. [#27314](https://github.com/gravitational/teleport/pull/27314)
+* Kubernetes Access
+  * Fixed issue with simultaneous Kubernetes relogins opening multiple browser tabs. [#27366](https://github.com/gravitational/teleport/pull/27366)
+* Teleport Assist
+  * Added Teleport Assist for Teleport Cloud users on Team plan. [#27243](https://github.com/gravitational/teleport/pull/27243)
+  * Fixed issue with intermittent connection reset and multiple UX tweaks. [#27356](https://github.com/gravitational/teleport/pull/27356)
+* Stability
+  * Fixed issue with stalled auth server initialization when the backend is unavailable. [#27298](https://github.com/gravitational/teleport/pull/27298)
+* Web UI
+  * Fixed issue with immediate web UI logout after successful login. [#27296](https://github.com/gravitational/teleport/pull/27296)
+  * Fixed issue with resource names sometimes now showing up in access requests. [#27430](https://github.com/gravitational/teleport/pull/27430)
+* CLI
+  * Added support for creating Windows desktops via `tctl`. [#27250](https://github.com/gravitational/teleport/pull/27250)
+  * Fixed issue with `tctl get all` not returning locks. [#27294](https://github.com/gravitational/teleport/pull/27294)
+* Server Access
+  * Fixed issue with access requests in headless mode. [#27241](https://github.com/gravitational/teleport/pull/27241)
+  * Fixed issue with port forwarding configuration being cached in `tsh` profile. [#27208](https://github.com/gravitational/teleport/pull/27208)
+* Database Access
+  * Added support for automatic database user provisioning for PostgreSQL. [#26555](https://github.com/gravitational/teleport/pull/26555)
+  * Updated Elasticache support to automatically include IAM connect permissions. [#27188](https://github.com/gravitational/teleport/pull/27188)
+* Desktop Access
+  * Fixed issue with automatic user creation failing in some cases. [teleport.e#1579](https://github.com/gravitational/teleport.e/pull/1579)
+
 ## 13.0.4 (05/31/23)
 
 * Application Access
