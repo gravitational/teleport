@@ -78,7 +78,7 @@ func TestConfigCLIOnlySample(t *testing.T) {
 
 func TestConfigFile(t *testing.T) {
 	configData := fmt.Sprintf(exampleConfigFile, "foo")
-	cfg, err := ReadConfig(strings.NewReader(configData))
+	cfg, err := ReadConfig(strings.NewReader(configData), false)
 	require.NoError(t, err)
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
@@ -114,7 +114,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(tokenFile, []byte("xxxyyy"), 0660))
 
 	configData := fmt.Sprintf(exampleConfigFile, tokenFile)
-	cfg, err := ReadConfig(strings.NewReader(configData))
+	cfg, err := ReadConfig(strings.NewReader(configData), false)
 	require.NoError(t, err)
 
 	token, err := cfg.Onboarding.Token()

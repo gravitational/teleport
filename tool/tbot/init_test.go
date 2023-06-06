@@ -112,7 +112,7 @@ func testConfigFromCLI(t *testing.T, cf *config.CLIConf) *config.BotConfig {
 
 // testConfigFromString parses a YAML config file from a string.
 func testConfigFromString(t *testing.T, yaml string) *config.BotConfig {
-	cfg, err := config.ReadConfig(strings.NewReader(yaml))
+	cfg, err := config.ReadConfig(strings.NewReader(yaml), false)
 	require.NoError(t, err)
 
 	return cfg
