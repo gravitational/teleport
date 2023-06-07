@@ -628,6 +628,7 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       db_user: string;
+      db_roles: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: RawEvent<
@@ -637,6 +638,7 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       db_user: string;
+      db_roles: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_ENDED]: RawEvent<

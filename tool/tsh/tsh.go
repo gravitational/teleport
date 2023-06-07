@@ -3275,6 +3275,61 @@ func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
 // makeClient takes the command-line configuration and a proxy address and constructs & returns
 // a fully configured TeleportClient object
 func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, error) {
+	c, err := loadClientConfigFromCLIConf(cf, proxy)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx, span := c.Tracer.Start(cf.Context, "makeClientForProxy/init")
+	defer span.End()
+
+	tc, err := client.NewClient(c)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Load SSH key for the cluster indicated in the profile.
+	// Handle gracefully if the profile is empty, the key cannot
+	// be found, or the key isn't supported as an agent key.
+	profile, profileError := c.GetProfile(c.ClientStore, proxy)
+	if profileError == nil {
+		if err := tc.LoadKeyForCluster(ctx, profile.SiteName); err != nil {
+			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
+				return nil, trace.Wrap(err)
+			}
+			log.WithError(err).Infof("Could not load key for %s into the local agent.", cf.SiteName)
+		}
+	}
+
+	// If we are missing client profile information, ping the webproxy
+	// for proxy info and load it into the client config.
+	if profileError != nil || cf.IdentityFileIn != "" {
+		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
+		_, err := tc.Ping(cf.Context)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		// Identityfile uses a placeholder profile. Save missing profile info.
+		if cf.IdentityFileIn != "" {
+			if err := tc.SaveProfile(true); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+	}
+
+	return tc, nil
+}
+
+func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, error) {
+	if cf.TracingProvider == nil {
+		cf.TracingProvider = tracing.NoopProvider()
+	}
+
+	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
+	ctx, span := cf.tracer.Start(cf.Context, "loadClientConfigFromCLIConf/init")
+	defer span.End()
+
 	// Parse OpenSSH style options.
 	options, err := parseOptions(cf.Options)
 	if err != nil {
@@ -3329,13 +3384,8 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 
 	// 1: start with the defaults
 	c := client.MakeDefaultConfig()
-	if cf.TracingProvider == nil {
-		cf.TracingProvider = tracing.NoopProvider()
-	}
-	c.Tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
-	cf.tracer = c.Tracer
-	ctx, span := c.Tracer.Start(cf.Context, "makeClientForProxy/init")
-	defer span.End()
+
+	c.Tracer = cf.tracer
 
 	// Force the use of proxy template below.
 	useProxyTemplate := strings.Contains(cf.ProxyJump, "{{proxy}}")
@@ -3400,9 +3450,10 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 			return nil, trace.BadParameter("either --headless or --auth can be specified, not both")
 		}
 		cf.AuthConnector = constants.HeadlessConnector
-		if !cf.ExplicitUsername {
-			return nil, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable")
-		}
+	}
+
+	if cf.AuthConnector == constants.HeadlessConnector && !cf.ExplicitUsername {
+		return nil, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable")
 	}
 
 	if err := tryLockMemory(cf); err != nil {
@@ -3457,7 +3508,6 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 	if len(dPorts) > 0 {
 		c.DynamicForwardedPorts = dPorts
 	}
-	profileSiteName := c.SiteName
 	if cf.SiteName != "" {
 		c.SiteName = cf.SiteName
 	}
@@ -3561,47 +3611,13 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 		c.NonInteractive = true
 	}
 
-	tc, err := client.NewClient(c)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	c.Stderr = cf.Stderr()
+	c.Stdout = cf.Stdout()
 
-	// Load SSH key for the cluster indicated in the profile.
-	// Handle gracefully if the profile is empty, the key cannot
-	// be found, or the key isn't supported as an agent key.
-	if profileSiteName != "" {
-		if err := tc.LoadKeyForCluster(ctx, profileSiteName); err != nil {
-			if !trace.IsNotFound(err) && !trace.IsConnectionProblem(err) {
-				return nil, trace.Wrap(err)
-			}
-			log.WithError(err).Infof("Could not load key for %s into the local agent.", profileSiteName)
-		}
-	}
-
-	// If we are missing client profile information, ping the webproxy
-	// for proxy info and load it into the client config.
-	if profileErr != nil || cf.IdentityFileIn != "" {
-		log.Debug("Pinging the proxy to fetch listening addresses for non-web ports.")
-		_, err := tc.Ping(cf.Context)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		// Identityfile uses a placeholder profile. Save missing profile info.
-		if cf.IdentityFileIn != "" {
-			if err := tc.SaveProfile(true); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		}
-	}
-
-	tc.Config.Stderr = cf.Stderr()
-	tc.Config.Stdout = cf.Stdout()
-
-	tc.Config.Reason = cf.Reason
-	tc.Config.Invited = cf.Invited
-	tc.Config.DisplayParticipantRequirements = cf.displayParticipantRequirements
-	return tc, nil
+	c.Reason = cf.Reason
+	c.Invited = cf.Invited
+	c.DisplayParticipantRequirements = cf.displayParticipantRequirements
+	return c, nil
 }
 
 func initClientStore(cf *CLIConf, proxy string) (*client.Store, error) {
@@ -4338,9 +4354,6 @@ func reissueWithRequests(cf *CLIConf, tc *client.TeleportClient, newRequests []s
 	profile, err := tc.ClientStore.ReadProfileStatus(cf.Proxy)
 	if err != nil {
 		return trace.Wrap(err)
-	}
-	if profile.IsVirtual {
-		return trace.BadParameter("cannot reissue certificates while using an identity file (-i)")
 	}
 	params := client.ReissueParams{
 		AccessRequests:     newRequests,

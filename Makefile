@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=13.0.4
+VERSION=13.1.0
 
 DOCKER_IMAGE ?= teleport
 
@@ -957,6 +957,7 @@ lint-sh:
 	find . -type f -name '*.sh' -not -path "*/node_modules/*" | xargs \
 		shellcheck \
 		--exclude=SC2086 \
+		--exclude=SC1091 \
 		$(SH_LINT_FLAGS)
 
 	# lint AWS AMI scripts
@@ -1009,6 +1010,7 @@ ADDLICENSE_ARGS := -c 'Gravitational, Inc' -l apache \
 		-ignore '**/*.tf' \
 		-ignore '**/*.yaml' \
 		-ignore '**/*.yml' \
+		-ignore '**/*.sql' \
 		-ignore '**/Dockerfile' \
 		-ignore 'api/version.go' \
 		-ignore 'docs/pages/includes/**/*.go' \

@@ -45,7 +45,6 @@ import {
 
 import { ChatBox } from './ChatBox';
 import { ChatItem } from './ChatItem';
-import { ExampleChatItem } from './ChatItem/ChatItem';
 
 const Container = styled.div`
   flex: 1;
@@ -207,18 +206,6 @@ export function Chat(props: ChatProps) {
           />
         </Width>
       </div>
-    </Container>
-  );
-}
-
-export function NewChat() {
-  return (
-    <Container>
-      <Content>
-        <Padding>
-          <ExampleChatItem />
-        </Padding>
-      </Content>
     </Container>
   );
 }

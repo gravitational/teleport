@@ -120,14 +120,15 @@
     "NOKEY",
     "NOPASSWD",
     "NVGJ",
+    "Obxo",
     "ODBC",
     "OIDC",
-    "OTLP",
-    "Obxo",
     "Olsi",
     "Olsia",
+    "OpenAI",
     "Opsgenie",
     "Orapki",
+    "OTLP",
     "PFDEBUG",
     "PFSELFTEST",
     "PGPASSWORD",
@@ -173,6 +174,7 @@
     "TOUCHID",
     "Tele",
     "Templating",
+    "TESTDEVICE",
     "Tmkx",
     "Toboth",
     "Traefik",
@@ -297,6 +299,7 @@
     "cqlsh",
     "createkey",
     "createnongalleryapp",
+    "createrole",
     "creds",
     "crond",
     "customizability",
@@ -751,5 +754,7 @@
     "znmqk",
     "zxvf"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

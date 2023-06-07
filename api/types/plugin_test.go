@@ -48,6 +48,67 @@ func TestPluginWithoutSecrets(t *testing.T) {
 	require.Nil(t, plugin.Credentials)
 }
 
+func TestPluginOpenAIValidation(t *testing.T) {
+	spec := PluginSpecV1{
+		Settings: &PluginSpecV1_Openai{},
+	}
+	testCases := []struct {
+		name      string
+		creds     *PluginCredentialsV1
+		assertErr require.ErrorAssertionFunc
+	}{
+		{
+			name:  "no credentials",
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "credentials must be set")
+			},
+		},
+		{
+			name:  "no credentials inner",
+			creds: &PluginCredentialsV1{},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the bearer token credential type")
+			},
+		},
+		{
+			name: "invalid credential type (oauth2)",
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_Oauth2AccessToken{},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the bearer token credential type")
+			},
+		},
+		{
+			name: "valid credentials (token)",
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_BearerToken{
+					BearerToken: &PluginBearerTokenCredentials{
+						Token: "xxx-abc",
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.NoError(t, err)
+			},
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := NewPluginV1(Metadata{Name: "foobar"}, spec, tc.creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
+
 func TestPluginOktaValidation(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -62,7 +123,6 @@ func TestPluginOktaValidation(t *testing.T) {
 			},
 			creds: nil,
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.Contains(t, err.Error(), "missing Okta settings")
 			},
@@ -74,7 +134,6 @@ func TestPluginOktaValidation(t *testing.T) {
 			},
 			creds: nil,
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.Contains(t, err.Error(), "org_url must be set")
 			},
@@ -88,9 +147,8 @@ func TestPluginOktaValidation(t *testing.T) {
 			},
 			creds: &PluginCredentialsV1{},
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "must be used with the bearer token credential type")
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
 			},
 		},
 		{
@@ -104,40 +162,42 @@ func TestPluginOktaValidation(t *testing.T) {
 				Credentials: &PluginCredentialsV1_Oauth2AccessToken{},
 			},
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "must be used with the bearer token credential type")
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
 			},
 		},
 		{
-			name: "valid credentials (token)",
+			name: "invalid credentials (static credentials)",
 			settings: &PluginSpecV1_Okta{
 				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
 			creds: &PluginCredentialsV1{
-				Credentials: &PluginCredentialsV1_BearerToken{
-					BearerToken: &PluginBearerTokenCredentials{
-						Token: "xxx-abc",
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{},
 					},
 				},
 			},
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.NoError(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "labels must be specified")
 			},
 		},
 		{
-			name: "valid credentials (token file)",
+			name: "valid credentials (static credentials)",
 			settings: &PluginSpecV1_Okta{
 				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
 			creds: &PluginCredentialsV1{
-				Credentials: &PluginCredentialsV1_BearerToken{
-					BearerToken: &PluginBearerTokenCredentials{
-						TokenFile: "/var/lib/secrets/okta_token",
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
 					},
 				},
 			},

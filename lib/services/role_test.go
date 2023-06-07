@@ -236,6 +236,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
+						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -288,6 +289,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
+						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -372,6 +374,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
+						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(false),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -474,6 +477,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
+						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(false),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -582,6 +586,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
+						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -676,6 +681,7 @@ func TestRoleParse(t *testing.T) {
 						DesktopDirectorySharing: types.NewBoolOption(true),
 						CreateDesktopUser:       types.NewBoolOption(false),
 						CreateHostUser:          types.NewBoolOption(false),
+						CreateDatabaseUser:      types.NewBoolOption(false),
 						SSHFileCopy:             types.NewBoolOption(true),
 						IDP: &types.IdPOptions{
 							SAML: &types.IdPSAMLOptions{
@@ -952,6 +958,15 @@ func TestValidateRole(t *testing.T) {
 				"unsupported function: email.localz",
 			},
 		},
+		{
+			name: "wildcard not allowed in database_roles",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					DatabaseRoles: []string{types.Wildcard},
+				},
+			},
+			expectError: trace.BadParameter("wildcard is not allowed in allow.database_roles"),
+		},
 	}
 
 	for _, tc := range tests {
@@ -977,6 +992,64 @@ func TestValidateRole(t *testing.T) {
 				require.ErrorContains(t, warning, msg)
 			}
 		})
+	}
+}
+
+// BenchmarkValidateRole benchmarks the performance of ValidateRole.
+//
+// $ go test ./lib/services -bench BenchmarkValidateRole -v -run xxx
+// goos: darwin
+// goarch: amd64
+// pkg: github.com/gravitational/teleport/lib/services
+// cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
+// BenchmarkValidateRole
+// BenchmarkValidateRole-16           14630             80205 ns/op
+// PASS
+// ok      github.com/gravitational/teleport/lib/services  3.030s
+func BenchmarkValidateRole(b *testing.B) {
+	role, err := types.NewRole("test", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:               []string{"{{email.local(external.email)}}"},
+			WindowsDesktopLogins: []string{"{{email.local(external.email)}}"},
+			AWSRoleARNs:          []string{"{{email.local(external.email)}}"},
+			AzureIdentities:      []string{"{{email.local(external.email)}}"},
+			GCPServiceAccounts:   []string{"{{email.local(external.email)}}"},
+			KubeGroups:           []string{"{{email.local(external.email)}}"},
+			KubeUsers:            []string{"{{email.local(external.email)}}"},
+			DatabaseNames:        []string{"{{email.local(external.email)}}"},
+			DatabaseUsers:        []string{"{{email.local(external.email)}}"},
+			HostGroups:           []string{"{{email.local(external.email)}}"},
+			HostSudoers:          []string{"{{email.local(external.email)}}"},
+			DesktopGroups:        []string{"{{email.local(external.email)}}"},
+			Impersonate: &types.ImpersonateConditions{
+				Users: []string{"{{email.local(external.email)}}"},
+				Roles: []string{"{{email.local(external.email)}}"},
+			},
+			NodeLabels:           types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			AppLabels:            types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			KubernetesLabels:     types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			DatabaseLabels:       types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			WindowsDesktopLabels: types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			ClusterLabels:        types.Labels{"env": {`{{regexp.replace(external["allow-envs"], "^env-(.*)$", "$1")}}`}},
+			Rules: []types.Rule{
+				{
+					Resources: []string{types.KindRole},
+					Verbs:     []string{types.VerbRead, types.VerbList},
+					Where:     `contains(user.spec.traits["groups"], "prod")`,
+				},
+				{
+					Resources: []string{types.KindSession},
+					Verbs:     []string{types.VerbRead, types.VerbList},
+					Where:     "contains(session.participants, user.metadata.name)",
+				},
+			},
+		},
+	})
+	require.NoError(b, err)
+
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		require.NoError(b, ValidateRole(role))
 	}
 }
 
@@ -2458,6 +2531,8 @@ func TestApplyTraits(t *testing.T) {
 		outDBNames              []string
 		inDBUsers               []string
 		outDBUsers              []string
+		inDBRoles               []string
+		outDBRoles              []string
 		inImpersonate           types.ImpersonateConditions
 		outImpersonate          types.ImpersonateConditions
 		inSudoers               []string
@@ -2701,7 +2776,7 @@ func TestApplyTraits(t *testing.T) {
 			},
 		},
 		{
-			comment: "database name/user external vars in allow rule",
+			comment: "database name/user/role external vars in allow rule",
 			inTraits: map[string][]string{
 				"foo": {"bar"},
 			},
@@ -2710,10 +2785,12 @@ func TestApplyTraits(t *testing.T) {
 				outDBNames: []string{"bar", "postgres"},
 				inDBUsers:  []string{"{{external.foo}}", "{{external.baz}}", "postgres"},
 				outDBUsers: []string{"bar", "postgres"},
+				inDBRoles:  []string{"{{external.foo}}", "{{external.baz}}", "postgres"},
+				outDBRoles: []string{"bar", "postgres"},
 			},
 		},
 		{
-			comment: "database name/user external vars in deny rule",
+			comment: "database name/user/role external vars in deny rule",
 			inTraits: map[string][]string{
 				"foo": {"bar"},
 			},
@@ -2722,10 +2799,12 @@ func TestApplyTraits(t *testing.T) {
 				outDBNames: []string{"bar", "postgres"},
 				inDBUsers:  []string{"{{external.foo}}", "{{external.baz}}", "postgres"},
 				outDBUsers: []string{"bar", "postgres"},
+				inDBRoles:  []string{"{{external.foo}}", "{{external.baz}}", "postgres"},
+				outDBRoles: []string{"bar", "postgres"},
 			},
 		},
 		{
-			comment: "database name/user internal vars in allow rule",
+			comment: "database name/user/role internal vars in allow rule",
 			inTraits: map[string][]string{
 				"db_names": {"db1", "db2"},
 				"db_users": {"alice"},
@@ -2735,10 +2814,12 @@ func TestApplyTraits(t *testing.T) {
 				outDBNames: []string{"db1", "db2", "postgres"},
 				inDBUsers:  []string{"{{internal.db_users}}", "{{internal.foo}}", "postgres"},
 				outDBUsers: []string{"alice", "postgres"},
+				inDBRoles:  []string{"{{internal.db_roles}}", "{{internal.foo}}", "postgres"},
+				outDBRoles: []string{"alice", "postgres"},
 			},
 		},
 		{
-			comment: "database name/user internal vars in deny rule",
+			comment: "database name/user/role internal vars in deny rule",
 			inTraits: map[string][]string{
 				"db_names": {"db1", "db2"},
 				"db_users": {"alice"},
@@ -2748,6 +2829,8 @@ func TestApplyTraits(t *testing.T) {
 				outDBNames: []string{"db1", "db2", "postgres"},
 				inDBUsers:  []string{"{{internal.db_users}}", "{{internal.foo}}", "postgres"},
 				outDBUsers: []string{"alice", "postgres"},
+				inDBRoles:  []string{"{{internal.db_roles}}", "{{internal.foo}}", "postgres"},
+				outDBRoles: []string{"alice", "postgres"},
 			},
 		},
 		{
@@ -3910,6 +3993,112 @@ func mustMakeTestWindowsDesktop(labels map[string]string) types.WindowsDesktop {
 		panic(err)
 	}
 	return d
+}
+
+func TestCheckDatabaseRoles(t *testing.T) {
+	// roleA just allows access to all databases without auto-provisioning.
+	roleA := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			},
+		},
+	}
+
+	// roleB allows auto-user provisioning for production database.
+	roleB := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUser: types.NewBoolOption(true),
+			},
+			Allow: types.RoleConditions{
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseRoles:  []string{"reader"},
+			},
+			Deny: types.RoleConditions{
+				DatabaseLabels: types.Labels{"env": []string{"prod"}},
+				DatabaseRoles:  []string{"writer"},
+			},
+		},
+	}
+
+	// roleC allows auto-user provisioning for metrics database.
+	roleC := &types.RoleV6{
+		Metadata: types.Metadata{Name: "roleC", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CreateDatabaseUser: types.NewBoolOption(true),
+			},
+			Allow: types.RoleConditions{
+				DatabaseLabels: types.Labels{"app": []string{"metrics"}},
+				DatabaseRoles:  []string{"reader", "writer"},
+			},
+		},
+	}
+
+	tests := []struct {
+		name             string
+		roleSet          RoleSet
+		inDatabaseLabels map[string]string
+		outCreateUser    bool
+		outRoles         []string
+	}{
+		{
+			name:             "no auto-provision roles assigned",
+			roleSet:          RoleSet{roleA},
+			inDatabaseLabels: map[string]string{"app": "metrics"},
+			outCreateUser:    false,
+			outRoles:         []string(nil),
+		},
+		{
+			name:             "database doesn't match",
+			roleSet:          RoleSet{roleB},
+			inDatabaseLabels: map[string]string{"env": "test"},
+			outCreateUser:    false,
+			outRoles:         []string{},
+		},
+		{
+			name:             "connect to test database, no auto-provisioning",
+			roleSet:          RoleSet{roleA, roleB, roleC},
+			inDatabaseLabels: map[string]string{"env": "test"},
+			outCreateUser:    false,
+			outRoles:         []string{},
+		},
+		{
+			name:             "connect to metrics database, get reader/writer role",
+			roleSet:          RoleSet{roleA, roleB, roleC},
+			inDatabaseLabels: map[string]string{"app": "metrics"},
+			outCreateUser:    true,
+			outRoles:         []string{"reader", "writer"},
+		},
+		{
+			name:             "connect to prod database, get reader role",
+			roleSet:          RoleSet{roleA, roleB, roleC},
+			inDatabaseLabels: map[string]string{"app": "metrics", "env": "prod"},
+			outCreateUser:    true,
+			outRoles:         []string{"reader"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			database, err := types.NewDatabaseV3(types.Metadata{
+				Name:   "test",
+				Labels: test.inDatabaseLabels,
+			}, types.DatabaseSpecV3{
+				Protocol: "protocol",
+				URI:      "uri",
+			})
+			require.NoError(t, err)
+
+			create, roles, err := test.roleSet.CheckDatabaseRoles(database)
+			require.NoError(t, err)
+			require.Equal(t, test.outCreateUser, create)
+			require.Equal(t, test.outRoles, roles)
+		})
+	}
 }
 
 func TestCheckDatabaseNamesAndUsers(t *testing.T) {

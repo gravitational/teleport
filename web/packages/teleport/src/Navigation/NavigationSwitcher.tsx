@@ -20,7 +20,7 @@ import styled, { useTheme } from 'styled-components';
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 
 import { useLocalStorage } from 'shared/hooks/useLocalStorage';
-import { ChatGPTIcon } from 'design/SVGIcon/ChatGPT';
+import { OpenAIIcon } from 'design/SVGIcon/OpenAI';
 
 import { useHistory, useLocation } from 'react-router';
 
@@ -166,11 +166,17 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
 
   const handleClickOutside = useCallback(
     (event: MouseEvent) => {
+      // prevent the dropdown from closing when the assist tooltip is visible
+      // this prevents the switcher from closing when the user closes the discover modal
+      if (showAssist) {
+        return;
+      }
+
       if (ref.current && !ref.current.contains(event.target as HTMLElement)) {
         setOpen(false);
       }
     },
-    [ref.current]
+    [showAssist, ref.current]
   );
 
   useEffect(() => {
@@ -295,10 +301,11 @@ export function NavigationSwitcher(props: NavigationSwitcherProps) {
             <TooltipTitle>
               <TooltipTitleBackground>New!</TooltipTitleBackground>
             </TooltipTitle>{' '}
-            Connect Teleport to ChatGPT and try out our new Assist integration
+            Try out Teleport Assist, a GPT-4-powered AI assistant that leverages
+            your infrastructure
             <TooltipFooter>
               <TooltipLogos>
-                <ChatGPTIcon size={30} />
+                <OpenAIIcon size={30} />
                 <TooltipLogosSpacer>+</TooltipLogosSpacer>
                 <TeleportIcon light={theme.name === 'light'} />
               </TooltipLogos>

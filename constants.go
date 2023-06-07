@@ -49,6 +49,9 @@ const (
 
 	// SSHSessionID is the UUID of the current session.
 	SSHSessionID = "SSH_SESSION_ID"
+
+	// EnableNonInteractiveSessionRecording can be used to record non-interactive SSH session.
+	EnableNonInteractiveSessionRecording = "SSH_TELEPORT_RECORD_NON_INTERACTIVE"
 )
 
 const (
@@ -568,6 +571,10 @@ const (
 	// TraitInternalDBUsersVariable is the variable used to store allowed
 	// database users for local accounts.
 	TraitInternalDBUsersVariable = "{{internal.db_users}}"
+
+	// TraitInternalDBRolesVariable is the variable used to store allowed
+	// database roles for automatic database user provisioning.
+	TraitInternalDBRolesVariable = "{{internal.db_roles}}"
 
 	// TraitInternalAWSRoleARNs is the variable used to store allowed AWS
 	// role ARNs for local accounts.

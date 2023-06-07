@@ -114,6 +114,13 @@ export function EnrollRdsDatabase() {
           }
         );
 
+      // Abort if there were no rds dbs for the selected region.
+      if (fetchedRdsDbs.length <= 0) {
+        setFetchDbAttempt({ status: 'success' });
+        setTableData({ ...data, fetchStatus: 'disabled' });
+        return;
+      }
+
       // Check if fetched rds databases have a database
       // server for it, to prevent user from enrolling
       // the same db and getting an error from it.
@@ -206,9 +213,6 @@ export function EnrollRdsDatabase() {
         onRefresh={refreshDatabaseList}
         clear={clear}
         disableSelector={fetchDbAttempt.status === 'processing'}
-        disableFetch={
-          fetchDbAttempt.status === 'processing' || tableData.items.length > 0
-        }
       />
       <DatabaseList
         items={tableData.items}

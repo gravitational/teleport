@@ -84,6 +84,7 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindPlugin, RW()),
 					types.NewRule(types.KindOktaImportRule, RW()),
 					types.NewRule(types.KindOktaAssignment, RW()),
+					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindBilling, RW()),
@@ -126,6 +127,7 @@ func NewPresetAccessRole() types.Role {
 				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:         []string{teleport.TraitInternalDBUsersVariable},
+				DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -141,6 +143,7 @@ func NewPresetAccessRole() types.Role {
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
 					types.NewRule(types.KindInstance, RO()),
+					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -215,6 +218,12 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindLock, RW()),
 			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 			types.NewRule(types.KindBilling, RW()),
+			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+		},
+		teleport.PresetAccessRoleName: {
+			// Allow assist access to access role. This role only allow access
+			// to the assist console, not any other cluster resources.
+			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 		},
 	}
 }
@@ -227,6 +236,7 @@ func defaultAllowLabels() map[string]types.RoleConditions {
 	return map[string]types.RoleConditions{
 		teleport.PresetAccessRoleName: {
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 		},
 	}
 }
@@ -259,6 +269,10 @@ func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
 	if ok {
 		if len(defaultLabels.DatabaseServiceLabels) > 0 && len(role.GetDatabaseServiceLabels(types.Allow)) == 0 && len(role.GetDatabaseServiceLabels(types.Deny)) == 0 {
 			role.SetDatabaseServiceLabels(types.Allow, defaultLabels.DatabaseServiceLabels)
+			changed = true
+		}
+		if len(defaultLabels.DatabaseRoles) > 0 && len(role.GetDatabaseRoles(types.Allow)) == 0 {
+			role.SetDatabaseRoles(types.Allow, defaultLabels.DatabaseRoles)
 			changed = true
 		}
 	}

@@ -31,6 +31,13 @@
         {
           "title": "Changelog",
           "slug": "/changelog/"
+        },
+        {
+          "title": "Teleport Assist",
+          "slug": "/ai-assist/",
+          "forScopes": [
+            "oss"
+          ]
         }
       ]
     },
@@ -627,12 +634,16 @@
               "slug": "/management/join-services-to-your-cluster/azure/"
             },
             {
-              "title": "Joining Services via Kubernetes ServiceAccount",
+              "title": "Via Kubernetes ServiceAccount",
               "slug": "/management/join-services-to-your-cluster/kubernetes/",
               "forScopes": [
                 "oss",
                 "enterprise"
               ]
+            },
+            {
+              "title": "Via GCP",
+              "slug": "/management/join-services-to-your-cluster/gcp/"
             },
             {
               "title": "Via a Join Token",
@@ -1273,7 +1284,17 @@
         },
         {
           "title": "Access Controls",
-          "slug": "/database-access/rbac/"
+          "slug": "/database-access/rbac/",
+          "entries": [
+            {
+              "title": "RBAC",
+              "slug": "/database-access/rbac/configuring-access/"
+            },
+            {
+              "title": "Automatic User Provisioning (Preview)",
+              "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
+            }
+          ]
         },
         {
           "title": "Architecture",
@@ -1676,7 +1697,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.4.3",
+      "version": "12.4.5",
       "major_version": "12",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -1723,16 +1744,16 @@
     },
     "teleport": {
       "major_version": "13",
-      "version": "13.0.3",
+      "version": "13.1.0",
       "golang": "1.20",
       "plugin": {
-        "version": "13.0.3"
+        "version": "13.1.0"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:13.0.3",
-      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.0.3",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.0.3",
-      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.0.3"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport-distroless:13.1.0",
+      "latest_oss_debug_docker_image": "public.ecr.aws/gravitational/teleport-distroless-debug:13.1.0",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless:13.1.0",
+      "latest_ent_debug_docker_image": "public.ecr.aws/gravitational/teleport-ent-distroless-debug:13.1.0"
     },
     "terraform": {
       "version": "1.0.0"
@@ -2767,6 +2788,11 @@
     {
       "source": "/adopters/",
       "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     }
   ]
