@@ -31,16 +31,16 @@ var defaultStoragePath = filepath.Join(defaults.DataDir, "bot")
 // storage.
 type StorageConfig struct {
 	// Destination's yaml is handled by MarshalYAML/UnmarshalYAML
-	Destination DestinationWrapper
+	Destination destinationWrapper
 }
 
 func (sc *StorageConfig) CheckAndSetDefaults() error {
 	if sc.Destination.Get() == nil {
-		sc.Destination = DestinationWrapper{
+		sc.Destination = WrapDestination(
 			&DestinationDirectory{
 				Path: defaultStoragePath,
 			},
-		}
+		)
 	}
 
 	return trace.Wrap(sc.Destination.Get().CheckAndSetDefaults())

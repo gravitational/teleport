@@ -105,9 +105,9 @@ func TestGetDestinationDirectory(t *testing.T) {
 	output := func() config.Output {
 		return &config.IdentityOutput{
 			Common: config.OutputCommon{
-				Destination: &config.DestinationDirectory{
+				Destination: config.WrapDestination(&config.DestinationDirectory{
 					Path: "/from-bot-config",
-				},
+				}),
 			},
 		}
 	}

@@ -535,7 +535,7 @@ func onInit(botConfig *config.BotConfig, cf *config.CLIConf) error {
 		}
 	}
 
-	log.Infof("DestinationWrapper %s has been initialized. Note that these files "+
+	log.Infof("destinationWrapperOutput %s has been initialized. Note that these files "+
 		"will be empty and invalid until the bot issues certificates.",
 		destImpl)
 

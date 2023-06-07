@@ -217,11 +217,11 @@ func TestBotConfig_MarshalYAML(t *testing.T) {
 			in: BotConfig{
 				Version: V2,
 				Storage: &StorageConfig{
-					Destination: DestinationWrapper{&DestinationDirectory{
+					Destination: WrapDestination(&DestinationDirectory{
 						Path:     "/bot/storage",
 						ACLs:     botfs.ACLTry,
 						Symlinks: botfs.SymlinksSecure,
-					}},
+					}),
 				},
 				FIPS:            true,
 				Debug:           true,
@@ -233,18 +233,18 @@ func TestBotConfig_MarshalYAML(t *testing.T) {
 				Outputs: Outputs{
 					&IdentityOutput{
 						Common: OutputCommon{
-							Destination: DestinationWrapper{
+							Destination: WrapDestination(
 								&DestinationDirectory{
 									Path: "/bot/output",
 								},
-							},
+							),
 							Roles: []string{"editor"},
 						},
 						Cluster: "example.teleport.sh",
 					},
 					&IdentityOutput{
 						Common: OutputCommon{
-							Destination: DestinationWrapper{&DestinationMemory{}},
+							Destination: WrapDestination(&DestinationMemory{}),
 						},
 					},
 				},
@@ -260,7 +260,7 @@ func TestBotConfig_MarshalYAML(t *testing.T) {
 				Outputs: Outputs{
 					&IdentityOutput{
 						Common: OutputCommon{
-							Destination: DestinationWrapper{&DestinationMemory{}},
+							Destination: WrapDestination(&DestinationMemory{}),
 						},
 					},
 				},

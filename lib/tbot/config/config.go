@@ -376,19 +376,19 @@ func marshalHeadered[T any](payload T, payloadType string) (interface{}, error) 
 	return header, nil
 }
 
-// DestinationWrapper wraps a destination for the purposes of Polymorphic
+// destinationWrapper wraps a destination for the purposes of Polymorphic
 // Marshalling and Unmarshalling.
 //
 // This is required due to a bug in go.pkg/yaml.v3 that means structs with an
 // UnmarshalYAML will fail to Marshal if inlined. See:
 // https://github.com/go-yaml/yaml/issues/822
-type DestinationWrapper struct {
-	// Impl is the underlying destination. You should access this field via
+type destinationWrapper struct {
+	// impl is the underlying destination. You should access this field via
 	// .Get().
-	Impl bot.Destination
+	impl bot.Destination
 }
 
-func (d *DestinationWrapper) UnmarshalYAML(node *yaml.Node) error {
+func (d *destinationWrapper) UnmarshalYAML(node *yaml.Node) error {
 	header := struct {
 		Type string `yaml:"type"`
 	}{}
@@ -402,32 +402,36 @@ func (d *DestinationWrapper) UnmarshalYAML(node *yaml.Node) error {
 		if err := node.Decode(v); err != nil {
 			return trace.Wrap(err)
 		}
-		d.Impl = v
+		d.impl = v
 		return nil
 	case DestinationDirectoryType:
 		v := &DestinationDirectory{}
 		if err := node.Decode(v); err != nil {
 			return trace.Wrap(err)
 		}
-		d.Impl = v
+		d.impl = v
 		return nil
 	default:
 		return trace.BadParameter("unrecognized destination type (%s)", header.Type)
 	}
 }
 
-func (d DestinationWrapper) MarshalYAML() (interface{}, error) {
+func (d destinationWrapper) MarshalYAML() (interface{}, error) {
 	// mimics omitempty
-	if d.Impl == nil {
+	if d.impl == nil {
 		return nil, nil
 	}
-	return d.Impl.MarshalYAML()
+	return d.impl.MarshalYAML()
 }
 
 // Get returns the underlying destination implementation. This should always
 // be used when trying to access the destination.
-func (d DestinationWrapper) Get() bot.Destination {
-	return d.Impl
+func (d destinationWrapper) Get() bot.Destination {
+	return d.impl
+}
+
+func WrapDestination(dest bot.Destination) destinationWrapper {
+	return destinationWrapper{impl: dest}
 }
 
 // GetOutputByPath attempts to fetch a Destination by its filesystem path.
@@ -559,7 +563,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		config.Storage = &StorageConfig{Destination: DestinationWrapper{dest}}
+		config.Storage = &StorageConfig{Destination: WrapDestination(dest)}
 	}
 
 	if cf.DestinationDir != "" {
@@ -579,11 +583,11 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		config.Outputs = []Output{
 			&IdentityOutput{
 				Common: OutputCommon{
-					Destination: DestinationWrapper{
+					Destination: WrapDestination(
 						&DestinationDirectory{
 							Path: cf.DestinationDir,
 						},
-					},
+					),
 				},
 			},
 		}

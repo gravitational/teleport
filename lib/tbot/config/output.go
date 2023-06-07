@@ -65,7 +65,7 @@ type Output interface {
 
 type OutputCommon struct {
 	// Destination is where the Output should write the generated data to.
-	Destination DestinationWrapper `yaml:"destination"`
+	Destination destinationWrapper `yaml:"destination"`
 	// Roles is the list of roles to impersonate when generating the outputted
 	// credentials for this output. If this is empty then all the roles the bot
 	// is allowed to impersonated will be used.

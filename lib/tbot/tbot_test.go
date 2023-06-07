@@ -132,20 +132,20 @@ func TestBot(t *testing.T) {
 			// Our first output is pure identity
 			&config.IdentityOutput{
 				Common: config.OutputCommon{
-					Destination: config.DestinationWrapper{&config.DestinationMemory{}},
+					Destination: config.WrapDestination(&config.DestinationMemory{}),
 				},
 			},
 			// Our second output tests application access
 			&config.ApplicationOutput{
 				Common: config.OutputCommon{
-					Destination: config.DestinationWrapper{&config.DestinationMemory{}},
+					Destination: config.WrapDestination(&config.DestinationMemory{}),
 				},
 				AppName: appName,
 			},
 			// Our third destination tests database access
 			&config.DatabaseOutput{
 				Common: config.OutputCommon{
-					Destination: config.DestinationWrapper{&config.DestinationMemory{}},
+					Destination: config.WrapDestination(&config.DestinationMemory{}),
 				},
 				Service:  "foo",
 				Database: "bar",
