@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/services"
@@ -153,7 +152,7 @@ func sanitizeSudoersName(username string) string {
 
 // CreateUser creates a temporary Teleport user in the TeleportServiceGroup
 func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo) (io.Closer, error) {
-	if ui.Mode == "" {
+	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_UNDEFINED {
 		return nil, trace.BadParameter("Mode is a required argument to CreateUser")
 	}
 
@@ -207,7 +206,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 
 	groups := make([]string, len(ui.Groups))
 	copy(groups, ui.Groups)
-	if ui.Mode == constants.HostUserModeDrop {
+	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_DROP {
 		groups = append(groups, types.TeleportServiceGroup)
 	}
 	var errs []error
@@ -249,7 +248,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		err = u.backend.WriteSudoersFile(name, []byte(sudoers.String()))
 	}
 
-	if ui.Mode == constants.HostUserModeKeep {
+	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
 		return nil, trace.Wrap(err)
 	}
 

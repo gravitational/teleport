@@ -956,15 +956,15 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 	}
 
-	modes := []constants.HostUserMode{
-		constants.HostUserMode(""),
-		constants.HostUserModeOff,
-		constants.HostUserModeDrop,
-		constants.HostUserModeKeep,
+	modes := []CreateHostUserMode{
+		CreateHostUserMode_HOST_USER_MODE_UNDEFINED,
+		CreateHostUserMode_HOST_USER_MODE_OFF,
+		CreateHostUserMode_HOST_USER_MODE_DROP,
+		CreateHostUserMode_HOST_USER_MODE_KEEP,
 	}
 
 	if !slices.Contains(modes, r.Spec.Options.CreateHostUserMode) {
-		return trace.BadParameter("Invalid host user mode %q, expected one of %v", r.Spec.Options.CreateHostUserMode, modes)
+		return trace.BadParameter("invalid host user mode %q, expected one of off, drop or keep", r.Spec.Options.CreateHostUserMode)
 	}
 
 	switch r.Version {
@@ -1762,4 +1762,87 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktop,
 	KindWindowsDesktopService,
 	KindUserGroup,
+}
+
+const (
+	createHostUserModeOffString  = "off"
+	createHostUserModeDropString = "drop"
+	createHostUserModeKeepString = "keep"
+)
+
+func (h CreateHostUserMode) encode() (string, error) {
+	switch h {
+	case CreateHostUserMode_HOST_USER_MODE_UNDEFINED:
+		return "", nil
+	case CreateHostUserMode_HOST_USER_MODE_OFF:
+		return createHostUserModeOffString, nil
+	case CreateHostUserMode_HOST_USER_MODE_DROP:
+		return createHostUserModeDropString, nil
+	case CreateHostUserMode_HOST_USER_MODE_KEEP:
+		return createHostUserModeKeepString, nil
+	}
+	return "", trace.BadParameter("invalid host user mode %v", h)
+}
+
+func (h *CreateHostUserMode) decode(val any) error {
+	valS, ok := val.(string)
+	if !ok {
+		return trace.BadParameter("bad value type %T, expected string", val)
+	}
+	switch valS {
+	case "":
+		*h = CreateHostUserMode_HOST_USER_MODE_UNDEFINED
+	case createHostUserModeOffString:
+		*h = CreateHostUserMode_HOST_USER_MODE_OFF
+	case createHostUserModeDropString:
+		*h = CreateHostUserMode_HOST_USER_MODE_DROP
+	case createHostUserModeKeepString:
+		*h = CreateHostUserMode_HOST_USER_MODE_KEEP
+	default:
+		return trace.BadParameter("invalid host user mode %v", val)
+	}
+	return nil
+}
+
+// UnmarshalYAML supports parsing CreateHostUserMode from string.
+func (h *CreateHostUserMode) UnmarshalYAML(unmarshal func(interface{}) error) error {
+	var val interface{}
+	err := unmarshal(&val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
+}
+
+// MarshalYAML marshals CreateHostUserMode to yaml.
+func (h *CreateHostUserMode) MarshalYAML() (interface{}, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return val, nil
+}
+
+// MarshalJSON marshals CreateHostUserMode to json bytes.
+func (h *CreateHostUserMode) MarshalJSON() ([]byte, error) {
+	val, err := h.encode()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	out, err := json.Marshal(val)
+	return out, trace.Wrap(err)
+}
+
+// UnmarshalJSON supports parsing CreateHostUserMode from string.
+func (h *CreateHostUserMode) UnmarshalJSON(data []byte) error {
+	var val interface{}
+	err := json.Unmarshal(data, &val)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = h.decode(val)
+	return trace.Wrap(err)
 }

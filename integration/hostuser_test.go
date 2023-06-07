@@ -32,7 +32,6 @@ import (
 	log "github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -176,7 +175,7 @@ func TestRootHostUsers(t *testing.T) {
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 
 		testGroups := []string{"group1", "group2"}
-		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: constants.HostUserModeDrop})
+		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
 		require.NoError(t, err)
 
 		testGroups = append(testGroups, types.TeleportServiceGroup)
@@ -209,7 +208,7 @@ func TestRootHostUsers(t *testing.T) {
 		closer, err := users.CreateUser(testuser,
 			&services.HostUsersInfo{
 				Sudoers: []string{"ALL=(ALL) ALL"},
-				Mode:    constants.HostUserModeDrop,
+				Mode:    types.CreateHostUserMode_HOST_USER_MODE_DROP,
 			})
 		require.NoError(t, err)
 		_, err = os.Stat(sudoersPath(testuser, uuid))
@@ -224,7 +223,7 @@ func TestRootHostUsers(t *testing.T) {
 		closer, err = users.CreateUser(testuser,
 			&services.HostUsersInfo{
 				Sudoers: []string{"badsudoers entry!!!"},
-				Mode:    constants.HostUserModeDrop,
+				Mode:    types.CreateHostUserMode_HOST_USER_MODE_DROP,
 			})
 		require.Error(t, err)
 		defer closer.Close()
@@ -238,13 +237,13 @@ func TestRootHostUsers(t *testing.T) {
 
 		deleteableUsers := []string{"teleport-user1", "teleport-user2", "teleport-user3"}
 		for _, user := range deleteableUsers {
-			_, err := users.CreateUser(user, &services.HostUsersInfo{Mode: constants.HostUserModeDrop})
+			_, err := users.CreateUser(user, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
 			require.NoError(t, err)
 		}
 
 		// this user should not be in the service group as it was created with mode remain.
 		closer, err := users.CreateUser("teleport-user4", &services.HostUsersInfo{
-			Mode: constants.HostUserModeKeep,
+			Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 		})
 		require.NoError(t, err)
 		require.Nil(t, closer)
