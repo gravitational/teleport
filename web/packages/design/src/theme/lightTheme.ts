@@ -110,6 +110,10 @@ const colors = {
     },
   },
 
+  tooltip: {
+    background: '#F0F2F4',
+  },
+
   progressBarColor: '#007D6B',
 
   dark: '#000000',
