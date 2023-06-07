@@ -1668,13 +1668,13 @@ func roleAllowsResource(
 type ListResourcesRequestOption func(*proto.ListResourcesRequest)
 
 func GetResourceDetails(ctx context.Context, clusterName string, lister ResourceLister, ids []types.ResourceID) (map[string]types.ResourceDetails, error) {
-	var nodeIDs []types.ResourceID
+	var resourceIDs []types.ResourceID
 	for _, resourceID := range ids {
 		// We're interested in hostname or friendly name details. These apply to
 		// nodes, app servers, and user groups.
 		switch resourceID.Kind {
 		case types.KindNode, types.KindAppServer, types.KindUserGroup:
-			nodeIDs = append(nodeIDs, resourceID)
+			resourceIDs = append(resourceIDs, resourceID)
 		}
 	}
 
@@ -1683,25 +1683,24 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister Resource
 		req.UsePreviewAsRoles = true
 	}
 
-	resources, err := GetResourcesByResourceIDs(ctx, lister, nodeIDs, withExtraRoles)
+	resources, err := GetResourcesByResourceIDs(ctx, lister, resourceIDs, withExtraRoles)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	result := make(map[string]types.ResourceDetails)
 	for _, resource := range resources {
-		// Right now, only Okta resources have friendly names.
+		// Right now, only resources sourced from Okta and nodes have friendly names.
 		var friendlyName string
 		if resource.Origin() == types.OriginOkta {
 			friendlyName = resource.GetMetadata().Description
 		}
 
-		var hostname string
 		if hn, ok := resource.(interface{ GetHostname() string }); ok {
-			hostname = hn.GetHostname()
+			friendlyName = hn.GetHostname()
 		}
-		// No details were found, so skip to the next resource.
-		if friendlyName == "" && hostname == "" {
+		// No friendly name was found, so skip to the next resource.
+		if friendlyName == "" {
 			continue
 		}
 
@@ -1711,7 +1710,6 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister Resource
 			Name:        resource.GetName(),
 		}
 		result[types.ResourceIDToString(id)] = types.ResourceDetails{
-			Hostname:     hostname,
 			FriendlyName: friendlyName,
 		}
 	}
