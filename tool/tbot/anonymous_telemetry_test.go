@@ -65,22 +65,22 @@ func TestSendTelemetry(t *testing.T) {
 			Outputs: []config.Output{
 				&config.IdentityOutput{
 					Common: config.OutputCommon{
-						Destination: &config.DestinationDirectory{},
+						Destination: config.DestinationWrapper{&config.DestinationDirectory{}},
 					},
 				},
 				&config.KubernetesOutput{
 					Common: config.OutputCommon{
-						Destination: &config.DestinationDirectory{},
+						Destination: config.DestinationWrapper{&config.DestinationDirectory{}},
 					},
 				},
 				&config.ApplicationOutput{
 					Common: config.OutputCommon{
-						Destination: &config.DestinationDirectory{},
+						Destination: config.DestinationWrapper{&config.DestinationDirectory{}},
 					},
 				},
 				&config.DatabaseOutput{
 					Common: config.OutputCommon{
-						Destination: &config.DestinationDirectory{},
+						Destination: config.DestinationWrapper{&config.DestinationDirectory{}},
 					},
 				},
 			},

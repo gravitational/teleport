@@ -242,9 +242,7 @@ type BotConfig struct {
 	Version    Version          `yaml:"version"`
 	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
 	Storage    *StorageConfig   `yaml:"storage,omitempty"`
-
-	// Polymorphic marshaling/unmarshaling is used for outputs
-	Outputs []Output `yaml:"-"` // `outputs`
+	Outputs    Outputs          `yaml:"outputs,omitempty"`
 
 	Debug           bool          `yaml:"debug"`
 	AuthServer      string        `yaml:"auth_server"`
@@ -313,80 +311,57 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-func (c *BotConfig) unmarshalOutputs(node *yaml.Node) error {
-	// Special handling for polymorphic unmarshaling of destinations
-	rawOutputs := struct {
-		Outputs []yaml.Node `yaml:"outputs"`
-	}{}
-	if err := node.Decode(&rawOutputs); err != nil {
-		return trace.Wrap(err)
-	}
+// Outputs assists polymorphic unmarshalling of a slice of Outputs
+type Outputs []Output
 
-	for _, rawDest := range rawOutputs.Outputs {
+func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
+	var out []Output
+	for _, node := range node.Content {
 		header := struct {
 			Type string `yaml:"type"`
 		}{}
-		if err := rawDest.Decode(&header); err != nil {
+		if err := node.Decode(&header); err != nil {
 			return trace.Wrap(err)
 		}
 
 		switch header.Type {
 		case IdentityOutputType:
 			v := &IdentityOutput{}
-			if err := rawDest.Decode(v); err != nil {
+			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
-			c.Outputs = append(c.Outputs, v)
+			out = append(out, v)
 		case ApplicationOutputType:
 			v := &ApplicationOutput{}
-			if err := rawDest.Decode(v); err != nil {
+			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
-			c.Outputs = append(c.Outputs, v)
+			out = append(out, v)
 		case KubernetesOutputType:
 			v := &KubernetesOutput{}
-			if err := rawDest.Decode(v); err != nil {
+			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
-			c.Outputs = append(c.Outputs, v)
+			out = append(out, v)
 		case DatabaseOutputType:
 			v := &DatabaseOutput{}
-			if err := rawDest.Decode(v); err != nil {
+			if err := node.Decode(v); err != nil {
 				return trace.Wrap(err)
 			}
-			c.Outputs = append(c.Outputs, v)
+			out = append(out, v)
+		case SSHHostOutputType:
+			v := &SSHHostOutput{}
+			if err := node.Decode(v); err != nil {
+				return trace.Wrap(err)
+			}
+			out = append(out, v)
 		default:
 			return trace.BadParameter("unrecognized output type (%s)", header.Type)
 		}
 	}
 
+	*o = out
 	return nil
-}
-
-func unmarshalDestination(raw *yaml.Node) (bot.Destination, error) {
-	header := struct {
-		Type string `yaml:"type"`
-	}{}
-	if err := raw.Decode(&header); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	switch header.Type {
-	case DestinationMemoryType:
-		v := &DestinationMemory{}
-		if err := raw.Decode(v); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return v, nil
-	case DestinationDirectoryType:
-		v := &DestinationDirectory{}
-		if err := raw.Decode(v); err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return v, nil
-	default:
-		return nil, trace.BadParameter("unrecognized destination type (%s)", header.Type)
-	}
 }
 
 func marshalHeadered[T any](payload T, payloadType string) (interface{}, error) {
@@ -401,18 +376,58 @@ func marshalHeadered[T any](payload T, payloadType string) (interface{}, error) 
 	return header, nil
 }
 
-func (c *BotConfig) UnmarshalYAML(node *yaml.Node) error {
-	// Alias the type to get rid of the UnmarshalYAML :)
-	type rawConf BotConfig
-	if err := node.Decode((*rawConf)(c)); err != nil {
-		return trace.Wrap(err)
-	}
-	// We now have set up all the fields except those with special handling
-	if err := c.unmarshalOutputs(node); err != nil {
+// DestinationWrapper wraps a destination for the purposes of Polymorphic
+// Marshalling and Unmarshalling.
+//
+// This is required due to a bug in go.pkg/yaml.v3 that means structs with an
+// UnmarshalYAML will fail to Marshal if inlined. See:
+// https://github.com/go-yaml/yaml/issues/822
+type DestinationWrapper struct {
+	// Impl is the underlying destination. You should access this field via
+	// .Get().
+	Impl bot.Destination
+}
+
+func (d *DestinationWrapper) UnmarshalYAML(node *yaml.Node) error {
+	header := struct {
+		Type string `yaml:"type"`
+	}{}
+	if err := node.Decode(&header); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return nil
+	switch header.Type {
+	case DestinationMemoryType:
+		v := &DestinationMemory{}
+		if err := node.Decode(v); err != nil {
+			return trace.Wrap(err)
+		}
+		d.Impl = v
+		return nil
+	case DestinationDirectoryType:
+		v := &DestinationDirectory{}
+		if err := node.Decode(v); err != nil {
+			return trace.Wrap(err)
+		}
+		d.Impl = v
+		return nil
+	default:
+		return trace.BadParameter("unrecognized destination type (%s)", header.Type)
+	}
+}
+
+func (d DestinationWrapper) MarshalYAML() (interface{}, error) {
+	// mimics omitempty
+	if d.Impl == nil {
+		return nil, nil
+	}
+	return d.Impl.MarshalYAML()
+}
+
+// Get returns the underlying destination implementation. This should always
+// be used when trying to access the destination.
+func (d DestinationWrapper) Get() bot.Destination {
+	return d.Impl
 }
 
 // GetOutputByPath attempts to fetch a Destination by its filesystem path.
@@ -534,7 +549,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	// DataDir overrides any previously-configured storage config
 	if cf.DataDir != "" {
-		if config.Storage != nil && config.Storage.Destination != nil {
+		if config.Storage != nil && config.Storage.Destination.Get() != nil {
 			log.Warnf(
 				"CLI parameters are overriding storage location from %s",
 				cf.ConfigPath,
@@ -544,7 +559,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		config.Storage = &StorageConfig{Destination: dest}
+		config.Storage = &StorageConfig{Destination: DestinationWrapper{dest}}
 	}
 
 	if cf.DestinationDir != "" {
@@ -564,8 +579,10 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		config.Outputs = []Output{
 			&IdentityOutput{
 				Common: OutputCommon{
-					Destination: &DestinationDirectory{
-						Path: cf.DestinationDir,
+					Destination: DestinationWrapper{
+						&DestinationDirectory{
+							Path: cf.DestinationDir,
+						},
 					},
 				},
 			},

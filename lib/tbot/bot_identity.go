@@ -53,7 +53,7 @@ func (b *Bot) renewBotIdentityLoop(
 
 	// Determine where the bot should write its internal data (renewable cert
 	// etc)
-	botDestination := b.cfg.Storage.Destination
+	storageDestination := b.cfg.Storage.Destination.Get()
 
 	ticker := time.NewTicker(b.cfg.RenewalInterval)
 	jitter := retryutils.NewJitter()
@@ -74,7 +74,7 @@ func (b *Bot) renewBotIdentityLoop(
 				botIdentityRenewalRetryLimit,
 			)
 			err = b.renewBotIdentity(
-				ctx, botDestination,
+				ctx, storageDestination,
 			)
 			if err == nil {
 				break

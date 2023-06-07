@@ -19,9 +19,6 @@ package config
 import (
 	"bytes"
 	"fmt"
-	"github.com/gravitational/teleport/lib/tbot/botfs"
-	"github.com/gravitational/teleport/lib/utils/golden"
-	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,9 +26,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestConfigCLIOnlySample(t *testing.T) {
@@ -58,7 +58,7 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.Equal(t, cf.CAPins, cfg.Onboarding.CAPins)
 
 	// Storage is still default
-	storageImpl, ok := cfg.Storage.Destination.(*DestinationDirectory)
+	storageImpl, ok := cfg.Storage.Destination.Get().(*DestinationDirectory)
 	require.True(t, ok)
 	require.Equal(t, defaultStoragePath, storageImpl.Path)
 
@@ -91,7 +91,7 @@ func TestConfigFile(t *testing.T) {
 	require.Equal(t, "foo", token)
 	require.ElementsMatch(t, []string{"sha256:abc123"}, cfg.Onboarding.CAPins)
 
-	_, ok := cfg.Storage.Destination.(*DestinationMemory)
+	_, ok := cfg.Storage.Destination.Get().(*DestinationMemory)
 	require.True(t, ok)
 
 	require.Len(t, cfg.Outputs, 1)
@@ -208,49 +208,79 @@ func TestDestinationFromURI(t *testing.T) {
 }
 
 func TestBotConfig_MarshalYAML(t *testing.T) {
-	cfg := BotConfig{
-		Version: V2,
-		Storage: &StorageConfig{
-			Destination: &DestinationDirectory{
-				Path:     "/bot/storage",
-				ACLs:     botfs.ACLTry,
-				Symlinks: botfs.SymlinksSecure,
-			},
-		},
-		FIPS:            true,
-		Debug:           true,
-		Oneshot:         true,
-		AuthServer:      "example.teleport.sh:443",
-		DiagAddr:        "127.0.0.1:1337",
-		CertificateTTL:  time.Minute,
-		RenewalInterval: time.Second * 30,
-		Outputs: Outputs{
-			&IdentityOutput{
-				Common: OutputCommon{
-					Destination: &DestinationDirectory{
-						Path: "/bot/output",
+	tests := []struct {
+		name string
+		in   BotConfig
+	}{
+		{
+			name: "standard config",
+			in: BotConfig{
+				Version: V2,
+				Storage: &StorageConfig{
+					Destination: DestinationWrapper{&DestinationDirectory{
+						Path:     "/bot/storage",
+						ACLs:     botfs.ACLTry,
+						Symlinks: botfs.SymlinksSecure,
+					}},
+				},
+				FIPS:            true,
+				Debug:           true,
+				Oneshot:         true,
+				AuthServer:      "example.teleport.sh:443",
+				DiagAddr:        "127.0.0.1:1337",
+				CertificateTTL:  time.Minute,
+				RenewalInterval: time.Second * 30,
+				Outputs: Outputs{
+					&IdentityOutput{
+						Common: OutputCommon{
+							Destination: DestinationWrapper{
+								&DestinationDirectory{
+									Path: "/bot/output",
+								},
+							},
+							Roles: []string{"editor"},
+						},
+						Cluster: "example.teleport.sh",
 					},
-					Roles: []string{"editor"},
+					&IdentityOutput{
+						Common: OutputCommon{
+							Destination: DestinationWrapper{&DestinationMemory{}},
+						},
+					},
 				},
-				Cluster: "example.teleport.sh",
 			},
-			&IdentityOutput{
-				Common: OutputCommon{
-					Destination: &DestinationMemory{},
+		},
+		{
+			name: "minimal config",
+			in: BotConfig{
+				Version:         V2,
+				AuthServer:      "example.teleport.sh:443",
+				CertificateTTL:  time.Minute,
+				RenewalInterval: time.Second * 30,
+				Outputs: Outputs{
+					&IdentityOutput{
+						Common: OutputCommon{
+							Destination: DestinationWrapper{&DestinationMemory{}},
+						},
+					},
 				},
 			},
 		},
 	}
 
-	b := bytes.NewBuffer(nil)
-	encoder := yaml.NewEncoder(b)
-	encoder.SetIndent(2)
-	require.NoError(t, encoder.Encode(cfg))
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := bytes.NewBuffer(nil)
+			encoder := yaml.NewEncoder(b)
+			encoder.SetIndent(2)
+			require.NoError(t, encoder.Encode(tt.in))
 
-	if golden.ShouldSet() {
-		golden.Set(t, b.Bytes())
+			if golden.ShouldSet() {
+				golden.Set(t, b.Bytes())
+			}
+			require.Equal(
+				t, string(golden.Get(t)), b.String(),
+			)
+		})
 	}
-	require.Equal(
-		t, string(golden.Get(t)), b.String(),
-	)
 }

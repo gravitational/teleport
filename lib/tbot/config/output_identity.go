@@ -61,7 +61,7 @@ func (o *IdentityOutput) templates() []template {
 
 func (o *IdentityOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, o.Common.Destination); err != nil {
+		if err := t.render(ctx, p, ident, o.GetDestination()); err != nil {
 			return trace.Wrap(err, "rendering %s", t.name())
 		}
 	}
@@ -75,11 +75,11 @@ func (o *IdentityOutput) Init() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Common.Destination.Init(subDirs))
+	return trace.Wrap(o.GetDestination().Init(subDirs))
 }
 
 func (o *IdentityOutput) GetDestination() bot.Destination {
-	return o.Common.Destination
+	return o.Common.Destination.Get()
 }
 
 func (o *IdentityOutput) GetRoles() []string {
@@ -91,7 +91,7 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	dest, ok := o.Common.Destination.(*DestinationDirectory)
+	dest, ok := o.Common.Destination.Get().(*DestinationDirectory)
 	if ok {
 		o.destPath = dest.Path
 	} else {
@@ -115,9 +115,9 @@ func (o *IdentityOutput) Describe() []FileDescription {
 	return fds
 }
 
-func (o *IdentityOutput) MarshalYAML() (interface{}, error) {
+func (o IdentityOutput) MarshalYAML() (interface{}, error) {
 	type raw IdentityOutput
-	return marshalHeadered(raw(*o), IdentityOutputType)
+	return marshalHeadered(raw(o), IdentityOutputType)
 }
 
 func (o *IdentityOutput) String() string {

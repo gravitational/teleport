@@ -220,7 +220,7 @@ func MakeMemoryBotConfig(
 			JoinMethod: botParams.JoinMethod,
 		},
 		Storage: &botconfig.StorageConfig{
-			Destination: &botconfig.DestinationMemory{},
+			Destination: botconfig.DestinationWrapper{&botconfig.DestinationMemory{}},
 		},
 		Oneshot: true,
 		Outputs: outputs,

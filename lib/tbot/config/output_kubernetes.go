@@ -48,7 +48,7 @@ func (o *KubernetesOutput) templates() []template {
 
 func (o *KubernetesOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, o.Common.Destination); err != nil {
+		if err := t.render(ctx, p, ident, o.GetDestination()); err != nil {
 			return trace.Wrap(err, "rendering %s", t.name())
 		}
 	}
@@ -62,7 +62,7 @@ func (o *KubernetesOutput) Init() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Common.Destination.Init(subDirs))
+	return trace.Wrap(o.Common.Destination.Get().Init(subDirs))
 }
 
 func (o *KubernetesOutput) CheckAndSetDefaults() error {
@@ -74,7 +74,7 @@ func (o *KubernetesOutput) CheckAndSetDefaults() error {
 }
 
 func (o *KubernetesOutput) GetDestination() bot.Destination {
-	return o.Common.Destination
+	return o.Common.Destination.Get()
 }
 
 func (o *KubernetesOutput) GetRoles() []string {
@@ -90,9 +90,9 @@ func (o *KubernetesOutput) Describe() []FileDescription {
 	return fds
 }
 
-func (o *KubernetesOutput) MarshalYAML() (interface{}, error) {
+func (o KubernetesOutput) MarshalYAML() (interface{}, error) {
 	type raw KubernetesOutput
-	return marshalHeadered(raw(*o), KubernetesOutputType)
+	return marshalHeadered(raw(o), KubernetesOutputType)
 }
 
 func (o *KubernetesOutput) String() string {

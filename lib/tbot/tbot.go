@@ -230,7 +230,7 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	}
 
 	// Start by loading the bot's primary storage.
-	store := b.cfg.Storage.Destination
+	store := b.cfg.Storage.Destination.Get()
 	if err := identity.VerifyWrite(store); err != nil {
 		return nil, trace.Wrap(
 			err, "Could not write to destination %s, aborting.", store,
@@ -369,10 +369,10 @@ func checkDestinations(cfg *config.BotConfig) error {
 	//  - if the destination was properly created via tbot init this is a no-op
 	//  - if users intend to follow that advice but miss a step, it should fail
 	//    due to lack of permissions
-	storage := cfg.Storage.Destination
+	storageDest := cfg.Storage.Destination.Get()
 
 	// Note: no subdirs to init for bot's internal storage.
-	if err := storage.Init([]string{}); err != nil {
+	if err := storageDest.Init([]string{}); err != nil {
 		return trace.Wrap(err)
 	}
 

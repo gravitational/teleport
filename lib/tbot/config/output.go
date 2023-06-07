@@ -20,7 +20,6 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -66,39 +65,22 @@ type Output interface {
 
 type OutputCommon struct {
 	// Destination is where the Output should write the generated data to.
-	Destination bot.Destination `yaml:"-"` // - as UnmarshalYAML is used
+	Destination DestinationWrapper `yaml:"destination"`
 	// Roles is the list of roles to impersonate when generating the outputted
 	// credentials for this output. If this is empty then all the roles the bot
 	// is allowed to impersonated will be used.
-	Roles []string `yaml:"roles"`
+	Roles []string `yaml:"roles,omitempty"`
 }
 
 // CheckAndSetDefaults validates any configuration on OutputCommon and also
 // calls CheckAndSetDefaults on the configured destination.
 func (oc *OutputCommon) CheckAndSetDefaults() error {
-	return trace.Wrap(oc.Destination.CheckAndSetDefaults())
-}
+	dest := oc.Destination.Get()
+	if dest == nil {
+		return trace.BadParameter("output requires a configured destination")
+	}
 
-func (oc *OutputCommon) UnmarshalYAML(node *yaml.Node) error {
-	// Alias the type to get rid of the UnmarshalYAML :)
-	type raw OutputCommon
-	if err := node.Decode((*raw)(oc)); err != nil {
-		return trace.Wrap(err)
-	}
-	// We now have set up all the fields except those with special handling
-
-	rawDestination := struct {
-		Destination yaml.Node `yaml:"destination"`
-	}{}
-	if err := node.Decode(&rawDestination); err != nil {
-		return trace.Wrap(err)
-	}
-	destination, err := unmarshalDestination(&rawDestination.Destination)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	oc.Destination = destination
-	return nil
+	return trace.Wrap(oc.Destination.Get().CheckAndSetDefaults())
 }
 
 // ListSubdirectories lists all subdirectories that will be used by the given

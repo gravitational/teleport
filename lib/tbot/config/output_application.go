@@ -54,7 +54,7 @@ func (o *ApplicationOutput) templates() []template {
 
 func (o *ApplicationOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, o.Common.Destination); err != nil {
+		if err := t.render(ctx, p, ident, o.GetDestination()); err != nil {
 			return trace.Wrap(err, "rendering %s", t.name())
 		}
 	}
@@ -68,7 +68,7 @@ func (o *ApplicationOutput) Init() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Common.Destination.Init(subDirs))
+	return trace.Wrap(o.GetDestination().Init(subDirs))
 }
 
 func (o *ApplicationOutput) CheckAndSetDefaults() error {
@@ -80,7 +80,7 @@ func (o *ApplicationOutput) CheckAndSetDefaults() error {
 }
 
 func (o *ApplicationOutput) GetDestination() bot.Destination {
-	return o.Common.Destination
+	return o.Common.Destination.Get()
 }
 
 func (o *ApplicationOutput) GetRoles() []string {
@@ -96,9 +96,9 @@ func (o *ApplicationOutput) Describe() []FileDescription {
 	return fds
 }
 
-func (o *ApplicationOutput) MarshalYAML() (interface{}, error) {
+func (o ApplicationOutput) MarshalYAML() (interface{}, error) {
 	type raw ApplicationOutput
-	return marshalHeadered(raw(*o), ApplicationOutputType)
+	return marshalHeadered(raw(o), ApplicationOutputType)
 }
 
 func (o *ApplicationOutput) String() string {
