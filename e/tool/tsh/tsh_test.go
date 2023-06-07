@@ -33,10 +33,19 @@ import (
 	"github.com/gravitational/teleport/lib/plugin"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/teleagent"
 	testserver "github.com/gravitational/teleport/tool/teleport/testenv"
 	tshcommon "github.com/gravitational/teleport/tool/tsh/common"
 )
+
+func TestMain(m *testing.M) {
+	if srv.IsReexec() {
+		return
+	}
+
+	os.Exit(m.Run())
+}
 
 // TestNodeAccess tests 'tsh ssh' and 'tsh scp' functionality with various security features enabled.
 func TestNodeAccess(t *testing.T) {
