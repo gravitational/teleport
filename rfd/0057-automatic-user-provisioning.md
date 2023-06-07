@@ -160,6 +160,11 @@ instead of the `create_host_user` setting.
 If multiple roles matching a node specify the `create_host_user_mode`
 option with both `drop` and `keep`, teleport will default to `keep`
 
+Once `create_host_user` is to be removed, a role migration will be
+triggered and any roles including `create_host_user` will be migrated
+to use `create_host_user_mode` setting it to `drop` if
+`create_host_user` was set.
+
 ### Examples
 
 #### Behaviour using the deprecated option will remain the same as it is currently:
