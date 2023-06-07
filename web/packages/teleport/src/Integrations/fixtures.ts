@@ -67,6 +67,30 @@ export const plugins: Plugin[] = [
     statusCode: IntegrationStatusCode.Running,
     spec: {},
   },
+  {
+    resourceType: 'plugin',
+    name: 'okta',
+    details: '',
+    kind: 'okta',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'opsgenie',
+    details: '',
+    kind: 'opsgenie',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
+  {
+    resourceType: 'plugin',
+    name: 'jamf',
+    details: '',
+    kind: 'jamf',
+    statusCode: IntegrationStatusCode.Running,
+    spec: {},
+  },
 ];
 
 export const integrations: Integration[] = [
