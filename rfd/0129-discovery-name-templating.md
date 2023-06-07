@@ -3,10 +3,7 @@ authors: Gavin Frazar (gavin.frazar@goteleport.com)
 state: draft
 ---
 
-# RFD 0129 - Discovery Resource Name Templates
-
-Related RFDs:
-- [RFD 0125 - Dynamic Auto-Discovery Configuration](./0125-dynamic-auto-discovery-config.md)
+# RFD 0129 - Avoid Discovery Resource Name Collisions
 
 ## Required Approvers
 
@@ -16,10 +13,20 @@ Related RFDs:
 
 ## What
 
-Auto-Discovery service can be configured to dynamically name discovered
-resources using a template string that can reference a subset of resource
-metadata. The choice of what metadata to make available is the main motivation
-for this RFD.
+Auto-Discovery shall name discovered resources such that other resources of
+the same kind are unlikely to have the same name.
+
+In particular, discovered cloud resource names shall include uniquely
+identifying metadata in the name such as region, account ID, or sub-type name.
+
+`tsh` sub-commands shall allow users to use a prefix of the resource name when
+the prefix unambiguously identifies a resource.
+
+Additionally, `tsh` sub-commands shall support using label selectors to
+unambiguously select a single resource.
+
+This RFD does not apply to ssh server instance discovery, since servers are
+already identified within the Teleport cluster by a UUID.
 
 ## Why
 
@@ -28,325 +35,319 @@ For example, this happened when customers had databases in different AWS
 regions or accounts with the same name. When a name collision occurs, only one
 of the databases can be accessed by users.
 
-Resource name templates can be used to avoid naming collisions by renaming
-discovered resources with a prefix/suffix specific to a discovery agent, or by
-using other available metadata such as AWS region or account ID.
+Name collisions can be avoided with the addition of other resource metadata
+in the resource name.
 
-See:
+Since discovered resource names will be longer and more tedious to use, we
+should support resource name prefixes and label matching in `tsh` for better UX.
+
+Relevant issue:
 - https://github.com/gravitational/teleport/issues/22438
 
 ## Details
 
-There will be a new optional configuration string in Discovery service matchers,
-`resource_name_template`, that will be parsed as a
-[Go Template](https://pkg.go.dev/text/template) to rename resources discovered
-using that matcher.
+#### AWS Discovery
 
-This setting will be made available in both static config and the upcoming
-dynamic discovery config from RFD 125.
+Discovered database and kube cluster names shall have a lowercase suffix
+appended to it that includes:
 
-### `resource_name_template`
+- Name of the AWS matcher type
+  - `eks`, `rds`, `rdsproxy`, `redshift`, `redshift-serverless`, `elasticache`,
+    `memorydb` (as of writing this RFD)
+- AWS region
+- AWS account ID
 
-This template string is just a Go text/template, so the template syntax is the
-same.
+All of these AWS resource types require a unique name within an AWS account
+and region.
 
-Using Go templates is not uncommon, so this UX should not be surprising.
-A few examples of software that supports using Go templates: `helm`, `gh`
-(GitHub CLI), `docker`.
+By including the region and account ID, resources of the same kind
+in different AWS accounts or regions will avoid name collision with each-other.
 
-### Example Config:
+By including the Teleport matcher type in the name, resources of different
+sub-kinds will also avoid name collision.
 
-#### Dynamic Config
+By combining these properties, resource names will not collide.
 
-Assuming there is a discovery service with `discovery_group: dev-resources-aws`
-configured:
+The reason for including `eks` in kube cluster names, even though this is the
+only "kind" of kube cluster we discover in AWS, is to clearly distinguish the
+cluster further from clusters in other clouds, although this isn't strictly
+necessary.
 
-```yaml
-discovery_service:
-  enabled: "yes"
-  discovery_group: "dev-resources-aws"
-```
-
-Users can use `tctl create` for the following dynamic `DiscoveryConfig`
-resource:
-
-```yaml
-kind: DiscoveryConfig
-version: v1
-metadata:
-  name: "dev-resources-aws"
-spec:
-    discovery_group: "dev-resources-aws"
-    aws:
-     - types: ["rds"]
-       regions: ["us-west-1","us-west-2"]
-       resource_name_template: "teleport-dev-{{.Name}}-{{.AWS.AccountID}}-{{.AWS.Region}}"
-       tags:
-         "*": "*"
-```
-
-#### Static Config Equivalent
-
+Example:
 ```yaml
 discovery_service:
   enabled: true
   aws:
-    - types: ["rds"]
+    - types: ["eks", "rds", "redshift"]
       regions: ["us-west-1", "us-west-2"]
-      resource_name_template: "teleport-dev-{{.Name}}-{{.AWS.AccountID}}-{{.AWS.Region}}"
+      assume_role_arn: "arn:aws:iam::111111111111:role/DiscoveryRole"
+      external_id: "123abc"
+      tags:
+        "*": "*"
+    - types: ["eks", "rds", "redshift"]
+      regions: ["us-west-1", "us-west-2"]
+      assume_role_arn: "arn:aws:iam::222222222222:role/DiscoveryRole"
+      external_id: "456def"
       tags:
         "*": "*"
 ```
 
-In both the dynamic config and the equivalent static config example, the
-discovery agent will discover AWS RDS databases in the us-west-1 and us-west-2
-AWS regions.
+If the discovery service is configured like the above, the discovery agent will
+discover AWS EKS clusters and AWS RDS and Redshift databases in the `us-west-1`
+and `us-west-2` AWS regions, in AWS accounts `111111111111` and `222222222222`.
 
-Each database discovered by the `aws` matcher will have the prefix
-"teleport-dev-" followed by the discovered database's name, AWS account ID, and
-AWS region.
+Now suppose that an EKS cluster, RDS database, and Redshift database all named
+`foo` exist in both regions in both AWS accounts.
+If the discovery service applies the new naming convention, the discovered
+resources should be named:
 
-For instance, if a database named `foo` is discovered in AWS account ID
-`0123456789012` in region `us-west-1`, the rewritten name will be
-`teleport-dev-foo-012345689012-us-west-1`.
-This disambiguates the database name from other databases in other regions
-and other AWS accounts.
+- `foo-eks-us-west-1-111111111111`
+- `foo-eks-us-west-2-111111111111`
+- `foo-eks-us-west-1-222222222222`
+- `foo-eks-us-west-2-222222222222`
+- `foo-rds-us-west-1-111111111111`
+- `foo-rds-us-west-2-111111111111`
+- `foo-rds-us-west-1-222222222222`
+- `foo-rds-us-west-2-222222222222`
+- `foo-redshift-us-west-1-111111111111`
+- `foo-redshift-us-west-2-111111111111`
+- `foo-redshift-us-west-1-222222222222`
+- `foo-redshift-us-west-2-222222222222`
 
-Since the full template syntax is available, a user could modify this to use
-available template builtin functions to shorten the account ID portion:
-`resource_name_template: 'teleport-dev-{{printf "%s-%.4s-%s" .Name .AWS.AccountID .AWS.Region}}'`
-results in: `teleport-dev-foo-0123-us-west-1`
+This naming convention does not violate our database name validation regex,
+`^[a-z]([-a-z0-9]*[a-z0-9])?$`,
+and does not violate our kube cluster name validation regex `^[a-zA-Z0-9._-]+$`.
 
-### Available template variables
+#### Azure Discovery
 
-We must decide which variables to make available for templating.
+Azure resources have a resource ID that uniquely identifies the resource, e.g.:
+`/subscriptions/00000000-1111-2222-3333-444444444444/resourceGroups/<group name>/providers/<provider name>/<name>`
 
-The supported variables must be sufficient to disambiguate cloud resources to
-avoid name collisions, therefore I think, at a minimum, the supported variables
-should include:
+We could use this ID as the database name, but it is unnecessarily verbose.
+It will also fail to match our database name validation regex:
+`[a-z]([-a-z0-9]*[a-z0-9])?`.
 
-- the original discovered resource name: `.Name`
-- cloud metadata: `.AWS`, `.GCP`, `.Azure`
-  - each of these should only be available for the corresponding matcher
-    type: `aws:`, `gcp:`, `azure:`.
-- the region/location of the resource: `.Region` or `.Location`
-  - this is already included in AWS metadata, but not Azure nor GCP.
-  - rather than a protobuf update, we can just expose this template data
-    variable separately: `.Region` for AWS/Azure and `.Location` for GCP, for
-    consistency with the naming conventions chosen for our discovery matcher
-    config - AWS/Azure matchers use `regions:` and GCP matchers use
-    `locations:`.
+Additionally, all of the Azure databases that Teleport currently supports
+require globally unique names (within the same type of database), because Azure
+assigns a DNS name:
 
-For each cloud metadata type, we can make available the corresponding
-`api/types` protobufs:
+- Redis: `<name>.redis.cache.windows.net`.
+- SQL Server: `<name>.database.windows.net`.
+- Postgres: `<name.postgres.database.azure.com`.
+- MySQL: `<name>.mysql.database.azure.com`.
 
-- `api/types.AWS`
-- `api/types.GCPCloudSQL`
-- `api/types.Azure`
+MySQL/Postgres server names must be unique among both single-server and
+flexible-server instances.
 
-Doing this would couple our cloud metadata protobufs to the supported template
-variables, however it would simplify the implementation and ensure that any new
-cloud metadata is available for templating.
+Therefore, we can form a uniquely identifying name among Azure resources just by
+adding the kind of matcher to the resource name.
+However, AKS kube clusters do not require globally unique names - they only need
+to be unique within the same resource group in the same subscription.
 
-For whatever choice of supported variables, we must document the supported
-template variables in our docs reference.
+To make the naming convention consistent, and to "future-proof" it, the
+naming convention will be to append a suffix that includes:
 
-We should also print a friendly user message that lists the supported
-variables if a user provides a template string that references an unsupported
-variable.
+- Name of the Azure matcher type
+  - `aks`, `mysql`, `postgres`, `redis`, `sqlserver` (as of writing this RFD)
+- Azure resource group name
+  - resource group names may contain characters that we do not allow in database
+    or kube cluster names.
+    The resource group name should be checked for invalid characters and dropped
+    from the name suffix if it is invalid.
+    This is only a heuristic, but any approach here will be a heuristic, and
+    this is the simplest string transform we can do, which avoids confusing
+    users with strange resource group names they don't recognize.
+- Azure subscription ID
+  - subscription IDs only contains letters, digits, and hyphens.
 
-We can check the user provided template when file config is applied,
-or when a dynamic discovery config is created, by executing the template with
-stub data input, or by walking the template parse tree.
+Example:
+```yaml
+discovery_service:
+  enabled: true
+  aws:
+    - types: ["aks", "mysql", "postgres"]
+      regions: ["eastus"]
+      subscriptions:
+        - "11111111-1111-1111-1111-111111111111"
+        - "22222222-2222-2222-2222-222222222222"
+      resource_groups: ["group1", "group2", "weird-)(-group-name"]
+      tags:
+        "*": "*"
+```
+
+If the discovery service is configured like the above, the discovery agent will
+discover Azure AKS kube clusters, Azure MySQL, and Azure PostgreSQL databases.
+
+Now suppose that four AKS kube clusters named `foo` exist in each combination of
+resource group and subscription ID, and a MySQL database and Postgres database
+both named `foo` exist in the the `1111..` subscription and `group1`.
+If the discovery service applies the new naming convention, the discovered
+resources should be named:
+
+- `foo-aks-group1-11111111-1111-1111-1111-111111111111`
+- `foo-aks-group2-11111111-1111-1111-1111-111111111111`
+- `foo-aks-group1-22222222-2222-2222-2222-222222222222`
+- `foo-aks-group2-22222222-2222-2222-2222-222222222222`
+- `foo-mysql-group1-11111111-1111-1111-1111-111111111111`
+- `foo-postgres-group1-11111111-1111-1111-1111-111111111111`
+
+If resources exist within the Azure resource group `weird-)(-group-name`,
+then we simply drop the resource group name from the resource name:
+
+- `foo-aks-11111111-1111-1111-1111-111111111111`
+- `foo-aks-22222222-2222-2222-2222-222222222222`
+- `foo-mysql-11111111-1111-1111-1111-111111111111`
+- ...
+
+Unfortunately, this would allow name collisions across resource groups.
+
+Alternatively, we could apply a transformation to the resource group name to
+make it valid.
+For example, base64 encode it, make the string lowercase, and replace the
+`[+/=]` characters with valid characters, maybe even truncating the result:
+(another heuristic, although less likely to collide names):
+
+```sh
+$ echo "weird-)(-group-name" | base64 | sed 's#[+/=]#x#g' | tr '[:upper:]' '[:lower:]' | cut -c1-8 
+d2vpcmqt
+$ echo "other-weird-)(-group-name" | base64 | sed 's#[+/=]#x#g' | tr '[:upper:]' '[:lower:]' | cut -c1-8 
+b3rozxit
+```
+
+- `foo-aks-d2vpcmqt-11111111-1111-1111-1111-111111111111`
+- `foo-aks-b3rozxit-11111111-1111-1111-1111-111111111111`
+- ...
+
+Each database name will be unique, since `foo` must be globally unique among
+all Azure MySQL databases and globally unique among all Azure Postgres databases.
+
+Even if a new database type is added that doesn't have this globally unique
+name property, the resource group name and subscription ID will avoid name
+collisions, and the databases will be distinguished from databases in other
+clouds.
+
+Likewise, the discovered AKS clusters will avoid colliding with other kube
+clusters in Azure or other clouds.
+
+This naming convention does not violate our database name validation regex,
+`^[a-z]([-a-z0-9]*[a-z0-9])?$`,
+and does not violate our kube cluster name validation regex `^[a-zA-Z0-9._-]+$`.
+
+#### GCP Discovery
+
+GCP discovery currently supports discovering only GKE kube clusters.
+
+GKE cluster names are unique within the same GCP project ID and location/zone.
+
+The discovery naming convention for GKE clusters shall be to append a suffix to
+the cluster name that includes:
+
+- Name of the Teleport GCP matcher type
+  - `gke`
+- GCP project ID
+  - These can be custom, but will only consist of characters, digits, hyphens.
+- GCP location
+
+```yaml
+    gcp:
+    - types: ["gke"]
+      locations: ["us-west1", "us-west2"]
+      tags:
+        "*": "*"
+      project_ids: ["my-project"]
+```
+
+If the discovery service is configured like the above, the discovery agent will
+discover GCP GKE kube clusters in "my-project" in the `us-west1` and `us-west2`
+locations.
+
+Now suppose GKE clusters named `foo` exist in each region.
+If the discovery service applies the new naming convention, the discovered
+resources should be named:
+
+- `foo-gke-us-west1-my-project`
+- `foo-gke-us-west2-my-project`
+
+This naming convention avoids name collisions between GKE clusters and does not
+collide with discovered AWS/Azure clusters.
+
+This naming convention does not violate our kube cluster name validation regex:
+`^[a-zA-Z0-9._-]+$`
+
+### `tsh` UX
+
+Users will be frustrated if they are forced to type out verbose resource names
+when using `tsh`.
+To avoid this poor UX, sub-commands should support prefix resource names or label
+matching to identify resources.
+
+The same UX should apply to all `tsh` sub-commands that take a resource name
+argument. These commands shall support
+`tsh <sub-command> [name | prefix] [key1=value1,key2=value2,...]` syntax:
+
+- `tsh db login`
+- `tsh db connect`
+- `tsh db env`
+- `tsh db config`
+- `tsh proxy db`
+- `tsh proxy app`
+- `tsh proxy kube`
+- `tsh kube login`
+
+#### `tsh` examples
+
+To illustrate the new UX for `tsh` sub-commands, here is an example using
+`tsh db connect` to select a database (the same applies for other commands):
+
+```sh
+$ tsh db ls
+Name   Description         Allowed Users       Labels                      Connect 
+------ ------------------- ------------------- --------------------------- ------- 
+foo-rds-us-west-1-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-1,env=prod,...
+bar-rds-us-west-1-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-1,env=dev,...
+bar-rds-us-west-2-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-2,env=dev,...
+
+# connect by prefix name
+$ tsh db connect --db-user=alice --db-name-postgres foo
+#...connects to "foo-rds-us-west-1-0123456789012" by prefix...
+
+# ambiguous prefix name is an error
+$ tsh db connect --db-user=alice --db-name-postgres bar
+error: ambiguous database name could match multiple databases:
+Name   Description         Allowed Users       Labels                      Connect 
+------ ------------------- ------------------- --------------------------- ------- 
+bar-rds-us-west-1-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-1,env=dev,...
+bar-rds-us-west-2-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-2,env=dev,...
+
+Hint: try addressing the database by its full name or by matching its labels.
+Hint: use `tsh db ls -v` to list all databases with verbose detail.
+
+# resolve the error by connecting with an unambiguous prefix 
+$ tsh db connect --db-user=alice --db-name-postgres bar-rds-us-west-2
+#...connects to "bar-rds-us-west-2-0123456789012" by prefix...
+
+# or connect by label(s)
+$ tsh db connect --db-user=alice --db-name-postgres region=us-west-2 
+#...connects to "bar-rds-us-west-2-0123456789012" by matching region label...
+
+# ambiguous label(s) match is also an error
+$ tsh db connect --db-user=alice --db-name-postgres region=us-west-1 
+error: ambiguous database labels could match multiple databases:
+Name   Description         Allowed Users       Labels                      Connect 
+------ ------------------- ------------------- --------------------------- ------- 
+foo-rds-us-west-1-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-1,env=prod,...
+bar-rds-us-west-1-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-1,env=dev,...
+
+# resolve the error by using either more specific labels or adding a prefix name
+$ tsh db connect --db-user=alice --db-name-postgres foo region=us-west-1 
+#...connects to "foo-rds-us-west-1-0123456789012" by prefix and label...
+$ tsh db connect --db-user=alice --db-name-postgres region=us-west-1,env=prod
+#...connects to "foo-rds-us-west-1-0123456789012" by multiple labels...
+```
 
 ### Security
 
-This configuration setting will only be available to Teleport cluster admins,
-which limits the potential for intentional abuse. I'm not aware of any
-unintentional security concerns, since we control the available supported
-template variables and none of them are secrets.
-
-I was concerned about the potential for resource exhaustion if a
-self-referencing template makes it into a running discovery agent:
-`{{template "ResourceNameTemplate" .}}` - this is self-referencing and looks
-like it will evaluate infinitely.
-What will actually happen is text/template terminates the recursion at 100,000
-depth with an error (not a panic).
-
-We could alternatively catch the invocation of `{{template}} "name" .` actions 
-by writing a visitor to walk the template parse tree. We could use this parse
-tree walking for further template restrictions if we need to.
-
-We can check for invocations of the template action on agent startup from static
-config, or server-side when a dynamic discovery config is created.
-
-### UX
-
-#### `discovery_service` new service configuration properties
-
-Users need to ensure the `resource_name_template` option is set to a template
-string for each discovery matcher to enable resource name rewriting.
-
-Example:
-
-```yaml
-discovery_service:
-  enabled: true
-  aws:
-    - types: ["ec2", "rds"]
-      regions: ["us-west-1"]
-      resource_name_template: "{{.Name}}-{{.Region}}-{{.AWS.AccountID}}"
-      tags:
-        "*": "*"
-  azure:
-    - types: ["aks"]
-      resource_name_template: "{{.Name}}-{{.Region}}"
-      regions: ["eastus", "westus"]
-      subscriptions: ["11111111-2222-3333-4444-555555555555"]
-      resource_groups: ["group1", "group2"]
-      tags:
-        "*": "*"
-  gcp:
-    - types: ["gke"]
-      resource_name_template: "{{.Name}}-{{.GCP.ProjectID}}-{{.Location}}"
-      locations: ["*"]
-      tags:
-        "*": "*"
-       project_ids: ["myproject"]
-```
-
-Likewise, use `resource_name_template` in matchers for `DiscoveryConfig`
-from RFD 125 using `tctl`.
-
-#### `teleport` and `tctl` template errors
-
-Print a user-friendly message that lists supported template variables
-when a user tries to use an unsupported template variable:
-
-static config file:
-
-```yaml
-discovery_service:
-  enabled: true
-  aws:
-    - types: ["ec2", "rds"]
-      regions: ["us-west-1"]
-      resource_name_template: "{{.Thing}}-{{.Region}}-{{.AWS.AccountID}}"
-      tags:
-        "*": "*"
-```
-
-usage error:
-
-```shell
-$ teleport start
-ERROR: failed to parse Teleport configuration: discovery service AWS resource_name_template variable ".Thing" is not supported, supported template variables types are:
-.Name
-.Region
-.AWS
-  .AccountID
-  ...
-```
-
-dynamic config resource:
-
-```yaml
-kind: DiscoveryConfig
-version: v1
-metadata:
-  name: "example"
-spec:
-    discovery_group: "resources-aws"
-    aws:
-     - types: ["rds"]
-       regions: ["us-west-1","us-west-2"]
-       resource_name_template: "{{.Thing}}-{{.Region}}-{{.AWS.AccountID}}"
-       tags:
-         "*": "*"
-```
-
-usage error:
-
-```shell
-$ tctl create ~/discovery_config.yaml 
-ERROR: DiscoveryConfig "example" AWS resource_name_template variable ".Thing" is not supported, supported template variables types are:
-.Name
-.Region
-.AWS
-  .AccountID
-  ...
-```
-
-And a similar message specific to the matcher type: AWS/Azure/GCP.
-
-### Proto Specification
-
-When RFD 125 is implemented, we will need to update the proto messages for
-`DiscoveryConfig` to add a string `resource_name_template` field to each of
-AWS/Azure/GCP matcher messages:
-
-```proto
-// AWSMatcher matches AWS EC2 instances and AWS Databases
-message AWSMatcher {
-  // Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
-	// or "memorydb".
-  repeated string Types = 1;
-  // Regions are AWS regions to query for databases.
-	repeated string Regions = 2;
-	// AssumeRoleARN is the AWS role to assume for database discovery.
-	string AssumeRoleARN = 3;
-	// ExternalID is the AWS external ID to use when assuming a role for
-	// database discovery in an external AWS account.
-	string ExternalID = 4;
-	// Tags are AWS tags to match.
-  wrappers.LabelValues Tags = 5;
-	// InstallParams sets the join method when installing on
-	// discovered EC2 nodes
-	MatcherInstallParams InstallParams = 6;
-	// SSM provides options to use when sending a document command to
-	// an EC2 node
-	AWSSSM SSM = 7;
-	// ResourceNameTemplate rewrites matching resources according to a template
-	// string.
-	ResourceNameTemplate string = 7;
-}
-
-// AzureMatcher matches Azure resources.
-// It defines which resource types, filters and some configuration params.
-message AzureMatcher {
-	// Subscriptions are Azure subscriptions to query for resources.
-	repeated string Subscriptions = 1;
-	// ResourceGroups are Azure resource groups to query for resources.
-	repeated string ResourceGroups = 2;
-	// Types are Azure types to match: "mysql", "postgres", "aks", "vm"
-	repeated string Types = 3;
-	// Regions are Azure locations to match for databases.
-	repeated string Regions = 4;
-	// ResourceTags are Azure tags on resources to match.
-  wrappers.LabelValues ResourceTags = 5;
-	// InstallParams sets the join method when installing on
-	// discovered Azure nodes.
-	MatcherInstallParams InstallParams = 6;
-	// ResourceNameTemplate rewrites matching resources according to a template
-	// string.
-	ResourceNameTemplate string = 7;
-}
-
-// GCPMatcher matches GCP resources.
-message GCPMatcher {
-	// Types are GKE resource types to match: "gke".
-	repeated string Types = 1;
-	// Locations are GKE locations to search resources for.
-	repeated string Locations = 2;
-	// Tags are GCP labels to match.
-	wrappers.LabelValues Tags = 3;
-	// ProjectIDs are the GCP project ID where the resources are deployed.
-	repeated string ProjectIDs = 4;
-	// ResourceNameTemplate rewrites matching resources according to a template
-	// string.
-	ResourceNameTemplate string = 5;
-}
-```
+No security concerns I can think of.
 
 ### Backward Compatibility
 
@@ -358,13 +359,12 @@ N/A
 
 ### Test Plan
 
-We should test discovering multiple resources with identical names do not suffer
-a name collision when using templates to disambiguate them.
+We should test that discovering multiple resources with identical names does not
+suffer name collisions.
 
-For instance, setup identically named RDS databases in different AWS regions
-and a discovery agent to discover them with this template:
-`resource_name_template: '{{.Name}}-{{.Region}}'`
+Setup identically named RDS databases and kube clusters in different AWS regions
+and a discovery agent to discover them.
 
-Check that the databases are both present and differentiated by region in their
-name using `tsh db ls`.
+Check that the resources in each region are discovered and differentiated by
+region in their name.
 
