@@ -17,6 +17,17 @@ and running, but in the long run, we would recommend replacing `sshd` with `tele
 - [Advanced session recording](bpf-session-recording.mdx)
 - [Restricting outbound network connections in SSH sessions](restricted-session.mdx)
 
+Teleport supports OpenSSH by proxying SSH connections through the Proxy Service.
+When a Teleport user requests to connect to an OpenSSH node, RBAC is checked  by the Proxy Service.
+If the RBAC checks succeed, the Proxy Service authenticates to the OpenSSH node with a dynamically
+generated certificate signed by a Teleport CA. This allows the Proxy Service to record and audit
+connections to OpenSSH nodes. This prevents Teleport users from bypassing auditing by requiring
+a certificate signed by a Teleport CA only the Auth Service possesses.
+
+Teleport nodes preform RBAC checks, audit and record sessions and more on the node's host,
+which drops the need for connection termination when recording SSH sessions and allows for
+other advanced features to be utilized as described above.
+
 ## Prerequisites
 
 - OpenSSH version 6.9 or above on your local machine. View your OpenSSH version
@@ -38,7 +49,7 @@ and running, but in the long run, we would recommend replacing `sshd` with `tele
 Teleport only allows access to resources in your infrastructure via Teleport
 processes that that have joined the cluster.
 
-On the machine the cluster's Proxy is running on, use the `tctl` tool to generate a new token. In the
+On the machine the cluster's Proxy Service is running on, use the `tctl` tool to generate a new token. In the
 following example, a new token is created with a TTL of five minutes:
 
 ```code
@@ -47,11 +58,14 @@ $ tctl tokens add --ttl=5m --type=node --format=text
 ```
 
 Copy the `teleport` binary to your `sshd` host. Configure `sshd` and create a node
-resource on your cluster with the command:
+resource on your cluster with the following command, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service,
+and <Var name="node" /> to the name of the node that will join the cluster:
 
 ```code
-$ teleport join openssh --address <NODE-ADDRESS> --proxy-server <PROXY-ADDRESS> --join-method token --token <TOKEN>
+$ teleport join openssh --address <Var name="node" /> --proxy-server <Var name="proxy" /> --join-method token --token <TOKEN>
 ```
+
+Note that both the Teleport Proxy Service and node addresses must contain a host and a port.
 
 ## Step 2/3. Generate an SSH client configuration
 
