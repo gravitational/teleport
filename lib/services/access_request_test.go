@@ -1801,63 +1801,23 @@ func (m *mockResourceLister) ListResources(ctx context.Context, _ proto.ListReso
 	}, nil
 }
 
-func TestDetailsID(t *testing.T) {
-	clusterName := "cluster"
-
-	tests := []struct {
-		name       string
-		resourceID types.ResourceID
-		expected   string
-	}{
-		{
-			name:       "no translation",
-			resourceID: newResourceID(clusterName, types.KindCertAuthority, "ca"),
-			expected:   types.ResourceIDToString(newResourceID(clusterName, types.KindCertAuthority, "ca")),
-		},
-		{
-			name:       "app server",
-			resourceID: newResourceID(clusterName, types.KindAppServer, "app"),
-			expected:   types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app")),
-		},
-		{
-			name:       "database server",
-			resourceID: newResourceID(clusterName, types.KindDatabaseServer, "db"),
-			expected:   types.ResourceIDToString(newResourceID(clusterName, types.KindDatabase, "db")),
-		},
-		{
-			name:       "database server",
-			resourceID: newResourceID(clusterName, types.KindKubeServer, "kube"),
-			expected:   types.ResourceIDToString(newResourceID(clusterName, types.KindKubernetesCluster, "kube")),
-		},
-	}
-
-	for _, test := range tests {
-		test := test
-		t.Run(test.name, func(t *testing.T) {
-			t.Parallel()
-
-			require.Equal(t, test.expected, DetailsID(test.resourceID))
-		})
-	}
-}
-
 func TestGetResourceDetails(t *testing.T) {
 	clusterName := "cluster"
 
 	presence := &mockResourceLister{
 		resources: []types.ResourceWithLabels{
 			newNode(t, "node1", "hostname 1"),
-			newAppServer(t, "app1", "friendly app 1", types.OriginDynamic),
-			newAppServer(t, "app2", "friendly app 2", types.OriginDynamic),
-			newAppServer(t, "app3", "friendly app 3", types.OriginOkta),
+			newApp(t, "app1", "friendly app 1", types.OriginDynamic),
+			newApp(t, "app2", "friendly app 2", types.OriginDynamic),
+			newApp(t, "app3", "friendly app 3", types.OriginOkta),
 			newUserGroup(t, "group1", "friendly group 1", types.OriginOkta),
 		},
 	}
 	resourceIDs := []types.ResourceID{
 		newResourceID(clusterName, types.KindNode, "node1"),
-		newResourceID(clusterName, types.KindAppServer, "app1"),
-		newResourceID(clusterName, types.KindAppServer, "app2"),
-		newResourceID(clusterName, types.KindAppServer, "app3"),
+		newResourceID(clusterName, types.KindApp, "app1"),
+		newResourceID(clusterName, types.KindApp, "app2"),
+		newResourceID(clusterName, types.KindApp, "app3"),
 		newResourceID(clusterName, types.KindUserGroup, "group1"),
 	}
 
@@ -1869,18 +1829,18 @@ func TestGetResourceDetails(t *testing.T) {
 	// Check the resource details to see if friendly names properly propagated.
 
 	// Node should be named for its hostname.
-	require.Equal(t, "hostname 1", details[types.ResourceIDToString(newResourceID(clusterName, types.KindNode, "node1"))].FriendlyName)
+	require.Equal(t, "hostname 1", details[types.ResourceIDToString(resourceIDs[0])].FriendlyName)
 
 	// app1 and app2 are expected to be empty because they're not Okta sourced resources.
-	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app1"))].FriendlyName)
+	require.Empty(t, details[types.ResourceIDToString(resourceIDs[1])].FriendlyName)
 
-	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app2"))].FriendlyName)
+	require.Empty(t, details[types.ResourceIDToString(resourceIDs[2])].FriendlyName)
 
 	// This Okta sourced app should have a friendly name.
-	require.Equal(t, "friendly app 3", details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app3"))].FriendlyName)
+	require.Equal(t, "friendly app 3", details[types.ResourceIDToString(resourceIDs[3])].FriendlyName)
 
 	// This Okta sourced user group should have a friendly name.
-	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(newResourceID(clusterName, types.KindUserGroup, "group1"))].FriendlyName)
+	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(resourceIDs[4])].FriendlyName)
 }
 
 func newNode(t *testing.T, name, hostname string) types.Server {
@@ -1892,7 +1852,7 @@ func newNode(t *testing.T, name, hostname string) types.Server {
 	return node
 }
 
-func newAppServer(t *testing.T, name, description, origin string) types.AppServer {
+func newApp(t *testing.T, name, description, origin string) types.Application {
 	app, err := types.NewAppV3(types.Metadata{
 		Name:        name,
 		Description: description,
@@ -1905,9 +1865,7 @@ func newAppServer(t *testing.T, name, description, origin string) types.AppServe
 			PublicAddr: "https://some-addr.com",
 		})
 	require.NoError(t, err)
-	appServer, err := types.NewAppServerV3FromApp(app, "test-hostname", "test-hostID")
-	require.NoError(t, err)
-	return appServer
+	return app
 }
 
 func newUserGroup(t *testing.T, name, description, origin string) types.UserGroup {

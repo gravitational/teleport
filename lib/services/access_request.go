@@ -1673,7 +1673,7 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister Resource
 		// We're interested in hostname or friendly name details. These apply to
 		// nodes, app servers, and user groups.
 		switch resourceID.Kind {
-		case types.KindNode, types.KindAppServer, types.KindUserGroup:
+		case types.KindNode, types.KindApp, types.KindUserGroup:
 			resourceIDs = append(resourceIDs, resourceID)
 		}
 	}
@@ -1782,25 +1782,6 @@ func MapResourceKindToListResourcesType(kind string) string {
 	default:
 		return kind
 	}
-}
-
-// DetailsID returns the identifier needed to access resource details. This is
-// needed because, for certain resource kinds, the resource ID supplied to the
-// details function doesn't map directly to the identifier used in the resulting
-// resource details map.
-// Note that this assumes that the name of both the leaf resource type and the
-// original are identical, which should be the case.
-func DetailsID(resourceID types.ResourceID) string {
-	switch resourceID.Kind {
-	case types.KindAppServer:
-		resourceID.Kind = types.KindApp
-	case types.KindDatabaseServer:
-		resourceID.Kind = types.KindDatabase
-	case types.KindKubeServer:
-		resourceID.Kind = types.KindKubernetesCluster
-	}
-
-	return types.ResourceIDToString(resourceID)
 }
 
 // MapListResourcesResultToLeafResource is the inverse of
