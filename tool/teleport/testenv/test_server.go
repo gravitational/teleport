@@ -46,8 +46,6 @@ import (
 	"github.com/gravitational/teleport/tool/teleport/common"
 )
 
-var ports utils.PortList
-
 // used to easily join test services
 const staticToken = "test-static-token"
 
@@ -57,12 +55,6 @@ func init() {
 	if srv.IsReexec() {
 		common.Run(common.Options{Args: os.Args[1:]})
 		return
-	}
-
-	var err error
-	ports, err = utils.GetFreeTCPPorts(100)
-	if err != nil {
-		panic(fmt.Sprintf("Failed to allocate tcp ports for tests: %v", err))
 	}
 
 	modules.SetModules(&cliModules{})
@@ -96,7 +88,7 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	cfg.Hostname = "server01"
 	cfg.DataDir = t.TempDir()
 	cfg.Log = utils.NewLoggerForTests()
-	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	authAddr := utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerAuth, &cfg.FileDescriptors)}
 	cfg.SetToken(staticToken)
 	cfg.SetAuthServerAddress(authAddr)
 
@@ -113,12 +105,12 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	require.NoError(t, err)
 	cfg.Auth.StaticTokens = staticToken
 
-	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
-	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.Proxy.WebAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyWeb, &cfg.FileDescriptors)}
+	cfg.Proxy.SSHAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxySSH, &cfg.FileDescriptors)}
+	cfg.Proxy.ReverseTunnelListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerProxyTunnel, &cfg.FileDescriptors)}
 	cfg.Proxy.DisableWebInterface = true
 
-	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: NewTCPListener(t, service.ListenerNodeSSH, &cfg.FileDescriptors)}
 	cfg.SSH.DisableCreateHostUser = true
 
 	// Apply options
@@ -137,6 +129,39 @@ func MakeTestServer(t *testing.T, opts ...TestServerOptFunc) (process *service.T
 	waitForServices(t, process, cfg)
 
 	return process
+}
+
+// NewTCPListener creates a new TCP listener on 127.0.0.1:0, adds it to the
+// FileDescriptor slice (with the specified type) and returns its actual local
+// address as a string (for use in configuration). Takes a pointer to the slice
+// so that it's convenient to call in the middle of a FileConfig or Config
+// struct literal.
+func NewTCPListener(t *testing.T, lt service.ListenerType, fds *[]servicecfg.FileDescriptor) string {
+	t.Helper()
+
+	l, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	defer l.Close()
+	addr := l.Addr().String()
+
+	// File() returns a dup of the listener's file descriptor as an *os.File, so
+	// the original net.Listener still needs to be closed.
+	lf, err := l.(*net.TCPListener).File()
+	require.NoError(t, err)
+	// If the file descriptor slice ends up being passed to a TeleportProcess
+	// that successfully starts, listeners will either get "imported" and used
+	// or discarded and closed, this is just an extra safety measure that closes
+	// the listener at the end of the test anyway (the finalizer would do that
+	// anyway, in principle).
+	t.Cleanup(func() { lf.Close() })
+
+	*fds = append(*fds, servicecfg.FileDescriptor{
+		Type:    string(lt),
+		Address: addr,
+		File:    lf,
+	})
+
+	return addr
 }
 
 func waitForServices(t *testing.T, auth *service.TeleportProcess, cfg *servicecfg.Config) {
