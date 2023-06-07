@@ -25,7 +25,6 @@ import clusterService from './services/clusters';
 import sessionService from './services/session';
 import ResourceService from './services/resources';
 import userService from './services/user';
-import pingService from './services/ping';
 import appService from './services/apps';
 import JoinTokenService from './services/joinToken';
 import KubeService from './services/kube';
@@ -59,8 +58,8 @@ class TeleportContext implements types.Context {
 
   isEnterprise = cfg.isEnterprise;
   isCloud = cfg.isCloud;
-  automaticUpgradesEnabled = false;
-  assistEnabled = false;
+  automaticUpgradesEnabled = cfg.automaticUpgrades;
+  assistEnabled = cfg.assistEnabled;
   agentService = agentService;
 
   // lockedFeatures are the features disabled in the user's cluster.
@@ -91,10 +90,6 @@ class TeleportContext implements types.Context {
         await userService.checkUserHasAccessToRegisteredResource();
       localStorage.setOnboardDiscover({ hasResource });
     }
-
-    const pingResponse = await pingService.fetchPing();
-    this.automaticUpgradesEnabled = pingResponse.automaticUpgrades;
-    this.assistEnabled = pingResponse.assistEnabled;
   }
 
   getFeatureFlags(): types.FeatureFlags {
