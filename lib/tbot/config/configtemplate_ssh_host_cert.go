@@ -121,8 +121,8 @@ func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, 
 // Render generates SSH host cert files.
 func (c *TemplateSSHHostCert) Render(
 	ctx context.Context,
-	bot Bot,
-	_, unroutedIdentity *identity.Identity,
+	bot provider,
+	_ *identity.Identity,
 	destination *DestinationConfig,
 ) error {
 	dest, err := destination.GetDestination()
@@ -130,17 +130,11 @@ func (c *TemplateSSHHostCert) Render(
 		return trace.Wrap(err)
 	}
 
-	// We'll need a client for the impersonated identity to request the certs.
-	authClient, err := bot.AuthenticatedUserClientFromIdentity(ctx, unroutedIdentity)
+	authPong, err := bot.AuthPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer authClient.Close()
-
-	clusterName, err := authClient.GetDomainName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	clusterName := authPong.ClusterName
 
 	// generate a keypair
 	key, err := client.GenerateRSAKey()
@@ -150,10 +144,16 @@ func (c *TemplateSSHHostCert) Render(
 
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
-	botCfg := bot.Config()
-	key.Cert, err = authClient.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
-		"", "", c.Principals,
-		clusterName, types.RoleNode, botCfg.CertificateTTL)
+	key.Cert, err = bot.GenerateHostCert(
+		ctx,
+		key.MarshalSSHPublicKey(),
+		"",
+		"",
+		c.Principals,
+		clusterName,
+		types.RoleNode,
+		bot.Config().CertificateTTL,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}

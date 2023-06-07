@@ -415,6 +415,8 @@ endif
 	rm -f *.zip
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
+# Clean up wasm-pack build artifacts
+	rm -rf web/packages/teleport/src/ironrdp/pkg/
 
 .PHONY: clean-ui
 clean-ui:
@@ -949,6 +951,7 @@ lint-sh:
 	find . -type f \( -name '*.sh' -or -name '*.sh.tmpl' \) -not -path "*/node_modules/*" | xargs \
 		shellcheck \
 		--exclude=SC2086 \
+		--exclude=SC1091 \
 		$(SH_LINT_FLAGS)
 
 	# lint AWS AMI scripts

@@ -32,7 +32,7 @@ const (
 	defaultScriptSrc = "'self' https://js.stripe.com"
 )
 
-var defaultContentSecurityPolicy map[string]string = map[string]string{
+var defaultContentSecurityPolicy = map[string]string{
 	"default-src": "'self'",
 	// specify CSP directives not covered by `default-src`
 	"base-uri":        "'self'",
@@ -47,7 +47,7 @@ var defaultContentSecurityPolicy map[string]string = map[string]string{
 	"style-src":  "'self' 'unsafe-inline'",
 }
 
-var defaultFontSrc map[string]string = map[string]string{"font-src": "'self' data:"}
+var defaultFontSrc = map[string]string{"font-src": "'self' data:"}
 
 // combineCSPMaps combines multiple CSP maps into a single map.
 // When multiple of the input cspMaps have the same key, the
@@ -65,27 +65,23 @@ func combineCSPMaps(cspMaps ...map[string]string) map[string]string {
 // When multiple of the input cspMaps have the same key, the
 // latter map's value takes precedence.
 func getContentSecurityPolicyString(cspMaps ...map[string]string) string {
-	// Copy DefaultContentSecurityPolicy to avoid mutating the global variable.
 	combined := combineCSPMaps(cspMaps...)
 
-	// Create an alphabetical map of keys so the CSP can be constructed alphabetically,
-	// which makes testing/debugging easier.
 	keys := make([]string, 0, len(combined))
 	for k := range combined {
 		keys = append(keys, k)
 	}
 	sort.Strings(keys)
 
-	// Build the CSP string.
-	var cspString string
+	var cspStringBuilder strings.Builder
 	for _, k := range keys {
-		cspString += fmt.Sprintf("%s %s; ", k, combined[k])
+		fmt.Fprintf(&cspStringBuilder, "%s %s; ", k, combined[k])
 	}
 
-	return strings.TrimSpace(cspString)
+	return strings.TrimSpace(cspStringBuilder.String())
 }
 
-// SetNoCacheHeaders tells proxies and browsers to not cache the content
+// SetNoCacheHeaders tells proxies and browsers do not cache the content
 func SetNoCacheHeaders(h http.Header) {
 	h.Set("Cache-Control", "no-cache, no-store, must-revalidate")
 	h.Set("Pragma", "no-cache")
@@ -155,7 +151,7 @@ func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
 		defaultContentSecurityPolicy,
 		defaultFontSrc,
 		map[string]string{
-			"connect-src": fmt.Sprintf("'self' %s", applicationURL),
+			"connect-src": "'self' " + applicationURL,
 		},
 	)
 
@@ -166,7 +162,7 @@ func SetRedirectPageContentSecurityPolicy(h http.Header, scriptSrc string) {
 	cspString := getContentSecurityPolicyString(
 		defaultContentSecurityPolicy,
 		map[string]string{
-			"script-src": fmt.Sprintf("'%s'", scriptSrc),
+			"script-src": "'" + scriptSrc + "'",
 		},
 	)
 

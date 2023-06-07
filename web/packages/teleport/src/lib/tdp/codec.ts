@@ -130,7 +130,6 @@ export type Notification = {
 
 // | message type (10) | mfa_type byte | message_length uint32 | json []byte
 export type MfaJson = {
-  // TODO(isaiah) make this a type that ensures it's the same as MessageTypeEnum.U2F_CHALLENGE and MessageTypeEnum.WEBAUTHN_CHALLENGE
   mfaType: 'u' | 'n';
   jsonString: string;
 };
@@ -302,8 +301,6 @@ export default class Codec {
   decoder = new window.TextDecoder();
 
   // Maps from browser KeyboardEvent.code values to Windows hardware keycodes.
-  // Currently only supports Chrome keycodes: TODO(isaiah) -- add support for firefox/safari/edge.
-  // See https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent/code/code_values#code_values_on_windows
   private _keyScancodes = {
     Escape: 0x0001,
     Digit1: 0x0002,

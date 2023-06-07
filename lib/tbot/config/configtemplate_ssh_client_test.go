@@ -49,12 +49,11 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.Name, func(t *testing.T) {
 			dir := t.TempDir()
-			mockAuth := newMockAuth(t)
 
-			cfg, err := NewDefaultConfig("example.com")
+			cfg, err := newTestConfig("example.com")
 			require.NoError(t, err)
 
-			mockBot := newMockBot(cfg, mockAuth)
+			mockBot := newMockProvider(cfg)
 			template := TemplateSSHClient{
 				ProxyPort: 1337,
 				getSSHVersion: func() (*semver.Version, error) {
@@ -76,7 +75,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 				},
 			}
 
-			err = template.Render(context.Background(), mockBot, ident, ident, dest)
+			err = template.Render(context.Background(), mockBot, ident, dest)
 			require.NoError(t, err)
 
 			replaceTestDir := func(b []byte) []byte {

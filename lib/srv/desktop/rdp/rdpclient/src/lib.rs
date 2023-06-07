@@ -390,7 +390,7 @@ fn connect_rdp_inner(
         // Ensure there is no leftover
         let initial_stream = framed.into_inner_no_leftover();
         let (upgraded_stream, server_public_key) =
-            ironrdp_tls::upgrade(initial_stream, "54.144.205.187").await?;
+            ironrdp_tls::upgrade(initial_stream, &server_socket_addr.ip().to_string()).await?;
 
         let upgraded =
             ironrdp_tokio::mark_as_upgraded(should_upgrade, &mut connector, server_public_key);
@@ -924,7 +924,6 @@ pub unsafe extern "C" fn write_rdp_pointer(
     input_pdu.to_buffer(&mut data).unwrap();
 
     client.tokio_rt.handle().clone().block_on(async {
-        // todo(isaiah): need a lock here? client.write_frame is also used in the main bitmap handling loop.
         client.write_all(&data).await.unwrap(); // todo(isaiah): handle error
     });
 

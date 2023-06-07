@@ -602,6 +602,18 @@ func (c *Client) start() {
 	}()
 }
 
+// asRustBackedSlice creates a Go slice backed by data managed in Rust
+// without copying it. The caller must ensure that the data is not freed
+// by Rust while the slice is in use.
+//
+// This can be used in lieu of C.GoBytes (which copies the data) wherever
+// performance is of greater concern.
+func asRustBackedSlice(data *C.uint8_t, length int) []byte {
+	ptr := unsafe.Pointer(data)
+	uptr := (*uint8)(ptr)
+	return unsafe.Slice(uptr, length)
+}
+
 //export handle_png
 func handle_png(handle C.uintptr_t, cb *C.CGOPNG) C.CGOErrCode {
 	return cgo.Handle(handle).Value().(*Client).handlePNG(cb)
@@ -613,12 +625,7 @@ func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 	// from the fact that a png was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
-	// use unsafe.Slice here instead of C.GoBytes, because unsafe.Slice
-	// creates a Go slice backed by data managed from Rust - it does not
-	// copy.
-	ptr := unsafe.Pointer(cb.data_ptr)
-	uptr := (*uint8)(ptr)
-	data := unsafe.Slice(uptr, int(cb.data_len))
+	data := asRustBackedSlice(cb.data_ptr, int(cb.data_len))
 
 	c.png2FrameBuffer = c.png2FrameBuffer[:0]
 	c.png2FrameBuffer = append(c.png2FrameBuffer, byte(tdp.TypePNG2Frame))
@@ -638,8 +645,7 @@ func (c *Client) handlePNG(cb *C.CGOPNG) C.CGOErrCode {
 
 //export handle_remote_fx_frame
 func handle_remote_fx_frame(handle C.uintptr_t, data *C.uint8_t, length C.uint32_t) C.CGOErrCode {
-	// TODO(isaiah): check if C.GoBytes is a copy or not.
-	goData := C.GoBytes(unsafe.Pointer(data), C.int(length))
+	goData := asRustBackedSlice(data, int(length))
 	return cgo.Handle(handle).Value().(*Client).handleRDPFastPathPDU(goData)
 }
 

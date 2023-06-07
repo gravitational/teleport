@@ -303,7 +303,6 @@ impl Client {
             }
             MajorFunction::IRP_MJ_LOCK_CONTROL => self.process_irp_lock_ctl(),
             _ => Err(invalid_data_error(&format!(
-                // TODO(isaiah): send back a not implemented response(?)
                 "got unsupported major_function in DeviceIoRequest: {:?}",
                 &major_function
             ))),
@@ -606,9 +605,6 @@ impl Client {
                     // On the initial query, we need to get the list of files in this directory from
                     // the client by sending a TDP SharedDirectoryListRequest.
                     // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_file.c#L775
-                    // TODO(isaiah): I'm observing that sometimes rdp_req.path will not be precisely equal to dir.path. For example, we will
-                    // get a ServerDriveQueryDirectoryRequest where path == "\\*", whereas the corresponding entry in the file_cache will have
-                    // path == "\\". I'm not quite sure what to do with this yet, so just leaving this as a note to self.
                     let path = dir.path.clone();
 
                     // Ask the client for the list of files in this directory.
@@ -3837,10 +3833,8 @@ impl ServerDriveQueryDirectoryRequest {
         if initial_query != 0 {
             path_length = payload.read_u32::<LittleEndian>()?;
 
-            // TODO(isaiah): make a payload.skip(n)
             payload.read_exact(&mut padding)?;
 
-            // TODO(isaiah): make a from_unicode_exact
             let mut path_as_vec = vec![0u8; path_length.try_into().unwrap()];
             payload.read_exact(&mut path_as_vec)?;
             path = WindowsPath::from(util::from_unicode(path_as_vec)?);
