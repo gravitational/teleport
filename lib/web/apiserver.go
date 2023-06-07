@@ -1391,7 +1391,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
-	assistEnabled := false // TODO(jakule)
+	assistEnabled := false // TODO(jakule) remove when plugins are implemented
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
