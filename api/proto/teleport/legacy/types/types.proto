@@ -348,6 +348,11 @@ message DatabaseSpecV3 {
   ];
   // AdminUser is the database admin user for automatic user provisioning.
   DatabaseAdminUser AdminUser = 11 [(gogoproto.jsontag) = "admin_user,omitempty"];
+  // MongoAtlas contains Atlas metadata about the database.
+  MongoAtlas MongoAtlas = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "mongo_atlas,omitempty"
+  ];
 }
 
 // DatabaseAdminUser contains information about privileged database user used
@@ -573,6 +578,12 @@ message MySQLOptions {
   // ServerVersion is the server version reported by DB proxy if the runtime information is
   // not available.
   string ServerVersion = 1 [(gogoproto.jsontag) = "server_version,omitempty"];
+}
+
+// MongoAtlas contains Atlas metadata about the database.
+message MongoAtlas {
+  // Name is the Atlas database instance name.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
 // InstanceV1 represents the state of a running teleport instance independent

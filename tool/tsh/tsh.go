@@ -3453,6 +3453,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		cf.AuthConnector = constants.HeadlessConnector
 	}
 
+	// When using Headless, user must be provided explicitly.
 	if cf.AuthConnector == constants.HeadlessConnector && !cf.ExplicitUsername {
 		return nil, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable")
 	}
@@ -4629,8 +4630,6 @@ func setEnvFlags(cf *CLIConf, getEnv envGetter) {
 			cf.SiteName = clusterName
 		} else if clusterName = getEnv(siteEnvVar); clusterName != "" {
 			cf.SiteName = clusterName
-		} else if clusterName = getEnv(teleport.SSHTeleportClusterName); clusterName != "" {
-			cf.SiteName = clusterName
 		}
 	}
 
@@ -4638,12 +4637,17 @@ func setEnvFlags(cf *CLIConf, getEnv envGetter) {
 		cf.KubernetesCluster = getEnv(kubeClusterEnvVar)
 	}
 
-	if cf.Username == "" {
-		cf.Username = getEnv(teleport.SSHTeleportUser)
-	}
-
-	if cf.Proxy == "" {
-		cf.Proxy = getEnv(teleport.SSHSessionWebproxyAddr)
+	// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
+	if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
+		if cf.Proxy == "" {
+			cf.Proxy = getEnv(teleport.SSHSessionWebproxyAddr)
+		}
+		if cf.Username == "" {
+			cf.Username = getEnv(teleport.SSHTeleportUser)
+		}
+		if cf.SiteName == "" {
+			cf.SiteName = getEnv(teleport.SSHTeleportClusterName)
+		}
 	}
 }
 
