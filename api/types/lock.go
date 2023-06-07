@@ -173,6 +173,13 @@ func (c *LockV2) CheckAndSetDefaults() error {
 	if c.Spec.Target.IsEmpty() {
 		return trace.BadParameter("at least one target field must be set")
 	}
+	// If the user specifies a server ID but not a node, copy the server ID to the node
+	// field. This is for backwards compatibility with previous versions of Teleport
+	// so that locking a node still works.
+	// TODO: DELETE IN 15.0.0
+	if c.Spec.Target.ServerID != "" && c.Spec.Target.Node == "" {
+		c.Spec.Target.Node = c.Spec.Target.ServerID
+	}
 	return nil
 }
 
@@ -204,11 +211,17 @@ func (t LockTarget) Match(lock Lock) bool {
 	return (t.User == "" || lockTarget.User == t.User) &&
 		(t.Role == "" || lockTarget.Role == t.Role) &&
 		(t.Login == "" || lockTarget.Login == t.Login) &&
-		(t.Node == "" || lockTarget.Node == t.Node) &&
 		(t.MFADevice == "" || lockTarget.MFADevice == t.MFADevice) &&
 		(t.WindowsDesktop == "" || lockTarget.WindowsDesktop == t.WindowsDesktop) &&
 		(t.AccessRequest == "" || lockTarget.AccessRequest == t.AccessRequest) &&
-		(t.Device == "" || lockTarget.Device == t.Device)
+		(t.Device == "" || lockTarget.Device == t.Device) &&
+		((t.Node == "" && t.ServerID == "") ||
+			// Node lock overrides ServerID lock because we want to keep backwards compatibility
+			// with previous versions of Teleport where a node lock only locked the ssh_service
+			// and not the other services running on that host.
+			// Newer versions of Teleport will lock all services based on the ServerID field.
+			(lockTarget.Node != "" && lockTarget.Node == t.Node) ||
+			(lockTarget.ServerID != "" && lockTarget.ServerID == t.ServerID))
 }
 
 // String returns string representation of the LockTarget.
