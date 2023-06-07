@@ -17,7 +17,11 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
 	"fmt"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/utils/golden"
+	"gopkg.in/yaml.v3"
 	"os"
 	"path/filepath"
 	"strings"
@@ -201,4 +205,52 @@ func TestDestinationFromURI(t *testing.T) {
 			require.Equal(t, tt.want, got)
 		})
 	}
+}
+
+func TestBotConfig_MarshalYAML(t *testing.T) {
+	cfg := BotConfig{
+		Version: V2,
+		Storage: &StorageConfig{
+			Destination: &DestinationDirectory{
+				Path:     "/bot/storage",
+				ACLs:     botfs.ACLTry,
+				Symlinks: botfs.SymlinksSecure,
+			},
+		},
+		FIPS:            true,
+		Debug:           true,
+		Oneshot:         true,
+		AuthServer:      "example.teleport.sh:443",
+		DiagAddr:        "127.0.0.1:1337",
+		CertificateTTL:  time.Minute,
+		RenewalInterval: time.Second * 30,
+		Outputs: Outputs{
+			&IdentityOutput{
+				Common: OutputCommon{
+					Destination: &DestinationDirectory{
+						Path: "/bot/output",
+					},
+					Roles: []string{"editor"},
+				},
+				Cluster: "example.teleport.sh",
+			},
+			&IdentityOutput{
+				Common: OutputCommon{
+					Destination: &DestinationMemory{},
+				},
+			},
+		},
+	}
+
+	b := bytes.NewBuffer(nil)
+	encoder := yaml.NewEncoder(b)
+	encoder.SetIndent(2)
+	require.NoError(t, encoder.Encode(cfg))
+
+	if golden.ShouldSet() {
+		golden.Set(t, b.Bytes())
+	}
+	require.Equal(
+		t, string(golden.Get(t)), b.String(),
+	)
 }
