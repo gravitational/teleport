@@ -122,11 +122,11 @@ allowing to not only execute a shell command but also a short Python or JS scrip
 
 #### Picking up the OS user
 
-When a command is executed on multiple nodes, an OS user has to be picked up for 
-every node.
 The user will be provided as a command argument. If the user doesn't exist on the node,
-the command execution will fail. If one set of nodes requires a different user, 
-command needs to be executed multiple times.
+the command execution will fail. If a user want to execute a command as two different
+users, then one command should be execute for each user.
+An alternative would be to add the user to `ssh_service` configuration, but this
+will require modifying the configuration on all nodes. 
 
 ## Roles
 
@@ -156,12 +156,18 @@ spec:
      environment: ["prod"]
 ```
 
+Important thing to note is that a user could have access to a command but not
+the node itself (interactive ssh access). This will allow to harden the access
+to the node by allowing to execute only a specific set of commands.
+
 ## tsh extensions
 
 `tsh` will learn new commands:
 
 1. `tsh command ls` - allowing to list all available commands.
-2. `tsh command exec` - allowing to execute commands on one or multiple nodes. TODO: add a node query and mandatory user.
+2. `tsh command exec` - allowing to execute commands on one or multiple nodes. User will be reqired to provide:
+   * node query using [predicate launguage](https://goteleport.com/docs/reference/predicate-language/) 
+   * OS user that will be used to execute the command
 3. `tsh command cancel` - (optional) allowing to cancel a command execution.
 4. `tsh command logs` - (optional) allowing to display output from a command execution.
 
