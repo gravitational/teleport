@@ -311,7 +311,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// Outputs assists polymorphic unmarshalling of a slice of Outputs
+// Outputs assists polymorphic unmarshaling of a slice of Outputs
 type Outputs []Output
 
 func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
@@ -377,7 +377,7 @@ func marshalHeadered[T any](payload T, payloadType string) (interface{}, error) 
 }
 
 // destinationWrapper wraps a destination for the purposes of Polymorphic
-// Marshalling and Unmarshalling.
+// Marshaling and Unmarshaling.
 //
 // This is required due to a bug in go.pkg/yaml.v3 that means structs with an
 // UnmarshalYAML will fail to Marshal if inlined. See:
