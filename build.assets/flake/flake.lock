@@ -1,5 +1,21 @@
 {
   "nodes": {
+    "batsPkgs": {
+      "locked": {
+        "lastModified": 1614022514,
+        "narHash": "sha256-htMUqRk3r5s3kuixCgojWZX9nwM++xeFfeZU+3xQLCA=",
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "5c1ffb7a9fc96f2d64ed3523c2bdd379bdb7b471",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nixos",
+        "repo": "nixpkgs",
+        "rev": "5c1ffb7a9fc96f2d64ed3523c2bdd379bdb7b471",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -68,6 +84,7 @@
     },
     "root": {
       "inputs": {
+        "batsPkgs": "batsPkgs",
         "flake-utils": "flake-utils",
         "helmPkgs": "helmPkgs",
         "libbpfPkgs": "libbpfPkgs",

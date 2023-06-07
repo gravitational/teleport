@@ -17,6 +17,11 @@
     "bash_5": {
       "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#bash_5"
     },
+    "bats@1.3.0": {
+      "last_modified": "2021-09-01T12:51:06Z",
+      "resolved": "github:NixOS/nixpkgs/6cc260cfd60f094500b79e279069b499806bf6d8#bats",
+      "version": "1.3.0"
+    },
     "clang@11.1.0": {
       "last_modified": "2023-05-01T16:53:22Z",
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#clang",

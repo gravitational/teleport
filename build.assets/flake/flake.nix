@@ -27,8 +27,11 @@
     # Linting dependencies
     helmPkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # helm 3.11.1
 
-    # Rust and GCC dependencies
+    # libbpf dependencies.
     libbpfPkgs.url = "github:nixos/nixpkgs/79b3d4bcae8c7007c9fd51c279a8a67acfa73a2a"; # libbpf 1.0.1
+
+    # bats dependencies.
+    batsPkgs.url = "github:nixos/nixpkgs/5c1ffb7a9fc96f2d64ed3523c2bdd379bdb7b471"; # bats 1.2.1
   };
 
   outputs = { self,
@@ -36,8 +39,8 @@
               nixpkgs,
 
               helmPkgs,
-
               libbpfPkgs,
+              batsPkgs,
      }:
     flake-utils.lib.eachDefaultSystem
       (system:
@@ -54,6 +57,7 @@
           # The individual package names here have been determined by using
           # https://lazamar.co.uk/nix-versions/
           libbpf = libbpfPkgs.legacyPackages.${system}.libbpf;
+          bats = batsPkgs.legacyPackages.${system}.bats;
 
           # pkgs is an alias for the nixpkgs at the system level. This will be used
           # for general utilities.
@@ -151,7 +155,15 @@
             '';
           };
 
-          conditional = if pkgs.stdenv.isLinux then libbpf else pkgs.hello;
+          conditional = if pkgs.stdenv.isLinux then pkgs.stdenv.mkDerivation {
+            name = "conditional";
+            dontUnpack = true;
+            dontBuild = true;
+            propagatedBuildInputs = [
+              bats
+              libbpf
+            ];
+          } else pkgs.hello;
         in
         {
           packages = {
