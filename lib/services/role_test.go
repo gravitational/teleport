@@ -45,6 +45,8 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+const matchAllExpression = `"" == ""`
+
 // TestConnAndSessLimits verifies that role sets correctly calculate
 // a user's MaxConnections and MaxSessions values from multiple
 // roles with different individual values.  These are tested together since
@@ -871,19 +873,59 @@ func TestValidateRole(t *testing.T) {
 				},
 			},
 			expectWarnings: []string{
-				"parsing allow.node_labels expression",
-				"parsing allow.app_labels expression",
-				"parsing allow.kubernetes_labels expression",
-				"parsing allow.db_labels expression",
-				"parsing allow.windows_desktop_labels expression",
-				"parsing allow.cluster_labels expression",
-				"parsing deny.node_labels expression",
-				"parsing deny.app_labels expression",
-				"parsing deny.kubernetes_labels expression",
-				"parsing deny.db_labels expression",
-				"parsing deny.windows_desktop_labels expression",
-				"parsing deny.cluster_labels expression",
+				"parsing allow.node_labels template expression",
+				"parsing allow.app_labels template expression",
+				"parsing allow.kubernetes_labels template expression",
+				"parsing allow.db_labels template expression",
+				"parsing allow.windows_desktop_labels template expression",
+				"parsing allow.cluster_labels template expression",
+				"parsing deny.node_labels template expression",
+				"parsing deny.app_labels template expression",
+				"parsing deny.kubernetes_labels template expression",
+				"parsing deny.db_labels template expression",
+				"parsing deny.windows_desktop_labels template expression",
+				"parsing deny.cluster_labels template expression",
 				"unsupported function: email.localz",
+			},
+		},
+		{
+			name: "unsupported function in labels expression",
+			spec: types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					ClusterLabelsExpression:         `containz(labels["env"], "staging")`,
+					NodeLabelsExpression:            `containz(labels["env"], "staging")`,
+					AppLabelsExpression:             `containz(labels["env"], "staging")`,
+					KubernetesLabelsExpression:      `containz(labels["env"], "staging")`,
+					DatabaseLabelsExpression:        `containz(labels["env"], "staging")`,
+					DatabaseServiceLabelsExpression: `containz(labels["env"], "staging")`,
+					WindowsDesktopLabelsExpression:  `containz(labels["env"], "staging")`,
+					GroupLabelsExpression:           `containz(labels["env"], "staging")`,
+				},
+				Deny: types.RoleConditions{
+					ClusterLabelsExpression:         `containz(labels["env"], "staging")`,
+					NodeLabelsExpression:            `containz(labels["env"], "staging")`,
+					AppLabelsExpression:             `containz(labels["env"], "staging")`,
+					KubernetesLabelsExpression:      `containz(labels["env"], "staging")`,
+					DatabaseLabelsExpression:        `containz(labels["env"], "staging")`,
+					DatabaseServiceLabelsExpression: `containz(labels["env"], "staging")`,
+					WindowsDesktopLabelsExpression:  `containz(labels["env"], "staging")`,
+					GroupLabelsExpression:           `containz(labels["env"], "staging")`,
+				},
+			},
+			expectWarnings: []string{
+				"parsing allow.node_labels_expression",
+				"parsing allow.app_labels_expression",
+				"parsing allow.kubernetes_labels_expression",
+				"parsing allow.db_labels_expression",
+				"parsing allow.windows_desktop_labels_expression",
+				"parsing allow.cluster_labels_expression",
+				"parsing deny.node_labels_expression",
+				"parsing deny.app_labels_expression",
+				"parsing deny.kubernetes_labels_expression",
+				"parsing deny.db_labels_expression",
+				"parsing deny.windows_desktop_labels_expression",
+				"parsing deny.cluster_labels_expression",
+				"unsupported function: containz",
 			},
 		},
 		{
@@ -988,6 +1030,9 @@ func TestValidateRole(t *testing.T) {
 			}
 			require.NoError(t, err, trace.DebugReport(err))
 
+			if len(tc.expectWarnings) == 0 {
+				require.Empty(t, warning)
+			}
 			for _, msg := range tc.expectWarnings {
 				require.ErrorContains(t, warning, msg)
 			}
@@ -1605,6 +1650,21 @@ func TestCheckAccessToServer(t *testing.T) {
 				{server: serverDB, login: "root", hasAccess: true},
 			},
 		},
+		{
+			name: "label expressions",
+			roles: []*types.RoleV6{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.NodeLabels = nil
+					r.Spec.Allow.NodeLabelsExpression = `labels.role == "worker" && labels.status == "follower"`
+					r.Spec.Allow.Logins = []string{"root"}
+				}),
+			},
+			checks: []check{
+				{server: serverNoLabels, login: "root", hasAccess: false},
+				{server: serverWorker, login: "root", hasAccess: true},
+				{server: serverDB, login: "root", hasAccess: false},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
@@ -1657,6 +1717,9 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 			Labels: map[string]string{"role": "db", "status": "follower"},
 		},
 	}
+	require.NoError(t, rcA.CheckAndSetDefaults())
+	require.NoError(t, rcB.CheckAndSetDefaults())
+	require.NoError(t, rcC.CheckAndSetDefaults())
 	testCases := []struct {
 		name   string
 		roles  []types.RoleV6
@@ -1878,6 +1941,19 @@ func TestCheckAccessToRemoteCluster(t *testing.T) {
 				{rc: rcA, hasAccess: false},
 				{rc: rcB, hasAccess: false},
 				{rc: rcC, hasAccess: true},
+			},
+		},
+		{
+			name: "label expressions",
+			roles: []types.RoleV6{
+				*newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.ClusterLabelsExpression = `labels.role == "worker" && labels.status == "follower"`
+				}),
+			},
+			checks: []check{
+				{rc: rcA, hasAccess: false},
+				{rc: rcB, hasAccess: true},
+				{rc: rcC, hasAccess: false},
 			},
 		},
 	}
@@ -3159,7 +3235,8 @@ func TestApplyTraits(t *testing.T) {
 				},
 			}
 
-			outRole := ApplyTraits(role, tt.inTraits)
+			outRole, err := ApplyTraits(role, tt.inTraits)
+			require.NoError(t, err)
 			rules := []struct {
 				condition types.RoleConditionType
 				spec      *rule
@@ -3356,10 +3433,10 @@ func TestCheckAccessToDatabase(t *testing.T) {
 		Version:  types.V3,
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{apidefaults.Namespace},
-				DatabaseLabels: types.Labels{"env": []string{"prod"}},
-				DatabaseNames:  []string{"test"},
-				DatabaseUsers:  []string{"dev"},
+				Namespaces:               []string{apidefaults.Namespace},
+				DatabaseLabelsExpression: `labels["env"] == "prod"`,
+				DatabaseNames:            []string{"test"},
+				DatabaseUsers:            []string{"dev"},
 			},
 		},
 	}
@@ -3566,9 +3643,9 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 		Metadata: types.Metadata{Name: "dev-prod", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{apidefaults.Namespace},
-				DatabaseLabels: types.Labels{"env": []string{"prod"}},
-				DatabaseUsers:  []string{"dev"},
+				Namespaces:               []string{apidefaults.Namespace},
+				DatabaseLabelsExpression: `labels["env"] == "prod"`,
+				DatabaseUsers:            []string{"dev"},
 			},
 		},
 	}
@@ -4054,7 +4131,8 @@ func TestCheckDatabaseRoles(t *testing.T) {
 		},
 	}
 
-	// roleB allows auto-user provisioning for production database.
+	// roleB allows auto-user provisioning for production database and uses
+	// label expressions.
 	roleB := &types.RoleV6{
 		Metadata: types.Metadata{Name: "roleB", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
@@ -4062,17 +4140,18 @@ func TestCheckDatabaseRoles(t *testing.T) {
 				CreateDatabaseUser: types.NewBoolOption(true),
 			},
 			Allow: types.RoleConditions{
-				DatabaseLabels: types.Labels{"env": []string{"prod"}},
-				DatabaseRoles:  []string{"reader"},
+				DatabaseLabelsExpression: `labels["env"] == "prod"`,
+				DatabaseRoles:            []string{"reader"},
 			},
 			Deny: types.RoleConditions{
-				DatabaseLabels: types.Labels{"env": []string{"prod"}},
-				DatabaseRoles:  []string{"writer"},
+				DatabaseLabelsExpression: `labels["env"] == "prod"`,
+				DatabaseRoles:            []string{"writer"},
 			},
 		},
 	}
 
-	// roleC allows auto-user provisioning for metrics database.
+	// roleC allows auto-user provisioning for metrics database and uses label
+	// expressions.
 	roleC := &types.RoleV6{
 		Metadata: types.Metadata{Name: "roleC", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
@@ -4288,8 +4367,8 @@ func TestCheckAccessToDatabaseService(t *testing.T) {
 		Metadata: types.Metadata{Name: "dev", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Namespaces:     []string{apidefaults.Namespace},
-				DatabaseLabels: types.Labels{"env": []string{"stage"}},
+				Namespaces:               []string{apidefaults.Namespace},
+				DatabaseLabelsExpression: `labels["env"] == "stage"`,
 			},
 			Deny: types.RoleConditions{
 				Namespaces:     []string{apidefaults.Namespace},
@@ -4400,9 +4479,9 @@ func TestCheckAccessToAWSConsole(t *testing.T) {
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Namespaces:  []string{apidefaults.Namespace},
-				AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AWSRoleARNs: []string{readOnlyARN},
+				Namespaces:          []string{apidefaults.Namespace},
+				AppLabelsExpression: matchAllExpression,
+				AWSRoleARNs:         []string{readOnlyARN},
 			},
 		},
 	}
@@ -4505,9 +4584,9 @@ func TestCheckAccessToAzureCloud(t *testing.T) {
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Namespaces:      []string{apidefaults.Namespace},
-				AppLabels:       types.Labels{types.Wildcard: []string{types.Wildcard}},
-				AzureIdentities: []string{readOnlyIdentity},
+				Namespaces:          []string{apidefaults.Namespace},
+				AppLabelsExpression: matchAllExpression,
+				AzureIdentities:     []string{readOnlyIdentity},
 			},
 		},
 	}
@@ -4616,9 +4695,9 @@ func TestCheckAccessToGCP(t *testing.T) {
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Namespaces:         []string{apidefaults.Namespace},
-				AppLabels:          types.Labels{types.Wildcard: []string{types.Wildcard}},
-				GCPServiceAccounts: []string{readOnlyAccount, fullAccessAccount},
+				Namespaces:          []string{apidefaults.Namespace},
+				AppLabelsExpression: matchAllExpression,
+				GCPServiceAccounts:  []string{readOnlyAccount, fullAccessAccount},
 			},
 		},
 	}
@@ -5236,11 +5315,8 @@ func TestCheckAccessToKubernetes(t *testing.T) {
 				RequireMFAType: types.RequireMFAType_SESSION,
 			},
 			Allow: types.RoleConditions{
-				Namespaces: []string{apidefaults.Namespace},
-				KubernetesLabels: types.Labels{
-					"foo": apiutils.Strings{"bar"},
-					"baz": apiutils.Strings{"qux"},
-				},
+				Namespaces:                 []string{apidefaults.Namespace},
+				KubernetesLabelsExpression: `labels.foo == "bar" && labels.baz == "qux"`,
 			},
 		},
 	}
@@ -5663,6 +5739,26 @@ func TestCheckAccessToWindowsDesktop(t *testing.T) {
 				{desktop: desktop2012, login: "admin", hasAccess: true},
 			},
 		},
+		{
+			name: "labels expression more permissive than another role",
+			roleSet: RoleSet{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.WindowsDesktopLogins = []string{"admin"}
+					r.Spec.Allow.NodeLabels = types.Labels{"win_version": []string{"2012"}}
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.WindowsDesktopLabels = nil
+					r.Spec.Allow.WindowsDesktopLabelsExpression = matchAllExpression
+					r.Spec.Allow.WindowsDesktopLogins = []string{"root", "admin"}
+				}),
+			},
+			checks: []check{
+				{desktop: desktopNoLabels, login: "root", hasAccess: true},
+				{desktop: desktopNoLabels, login: "admin", hasAccess: true},
+				{desktop: desktop2012, login: "root", hasAccess: true},
+				{desktop: desktop2012, login: "admin", hasAccess: true},
+			},
+		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			for i, check := range test.checks {
@@ -5750,6 +5846,19 @@ func TestCheckAccessToUserGroups(t *testing.T) {
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Deny.Namespaces = []string{apidefaults.Namespace}
 					r.Spec.Allow.GroupLabels = types.Labels{types.Wildcard: []string{types.Wildcard}}
+				}),
+			},
+			checks: []check{
+				{userGroup: userGroupNoLabels, hasAccess: true},
+				{userGroup: userGroupLabels, hasAccess: true},
+			},
+		},
+		{
+			name: "labels expression, access",
+			roleSet: RoleSet{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Deny.Namespaces = []string{apidefaults.Namespace}
+					r.Spec.Allow.GroupLabelsExpression = matchAllExpression
 				}),
 			},
 			checks: []check{
@@ -6041,11 +6150,9 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 		Metadata: types.Metadata{Name: "roleA", Namespace: apidefaults.Namespace},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				KubeGroups: []string{"system:masters"},
-				KubeUsers:  []string{"dev-user"},
-				KubernetesLabels: map[string]apiutils.Strings{
-					"env": []string{"dev"},
-				},
+				KubeGroups:                 []string{"system:masters"},
+				KubeUsers:                  []string{"dev-user"},
+				KubernetesLabelsExpression: `labels["env"] == "dev"`,
 			},
 		},
 	}
@@ -6346,6 +6453,197 @@ func TestCheckKubeGroupsAndUsers(t *testing.T) {
 	}
 }
 
+func TestWindowsDesktopGroups(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		desc          string
+		roles         []types.Role
+		desktopLabels map[string]string
+		expectDenied  bool
+		expectGroups  []string
+	}{
+		{
+			desc: "allow labels",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"env": {"prod"}}
+					r.Spec.Allow.DesktopGroups = []string{"a", "b", "c"}
+					r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+				}),
+			},
+			desktopLabels: map[string]string{"env": "prod"},
+			expectGroups:  []string{"a", "b", "c"},
+		},
+		{
+			desc: "allow expression",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.WindowsDesktopLabels = nil
+					r.Spec.Allow.WindowsDesktopLabelsExpression = `labels["env"] == "prod"`
+					r.Spec.Allow.DesktopGroups = []string{"a", "b", "c"}
+					r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+				}),
+			},
+			desktopLabels: map[string]string{"env": "prod"},
+			expectGroups:  []string{"a", "b", "c"},
+		},
+		{
+			desc: "option denied",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"*": {"*"}}
+					r.Spec.Allow.DesktopGroups = []string{"a", "b", "c"}
+					r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"env": {"prod"}}
+					r.Spec.Options.CreateDesktopUser = types.NewBoolOption(false)
+				}),
+			},
+			desktopLabels: map[string]string{"env": "prod"},
+			expectDenied:  true,
+		},
+		{
+			desc: "irrelevant deny",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"*": {"*"}}
+					r.Spec.Allow.DesktopGroups = []string{"a", "b", "c"}
+					r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"env": {"prod"}}
+					r.Spec.Options.CreateDesktopUser = types.NewBoolOption(false)
+				}),
+			},
+			desktopLabels: map[string]string{"env": "staging"},
+			expectGroups:  []string{"a", "b", "c"},
+		},
+		{
+			desc: "one group denied",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.WindowsDesktopLabels = types.Labels{"env": {"prod"}}
+					r.Spec.Allow.DesktopGroups = []string{"a", "b", "c"}
+					r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Deny.WindowsDesktopLabels = nil
+					r.Spec.Deny.WindowsDesktopLabelsExpression = matchAllExpression
+					r.Spec.Deny.DesktopGroups = []string{"b"}
+					r.Spec.Options.CreateDesktopUser = types.NewBoolOption(true)
+				}),
+			},
+			desktopLabels: map[string]string{"env": "prod"},
+			expectGroups:  []string{"a", "c"},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			desktop := mustMakeTestWindowsDesktop(tc.desktopLabels)
+			set := NewRoleSet(tc.roles...)
+			groups, err := set.DesktopGroups(desktop)
+			if tc.expectDenied {
+				require.True(t, trace.IsAccessDenied(err), "expected access denied error, got %v", err)
+				return
+			}
+			require.NoError(t, err, trace.DebugReport(err))
+			require.ElementsMatch(t, tc.expectGroups, groups)
+		})
+	}
+}
+
+func TestGetKubeResources(t *testing.T) {
+	t.Parallel()
+	podA := types.KubernetesResource{
+		Kind:      types.KindKubePod,
+		Namespace: "test",
+		Name:      "podA",
+	}
+	podB := types.KubernetesResource{
+		Kind:      types.KindKubePod,
+		Namespace: "test",
+		Name:      "podB",
+	}
+	for _, tc := range []struct {
+		desc                        string
+		roles                       []types.Role
+		clusterLabels               map[string]string
+		expectAllowed, expectDenied []types.KubernetesResource
+	}{
+		{
+			desc: "labels allow",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabels = types.Labels{"env": {"prod"}}
+					r.Spec.Allow.KubernetesResources =
+						[]types.KubernetesResource{podA, podB}
+				}),
+			},
+			clusterLabels: map[string]string{"env": "prod"},
+			expectAllowed: []types.KubernetesResource{podA, podB},
+		},
+		{
+			desc: "labels expression allow",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabelsExpression = `labels["env"] == "prod"`
+					r.Spec.Allow.KubernetesResources =
+						[]types.KubernetesResource{podA, podB}
+				}),
+			},
+			clusterLabels: map[string]string{"env": "prod"},
+			expectAllowed: []types.KubernetesResource{podA, podB},
+		},
+		{
+			desc: "one denied",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabelsExpression = `labels["env"] == "prod"`
+					r.Spec.Allow.KubernetesResources =
+						[]types.KubernetesResource{podA, podB}
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Deny.KubernetesLabels = types.Labels{"env": {"prod"}}
+					r.Spec.Deny.KubernetesResources =
+						[]types.KubernetesResource{podA}
+				}),
+			},
+			clusterLabels: map[string]string{"env": "prod"},
+			expectAllowed: []types.KubernetesResource{podA, podB},
+			expectDenied:  []types.KubernetesResource{podA},
+		},
+		{
+			desc: "irrelevant deny",
+			roles: []types.Role{
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Allow.KubernetesLabelsExpression = `labels["env"] == "staging"`
+					r.Spec.Allow.KubernetesResources =
+						[]types.KubernetesResource{podA, podB}
+				}),
+				newRole(func(r *types.RoleV6) {
+					r.Spec.Deny.KubernetesLabels = types.Labels{"env": {"prod"}}
+					r.Spec.Deny.KubernetesResources =
+						[]types.KubernetesResource{podA}
+				}),
+			},
+			clusterLabels: map[string]string{"env": "staging"},
+			expectAllowed: []types.KubernetesResource{podA, podB},
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			cluster, err := types.NewKubernetesClusterV3(types.Metadata{
+				Name:   "testcluster",
+				Labels: tc.clusterLabels,
+			}, types.KubernetesClusterSpecV3{})
+			require.NoError(t, err)
+			set := NewRoleSet(tc.roles...)
+			allowed, denied := set.GetKubeResources(cluster)
+			require.ElementsMatch(t, tc.expectAllowed, allowed, "allow list mismatch")
+			require.ElementsMatch(t, tc.expectDenied, denied, "deny list mismatch")
+		})
+	}
+}
+
 func TestSessionRecordingMode(t *testing.T) {
 	tests := map[string]struct {
 		service      constants.SessionRecordingService
@@ -6433,6 +6731,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6465,6 +6764,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6504,6 +6804,7 @@ func TestHostUsers_getGroups(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6543,6 +6844,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6591,6 +6893,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6623,6 +6926,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6658,6 +6962,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6709,6 +7014,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6760,6 +7066,7 @@ func TestHostUsers_HostSudoers(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6798,6 +7105,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6823,11 +7131,12 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(false),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels: types.Labels{"success": []string{"abc"}},
+						NodeLabelsExpression: `labels["success"] == "abc"`,
 					},
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -6853,7 +7162,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 						CreateHostUser: types.NewBoolOption(true),
 					},
 					Allow: types.RoleConditions{
-						NodeLabels: types.Labels{"success": []string{"abc"}},
+						NodeLabelsExpression: `labels["success"] == "abc"`,
 					},
 				},
 			}, &types.RoleV6{
@@ -6867,6 +7176,7 @@ func TestHostUsers_CanCreateHostUser(t *testing.T) {
 				},
 			}),
 			server: &types.ServerV2{
+				Kind: types.KindNode,
 				Metadata: types.Metadata{
 					Labels: map[string]string{
 						"success": "abc",
@@ -7728,4 +8038,140 @@ func TestKubeResourcesMatcher(t *testing.T) {
 
 func boolsToSlice(v ...bool) []bool {
 	return v
+}
+
+func TestCheckAccessWithLabelExpressions(t *testing.T) {
+	t.Parallel()
+
+	resources := []types.ResourceWithLabels{
+		&types.ServerV2{Kind: types.KindNode},
+		&types.KubernetesClusterV3{Kind: types.KindKubernetesCluster},
+		&types.AppV3{Kind: types.KindApp},
+		&types.DatabaseV3{Kind: types.KindDatabase},
+		&types.DatabaseServiceV1{ResourceHeader: types.ResourceHeader{Kind: types.KindDatabaseService}},
+		&types.WindowsDesktopV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktop}},
+		&types.WindowsDesktopServiceV3{ResourceHeader: types.ResourceHeader{Kind: types.KindWindowsDesktopService}},
+		&types.UserGroupV1{ResourceHeader: types.ResourceHeader{Kind: types.KindUserGroup}},
+	}
+	for _, r := range resources {
+		r.SetStaticLabels(map[string]string{"env": "prod"})
+	}
+	// remoteCluster doesn't implement ResourceWithLabels and access is checked
+	// with CheckAccessToRemoteCluster instead of checkAccess
+	remoteCluster := &types.RemoteClusterV3{
+		Kind: types.KindRemoteCluster,
+		Metadata: types.Metadata{
+			Labels: map[string]string{"env": "prod"},
+		},
+	}
+
+	type option string
+	const (
+		unset   option = "unset"
+		match   option = "match"
+		nomatch option = "nomatch"
+	)
+	allOptions := []option{unset, match, nomatch}
+
+	type testcase struct {
+		allowLabels, allowLabelsExpression, denyLabels, denyLabelsExpression option
+	}
+	var testcases []testcase
+	for _, al := range allOptions {
+		for _, ae := range allOptions {
+			for _, dl := range allOptions {
+				for _, de := range allOptions {
+					testcases = append(testcases, testcase{al, ae, dl, de})
+				}
+			}
+		}
+	}
+
+	matchLabels := types.Labels{"env": {"prod"}}
+	noMatchLabels := types.Labels{"env": {"staging"}}
+	matchExpression := `labels["env"] == "prod"`
+	noMatchExpression := `labels["env"] == "staging"`
+	labelsForOption := func(o option) types.Labels {
+		switch o {
+		case match:
+			return matchLabels
+		case nomatch:
+			return noMatchLabels
+		}
+		return nil
+	}
+	expressionForOption := func(o option) string {
+		switch o {
+		case match:
+			return matchExpression
+		case nomatch:
+			return noMatchExpression
+		}
+		return ""
+	}
+	makeRole := func(tc testcase, kind string) types.Role {
+		role, err := types.NewRole("rolename", types.RoleSpecV6{})
+		require.NoError(t, err)
+		require.NoError(t, role.SetLabelMatchers(types.Allow, kind, types.LabelMatchers{
+			Labels:     labelsForOption(tc.allowLabels),
+			Expression: expressionForOption(tc.allowLabelsExpression),
+		}))
+		require.NoError(t, role.SetLabelMatchers(types.Deny, kind, types.LabelMatchers{
+			Labels:     labelsForOption(tc.denyLabels),
+			Expression: expressionForOption(tc.denyLabelsExpression),
+		}))
+		return role
+	}
+
+	expectDenied := func(tc testcase) bool {
+		return tc.denyLabels == match ||
+			tc.denyLabelsExpression == match ||
+			tc.allowLabels == nomatch ||
+			tc.allowLabelsExpression == nomatch ||
+			(tc.allowLabels == unset && tc.allowLabelsExpression == unset)
+	}
+
+	for _, resource := range resources {
+		resource := resource
+		t.Run(resource.GetKind(), func(t *testing.T) {
+			t.Parallel()
+			for _, tc := range testcases {
+				t.Run(fmt.Sprint(tc), func(t *testing.T) {
+					role := makeRole(tc, resource.GetKind())
+					rs := NewRoleSet(role)
+					accessInfo := &AccessInfo{
+						Roles: []string{role.GetName()},
+					}
+					accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "testcluster", rs)
+					err := accessChecker.CheckAccess(resource, AccessState{})
+					if expectDenied(tc) {
+						require.True(t, trace.IsAccessDenied(err),
+							"expected AccessDenied error, got: %v", err)
+						return
+					}
+					require.NoError(t, err, trace.DebugReport(err))
+				})
+			}
+		})
+	}
+	t.Run("remote cluster", func(t *testing.T) {
+		t.Parallel()
+		for _, tc := range testcases {
+			t.Run(fmt.Sprint(tc), func(t *testing.T) {
+				role := makeRole(tc, types.KindRemoteCluster)
+				rs := NewRoleSet(role)
+				accessInfo := &AccessInfo{
+					Roles: []string{role.GetName()},
+				}
+				accessChecker := NewAccessCheckerWithRoleSet(accessInfo, "testcluster", rs)
+				err := accessChecker.CheckAccessToRemoteCluster(remoteCluster)
+				if expectDenied(tc) {
+					require.True(t, trace.IsAccessDenied(err),
+						"expected AccessDenied error, got: %v", err)
+					return
+				}
+				require.NoError(t, err, trace.DebugReport(err))
+			})
+		}
+	})
 }
