@@ -35,7 +35,7 @@ type ApplicationOutput struct {
 
 	// SpecificTLSExtensions creates additional outputs named `tls.crt`,
 	// `tls.key` and `tls.cas`. This is unneeded for most clients which can
-	// be configured with specific paths to use, but exists for compatability.
+	// be configured with specific paths to use, but exists for compatibility.
 	SpecificTLSExtensions bool `yaml:"specific_tls_naming"`
 }
 
