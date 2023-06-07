@@ -75,7 +75,6 @@ export function Tabs(props: Props) {
         ml="1"
         mr="2"
         size={0}
-        color="light"
         disabled={disableNew}
         title={newTabTooltip}
         onClick={onNew}
@@ -87,13 +86,7 @@ export function Tabs(props: Props) {
 }
 
 function getIsLoading(doc: Document): boolean {
-  switch (doc.kind) {
-    case 'doc.terminal_tsh_kube':
-    case 'doc.terminal_tsh_node':
-      return doc.status === 'connecting';
-    default:
-      return false;
-  }
+  return 'status' in doc && doc.status === 'connecting';
 }
 
 type Props = {
@@ -113,17 +106,20 @@ const Separator = styled.div`
   height: 23px;
   width: 1px;
   margin: 0 1px;
-  background: ${props => props.theme.colors.text.placeholder};
+  background: ${props => props.theme.colors.spotBackground[2]};
 `;
 
 const StyledTabs = styled(Box)`
-  background-color: ${props => props.theme.colors.primary.main};
+  background-color: ${props => props.theme.colors.levels.surface};
   min-height: 32px;
-  border-radius: 4px;
   display: flex;
   flex-wrap: nowrap;
   align-items: center;
   flex-shrink: 0;
   overflow: hidden;
+  position: relative;
+  z-index: 1;
+  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),
+    0px 4px 5px 0px rgba(0, 0, 0, 0.14), 0px 2px 4px -1px rgba(0, 0, 0, 0.2);
   ${typography}
 `;

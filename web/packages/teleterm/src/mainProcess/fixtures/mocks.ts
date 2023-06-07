@@ -25,14 +25,15 @@ export class MockMainProcessClient implements MainProcessClient {
   configService: ReturnType<typeof createConfigService>;
 
   constructor(private runtimeSettings: Partial<RuntimeSettings> = {}) {
-    this.configService = createConfigService(
-      createMockFileStorage(),
-      this.getRuntimeSettings().platform
-    );
+    this.configService = createConfigService({
+      configFile: createMockFileStorage(),
+      jsonSchemaFile: createMockFileStorage(),
+      platform: this.getRuntimeSettings().platform,
+    });
   }
 
   getRuntimeSettings(): RuntimeSettings {
-    return { ...defaultRuntimeSettings, ...this.runtimeSettings };
+    return makeRuntimeSettings(this.runtimeSettings);
   }
 
   getResolvedChildProcessAddresses = () =>
@@ -63,9 +64,15 @@ export class MockMainProcessClient implements MainProcessClient {
   async removeTshSymlinkMacOs() {
     return true;
   }
+
+  async openConfigFile() {
+    return '';
+  }
 }
 
-const defaultRuntimeSettings = {
+export const makeRuntimeSettings = (
+  runtimeSettings?: Partial<RuntimeSettings>
+): RuntimeSettings => ({
   platform: 'darwin' as const,
   dev: true,
   userDataDir: '',
@@ -90,4 +97,5 @@ const defaultRuntimeSettings = {
   arch: 'arm64',
   osVersion: '22.2.0',
   appVersion: '11.1.0',
-};
+  ...runtimeSettings,
+});

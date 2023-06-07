@@ -26,6 +26,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -33,13 +34,13 @@ func TestCertReloader(t *testing.T) {
 	t.Parallel()
 	testCases := []struct {
 		desc                   string
-		certsUpdate            func(t *testing.T, certs []KeyPairPath)
+		certsUpdate            func(t *testing.T, certs []servicecfg.KeyPairPath)
 		certsReloadErrorAssert require.ErrorAssertionFunc
 		certsAssert            func(t *testing.T, before []tls.Certificate, now []tls.Certificate)
 	}{
 		{
 			desc: "c0 and c1 certs do not change without an update",
-			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+			certsUpdate: func(t *testing.T, certs []servicecfg.KeyPairPath) {
 				// No update.
 			},
 			certsReloadErrorAssert: require.NoError,
@@ -53,7 +54,7 @@ func TestCertReloader(t *testing.T) {
 		},
 		{
 			desc: "c0 cert does change with an update",
-			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+			certsUpdate: func(t *testing.T, certs []servicecfg.KeyPairPath) {
 				// Update c0 cert.
 				key, crt := newCertKeyPair(t)
 				write(t, certs[0].PrivateKey, key)
@@ -70,7 +71,7 @@ func TestCertReloader(t *testing.T) {
 		},
 		{
 			desc: "c0 and c1 certs do change with an update",
-			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+			certsUpdate: func(t *testing.T, certs []servicecfg.KeyPairPath) {
 				// Update c0 cert.
 				key, crt := newCertKeyPair(t)
 				write(t, certs[0].PrivateKey, key)
@@ -92,7 +93,7 @@ func TestCertReloader(t *testing.T) {
 		},
 		{
 			desc: "c0 and c1 certs do not change with an incomplete update",
-			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+			certsUpdate: func(t *testing.T, certs []servicecfg.KeyPairPath) {
 				// Update c0 cert.
 				key, crt := newCertKeyPair(t)
 				write(t, certs[0].PrivateKey, key)
@@ -113,7 +114,7 @@ func TestCertReloader(t *testing.T) {
 		},
 		{
 			desc: "c0 cert does not change during an ongoing update",
-			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+			certsUpdate: func(t *testing.T, certs []servicecfg.KeyPairPath) {
 				// Update c0 key, and partially update c0 cert.
 				key, crt := newCertKeyPair(t)
 				write(t, certs[0].PrivateKey, key)
@@ -130,7 +131,7 @@ func TestCertReloader(t *testing.T) {
 		},
 		{
 			desc: "c0 and c1 certs do not change if one of them is corrupted",
-			certsUpdate: func(t *testing.T, certs []KeyPairPath) {
+			certsUpdate: func(t *testing.T, certs []servicecfg.KeyPairPath) {
 				// Corrupt c0 cert key.
 				f, err := os.OpenFile(certs[0].PrivateKey, os.O_WRONLY, 0600)
 				require.NoError(t, err)
@@ -189,9 +190,9 @@ func TestCertReloader(t *testing.T) {
 
 // newCerts creates 2 certificate key pairs and returns
 // the key pair paths to them.
-func newCerts(t *testing.T) []KeyPairPath {
+func newCerts(t *testing.T) []servicecfg.KeyPairPath {
 	dir := t.TempDir()
-	certs := []KeyPairPath{
+	certs := []servicecfg.KeyPairPath{
 		{
 			PrivateKey:  filepath.Join(dir, "c0.key"),
 			Certificate: filepath.Join(dir, "c0.crt"),

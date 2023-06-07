@@ -24,12 +24,13 @@ import React, {
 
 export type RunActiveItemHandler = () => void;
 
-export const KeyboardArrowsNavigationContext = createContext<{
-  activeIndex: number;
-  setActiveIndex(index: number): void;
-  addItem(index: number, onRunActiveItem: RunActiveItemHandler): void;
-  removeItem(index: number): void;
-}>(null);
+export const KeyboardArrowsNavigationContext =
+  createContext<{
+    activeIndex: number;
+    setActiveIndex(index: number): void;
+    addItem(index: number, onRunActiveItem: RunActiveItemHandler): void;
+    removeItem(index: number): void;
+  }>(null);
 
 enum KeyboardArrowNavigationKeys {
   ArrowDown = 'ArrowDown',

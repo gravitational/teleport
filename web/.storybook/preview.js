@@ -17,10 +17,12 @@ limitations under the License.
 import React from 'react';
 import { setupWorker, rest } from 'msw';
 import { addDecorator, addParameters } from '@storybook/react';
-import theme from './../packages/design/src/theme';
-import DefaultThemeProvider from './../packages/design/src/ThemeProvider';
+import { darkTheme, lightTheme } from './../packages/design/src/theme';
+import DefaultThemeProvider from '../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
-import TeletermThemeProvider from './../packages/teleterm/src/ui/ThemeProvider';
+import '../packages/teleport/src/lib/polyfillRandomUuid';
+import { ThemeProvider as TeletermThemeProvider } from './../packages/teleterm/src/ui/ThemeProvider';
+import { theme as TeletermTheme } from './../packages/teleterm/src/ui/ThemeProvider/theme';
 import { handlersTeleport } from './../packages/teleport/src/mocks/handlers';
 
 // Checks we are running non-node environment (browser)
@@ -34,9 +36,16 @@ if (typeof global.process === 'undefined') {
 
 // wrap each story with theme provider
 const ThemeDecorator = (storyFn, meta) => {
-  const ThemeProvider = meta.title.startsWith('Teleterm/')
-    ? TeletermThemeProvider
-    : DefaultThemeProvider;
+  let ThemeProvider;
+  let theme;
+
+  if (meta.title.startsWith('Teleterm/')) {
+    ThemeProvider = TeletermThemeProvider;
+    theme = TeletermTheme;
+  } else {
+    ThemeProvider = DefaultThemeProvider;
+    theme = meta.globals.theme === 'Dark Theme' ? darkTheme : lightTheme;
+  }
 
   return (
     <ThemeProvider theme={theme}>
@@ -57,3 +66,16 @@ addParameters({
     },
   },
 });
+
+export const globalTypes = {
+  theme: {
+    name: 'Theme',
+    description: 'Global theme for components',
+    defaultValue: 'Dark Theme',
+    toolbar: {
+      icon: 'contrast',
+      items: ['Light Theme', 'Dark Theme'],
+      dynamicTitle: true,
+    },
+  },
+};

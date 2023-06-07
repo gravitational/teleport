@@ -1,55 +1,136 @@
 ---
 title: Introduction to Teleport
-description: How to install and quickly get up and running with Teleport.
-h1: Introduction
+description: Teleport is an identity-aware, multi-protocol access proxy with native support for SSH, RDP, Kubernetes, and more. Get started with the Teleport documentation.
 layout: tocless-doc
-videoBanner: fSgCnQrNu78
+videoBanner: ki-uVTSocGE
 ---
 
-Teleport is an identity-aware, multi-protocol access proxy which understands SSH, HTTPS, RDP, Kubernetes API, MySQL, MongoDB and PostgreSQL wire protocols and many others.
+Teleport is an identity-aware, multi-protocol access proxy. Teleport understands
+the SSH, HTTPS, RDP, Kubernetes API, MySQL, MongoDB and PostgreSQL wire
+protocols, plus many others.
 
 With Teleport you can:
 
 - Replace a mix of vaults, passwords, API keys and tokens with short-lived SSH and X.509 certs.
-- Have a single access point and Single-Sign-On for all of your infrastructure - SSH servers, Kubernetes clusters, databases, desktops, web applications, and more.
-- Write policies with Terraform or Kubernetes resources for all clouds, environments and protocols and manage them with GitOps.
-- Record SSH and `kubectl exec` sessions, DB queries, Windows desktop sessions, web sessions and API requests.
+- Have a single access point and Single-Sign-On provider for all of your
+  infrastructure, including SSH servers, Kubernetes clusters, databases,
+  desktops, web applications, and more.
+- Write policies with Terraform or Kubernetes resources for all clouds,
+  environments and protocols and manage them with GitOps.
+- Record SSH and `kubectl exec` sessions, DB queries, Windows desktop sessions,
+  web sessions and API requests.
 - Use mutual TLS tunnels to protect your infrastructure endpoints.
+
+<Notice type="info">
+
+If your organization is already using Teleport and you want to learn how to
+access infrastructure, read our [Connect your
+Client](./connect-your-client/introduction.mdx) guides for instructions.
+
+</Notice>
 
 ## Try out Teleport
 
-- [Teleport Enterprise Cloud](./choose-an-edition/teleport-cloud/getting-started.mdx): Start a free trial of Teleport Enterprise Cloud so you can quickly enable secure access to your infrastructure.
-- [Linux Server](./try-out-teleport/linux-server.mdx): Deploy on a Linux Server.
-- [Docker Compose](./try-out-teleport/docker-compose.mdx): Deploy locally with Docker Compose.
-- [Kubernetes](./try-out-teleport/local-kubernetes.mdx): Deploy locally with Kubernetes.
-- [DigitalOcean](./try-out-teleport/digitalocean.mdx): Deploy with our 1-Click DigitalOcean droplet.
+If you are curious to see how Teleport works, you can get started by [spinning
+up a demo cluster](./get-started.mdx) on a Linux server. After seeing how your
+demo Teleport cluster lets you securely access a server and play back your SSH
+sessions, you can configure RBAC, add resources, and protect your home lab with
+Teleport.
 
-## Configure access
+You can also get started right away with a production-ready Teleport cluster.
+[Sign up for a free trial](https://goteleport.com/signup/) of Teleport
+Team.
 
-Secure your infrastructure while keeping your engineers productive.
+Once you are ready to learn more about Teleport, read our [Core Concepts
+guide](./core-concepts.mdx), which introduces the components of a Teleport
+cluster. You can refer to this glossary as you continue through the
+documentation.
 
-<ScopedBlock scope={["cloud", "enterprise"]}>
-- [Set up SSO](./access-controls/sso.mdx): Configure Teleport's integration with your SSO provider so you can automatically on– and off-board users.
-</ScopedBlock>
-<ScopedBlock scope={["oss"]}>
-- [Set up SSO](./access-controls/sso/github-sso.mdx): Configure Teleport's integration with GitHub so you can automatically on– and off-board users.
-</ScopedBlock>
-- [Define roles](./access-controls/guides/role-templates.mdx): Manage who can access which parts of your infrastructure.
+## Choose an edition
+
+After trying out Teleport, you are ready to deploy a cluster to your
+infrastructure. Teleport has four editions: 
+
+- Teleport Team
+- Teleport Enterprise Cloud
+- Teleport Enterprise
+- Teleport Community Edition
+
+You can compare these in our [Choose an
+Edition](./choose-an-edition/introduction.mdx) section.
+
+<Notice type="tip">
+
+You can view information specific to an edition of Teleport by using the "Open
+Source", "Enterprise", and "Cloud" buttons at the top of the page.
+
+</Notice>
+
+## Deploy a cluster
+
+Once you know which edition you would like to deploy, read our [Deploy a
+Cluster](./deploy-a-cluster/introduction.mdx) documentation for how to launch a
+fully fledged Teleport cluster in production. (If you are using Teleport
+Enterprise Cloud, you can skip this step.) This section shows you the best
+practices to follow for a high-availability Teleport cluster, and how to deploy
+Teleport on your cloud provider of choice.
+
+## Manage access
+
+Now that you have a running Teleport cluster, set up role-based access controls
+to enable secure access to your infrastructure.  You can define roles with
+granular permissions and use Teleport's integrations with Single Sign-On
+providers to automatically map these roles to users. You can also set up Access
+Requests to enable just-in-time access to your infrastructure. Read [Manage
+Access](./access-controls/introduction.mdx) to get started.
+
+## Manage your cluster
+
+With your Teleport cluster configured, you can now begin Day Two operations
+such as upgrades, adding agents to the cluster, and integrating Teleport with
+third-party tools. Read [Manage your
+Cluster](./management/introduction.mdx) for more information.
 
 ## Add your infrastructure
 
-Use Teleport to provide secure access to all of your infrastructure.
+Teleport is protocol aware and provides functionality that is unique to each
+protocol it supports. To enable access to a protocol, deploy the appropriate
+Teleport service and configure it to communicate with resources in your
+infrastructure. 
 
-- [Server Access](./server-access/getting-started.mdx): Single sign-on, short-lived certificates, and auditing for SSH servers.
-- [Application Access](./application-access/introduction.mdx): Secure access to internal dashboards and web applications.
-- [Kubernetes Access](./kubernetes-access/introduction.mdx): Single sign-on, auditing, and unified access for Kubernetes clusters.
-- [Database Access](./database-access/introduction.mdx): Secure access to SQL and NoSQL databases.
-- [Desktop Access](./desktop-access/introduction.mdx): Secure browser-based access to desktop environments.
+Read about how to enable access to:
 
-## Connect to Teleport
+- [Servers](./server-access/getting-started.mdx), including OpenSSH servers that
+  [do not have Teleport installed](./server-access/guides/openssh.mdx)
+- [Kubernetes clusters](./kubernetes-access/introduction.mdx)
+- [Databases](./database-access/introduction.mdx)
+- [Applications](./application-access/introduction.mdx)
+- [Remote desktops](./desktop-access/introduction.mdx)
 
-- [Teleport Clients](./connect-your-client/introduction.mdx): Access your infrastructure over the command line or UI.
-- [Database Access GUI Clients](./connect-your-client/gui-clients.mdx): Use your favorite database GUI tool to connect to databases behind Teleport.
+You can also set up [Machine ID](./machine-id/introduction.mdx) to enable
+service accounts to access resources in your infrastructure with short-lived
+credentials.
+
+## Extend Teleport for your organization
+
+Teleport is highly customizable, exposing much of its functionality via a gRPC
+API. For example, you can build API clients to register infrastructure
+automatically or manage Access Requests using your organization's unique
+workflows. Read how to build applications that interact with Teleport's API in
+our [API guides](./api/introduction.mdx).
+
+## Learn more about Teleport
+
+Get more information about Teleport by reading our library of architecture,
+reference, and developer guides. See the
+[Upcoming Releases](./upcoming-releases.mdx) section for a glimpse of features we
+will release in the next Teleport version. Consult our
+[Reference](./reference/introduction.mdx) guides for comprehensive lists of
+configuration options, CLI flags, and more. For detailed explanations of how
+Teleport works, see the [Architecture](./architecture/introduction.mdx) section.
+
+Finally, if you're interested in adding to Teleport's documentation, view
+our [contribution guide](./contributing/documentation.mdx). 
 
 <TileSet>
     <TileList title="For developers" icon="stack">

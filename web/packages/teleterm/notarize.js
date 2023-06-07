@@ -13,6 +13,13 @@ exports.default = async function notarizing(context) {
     return;
   }
 
+  if (!process.env.TEAMID) {
+    console.warn(
+      'missing $TEAMID: notarization will be skipped. Run `make release-connect` instead'
+    );
+    return;
+  }
+
   const appName = context.packager.appInfo.productFilename;
   const appBundleId = context.packager.appInfo.macBundleIdentifier;
 
@@ -21,5 +28,7 @@ exports.default = async function notarizing(context) {
     appPath: `${appOutDir}/${appName}.app`,
     appleId: process.env.APPLE_USERNAME,
     appleIdPassword: process.env.APPLE_PASSWORD,
+    tool: 'notarytool',
+    teamId: process.env.TEAMID,
   });
 };

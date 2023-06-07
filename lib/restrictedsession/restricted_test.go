@@ -40,6 +40,7 @@ import (
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -165,13 +166,13 @@ func setupBPFContext(t *testing.T) *bpfContext {
 		6: "::",
 	}
 
-	config := &bpf.RestrictedSessionConfig{
+	config := &servicecfg.RestrictedSessionConfig{
 		Enabled: true,
 	}
 
 	var err error
 	// Create BPF service since we piggyback on it
-	bpfCtx.enhancedRecorder, err = bpf.New(&bpf.Config{
+	bpfCtx.enhancedRecorder, err = bpf.New(&servicecfg.BPFConfig{
 		Enabled:    true,
 		CgroupPath: bpfCtx.cgroupDir,
 	}, config)
@@ -219,7 +220,7 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	bpfCtx.restrictedMgr, err = New(config, client)
 	require.NoError(t, err)
 
-	client.Fanout.SetInit()
+	client.Fanout.SetInit([]api.WatchKind{{Kind: api.KindNetworkRestrictions}})
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -238,7 +239,8 @@ func (tt *bpfContext) Close(t *testing.T) {
 	if tt.enhancedRecorder != nil && tt.ctx != nil {
 		err := tt.enhancedRecorder.CloseSession(tt.ctx)
 		require.NoError(t, err)
-		err = tt.enhancedRecorder.Close()
+		const restarting = false
+		err = tt.enhancedRecorder.Close(restarting)
 		require.NoError(t, err)
 	}
 

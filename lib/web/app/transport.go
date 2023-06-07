@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -237,7 +238,7 @@ func (t *transport) DialContext(ctx context.Context, _, _ string) (net.Conn, err
 		}
 
 		var dialErr error
-		conn, dialErr = dialAppServer(t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
+		conn, dialErr = dialAppServer(ctx, t.c.proxyClient, t.c.identity.RouteToApp.ClusterName, appServer)
 		if dialErr != nil {
 			if isReverseTunnelDownError(dialErr) {
 				t.c.log.Warnf("Failed to connect to application server %q: %v.", serverID, dialErr)
@@ -278,24 +279,28 @@ func (t *transport) DialWebsocket(network, address string) (net.Conn, error) {
 
 // dialAppServer dial and connect to the application service over the reverse
 // tunnel subsystem.
-func dialAppServer(proxyClient reversetunnel.Tunnel, clusterName string, server types.AppServer) (net.Conn, error) {
+func dialAppServer(ctx context.Context, proxyClient reversetunnel.Tunnel, clusterName string, server types.AppServer) (net.Conn, error) {
 	clusterClient, err := proxyClient.GetSite(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	conn, err := clusterClient.Dial(reversetunnel.DialParams{
-		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"},
-		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-		ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
-		ConnType: types.AppTunnel,
-		ProxyIDs: server.GetProxyIDs(),
-	})
-	if err != nil {
-		return nil, trace.Wrap(err)
+	var from net.Addr
+	from = &utils.NetAddr{AddrNetwork: "tcp", Addr: "@web-proxy"}
+	clientSrcAddr, originalDst := utils.ClientAddrFromContext(ctx)
+	if clientSrcAddr != nil {
+		from = clientSrcAddr
 	}
 
-	return conn, nil
+	conn, err := clusterClient.Dial(reversetunnel.DialParams{
+		From:                  from,
+		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
+		OriginalClientDstAddr: originalDst,
+		ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), clusterName),
+		ConnType:              server.GetTunnelType(),
+		ProxyIDs:              server.GetProxyIDs(),
+	})
+	return conn, trace.Wrap(err)
 }
 
 // configureTLS creates and configures a *tls.Config that will be used for

@@ -14,15 +14,75 @@
 
 package main
 
+import "time"
+
 func promoteBuildPipelines() []pipeline {
 	promotePipelines := make([]pipeline, 0)
-	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipelines()...)
+	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipeline())
+
+	ociPipeline := ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerPromote,
+		pipelineName: "promote-teleport-oci-distroless-images",
+		workflows: []ghaWorkflow{
+			{
+				name:              "promote-teleport-oci-distroless.yml",
+				timeout:           150 * time.Minute,
+				ref:               "${DRONE_TAG}",
+				shouldTagWorkflow: true,
+				inputs: map[string]string{
+					"release-source-tag": "${DRONE_TAG}",
+				},
+			},
+		},
+	})
+	ociPipeline.Trigger.Target.Include = append(ociPipeline.Trigger.Target.Include, "promote-distroless")
+	promotePipelines = append(promotePipelines, ociPipeline)
+
+	amiPipeline := ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerPromote,
+		pipelineName: "promote-teleport-hardened-amis",
+		workflows: []ghaWorkflow{
+			{
+				name:              "promote-teleport-hardened-amis.yaml",
+				timeout:           150 * time.Minute,
+				ref:               "${DRONE_TAG}",
+				srcRefVar:         "DRONE_TAG",
+				shouldTagWorkflow: true,
+				inputs: map[string]string{
+					"release-source-tag": "${DRONE_TAG}",
+				},
+			},
+		},
+	})
+	amiPipeline.Trigger.Target.Include = append(amiPipeline.Trigger.Target.Include, "promote-hardened-amis")
+	promotePipelines = append(promotePipelines, amiPipeline)
+
+	updaterPipeline := ghaBuildPipeline(ghaBuildType{
+		buildType:    buildType{os: "linux", fips: false},
+		trigger:      triggerPromote,
+		pipelineName: "promote-teleport-kube-agent-updater-oci-images",
+		workflows: []ghaWorkflow{
+			{
+				name:              "promote-teleport-kube-agent-updater-oci.yml",
+				timeout:           150 * time.Minute,
+				ref:               "${DRONE_TAG}",
+				shouldTagWorkflow: true,
+				inputs: map[string]string{
+					"release-source-tag": "${DRONE_TAG}",
+				},
+			},
+		},
+	})
+	updaterPipeline.Trigger.Target.Include = append(updaterPipeline.Trigger.Target.Include, "promote-updater")
+	promotePipelines = append(promotePipelines, updaterPipeline)
 
 	return promotePipelines
 }
 
 func publishReleasePipeline() pipeline {
-	p := relcliPipeline(triggerPromote, "publish-rlz", "Publish in Release API", "relcli auto_publish -f -v 6")
+	p := relcliPipeline(triggerPromote, "publish-rlz", "Publish in Release API", "auto_publish -f -v 6")
 
 	p.DependsOn = []string{"promote-build"} // Manually written pipeline
 

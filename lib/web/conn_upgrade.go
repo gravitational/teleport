@@ -21,26 +21,31 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // selectConnectionUpgrade selects the requested upgrade type and returns the
 // corresponding handler.
 func (h *Handler) selectConnectionUpgrade(r *http.Request) (string, ConnectionHandler, error) {
-	upgrades := r.Header.Values(teleport.WebAPIConnUpgradeHeader)
+	upgrades := r.Header.Values(constants.WebAPIConnUpgradeHeader)
 	for _, upgradeType := range upgrades {
 		switch upgradeType {
-		case teleport.WebAPIConnUpgradeTypeALPN:
+		case constants.WebAPIConnUpgradeTypeALPNPing:
+			return upgradeType, h.upgradeALPNWithPing, nil
+		case constants.WebAPIConnUpgradeTypeALPN:
 			return upgradeType, h.upgradeALPN, nil
 		}
 	}
 
-	return "", nil, trace.BadParameter("unsupported upgrade types: %v", upgrades)
+	return "", nil, trace.NotFound("unsupported upgrade types: %v", upgrades)
 }
 
 // connectionUpgrade handles connection upgrades.
@@ -88,9 +93,44 @@ func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
 	return h.cfg.ALPNHandler(ctx, waitConn)
 }
 
+func (h *Handler) upgradeALPNWithPing(ctx context.Context, conn net.Conn) error {
+	if h.cfg.ALPNHandler == nil {
+		return trace.BadParameter("missing ALPNHandler")
+	}
+
+	pingConn := pingconn.New(conn)
+
+	// Cancel ping background goroutine when connection is closed.
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+	go h.startPing(ctx, pingConn)
+
+	return h.upgradeALPN(ctx, pingConn)
+}
+
+func (h *Handler) startPing(ctx context.Context, pingConn *pingconn.PingConn) {
+	ticker := time.NewTicker(defaults.ProxyPingInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case <-ticker.C:
+			err := pingConn.WritePing()
+			if err != nil {
+				if !utils.IsOKNetworkError(err) {
+					h.log.WithError(err).Warn("Failed to write ping message")
+				}
+				return
+			}
+		}
+	}
+}
+
 func writeUpgradeResponse(w io.Writer, upgradeType string) error {
 	header := make(http.Header)
-	header.Add(teleport.WebAPIConnUpgradeHeader, upgradeType)
+	header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
+	header.Add(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
 	response := &http.Response{
 		Status:     http.StatusText(http.StatusSwitchingProtocols),
 		StatusCode: http.StatusSwitchingProtocols,

@@ -13,11 +13,16 @@ exports[`snapshot tests 1`] = `
   font-size: 18px;
 }
 
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
 .c3 {
   appearance: none;
-  border: none;
+  border: 1px solid rgba(255,255,255,0.54);
   border-radius: 4px;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,0.24);
   box-sizing: border-box;
   display: block;
   height: 40px;
@@ -25,11 +30,17 @@ exports[`snapshot tests 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
-  background-color: #FFFFFF;
+  background: #222C59;
+  color: #FFFFFF;
   margin-top: 4px;
-  border: 2px solid #ff1744;
+  border: 2px solid #FF6257;
   padding: 10px 14px;
+}
+
+.c3:hover,
+.c3:focus,
+.c3:active {
+  border: 1px solid rgba(255,255,255,0.72);
 }
 
 .c3::-ms-clear {
@@ -37,7 +48,8 @@ exports[`snapshot tests 1`] = `
 }
 
 .c3::placeholder {
-  opacity: 0.4;
+  color: rgba(255,255,255,0.54);
+  opacity: 1;
 }
 
 .c3:read-only {
@@ -45,23 +57,23 @@ exports[`snapshot tests 1`] = `
 }
 
 .c3:disabled {
-  color: rgba(0,0,0,0.5);
+  color: rgba(255,255,255,0.36);
+  border-color: rgba(255,255,255,0.36);
+}
+
+.c3:hover,
+.c3:focus {
+  border: 2px solid #FF6257;
 }
 
 .c1 {
-  color: #ff1744;
+  color: #FF6257;
   display: block;
   font-size: 11px;
   font-weight: 500;
   text-transform: uppercase;
   width: 100%;
   margin-bottom: 0px;
-}
-
-.c2 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  margin: 0px;
 }
 
 .c5 {
@@ -82,7 +94,6 @@ exports[`snapshot tests 1`] = `
 <div>
   <div
     class="c0"
-    name="optional name"
   >
     <label
       class="c1"
@@ -98,8 +109,8 @@ exports[`snapshot tests 1`] = `
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
         inputmode="text"
+        name="optional name"
         type="text"
         value="value"
       />
@@ -107,7 +118,6 @@ exports[`snapshot tests 1`] = `
   </div>
   <div
     class="c0"
-    name="optional name"
   >
     <label
       class="c1"
@@ -117,8 +127,8 @@ exports[`snapshot tests 1`] = `
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
         inputmode="text"
+        name="optional name"
         placeholder="placeholder"
         type="text"
         value=""
@@ -127,7 +137,6 @@ exports[`snapshot tests 1`] = `
   </div>
   <div
     class="c0"
-    name="optional name"
   >
     <label
       class="c1"
@@ -143,15 +152,14 @@ exports[`snapshot tests 1`] = `
       >
         <span
           class="c6 icon icon-info_outline "
-          color="light"
           font-size="4"
         />
       </span>
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
         inputmode="text"
+        name="optional name"
         placeholder="placeholder"
         type="text"
         value=""
@@ -160,7 +168,6 @@ exports[`snapshot tests 1`] = `
   </div>
   <div
     class="c0"
-    name="optional name"
   >
     <label
       class="c1"
@@ -182,15 +189,14 @@ exports[`snapshot tests 1`] = `
       >
         <span
           class="c6 icon icon-info_outline "
-          color="light"
           font-size="4"
         />
       </span>
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
         inputmode="text"
+        name="optional name"
         placeholder="placeholder"
         type="text"
         value=""
@@ -203,7 +209,6 @@ exports[`snapshot tests 1`] = `
     <input
       autocomplete="off"
       class="c3"
-      color="text.onLight"
       inputmode="text"
       placeholder="without label"
       type="text"

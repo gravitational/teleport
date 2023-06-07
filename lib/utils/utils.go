@@ -426,16 +426,6 @@ func (p *PortList) PopInt() int {
 	return i
 }
 
-// PopIntSlice returns a slice of values from the list, it panics if not enough
-// ports were allocated
-func (p *PortList) PopIntSlice(num int) []int {
-	ports := make([]int, num)
-	for i := range ports {
-		ports[i] = p.PopInt()
-	}
-	return ports
-}
-
 // PortStartingNumber is a starting port number for tests
 const PortStartingNumber = 20000
 

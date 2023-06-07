@@ -44,11 +44,13 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/client"
-	libclient "github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
 	"github.com/gravitational/teleport/lib/utils"
@@ -200,15 +202,17 @@ func GetLocalIP() (string, error) {
 }
 
 func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string, ttl time.Duration) string {
-	key, err := libclient.GenerateRSAKey()
+	key, err := client.GenerateRSAKey()
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
 
-	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
-		key.MarshalSSHPublicKey(), username, ttl,
-		constants.CertificateFormatStandard,
-		tc.Secrets.SiteName, "",
-	)
+	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+		Key:            key.MarshalSSHPublicKey(),
+		Username:       username,
+		TTL:            ttl,
+		Compatibility:  constants.CertificateFormatStandard,
+		RouteToCluster: tc.Secrets.SiteName,
+	})
 	require.NoError(t, err)
 
 	key.Cert = sshCert
@@ -255,8 +259,15 @@ func WaitForAuditEventTypeWithBackoff(t *testing.T, cli *auth.Server, startTime 
 	if err != nil {
 		t.Fatalf("failed to create linear backoff: %v", err)
 	}
+	ctx := context.Background()
 	for {
-		events, _, err := cli.SearchEvents(startTime, time.Now().Add(time.Hour), apidefaults.Namespace, []string{eventType}, 100, types.EventOrderAscending, "")
+		events, _, err := cli.SearchEvents(ctx, events.SearchEventsRequest{
+			From:       startTime,
+			To:         time.Now().Add(time.Hour),
+			EventTypes: []string{eventType},
+			Limit:      100,
+			Order:      types.EventOrderAscending,
+		})
 		if err != nil {
 			t.Fatalf("failed to call SearchEvents: %v", err)
 		}
@@ -278,7 +289,7 @@ func MustGetCurrentUser(t *testing.T) *user.User {
 	return user
 }
 
-func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []service.Database) {
+func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []servicecfg.Database) {
 	t.Helper()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -311,6 +322,21 @@ func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []service
 	}
 }
 
+// CreatePROXYEnabledListener creates net.Listener that can handle receiving signed PROXY headers
+func CreatePROXYEnabledListener(ctx context.Context, t *testing.T, address string, caGetter multiplexer.CertAuthorityGetter, clusterName string) (net.Listener, error) {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", address)
+	require.NoError(t, err)
+
+	return multiplexer.NewPROXYEnabledListener(multiplexer.Config{
+		Listener:            listener,
+		Context:             ctx,
+		CertAuthorityGetter: caGetter,
+		LocalClusterName:    clusterName,
+	})
+}
+
 // MakeTestServers starts an Auth and a Proxy Service.
 // Besides those processes, it also returns a provision token which can be used to add other services.
 func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *service.TeleportProcess, provisionToken string) {
@@ -320,7 +346,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	//
 	// We need this to get a random port assigned to it and allow parallel
 	// execution of this test.
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
@@ -361,7 +387,7 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 	require.NoError(t, err)
 
 	// Set up a test proxy service.
-	cfg = service.MakeDefaultConfig()
+	cfg = servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
 	cfg.Hostname = "localhost"
@@ -398,11 +424,11 @@ func MakeTestServers(t *testing.T) (auth *service.TeleportProcess, proxy *servic
 
 // MakeTestDatabaseServer creates a Database Service
 // It receives the Proxy Address, a Token (to join the cluster) and a list of Datbases
-func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string, resMatchers []services.ResourceMatcher, dbs ...service.Database) (db *service.TeleportProcess) {
+func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string, resMatchers []services.ResourceMatcher, dbs ...servicecfg.Database) (db *service.TeleportProcess) {
 	// Proxy uses self-signed certificates in tests.
 	lib.SetInsecureDevMode(true)
 
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.Hostname = "localhost"
 	cfg.DataDir = t.TempDir()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
@@ -429,4 +455,17 @@ func MakeTestDatabaseServer(t *testing.T, proxyAddr utils.NetAddr, token string,
 	require.NoError(t, err, "database server didn't start after 10s")
 
 	return db
+}
+
+// MustCreateListener creates a tcp listener at 127.0.0.1 with random port.
+func MustCreateListener(t *testing.T) net.Listener {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		listener.Close()
+	})
+	return listener
 }

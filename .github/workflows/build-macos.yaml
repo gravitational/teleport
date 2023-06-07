@@ -2,21 +2,9 @@ name: Build on Mac OS
 run-name: Build on Mac OS
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - '**.rs'
-      - 'Cargo.toml'
-      - 'Cargo.lock'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
   merge_group:
     paths:
+      - '.github/workflows/build-macos.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
@@ -25,6 +13,7 @@ on:
       - 'Cargo.lock'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   build:
@@ -39,15 +28,38 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v3
 
-      - name: Get Go version
-        id: go-version
-        shell: bash
-        run: echo "go-version=$(make --no-print-directory print-go-version | tr -d '\n')" >> $GITHUB_OUTPUT
+      - name: Determine Toolchain Versions and cache paths
+        run: |
+          echo NODE_VERSION=$(make -C build.assets print-node-version) >> $GITHUB_ENV
+          echo GOLANG_VERSION=$(make -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
+          echo RUST_VERSION=$(make -C build.assets print-rust-version) >> $GITHUB_ENV
+          echo PKG_CONFIG_PATH="$(build.assets/build-fido2-macos.sh pkg_config_path)" >> $GITHUB_ENV
 
-      - name: Setup Go
-        uses: actions/setup-go@v3
+      - name: Print versions
+        run: |
+          echo "make: $(make --version)"
+          echo "node: ${NODE_VERSION}"
+          echo "go: ${GOLANG_VERSION}"
+          echo "rust: ${RUST_VERSION}"
+
+      - name: Install Node Toolchain
+        uses: actions/setup-node@v3
         with:
-          go-version: ${{ steps.go-version.outputs.go-version }}
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Setup yarn
+        run: |
+          corepack enable yarn
+
+      - name: Install Go Toolchain
+        uses: actions/setup-go@v4
+        with:
+          cache: false
+          go-version: ${{ env.GOLANG_VERSION }}
+
+      - name: Configure Rust Toolchain
+        run: |
+          rustup override set ${{ env.RUST_VERSION }}
 
       - name: Build
         run: make binaries

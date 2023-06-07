@@ -17,7 +17,6 @@ syntax = "proto3";
 package teleport.lib.teleterm.v1;
 
 import "teleport/lib/teleterm/v1/access_request.proto";
-import "teleport/lib/teleterm/v1/app.proto";
 import "teleport/lib/teleterm/v1/auth_settings.proto";
 import "teleport/lib/teleterm/v1/cluster.proto";
 import "teleport/lib/teleterm/v1/database.proto";
@@ -26,9 +25,14 @@ import "teleport/lib/teleterm/v1/kube.proto";
 import "teleport/lib/teleterm/v1/server.proto";
 import "teleport/lib/teleterm/v1/usage_events.proto";
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1";
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
-// TerminalService describes Teleterm service
+// TerminalService is used by the Electron app to communicate with the tsh daemon.
+//
+// While we aim to preserve backwards compatibility in order to satisfy CI checks and follow the
+// proto practices used within the company, this service is not guaranteed to be stable across
+// versions. The packaging process of Teleport Connect ensures that the server and the client use
+// the same version of the service.
 service TerminalService {
   // UpdateTshdEventsServerAddress lets the Electron app update the address the tsh daemon is
   // supposed to use when connecting to the tshd events gRPC service. This RPC needs to be made
@@ -43,14 +47,10 @@ service TerminalService {
   // ListLeafClusters lists leaf clusters
   // Does not include detailed cluster information that would require a network request.
   rpc ListLeafClusters(ListLeafClustersRequest) returns (ListClustersResponse);
-  // GetAllDatabases lists all databases without pagination
-  rpc GetAllDatabases(GetAllDatabasesRequest) returns (GetAllDatabasesResponse);
   // GetDatabases returns a filtered and paginated list of databases
   rpc GetDatabases(GetDatabasesRequest) returns (GetDatabasesResponse);
   // ListDatabaseUsers lists allowed users for the given database based on the role set.
   rpc ListDatabaseUsers(ListDatabaseUsersRequest) returns (ListDatabaseUsersResponse);
-  // GetAllServers returns all servers
-  rpc GetAllServers(GetAllServersRequest) returns (GetAllServersResponse);
   // GetServers returns filtered, sorted, and paginated servers
   rpc GetServers(GetServersRequest) returns (GetServersResponse);
   // GetAccessRequests lists filtered AccessRequests
@@ -67,12 +67,8 @@ service TerminalService {
   rpc GetRequestableRoles(GetRequestableRolesRequest) returns (GetRequestableRolesResponse);
   // AssumeRole assumes the role of the given access request
   rpc AssumeRole(AssumeRoleRequest) returns (EmptyResponse);
-  // GetAllKubes list all kubes
-  rpc GetAllKubes(GetAllKubesRequest) returns (GetAllKubesResponse);
   // GetKubes returns filtered, sorted, and paginated kubes
   rpc GetKubes(GetKubesRequest) returns (GetKubesResponse);
-  // ListApps list apps
-  rpc ListApps(ListAppsRequest) returns (ListAppsResponse);
   // AddCluster adds a cluster to profile
   rpc AddCluster(AddClusterRequest) returns (Cluster);
   // RemoveCluster removes a cluster from profile
@@ -322,18 +318,10 @@ message AddClusterRequest {
   string name = 1;
 }
 
-message ListAppsRequest {
-  string cluster_uri = 1;
-}
-
 message ListClustersRequest {}
 
 message ListClustersResponse {
   repeated Cluster clusters = 1;
-}
-
-message GetAllDatabasesRequest {
-  string cluster_uri = 1;
 }
 
 message GetDatabasesRequest {
@@ -348,10 +336,6 @@ message GetDatabasesRequest {
 
 message ListLeafClustersRequest {
   string cluster_uri = 1;
-}
-
-message GetAllDatabasesResponse {
-  repeated Database databases = 1;
 }
 
 message ListDatabaseUsersRequest {
@@ -389,14 +373,6 @@ message SetGatewayLocalPortRequest {
   string local_port = 2;
 }
 
-message GetAllServersRequest {
-  string cluster_uri = 1;
-}
-
-message GetAllServersResponse {
-  repeated Server servers = 1;
-}
-
 message GetServersRequest {
   string cluster_uri = 1;
   int32 limit = 2;
@@ -419,14 +395,6 @@ message GetDatabasesResponse {
   string start_key = 3;
 }
 
-message GetAllKubesRequest {
-  string cluster_uri = 1;
-}
-
-message GetAllKubesResponse {
-  repeated Kube kubes = 1;
-}
-
 message GetKubesRequest {
   string cluster_uri = 1;
   int32 limit = 2;
@@ -441,10 +409,6 @@ message GetKubesResponse {
   repeated Kube agents = 1;
   int32 total_count = 2;
   string start_key = 3;
-}
-
-message ListAppsResponse {
-  repeated App apps = 1;
 }
 
 message GetAuthSettingsRequest {

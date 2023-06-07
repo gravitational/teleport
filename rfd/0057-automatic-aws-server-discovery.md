@@ -1,6 +1,6 @@
 ---
 authors: Alex McGrath (alex.mcgrath@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 57 - Automatic discovery and enrollment of AWS servers
@@ -148,7 +148,7 @@ SSM commands[3] for example:
             "Resource": [
                 # Allow running commands on all us-west-2 instances
                 "arn:aws:ssm:us-west-2:*:instance/*",
-                 # Allows running the installTeleport docuemnt on the allowed instances
+                 # Allows running the installTeleport document on the allowed instances
                 "arn:aws:ssm:us-east-2:aws-account-ID:document/installTeleport"
             ]
         },
@@ -168,8 +168,8 @@ SSM commands[3] for example:
 }
 ```
 
-The machines being discovered will need to allow recieving `ec2messages` in
-order to recieve the SSM commands:
+The machines being discovered will need to allow receiving `ec2messages` in
+order to receive the SSM commands:
 
 ```js
 {
@@ -190,7 +190,7 @@ instances a new system role will be added -- `RoleNodeDiscovery`, that will have
 permissions to create tokens.
 
 Each EC2 instance that is to be discovered will also require that they have an IAM
-role attached, in order to be able to send and recieve messages for the SSM agent.
+role attached, in order to be able to send and receive messages for the SSM agent.
 
 Example:
 
@@ -323,7 +323,7 @@ Possible agentless installer script:
     if [ ! "$CERTIFICATE_ROTATION" = "" ]; then
       IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
       PUBLIC_IP=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" "http://169.254.169.254/latest/meta-data/public-ipv4")
-	  
+
 	  sudo teleport join \
 	   --openssh-config=$SSHD_CONFIG \
 	   --join-method=iam \
@@ -459,7 +459,7 @@ The SSH discovery node should have permission to call `ec2:DescribeInstances`
             ],
             "Effect": "Allow",
             "Resource": [
-                "*", # for example, allow on all ec2 instance with SSM availablea
+                "*", # for example, allow on all ec2 instance with SSM available
             ]
         }
     ]

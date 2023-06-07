@@ -29,6 +29,7 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redis/armredis/v2"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/redisenterprise/armredisenterprise"
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/sql/armsql"
+	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/arn"
 	"github.com/aws/aws-sdk-go/service/elasticache"
@@ -45,14 +46,16 @@ import (
 	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	"github.com/gravitational/teleport/lib/srv/db/redis/connection"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // DatabaseGetter defines interface for fetching database resources.
@@ -136,6 +139,9 @@ func UnmarshalDatabase(data []byte, opts ...MarshalOption) (types.Database, erro
 
 // ValidateDatabase validates a types.Database.
 func ValidateDatabase(db types.Database) error {
+	if err := enterprise.ProtocolValidation(db.GetProtocol()); err != nil {
+		return trace.Wrap(err)
+	}
 	if err := db.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -182,8 +188,8 @@ func ValidateDatabase(db types.Database) error {
 
 	// Validate Active Directory specific configuration, when Kerberos auth is required.
 	if db.GetProtocol() == defaults.ProtocolSQLServer && (db.GetAD().Domain != "" || !strings.Contains(db.GetURI(), azureutils.MSSQLEndpointSuffix)) {
-		if db.GetAD().KeytabFile == "" {
-			return trace.BadParameter("missing keytab file path for database %q", db.GetName())
+		if db.GetAD().KeytabFile == "" && db.GetAD().KDCHostName == "" {
+			return trace.BadParameter("either keytab file path or kdc_host_name must be provided for database %q, both are missing", db.GetName())
 		}
 		if db.GetAD().Krb5File == "" {
 			return trace.BadParameter("missing Kerberos config file path for database %q", db.GetName())
@@ -194,7 +200,30 @@ func ValidateDatabase(db types.Database) error {
 		if db.GetAD().SPN == "" {
 			return trace.BadParameter("missing service principal name for database %q", db.GetName())
 		}
+		if db.GetAD().KDCHostName != "" {
+			if db.GetAD().LDAPCert == "" {
+				return trace.BadParameter("missing LDAP certificate for x509 authentication for database %q", db.GetName())
+			}
+		}
 	}
+
+	awsMeta := db.GetAWS()
+	if awsMeta.AssumeRoleARN != "" {
+		if awsMeta.AccountID == "" {
+			return trace.BadParameter("database %q missing AWS account ID", db.GetName())
+		}
+		parsed, err := awsutils.ParseRoleARN(awsMeta.AssumeRoleARN)
+		if err != nil {
+			return trace.BadParameter("database %q assume_role_arn %q is invalid: %v",
+				db.GetName(), awsMeta.AssumeRoleARN, err)
+		}
+		err = awsutils.CheckARNPartitionAndAccount(parsed, awsMeta.Partition(), awsMeta.AccountID)
+		if err != nil {
+			return trace.BadParameter("database %q is incompatible with AWS assume_role_arn %q: %v",
+				db.GetName(), awsMeta.AssumeRoleARN, err)
+		}
+	}
+
 	return nil
 }
 
@@ -526,6 +555,139 @@ func NewDatabaseFromRDSInstance(instance *rds.DBInstance) (types.Database, error
 		})
 }
 
+// NewDatabaseFromRDSV2Instance creates a database resource from an RDS instance.
+// It uses aws sdk v2.
+func NewDatabaseFromRDSV2Instance(instance *rdsTypesV2.DBInstance) (types.Database, error) {
+	endpoint := instance.Endpoint
+	if endpoint == nil {
+		return nil, trace.BadParameter("empty endpoint")
+	}
+	metadata, err := MetadataFromRDSV2Instance(instance)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protocol, err := rdsEngineToProtocol(aws.StringValue(instance.Engine))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uri := ""
+	if instance.Endpoint != nil && instance.Endpoint.Address != nil {
+		uri = fmt.Sprintf("%s:%d", aws.StringValue(instance.Endpoint.Address), instance.Endpoint.Port)
+	}
+
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("RDS instance in %v", metadata.Region),
+			Labels:      labelsFromRDSV2Instance(instance, metadata),
+		}, aws.StringValue(instance.DBInstanceIdentifier)),
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+			AWS:      *metadata,
+		})
+}
+
+// MetadataFromRDSInstance creates AWS metadata from the provided RDS instance.
+// It uses aws sdk v2.
+func MetadataFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(rdsInstance.DBInstanceArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var subnets []string
+	if rdsInstance.DBSubnetGroup != nil {
+		subnets = make([]string, 0, len(rdsInstance.DBSubnetGroup.Subnets))
+		for _, s := range rdsInstance.DBSubnetGroup.Subnets {
+			if s.SubnetIdentifier == nil || *s.SubnetIdentifier == "" {
+				continue
+			}
+			subnets = append(subnets, *s.SubnetIdentifier)
+		}
+	}
+
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RDS: types.RDS{
+			InstanceID: aws.StringValue(rdsInstance.DBInstanceIdentifier),
+			ClusterID:  aws.StringValue(rdsInstance.DBClusterIdentifier),
+			ResourceID: aws.StringValue(rdsInstance.DbiResourceId),
+			IAMAuth:    rdsInstance.IAMDatabaseAuthenticationEnabled,
+			Subnets:    subnets,
+		},
+	}, nil
+}
+
+// labelsFromRDSV2Instance creates database labels for the provided RDS instance.
+// It uses aws sdk v2.
+func labelsFromRDSV2Instance(rdsInstance *rdsTypesV2.DBInstance, meta *types.AWS) map[string]string {
+	labels := labelsFromAWSMetadata(meta)
+	labels[labelEngine] = aws.StringValue(rdsInstance.Engine)
+	labels[labelEngineVersion] = aws.StringValue(rdsInstance.EngineVersion)
+	labels[labelEndpointType] = string(RDSEndpointTypeInstance)
+	labels[labelStatus] = aws.StringValue(rdsInstance.DBInstanceStatus)
+	return addLabels(labels, libcloudaws.TagsToLabels(rdsInstance.TagList))
+}
+
+// NewDatabaseFromRDSV2Cluster creates a database resource from an RDS cluster (Aurora).
+// It uses aws sdk v2.
+func NewDatabaseFromRDSV2Cluster(cluster *rdsTypesV2.DBCluster) (types.Database, error) {
+	metadata, err := MetadataFromRDSV2Cluster(cluster)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	protocol, err := rdsEngineToProtocol(aws.StringValue(cluster.Engine))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uri := ""
+	if cluster.Endpoint != nil && cluster.Port != nil {
+		uri = fmt.Sprintf("%v:%v", aws.StringValue(cluster.Endpoint), *cluster.Port)
+	}
+	return types.NewDatabaseV3(
+		setDBName(types.Metadata{
+			Description: fmt.Sprintf("Aurora cluster in %v", metadata.Region),
+			Labels:      labelsFromRDSV2Cluster(cluster, metadata, RDSEndpointTypePrimary),
+		}, aws.StringValue(cluster.DBClusterIdentifier)),
+		types.DatabaseSpecV3{
+			Protocol: protocol,
+			URI:      uri,
+			AWS:      *metadata,
+		})
+}
+
+// MetadataFromRDSV2Cluster creates AWS metadata from the provided RDS cluster.
+// It uses aws sdk v2.
+func MetadataFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster) (*types.AWS, error) {
+	parsedARN, err := arn.Parse(aws.StringValue(rdsCluster.DBClusterArn))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &types.AWS{
+		Region:    parsedARN.Region,
+		AccountID: parsedARN.AccountID,
+		RDS: types.RDS{
+			ClusterID:  aws.StringValue(rdsCluster.DBClusterIdentifier),
+			ResourceID: aws.StringValue(rdsCluster.DbClusterResourceId),
+			IAMAuth:    aws.BoolValue(rdsCluster.IAMDatabaseAuthenticationEnabled),
+		},
+	}, nil
+}
+
+// labelsFromRDSV2Cluster creates database labels for the provided RDS cluster.
+// It uses aws sdk v2.
+func labelsFromRDSV2Cluster(rdsCluster *rdsTypesV2.DBCluster, meta *types.AWS, endpointType RDSEndpointType) map[string]string {
+	labels := labelsFromAWSMetadata(meta)
+	labels[labelEngine] = aws.StringValue(rdsCluster.Engine)
+	labels[labelEngineVersion] = aws.StringValue(rdsCluster.EngineVersion)
+	labels[labelEndpointType] = string(endpointType)
+	labels[labelStatus] = aws.StringValue(rdsCluster.Status)
+	return addLabels(labels, libcloudaws.TagsToLabels(rdsCluster.TagList))
+}
+
 // NewDatabaseFromRDSCluster creates a database resource from an RDS cluster (Aurora).
 func NewDatabaseFromRDSCluster(cluster *rds.DBCluster) (types.Database, error) {
 	metadata, err := MetadataFromRDSCluster(cluster)
@@ -586,7 +748,7 @@ func NewDatabasesFromRDSClusterCustomEndpoints(cluster *rds.DBCluster) (types.Da
 	for _, endpoint := range cluster.CustomEndpoints {
 		// RDS custom endpoint format:
 		// <endpointName>.cluster-custom-<customerDnsIdentifier>.<dnsSuffix>
-		endpointDetails, err := awsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
+		endpointDetails, err := apiawsutils.ParseRDSEndpoint(aws.StringValue(endpoint))
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 			continue
@@ -713,7 +875,7 @@ func NewDatabaseFromElastiCacheConfigurationEndpoint(cluster *elasticache.Replic
 		return nil, trace.BadParameter("missing configuration endpoint")
 	}
 
-	return newElastiCacheDatabase(cluster, cluster.ConfigurationEndpoint, awsutils.ElastiCacheConfigurationEndpoint, extraLabels)
+	return newElastiCacheDatabase(cluster, cluster.ConfigurationEndpoint, apiawsutils.ElastiCacheConfigurationEndpoint, extraLabels)
 }
 
 // NewDatabasesFromElastiCacheNodeGroups creates database resources from
@@ -722,7 +884,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 	var databases types.Databases
 	for _, nodeGroup := range cluster.NodeGroups {
 		if nodeGroup.PrimaryEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, nodeGroup.PrimaryEndpoint, awsutils.ElastiCachePrimaryEndpoint, extraLabels)
+			database, err := newElastiCacheDatabase(cluster, nodeGroup.PrimaryEndpoint, apiawsutils.ElastiCachePrimaryEndpoint, extraLabels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -730,7 +892,7 @@ func NewDatabasesFromElastiCacheNodeGroups(cluster *elasticache.ReplicationGroup
 		}
 
 		if nodeGroup.ReaderEndpoint != nil {
-			database, err := newElastiCacheDatabase(cluster, nodeGroup.ReaderEndpoint, awsutils.ElastiCacheReaderEndpoint, extraLabels)
+			database, err := newElastiCacheDatabase(cluster, nodeGroup.ReaderEndpoint, apiawsutils.ElastiCacheReaderEndpoint, extraLabels)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -748,7 +910,7 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 	}
 
 	suffix := make([]string, 0)
-	if endpointType == awsutils.ElastiCacheReaderEndpoint {
+	if endpointType == apiawsutils.ElastiCacheReaderEndpoint {
 		suffix = []string{endpointType}
 	}
 
@@ -765,7 +927,7 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 // NewDatabaseFromMemoryDBCluster creates a database resource from a MemoryDB
 // cluster.
 func NewDatabaseFromMemoryDBCluster(cluster *memorydb.Cluster, extraLabels map[string]string) (types.Database, error) {
-	endpointType := awsutils.MemoryDBClusterEndpoint
+	endpointType := apiawsutils.MemoryDBClusterEndpoint
 
 	metadata, err := MetadataFromMemoryDBCluster(cluster, endpointType)
 	if err != nil {
@@ -938,12 +1100,21 @@ func MetadataFromElastiCacheCluster(cluster *elasticache.ReplicationGroup, endpo
 		return nil, trace.Wrap(err)
 	}
 
+	// aws.StringValueSlice will return an empty slice is the input slice
+	// is empty, but when cloning protobuf messages a cloned empty slice
+	// will return nil. Keep this behavior so tests comparing cloned
+	// messages don't fail.
+	var userGroupIDs []string
+	if len(cluster.UserGroupIds) != 0 {
+		userGroupIDs = aws.StringValueSlice(cluster.UserGroupIds)
+	}
+
 	return &types.AWS{
 		Region:    parsedARN.Region,
 		AccountID: parsedARN.AccountID,
 		ElastiCache: types.ElastiCache{
 			ReplicationGroupID:       aws.StringValue(cluster.ReplicationGroupId),
-			UserGroupIDs:             aws.StringValueSlice(cluster.UserGroupIds),
+			UserGroupIDs:             userGroupIDs,
 			TransitEncryptionEnabled: aws.BoolValue(cluster.TransitEncryptionEnabled),
 			EndpointType:             endpointType,
 		},
@@ -1086,7 +1257,6 @@ func rdsEngineFamilyToProtocol(engineFamily string) (string, error) {
 // labelsFromAzureServer creates database labels for the provided Azure DB server.
 func labelsFromAzureServer(server *azure.DBServer) (map[string]string, error) {
 	labels := azureTagsToLabels(server.Tags)
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = server.Location
 	labels[labelEngineVersion] = server.Properties.Version
 	return withLabelsFromAzureResourceID(labels, server.ID)
@@ -1107,7 +1277,6 @@ func withLabelsFromAzureResourceID(labels map[string]string, resourceID string) 
 // labelsFromAzureRedis creates database labels from the provided Azure Redis instance.
 func labelsFromAzureRedis(server *armredis.ResourceInfo) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.RedisVersion)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
@@ -1116,7 +1285,6 @@ func labelsFromAzureRedis(server *armredis.ResourceInfo) (map[string]string, err
 // labelsFromAzureRedisEnterprise creates database labels from the provided Azure Redis Enterprise server.
 func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, database *armredisenterprise.Database) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(cluster.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(cluster.Location)
 	labels[labelEngineVersion] = azure.StringVal(cluster.Properties.RedisVersion)
 	labels[labelEndpointType] = azure.StringVal(database.Properties.ClusteringPolicy)
@@ -1127,7 +1295,6 @@ func labelsFromAzureRedisEnterprise(cluster *armredisenterprise.Cluster, databas
 // server.
 func labelsFromAzureSQLServer(server *armsql.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
@@ -1137,7 +1304,6 @@ func labelsFromAzureSQLServer(server *armsql.Server) (map[string]string, error) 
 // Azure Managed SQL server.
 func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
 }
@@ -1145,7 +1311,6 @@ func labelsFromAzureManagedSQLServer(server *armsql.ManagedInstance) (map[string
 // labelsFromAzureMySQLFlexServer creates database labels for the provided Azure MySQL flex server.
 func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
 
@@ -1170,7 +1335,6 @@ func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map
 // labelsFromAzurePostgresFlexServer creates database labels for the provided Azure postgres flex server.
 func labelsFromAzurePostgresFlexServer(server *armpostgresqlflexibleservers.Server) (map[string]string, error) {
 	labels := azureTagsToLabels(azure.ConvertTags(server.Tags))
-	labels[types.OriginLabel] = types.OriginCloud
 	labels[labelRegion] = azure.StringVal(server.Location)
 	labels[labelEngineVersion] = azure.StringVal(server.Properties.Version)
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
@@ -1241,7 +1405,6 @@ func labelsFromRedshiftServerlessVPCEndpoint(endpoint *redshiftserverless.Endpoi
 // labelsFromAWSMetadata returns labels from provided AWS metadata.
 func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 	labels := make(map[string]string)
-	labels[types.OriginLabel] = types.OriginCloud
 	if meta != nil {
 		labels[labelAccountID] = meta.AccountID
 		labels[labelRegion] = meta.Region
@@ -1330,10 +1493,10 @@ func IsMemoryDBClusterSupported(cluster *memorydb.Cluster) bool {
 }
 
 // IsRDSInstanceAvailable checks if the RDS instance is available.
-func IsRDSInstanceAvailable(instance *rds.DBInstance) bool {
+func IsRDSInstanceAvailable(instanceStatus, instanceIdentifier *string) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/accessing-monitoring.html
-	switch aws.StringValue(instance.DBInstanceStatus) {
+	switch aws.StringValue(instanceStatus) {
 	// Statuses marked as "Billed" in the above guide.
 	case "available", "backing-up", "configuring-enhanced-monitoring",
 		"configuring-iam-database-auth", "configuring-log-exports",
@@ -1361,18 +1524,18 @@ func IsRDSInstanceAvailable(instance *rds.DBInstance) bool {
 
 	default:
 		log.Warnf("Unknown status type: %q. Assuming RDS instance %q is available.",
-			aws.StringValue(instance.DBInstanceStatus),
-			aws.StringValue(instance.DBInstanceIdentifier),
+			aws.StringValue(instanceStatus),
+			aws.StringValue(instanceIdentifier),
 		)
 		return true
 	}
 }
 
 // IsRDSClusterAvailable checks if the RDS cluster is available.
-func IsRDSClusterAvailable(cluster *rds.DBCluster) bool {
+func IsRDSClusterAvailable(clusterStatus, clusterIndetifier *string) bool {
 	// For a full list of status values, see:
 	// https://docs.aws.amazon.com/AmazonRDS/latest/AuroraUserGuide/accessing-monitoring.html
-	switch aws.StringValue(cluster.Status) {
+	switch aws.StringValue(clusterStatus) {
 	// Statuses marked as "Billed" in the above guide.
 	case "available", "backing-up", "backtracking", "failing-over",
 		"maintenance", "migrating", "modifying", "promoting", "renaming",
@@ -1390,8 +1553,8 @@ func IsRDSClusterAvailable(cluster *rds.DBCluster) bool {
 
 	default:
 		log.Warnf("Unknown status type: %q. Assuming Aurora cluster %q is available.",
-			aws.StringValue(cluster.Status),
-			aws.StringValue(cluster.DBClusterIdentifier),
+			aws.StringValue(clusterStatus),
+			aws.StringValue(clusterIndetifier),
 		)
 		return true
 	}
@@ -1565,6 +1728,8 @@ const (
 	// labelSourceServer is the source server for replica Azure DB Flexible servers.
 	// This is the source (primary) database resource name.
 	labelSourceServer = "source-server"
+	// labelStatus is the label key containing the database status, e.g. "available"
+	labelStatus = "status"
 )
 
 const (

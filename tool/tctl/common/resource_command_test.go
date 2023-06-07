@@ -22,12 +22,15 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -35,11 +38,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/fixtures"
 )
 
 // TestDatabaseServerResource tests tctl db_server rm/get commands.
 func TestDatabaseServerResource(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
+	caCertFilePath := filepath.Join(t.TempDir(), "ca-cert.pem")
+	require.NoError(t, os.WriteFile(caCertFilePath, []byte(fixtures.TLSCACertPEM), 0644))
 
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
@@ -58,9 +64,17 @@ func TestDatabaseServerResource(t *testing.T) {
 				},
 				{
 					Name:        "example2",
-					Description: "Example2 MySQL",
-					Protocol:    "mysql",
+					Description: "Example PostgreSQL",
+					Protocol:    "postgres",
 					URI:         "localhost:33307",
+					AdminUser: config.DatabaseAdminUser{
+						Name: "root",
+					},
+					TLS: config.DatabaseTLS{
+						Mode:       "verify-ca",
+						ServerName: "db.example.com",
+						CACertFile: caCertFilePath,
+					},
 				},
 			},
 		},
@@ -79,41 +93,59 @@ func TestDatabaseServerResource(t *testing.T) {
 		},
 	}
 
-	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+	wantDB, err := types.NewDatabaseV3(types.Metadata{
+		Name:        "example2",
+		Description: "Example PostgreSQL",
+		Labels:      map[string]string{types.OriginLabel: types.OriginConfigFile},
+	}, types.DatabaseSpecV3{
+		Protocol: defaults.ProtocolPostgres,
+		URI:      "localhost:33307",
+		CACert:   fixtures.TLSCACertPEM,
+		AdminUser: &types.DatabaseAdminUser{
+			Name: "root",
+		},
+		TLS: types.DatabaseTLS{
+			Mode:       types.DatabaseTLSMode_VERIFY_CA,
+			ServerName: "db.example.com",
+			CACert:     fixtures.TLSCACertPEM,
+		},
+	})
+	require.NoError(t, err)
 
-	waitForBackendDatabaseResourcePropagation(t, auth.GetAuthServer())
+	_ = makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
 
 	var out []*types.DatabaseServerV3
 
-	t.Run("get all database servers", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 2)
-	})
+	// get all database servers
+	buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindDatabaseServer, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buff, &out)
+	require.Len(t, out, 2)
 
-	server := fmt.Sprintf("%v/%v", types.KindDatabaseServer, out[0].GetName())
+	wantServer := fmt.Sprintf("%v/%v", types.KindDatabaseServer, wantDB.GetName())
 
-	t.Run("get specific database server", func(t *testing.T) {
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 1)
-	})
+	// get specific database server
+	buff, err = runResourceCommand(t, fileConfig, []string{"get", wantServer, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buff, &out)
+	require.Len(t, out, 1)
+	gotDB := out[0].GetDatabase()
+	require.Empty(t, cmp.Diff([]types.Database{wantDB}, []types.Database{gotDB},
+		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace", "Expires"),
+	))
 
-	t.Run("remove database server", func(t *testing.T) {
-		_, err := runResourceCommand(t, fileConfig, []string{"rm", server})
-		require.NoError(t, err)
+	// remove database server
+	_, err = runResourceCommand(t, fileConfig, []string{"rm", wantServer})
+	require.NoError(t, err)
 
-		_, err = runResourceCommand(t, fileConfig, []string{"get", server, "--format=json"})
-		require.Error(t, err)
-		require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
+	_, err = runResourceCommand(t, fileConfig, []string{"get", wantServer, "--format=json"})
+	require.Error(t, err)
+	require.IsType(t, &trace.NotFoundError{}, err.(*trace.TraceErr).OrigError())
 
-		buff, err := runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
-		require.NoError(t, err)
-		mustDecodeJSON(t, buff, &out)
-		require.Len(t, out, 0)
-	})
+	buff, err = runResourceCommand(t, fileConfig, []string{"get", "db", "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buff, &out)
+	require.Len(t, out, 0)
 }
 
 // TestDatabaseResource tests tctl commands that manage database resources.
@@ -161,6 +193,9 @@ func TestDatabaseResource(t *testing.T) {
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
 		URI:      "localhost:3306",
+		TLS: types.DatabaseTLS{
+			Mode: types.DatabaseTLSMode_VERIFY_CA,
+		},
 	})
 	require.NoError(t, err)
 
@@ -182,6 +217,7 @@ func TestDatabaseResource(t *testing.T) {
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 2)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbA, dbB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
@@ -190,6 +226,7 @@ func TestDatabaseResource(t *testing.T) {
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", fmt.Sprintf("%v/db-b", types.KindDatabase), "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
@@ -202,6 +239,7 @@ func TestDatabaseResource(t *testing.T) {
 	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindDatabase, "--format=json"})
 	require.NoError(t, err)
 	mustDecodeJSON(t, buf, &out)
+	require.Len(t, out, 1)
 	require.Empty(t, cmp.Diff([]*types.DatabaseV3{dbB}, out,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 	))
@@ -289,6 +327,120 @@ func TestDatabaseServiceResource(t *testing.T) {
 	})
 }
 
+// TestIntegrationResource tests tctl integration commands.
+func TestIntegrationResource(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+
+	ctx := context.Background()
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	auth := makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors))
+
+	t.Run("get", func(t *testing.T) {
+
+		var out []types.IntegrationV1
+
+		// Add a lot of Integrations to test pagination
+		ig1, err := types.NewIntegrationAWSOIDC(
+			types.Metadata{Name: uuid.NewString()},
+			&types.AWSOIDCIntegrationSpecV1{
+				RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+			},
+		)
+		require.NoError(t, err)
+
+		randomIntegrationName := ""
+		totalIntegrations := apidefaults.DefaultChunkSize*2 + 20 // testing partial pages
+		for i := 0; i < totalIntegrations; i++ {
+			ig1.SetName(uuid.NewString())
+			if i == apidefaults.DefaultChunkSize { // A "random" integration name
+				randomIntegrationName = ig1.GetName()
+			}
+			_, err = auth.GetAuthServer().CreateIntegration(ctx, ig1)
+			require.NoError(t, err)
+		}
+
+		t.Run("test pagination of integrations ", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", types.KindIntegration, "--format=json"})
+			require.NoError(t, err)
+			mustDecodeJSON(t, buff, &out)
+			require.Len(t, out, totalIntegrations)
+		})
+
+		igName := fmt.Sprintf("%v/%v", types.KindIntegration, randomIntegrationName)
+
+		t.Run("get specific integration", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", igName, "--format=json"})
+			require.NoError(t, err)
+			mustDecodeJSON(t, buff, &out)
+			require.Len(t, out, 1)
+			require.Equal(t, randomIntegrationName, out[0].GetName())
+		})
+
+		t.Run("get unknown integration", func(t *testing.T) {
+			unknownIntegration := fmt.Sprintf("%v/%v", types.KindIntegration, "unknown")
+			_, err := runResourceCommand(t, fileConfig, []string{"get", unknownIntegration, "--format=json"})
+			require.True(t, trace.IsNotFound(err), "expected a NotFound error, got %v", err)
+		})
+
+		t.Run("get specific integration with human output", func(t *testing.T) {
+			buff, err := runResourceCommand(t, fileConfig, []string{"get", igName, "--format=text"})
+			require.NoError(t, err)
+			outputString := buff.String()
+			require.Contains(t, outputString, "RoleARN=arn:aws:iam::123456789012:role/OpsTeam")
+			require.Contains(t, outputString, randomIntegrationName)
+		})
+	})
+
+	t.Run("create", func(t *testing.T) {
+		integrationYAMLPath := filepath.Join(t.TempDir(), "integration.yaml")
+		require.NoError(t, os.WriteFile(integrationYAMLPath, []byte(integrationYAML), 0644))
+		_, err := runResourceCommand(t, fileConfig, []string{"create", integrationYAMLPath})
+		require.NoError(t, err)
+
+		buff, err := runResourceCommand(t, fileConfig, []string{"get", "integration/myawsint", "--format=text"})
+		require.NoError(t, err)
+		outputString := buff.String()
+		require.Contains(t, outputString, "RoleARN=arn:aws:iam::123456789012:role/OpsTeam")
+		require.Contains(t, outputString, "myawsint")
+
+		// Update the RoleARN to another role
+		integrationYAMLV2 := strings.ReplaceAll(integrationYAML, "OpsTeam", "DevTeam")
+		require.NoError(t, os.WriteFile(integrationYAMLPath, []byte(integrationYAMLV2), 0644))
+
+		// Trying to create it again should return an error
+		_, err = runResourceCommand(t, fileConfig, []string{"create", integrationYAMLPath})
+		require.True(t, trace.IsAlreadyExists(err), "expected already exists error, got %v", err)
+
+		// Using the force should be ok and replace the current object
+		_, err = runResourceCommand(t, fileConfig, []string{"create", "--force", integrationYAMLPath})
+		require.NoError(t, err)
+
+		// The RoleARN must be updated
+		buff, err = runResourceCommand(t, fileConfig, []string{"get", "integration/myawsint", "--format=text"})
+		require.NoError(t, err)
+		outputString = buff.String()
+		require.Contains(t, outputString, "RoleARN=arn:aws:iam::123456789012:role/DevTeam")
+	})
+}
+
 // TestAppResource tests tctl commands that manage application resources.
 func TestAppResource(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
@@ -296,6 +448,9 @@ func TestAppResource(t *testing.T) {
 	fileConfig := &config.FileConfig{
 		Global: config.Global{
 			DataDir: t.TempDir(),
+			Logger: config.Log{
+				Severity: "debug",
+			},
 		},
 		Apps: config.Apps{
 			Service: config.Service{
@@ -378,6 +533,74 @@ func TestAppResource(t *testing.T) {
 	))
 }
 
+func TestCreateLock(t *testing.T) {
+	dynAddr := newDynamicServiceAddr(t)
+	fileConfig := &config.FileConfig{
+		Global: config.Global{
+			DataDir: t.TempDir(),
+		},
+		Proxy: config.Proxy{
+			Service: config.Service{
+				EnabledFlag: "true",
+			},
+			WebAddr: dynAddr.webAddr,
+			TunAddr: dynAddr.tunnelAddr,
+		},
+		Auth: config.Auth{
+			Service: config.Service{
+				EnabledFlag:   "true",
+				ListenAddress: dynAddr.authAddr,
+			},
+		},
+	}
+
+	timeNow := time.Now().UTC()
+	fakeClock := clockwork.NewFakeClockAt(timeNow)
+	makeAndRunTestAuthServer(t, withFileConfig(fileConfig), withFileDescriptors(dynAddr.descriptors), withFakeClock(fakeClock))
+
+	_, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "I am a message",
+	})
+	require.NoError(t, err)
+
+	var locks []*types.LockV2
+
+	// Ensure there are no locks to start
+	buf, err := runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &locks)
+	require.Empty(t, locks)
+
+	// Create the locks
+	lockYAMLPath := filepath.Join(t.TempDir(), "lock.yaml")
+	require.NoError(t, os.WriteFile(lockYAMLPath, []byte(lockYAML), 0644))
+	_, err = runResourceCommand(t, fileConfig, []string{"create", lockYAMLPath})
+	require.NoError(t, err)
+
+	// Fetch the locks
+	buf, err = runResourceCommand(t, fileConfig, []string{"get", types.KindLock, "--format=json"})
+	require.NoError(t, err)
+	mustDecodeJSON(t, buf, &locks)
+	require.Len(t, locks, 1)
+
+	expected, err := types.NewLock("test-lock", types.LockSpecV2{
+		Target: types.LockTarget{
+			User: "bad@actor",
+		},
+		Message: "Come see me",
+	})
+	require.NoError(t, err)
+	expected.SetCreatedBy(string(types.RoleAdmin))
+
+	expected.SetCreatedAt(timeNow)
+
+	require.Empty(t, cmp.Diff([]*types.LockV2{expected.(*types.LockV2)}, locks,
+		cmpopts.IgnoreFields(types.LockV2{}, "Metadata")))
+}
+
 // TestCreateDatabaseInInsecureMode connects to auth server with --insecure mode and creates a DB resource.
 func TestCreateDatabaseInInsecureMode(t *testing.T) {
 	dynAddr := newDynamicServiceAddr(t)
@@ -436,7 +659,9 @@ metadata:
   name: db-b
 spec:
   protocol: "mysql"
-  uri: "localhost:3306"`
+  uri: "localhost:3306"
+  tls:
+    mode: "verify-ca"`
 
 	appYAML = `kind: app
 version: v3
@@ -451,6 +676,25 @@ metadata:
   name: appB
 spec:
   uri: "localhost2"`
+
+	lockYAML = `kind: lock
+version: v2
+metadata:
+  name: "test-lock"
+spec:
+  target:
+    user: "bad@actor"
+  message: "Come see me"`
+
+	integrationYAML = `kind: integration
+sub_kind: aws-oidc
+version: v1
+metadata:
+  name: myawsint
+spec:
+  aws_oidc:
+    role_arn: "arn:aws:iam::123456789012:role/OpsTeam"
+`
 )
 
 func TestCreateClusterAuthPreference_WithSupportForSecondFactorWithoutQuotes(t *testing.T) {

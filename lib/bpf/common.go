@@ -26,7 +26,6 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -40,7 +39,7 @@ type BPF interface {
 	CloseSession(ctx *SessionContext) error
 
 	// Close will stop any running BPF programs.
-	Close() error
+	Close(restarting bool) error
 }
 
 // SessionContext contains all the information needed to track and emit
@@ -81,71 +80,12 @@ type SessionContext struct {
 	Events map[string]bool
 }
 
-// Config holds configuration for the BPF service.
-type Config struct {
-	// Enabled is if this service will try and install BPF programs on this system.
-	Enabled bool
-
-	// CommandBufferSize is the size of the perf buffer for command events.
-	CommandBufferSize *int
-
-	// DiskBufferSize is the size of the perf buffer for disk events.
-	DiskBufferSize *int
-
-	// NetworkBufferSize is the size of the perf buffer for network events.
-	NetworkBufferSize *int
-
-	// CgroupPath is where the cgroupv2 hierarchy is mounted.
-	CgroupPath string
-}
-
-// CheckAndSetDefaults checks BPF configuration.
-func (c *Config) CheckAndSetDefaults() error {
-	var perfBufferPageCount = defaults.PerfBufferPageCount
-	var openPerfBufferPageCount = defaults.OpenPerfBufferPageCount
-
-	if c.CommandBufferSize == nil {
-		c.CommandBufferSize = &perfBufferPageCount
-	}
-	if c.DiskBufferSize == nil {
-		c.DiskBufferSize = &openPerfBufferPageCount
-	}
-	if c.NetworkBufferSize == nil {
-		c.NetworkBufferSize = &perfBufferPageCount
-	}
-	if c.CgroupPath == "" {
-		c.CgroupPath = defaults.CgroupPath
-	}
-
-	return nil
-}
-
-// RestrictedSessionConfig holds configuration for the RestrictedSession service.
-type RestrictedSessionConfig struct {
-	// Enabled if this service will try and install BPF programs on this system.
-	Enabled bool
-
-	// EventsBufferSize is the size (in pages) of the perf buffer for events.
-	EventsBufferSize *int
-}
-
-// CheckAndSetDefaults checks BPF configuration.
-func (c *RestrictedSessionConfig) CheckAndSetDefaults() error {
-	var perfBufferPageCount = defaults.PerfBufferPageCount
-
-	if c.EventsBufferSize == nil {
-		c.EventsBufferSize = &perfBufferPageCount
-	}
-
-	return nil
-}
-
 // NOP is used on either non-Linux systems or when BPF support is not enabled.
 type NOP struct {
 }
 
 // Close closes the NOP service. Note this function does nothing.
-func (s *NOP) Close() error {
+func (s *NOP) Close(bool) error {
 	return nil
 }
 

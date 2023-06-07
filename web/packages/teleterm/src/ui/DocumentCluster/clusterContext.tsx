@@ -20,13 +20,16 @@ import { useStore, Store } from 'shared/libs/stores';
 
 import { IAppContext } from 'teleterm/ui/types';
 import { ClusterUri, DocumentUri, KubeUri, routing } from 'teleterm/ui/uri';
+import {
+  connectToKube,
+  DocumentOrigin,
+} from 'teleterm/ui/services/workspacesService';
 
 import type * as tsh from 'teleterm/services/tshd/types';
 
 type State = {
   navLocation: NavLocation;
   clusterName: string;
-  searchValue: string;
   leaf: boolean;
   leafConnected: boolean;
   status: 'requires_login' | 'not_found' | '';
@@ -42,7 +45,6 @@ class ClusterContext extends Store<State> {
   readonly state: State = {
     navLocation: '/resources/servers',
     clusterName: '',
-    searchValue: '',
     leaf: false,
     leafConnected: false,
     status: '',
@@ -73,8 +75,8 @@ class ClusterContext extends Store<State> {
     });
   };
 
-  connectKube = (kubeUri: KubeUri) => {
-    this.appCtx.commandLauncher.executeCommand('kube-connect', { kubeUri });
+  connectKube = (kubeUri: KubeUri, params: { origin: DocumentOrigin }) => {
+    connectToKube(this.appCtx, { uri: kubeUri }, { origin: params.origin });
   };
 
   refresh = () => {
@@ -127,10 +129,6 @@ class ClusterContext extends Store<State> {
       })
     );
   }
-
-  changeSearchValue = (searchValue: string) => {
-    this.setState({ searchValue });
-  };
 
   changeLocation(navLocation: NavLocation) {
     this.setState({

@@ -21,10 +21,10 @@ import { Indicator, Box } from 'design';
 import {
   FileTransferActionBar,
   FileTransfer,
+  FileTransferRequests,
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
 
-import cfg from 'teleport/config';
 import * as stores from 'teleport/Console/stores';
 import { colors } from 'teleport/Console/colors';
 
@@ -35,19 +35,37 @@ import Document from '../Document';
 
 import Terminal from './Terminal';
 import useSshSession from './useSshSession';
-import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
+import { useFileTransfer } from './useFileTransfer';
 
-export default function DocumentSsh({ doc, visible }: PropTypes) {
+export default function DocumentSshWrapper(props: PropTypes) {
+  return (
+    <FileTransferContextProvider>
+      <DocumentSsh {...props} />
+    </FileTransferContextProvider>
+  );
+}
+
+function DocumentSsh({ doc, visible }: PropTypes) {
   const refTerminal = useRef<Terminal>();
-  const { tty, status, closeDocument } = useSshSession(doc);
+  const { tty, status, closeDocument, session } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
+  const {
+    getMfaResponseAttempt,
+    getDownloader,
+    getUploader,
+    fileTransferRequests,
+  } = useFileTransfer(tty, session, doc, webauthn.addMfaToScpUrls);
 
   function handleCloseFileTransfer() {
     refTerminal.current.terminal.term.focus();
   }
 
+  function handleFileTransferDecision(requestId: string, approve: boolean) {
+    tty.approveFileTransferRequest(requestId, approve);
+  }
+
   useEffect(() => {
-    if (refTerminal && refTerminal.current) {
+    if (refTerminal?.current) {
       // when switching tabs or closing tabs, focus on visible terminal
       refTerminal.current.terminal.term.focus();
     }
@@ -55,54 +73,43 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
 
   return (
     <Document visible={visible} flexDirection="column">
-      <FileTransferContextProvider>
-        <FileTransferActionBar isConnected={doc.status === 'connected'} />
-        {status === 'loading' && (
-          <Box textAlign="center" m={10}>
-            <Indicator />
-          </Box>
-        )}
-        {webauthn.requested && (
-          <AuthnDialog
-            onContinue={webauthn.authenticate}
-            onCancel={closeDocument}
-            errorText={webauthn.errorText}
-          />
-        )}
-        {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
-        <FileTransfer
-          beforeClose={() =>
-            window.confirm('Are you sure you want to cancel file transfers?')
-          }
-          afterClose={handleCloseFileTransfer}
-          backgroundColor={colors.primary.light}
-          transferHandlers={{
-            getDownloader: async (location, abortController) =>
-              getHttpFileTransferHandlers().download(
-                cfg.getScpUrl({
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: location,
-                }),
-                abortController
-              ),
-            getUploader: async (location, file, abortController) =>
-              getHttpFileTransferHandlers().upload(
-                cfg.getScpUrl({
-                  location,
-                  clusterId: doc.clusterId,
-                  serverId: doc.serverId,
-                  login: doc.login,
-                  filename: file.name,
-                }),
-                file,
-                abortController
-              ),
-          }}
+      <FileTransferActionBar isConnected={doc.status === 'connected'} />
+      {status === 'loading' && (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      )}
+      {webauthn.requested && (
+        <AuthnDialog
+          onContinue={webauthn.authenticate}
+          onCancel={closeDocument}
+          errorText={webauthn.errorText}
         />
-      </FileTransferContextProvider>
+      )}
+      {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
+      <FileTransfer
+        FileTransferRequestsComponent={
+          <FileTransferRequests
+            onDeny={handleFileTransferDecision}
+            onApprove={handleFileTransferDecision}
+            requests={fileTransferRequests}
+          />
+        }
+        beforeClose={() =>
+          window.confirm('Are you sure you want to cancel file transfers?')
+        }
+        errorText={
+          getMfaResponseAttempt.status === 'failed'
+            ? getMfaResponseAttempt.statusText
+            : null
+        }
+        afterClose={handleCloseFileTransfer}
+        backgroundColor={colors.levels.surface}
+        transferHandlers={{
+          getDownloader,
+          getUploader,
+        }}
+      />
     </Document>
   );
 }

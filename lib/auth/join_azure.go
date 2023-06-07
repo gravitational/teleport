@@ -21,7 +21,6 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
-	"net"
 	"net/url"
 	"time"
 
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -348,10 +348,11 @@ func (a *Server) RegisterUsingAzureMethod(ctx context.Context, challengeResponse
 		return nil, trace.Wrap(err)
 	}
 
-	clientAddr, ok := ctx.Value(ContextClientAddr).(net.Addr)
-	if !ok {
-		return nil, trace.BadParameter("logic error: client address was not set")
+	clientAddr, err := authz.ClientAddrFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
+
 	challenge, err := generateAzureChallenge()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -375,7 +376,21 @@ func (a *Server) RegisterUsingAzureMethod(ctx context.Context, challengeResponse
 		return nil, trace.Wrap(err)
 	}
 
-	certs, err := a.generateCerts(ctx, provisionToken, req.RegisterUsingTokenRequest, nil)
+	if req.RegisterUsingTokenRequest.Role == types.RoleBot {
+		certs, err := a.generateCertsBot(
+			ctx,
+			provisionToken,
+			req.RegisterUsingTokenRequest,
+			nil,
+		)
+		return certs, trace.Wrap(err)
+	}
+	certs, err := a.generateCerts(
+		ctx,
+		provisionToken,
+		req.RegisterUsingTokenRequest,
+		nil,
+	)
 	return certs, trace.Wrap(err)
 }
 

@@ -292,3 +292,51 @@ flag:
 $ tctl bots rm example
 $ tctl bots add example --roles=foo,bar,machine-id-db
 ```
+
+## Kubernetes connections are failing with `Unable to connect to the server: x509: certificate signed by unknown authority`
+
+### Symptoms
+
+A self-hosted Teleport cluster is connecting Machine ID to Kubernetes clusters
+with the following errors. This can happen for non-TLS configured Teleport clusters.
+
+```bash
+E0322 22:53:31.653051    1699 memcache.go:265] couldn't get current server API group list: Get "https://teleport.example.com:443/api?timeout=32s": x509: certificate signed by unknown authority
+```
+
+To confirm the TLS routing mode check the value of the `proxy.tls_routing_enabled`
+key with this command, substituting your proxy address:
+
+```bash
+curl https://teleport.example.com:443/webapi/ping | jq
+```
+
+If the value is `false` then this is a non-TLS routing configuration.
+
+### Explanation
+
+Proxies configured with non-TLS routing use specific ports for various types
+of traffic. That requires that a Kubernetes
+connection use its designated port. Currently Machine ID requires that the Kubernetes
+public address is set to use the correct port. Otherwise it will use the Proxy web port
+which can cause these type of errors.
+
+### Resolution
+
+The Kubernetes public address is via the `kube_public_addr` within the 
+Teleport `proxy_service` configuration by administrators. The proxy will
+require a restart after the configuration is updated.
+
+  ```yaml
+  proxy_service:
+    enabled: true
+    kube_listen_addr: 0.0.0.0:3026
+    kube_public_addr: teleport.example.com:3026
+  ```
+
+Retrieve the configuration listing from the proxy web address to confirm the
+Kubernetes public address is populated in `proxy.kube.public_addr`.
+
+```bash
+curl https://teleport.example.com:443/webapi/ping | jq
+```

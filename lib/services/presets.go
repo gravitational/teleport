@@ -26,11 +26,13 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -82,8 +84,17 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 					types.NewRule(types.KindUserGroup, RW()),
 					types.NewRule(types.KindPlugin, RW()),
+					types.NewRule(types.KindOktaImportRule, RW()),
+					types.NewRule(types.KindOktaAssignment, RW()),
+					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+					types.NewRule(types.KindLock, RW()),
+					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
+					types.NewRule(types.KindBilling, RW()),
+					types.NewRule(types.KindClusterAlert, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
+				// By default, allow editors to approve any user group access requests.
+				ReviewRequests: defaultAllowAccessReviewConditions(enterprise)[teleport.PresetEditorRoleName],
 			},
 		},
 	}
@@ -93,6 +104,7 @@ func NewPresetEditorRole() types.Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -120,6 +132,7 @@ func NewPresetAccessRole() types.Role {
 				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:         []string{teleport.TraitInternalDBUsersVariable},
+				DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -135,8 +148,11 @@ func NewPresetAccessRole() types.Role {
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
 					types.NewRule(types.KindInstance, RO()),
+					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					// Please see defaultAllowRules when adding a new rule.
 				},
+				// By default, allow users with the access role to request any user group.
+				Request: defaultAllowAccessRequestConditions(enterprise)[teleport.PresetAccessRoleName],
 			},
 		},
 	}
@@ -176,6 +192,7 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindEvent, RO()),
 					types.NewRule(types.KindSessionTracker, RO()),
+					types.NewRule(types.KindClusterAlert, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -185,8 +202,39 @@ func NewPresetAuditorRole() types.Role {
 	return role
 }
 
-// defaultAllowRules has the Allow rules that should be set as default when they were not explicitly defined.
-// This is used to update the current cluster roles when deploying a new resource.
+// NewPresetGroupAccessRole returns a new pre-defined role for group access -
+// a role used for requesting and reviewing user group access.
+func NewPresetGroupAccessRole() types.Role {
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetGroupAccessRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Have access to all user groups",
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces: []string{apidefaults.Namespace},
+				GroupLabels: types.Labels{
+					types.Wildcard: []string{types.Wildcard},
+				},
+				Rules: []types.Rule{
+					types.NewRule(types.KindUserGroup, RO()),
+					// Please see defaultAllowRules when adding a new rule.
+				},
+			},
+		},
+	}
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
+	return role
+}
+
+// defaultAllowRules has the Allow rules that should be set as default when
+// they were not explicitly defined. This is used to update the current cluster
+// roles when deploying a new resource. It will also update all existing roles
+// on auth server restart. Rules defined in preset template should be
+// exactly the same rule when added here.
 func defaultAllowRules() map[string][]types.Rule {
 	return map[string][]types.Rule{
 		teleport.PresetAuditorRoleName: {
@@ -198,25 +246,74 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindDatabaseService, RO()),
 			types.NewRule(types.KindLoginRule, RW()),
 			types.NewRule(types.KindPlugin, RW()),
+			types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
+			types.NewRule(types.KindOktaImportRule, RW()),
+			types.NewRule(types.KindOktaAssignment, RW()),
+			types.NewRule(types.KindDevice, append(RW(), types.VerbCreateEnrollToken, types.VerbEnroll)),
+			types.NewRule(types.KindLock, RW()),
+			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
+			types.NewRule(types.KindBilling, RW()),
+			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+		},
+		teleport.PresetAccessRoleName: {
+			// Allow assist access to access role. This role only allow access
+			// to the assist console, not any other cluster resources.
+			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 		},
 	}
 }
 
 // defaultAllowLabels has the Allow labels that should be set as default when they were not explicitly defined.
-// This is used to update exiting builtin preset roles with new permissions during cluster upgrades.
+// This is used to update existing builtin preset roles with new permissions during cluster upgrades.
 // The following Labels are supported:
 // - DatabaseServiceLabels (db_service_labels)
 func defaultAllowLabels() map[string]types.RoleConditions {
 	return map[string]types.RoleConditions{
 		teleport.PresetAccessRoleName: {
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 		},
 	}
 }
 
-// AddDefaultAllowConditions adds default allow Role Conditions to a preset role.
-// Only rules/labels whose resources are not already defined (either allowing or denying) are added.
-func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
+// defaultAllowAccessRequestConditions has the access request conditions that should be set as default when they were
+// not explicitly defined.
+func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.AccessRequestConditions {
+	if enterprise {
+		return map[string]*types.AccessRequestConditions{
+			teleport.PresetAccessRoleName: {
+				SearchAsRoles: []string{
+					teleport.PresetGroupAccessRoleName,
+				},
+			},
+		}
+	}
+
+	return map[string]*types.AccessRequestConditions{}
+}
+
+// defaultAllowAccessReviewConditions has the access review conditions that should be set as default when they were
+// not explicitly defined.
+func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.AccessReviewConditions {
+	if enterprise {
+		return map[string]*types.AccessReviewConditions{
+			teleport.PresetEditorRoleName: {
+				PreviewAsRoles: []string{
+					teleport.PresetGroupAccessRoleName,
+				},
+				Roles: []string{
+					teleport.PresetGroupAccessRoleName,
+				},
+			},
+		}
+	}
+
+	return map[string]*types.AccessReviewConditions{}
+}
+
+// AddRoleDefaults adds default role attributes to a preset role.
+// Only attributes whose resources are not already defined (either allowing or denying) are added.
+func AddRoleDefaults(role types.Role) (types.Role, error) {
 	changed := false
 
 	// Resource Rules
@@ -242,6 +339,28 @@ func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
 	if ok {
 		if len(defaultLabels.DatabaseServiceLabels) > 0 && len(role.GetDatabaseServiceLabels(types.Allow)) == 0 && len(role.GetDatabaseServiceLabels(types.Deny)) == 0 {
 			role.SetDatabaseServiceLabels(types.Allow, defaultLabels.DatabaseServiceLabels)
+			changed = true
+		}
+		if len(defaultLabels.DatabaseRoles) > 0 && len(role.GetDatabaseRoles(types.Allow)) == 0 {
+			role.SetDatabaseRoles(types.Allow, defaultLabels.DatabaseRoles)
+			changed = true
+		}
+	}
+
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+
+	if role.GetAccessRequestConditions(types.Allow).IsEmpty() {
+		arc := defaultAllowAccessRequestConditions(enterprise)[role.GetName()]
+		if arc != nil {
+			role.SetAccessRequestConditions(types.Allow, *arc)
+			changed = true
+		}
+	}
+
+	if role.GetAccessReviewConditions(types.Allow).IsEmpty() {
+		arc := defaultAllowAccessReviewConditions(enterprise)[role.GetName()]
+		if arc != nil {
+			role.SetAccessReviewConditions(types.Allow, *arc)
 			changed = true
 		}
 	}

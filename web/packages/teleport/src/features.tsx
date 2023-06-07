@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { lazy } from 'react';
 
 import {
   ActiveSessionsIcon,
@@ -22,8 +22,10 @@ import {
   ApplicationsIcon,
   AuditLogIcon,
   AuthConnectorsIcon,
+  LockIcon,
   DatabasesIcon,
   DesktopsIcon,
+  IntegrationsIcon,
   KubernetesIcon,
   ManageClustersIcon,
   RolesIcon,
@@ -44,54 +46,29 @@ import {
 
 import type { TeleportFeature, FeatureFlags } from './types';
 
-const Audit = React.lazy(
-  () => import(/* webpackChunkName: "audit" */ './Audit')
+const Audit = lazy(() => import('./Audit'));
+const Nodes = lazy(() => import('./Nodes'));
+const Sessions = lazy(() => import('./Sessions'));
+const Account = lazy(() => import('./Account'));
+const Applications = lazy(() => import('./Apps'));
+const Kubes = lazy(() => import('./Kubes'));
+const Support = lazy(() => import('./Support'));
+const Clusters = lazy(() => import('./Clusters'));
+const Trust = lazy(() => import('./TrustedClusters'));
+const Users = lazy(() => import('./Users'));
+const Roles = lazy(() => import('./Roles'));
+const Recordings = lazy(() => import('./Recordings'));
+const AuthConnectors = lazy(() => import('./AuthConnectors'));
+const Locks = lazy(() => import('./LocksV2/Locks'));
+const NewLock = lazy(() => import('./LocksV2/NewLock'));
+const Databases = lazy(() => import('./Databases'));
+const Desktops = lazy(() => import('./Desktops'));
+const Discover = lazy(() => import('./Discover'));
+const Integrations = lazy(() => import('./Integrations'));
+const IntegrationEnroll = lazy(
+  () => import('@gravitational/teleport/src/Integrations/Enroll')
 );
-const Nodes = React.lazy(
-  () => import(/* webpackChunkName: "nodes" */ './Nodes')
-);
-const Sessions = React.lazy(
-  () => import(/* webpackChunkName: "sessions" */ './Sessions')
-);
-const Account = React.lazy(
-  () => import(/* webpackChunkName: "account" */ './Account')
-);
-const Applications = React.lazy(
-  () => import(/* webpackChunkName: "apps" */ './Apps')
-);
-const Kubes = React.lazy(
-  () => import(/* webpackChunkName: "kubes" */ './Kubes')
-);
-const Support = React.lazy(
-  () => import(/* webpackChunkName: "support" */ './Support')
-);
-const Clusters = React.lazy(
-  () => import(/* webpackChunkName: "clusters" */ './Clusters')
-);
-const Trust = React.lazy(
-  () => import(/* webpackChunkName: "trusted-clusters" */ './TrustedClusters')
-);
-const Users = React.lazy(
-  () => import(/* webpackChunkName: "users" */ './Users')
-);
-const Roles = React.lazy(
-  () => import(/* webpackChunkName: "roles" */ './Roles')
-);
-const Recordings = React.lazy(
-  () => import(/* webpackChunkName: "recordings" */ './Recordings')
-);
-const AuthConnectors = React.lazy(
-  () => import(/* webpackChunkName: "auth-connectors" */ './AuthConnectors')
-);
-const Databases = React.lazy(
-  () => import(/* webpackChunkName: "databases" */ './Databases')
-);
-const Desktops = React.lazy(
-  () => import(/* webpackChunkName: "desktop" */ './Desktops')
-);
-const Discover = React.lazy(
-  () => import(/* webpackChunkName: "discover" */ './Discover')
-);
+const Assist = lazy(() => import('./Assist'));
 
 // ****************************
 // Resource Features
@@ -322,6 +299,50 @@ export class FeatureAuthConnectors implements TeleportFeature {
   };
 }
 
+export class FeatureLocks implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  route = {
+    title: 'Manage Session & Identity Locks',
+    path: cfg.routes.locks,
+    exact: true,
+    component: Locks,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.locks;
+  }
+
+  navigationItem = {
+    title: 'Session & Identity Locks',
+    icon: <LockIcon />,
+    exact: false,
+    getLink() {
+      return cfg.getLocksRoute();
+    },
+  };
+}
+
+export class FeatureNewLock implements TeleportFeature {
+  route = {
+    title: 'Create New Lock',
+    path: cfg.routes.newLock,
+    exact: true,
+    component: NewLock,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.newLocks;
+  }
+
+  // getRoute allows child class extending this
+  // parent class to refer to this parent's route.
+  getRoute() {
+    return this.route;
+  }
+}
+
 export class FeatureDiscover implements TeleportFeature {
   route = {
     title: 'Enroll New Resource',
@@ -344,6 +365,65 @@ export class FeatureDiscover implements TeleportFeature {
 
   hasAccess(flags: FeatureFlags) {
     return flags.discover;
+  }
+}
+
+export class FeatureIntegrations implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.integrations;
+  }
+
+  route = {
+    title: 'Manage Integrations',
+    path: cfg.routes.integrations,
+    exact: true,
+    component: () => <Integrations />,
+  };
+
+  navigationItem = {
+    title: 'Integrations',
+    icon: <IntegrationsIcon />,
+    exact: true,
+    getLink() {
+      return cfg.routes.integrations;
+    },
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
+export class FeatureIntegrationEnroll implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  route = {
+    title: 'Enroll New Integration',
+    path: cfg.routes.integrationEnroll,
+    exact: false,
+    component: () => <IntegrationEnroll />,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.enrollIntegrations;
+  }
+
+  navigationItem = {
+    title: 'Enroll New Integration',
+    icon: <AddIcon />,
+    getLink() {
+      return cfg.getIntegrationEnrollRoute(null);
+    },
+  };
+
+  // getRoute allows child class extending this
+  // parent class to refer to this parent's route.
+  getRoute() {
+    return this.route;
   }
 }
 
@@ -493,6 +573,21 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   };
 }
 
+export class FeatureAssist implements TeleportFeature {
+  category = NavigationCategory.Assist;
+
+  route = {
+    title: 'Assist',
+    path: cfg.routes.assist,
+    exact: false,
+    component: Assist,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.assist;
+  }
+}
+
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -509,7 +604,11 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureUsers(),
     new FeatureRoles(),
     new FeatureAuthConnectors(),
+    new FeatureLocks(),
+    new FeatureNewLock(),
+    new FeatureIntegrations(),
     new FeatureDiscover(),
+    new FeatureIntegrationEnroll(),
 
     // - Activity
     new FeatureRecordings(),
@@ -522,5 +621,6 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
+    new FeatureAssist(),
   ];
 }

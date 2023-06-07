@@ -28,7 +28,7 @@ import (
 	dbhelpers "github.com/gravitational/teleport/integration/db"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/apiserver/handler"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
@@ -38,10 +38,10 @@ import (
 func TestTeleterm(t *testing.T) {
 	pack := dbhelpers.SetupDatabaseTest(t,
 		dbhelpers.WithListenerSetupDatabaseTest(helpers.SingleProxyPortSetup),
-		dbhelpers.WithLeafConfig(func(config *service.Config) {
+		dbhelpers.WithLeafConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
-		dbhelpers.WithRootConfig(func(config *service.Config) {
+		dbhelpers.WithRootConfig(func(config *servicecfg.Config) {
 			config.Auth.NetworkingConfig.SetProxyListenerMode(types.ProxyListenerMode_Multiplex)
 		}),
 	)
@@ -222,8 +222,7 @@ func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, cred
 		Cluster: pack.Root.Cluster.Secrets.SiteName,
 	}, *creds)
 	require.NoError(t, err)
-	// The profile on disk created by NewClientWithCreds doesn't have WebProxyAddr set.
-	tc.WebProxyAddr = pack.Root.Cluster.Web
+	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
 	tc.SaveProfile(false /* makeCurrent */)
 	return tc
 }

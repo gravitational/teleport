@@ -33,8 +33,7 @@ func newAzureRedisFetcher(config azureFetcherConfig) (common.Fetcher, error) {
 }
 
 // azureRedisPlugin implements azureFetcherPlugin for Azure Redis.
-type azureRedisPlugin struct {
-}
+type azureRedisPlugin struct{}
 
 func (p *azureRedisPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.RedisClient, error) {
 	client, err := cfg.AzureClients.GetAzureRedisClient(subID)

@@ -78,7 +78,8 @@ if [ "$BUILD" = "true" ]; then \
   # created any necessary directories here. The recalculation is necessary as yarn.lock may have been
   # updated by the build process.
   mkdir -p "$(dirname "$LAST_SHA_FILE")"
-  calculate_sha > "$LAST_SHA_FILE"
+  # Save SHA with yarn.lock before yarn install
+  echo $CURRENT_SHA > "$LAST_SHA_FILE"
   echo "$TYPE webassets successfully updated."
 else
   echo "$TYPE webassets up to date."

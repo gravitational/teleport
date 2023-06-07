@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -315,7 +316,7 @@ type fakeAuthorizer struct {
 	checker        services.AccessChecker
 }
 
-func (a *fakeAuthorizer) Authorize(ctx context.Context) (*Context, error) {
+func (a *fakeAuthorizer) Authorize(ctx context.Context) (*authz.Context, error) {
 	if a.authorizeError != nil {
 		return nil, a.authorizeError
 	}
@@ -325,7 +326,7 @@ func (a *fakeAuthorizer) Authorize(ctx context.Context) (*Context, error) {
 		return nil, err
 	}
 
-	return &Context{
+	return &authz.Context{
 		User:    user,
 		Checker: a.checker,
 	}, nil

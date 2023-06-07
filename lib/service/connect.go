@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
@@ -35,6 +36,7 @@ import (
 	"github.com/gravitational/teleport"
 	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
@@ -43,7 +45,9 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/openssh"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
@@ -684,6 +688,119 @@ func (process *TeleportProcess) firstTimeConnect(role types.SystemRole) (*Connec
 	return connector, nil
 }
 
+func (process *TeleportProcess) initOpenSSH() {
+	process.RegisterWithAuthServer(types.RoleNode, SSHIdentityEvent)
+	process.SSHD = openssh.NewSSHD(
+		process.Config.OpenSSH.RestartCommand,
+		process.Config.OpenSSH.CheckCommand,
+		process.Config.OpenSSH.SSHDConfigPath,
+	)
+	process.RegisterCriticalFunc("openssh.rotate", process.syncOpenSSHRotationState)
+}
+
+func (process *TeleportProcess) syncOpenSSHRotationState() error {
+	if _, err := process.WaitForEvent(process.GracefulExitContext(), TeleportReadyEvent); err != nil {
+		return trace.Wrap(err)
+	}
+	conn, err := process.WaitForConnector(SSHIdentityEvent, nil)
+	if conn == nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close()
+
+	_, err = process.syncRotationState(conn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	id, err := process.storage.ReadIdentity(auth.IdentityCurrent, types.RoleNode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	ctx := process.GracefulExitContext()
+	cas, err := conn.Client.GetCertAuthorities(ctx, types.OpenSSHCA, false)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	keysDir := filepath.Join(process.Config.DataDir, openssh.SSHDKeysDir)
+	if err := openssh.WriteKeys(keysDir, id, cas); err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = process.SSHD.UpdateConfig(openssh.SSHDConfigUpdate{
+		SSHDConfigPath: process.Config.OpenSSH.SSHDConfigPath,
+		DataDir:        process.Config.DataDir,
+	}, process.Config.OpenSSH.RestartSSHD)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	state, err := process.storage.GetState(types.RoleNode)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	mostRecentRotation := state.Spec.Rotation.LastRotated
+	if state.Spec.Rotation.State == types.RotationStateInProgress && state.Spec.Rotation.Started.After(mostRecentRotation) {
+		mostRecentRotation = state.Spec.Rotation.Started
+	}
+	for _, ca := range cas {
+		caRot := ca.GetRotation()
+		if caRot.State == types.RotationStateInProgress && caRot.Started.After(mostRecentRotation) {
+			mostRecentRotation = caRot.Started
+		}
+
+		if caRot.LastRotated.After(mostRecentRotation) {
+			mostRecentRotation = caRot.LastRotated
+		}
+	}
+
+	if err := registerServer(process.Config, ctx, conn.Client, mostRecentRotation); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// if any of the above exits with non nil error, the process is
+	// shut down as it is run via RegisterCriticalFunction, so we
+	// manually shut down here as we dont want teleport to remain
+	// running after
+	go func() {
+		// run in a go routine as process.Shutdown waits until
+		// all registered services/functions have finished and
+		// this cant finish if its waiting on this function to
+		// return
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		defer cancel()
+		process.Shutdown(ctx)
+	}()
+
+	return nil
+}
+
+func registerServer(a *servicecfg.Config, ctx context.Context, client auth.ClientI, lastRotation time.Time) error {
+	server, err := types.NewServer(a.HostUUID, types.KindNode, types.ServerSpecV2{
+		Addr:     a.OpenSSH.InstanceAddr,
+		Hostname: a.Hostname,
+		Rotation: types.Rotation{
+			LastRotated: lastRotation,
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	server.SetSubKind(types.SubKindOpenSSHNode)
+	server.SetStaticLabels(a.OpenSSH.Labels)
+	if err := server.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err := client.UpsertNode(ctx, server); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
 // periodicSyncRotationState checks rotation state periodically and
 // takes action if necessary
 func (process *TeleportProcess) periodicSyncRotationState() error {
@@ -1108,7 +1225,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 		logger.Debug("Attempting to discover reverse tunnel address.")
 		logger.Debug("Attempting to connect to Auth Server through tunnel.")
 
-		tunnelClient, err := process.newClientThroughTunnel(authServers, tlsConfig, sshClientConfig)
+		tunnelClient, err := process.newClientThroughTunnel(authServers[0].String(), tlsConfig, sshClientConfig)
 		if err != nil {
 			process.log.Errorf("Node failed to establish connection to Teleport Proxy. We have tried the following endpoints:")
 			process.log.Errorf("- connecting to auth server directly: %v", directErr)
@@ -1134,7 +1251,7 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 			logger := process.log.WithField("proxy-server", proxyServer.String())
 			logger.Debug("Attempting to connect to Auth Server through tunnel.")
 
-			tunnelClient, err := process.newClientThroughTunnel([]utils.NetAddr{proxyServer}, tlsConfig, sshClientConfig)
+			tunnelClient, err := process.newClientThroughTunnel(proxyServer.String(), tlsConfig, sshClientConfig)
 			if err != nil {
 				return nil, trace.Errorf("Failed to connect to Proxy Server through tunnel: %v", err)
 			}
@@ -1153,19 +1270,25 @@ func (process *TeleportProcess) newClient(identity *auth.Identity) (*auth.Client
 	return nil, trace.NotImplemented("could not find connection strategy for config version %s", process.Config.Version)
 }
 
-func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAddr, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
-	resolver := reversetunnel.WebClientResolver(authServers, lib.IsInsecureDevMode())
+func (process *TeleportProcess) newClientThroughTunnel(addr string, tlsConfig *tls.Config, sshConfig *ssh.ClientConfig) (*auth.Client, error) {
+	resolver := reversetunnelclient.WebClientResolver(&webclient.Config{
+		Context:   process.ExitContext(),
+		ProxyAddr: addr,
+		Insecure:  lib.IsInsecureDevMode(),
+		Timeout:   process.Config.ClientTimeout,
+	})
 
-	resolver, err := reversetunnel.CachingResolver(process.ExitContext(), resolver, process.Clock)
+	resolver, err := reversetunnelclient.CachingResolver(process.ExitContext(), resolver, process.Clock)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	dialer, err := reversetunnel.NewTunnelAuthDialer(reversetunnel.TunnelAuthDialerConfig{
+	dialer, err := reversetunnelclient.NewTunnelAuthDialer(reversetunnelclient.TunnelAuthDialerConfig{
 		Resolver:              resolver,
 		ClientConfig:          sshConfig,
 		Log:                   process.log,
 		InsecureSkipTLSVerify: lib.IsInsecureDevMode(),
+		ClusterCAs:            tlsConfig.RootCAs,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1177,6 +1300,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 			apiclient.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
+		DialTimeout:          process.Config.ClientTimeout,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1184,7 +1308,7 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 
 	// Check connectivity to cluster. If the request fails, unwrap the error to
 	// get the underlying error.
-	_, err = clt.GetDomainName(context.TODO())
+	_, err = clt.GetDomainName(process.ExitContext())
 	if err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close Auth Server tunnel client.")
@@ -1198,7 +1322,10 @@ func (process *TeleportProcess) newClientThroughTunnel(authServers []utils.NetAd
 func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tlsConfig *tls.Config, role types.SystemRole) (*auth.Client, error) {
 	var cltParams []roundtrip.ClientParam
 	if process.Config.ClientTimeout != 0 {
-		cltParams = []roundtrip.ClientParam{auth.ClientTimeout(process.Config.ClientTimeout)}
+		cltParams = []roundtrip.ClientParam{
+			auth.ClientParamIdleConnTimeout(process.Config.ClientTimeout),
+			auth.ClientParamResponseHeaderTimeout(process.Config.ClientTimeout),
+		}
 	}
 
 	var dialOpts []grpc.DialOption
@@ -1219,6 +1346,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		Credentials: []apiclient.Credentials{
 			apiclient.LoadTLS(tlsConfig),
 		},
+		DialTimeout:          process.Config.ClientTimeout,
 		CircuitBreakerConfig: process.Config.CircuitBreakerConfig,
 		DialOpts:             dialOpts,
 	}, cltParams...)
@@ -1226,7 +1354,7 @@ func (process *TeleportProcess) newClientDirect(authServers []utils.NetAddr, tls
 		return nil, trace.Wrap(err)
 	}
 
-	if _, err := clt.GetDomainName(context.TODO()); err != nil {
+	if _, err := clt.GetDomainName(process.ExitContext()); err != nil {
 		if err2 := clt.Close(); err2 != nil {
 			process.log.WithError(err2).Warn("Failed to close direct Auth Server client.")
 		}

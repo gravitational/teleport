@@ -45,6 +45,7 @@ type ServerConfig struct {
 	TLSConfig     *tls.Config
 	ClusterDialer ClusterDialer
 	Log           logrus.FieldLogger
+	ClusterName   string
 
 	// getConfigForClient gets the client tls config.
 	// configurable for testing purposes.
@@ -77,6 +78,10 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 		return trace.BadParameter("missing cluster dialer server")
 	}
 
+	if c.ClusterName == "" {
+		return trace.BadParameter("missing cluster name")
+	}
+
 	if c.TLSConfig == nil {
 		return trace.BadParameter("missing tls config")
 	}
@@ -89,7 +94,7 @@ func (c *ServerConfig) checkAndSetDefaults() error {
 	c.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 
 	if c.getConfigForClient == nil {
-		c.getConfigForClient = getConfigForClient(c.TLSConfig, c.AccessCache, c.Log)
+		c.getConfigForClient = getConfigForClient(c.TLSConfig, c.AccessCache, c.Log, c.ClusterName)
 	}
 	c.TLSConfig.GetConfigForClient = c.getConfigForClient
 
@@ -123,9 +128,8 @@ func NewServer(config ServerConfig) (*Server, error) {
 
 	reporter := newReporter(metrics)
 
-	transportCreds := newProxyCredentials(credentials.NewTLS(config.TLSConfig))
 	server := grpc.NewServer(
-		grpc.Creds(transportCreds),
+		grpc.Creds(newServerCredentials(credentials.NewTLS(config.TLSConfig))),
 		grpc.StatsHandler(newStatsHandler(reporter)),
 		grpc.ChainStreamInterceptor(metadata.StreamServerInterceptor, utils.GRPCServerStreamErrorInterceptor),
 		grpc.KeepaliveParams(keepalive.ServerParameters{

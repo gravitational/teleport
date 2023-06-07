@@ -19,9 +19,9 @@ limitations under the License.
 
 package restrictedsession
 
-import "github.com/gravitational/teleport/lib/bpf"
+import "github.com/gravitational/teleport/lib/service/servicecfg"
 
 // New returns a new NOP service. Note this function does nothing.
-func New(config *bpf.RestrictedSessionConfig, wc RestrictionsWatcherClient) (Manager, error) {
+func New(config *servicecfg.RestrictedSessionConfig, wc RestrictionsWatcherClient) (Manager, error) {
 	return &NOP{}, nil
 }

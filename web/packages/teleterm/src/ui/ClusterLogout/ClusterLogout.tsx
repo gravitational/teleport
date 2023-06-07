@@ -25,20 +25,32 @@ import { ButtonIcon, ButtonPrimary, Text } from 'design';
 
 import { Close } from 'design/Icon';
 
-import { Props, State, useClusterLogout } from './useClusterLogout';
+import { RootClusterUri } from 'teleterm/ui/uri';
 
-export default function Container(props: Props) {
-  const state = useClusterLogout(props);
-  return <ClusterLogout {...state} />;
+import { useClusterLogout } from './useClusterLogout';
+
+interface ClusterLogoutProps {
+  clusterTitle: string;
+  clusterUri: RootClusterUri;
+  onClose(): void;
 }
 
 export function ClusterLogout({
-  status,
+  clusterUri,
   onClose,
-  statusText,
   clusterTitle,
-  removeCluster,
-}: State) {
+}: ClusterLogoutProps) {
+  const { removeCluster, status, statusText } = useClusterLogout({
+    clusterUri,
+  });
+
+  async function removeClusterAndClose(): Promise<void> {
+    const [, err] = await removeCluster();
+    if (!err) {
+      onClose();
+    }
+  }
+
   return (
     <DialogConfirmation
       open={true}
@@ -51,7 +63,7 @@ export function ClusterLogout({
       <form
         onSubmit={e => {
           e.preventDefault();
-          removeCluster();
+          removeClusterAndClose();
         }}
       >
         <DialogHeader justifyContent="space-between" mb={0}>
@@ -62,13 +74,13 @@ export function ClusterLogout({
             type="button"
             disabled={status === 'processing'}
             onClick={onClose}
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
             <Close fontSize={5} />
           </ButtonIcon>
         </DialogHeader>
         <DialogContent mb={4}>
-          <Text color="text.secondary" typography="body1">
+          <Text color="text.slightlyMuted" typography="body1">
             Are you sure you want to log out?
           </Text>
           {status === 'error' && <Alerts.Danger mb={5} children={statusText} />}

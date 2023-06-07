@@ -125,7 +125,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, err)
 		invalidSudoersEntry := []byte("yipee i broke sudo!!!!")
 		err = backend.CheckSudoers(invalidSudoersEntry)
-		require.EqualError(t, err, "parse error in stdin near line 1\n\n\tvisudo: invalid sudoers file")
+		require.Contains(t, err.Error(), "visudo: invalid sudoers file")
 		// test sudoers entry containing . or ~
 		require.NoError(t, backend.WriteSudoersFile("user.name", validSudoersEntry))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))

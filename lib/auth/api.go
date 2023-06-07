@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -42,15 +43,6 @@ type Announcer interface {
 	// for the specified duration with second resolution if it's >= 1 second
 	UpsertAuthServer(s types.Server) error
 
-	// UpsertKubeService registers kubernetes presence, permanently if ttl is 0
-	// or for the specified duration with second resolution if it's >= 1 second
-	// DELETE IN 11.0. Deprecated, use UpsertKubeServiceV2
-	UpsertKubeService(context.Context, types.Server) error
-
-	// UpsertKubeServiceV2 registers a kubernetes service
-	// DELETE IN 13.0. Deprecated, use UpsertKubernetesServer
-	UpsertKubeServiceV2(context.Context, types.Server) (*types.KeepAlive, error)
-
 	// UpsertKubernetesServer registers a kubernetes server
 	UpsertKubernetesServer(context.Context, types.KubeServer) (*types.KeepAlive, error)
 
@@ -66,10 +58,8 @@ type Announcer interface {
 	// UpsertWindowsDesktopService registers a Windows desktop service.
 	UpsertWindowsDesktopService(context.Context, types.WindowsDesktopService) (*types.KeepAlive, error)
 
-	// CreateWindowsDesktop registers a Windows desktop host.
-	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
-	// UpdateWindowsDesktop updates a Windows desktop host.
-	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
+	// UpsertWindowsDesktop registers a Windows desktop host.
+	UpsertWindowsDesktop(context.Context, types.WindowsDesktop) error
 
 	// UpsertDatabaseService registers a DatabaseService.
 	UpsertDatabaseService(context.Context, types.DatabaseService) (*types.KeepAlive, error)
@@ -110,10 +100,10 @@ type ReadNodeAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -168,10 +158,10 @@ type ReadProxyAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -254,10 +244,6 @@ type ReadProxyAccessPoint interface {
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
-	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
-	GetKubeServices(context.Context) ([]types.Server, error)
-
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
@@ -329,10 +315,10 @@ type ReadRemoteProxyAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -391,10 +377,6 @@ type ReadRemoteProxyAccessPoint interface {
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
 
-	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
-	GetKubeServices(context.Context) ([]types.Server, error)
-
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
 
@@ -424,10 +406,10 @@ type ReadKubernetesAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -458,10 +440,6 @@ type ReadKubernetesAccessPoint interface {
 
 	// GetNamespace returns namespace by name
 	GetNamespace(name string) (*types.Namespace, error)
-
-	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
-	GetKubeServices(context.Context) ([]types.Server, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
@@ -494,10 +472,10 @@ type ReadAppsAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -561,10 +539,10 @@ type ReadDatabaseAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -628,10 +606,10 @@ type ReadWindowsDesktopAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -695,10 +673,10 @@ type ReadDiscoveryAccessPoint interface {
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterName gets the name of the cluster from the backend.
 	GetClusterName(opts ...services.MarshalOption) (types.ClusterName, error)
@@ -744,13 +722,106 @@ type DiscoveryAccessPoint interface {
 	DeleteDatabase(ctx context.Context, name string) error
 }
 
+// ReadOktaAccessPoint is a read only API interface to be
+// used by an Okta component.
+//
+// NOTE: This interface must provide read interfaces for the [types.WatchKind] registered in [cache.ForOkta].
+type ReadOktaAccessPoint interface {
+	// Closer closes all the resources
+	io.Closer
+
+	AccessCache
+
+	// NewWatcher returns a new event watcher.
+	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetProxies returns a list of proxy servers registered in the cluster
+	GetProxies() ([]types.Server, error)
+
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
+
+	// GetUser returns a services.User for this cluster.
+	GetUser(name string, withSecrets bool) (types.User, error)
+
+	// ListUserGroups returns a paginated list of all user group resources.
+	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
+
+	// GetUserGroup returns the specified user group resources.
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// ListOktaImportRules returns a paginated list of all Okta import rule resources.
+	ListOktaImportRules(context.Context, int, string) ([]types.OktaImportRule, string, error)
+
+	// GetOktaImportRule returns the specified Okta import rule resources.
+	GetOktaImportRule(ctx context.Context, name string) (types.OktaImportRule, error)
+
+	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
+
+	// GetOktaAssignmen treturns the specified Okta assignment resources.
+	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
+
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+
+	// ListResources returns a paginated list of resources.
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
+}
+
+// OktaAccessPoint is a read caching interface used by an Okta component.
+type OktaAccessPoint interface {
+	// ReadOktaAccessPoint provides methods to read data
+	ReadOktaAccessPoint
+
+	// accessPoint provides common access point functionality
+	accessPoint
+
+	// CreateUserGroup creates a new user group resource.
+	CreateUserGroup(context.Context, types.UserGroup) error
+
+	// UpdateUserGroup updates an existing user group resource.
+	UpdateUserGroup(context.Context, types.UserGroup) error
+
+	// DeleteUserGroup removes the specified user group resource.
+	DeleteUserGroup(ctx context.Context, name string) error
+
+	// CreateOktaImportRule creates a new Okta import rule resource.
+	CreateOktaImportRule(context.Context, types.OktaImportRule) (types.OktaImportRule, error)
+
+	// UpdateOktaImportRule updates an existing Okta import rule resource.
+	UpdateOktaImportRule(context.Context, types.OktaImportRule) (types.OktaImportRule, error)
+
+	// DeleteOktaImportRule removes the specified Okta import rule resource.
+	DeleteOktaImportRule(ctx context.Context, name string) error
+
+	// CreateOktaAssignment creates a new Okta assignment resource.
+	CreateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+
+	// UpdateOktaAssignment updates an existing Okta assignment resource.
+	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
+
+	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+	// since the last transition.
+	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
+
+	// DeleteOktaAssignment removes the specified Okta assignment resource.
+	DeleteOktaAssignment(ctx context.Context, name string) error
+
+	// DeleteApplicationServer removes specified application server.
+	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
+}
+
 // AccessCache is a subset of the interface working on the certificate authorities
 type AccessCache interface {
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetClusterAuditConfig returns cluster audit configuration.
 	GetClusterAuditConfig(ctx context.Context, opts ...services.MarshalOption) (types.ClusterAuditConfig, error)
@@ -811,10 +882,10 @@ type Cache interface {
 	GetAuthServers() ([]types.Server, error)
 
 	// GetCertAuthority returns cert authority by id
-	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error)
+	GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)
@@ -863,10 +934,6 @@ type Cache interface {
 
 	// GetRemoteCluster returns a remote cluster by name
 	GetRemoteCluster(clusterName string) (types.RemoteCluster, error)
-
-	// GetKubeServices returns a list of kubernetes services registered in the cluster
-	// DELETE IN 13.0. Deprecated, use GetKubernetesServers.
-	GetKubeServices(context.Context) ([]types.Server, error)
 
 	// GetKubernetesServers returns a list of kubernetes servers registered in the cluster
 	GetKubernetesServers(context.Context) ([]types.KubeServer, error)
@@ -939,6 +1006,19 @@ type Cache interface {
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
+
+	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
+	// GetOktaAssignment returns the specified Okta assignment resources.
+	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
+
+	// ListUserGroups returns a paginated list of all user group resources.
+	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
+	// GetUserGroup returns the specified user group resources.
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// IntegrationsGetter defines read/list methods for integrations.
+	services.IntegrationsGetter
 }
 
 type NodeWrapper struct {
@@ -1136,6 +1216,83 @@ func (w *DiscoveryWrapper) DeleteDatabase(ctx context.Context, name string) erro
 func (w *DiscoveryWrapper) Close() error {
 	err := w.NoCache.Close()
 	err2 := w.ReadDiscoveryAccessPoint.Close()
+	return trace.NewAggregate(err, err2)
+}
+
+type OktaWrapper struct {
+	ReadOktaAccessPoint
+	accessPoint
+	NoCache OktaAccessPoint
+}
+
+func NewOktaWrapper(base OktaAccessPoint, cache ReadOktaAccessPoint) OktaAccessPoint {
+	return &OktaWrapper{
+		NoCache:             base,
+		accessPoint:         base,
+		ReadOktaAccessPoint: cache,
+	}
+}
+
+// CreateUserGroup creates a new user group resource.
+func (w *OktaWrapper) CreateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
+	return w.NoCache.CreateUserGroup(ctx, userGroup)
+}
+
+// UpdateUserGroup updates an existing user group resource.
+func (w *OktaWrapper) UpdateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
+	return w.NoCache.UpdateUserGroup(ctx, userGroup)
+}
+
+// DeleteUserGroup removes the specified user group resource.
+func (w *OktaWrapper) DeleteUserGroup(ctx context.Context, name string) error {
+	return w.NoCache.DeleteUserGroup(ctx, name)
+}
+
+// CreateOktaImportRule creates a new Okta import rule resource.
+func (w *OktaWrapper) CreateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	return w.NoCache.CreateOktaImportRule(ctx, importRule)
+}
+
+// UpdateOktaImportRule updates an existing Okta import rule resource.
+func (w *OktaWrapper) UpdateOktaImportRule(ctx context.Context, importRule types.OktaImportRule) (types.OktaImportRule, error) {
+	return w.NoCache.UpdateOktaImportRule(ctx, importRule)
+}
+
+// DeleteOktaImportRule removes the specified Okta import rule resource.
+func (w *OktaWrapper) DeleteOktaImportRule(ctx context.Context, name string) error {
+	return w.NoCache.DeleteOktaImportRule(ctx, name)
+}
+
+// CreateOktaAssignment creates a new Okta assignment resource.
+func (w *OktaWrapper) CreateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	return w.NoCache.CreateOktaAssignment(ctx, assignment)
+}
+
+// UpdateOktaAssignment updates an existing Okta assignment resource.
+func (w *OktaWrapper) UpdateOktaAssignment(ctx context.Context, assignment types.OktaAssignment) (types.OktaAssignment, error) {
+	return w.NoCache.UpdateOktaAssignment(ctx, assignment)
+}
+
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+// since the last transition.
+func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
+	return w.NoCache.UpdateOktaAssignmentStatus(ctx, name, status, timeHasPassed)
+}
+
+// DeleteOktaAssignment removes the specified Okta assignment resource.
+func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) error {
+	return w.NoCache.DeleteOktaAssignment(ctx, name)
+}
+
+// DeleteApplicationServer removes specified application server.
+func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
+}
+
+// Close closes all associated resources
+func (w *OktaWrapper) Close() error {
+	err := w.NoCache.Close()
+	err2 := w.ReadOktaAccessPoint.Close()
 	return trace.NewAggregate(err, err2)
 }
 

@@ -27,11 +27,19 @@ export const colors = {
   terminal: '#28FE14',
   terminalDark: '#01172C',
   bgTerminal: '#010B1C',
-  primary: {
-    light: '#03203C',
-    lighter: '#092F52',
-    dark: '#01172C',
-    main: '#010B1C',
+  levels: {
+    surface: '#03203C',
+    elevated: '#092F52',
+    sunkenSecondary: '#01172C',
+    surfaceSecondary: '#010B1C',
+  },
+  buttons: {
+    border: {
+      default: '#092F52',
+      hover: '#092F52',
+      border: '#010B1C',
+      borderHover: 'rgba(255, 255, 255, 0.1)',
+    },
   },
   text: '#263238',
   success: '#00BFA5',

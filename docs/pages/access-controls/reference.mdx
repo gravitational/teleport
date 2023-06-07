@@ -1,6 +1,6 @@
 ---
 title: Access Controls Reference Documentation
-description: Access Controls reference documentation for role options and properties.
+description: This reference shows you the configuration settings that you can include in a Teleport role, which enables you to apply access controls for your infrastructure.
 h1: Teleport Access Controls Reference
 ---
 
@@ -149,10 +149,10 @@ Label              | `v3`, `v4` and `v5` Default   | `v6` Default
 ------------------ | -------------- | ---------------
 `kubernetes_resources` | `[{"kind":"pod", "name":"*", "namespace":"*"}]` | `[]`
 
-## RBAC for hosts
+## RBAC for resources
 
-A Teleport role can also define which hosts (nodes) a user can have access to.
-This works by [labeling nodes](../management/admin/labels.mdx) and listing
+A Teleport role defines which resources (e.g., applications, servers, and databases) a user can have access to.
+This works by [labeling resources](../management/admin/labels.mdx) and listing
 allow/deny labels in a role definition.
 
 Consider the following use case:
@@ -186,16 +186,26 @@ spec:
       'workload': ['database', 'backup']
 ```
 
+Teleport handles multiple label entries with logical "AND" operations.
+As an example this entry would match to databases that have the `env: prod` label and a
+`region` label of either `us-west-1` or `eu-central-1`:
+
+```yaml
+    db_labels:
+      'env': 'prod'
+      'region': ['us-west-1', 'eu-central-1']
+```
+
 <Admonition
   type="tip"
   title="Dynamic RBAC"
 >
-  Node labels can be dynamic, i.e. determined at runtime by an output of an executable. In this case, you can implement "permissions follow workload"
+  Resource labels can be dynamic, i.e. determined at runtime by an output of an executable. In this case, you can implement "permissions follow workload"
   policies (eg., any server where PostgreSQL is running becomes *automatically*
   accessible only by the members of the "DBA" group and nobody else).
 </Admonition>
 
-### Extended Node labels syntax
+### Extended labels syntax
 
 Below are a few examples for more complex filtering using various regexes.
 
@@ -289,7 +299,7 @@ It is possible to further limit access to
 The examples below illustrate how to restrict session access only for the user
 who created the session.
 
-<Details title="Version Warning: Before 8.1" opened={false}>
+<Details title="Version Warning: Before 8.1">
 Teleport versions prior to 8.1 don't support the roles shown below.
 You may create these roles after upgrading, but in the event of a cluster
 downgrade they will become invalid.

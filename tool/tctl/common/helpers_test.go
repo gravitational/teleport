@@ -29,19 +29,20 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/kingpin"
-	"github.com/sirupsen/logrus"
+	"github.com/alecthomas/kingpin/v2"
+	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -69,7 +70,7 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 	for _, v := range opts {
 		v(&options)
 	}
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 
 	var ccf GlobalCLIFlags
 	ccf.ConfigString = mustGetBase64EncFileConfig(t, fc)
@@ -84,16 +85,23 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if closer, ok := client.(io.Closer); ok {
+			closer.Close()
+		}
+	})
+
 	return client
 }
 
 type cliCommand interface {
-	Initialize(app *kingpin.Application, cfg *service.Config)
+	Initialize(app *kingpin.Application, cfg *servicecfg.Config)
 	TryRun(ctx context.Context, cmd string, client auth.ClientI) (bool, error)
 }
 
 func runCommand(t *testing.T, fc *config.FileConfig, cmd cliCommand, args []string, opts ...optionsFunc) error {
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 
 	app := utils.InitCLIParser("tctl", GlobalHelpString)
@@ -114,6 +122,12 @@ func runResourceCommand(t *testing.T, fc *config.FileConfig, args []string, opts
 		stdout: &stdoutBuff,
 	}
 	return &stdoutBuff, runCommand(t, fc, command, args, opts...)
+}
+
+func runLockCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) error {
+	command := &LockCommand{}
+	args = append([]string{"lock"}, args...)
+	return runCommand(t, fc, command, args, opts...)
 }
 
 func runTokensCommand(t *testing.T, fc *config.FileConfig, args []string, opts ...optionsFunc) (*bytes.Buffer, error) {
@@ -176,7 +190,8 @@ func mustWriteIdentityFile(t *testing.T, fc *config.FileConfig, username string)
 
 type testServerOptions struct {
 	fileConfig      *config.FileConfig
-	fileDescriptors []service.FileDescriptor
+	fileDescriptors []servicecfg.FileDescriptor
+	fakeClock       clockwork.FakeClock
 }
 
 type testServerOptionFunc func(options *testServerOptions)
@@ -187,9 +202,15 @@ func withFileConfig(fc *config.FileConfig) testServerOptionFunc {
 	}
 }
 
-func withFileDescriptors(fds []service.FileDescriptor) testServerOptionFunc {
+func withFileDescriptors(fds []servicecfg.FileDescriptor) testServerOptionFunc {
 	return func(options *testServerOptions) {
 		options.fileDescriptors = fds
+	}
+}
+
+func withFakeClock(fakeClock clockwork.FakeClock) testServerOptionFunc {
+	return func(options *testServerOptions) {
+		options.fakeClock = fakeClock
 	}
 }
 
@@ -200,7 +221,7 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	}
 
 	var err error
-	cfg := service.MakeDefaultConfig()
+	cfg := servicecfg.MakeDefaultConfig()
 	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 	cfg.FileDescriptors = options.fileDescriptors
 	if options.fileConfig != nil {
@@ -211,7 +232,11 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	cfg.CachePolicy.Enabled = false
 	cfg.Proxy.DisableWebInterface = true
 	cfg.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+	if options.fakeClock != nil {
+		cfg.Clock = options.fakeClock
+	}
 	auth, err = service.NewTeleport(cfg)
+
 	require.NoError(t, err)
 	require.NoError(t, auth.Start())
 
@@ -225,11 +250,50 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	// timeout here because this isn't the kind of problem that this test is meant to catch.
 	require.NoError(t, err, "auth server didn't start after 30s")
 
+	// Wait for proxy to start up if it's enabled. Otherwise we may get racy
+	// behavior between startup and shutdown.
+	if cfg.Proxy.Enabled {
+		_, err = auth.WaitForEventTimeout(30*time.Second, service.ProxyWebServerReady)
+		require.NoError(t, err, "proxy server didn't start after 30s")
+	}
+
+	if cfg.Auth.Enabled && cfg.Databases.Enabled {
+		waitForDatabases(t, auth, cfg.Databases.Databases)
+	}
 	return auth
 }
 
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []servicecfg.Database) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for {
+		select {
+		case <-time.After(500 * time.Millisecond):
+			all, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+
+			// Count how many input "dbs" are registered.
+			var registered int
+			for _, db := range dbs {
+				for _, a := range all {
+					if a.GetName() == db.Name {
+						registered++
+						break
+					}
+				}
+			}
+
+			if registered == len(dbs) {
+				return
+			}
+		case <-ctx.Done():
+			t.Fatal("databases not registered after 10s")
+		}
+	}
+}
+
 func newDynamicServiceAddr(t *testing.T) *dynamicServiceAddr {
-	var fds []service.FileDescriptor
+	var fds []servicecfg.FileDescriptor
 	webAddr := helpers.NewListener(t, service.ListenerProxyWeb, &fds)
 	tunnelAddr := helpers.NewListener(t, service.ListenerProxyTunnel, &fds)
 	authAddr := helpers.NewListener(t, service.ListenerAuth, &fds)
@@ -249,26 +313,5 @@ type dynamicServiceAddr struct {
 	webAddr     string
 	tunnelAddr  string
 	authAddr    string
-	descriptors []service.FileDescriptor
-}
-
-func waitForBackendDatabaseResourcePropagation(t *testing.T, authServer *auth.Server) {
-	deadlineC := time.After(5 * time.Second)
-	for {
-		select {
-		case <-time.Tick(100 * time.Millisecond):
-			databases, err := authServer.GetDatabaseServers(context.Background(), defaults.Namespace)
-			if err != nil {
-				logrus.WithError(err).Debugf("GetDatabaseServer call failed")
-				continue
-			}
-			if len(databases) == 0 {
-				logrus.Debugf("Database servers not found")
-				continue
-			}
-			return
-		case <-deadlineC:
-			t.Fatal("Failed to fetch database servers")
-		}
-	}
+	descriptors []servicecfg.FileDescriptor
 }

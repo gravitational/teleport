@@ -20,7 +20,7 @@ import { Text, Box } from 'design';
 
 import cfg from 'teleport/config';
 
-import { ActionButtons, Header, Step } from 'teleport/Discover/Shared';
+import { ActionButtons, Step, Header } from 'teleport/Discover/Shared';
 import { State } from 'teleport/Discover/useDiscover';
 import { generateCommand } from 'teleport/Discover/Shared/generateCommand';
 
@@ -52,7 +52,10 @@ export function InstallActiveDirectory(props: State) {
 
       {getSteps(installActiveDirectorySteps)}
 
-      <ActionButtons onProceed={() => props.nextStep()} />
+      <ActionButtons
+        onProceed={() => props.nextStep()}
+        onPrev={props.prevStep}
+      />
     </Box>
   );
 }

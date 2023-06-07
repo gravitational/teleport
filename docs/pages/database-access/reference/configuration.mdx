@@ -1,6 +1,6 @@
 ---
 title: Database Access Configuration Reference
-description: Configuration reference for Teleport Database Access.
+description: Configuration reference for Teleport database access.
 ---
 
 ## Database service configuration
@@ -17,25 +17,28 @@ appearing in `teleport.yaml` configuration file:
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-The following Proxy service configuration is relevant for Database Access:
+The following Proxy service configuration is relevant for database access:
 
 <Admonition
-  type="warning"
-  title="Proxy TLS Warning for PostgreSQL"
+type="warning"
+title="TLS for database connections"
 >
-  The PostgreSQL connection requires TLS enabled for the SSL connection that operates on the `web_listen_addr`.
-  Do not set `--insecure-no-tls` for the proxy Teleport instances as a parameter.  If you are terminating TLS at a
-  Application Load Balancer (ALB) or other service that may require enabling a backend protocol of HTTPS for the target address.  
+The `--insecure-no-tls` `tsh` flag is only supported for MySQL/MariaDB and PostgreSQL
+connections using a unique port, specified with `mysql_public_addr` or `postgres_public_addr`.
 </Admonition>
 
 ```yaml
 proxy_service:
   enabled: "yes"
-  # PostgreSQL proxy is listening on the regular web proxy port.
-  web_listen_addr: "0.0.0.0:3080"
+  # Database proxy is listening on the regular web proxy port.
+  web_listen_addr: "0.0.0.0:443"
   # MySQL proxy is listening on a separate port and needs to be enabled
   # on the proxy server.
   mysql_listen_addr: "0.0.0.0:3036"
+  # MySQL Server version allows you to overwrite the default Teleport Proxy Service MySQL version (8.0.0-Teleport)
+  # Note that if the MySQL client connection is using TLS Routing the dynamic MySQL Server Version takes
+  # precedence over the mysql_server_version proxy settings.
+  # mysql_server_version: "8.0.4"
   # Postgres proxy listening address. If provided, proxy will use a separate listener
   # instead of multiplexing Postgres protocol on web_listener_addr.
   # postgres_listen_addr: "0.0.0.0:5432"
@@ -45,7 +48,7 @@ proxy_service:
   # By default database clients will be connecting to the Proxy over this
   # hostname. To override public address for specific database protocols
   # use postgres_public_addr and mysql_public_addr.
-  public_addr: "teleport.example.com:3080"
+  public_addr: "teleport.example.com:443"
   # Address advertised to MySQL clients. If not set, public_addr is used.
   mysql_public_addr: "mysql.teleport.example.com:3306"
   # Address advertised to PostgreSQL clients. If not set, public_addr is used.
@@ -58,14 +61,14 @@ proxy_service:
 <TabItem scope={["cloud"]} label="Teleport Cloud">
 
 Teleport Cloud automatically configures the Teleport Proxy Service with the
-following settings that are relevant to Database Access. This reference
+following settings that are relevant to database access. This reference
 configuration uses `mytenant.teleport.sh` in place of your Teleport Cloud tenant
 address.
 
 ```yaml
 proxy_service:
   enabled: "yes"
-  # PostgreSQL proxy is listening on the regular web proxy port.
+  # Database proxy is listening on the regular web proxy port.
   web_listen_addr: "0.0.0.0:3080"
   # MySQL proxy is listening on a separate port.
   mysql_listen_addr: "0.0.0.0:3036"
@@ -75,6 +78,8 @@ proxy_service:
   mysql_public_addr: "mytenant.teleport.sh:3036"
   # Address advertised to PostgreSQL clients.
   postgres_public_addr: "mytenant.teleport.sh:443"
+  # Address advertised to Mongo clients. If not set, public_addr is used.
+  mongo_public_addr: "mongo.teleport.example.com:443
 ```
 
 </TabItem>
@@ -111,6 +116,11 @@ spec:
     ...
     -----END CERTIFICATE-----
 
+  # Database admin user for automatic user provisioning.
+  admin_user:
+    # Database admin user name.
+    name: "teleport-admin"
+
   # MySQL only options.
   mysql:
     # The MySQL server version reported by the Teleport Proxy Service.
@@ -135,6 +145,12 @@ spec:
   aws:
     # Region the database is deployed in.
     region: "us-east-1"
+    # Optional AWS role that the Database Service will assume to access
+    # this database.
+    assume_role_arn: "arn:aws:iam::123456789012:role/example-role-name"
+    # Optional AWS external ID that the Database Service will use to assume
+    # a role in an external AWS account.
+    external_id: "example-external-id"
     # Redshift specific configuration.
     redshift:
       # Redshift cluster identifier.

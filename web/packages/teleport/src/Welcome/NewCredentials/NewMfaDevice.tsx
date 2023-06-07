@@ -30,8 +30,6 @@ import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
 
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-
 import { Props as CredentialsProps, SliderProps } from './NewCredentials';
 import secKeyGraphic from './sec-key-with-bg.png';
 
@@ -47,7 +45,6 @@ export function NewMfaDevice(props: Props) {
     prev,
     refCallback,
     hasTransitionEnded,
-    currFlow,
   } = props;
   const [otp, setOtp] = useState('');
   const mfaOptions = createMfaOptions({
@@ -68,13 +65,6 @@ export function NewMfaDevice(props: Props) {
     validator: Validator
   ) {
     e.preventDefault(); // prevent form submit default
-
-    userEventService.capturePreUserEvent({
-      event: CaptureEvent.PreUserOnboardRegisterChallengeSubmitEvent,
-      username: resetToken.user,
-      mfaType: mfaType.value,
-      loginFlow: currFlow,
-    });
 
     if (!validator.validate()) {
       return;
@@ -121,8 +111,8 @@ export function NewMfaDevice(props: Props) {
               style={{ cursor: 'pointer' }}
             />
             <Box>
-              <Text color="text.secondary">Step 2 of 2</Text>
-              <Text typography="h4" color="light" bold>
+              <Text color="text.slightlyMuted">Step 2 of 2</Text>
+              <Text typography="h4" color="text.main" bold>
                 Set Two-Factor Device
               </Text>
             </Box>
@@ -130,7 +120,7 @@ export function NewMfaDevice(props: Props) {
           {submitAttempt.status === 'failed' && (
             <Danger children={submitAttempt.statusText} />
           )}
-          <Text typography="subtitle1" color="light" caps mb={1}>
+          <Text typography="subtitle1" color="text.main" caps mb={1}>
             Two-Factor Method
           </Text>
           <Box mb={1}>
@@ -148,7 +138,7 @@ export function NewMfaDevice(props: Props) {
             justifyContent="center"
             alignItems="center"
             borderRadius={8}
-            bg={mfaType?.value === 'optional' ? 'primary.lighter' : ''}
+            bg={mfaType?.value === 'optional' ? 'levels.elevated' : ''}
             height={mfaType?.value === 'optional' ? '340px' : '240px'}
             px={3}
           >
@@ -166,7 +156,7 @@ export function NewMfaDevice(props: Props) {
                   fontSize={1}
                   textAlign="center"
                   mt={2}
-                  color="text.secondary"
+                  color="text.slightlyMuted"
                 >
                   Scan the QR Code with any authenticator app and enter the
                   generated code. We recommend{' '}
@@ -180,7 +170,11 @@ export function NewMfaDevice(props: Props) {
             {mfaType?.value === 'webauthn' && (
               <>
                 <Image src={imgSrc} width="220px" height="154px" />
-                <Text fontSize={1} color="text.secondary" textAlign="center">
+                <Text
+                  fontSize={1}
+                  color="text.slightlyMuted"
+                  textAlign="center"
+                >
                   We support a wide range of hardware devices including
                   YubiKeys, Touch ID, watches, and more.
                 </Text>
@@ -251,5 +245,4 @@ type Props = CredentialsProps &
   SliderProps & {
     password: string;
     updatePassword(pwd: string): void;
-    currFlow?: string;
   };

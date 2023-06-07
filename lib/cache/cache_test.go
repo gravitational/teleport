@@ -85,6 +85,8 @@ type testPack struct {
 	windowsDesktops         services.WindowsDesktops
 	samlIDPServiceProviders services.SAMLIdPServiceProviders
 	userGroups              services.UserGroups
+	okta                    services.Okta
+	integrations            services.Integrations
 }
 
 // testFuncs are functions to support testing an object in a cache.
@@ -133,6 +135,7 @@ func newTestPackWithoutCache(t *testing.T) *testPack {
 
 type packCfg struct {
 	memoryBackend bool
+	ignoreKinds   []types.WatchKind
 }
 
 type packOption func(cfg *packCfg)
@@ -140,6 +143,14 @@ type packOption func(cfg *packCfg)
 func memoryBackend(bool) packOption {
 	return func(cfg *packCfg) {
 		cfg.memoryBackend = true
+	}
+}
+
+// ignoreKinds specifies the list of kinds that should be removed from the watch request by eventsProxy
+// to simulate cache resource type rejection due to version incompatibility.
+func ignoreKinds(kinds []types.WatchKind) packOption {
+	return func(cfg *packCfg) {
+		cfg.ignoreKinds = kinds
 	}
 }
 
@@ -191,7 +202,7 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	p.trustS = local.NewCAService(p.backend)
 	p.clusterConfigS = clusterConfig
 	p.provisionerS = local.NewProvisioningService(p.backend)
-	p.eventsS = &proxyEvents{events: local.NewEventsService(p.backend)}
+	p.eventsS = newProxyEvents(local.NewEventsService(p.backend), cfg.ignoreKinds)
 	p.presenceS = local.NewPresenceService(p.backend)
 	p.usersS = local.NewIdentityService(p.backend)
 	p.accessS = local.NewAccessService(p.backend)
@@ -211,7 +222,21 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	p.userGroups = local.NewUserGroupService(p.backend)
+	p.userGroups, err = local.NewUserGroupService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	oktaSvc, err := local.NewOktaService(p.backend, p.backend.Clock())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.okta = oktaSvc
+
+	igSvc, err := local.NewIntegrationsService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.integrations = igSvc
 
 	return p, nil
 }
@@ -248,6 +273,8 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
+		Integrations:            p.integrations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -276,7 +303,7 @@ func TestCA(t *testing.T) {
 	ctx := context.Background()
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
 	case <-p.eventsC:
@@ -289,7 +316,7 @@ func TestCA(t *testing.T) {
 	ca.SetResourceID(out.GetResourceID())
 	require.Empty(t, cmp.Diff(ca, out))
 
-	err = p.trustS.DeleteCertAuthority(ca.GetID())
+	err = p.trustS.DeleteCertAuthority(ctx, ca.GetID())
 	require.NoError(t, err)
 
 	select {
@@ -340,7 +367,7 @@ func TestWatchers(t *testing.T) {
 	}
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
 	case e := <-w.Events():
@@ -397,8 +424,8 @@ func TestWatchers(t *testing.T) {
 	// this ca will not be matched by our filter, so the same reasoning applies
 	// as we upsert it and delete it
 	filteredCa := suite.NewTestCA(types.HostCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(filteredCa))
-	require.NoError(t, p.trustS.DeleteCertAuthority(filteredCa.GetID()))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, filteredCa))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, filteredCa.GetID()))
 
 	select {
 	case e := <-w.Events():
@@ -464,7 +491,12 @@ func TestNodeCAFiltering(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, nodeCache.Close()) })
 
-	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{{Kind: types.KindCertAuthority}}})
+	cacheWatcher, err := nodeCache.NewWatcher(ctx, types.Watch{Kinds: []types.WatchKind{
+		{
+			Kind:   types.KindCertAuthority,
+			Filter: map[string]string{"host": "example.com", "user": "*"},
+		},
+	}})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, cacheWatcher.Close()) })
 
@@ -481,8 +513,8 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// upsert and delete a local host CA, we expect to see a Put and a Delete event
 	localCA := suite.NewTestCA(types.HostCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(localCA))
-	require.NoError(t, p.trustS.DeleteCertAuthority(localCA.GetID()))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, localCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, localCA.GetID()))
 
 	ev := fetchEvent()
 	require.Equal(t, types.OpPut, ev.Type)
@@ -496,8 +528,8 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// upsert and delete a nonlocal host CA, we expect to only see the Delete event
 	nonlocalCA := suite.NewTestCA(types.HostCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(nonlocalCA))
-	require.NoError(t, p.trustS.DeleteCertAuthority(nonlocalCA.GetID()))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, nonlocalCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, nonlocalCA.GetID()))
 
 	ev = fetchEvent()
 	require.Equal(t, types.OpDelete, ev.Type)
@@ -506,8 +538,8 @@ func TestNodeCAFiltering(t *testing.T) {
 
 	// whereas we expect to see the Put and Delete for a trusted *user* CA
 	trustedUserCA := suite.NewTestCA(types.UserCA, "example.net")
-	require.NoError(t, p.trustS.UpsertCertAuthority(trustedUserCA))
-	require.NoError(t, p.trustS.DeleteCertAuthority(trustedUserCA.GetID()))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, trustedUserCA))
+	require.NoError(t, p.trustS.DeleteCertAuthority(ctx, trustedUserCA.GetID()))
 
 	ev = fetchEvent()
 	require.Equal(t, types.OpPut, ev.Type)
@@ -593,7 +625,7 @@ func TestCompletenessInit(t *testing.T) {
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
 		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
 	for i := 0; i < inits; i++ {
@@ -634,6 +666,8 @@ func TestCompletenessInit(t *testing.T) {
 			WindowsDesktops:         p.windowsDesktops,
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
+			Okta:                    p.okta,
+			Integrations:            p.integrations,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -672,7 +706,7 @@ func TestCompletenessReset(t *testing.T) {
 	// put lots of CAs in the backend
 	for i := 0; i < caCount; i++ {
 		ca := suite.NewTestCA(types.UserCA, fmt.Sprintf("%d.example.com", i))
-		require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+		require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	}
 
 	var err error
@@ -700,6 +734,8 @@ func TestCompletenessReset(t *testing.T) {
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
+		Integrations:            p.integrations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -878,6 +914,8 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
+		Integrations:            p.integrations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -954,6 +992,8 @@ func initStrategy(t *testing.T) {
 		WindowsDesktops:         p.windowsDesktops,
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
+		Okta:                    p.okta,
+		Integrations:            p.integrations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -966,7 +1006,7 @@ func initStrategy(t *testing.T) {
 	// NOTE 1: this could produce event processed
 	// below, based on whether watcher restarts to get the event
 	// or not, which is normal, but has to be accounted below
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 	p.backend.SetReadError(nil)
 
 	// wait for watcher to restart
@@ -1002,7 +1042,7 @@ func initStrategy(t *testing.T) {
 
 	// add modification and expect the resource to recover
 	ca.SetRoleMap(types.RoleMap{types.RoleMapping{Remote: "test", Local: []string{"local-test"}}})
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	// now, recover the backend and make sure the
 	// service is back and the new value has propagated
@@ -1021,12 +1061,13 @@ func initStrategy(t *testing.T) {
 // TestRecovery tests error recovery scenario
 func TestRecovery(t *testing.T) {
 	t.Parallel()
+	ctx := context.Background()
 
 	p := newPackForAuth(t)
 	t.Cleanup(p.Close)
 
 	ca := suite.NewTestCA(types.UserCA, "example.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca))
 
 	select {
 	case event := <-p.eventsC:
@@ -1045,7 +1086,7 @@ func TestRecovery(t *testing.T) {
 
 	// add modification and expect the resource to recover
 	ca2 := suite.NewTestCA(types.UserCA, "example2.com")
-	require.NoError(t, p.trustS.UpsertCertAuthority(ca2))
+	require.NoError(t, p.trustS.UpsertCertAuthority(ctx, ca2))
 
 	// wait for watcher to receive an event
 	select {
@@ -1607,6 +1648,34 @@ func TestApplicationServers(t *testing.T) {
 	})
 }
 
+// TestKubernetesServers tests that CRUD operations on kube servers are
+// replicated from the backend to the cache.
+func TestKubernetesServers(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForProxy)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.KubeServer]{
+		newResource: func(name string) (types.KubeServer, error) {
+			app, err := types.NewKubernetesClusterV3(types.Metadata{Name: name}, types.KubernetesClusterSpecV3{})
+			require.NoError(t, err)
+			return types.NewKubernetesServerV3FromCluster(app, "host", uuid.New().String())
+		},
+		create: withKeepalive(p.presenceS.UpsertKubernetesServer),
+		list: func(ctx context.Context) ([]types.KubeServer, error) {
+			return p.presenceS.GetKubernetesServers(ctx)
+		},
+		cacheList: func(ctx context.Context) ([]types.KubeServer, error) {
+			return p.cache.GetKubernetesServers(ctx)
+		},
+		update: withKeepalive(p.presenceS.UpsertKubernetesServer),
+		deleteAll: func(ctx context.Context) error {
+			return p.presenceS.DeleteAllKubernetesServers(ctx)
+		},
+	})
+}
+
 // TestApps tests that CRUD operations on application resources are
 // replicated from the backend to the cache.
 func TestApps(t *testing.T) {
@@ -1797,14 +1866,197 @@ func TestUserGroups(t *testing.T) {
 	})
 }
 
+// TestLocks tests that CRUD operations on lock resources are
+// replicated from the backend to the cache.
+func TestLocks(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Lock]{
+		newResource: func(name string) (types.Lock, error) {
+			return types.NewLock(
+				name,
+				types.LockSpecV2{
+					Target: types.LockTarget{
+						Role: "target-role",
+					},
+				},
+			)
+		},
+		create: p.accessS.UpsertLock,
+		list: func(ctx context.Context) ([]types.Lock, error) {
+			results, err := p.accessS.GetLocks(ctx, false)
+			return results, err
+		},
+		cacheGet: p.cache.GetLock,
+		cacheList: func(ctx context.Context) ([]types.Lock, error) {
+			results, err := p.cache.GetLocks(ctx, false)
+			return results, err
+		},
+		update:    p.accessS.UpsertLock,
+		deleteAll: p.accessS.DeleteAllLocks,
+	})
+}
+
+// TestOktaImportRules tests that CRUD operations on Okta import rule resources are
+// replicated from the backend to the cache.
+func TestOktaImportRules(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForOkta)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.OktaImportRule]{
+		newResource: func(name string) (types.OktaImportRule, error) {
+			return types.NewOktaImportRule(
+				types.Metadata{
+					Name: name,
+				},
+				types.OktaImportRuleSpecV1{
+					Mappings: []*types.OktaImportRuleMappingV1{
+						{
+							Match: []*types.OktaImportRuleMatchV1{
+								{
+									AppIDs: []string{"yes"},
+								},
+							},
+							AddLabels: map[string]string{
+								"label1": "value1",
+							},
+						},
+						{
+							Match: []*types.OktaImportRuleMatchV1{
+								{
+									GroupIDs: []string{"yes"},
+								},
+							},
+							AddLabels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				},
+			)
+		},
+		create: func(ctx context.Context, resource types.OktaImportRule) error {
+			_, err := p.okta.CreateOktaImportRule(ctx, resource)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]types.OktaImportRule, error) {
+			results, _, err := p.okta.ListOktaImportRules(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetOktaImportRule,
+		cacheList: func(ctx context.Context) ([]types.OktaImportRule, error) {
+			results, _, err := p.cache.ListOktaImportRules(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, resource types.OktaImportRule) error {
+			_, err := p.okta.UpdateOktaImportRule(ctx, resource)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.okta.DeleteAllOktaImportRules,
+	})
+}
+
+// TestOktaAssignments tests that CRUD operations on Okta import rule resources are
+// replicated from the backend to the cache.
+func TestOktaAssignments(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForOkta)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.OktaAssignment]{
+		newResource: func(name string) (types.OktaAssignment, error) {
+			return types.NewOktaAssignment(
+				types.Metadata{
+					Name: name,
+				},
+				types.OktaAssignmentSpecV1{
+					User: "test-user@test.user",
+					Targets: []*types.OktaAssignmentTargetV1{
+						{
+							Type: types.OktaAssignmentTargetV1_APPLICATION,
+							Id:   "123456",
+						},
+						{
+							Type: types.OktaAssignmentTargetV1_GROUP,
+							Id:   "234567",
+						},
+					},
+				},
+			)
+		},
+		create: func(ctx context.Context, resource types.OktaAssignment) error {
+			_, err := p.okta.CreateOktaAssignment(ctx, resource)
+			return trace.Wrap(err)
+		},
+		list: func(ctx context.Context) ([]types.OktaAssignment, error) {
+			results, _, err := p.okta.ListOktaAssignments(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetOktaAssignment,
+		cacheList: func(ctx context.Context) ([]types.OktaAssignment, error) {
+			results, _, err := p.cache.ListOktaAssignments(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, resource types.OktaAssignment) error {
+			_, err := p.okta.UpdateOktaAssignment(ctx, resource)
+			return trace.Wrap(err)
+		},
+		deleteAll: p.okta.DeleteAllOktaAssignments,
+	})
+}
+
+// TestIntegrations tests that CRUD operations on integrations resources are
+// replicated from the backend to the cache.
+func TestIntegrations(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Integration]{
+		newResource: func(name string) (types.Integration, error) {
+			return types.NewIntegrationAWSOIDC(
+				types.Metadata{Name: name},
+				&types.AWSOIDCIntegrationSpecV1{
+					RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+				},
+			)
+		},
+		create: func(ctx context.Context, i types.Integration) error {
+			_, err := p.integrations.CreateIntegration(ctx, i)
+			return err
+		},
+		list: func(ctx context.Context) ([]types.Integration, error) {
+			results, _, err := p.integrations.ListIntegrations(ctx, 0, "")
+			return results, err
+		},
+		cacheGet: p.cache.GetIntegration,
+		cacheList: func(ctx context.Context) ([]types.Integration, error) {
+			results, _, err := p.cache.ListIntegrations(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, i types.Integration) error {
+			_, err := p.integrations.UpdateIntegration(ctx, i)
+			return err
+		},
+		deleteAll: p.integrations.DeleteAllIntegrations,
+	})
+}
+
 // testResources is a generic tester for resources.
 func testResources[T types.Resource](t *testing.T, p *testPack, funcs testFuncs[T]) {
 	ctx := context.Background()
 
 	// Create a resource.
 	r, err := funcs.newResource("test-sp")
-	r.SetExpiry(time.Now().Add(30 * time.Minute))
 	require.NoError(t, err)
+	r.SetExpiry(time.Now().Add(30 * time.Minute))
 
 	err = funcs.create(ctx, r)
 	require.NoError(t, err)
@@ -2064,7 +2316,7 @@ func TestCache_Backoff(t *testing.T) {
 	p.eventsS.closeWatchers()
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 
-	step := p.cache.Config.MaxRetryPeriod / 5.0
+	step := p.cache.Config.MaxRetryPeriod / 16.0
 	for i := 0; i < 5; i++ {
 		// wait for cache to reload
 		select {
@@ -2073,8 +2325,16 @@ func TestCache_Backoff(t *testing.T) {
 			duration, err := time.ParseDuration(event.Event.Resource.GetKind())
 			require.NoError(t, err)
 
-			stepMin := step * time.Duration(i) / 2
-			stepMax := step * time.Duration(i+1)
+			// emulate the logic of exponential backoff multiplier calc
+			var mul int64
+			if i == 0 {
+				mul = 0
+			} else {
+				mul = 1 << (i - 1)
+			}
+
+			stepMin := step * time.Duration(mul) / 2
+			stepMax := step * time.Duration(mul+1)
 
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
@@ -2098,10 +2358,43 @@ func TestCache_Backoff(t *testing.T) {
 	}
 }
 
+// TestSetupConfigFns ensures that all WatchKinds used in setup config functions are present in ForAuth() as well.
+func TestSetupConfigFns(t *testing.T) {
+	setupFuncs := map[string]SetupConfigFn{
+		"ForProxy":          ForProxy,
+		"ForRemoteProxy":    ForRemoteProxy,
+		"ForOldRemoteProxy": ForOldRemoteProxy,
+		"ForNode":           ForNode,
+		"ForKubernetes":     ForKubernetes,
+		"ForApps":           ForApps,
+		"ForDatabases":      ForDatabases,
+		"ForWindowsDesktop": ForWindowsDesktop,
+		"ForDiscovery":      ForDiscovery,
+		"ForOkta":           ForOkta,
+	}
+
+	authKindMap := make(map[resourceKind]types.WatchKind)
+	for _, wk := range ForAuth(Config{}).Watches {
+		authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}] = wk
+	}
+
+	for name, f := range setupFuncs {
+		t.Run(name, func(t *testing.T) {
+			for _, wk := range f(Config{}).Watches {
+				authWK, ok := authKindMap[resourceKind{kind: wk.Kind, subkind: wk.SubKind}]
+				if !ok || !authWK.Contains(wk) {
+					t.Errorf("%s includes WatchKind %s that is missing from ForAuth", name, wk.String())
+				}
+			}
+		})
+	}
+}
+
 type proxyEvents struct {
 	sync.Mutex
-	watchers []types.Watcher
-	events   types.Events
+	watchers    []types.Watcher
+	events      types.Events
+	ignoreKinds map[resourceKind]struct{}
 }
 
 func (p *proxyEvents) getWatchers() []types.Watcher {
@@ -2122,6 +2415,19 @@ func (p *proxyEvents) closeWatchers() {
 }
 
 func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
+	var effectiveKinds []types.WatchKind
+	for _, requested := range watch.Kinds {
+		if _, ok := p.ignoreKinds[resourceKind{kind: requested.Kind, subkind: requested.SubKind}]; ok {
+			continue
+		}
+		effectiveKinds = append(effectiveKinds, requested)
+	}
+
+	if len(effectiveKinds) == 0 {
+		return nil, trace.BadParameter("all of the requested kinds were ignored")
+	}
+
+	watch.Kinds = effectiveKinds
 	w, err := p.events.NewWatcher(ctx, watch)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -2130,6 +2436,17 @@ func (p *proxyEvents) NewWatcher(ctx context.Context, watch types.Watch) (types.
 	defer p.Unlock()
 	p.watchers = append(p.watchers, w)
 	return w, nil
+}
+
+func newProxyEvents(events types.Events, ignoreKinds []types.WatchKind) *proxyEvents {
+	ignoreSet := make(map[resourceKind]struct{}, len(ignoreKinds))
+	for _, kind := range ignoreKinds {
+		ignoreSet[resourceKind{kind: kind.Kind, subkind: kind.SubKind}] = struct{}{}
+	}
+	return &proxyEvents{
+		events:      events,
+		ignoreKinds: ignoreSet,
+	}
 }
 
 // TestCacheWatchKindExistsInEvents ensures that the watch kinds for each cache component are in sync
@@ -2152,6 +2469,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		"ForKubernetes":     ForKubernetes(Config{}),
 		"ForApps":           ForApps(Config{}),
 		"ForDatabases":      ForDatabases(Config{}),
+		"ForOkta":           ForOkta(Config{}),
 	}
 
 	events := map[string]types.Resource{
@@ -2181,7 +2499,6 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindSAMLIdPSession:          &types.WebSessionV2{SubKind: types.KindSAMLIdPServiceProvider},
 		types.KindWebToken:                &types.WebTokenV3{},
 		types.KindRemoteCluster:           &types.RemoteClusterV3{},
-		types.KindKubeService:             &types.ServerV2{},
 		types.KindKubeServer:              &types.KubernetesServerV3{},
 		types.KindDatabaseService:         &types.DatabaseServiceV1{},
 		types.KindDatabaseServer:          &types.DatabaseServerV3{},
@@ -2194,6 +2511,9 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindKubernetesCluster:       &types.KubernetesClusterV3{},
 		types.KindSAMLIdPServiceProvider:  &types.SAMLIdPServiceProviderV1{},
 		types.KindUserGroup:               &types.UserGroupV1{},
+		types.KindOktaImportRule:          &types.OktaImportRuleV1{},
+		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
+		types.KindIntegration:             &types.IntegrationV1{},
 	}
 
 	for name, cfg := range cases {
@@ -2214,6 +2534,85 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 				require.Empty(t, cmp.Diff(resource, event.Resource))
 			}
 		})
+	}
+}
+
+// TestPartialHealth ensures that when an event source confirms only some resource kinds specified on the watch request,
+// Cache operates in partially healthy mode in which it serves reads of the confirmed kinds from the cache and
+// lets everything else pass through.
+func TestPartialHealth(t *testing.T) {
+	ctx := context.Background()
+
+	// setup cache such that role resources wouldn't be recognized by the event source and wouldn't be cached.
+	p, err := newPack(t.TempDir(), ForApps, ignoreKinds([]types.WatchKind{{Kind: types.KindRole}}))
+	require.NoError(t, err)
+	t.Cleanup(p.Close)
+
+	role, err := types.NewRole("editor", types.RoleSpecV6{})
+	require.NoError(t, err)
+	require.NoError(t, p.accessS.UpsertRole(ctx, role))
+
+	user, err := types.NewUser("bob")
+	require.NoError(t, err)
+	require.NoError(t, p.usersS.UpsertUser(user))
+	select {
+	case event := <-p.eventsC:
+		require.Equal(t, EventProcessed, event.Type)
+		require.Equal(t, types.KindUser, event.Event.Resource.GetKind())
+	case <-time.After(time.Second):
+		t.Fatal("timeout waiting for event")
+	}
+
+	// make sure that the user resource works as normal and gets replicated to cache
+	replicatedUsers, err := p.cache.GetUsers(false)
+	require.NoError(t, err)
+	require.Len(t, replicatedUsers, 1)
+
+	// now add a label to the user directly in the cache
+	meta := user.GetMetadata()
+	meta.Labels = map[string]string{"origin": "cache"}
+	user.SetMetadata(meta)
+	require.NoError(t, p.cache.usersCache.UpsertUser(user))
+
+	// the label on the returned user proves that it came from the cache
+	resultUser, err := p.cache.GetUser("bob", false)
+	require.NoError(t, err)
+	require.Equal(t, "cache", resultUser.GetMetadata().Labels["origin"])
+
+	// query cache storage directly to ensure roles haven't been replicated
+	rolesStoredInCache, err := p.cache.accessCache.GetRoles(ctx)
+	require.NoError(t, err)
+	require.Empty(t, rolesStoredInCache)
+
+	// non-empty result here proves that it was not served from cache
+	resultRoles, err := p.cache.GetRoles(ctx)
+	require.NoError(t, err)
+	require.Len(t, resultRoles, 1)
+
+	// ensure that cache cannot be watched for resources that weren't confirmed in regular mode
+	testWatch := types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: types.KindUser},
+			{Kind: types.KindRole},
+		},
+	}
+	_, err = p.cache.NewWatcher(ctx, testWatch)
+	require.Error(t, err)
+
+	// same request should work in partial success mode, but WatchStatus on the OpInit event should indicate
+	// that only user resources will be watched.
+	testWatch.AllowPartialSuccess = true
+	w, err := p.cache.NewWatcher(ctx, testWatch)
+	require.NoError(t, err)
+
+	select {
+	case e := <-w.Events():
+		require.Equal(t, types.OpInit, e.Type)
+		watchStatus, ok := e.Resource.(types.WatchStatus)
+		require.True(t, ok)
+		require.Equal(t, []types.WatchKind{{Kind: types.KindUser}}, watchStatus.GetKinds())
+	case <-time.After(time.Second):
+		t.Fatal("Timeout waiting for event.")
 	}
 }
 

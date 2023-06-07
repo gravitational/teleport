@@ -215,6 +215,10 @@ func CalculateAccessCapabilities(ctx context.Context, clock clockwork.Clock, clt
 		caps.SuggestedReviewers = v.SuggestedReviewers
 	}
 
+	caps.RequireReason = v.requireReason
+	caps.RequestPrompt = v.prompt
+	caps.AutoRequest = v.autoRequest
+
 	return &caps, nil
 }
 
@@ -920,6 +924,8 @@ type RequestValidator struct {
 	getter        RequestValidatorGetter
 	user          types.User
 	requireReason bool
+	autoRequest   bool
+	prompt        string
 	opts          struct {
 		expandVars bool
 	}
@@ -1199,6 +1205,10 @@ func (m *RequestValidator) push(role types.Role) error {
 	var err error
 
 	m.requireReason = m.requireReason || role.GetOptions().RequestAccess.RequireReason()
+	m.autoRequest = m.autoRequest || role.GetOptions().RequestAccess.ShouldAutoRequest()
+	if m.prompt == "" {
+		m.prompt = role.GetOptions().RequestPrompt
+	}
 
 	allow, deny := role.GetAccessRequestConditions(types.Allow), role.GetAccessRequestConditions(types.Deny)
 
@@ -1781,16 +1791,7 @@ func MapListResourcesResultToLeafResource(resource types.ResourceWithLabels, hin
 		return types.ResourcesWithLabels{r.GetDatabase()}, nil
 	case types.Server:
 		if hint == types.KindKubernetesCluster {
-			kubeClusters := r.GetKubernetesClusters()
-			resources := make(types.ResourcesWithLabels, len(kubeClusters))
-			for i := range kubeClusters {
-				resource, err := types.NewKubernetesClusterV3FromLegacyCluster(apidefaults.Namespace, kubeClusters[i])
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-				resources[i] = resource
-			}
-			return resources, nil
+			return nil, trace.BadParameter("expected kubernetes server, got server")
 		}
 	default:
 	}

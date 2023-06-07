@@ -20,6 +20,14 @@ export interface NotificationItem {
   id: string;
 }
 
-export type NotificationItemContent =
-  | string
-  | { title: string; description: string };
+export type NotificationItemContent = string | NotificationItemObjectContent;
+
+export type NotificationItemObjectContent = {
+  title: string;
+  list?: string[];
+  description?: string;
+  link?: {
+    href: string;
+    text: string;
+  };
+};

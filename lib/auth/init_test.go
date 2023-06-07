@@ -18,7 +18,10 @@ package auth
 
 import (
 	"context"
+	"fmt"
+	"math"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -36,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/auth/keygen"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -612,7 +614,7 @@ func TestPresets(t *testing.T) {
 	})
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		presetRoleCount := 3
+		presetRoleCount := 4
 
 		roleManager := &mockRoleManager{
 			roles: make(map[string]types.Role, presetRoleCount),
@@ -621,8 +623,8 @@ func TestPresets(t *testing.T) {
 		err := createPresets(ctx, roleManager)
 		require.NoError(t, err)
 
-		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
-		require.Equal(t, 0, roleManager.getRoleCallsCount, "unexpectd call to GetRole")
+		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
+		require.Equal(t, 0, roleManager.getRoleCallsCount, "unexpected call to GetRole")
 		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
 
 		// Running a second time should return Already Exists, so it fetches the role.
@@ -632,7 +634,7 @@ func TestPresets(t *testing.T) {
 		err = createPresets(ctx, roleManager)
 		require.NoError(t, err)
 
-		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Zero(t, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
 		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
 		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
 
@@ -647,13 +649,14 @@ func TestPresets(t *testing.T) {
 			allowRulesWithoutConnectionDiag = append(allowRulesWithoutConnectionDiag, r)
 		}
 		editorRole.SetRules(types.Allow, allowRulesWithoutConnectionDiag)
-		roleManager.UpsertRole(ctx, editorRole)
+		err = roleManager.UpsertRole(ctx, editorRole)
+		require.NoError(t, err)
 
 		roleManager.ResetCallCounters()
 		err = createPresets(ctx, roleManager)
 		require.NoError(t, err)
 
-		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
 		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
 		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
 	})
@@ -852,6 +855,21 @@ spec:
   type: openssh
 sub_kind: openssh
 version: v2`
+	samlCAYAML = `kind: cert_authority
+metadata:
+  id: 1640648663670002000
+  name: me.localhost
+spec:
+  active_keys:
+   tls:
+    - cert: LS0tLS1CRUdJTiBDRVJUSUZJQ0FURS0tLS0tCk1JSURpakNDQW5LZ0F3SUJBZ0lRRU9IcEhIZkZwZ28wUndQSVJhdkdpakFOQmdrcWhraUc5dzBCQVFzRkFEQmYKTVJVd0V3WURWUVFLRXd4dFpTNXNiMk5oYkdodmMzUXhGVEFUQmdOVkJBTVRERzFsTG14dlkyRnNhRzl6ZERFdgpNQzBHQTFVRUJSTW1NakkwTkRBMk5ESTNPREkyTWpJNE5UQXdOemMzTmpVeU16STVOak15TWpNeU56VXhORFl3CkhoY05NakV4TWpJM01qTTBOREl6V2hjTk16RXhNakkxTWpNME5ESXpXakJmTVJVd0V3WURWUVFLRXd4dFpTNXMKYjJOaGJHaHZjM1F4RlRBVEJnTlZCQU1UREcxbExteHZZMkZzYUc5emRERXZNQzBHQTFVRUJSTW1NakkwTkRBMgpOREkzT0RJMk1qSTROVEF3TnpjM05qVXlNekk1TmpNeU1qTXlOelV4TkRZd2dnRWlNQTBHQ1NxR1NJYjNEUUVCCkFRVUFBNElCRHdBd2dnRUtBb0lCQVFETFRrVFkzQ0NMVStNUllkbEMwM2NUTTR6MUpiRGoxYjFQRWdING9iSmwKRjl4NWtQbzhncWNEbmp5L0x5NHdKeUR2Q2xPMkw1T0k3UnYwa1hFUXoybUVEeExnbjJYRG9ZNUh5VFNOVkZHNgpvZ3BlYmhlUFN1aWl0RUNZYUZDZVZFTGNDa1Q0ZGpqRDlwOExNTnJ4MHRPOXdQU1o1OXBLZUxCOG90RFloOHRCCkcyb2EzSGIzTWt0RGxOY0svVE94RFNzRzUrQ2ljdktTa3QrV04xaXJJQ2pvZ2hWTzJGcForRkdxWUM0Y1EwbWMKM0NRaGJwY1o2VTRkWnpGdFJZVzZPYzNucHBOSkZKWXZSSTRIS1FWY0RCM2N4VkhNTUd5Rzc3aFRzdEwvd0RuaQo4U2s5eml4VzN4S2FvUnlrV2FuWno4eC9WdHNydXJqanNzNDV4NlRoem1VWkFnTUJBQUdqUWpCQU1BNEdBMVVkCkR3RUIvd1FFQXdJQnBqQVBCZ05WSFJNQkFmOEVCVEFEQVFIL01CMEdBMVVkRGdRV0JCUmNKK2NRamFQWjZGbEIKcVhoYzYyWXZldGRpQWpBTkJna3Foa2lHOXcwQkFRc0ZBQU9DQVFFQVdYNmxZdUhtMmQyMU41RDN1eUJJelFOdApKVFR3b0xnU3FQd09Tbk1EU0luSDkvMjBqZDNGUk9qakh1M3BQRkNLRmE4OVp0ekZxTHZsTjVOdlh2WHFuOXNKCkdudTYzSVo0TWtEZk9sSVZpWFhQWFF4YllHSkMxRVlVU28rTDdtUTY0VnN5UkFpTXdnbmVwMUxwSGhROGYzU2MKeEZoVkNybFJDMmUrNENBai8vOVZWaDdvTEdSMkNhM0xEcFc5VHFxYnB3MEh0QitNcFVqVWxCWnFVbzNVMm5HTQpia1VhSVZKcnNuYk1rYnNsUGQ2dWtVRDlVTHFuUmxJb3A4cjQ1VTdvYVBhR3g3QVFiWndzbGlsNVVJZlppRmlRCm5USk9kYnJHampVdXlRYkM4UUpZY3RhdENjbVBjZUlXMVVWWFVnZ2JsdXl4VjF1NWsyYzlSb1k2RzhiN0FRPT0KLS0tLS1FTkQgQ0VSVElGSUNBVEUtLS0tLQo=
+      key: LS0tLS1CRUdJTiBSU0EgUFJJVkFURSBLRVktLS0tLQpNSUlFcEFJQkFBS0NBUUVBeTA1RTJOd2dpMVBqRVdIWlF0TjNFek9NOVNXdzQ5VzlUeElCK0tHeVpSZmNlWkQ2ClBJS25BNTQ4dnk4dU1DY2c3d3BUdGkrVGlPMGI5SkZ4RU05cGhBOFM0SjlsdzZHT1I4azBqVlJSdXFJS1htNFgKajByb29yUkFtR2hRbmxSQzNBcEUrSFk0dy9hZkN6RGE4ZExUdmNEMG1lZmFTbml3ZktMUTJJZkxRUnRxR3R4Mgo5ekpMUTVUWEN2MHpzUTByQnVmZ29uTHlrcExmbGpkWXF5QW82SUlWVHRoYVdmaFJxbUF1SEVOSm5Od2tJVzZYCkdlbE9IV2N4YlVXRnVqbk41NmFUU1JTV0wwU09CeWtGWEF3ZDNNVlJ6REJzaHUrNFU3TFMvOEE1NHZFcFBjNHMKVnQ4U21xRWNwRm1wMmMvTWYxYmJLN3E0NDdMT09jZWs0YzVsR1FJREFRQUJBb0lCQVFDeXNLNXVkTHZkK2ZOQQpHZUtkaThQRENySS8zY3JsMWIwNFBEbWpVR3U5MHdVampEdUU1OGpuc3pMdFR3aW5waHlhUFZkcWI5S2FyTnkvClR2NHpxam14cXBZSys4Nno3ZEZpWXdSZm05YmgxUDZNRlBOOExIamdXTkhWb3dvSXYwS3NxQklLMTgzNDMxRFcKd3pBTkVDS3ZTMk14eXNqZ1g4ZXZKR092alZzbWN1SU1IWFljbVlORlo0dWpuTnc0dnVSWHhlYUtPY2ZWTGZ2ZwoxSWZMK05IYUh6UXI1YVoydkxST1NpdHVId2cvOFpZZ2hQcVFYLy92ak92M0FENzhXVGxINUZXWjExR0hoeCt1Ck9ZUXcwQ1lvTnNiV1UxeklwVTV0cHdCcDRGV0VlVy9jbTY5NXRBVVRlMzR1N3R1MlJJOVBZMEZDWVJ2ZkM2SUQKK2tDNjRFTEpBb0dCQVBSTEt5a0pjdHNGNngzN1liWXdmQm9ZK3V6YU4wV1o1d1RuRmVFaVp1ZzVVYWJUOTdqRApZTnpaYzQ0aitRbkxFUGVDak5tU1FhVHFxK2QvbUVjTnlXS244cVNFcXlOR0R6YlRXQ2tkMGtyWTVwcm9FVVJnClFqbWFwRHFNNEtOSm9jQ1RCS3lueHo2QzZ6ME9uSnhZM3lMdTdyYVBqeE9HTW5rcm9VMDhMVW56QW9HQkFOVU0KU2NsNGh1R0gxK3ZNL0RtenJoQ1NKbUZIcjE2QjhvWExaMHIyNmFKTnJVQ3AwYUFzV2FHd3JLZXZFcDkzRmg5Ygp3QlZYMHE0bXJ3cmZpTGpCYnRzdnlQM3l1ZWs5cWl6M2ZoMWIvZ0k2eWRKVFEzMEplQzB4UzUyRksvR2gwanEvCm43c2Y1bm5DbTlCRW01ZmdSeDFVUmVhOC9vL2M4cTNhbW94c0grdkRBb0dBZUVZUjU5QlpGZkJpQTQ3aVdwcWcKWHhEeGFXOCtTeXdzaTBOaWlFY3h0eCtSVGJ1S2VSTG9PNU5yeXcxMjdSVm5NeFM1Vjkwa0tKZkpMdDZwRUVKLwpaZTBlRDFXcUZHSEgxOHhSMlZ4dlRwNWZXdURxcjJsYzhaTnJTOUJVUU5CZHJMdzFUdlFEcW9rMlhBYzNuOW81CmNhK0ZJNmltWG94eGlTcXI3YVMwLzNVQ2dZQTJBWEJ1N3V1YUhocGcvc3h0UUJ2K3ZWMlhTVm11SmxpNUM4KzYKVkE3emdxZEpmZ0xTakl1SURrWW1GNTRyNkQ4bVlkYTJVbFhvcVl1endPaGlsVDRwdDlwR2JaSXRDdUdwbG05VQp0KzRTMko0eWY4TGEzbHlsY0JxUDZxTXlGR2c3VmpvQ2NGcTNRTnJJbDZ1dGV6L3JzbUlwMUh6Zk1RNGZmZ3V4ClR2Tmtpd0tCZ1FDbVhaSStvTUdQK3U4KzRVaGxjR01NYUNHZi92UVZLdVJYOHlOYVh1bUx6dk1Xajl0cVhpUzcKK1dQUlhuV01RSnd1QldYMzBTcWdFVVdDbjlzOGxWbzh2TVF4MmFtbXhhWkVEMGRoOHNMSkJDNXJoRmVqV29MbQp3cHg5MXR0S3JJODBKMDYyeW90SFpJYkRyQW1LSGZFeE85U1d4T1hUeFVMUGdvTlJVUW5qSnc9PQotLS0tLUVORCBSU0EgUFJJVkFURSBLRVktLS0tLQo=
+  additional_trusted_keys: {}
+  cluster_name: me.localhost
+  signing_alg: 3
+  type: saml_idp
+sub_kind: saml_idp
+version: v2`
 )
 
 func TestInit_bootstrap(t *testing.T) {
@@ -862,6 +880,7 @@ func TestInit_bootstrap(t *testing.T) {
 	jwtCA := resourceFromYAML(t, jwtCAYAML).(types.CertAuthority)
 	dbCA := resourceFromYAML(t, databaseCAYAML).(types.CertAuthority)
 	osshCA := resourceFromYAML(t, openSSHCAYAML).(types.CertAuthority)
+	samlCA := resourceFromYAML(t, samlCAYAML).(types.CertAuthority)
 
 	invalidHostCA := resourceFromYAML(t, hostCAYAML).(types.CertAuthority)
 	invalidHostCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
@@ -873,6 +892,8 @@ func TestInit_bootstrap(t *testing.T) {
 	invalidDBCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
 	invalidOSSHCA := resourceFromYAML(t, openSSHCAYAML).(types.CertAuthority)
 	invalidOSSHCA.(*types.CertAuthorityV2).Spec.ActiveKeys.SSH = nil
+	invalidSAMLCA := resourceFromYAML(t, samlCAYAML).(types.CertAuthority)
+	invalidSAMLCA.(*types.CertAuthorityV2).Spec.ActiveKeys.TLS = nil
 
 	tests := []struct {
 		name         string
@@ -890,6 +911,7 @@ func TestInit_bootstrap(t *testing.T) {
 					jwtCA.Clone(),
 					dbCA.Clone(),
 					osshCA.Clone(),
+					samlCA.Clone(),
 				)
 			},
 			assertError: require.NoError,
@@ -904,6 +926,7 @@ func TestInit_bootstrap(t *testing.T) {
 					jwtCA.Clone(),
 					dbCA.Clone(),
 					osshCA.Clone(),
+					samlCA.Clone(),
 				)
 			},
 			assertError: require.Error,
@@ -918,6 +941,7 @@ func TestInit_bootstrap(t *testing.T) {
 					jwtCA.Clone(),
 					dbCA.Clone(),
 					osshCA.Clone(),
+					samlCA.Clone(),
 				)
 			},
 			assertError: require.Error,
@@ -932,6 +956,7 @@ func TestInit_bootstrap(t *testing.T) {
 					invalidJWTCA.Clone(),
 					dbCA.Clone(),
 					osshCA.Clone(),
+					samlCA.Clone(),
 				)
 			},
 			assertError: require.Error,
@@ -946,6 +971,7 @@ func TestInit_bootstrap(t *testing.T) {
 					jwtCA.Clone(),
 					invalidDBCA.Clone(),
 					osshCA.Clone(),
+					samlCA.Clone(),
 				)
 			},
 			assertError: require.Error,
@@ -960,6 +986,22 @@ func TestInit_bootstrap(t *testing.T) {
 					jwtCA.Clone(),
 					dbCA.Clone(),
 					invalidOSSHCA.Clone(),
+					samlCA.Clone(),
+				)
+			},
+			assertError: require.Error,
+		},
+		{
+			name: "NOK bootstrap SAML IdP CA missing keys",
+			modifyConfig: func(cfg *InitConfig) {
+				cfg.BootstrapResources = append(
+					cfg.BootstrapResources,
+					hostCA.Clone(),
+					userCA.Clone(),
+					jwtCA.Clone(),
+					dbCA.Clone(),
+					osshCA.Clone(),
+					invalidSAMLCA.Clone(),
 				)
 			},
 			assertError: require.Error,
@@ -1050,6 +1092,145 @@ func resourceDiff(res1, res2 types.Resource) string {
 	return cmp.Diff(res1, res2,
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Namespace"),
 		cmpopts.EquateEmpty())
+}
+
+// TestSyncUpgadeWindowStartHour verifies the core logic of the upgrade window start
+// hour behavior.
+func TestSyncUpgradeWindowStartHour(t *testing.T) {
+	ctx := context.Background()
+
+	conf := setupConfig(t)
+	authServer, err := Init(conf)
+	require.NoError(t, err)
+	t.Cleanup(func() { authServer.Close() })
+
+	// no getter is registered, sync should fail
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	// maintenance config does not exist yet
+	cmc, err := authServer.GetClusterMaintenanceConfig(ctx)
+	require.Error(t, err)
+	require.True(t, trace.IsNotFound(err))
+	require.Nil(t, cmc)
+
+	// set up fake getter
+	var mu sync.Mutex
+	var fakeHour int64
+	var fakeError error
+	authServer.SetUpgradeWindowStartHourGetter(func(ctx context.Context) (int64, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		return fakeHour, fakeError
+	})
+
+	// sync should now succeed
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok := cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
+
+	// change the served hour
+	mu.Lock()
+	fakeHour = 16
+	mu.Unlock()
+
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
+
+	// set sync to fail with out of range hour
+	mu.Lock()
+	fakeHour = 36
+	mu.Unlock()
+
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that the old hour value persists since the sync failed
+	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
+
+	// set sync to fail with impossible int type-cast
+	mu.Lock()
+	fakeHour = math.MaxInt64
+	mu.Unlock()
+
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that the old hour value persists since the sync failed
+	require.Equal(t, uint32(16), agentWindow.UTCStartHour)
+
+	mu.Lock()
+	fakeHour = 18
+	mu.Unlock()
+
+	// sync should now succeed again
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that we got the new hour value
+	require.Equal(t, uint32(18), agentWindow.UTCStartHour)
+
+	// set sync to fail with error
+	mu.Lock()
+	fakeHour = 12
+	fakeError = fmt.Errorf("uh-oh")
+	mu.Unlock()
+
+	require.Error(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that the old hour value persists since the sync failed
+	require.Equal(t, uint32(18), agentWindow.UTCStartHour)
+
+	// recover and set hour to zero
+	mu.Lock()
+	fakeHour = 0
+	fakeError = nil
+	mu.Unlock()
+
+	// sync should now succeed again
+	require.NoError(t, authServer.syncUpgradeWindowStartHour(ctx))
+
+	cmc, err = authServer.GetClusterMaintenanceConfig(ctx)
+	require.NoError(t, err)
+
+	agentWindow, ok = cmc.GetAgentUpgradeWindow()
+	require.True(t, ok)
+
+	// verify that we got the new hour value
+	require.Equal(t, uint32(0), agentWindow.UTCStartHour)
 }
 
 // TestIdentityChecker verifies auth identity properly validates host
@@ -1187,77 +1368,4 @@ func TestMigrateDatabaseCA(t *testing.T) {
 	require.Len(t, dbCAs, 1)
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Cert, dbCAs[0].GetActiveKeys().TLS[0].Cert)
 	require.Equal(t, hostCA.Spec.ActiveKeys.TLS[0].Key, dbCAs[0].GetActiveKeys().TLS[0].Key)
-}
-
-func TestRotateDuplicatedCerts(t *testing.T) {
-	ctx := context.Background()
-	conf := setupConfig(t)
-
-	// suite.NewTestCA() uses the same SSH key for all created keys, which in this scenario triggers extra CA rotation.
-	keygen := keygen.New(ctx)
-	privHost, _, err := keygen.GenerateKeyPair()
-	require.NoError(t, err)
-	privUser, _, err := keygen.GenerateKeyPair()
-	require.NoError(t, err)
-
-	hostCA := suite.NewTestCA(types.HostCA, "me.localhost", privHost)
-	userCA := suite.NewTestCA(types.UserCA, "me.localhost", privUser)
-	// Create duplicated CAs
-	databaseCA := suite.NewTestCA(types.DatabaseCA, "me.localhost", privHost)
-	databaseCA.Spec.ActiveKeys = hostCA.Spec.ActiveKeys.Clone()
-
-	conf.Authorities = []types.CertAuthority{hostCA, userCA, databaseCA}
-
-	auth, err := Init(conf)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		err = auth.Close()
-		require.NoError(t, err)
-	})
-
-	rotationPhases := []string{
-		types.RotationPhaseInit, types.RotationPhaseUpdateClients,
-		types.RotationPhaseUpdateServers, types.RotationPhaseStandby,
-	}
-
-	// Rotate CAs.
-	for _, phase := range rotationPhases {
-		err = auth.RotateCertAuthority(ctx, RotateRequest{
-			Mode:        types.RotationModeManual,
-			TargetPhase: phase,
-			Type:        types.HostCA,
-		})
-		require.NoError(t, err)
-	}
-
-	newUserCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.UserCA,
-		DomainName: "me.localhost",
-	}, true)
-	require.NoError(t, err)
-	// UserCA should be untouched, as it was not the part of the rotate request, and it's unique.
-	require.Equal(t, userCA.Spec.ActiveKeys.TLS, newUserCA.GetActiveKeys().TLS)
-	require.Equal(t, userCA.Spec.ActiveKeys.SSH, newUserCA.GetActiveKeys().SSH)
-
-	newHostCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: "me.localhost",
-	}, true)
-	require.NoError(t, err)
-	// HostCA should be rotated, as we requested for it.
-	require.NotEqual(t, hostCA.Spec.ActiveKeys.TLS, newHostCA.GetActiveKeys().TLS)
-	require.NotEqual(t, hostCA.Spec.ActiveKeys.SSH, newHostCA.GetActiveKeys().SSH)
-
-	newDatabaseCA, err := auth.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.DatabaseCA,
-		DomainName: "me.localhost",
-	}, true)
-	require.NoError(t, err)
-	// DatabaseCA should be rotated, as the key was the same as HostCA.
-	require.NotEqual(t, databaseCA.Spec.ActiveKeys.TLS, newDatabaseCA.GetActiveKeys().TLS)
-	require.NotEqual(t, databaseCA.Spec.ActiveKeys.SSH, newDatabaseCA.GetActiveKeys().SSH)
-
-	// HostCA and DatabaseCA should be different now.
-	require.NotEqual(t, newHostCA.GetActiveKeys().TLS, newDatabaseCA.GetActiveKeys().TLS)
-	require.NotEqual(t, newHostCA.GetActiveKeys().SSH, newDatabaseCA.GetActiveKeys().SSH)
 }

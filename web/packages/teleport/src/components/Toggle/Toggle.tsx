@@ -22,9 +22,10 @@ export default function Toggle({
   onToggle,
   children,
   disabled,
+  className,
 }: Props) {
   return (
-    <StyledWrapper disabled={disabled}>
+    <StyledWrapper disabled={disabled} className={className}>
       <StyledInput
         checked={isToggled}
         onChange={onToggle}
@@ -41,6 +42,7 @@ type Props = {
   onToggle: () => void;
   children?: ReactNode;
   disabled?: boolean;
+  className?: string;
 };
 
 const StyledWrapper = styled.label`
@@ -58,7 +60,7 @@ const StyledSlider = styled.div`
   width: 32px;
   height: 12px;
   border-radius: 12px;
-  background: ${props => props.theme.colors.primary.light};
+  background: ${props => props.theme.colors.levels.surface};
   cursor: inherit;
   flex-shrink: 0;
 
@@ -70,7 +72,7 @@ const StyledSlider = styled.div`
     width: 16px;
     height: 16px;
     border-radius: 16px;
-    background: ${props => props.theme.colors.secondary.light};
+    background: ${props => props.theme.colors.brand};
   }
 `;
 
@@ -80,7 +82,7 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })`
   cursor: inherit;
 
   &:checked + ${StyledSlider} {
-    background: ${props => props.theme.colors.secondary.main};
+    background: ${props => props.theme.colors.spotBackground[1]};
 
     &:before {
       transform: translate(16px, -50%);
@@ -88,7 +90,7 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })`
   }
 
   &:disabled + ${StyledSlider} {
-    background: ${props => props.theme.colors.primary.light};
+    background: ${props => props.theme.colors.levels.surface};
 
     &:before {
       background: ${props => props.theme.colors.grey[700]};

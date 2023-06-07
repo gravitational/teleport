@@ -99,6 +99,36 @@ type MFAChallengeRequest struct {
 	Passwordless bool `json:"passwordless"`
 }
 
+// MFAChallengeResponse holds the response to a MFA challenge.
+type MFAChallengeResponse struct {
+	// TOTPCode is a code for a otp device.
+	TOTPCode string `json:"totp_code,omitempty"`
+	// WebauthnResponse is a response from a webauthn device.
+	WebauthnResponse *wanlib.CredentialAssertionResponse `json:"webauthn_response,omitempty"`
+}
+
+// GetOptionalMFAResponseProtoReq converts response to a type proto.MFAAuthenticateResponse,
+// if there were any responses set. Otherwise returns nil.
+func (r *MFAChallengeResponse) GetOptionalMFAResponseProtoReq() (*proto.MFAAuthenticateResponse, error) {
+	if r.TOTPCode != "" && r.WebauthnResponse != nil {
+		return nil, trace.BadParameter("only one MFA response field can be set")
+	}
+
+	if r.TOTPCode != "" {
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_TOTP{
+			TOTP: &proto.TOTPResponse{Code: r.TOTPCode},
+		}}, nil
+	}
+
+	if r.WebauthnResponse != nil {
+		return &proto.MFAAuthenticateResponse{Response: &proto.MFAAuthenticateResponse_Webauthn{
+			Webauthn: wanlib.CredentialAssertionResponseToProto(r.WebauthnResponse),
+		}}, nil
+	}
+
+	return nil, nil
+}
+
 // CreateSSHCertReq are passed by web client
 // to authenticate against teleport server and receive
 // a temporary cert signed by auth server authority
@@ -109,6 +139,8 @@ type CreateSSHCertReq struct {
 	Password string `json:"password"`
 	// OTPToken is second factor token
 	OTPToken string `json:"otp_token"`
+	// HeadlessAuthenticationID is a headless authentication resource id.
+	HeadlessAuthenticationID string `json:"headless_id"`
 	// PubKey is a public key user wishes to sign
 	PubKey []byte `json:"pub_key"`
 	// TTL is a desired TTL for the cert (max is still capped by server,
@@ -158,6 +190,13 @@ type AuthenticateSSHUserRequest struct {
 type AuthenticateWebUserRequest struct {
 	// User is a teleport username.
 	User string `json:"user"`
+	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
+	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
+}
+
+type HeadlessRequest struct {
+	// Actions can be either accept or deny.
+	Action string `json:"action"`
 	// WebauthnAssertionResponse is a signed WebAuthn credential assertion.
 	WebauthnAssertionResponse *wanlib.CredentialAssertionResponse `json:"webauthnAssertionResponse,omitempty"`
 }
@@ -249,6 +288,16 @@ type SSHLoginPasswordless struct {
 	// CustomPrompt defines a custom webauthn login prompt.
 	// It's an optional field that when nil, it will use the wancli.DefaultPrompt.
 	CustomPrompt wancli.LoginPrompt
+}
+
+type SSHLoginHeadless struct {
+	SSHLogin
+
+	// User is the login username.
+	User string
+
+	// HeadlessAuthenticationID is a headless authentication request ID.
+	HeadlessAuthenticationID string
 }
 
 // initClient creates a new client to the HTTPS web proxy.
@@ -372,6 +421,39 @@ func SSHAgentLogin(ctx context.Context, login SSHLoginDirect) (*auth.SSHLoginRes
 		RouteToCluster:       login.RouteToCluster,
 		KubernetesCluster:    login.KubernetesCluster,
 		AttestationStatement: login.AttestationStatement,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var out *auth.SSHLoginResponse
+	err = json.Unmarshal(re.Bytes(), &out)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return out, nil
+}
+
+// SSHAgentHeadlessLogin begins the headless login ceremony, returning new user certificates if successful.
+func SSHAgentHeadlessLogin(ctx context.Context, login SSHLoginHeadless) (*auth.SSHLoginResponse, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// This request will block until the headless login is approved.
+	clt.Client.HTTPClient().Timeout = defaults.CallbackTimeout
+
+	re, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "ssh", "certs"), CreateSSHCertReq{
+		User:                     login.User,
+		HeadlessAuthenticationID: login.HeadlessAuthenticationID,
+		PubKey:                   login.PubKey,
+		TTL:                      login.TTL,
+		Compatibility:            login.Compatibility,
+		RouteToCluster:           login.RouteToCluster,
+		KubernetesCluster:        login.KubernetesCluster,
+		AttestationStatement:     login.AttestationStatement,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

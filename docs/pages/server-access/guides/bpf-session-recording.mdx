@@ -81,19 +81,17 @@ library preloading, and environment variables may not be captured in session rec
 
 ### Linux distributions and supported kernels
 
-<table>
-<thead>
-  <tr><td>Distro name</td><td>Distro version</td><td>Kernel version</td></tr>
-</thead>
-<tbody>
-  <tr><td>Ubuntu "Groovy Gorilla"</td><td>20.10</td><td>5.8+</td></tr>
-  <tr><td>Fedora</td><td>33</td><td>5.8+</td></tr>
-  <tr><td>Archlinux</td><td>2020.09.01</td><td>5.8.5+</td></tr>
-  <tr><td>Flatcar</td><td>2765.2.2</td><td>5.10.25+</td></tr>
-</tbody>
-</table>
+Teleport supports enhanced session recording with BPF on `amd64` and `arm64` architectures.
 
-(!docs/pages/includes/tctl.mdx!)
+| Distro name             | Distro version | Kernel Version |
+|:------------------------|:---------------|:---------------|
+| Ubuntu "Groovy Gorilla" | 20.10          | 5.8+           |
+| Fedora                  | 33             | 5.8+           |
+| Archlinux               | 2020.09.01     | 5.8.5+         |
+| Flatcar                 | 2765.2.2       | 5.10.25+       |
+| Amazon Linux            | 2              | 5.10+          |
+
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Configure a Teleport Node
 
@@ -206,7 +204,7 @@ Events emitted via Enhanced Session Recording will include the
 If your Teleport cluster uses a file-based event log, you can examine your audit
 log on the Teleport Auth Service host.
 
-<Details title="Is my cluster using a file-based event log?" opened={false}>
+<Details title="Is my cluster using a file-based event log?">
 
 Teleport's session recordings backend is configured via the
 `teleport.storage.audit_sessions_uri` field. If a provided URI includes a scheme

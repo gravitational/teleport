@@ -352,6 +352,11 @@ type session struct {
 	// Set if we should broadcast information about participant requirements to the session.
 	displayParticipantRequirements bool
 
+	// invitedUsers is a list of users that were invited to the session.
+	invitedUsers []string
+	// reason is the reason for the session.
+	reason string
+
 	// eventsWaiter is used to wait for events to be emitted and goroutines closed
 	// when a session is closed.
 	eventsWaiter sync.WaitGroup
@@ -370,12 +375,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	id := uuid.New()
 	log := forwarder.log.WithField("session", id.String())
 	log.Debug("Creating session")
-	roles, err := getRolesByName(forwarder, ctx.Context.Identity.GetIdentity().Groups)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	var policySets []*types.SessionTrackerPolicySet
+	roles := ctx.Checker.Roles()
 	for _, role := range roles {
 		policySet := role.GetSessionPolicySet()
 		policySets = append(policySets, &policySet)
@@ -405,7 +407,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		initiator:                      initiator.ID,
 		expires:                        time.Now().UTC().Add(sessionMaxLifetime),
 		PresenceEnabled:                ctx.Identity.GetIdentity().MFAVerified != "",
-		displayParticipantRequirements: utils.AsBool(q.Get("displayParticipantRequirements")),
+		displayParticipantRequirements: utils.AsBool(q.Get(teleport.KubeSessionDisplayParticipantRequirementsQueryParam)),
+		invitedUsers:                   strings.Split(q.Get(teleport.KubeSessionInvitedQueryParam), ","),
+		reason:                         q.Get(teleport.KubeSessionReasonQueryParam),
 		streamContext:                  streamContext,
 		streamContextCancel:            streamContextCancel,
 		partiesWg:                      sync.WaitGroup{},
@@ -512,7 +516,7 @@ func (s *session) launch() error {
 	s.podName = request.podName
 	s.BroadcastMessage("Connecting to %v over K8S", s.podName)
 
-	eventPodMeta := request.eventPodMeta(request.context, s.sess.creds)
+	eventPodMeta := request.eventPodMeta(request.context, s.sess.kubeAPICreds)
 
 	onFinished, err := s.lockedSetupLaunch(request, q, eventPodMeta)
 	if err != nil {
@@ -580,7 +584,7 @@ func (s *session) launch() error {
 	}()
 
 	if err = s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
-		s.log.Warn("Failed to set tracker state to running")
+		s.log.WithError(err).Warn("Failed to set tracker state to running")
 	}
 
 	var executor remotecommand.Executor
@@ -683,12 +687,12 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 		Component:    teleport.Component(teleport.ComponentSession, teleport.ComponentProxyKube),
 		ClusterName:  s.forwarder.cfg.ClusterName,
 	})
-
-	s.recorder = recorder
-	s.emitter = recorder
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	s.recorder = recorder
+	s.emitter = recorder
 
 	s.io.AddWriter(sessionRecorderID, recorder)
 
@@ -828,11 +832,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 // join attempts to connect a party to the session.
 func (s *session) join(p *party) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roleNames := p.Ctx.Identity.GetIdentity().Groups
-		roles, err := getRolesByName(s.forwarder, roleNames)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		roles := p.Ctx.Checker.Roles()
 
 		accessContext := auth.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),
@@ -905,7 +905,7 @@ func (s *session) join(p *party) error {
 	}
 
 	s.io.AddWriter(stringID, p.Client.stdoutStream())
-	s.BroadcastMessage("User %v joined the session.", p.Ctx.User.GetName())
+	s.BroadcastMessage("User %v joined the session with participant mode: %v.", p.Ctx.User.GetName(), p.Mode)
 
 	if p.Mode == types.SessionModeratorMode {
 		s.eventsWaiter.Add(1)
@@ -1189,14 +1189,40 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		HostUser:          p.Ctx.User.GetName(),
 		HostPolicies:      policySet,
 		Login:             "root",
-		Created:           time.Now(),
+		Created:           s.forwarder.cfg.Clock.Now(),
+		Reason:            s.reason,
+		Invited:           s.invitedUsers,
+		HostID:            s.forwarder.cfg.HostID,
 	}
 
 	s.log.Debug("Creating session tracker")
-	var err error
-	s.tracker, err = srv.NewSessionTracker(s.forwarder.ctx, trackerSpec, s.forwarder.cfg.AuthClient)
-	if err != nil {
+	sessionTrackerService := s.forwarder.cfg.AuthClient
+
+	ctx := s.req.Context()
+
+	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, sessionTrackerService)
+	switch {
+	// there was an error creating the tracker for a moderated session - terminate the session
+	case err != nil && s.accessEvaluator.IsModerated():
+		s.log.WithError(err).Warn("Failed to create session tracker, unable to proceed for moderated session")
 		return trace.Wrap(err)
+	// there was an error creating the tracker for a non-moderated session - permit the session with a local tracker
+	case err != nil && !s.accessEvaluator.IsModerated():
+		s.log.Warn("Failed to create session tracker, proceeding with local session tracker for non-moderated session")
+
+		localTracker, err := srv.NewSessionTracker(ctx, trackerSpec, nil)
+		// this error means there are problems with the trackerSpec, we need to return it
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.tracker = localTracker
+	// there was an error even though the tracker wasn't being propagated - return it
+	case err != nil:
+		return trace.Wrap(err)
+	// the tracker was created successfully
+	case err == nil:
+		s.tracker = tracker
 	}
 
 	go func() {

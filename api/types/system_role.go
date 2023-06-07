@@ -70,6 +70,13 @@ const (
 	RoleInstance SystemRole = "Instance"
 	// RoleDiscovery is a role for discovery nodes in the cluster
 	RoleDiscovery SystemRole = "Discovery"
+	// RoleOkta is a role for Okta nodes in the cluster
+	RoleOkta SystemRole = "Okta"
+	// RoleMDM is the role for MDM services in the cluster.
+	// An MDM service, like Jamf Service, has the powers to manage the cluster's
+	// device inventory.
+	// Device Trust requires Teleport Enteprise.
+	RoleMDM SystemRole = "MDM"
 )
 
 // roleMappings maps a set of allowed lowercase system role names
@@ -94,6 +101,8 @@ var roleMappings = map[string]SystemRole{
 	"bot":             RoleBot,
 	"instance":        RoleInstance,
 	"discovery":       RoleDiscovery,
+	"okta":            RoleOkta,
+	"mdm":             RoleMDM,
 }
 
 // localServiceMappings is the subset of role mappings which happen to be true
@@ -108,6 +117,8 @@ var localServiceMappings = map[SystemRole]struct{}{
 	RoleDatabase:       {},
 	RoleWindowsDesktop: {},
 	RoleDiscovery:      {},
+	RoleOkta:           {},
+	RoleMDM:            {},
 }
 
 // LocalServiceMappings returns the subset of role mappings which happen

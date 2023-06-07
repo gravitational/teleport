@@ -16,6 +16,8 @@
 
 import { renderHook } from '@testing-library/react-hooks';
 
+import cfg from 'teleport/config';
+
 // Imports to be mocked
 import { fetchClusterAlerts } from 'teleport/services/alerts'; // eslint-disable-line
 import useStickyClusterId from 'teleport/useStickyClusterId'; // eslint-disable-line
@@ -67,11 +69,27 @@ jest.mock('teleport/services/alerts', () => ({
 
 jest.mock('teleport/useStickyClusterId', () => () => ({ clusterId: 42 }));
 
+afterEach(() => {
+  cfg.isDashboard = false;
+});
+
 describe('components/BannerList/useAlerts', () => {
   it('fetches cluster alerts on load', async () => {
     const { result, waitFor } = renderHook(() => useAlerts());
     await waitFor(() => {
       expect(result.current.alerts).toEqual(ALERTS);
+    });
+  });
+
+  it('will not return upgrade suggestions on dashboards', async () => {
+    cfg.isDashboard = true;
+    const { result, waitFor } = renderHook(() => useAlerts());
+    await waitFor(() => {
+      const alerts = result.current.alerts;
+      alerts.forEach(alert => {
+        expect(alert.metadata).not.toBe('upgrade-suggestion');
+        expect(alert.metadata).not.toBe('security-patch-available');
+      });
     });
   });
 

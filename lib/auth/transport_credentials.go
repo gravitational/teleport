@@ -24,11 +24,12 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/authz"
 )
 
 // UserGetter is responsible for building an authenticated user based on TLS metadata
 type UserGetter interface {
-	GetUser(connState tls.ConnectionState) (IdentityGetter, error)
+	GetUser(connState tls.ConnectionState) (authz.IdentityGetter, error)
 }
 
 // ConnectionIdentity contains the identifying properties of a
@@ -66,7 +67,7 @@ type TransportCredentialsConfig struct {
 	// Authorizer prevents any connections from being established if the user is not
 	// authorized due to locks, private key policy, device trust, etc. If not set
 	// then no authorization is performed.
-	Authorizer Authorizer
+	Authorizer authz.Authorizer
 	// Enforcer prevents any connections from being established if the user would
 	// exceed their configured max connection limit. Any connections that are
 	// permitted may be terminated if there is an issue determining if the number
@@ -101,7 +102,7 @@ type TransportCredentials struct {
 	credentials.TransportCredentials
 
 	userGetter UserGetter
-	authorizer Authorizer
+	authorizer authz.Authorizer
 	enforcer   ConnectionEnforcer
 }
 
@@ -128,12 +129,12 @@ type IdentityInfo struct {
 	*credentials.TLSInfo
 	// IdentityGetter provides a mechanism to retrieve the
 	// identity of the client.
-	IdentityGetter IdentityGetter
+	IdentityGetter authz.IdentityGetter
 	// AuthContext contains information about the traits and roles
 	// that an identity may have. This will be unset if the
 	// [TransportCredentialsConfig.Authorizer] provided to [NewTransportCredentials]
 	// was nil.
-	AuthContext *Context
+	AuthContext *authz.Context
 }
 
 // ServerHandshake does the authentication handshake for servers. It returns
@@ -161,7 +162,7 @@ func (c *TransportCredentials) ServerHandshake(rawConn net.Conn) (_ net.Conn, _ 
 	}
 
 	ctx := context.Background()
-	authCtx, err := c.authorize(ctx, conn.RemoteAddr().String(), identityGetter, &tlsInfo.State)
+	authCtx, err := c.authorize(ctx, conn.RemoteAddr(), identityGetter, &tlsInfo.State)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -197,17 +198,17 @@ func (c *TransportCredentials) performTLSHandshake(rawConn net.Conn) (net.Conn, 
 // authorize enforces that the identity is not restricted from connecting due
 // to things like locks, private key policy, device trust, etc. If the TransportCredentials
 // was not configured to do authorization then this is a noop and will return nil, nil.
-func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr string, identityGetter IdentityGetter, connState *tls.ConnectionState) (*Context, error) {
+func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr net.Addr, identityGetter authz.IdentityGetter, connState *tls.ConnectionState) (*authz.Context, error) {
 	if c.authorizer == nil {
-		return &Context{
+		return &authz.Context{
 			Identity: identityGetter,
 		}, nil
 	}
 
 	// construct a context with the keys expected by the Authorizer
-	ctx = context.WithValue(ctx, contextUserCertificate, certFromConnState(connState))
-	ctx = context.WithValue(ctx, ContextClientAddr, remoteAddr)
-	ctx = context.WithValue(ctx, ContextUser, identityGetter)
+	ctx = authz.ContextWithUserCertificate(ctx, certFromConnState(connState))
+	ctx = authz.ContextWithClientAddr(ctx, remoteAddr)
+	ctx = authz.ContextWithUser(ctx, identityGetter)
 
 	authCtx, err := c.authorizer.Authorize(ctx)
 	return authCtx, trace.Wrap(err)
@@ -217,7 +218,7 @@ func (c *TransportCredentials) authorize(ctx context.Context, remoteAddr string,
 // connection limits. The provided connection will be closed by the enforcer
 // if connectivity to Auth is interrupted. If the TransportCredentials
 // was not configured to do connection limiting then this is a noop and will return nil.
-func (c *TransportCredentials) enforceConnectionLimits(ctx context.Context, authCtx *Context, conn net.Conn) error {
+func (c *TransportCredentials) enforceConnectionLimits(ctx context.Context, authCtx *authz.Context, conn net.Conn) error {
 	if c.enforcer == nil {
 		return nil
 	}
@@ -233,7 +234,7 @@ func (c *TransportCredentials) enforceConnectionLimits(ctx context.Context, auth
 			MaxConnections: authCtx.Checker.MaxConnections(),
 			LocalAddr:      conn.LocalAddr().String(),
 			RemoteAddr:     conn.RemoteAddr().String(),
-			UserMetadata:   ClientUserMetadata(ctx),
+			UserMetadata:   authz.ClientUserMetadata(ctx),
 		},
 		conn,
 	)

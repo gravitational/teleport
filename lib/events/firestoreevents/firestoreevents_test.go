@@ -46,6 +46,8 @@ func setupFirestoreContext(t *testing.T) *firestoreContext {
 		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
 
+	require.NoError(t, os.Setenv("FIRESTORE_EMULATOR_HOST", "localhost:8618"))
+
 	fakeClock := clockwork.NewFakeClock()
 
 	config := EventsConfig{}
@@ -121,7 +123,7 @@ func (tt *firestoreContext) testPagination(t *testing.T) {
 
 func (tt *firestoreContext) testSearchSessionEvensBySessionID(t *testing.T) {
 	tt.setupTest(t)
-	tt.suite.SearchSessionEvensBySessionID(t)
+	tt.suite.SearchSessionEventsBySessionID(t)
 }
 
 func TestFirestoreEvents(t *testing.T) {

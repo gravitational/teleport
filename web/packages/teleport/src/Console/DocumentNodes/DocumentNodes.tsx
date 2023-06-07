@@ -27,7 +27,6 @@ import * as stores from 'teleport/Console/stores/types';
 
 import ClusterSelector from './ClusterSelector';
 import useNodes from './useNodes';
-import ThemeProvider from './ThemeProvider';
 
 type Props = {
   visible: boolean;
@@ -81,48 +80,46 @@ export default function DocumentNodes(props: Props) {
   }
 
   return (
-    <ThemeProvider>
-      <Document visible={visible}>
-        <Container mx="auto" mt="4" px="5">
-          <Flex justifyContent="space-between" mb="4" alignItems="end">
-            <ClusterSelector
-              value={doc.clusterId}
-              width="336px"
-              maxMenuHeight={200}
-              mr="20px"
-              onChange={onChangeCluster}
-            />
-            <QuickLaunch width="240px" onPress={onQuickLaunchEnter} />
-          </Flex>
-          {attempt.status === 'processing' && (
-            <Box textAlign="center" m={10}>
-              <Indicator />
-            </Box>
-          )}
-          {attempt.status === 'failed' && (
-            <ErrorMessage message={attempt.statusText} />
-          )}
-          {attempt.status !== 'processing' && (
-            <NodeList
-              nodes={fetchedData.agents}
-              onLoginMenuOpen={onLoginMenuOpen}
-              onLoginSelect={onLoginMenuSelect}
-              fetchNext={fetchNext}
-              fetchPrev={fetchPrev}
-              fetchStatus={fetchStatus}
-              pageIndicators={pageIndicators}
-              pageSize={pageSize}
-              params={params}
-              setParams={setParams}
-              setSort={setSort}
-              pathname={pathname}
-              replaceHistory={replaceHistory}
-              onLabelClick={onLabelClick}
-            />
-          )}
-        </Container>
-      </Document>
-    </ThemeProvider>
+    <Document visible={visible}>
+      <Container mx="auto" mt="4" px="5">
+        <Flex justifyContent="space-between" mb="4" alignItems="end">
+          <ClusterSelector
+            value={doc.clusterId}
+            width="336px"
+            maxMenuHeight={200}
+            mr="20px"
+            onChange={onChangeCluster}
+          />
+          <QuickLaunch width="240px" onPress={onQuickLaunchEnter} />
+        </Flex>
+        {attempt.status === 'processing' && (
+          <Box textAlign="center" m={10}>
+            <Indicator />
+          </Box>
+        )}
+        {attempt.status === 'failed' && (
+          <ErrorMessage message={attempt.statusText} />
+        )}
+        {attempt.status !== 'processing' && (
+          <NodeList
+            nodes={fetchedData.agents}
+            onLoginMenuOpen={onLoginMenuOpen}
+            onLoginSelect={onLoginMenuSelect}
+            fetchNext={fetchNext}
+            fetchPrev={fetchPrev}
+            fetchStatus={fetchStatus}
+            pageIndicators={pageIndicators}
+            pageSize={pageSize}
+            params={params}
+            setParams={setParams}
+            setSort={setSort}
+            pathname={pathname}
+            replaceHistory={replaceHistory}
+            onLabelClick={onLabelClick}
+          />
+        )}
+      </Container>
+    </Document>
   );
 }
 
@@ -131,6 +128,7 @@ const Container = styled(Box)`
   display: flex;
   flex: 1;
   max-width: 1024px;
+  height: fit-content;
   ::after {
     content: ' ';
     padding-bottom: 24px;

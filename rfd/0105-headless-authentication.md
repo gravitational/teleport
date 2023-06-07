@@ -1,6 +1,6 @@
 ---
 authors: Brian Joerger (bjoerger@goteleport.com)
-state: draft
+state: implemented (v12.2)
 ---
 
 # RFD 105 - Headless Authentication
@@ -103,7 +103,7 @@ sequenceDiagram
     participant Headless Machine as Remote (Headless) Machine
     participant Teleport Proxy
     participant Teleport Auth
-    
+
     Note over Headless Machine: tsh --headless ssh user@node01
     Note over Headless Machine: print URL proxy.example.com/headless/<request_id>
     par headless client request
@@ -116,7 +116,7 @@ sequenceDiagram
         Note over Local Machine: proxy.example.com/headless/<request_id>
         opt user is not already logged in locally
             Local Machine->>Teleport Proxy: user logs in normally e.g. password+MFA
-            Teleport Proxy->>Local Machine: 
+            Teleport Proxy->>Local Machine:
         end
         Local Machine->>Teleport Auth: rpc GetHeadlessAuthentication (request_id)
         Teleport Auth ->> Backend: insert /headless_authentication/<request_id>
@@ -153,7 +153,7 @@ A request id will be derived from the client's public key so that an attacker ca
 
 Note: We could also use the public key directly (base64 encoded), but we choose to use a UUID to shorten the URL and improve its readability.
 
-As [explained above](#unauthenticated-headless-login-endpoint), the Auth server will write the request details to the backend under `/headless_authentication/<request_id>` on demand. It will have a 1 minute TTL, by which point the user should have completed the headless authentication flow. The request will begin in the pending state. The Auth server then waits for the user to approve the authentication request using a resource watcher.
+As [explained above](#unauthenticated-headless-login-endpoint), the Auth server will write the request details to the backend under `/headless_authentication/<request_id>` on demand. It will have a short TTL, matching the callback timeout of the request. The request will begin in the pending state. The Auth server then waits for the user to approve the authentication request using a resource watcher.
 
 #### Local authentication
 
@@ -170,7 +170,7 @@ If the headless authentication is approved with a valid MFA challenge, the backe
 
 #### Certificate retrieval
 
-If the headless authentication is approved/denied, the Auth server's resource watcher will unblock to complete/deny the authentication attempt. If approved, the auth server will generate certificates for the user. These certs will have a 1 minute TTL and MFA-verfied by the MFA device saved in the headless authentication resource.
+If the headless authentication is approved/denied, the Auth server's resource watcher will unblock to complete/deny the authentication attempt. If approved, the auth server will generate certificates for the user. These certs will have a 1 minute TTL and MFA-verified by the MFA device saved in the headless authentication resource.
 
 The resulting user certificates will then be returned to the Proxy and then to the client. Now the client can complete the `tsh` request initially requested, e.g. `tsh ssh user@node01`.
 
@@ -215,7 +215,7 @@ message UpdateHeadlessAuthenticationStateRequest {
   State new_state = 2;
 
   // MFAResponse is an mfa challenge response used to verify the user.
-  // MFA Auth Challenges can be created for a user with the 
+  // MFA Auth Challenges can be created for a user with the
   // authservice.GenerateAuthenticateChallenge rpc.
   proto.MFAAuthenticateResponse mfa_response = 3;
 }
@@ -258,36 +258,49 @@ enum HeadlessAuthenticationState {
 
 ### Server changes
 
-#### `POST /webapi/login/headless`
+#### `POST /webapi/certs/ssh`
 
-This endpoint is used to initiate headless login. Like other login endpoints, this endpoint is not authenticated and can be called by anyone with access to the Teleport Proxy address.
+This is an existing endpoint used by a user to login with `tsh` or Teleport Connect. We will add the `HeadlessAuthenticationID` field to switch to headless authentication instead of password/otp.
+
+Like other login endpoints, this endpoint is not authenticated and can be called by anyone with access to the Teleport Proxy address.
 
 ```go
-type HeadlessAuthenticationRequest struct {
-    SSHLogin
-    // User is a teleport username.
-    User string `json:"user"`
-}
-
-// SSHLogin contains common SSH login parameters.
-type SSHLogin struct {
-    // ProxyAddr is the target proxy address
-    ProxyAddr string
-    // PubKey is SSH public key to sign
-    PubKey []byte
-    ...
+type CreateSSHCertReq struct {
+  // User is a teleport username
+  User string `json:"user"`
+  // Password is user's pass
+  Password string `json:"password"`
+  // OTPToken is second factor token
+  OTPToken string `json:"otp_token"`
+  // HeadlessAuthenticationID is a headless authentication resource id.
+  HeadlessAuthenticationID string `json:"headless_id"`
+  // PubKey is a public key user wishes to sign
+  PubKey []byte `json:"pub_key"`
+  // TTL is a desired TTL for the cert (max is still capped by server,
+  // however user can shorten the time)
+  TTL time.Duration `json:"ttl"`
+  // Compatibility specifies OpenSSH compatibility flags.
+  Compatibility string `json:"compatibility,omitempty"`
+  // RouteToCluster is an optional cluster name to route the response
+  // credentials to.
+  RouteToCluster string
+  // KubernetesCluster is an optional k8s cluster name to route the response
+  // credentials to.
+  KubernetesCluster string
+  // AttestationStatement is an attestation statement associated with the given public key.
+  AttestationStatement *keys.AttestationStatement `json:"attestation_statement,omitempty"`
 }
 
 // SSHLoginResponse is a user login response
 type SSHLoginResponse struct {
-    // Username contains the username for the login certificates
-    Username string `json:"username"`
-    // Cert is a PEM encoded SSH certificate signed by SSH certificate authority
-    Cert []byte `json:"cert"`
-    // TLSCertPEM is a PEM encoded TLS certificate signed by TLS certificate authority
-    TLSCert []byte `json:"tls_cert"`
-    // HostSigners is a list of signing host public keys trusted by proxy
-    HostSigners []TrustedCerts `json:"host_signers"`
+  // Username contains the username for the login certificates
+  Username string `json:"username"`
+  // Cert is a PEM encoded SSH certificate signed by SSH certificate authority
+  Cert []byte `json:"cert"`
+  // TLSCertPEM is a PEM encoded TLS certificate signed by TLS certificate authority
+  TLSCert []byte `json:"tls_cert"`
+  // HostSigners is a list of signing host public keys trusted by proxy
+  HostSigners []TrustedCerts `json:"host_signers"`
 }
 ```
 
@@ -322,8 +335,8 @@ type AuthenticateUserRequest struct {
   Session *SessionCreds `json:"session,omitempty"`
   // ClientMetadata includes forwarded information about a client
   ClientMetadata *ForwardedClientMetadata `json:"client_metadata,omitempty"`
-  // Headless determines whether headless authentication will be used
-  Headless bool `json:"headless"`
+  // HeadlessAuthenticationID is the ID for a headless authentication resource.
+  HeadlessAuthenticationID string `json:"headless_authentication_id"`
 }
 ```
 
@@ -374,6 +387,6 @@ Teleport Connect will also be updated to handle the approval link `https://proxy
 
 ### Additional comments
 
-#### Utilizing the access request subsytem
+#### Utilizing the access request subsystem
 
 Headless authentication could be implemented by expanding the access request subsystem. `/webapi/login/headless` could submit a special headless authentication access request that can only be approved by the user with MFA, and could be used to assume the user's roles. I thoroughly investigated designs around this idea, but found they add too much complexity to the already heavily utilized access request subsystem.

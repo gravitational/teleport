@@ -6,7 +6,7 @@ description: How to configure SSH, Kubernetes, database, and web app access to b
 Teleport provides the foundation to meet FedRAMP requirements for the purposes of accessing infrastructure. This includes support for [FIPS 140-2](https://en.wikipedia.org/wiki/FIPS\_140-2), also known as the Federal Information Processing Standard, which is the US government approved standard for cryptographic modules. This document outlines a high
 level overview of how Teleport FIPS mode works and how it can help your company to become FedRAMP authorized.
 
-### Obtain FedRAMP authorization with Teleport
+## Obtain FedRAMP authorization with Teleport
 
 Teleport includes new FedRAMP and FIPS 140-2 features to support companies that sell into
 government agencies.
@@ -25,14 +25,11 @@ government agencies.
 | [IA-03 Device Identification and Authentication]((=fedramp.control_url=)IA-3) | Teleport requires valid x509 or SSH certificates issued by a Teleport Certificate Authority (CA) to establish a network connection for device-to-device network connection between Teleport components. |
 | [SC-12 Cryptographic Key Establish and Management]((=fedramp.control_url=)SC-12) | Teleport initializes cryptographic keys that act as a Certificate Authority (CA) to further issue x509 and SSH certificates. SSH and x509 user certificates that are issued are signed by the CA and are (by default) short-lived. SSH host certificates are also signed by the CA and rotated automatically (a manual force rotation can also be performed).<br/>Teleport Enterprise builds against a FIPS 140-2 compliant library (BoringCrypto) is available. <br/>In addition, when Teleport Enterprise is in FedRAMP/FIPS 140-2 mode, Teleport will only start and use FIPS 140-2 compliant cryptography. |
 
-Enterprise customers can download the custom FIPS package from the [Dashboard](https://dashboard.gravitational.com/web/login).  Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB packages are also available.
+## Setup
 
-# Setup
-
-Customers can follow our [Enterprise Getting Started
-Guide](../../choose-an-edition/teleport-enterprise/getting-started.mdx) for
-instructions on how to set up Teleport Enterprise. You'll need to start with the
-Teleport Enterprise FIPS binary.
+Sign in to your [Teleport account](https://teleport.sh) to download a FIPS binary
+for Teleport Enterprise. Look for `Linux 64-bit (FedRAMP/FIPS)`. RPM and DEB
+packages are also available.
 
 After downloading the binary tarball, run:
 
@@ -99,12 +96,12 @@ version: v3
 teleport:
   auth_token: xxxx-token-xxxx
 
-  # Specify either the proxy address
+  # Specify either the Proxy Service address...
   proxy_server: teleport.example.com:3080
-  # or the auth server address
+  # or the Auth Service address
   auth_server: 10.1.1.10:3025
 
-# Enable ssh service and disable auth and proxy:
+# Enable the SSH Service and disable the Auth and Proxy Services:
 ssh_service:
   enabled: true
 auth_service:

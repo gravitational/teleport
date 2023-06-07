@@ -316,6 +316,14 @@ export class WorkspacesService extends ImmutableStore<WorkspacesState> {
           return {
             ...d,
             status: 'connecting',
+            origin: 'reopened_session',
+          };
+        }
+
+        if (d.kind === 'doc.gateway') {
+          return {
+            ...d,
+            origin: 'reopened_session',
           };
         }
         return d;

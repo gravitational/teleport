@@ -19,14 +19,22 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.20.1
+GOLANG_VERSION ?= go1.20.4
 
 NODE_VERSION ?= 16.18.1
 
 # run lint-rust check locally before merging code after you bump this
-RUST_VERSION ?= 1.67.0
+RUST_VERSION ?= 1.68.0
 LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
+
+# Protogen related versions.
+BUF_VERSION ?= 1.20.0
+# Keep in sync with api/proto/buf.yaml (and buf.lock)
+GOGO_PROTO_TAG ?= v1.3.2
+NODE_GRPC_TOOLS_VERSION ?= 1.12.4
+NODE_PROTOC_TS_VERSION ?= 5.0.1
+PROTOC_VER ?= 3.20.3
 
 UID := $$(id -u)
 GID := $$(id -g)
@@ -38,12 +46,9 @@ RUNTIME_ARCH_arm64 := arm64
 RUNTIME_ARCH_aarch64 := arm64
 RUNTIME_ARCH := $(RUNTIME_ARCH_$(HOST_ARCH))
 
-PROTOC_VER ?= 3.20.3
-# Keep in sync with api/proto/buf.yaml (and buf.lock)
-GOGO_PROTO_TAG ?= v1.3.2
-
 # BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables are included
 include images.mk
+include grpcbox.mk
 
 # These variables are used to dynamically change the name of the buildbox Docker image used by the 'release'
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
@@ -131,9 +136,12 @@ buildbox:
 			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
 			--build-arg RUST_VERSION=$(RUST_VERSION) \
 			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg PROTOC_VER=$(PROTOC_VER) \
-			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
 			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+			--build-arg BUF_VERSION=$(BUF_VERSION) \
+			--build-arg GOGO_PROTO_TAG=$(GOGO_PROTO_TAG) \
+			--build-arg NODE_GRPC_TOOLS_VERSION=$(NODE_GRPC_TOOLS_VERSION) \
+			--build-arg NODE_PROTOC_TS_VERSION=$(NODE_PROTOC_TS_VERSION) \
+			--build-arg PROTOC_VER=$(PROTOC_VER) \
 			--cache-from $(BUILDBOX) \
 			--tag $(BUILDBOX) . ; \
 	fi
@@ -170,7 +178,6 @@ buildbox-centos7:
 		--build-arg NODE_VERSION=$(NODE_VERSION) \
 		--build-arg RUST_VERSION=$(RUST_VERSION) \
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
-		--build-arg PROTOC_VER=$(PROTOC_VER) \
 		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
 		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
 		--cache-from $(BUILDBOX_CENTOS7) \
@@ -227,11 +234,23 @@ CONNECT_VERSION := $(BUILDBOX_VERSION)-dev
 endif
 
 #
+# Builds a Docker buildbox for Linux Connect builds
+#
+.PHONY:buildbox-connect
+buildbox-connect:
+	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CONNECT) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CONNECT) || true; fi; \
+	DOCKER_BUILDKIT=1 docker build \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--cache-from $(BUILDBOX_CONNECT) \
+		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect . ;
+
+#
 # Builds Teleport Connect inside the buildbox container.
 #
 .PHONY:teleterm
-teleterm: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
+teleterm: buildbox-connect
+	# Always run this image as user 1000, as the Node base image assumes that.
+	docker run $(DOCKERFLAGS) -u 1000:1000 $(BUILDBOX_CONNECT) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
@@ -242,17 +261,13 @@ ui: buildbox
 
 # grpc generates GRPC stubs from inside the buildbox
 .PHONY: grpc
-grpc: buildbox
-	docker run \
-		$(DOCKERFLAGS) -t $(BUILDBOX) \
-		make -C /go/src/github.com/gravitational/teleport grpc/host
+grpc: grpcbox
+	$(GRPCBOX_RUN) make grpc/host
 
 # protos-up-to-date checks if GRPC stubs are up to date from inside the buildbox
 .PHONY: protos-up-to-date
-protos-up-to-date: buildbox
-	docker run \
-		$(DOCKERFLAGS) -t $(BUILDBOX) \
-		make -C /go/src/github.com/gravitational/teleport protos-up-to-date/host
+protos-up-to-date: grpcbox
+	$(GRPCBOX_RUN) make protos-up-to-date/host
 
 # fix-imports runs GCI to sort and re-order Go imports in a deterministic way.
 .PHONY: fix-imports
@@ -328,6 +343,11 @@ integration-root: buildbox
 	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
 		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-root"
 
+.PHONY:integration-kube
+integration-kube: buildbox
+	docker run $(DOCKERFLAGS) -t $(BUILDBOX) \
+		/bin/bash -c "make -C $(SRCDIR) FLAGS='-cover' integration-kube"
+
 #
 # Runs linters on new changes inside a build container.
 #
@@ -374,6 +394,13 @@ enter-root/centos7: buildbox-centos7
 		-e HOME=$(SRCDIR)/build.assets -w $(SRCDIR) $(BUILDBOX_CENTOS7) /bin/bash
 
 #
+# Starts a shell inside the grpcbox.
+#
+.PHONY: enter/grpcbox
+enter/grpcbox: grpcbox
+	$(GRPCBOX_RUN)
+
+#
 # Create a Teleport package using the build container.
 # Don't use this target directly; call named Makefile targets like release-amd64.
 #
@@ -415,49 +442,6 @@ release-amd64-centos7-fips: buildbox-centos7-fips
 .PHONY: release-arm64
 release-arm64: buildbox-arm
 	$(MAKE) release ARCH=arm64 BUILDBOX_NAME=$(BUILDBOX_ARM)
-
-# #############################################################################
-# GHA release build targets
-# #############################################################################
-
-#
-# The `release-oss` and `release-enterprise` make targets are for building OSS
-# and Enterprise releases from GitHub actions. These make targets execute in a
-# container based on a caller-supplied `BUILDBOX` image.
-#
-# Unlike the other release targets, these release targets do not attempt to
-# automatically construct the buildbox image at build time - the build box
-# image *must* be pre-built and the tag supplied via `BUILDBOX=...` on the
-# make command line
-#
-# Separating the construction of build environment from the actual build itself
-# allows us to use the appropriate GHA actions to pre-build the buildbox
-# image, so that the image construction works nicely with GHA.
-#
-
-define RELEASE_RECIPE
-		docker run \
-			--rm \
-			--platform linux/$(ARCH) \
-			--memory-swap -1 \
-			-h buildbox \
-			-e GOMODCACHE=$(GOMODCACHE) \
-			-e GOCACHE=$(GOCACHE) \
-			-v "/tmp:/tmp" \
-			-v "$(WORKSPACE):/go/teleport" \
-			-w /go/teleport \
-			-u 1000:1000 \
-			$(BUILDBOX) \
-		make $(1) ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
-endef
-
-.PHONY: release-oss
-release-oss:
-	$(call RELEASE_RECIPE,full build-archive)
-
-.PHONY: release-enterprise
-release-enterprise:
-	$(call RELEASE_RECIPE,release-unix-only)
 
 # #############################################################################
 
@@ -554,3 +538,74 @@ build-centos7-assets:
 		--build-arg DEVTOOLSET=$(DEVTOOLSET) \
 		--tag $(BUILDBOX_CENTOS7_ASSETS)-$(RUNTIME_ARCH) \
 		-f Dockerfile-centos7-assets .
+
+#################################################################################
+# Multiarch build steps
+#################################################################################
+
+GCC_VERSION ?= 10.4.0
+CLANG_BPF_VERSION ?= 10.0.1
+CLANG_FIPS_VERSION ?= 7.0.1
+BUILDBOX_PREFIX ?= ghcr.io/gravitational
+
+#
+# Build Dockerfile-multiarch-base on GHA
+#
+.PHONY:build-multiarch-base
+build-multiarch-base: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-base:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch-base:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg GCC_VERSION=$(GCC_VERSION) \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch-base .
+
+#
+# Build Dockerfile-multiarch-clang on GHA with clang-10, based on -base
+#
+.PHONY:build-multiarch-clang10
+build-multiarch-clang10: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang10:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch-clang10:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg CLANG_VERSION=$(CLANG_BPF_VERSION) \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch-clang .
+
+#
+# Build Dockerfile-multiarch-clang on GHA with clang-7, based on -base
+#
+.PHONY:build-multiarch-clang7
+build-multiarch-clang7: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch-clang7:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch-clang7:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg CLANG_VERSION=$(CLANG_FIPS_VERSION) \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch-clang .
+
+#
+# Build Dockerfile-multiarch on GHA, based on -base
+#
+.PHONY:build-multiarch
+build-multiarch: BUILDBOX=$(BUILDBOX_PREFIX)/buildbox-multiarch:$(BUILDBOX_VERSION)-$(ARCH)
+build-multiarch:
+	DOCKER_BUILDKIT=1 docker build --platform=$(PLATFORM) \
+		--cache-from type=gha \
+		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
+		--build-arg BUILDBOX_PREFIX=$(BUILDBOX_PREFIX) \
+		--build-arg LIBPCSCLITE_VERSION=$(LIBPCSCLITE_VERSION) \
+		--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
+		--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
+		--build-arg RUST_VERSION=$(RUST_VERSION) \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--build-arg UID=$(shell id -u) \
+		--build-arg GID=$(shell id -g) \
+		--tag $(BUILDBOX) \
+		--file Dockerfile-multiarch .

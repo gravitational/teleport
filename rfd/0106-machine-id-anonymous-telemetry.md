@@ -1,6 +1,6 @@
 ---
 authors: Noah Stride (noah.stride@goteleport.com)
-state: draft
+state: implemented ([v12.1.0](https://github.com/gravitational/teleport/pull/22174)]
 ---
 
 # RFD 0106 - Machine ID Anonymous Agent Telemetry

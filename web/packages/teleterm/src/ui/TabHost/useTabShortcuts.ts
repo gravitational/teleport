@@ -31,20 +31,21 @@ export function useTabShortcuts({
   documentsService: DocumentsService;
   localClusterUri: ClusterUri;
 }) {
-  const { openClusterTab } = useNewTabOpener({
+  const { openClusterTab, openTerminalTab } = useNewTabOpener({
     documentsService,
     localClusterUri,
   });
   const tabsShortcuts = useMemo(
-    () => buildTabsShortcuts(documentsService, openClusterTab),
-    [documentsService, openClusterTab]
+    () => buildTabsShortcuts(documentsService, openClusterTab, openTerminalTab),
+    [documentsService, openClusterTab, openTerminalTab]
   );
   useKeyboardShortcuts(tabsShortcuts);
 }
 
 function buildTabsShortcuts(
   documentService: DocumentsService,
-  openClusterTab: () => void
+  openClusterTab: () => void,
+  openTerminalTab: () => void
 ): KeyboardShortcutHandlers {
   const handleTabIndex = (index: number) => () => {
     const docs = documentService.getDocuments();
@@ -77,19 +78,21 @@ function buildTabsShortcuts(
 
     documentService.open(allDocuments[indexToOpen].uri);
   };
+
   return {
-    'tab-1': handleTabIndex(0),
-    'tab-2': handleTabIndex(1),
-    'tab-3': handleTabIndex(2),
-    'tab-4': handleTabIndex(3),
-    'tab-5': handleTabIndex(4),
-    'tab-6': handleTabIndex(5),
-    'tab-7': handleTabIndex(6),
-    'tab-8': handleTabIndex(7),
-    'tab-9': handleTabIndex(8),
-    'tab-close': handleActiveTabClose,
-    'tab-previous': handleTabSwitch('previous'),
-    'tab-next': handleTabSwitch('next'),
-    'tab-new': openClusterTab,
+    tab1: handleTabIndex(0),
+    tab2: handleTabIndex(1),
+    tab3: handleTabIndex(2),
+    tab4: handleTabIndex(3),
+    tab5: handleTabIndex(4),
+    tab6: handleTabIndex(5),
+    tab7: handleTabIndex(6),
+    tab8: handleTabIndex(7),
+    tab9: handleTabIndex(8),
+    closeTab: handleActiveTabClose,
+    previousTab: handleTabSwitch('previous'),
+    nextTab: handleTabSwitch('next'),
+    newTab: openClusterTab,
+    newTerminalTab: openTerminalTab,
   };
 }

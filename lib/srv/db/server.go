@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	clients "github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -49,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/srv/db/snowflake"
@@ -59,6 +61,7 @@ import (
 func init() {
 	common.RegisterEngine(cassandra.NewEngine, defaults.ProtocolCassandra)
 	common.RegisterEngine(elasticsearch.NewEngine, defaults.ProtocolElasticsearch)
+	common.RegisterEngine(opensearch.NewEngine, defaults.ProtocolOpenSearch)
 	common.RegisterEngine(mongodb.NewEngine, defaults.ProtocolMongoDB)
 	common.RegisterEngine(mysql.NewEngine, defaults.ProtocolMySQL)
 	common.RegisterEngine(postgres.NewEngine, defaults.ProtocolPostgres, defaults.ProtocolCockroachDB)
@@ -89,7 +92,7 @@ type Config struct {
 	// Limiter limits the number of connections per client IP.
 	Limiter *limiter.Limiter
 	// Authorizer is used to authorize requests coming from proxy.
-	Authorizer auth.Authorizer
+	Authorizer authz.Authorizer
 	// GetRotation returns the certificate rotation state.
 	GetRotation func(role types.SystemRole) (*types.Rotation, error)
 	// GetServerInfoFn returns function that returns database info for heartbeats.
@@ -101,9 +104,9 @@ type Config struct {
 	// ResourceMatchers is a list of database resource matchers.
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers is a list of AWS databases matchers.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 	// Databases is a list of proxied databases from static configuration.
 	Databases types.Databases
 	// CloudLabels is a service that imports labels from a cloud provider. The labels are shared
@@ -117,8 +120,6 @@ type Config struct {
 	Auth common.Auth
 	// CADownloader automatically downloads root certs for cloud hosted databases.
 	CADownloader CADownloader
-	// LockWatcher is a lock watcher.
-	LockWatcher *services.LockWatcher
 	// CloudClients creates cloud API clients.
 	CloudClients clients.Clients
 	// CloudMeta fetches cloud metadata for cloud hosted databases.
@@ -129,6 +130,10 @@ type Config struct {
 	ConnectedProxyGetter *reversetunnel.ConnectedProxyGetter
 	// CloudUsers manage users for cloud hosted databases.
 	CloudUsers *users.Users
+	// ConnectionMonitor monitors and closes connections if session controls
+	// prevent the connections.
+	ConnectionMonitor ConnMonitor
+
 	// discoveryResourceChecker performs some pre-checks when creating databases
 	// discovered by the discovery service.
 	discoveryResourceChecker discoveryResourceChecker
@@ -188,11 +193,15 @@ func (c *Config) CheckAndSetDefaults(ctx context.Context) (err error) {
 	if c.CADownloader == nil {
 		c.CADownloader = NewRealDownloader()
 	}
-	if c.LockWatcher == nil {
-		return trace.BadParameter("missing LockWatcher")
+	if c.ConnectionMonitor == nil {
+		return trace.BadParameter("missing ConnectionMonitor")
 	}
 	if c.CloudClients == nil {
-		c.CloudClients = clients.NewClients()
+		cloudClients, err := clients.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.CloudClients = cloudClients
 	}
 	if c.CloudMeta == nil {
 		c.CloudMeta, err = cloud.NewMetadata(cloud.MetadataConfig{
@@ -371,9 +380,11 @@ func New(ctx context.Context, config Config) (*Server, error) {
 	// Update TLS config to require client certificate.
 	server.cfg.TLSConfig.ClientAuth = tls.RequireAndVerifyClientCert
 	server.cfg.TLSConfig.GetConfigForClient = getConfigForClient(
-		server.cfg.TLSConfig, server.cfg.AccessPoint, server.log,
-		// TODO: Remove UserCA in Teleport 11.
-		types.UserCA, types.DatabaseCA)
+		server.cfg.TLSConfig,
+		server.cfg.AccessPoint,
+		server.log,
+		types.DatabaseCA,
+	)
 
 	return server, nil
 }
@@ -530,7 +541,6 @@ func (s *Server) unregisterDatabase(ctx context.Context, database types.Database
 		return trace.Wrap(err)
 	}
 	return nil
-
 }
 
 // stopProxyingDatabase winds down the proxied database instance by stopping
@@ -899,20 +909,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	clientConn, err = monitorConn(ctx, monitorConnConfig{
-		conn:         clientConn,
-		lockWatcher:  s.cfg.LockWatcher,
-		lockTargets:  sessionCtx.LockTargets,
-		identity:     sessionCtx.Identity,
-		checker:      sessionCtx.Checker,
-		clock:        s.cfg.Clock,
-		serverID:     s.cfg.HostID,
-		authClient:   s.cfg.AuthClient,
-		teleportUser: sessionCtx.Identity.Username,
-		emitter:      s.cfg.Emitter,
-		log:          s.log,
-		ctx:          s.closeContext,
-	})
+	ctx, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, sessionCtx.AuthContext, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -989,14 +986,26 @@ func (s *Server) createEngine(sessionCtx *common.Session, audit common.Audit) (c
 		Log:          sessionCtx.Log,
 		Users:        s.cfg.CloudUsers,
 		DataDir:      s.cfg.DataDir,
+		GetUserProvisioner: func(aub common.AutoUsers) *common.UserProvisioner {
+			return &common.UserProvisioner{
+				AuthClient: s.cfg.AuthClient,
+				Backend:    aub,
+				Log:        sessionCtx.Log,
+				Clock:      s.cfg.Clock,
+			}
+		},
 	})
 }
 
 func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	// Only allow local and remote identities to proxy to a database.
-	userType := ctx.Value(auth.ContextUser)
+	userType, err := authz.UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch userType.(type) {
-	case auth.LocalUser, auth.RemoteUser:
+	case authz.LocalUser, authz.RemoteUser:
 	default:
 		return nil, trace.BadParameter("invalid identity: %T", userType)
 	}
@@ -1007,6 +1016,7 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 	identity := authContext.Identity.GetIdentity()
 	s.log.Debugf("Client identity: %#v.", identity)
+
 	// Fetch the requested database server.
 	var database types.Database
 	registeredDatabases := s.getProxiedDatabases()
@@ -1020,17 +1030,27 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 		return nil, trace.NotFound("%q not found among registered databases: %v",
 			identity.RouteToDatabase.ServiceName, registeredDatabases)
 	}
+
+	autoCreate, databaseRoles, err := authContext.Checker.CheckDatabaseRoles(database)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	s.log.Debugf("Will connect to database %q at %v.", database.GetName(),
 		database.GetURI())
+
 	id := uuid.New().String()
-	return &common.Session{
+	sessionCtx := &common.Session{
 		ID:                id,
 		ClusterName:       identity.RouteToCluster,
 		HostID:            s.cfg.HostID,
 		Database:          database,
 		Identity:          identity,
+		AutoCreateUser:    autoCreate,
 		DatabaseUser:      identity.RouteToDatabase.Username,
 		DatabaseName:      identity.RouteToDatabase.Database,
+		DatabaseRoles:     databaseRoles,
+		AuthContext:       authContext,
 		Checker:           authContext.Checker,
 		StartupParameters: make(map[string]string),
 		Log: s.log.WithFields(logrus.Fields{
@@ -1038,7 +1058,10 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 			"db": database.GetName(),
 		}),
 		LockTargets: authContext.LockTargets(),
-	}, nil
+	}
+
+	s.log.Debugf("Session context: %+v.", sessionCtx)
+	return sessionCtx, nil
 }
 
 // fetchMySQLVersion tries to connect to MySQL instance, read initial handshake package and extract
@@ -1088,6 +1111,7 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 		}},
 		HostUser: sessionCtx.Identity.Username,
 		Created:  s.cfg.Clock.Now(),
+		HostID:   sessionCtx.HostID,
 	}
 
 	s.log.Debugf("Creating tracker for session %v", sessionCtx.ID)

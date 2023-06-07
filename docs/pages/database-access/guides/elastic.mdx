@@ -1,6 +1,6 @@
 ---
 title: Database Access with Elasticsearch
-description: How to configure Teleport Database Access with Elasticsearch.
+description: How to configure Teleport database access with Elasticsearch.
 ---
 
 <Details
@@ -13,13 +13,13 @@ description: How to configure Teleport Database Access with Elasticsearch.
   Database access for Elasticsearch is available starting from Teleport `10.3`.
 </Details>
 
-This guide will help you to configure secured access to an Elasticsearch database using Teleport Database Access.
+This guide will help you to configure secured access to an Elasticsearch database using the Teleport Database Service.
 
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- A self-hosted Elasticsearch database. Elastic Cloud [does not support client certificates](https://www.elastic.co/guide/en/cloud/current/ec-restrictions.html#ec-restrictions-security), which are required for setting up Database Access.
+- A self-hosted Elasticsearch database. Elastic Cloud [does not support client certificates](https://www.elastic.co/guide/en/cloud/current/ec-restrictions.html#ec-restrictions-security), which are required for setting up the Database Service.
 
 - A host where you will run the Teleport Database Service. If you are already running the Teleport
   Database Service, you must ensure that it uses Teleport version 10.3 or newer in order to connect
@@ -28,123 +28,32 @@ This guide will help you to configure secured access to an Elasticsearch databas
 
   See [Installation](../../installation.mdx) for details.
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Install Teleport on the host where you will run the Teleport Database Service. Make sure you've selected your installation type (OSS, Enterprise, Cloud):
+Install and configure Teleport where you will run the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Linux Server">
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Proxy Service:
-
-<Tabs>
-<TabItem label="Standalone Binary">
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=teleport.example.com:3080 \
-  --name=myelastic \
-  --protocol=elastic \
-  --uri=elasticsearch.example.com:9200 \
-  --labels=env=dev
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=mytennant.teleport.sh:443 \
-  --name=myelastic \
-  --protocol=elastic \
-  --uri=elasticsearch.example.com:9200 \
-  --labels=env=dev
-```
-
-</ScopedBlock>
-
-<Admonition type="note">
-
-The `--auth-server` flag must point to the Teleport cluster's Proxy Service
-endpoint because the Database Service always connects back to the cluster over a
-reverse tunnel.
-
-</Admonition>
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="myelastic" dbProtocol="elastic" databaseAddress="elasticsearch.example.com:9200" !)
 
 </TabItem>
-<TabItem label="Config File">
-Configure `teleport.yaml` using the example below:
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-<ScopedBlock scope={["cloud"]}>
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-```yaml
-version: v3
-teleport:
-  auth_token: <insert token here>
-  proxy_server: mytenant.teleport.sh:443
-
-# disable services that are on by default
-ssh_service: { enabled: no }
-proxy_service: { enabled: no }
-auth_service: { enabled: no }
-
-# db service config
-db_service:
-  enabled: "yes"
-  resources:
-  - labels:
-      "*": "*"
-  databases:
-  - name: myelastic
-    protocol: elasticsearch
-    uri: elasticsearch.example.com:9200
-    static_labels:
-      env: dev
-```
-
-</ScopedBlock>
-
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```yaml
-version: v3
-teleport:
-  auth_token: <insert token here>
-  proxy_server: teleport.example.com
-
-# disable services that are on by default
-ssh_service: { enabled: no }
-proxy_service: { enabled: no }
-auth_service: { enabled: no }
-
-# db service config
-db_service:
-  enabled: "yes"
-  resources:
-  - labels:
-      "*": "*"
-  databases:
-  - name: myelastic
-    protocol: elasticsearch
-    uri: elasticsearch.example.com:9200
-    static_labels:
-      env: dev
-```
-
-</ScopedBlock>
-
-Adjust for your environment, then start or restart Teleport. See the [YAML reference](../reference/configuration.mdx) for details.
-
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="myelastic" dbProtocol="elastic" databaseAddress="elasticsearch.example.com:9200" !)
 </TabItem>
 </Tabs>
+
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 ## Step 2/5. Create a Teleport user
 
@@ -170,7 +79,7 @@ $ curl -u elastic:your_elasticsearch_password -X POST "https://elasticsearch.exa
 '
 ```
 
-<Details title="Role Mapping with wildcards" opened={false}>
+<Details title="Role Mapping with wildcards">
 
 In a scenario where Teleport is using [single sign-on](../../access-controls/sso.mdx) you may want to define a mapping for all users to a role:
 

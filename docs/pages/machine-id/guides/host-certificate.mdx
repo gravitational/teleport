@@ -6,7 +6,7 @@ description: Issuing Host Certificates with Machine ID for OpenSSH servers.
 Host certificates are generally created on Teleport for access to OpenSSH servers that can not otherwise join a Teleport cluster.
 While long-lived certificates may be applied for this purpose, short-lived and regularly rotated host certificates generated
 through Teleport help to provide a number of security benefits over their long-lived counterparts. Regular certificate rotation reduces risk by ensuring that any potentially stolen
-certificates are usable for a shorter period of time. Additionally, when coupled with Teleport's [RBAC](https://goteleport.com/docs/access-controls/guides/role-templates/)
+certificates are usable for a shorter period of time. Additionally, when coupled with Teleport's [RBAC](../../access-controls/guides/role-templates.mdx)
 support and host certificate **Principals** and **Predicates**, you can apply limitations to both the process of creating host certificates,
 as well as the host certificates themselves.
 
@@ -26,7 +26,7 @@ and reducing risk by ensuring that short-lived certificates adhering to the prin
   $ ssh -V
   ```
 
-## Step 1/5. Download and install Teleport (=teleport.version=)
+## Step 1/5. Download and install Teleport
 
 (!/docs/pages/includes/install-linux.mdx!)
 
@@ -79,7 +79,6 @@ Once complete, create your role to apply to the `tbot` configuration in the next
 ```code
 $ tctl create tbotrole.yaml
 ```
-
 
 ## Step 3/5 Create Your `tbot` Configuration
 
@@ -309,8 +308,13 @@ writing renewable certificates to `/var/lib/teleport/bot` according to your conf
 In a production environment you will want to run Machine ID in the background using a service manager like systemd. However, in this guide you will run it in the foreground to better understand how it works.
 
 ```code
+$ export TELEPORT_ANONYMOUS_TELEMETRY=1
 $ tbot start -c tbot.yaml
 ```
+
+`TELEPORT_ANONYMOUS_TELEMETRY` enables the submission of anonymous usage
+telemetry. This helps us shape the future development of `tbot`. You can disable
+this by omitting this.
 
 Now that Machine ID has successfully started, let's investigate the /opt/machine-id directory to see what was written to disk.
 
@@ -357,7 +361,6 @@ Your output will resemble the following:
                 x-teleport-role UNKNOWN OPTION (len 8)
 ```
 
-
 ## Step 5/5 Configuring SSHD and connecting to the Teleport Cluster
 
 In order to ensure that the Machine ID host is able to authorize and authenticate itself to the cluster using `sshd`, `sshd` must now be configured to
@@ -399,4 +402,6 @@ to connect to OpenSSH with Teleport, see the following documentation:
 - [Using Teleport With OpenSSH](../../server-access/guides/openssh.mdx)
 - [Using SSH Host Certificates](https://goteleport.com/blog/how-to-ssh-properly/)
 - [Machine ID Configuration Reference](../reference/configuration.mdx)
-- [Joining Nodes using the IAM method](https://goteleport.com/docs/setup/guides/joining-nodes-aws)
+- [Joining Nodes using the IAM method](../../management/join-services-to-your-cluster/aws-ec2.mdx)
+
+[More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)

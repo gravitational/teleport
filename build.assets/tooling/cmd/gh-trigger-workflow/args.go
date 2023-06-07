@@ -74,6 +74,7 @@ type args struct {
 	workflow       string
 	workflowRef    string
 	useWorkflowTag bool
+	seriesRun      bool
 	timeout        time.Duration
 	inputs         inputMap
 }
@@ -93,7 +94,8 @@ func parseCommandLine() (args, error) {
 	flag.StringVar(&cliArgs.workflow, "workflow", "", "Path to workflow")
 	flag.StringVar(&cliArgs.workflowRef, "workflow-ref", cliArgs.workflowRef, "Revision reference")
 	flag.BoolVar(&cliArgs.useWorkflowTag, "tag-workflow", false, "Use a workflow input to tag and ID workflows spawned by the event")
-	flag.DurationVar(&cliArgs.timeout, "timeout", 30*time.Minute, "Timeout")
+	flag.BoolVar(&cliArgs.seriesRun, "series-run", false, "Attempts to wait for any workflows scheduled but not completed before starting this one")
+	flag.DurationVar(&cliArgs.timeout, "timeout", time.Duration(0), "Timeout. If not specified, waits forever.")
 	flag.Var(cliArgs.inputs, "input", "Input to target workflow")
 
 	flag.Parse()

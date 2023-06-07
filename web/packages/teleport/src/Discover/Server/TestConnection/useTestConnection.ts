@@ -21,10 +21,11 @@ import { useConnectionDiagnostic } from 'teleport/Discover/Shared';
 import { NodeMeta } from '../../useDiscover';
 
 import type { AgentStepProps } from '../../types';
+import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
 export function useTestConnection(props: AgentStepProps) {
   const { runConnectionDiagnostic, ...connectionDiagnostic } =
-    useConnectionDiagnostic(props);
+    useConnectionDiagnostic();
 
   function startSshSession(login: string) {
     const meta = props.agentMeta as NodeMeta;
@@ -37,12 +38,15 @@ export function useTestConnection(props: AgentStepProps) {
     openNewTab(url);
   }
 
-  function testConnection(login: string) {
-    runConnectionDiagnostic({
-      resourceKind: 'node',
-      resourceName: props.agentMeta.resourceName,
-      sshPrincipal: login,
-    });
+  function testConnection(login: string, mfaResponse?: MfaAuthnResponse) {
+    runConnectionDiagnostic(
+      {
+        resourceKind: 'node',
+        resourceName: props.agentMeta.resourceName,
+        sshPrincipal: login,
+      },
+      mfaResponse
+    );
   }
 
   return {

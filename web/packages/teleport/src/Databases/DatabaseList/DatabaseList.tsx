@@ -48,10 +48,11 @@ function DatabaseList(props: Props) {
     pageIndicators,
   } = props;
 
-  const [dbConnectInfo, setDbConnectInfo] = useState<{
-    name: string;
-    protocol: DbProtocol;
-  }>(null);
+  const [dbConnectInfo, setDbConnectInfo] =
+    useState<{
+      name: string;
+      protocol: DbProtocol;
+    }>(null);
 
   return (
     <>

@@ -5,20 +5,25 @@ on:
   push:
     branches:
       - master
+      - branch/*
   pull_request:
     paths:
+      - '.github/workflows/unit-tests-code.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
   merge_group:
     paths:
+      - '.github/workflows/unit-tests-code.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   test:
@@ -31,12 +36,13 @@ jobs:
       packages: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
       env:
         TELEPORT_ETCD_TEST: yes
         TELEPORT_ETCD_TEST_ENDPOINT: https://etcd0:2379
         TELEPORT_XAUTH_TEST: yes
         TELEPORT_BPF_TEST: yes
+        WEBASSETS_SKIP_BUILD: 1
       options: --cap-add=SYS_ADMIN --privileged
 
     services:

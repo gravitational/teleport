@@ -20,6 +20,8 @@ import { Node } from 'teleport/services/nodes';
 import { Kube } from 'teleport/services/kube';
 import { Desktop, WindowsDesktopService } from 'teleport/services/desktops';
 
+import type { MfaAuthnResponse } from '../mfa';
+
 export type AgentKind =
   | App
   | Database
@@ -67,6 +69,7 @@ export type AgentIdKind =
   | 'app'
   | 'db'
   | 'kube_cluster'
+  | 'user_group'
   | 'windows_desktop';
 
 // ConnectionDiagnostic describes a connection diagnostic.
@@ -99,6 +102,7 @@ export type ConnectionDiagnosticRequest = {
   sshPrincipal?: string; //`json:"ssh_principal"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation`
   dbTester?: DatabaseTester;
+  mfaAuthnResponse?: MfaAuthnResponse;
 };
 
 export type KubeImpersonation = {

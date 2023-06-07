@@ -43,7 +43,6 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/observability/metrics"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -340,46 +339,6 @@ func (l *Log) EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 	return nil
 }
 
-// GetSessionChunk returns a reader which can be used to read a byte stream
-// of a recorded session starting from 'offsetBytes' (pass 0 to start from the
-// beginning) up to maxBytes bytes.
-//
-// If maxBytes > MaxChunkBytes, it gets rounded down to MaxChunkBytes
-func (l *Log) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
-	return nil, trace.NotImplemented("GetSessionChunk not implemented for firestore backend")
-}
-
-// Returns all events that happen during a session sorted by time
-// (oldest first).
-//
-// after is used to return events after a specified cursor ID
-func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlcudePrintEvents bool) ([]events.EventFields, error) {
-	var values []events.EventFields
-	start := time.Now()
-	docSnaps, err := l.svc.Collection(l.CollectionName).Where(sessionIDDocProperty, "==", string(sid)).
-		Documents(l.svcContext).GetAll()
-	batchReadLatencies.Observe(time.Since(start).Seconds())
-	batchReadRequests.Inc()
-	if err != nil {
-		return nil, firestorebk.ConvertGRPCError(err)
-	}
-	for _, docSnap := range docSnaps {
-		var e event
-		err := docSnap.DataTo(&e)
-		if err != nil {
-			return nil, firestorebk.ConvertGRPCError(err)
-		}
-		var fields events.EventFields
-		data := []byte(e.Fields)
-		if err := json.Unmarshal(data, &fields); err != nil {
-			return nil, trace.Errorf("failed to unmarshal event for session %q: %v", string(sid), err)
-		}
-		values = append(values, fields)
-	}
-	sort.Sort(events.ByTimeAndIndex(values))
-	return values, nil
-}
-
 // SearchEvents is a flexible way to find events.
 //
 // Event types to filter can be specified and pagination is handled by an iterator key that allows
@@ -388,8 +347,8 @@ func (l *Log) GetSessionEvents(namespace string, sid session.ID, after int, inlc
 // The only mandatory requirement is a date range (UTC).
 //
 // This function may never return more than 1 MiB of event data.
-func (l *Log) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error) {
-	return l.searchEventsWithFilter(fromUTC, toUTC, namespace, limit, order, startKey, searchEventsFilter{eventTypes: eventTypes}, "")
+func (l *Log) SearchEvents(ctx context.Context, req events.SearchEventsRequest) ([]apievents.AuditEvent, string, error) {
+	return l.searchEventsWithFilter(req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, searchEventsFilter{eventTypes: req.EventTypes}, "")
 }
 
 func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string, limit int, order types.EventOrder, lastKey string, filter searchEventsFilter, sessionID string) ([]apievents.AuditEvent, string, error) {
@@ -513,16 +472,16 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 
 // SearchSessionEvents returns session related events only. This is used to
 // find completed sessions.
-func (l *Log) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error) {
+func (l *Log) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error) {
 	filter := searchEventsFilter{eventTypes: []string{events.SessionEndEvent, events.WindowsDesktopSessionEndEvent}}
-	if cond != nil {
-		condFn, err := utils.ToFieldsCondition(cond)
+	if req.Cond != nil {
+		condFn, err := utils.ToFieldsCondition(req.Cond)
 		if err != nil {
 			return nil, "", trace.Wrap(err)
 		}
 		filter.condition = condFn
 	}
-	return l.searchEventsWithFilter(fromUTC, toUTC, apidefaults.Namespace, limit, order, startKey, filter, sessionID)
+	return l.searchEventsWithFilter(req.From, req.To, apidefaults.Namespace, req.Limit, req.Order, req.StartKey, filter, req.SessionID)
 }
 
 type searchEventsFilter struct {
@@ -618,13 +577,4 @@ func (l *Log) purgeExpiredEvents() error {
 			return trace.NewAggregate(errs...)
 		}
 	}
-}
-
-// StreamSessionEvents streams all events from a given session recording. An error is returned on the first
-// channel if one is encountered. Otherwise the event channel is closed when the stream ends.
-// The event channel is not closed on error to prevent race conditions in downstream select statements.
-func (l *Log) StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error) {
-	c, e := make(chan apievents.AuditEvent), make(chan error, 1)
-	e <- trace.NotImplemented("not implemented")
-	return c, e
 }

@@ -24,12 +24,14 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
@@ -50,13 +52,21 @@ func main() {
 	}
 }
 
+const appHelp = `Teleport Machine ID
+
+Machine ID issues and renews short-lived certificates so your machines can 
+access Teleport protected resources in the same way your engineers do!
+
+Find out more at https://goteleport.com/docs/machine-id/introduction/`
+
 func Run(args []string, stdout io.Writer) error {
 	var cf config.CLIConf
 	utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
 
-	app := utils.InitCLIParser("tbot", "tbot: Teleport Machine ID").Interspersed(false)
-	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
+	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
+	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
+	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").BoolVar(&cf.FIPS)
 	app.HelpFlag.Short('h')
 
 	joinMethodList := fmt.Sprintf(
@@ -64,7 +74,7 @@ func Run(args []string, stdout io.Writer) error {
 		strings.Join(config.SupportedJoinMethods, ", "),
 	)
 
-	versionCmd := app.Command("version", "Print the version of your tbot binary")
+	versionCmd := app.Command("version", "Print the version of your tbot binary.")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
 	startCmd.Flag("auth-server", "Address of the Teleport Auth Server or Proxy Server.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
@@ -74,8 +84,9 @@ func Run(args []string, stdout io.Writer) error {
 	startCmd.Flag("destination-dir", "Directory to write short-lived machine certificates.").StringVar(&cf.DestinationDir)
 	startCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").DurationVar(&cf.CertificateTTL)
 	startCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
-	startCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
+	startCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
 	startCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
+	startCmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&cf.DiagAddr)
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
 	initCmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&cf.DestinationDir)
@@ -90,15 +101,13 @@ func Run(args []string, stdout io.Writer) error {
 	configureCmd.Flag("ca-pin", "CA pin to validate the Teleport Auth Server; used on first connect.").StringsVar(&cf.CAPins)
 	configureCmd.Flag("certificate-ttl", "TTL of short-lived machine certificates.").Default("60m").DurationVar(&cf.CertificateTTL)
 	configureCmd.Flag("data-dir", "Directory to store internal bot data. Access to this directory should be limited.").StringVar(&cf.DataDir)
-	configureCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
+	configureCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
 	configureCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
 	configureCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
 	configureCmd.Flag("token", "A bot join token, if attempting to onboard a new bot; used on first connect.").Envar(tokenEnvVar).StringVar(&cf.Token)
 	configureCmd.Flag("output", "Path to write the generated configuration file to rather than write to stdout.").Short('o').StringVar(&cf.ConfigureOutput)
 
-	watchCmd := app.Command("watch", "Watch a destination directory for changes.").Hidden()
-
-	dbCmd := app.Command("db", "Execute database commands through tsh")
+	dbCmd := app.Command("db", "Execute database commands through tsh.")
 	dbCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.Proxy)
 	dbCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
 	dbCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
@@ -107,7 +116,7 @@ func Run(args []string, stdout io.Writer) error {
 		"Arguments to `tsh db ...`; prefix with `-- ` to ensure flags are passed correctly.",
 	))
 
-	proxyCmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode")
+	proxyCmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode.")
 	proxyCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.Proxy)
 	proxyCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
 	proxyCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
@@ -155,8 +164,6 @@ func Run(args []string, stdout io.Writer) error {
 		err = onConfigure(cf, stdout)
 	case initCmd.FullCommand():
 		err = onInit(botConfig, &cf)
-	case watchCmd.FullCommand():
-		err = onWatch(botConfig)
 	case dbCmd.FullCommand():
 		err = onDBCommand(botConfig, &cf)
 	case proxyCmd.FullCommand():
@@ -198,6 +205,10 @@ func onConfigure(
 	if err != nil {
 		return nil
 	}
+	// Ensure they have provided a join method to use in the configuration.
+	if cfg.Onboarding.JoinMethod == types.JoinMethodUnspecified {
+		return trace.BadParameter("join method must be provided")
+	}
 
 	fmt.Fprintln(out, "# tbot config file generated by `configure` command")
 
@@ -219,35 +230,73 @@ func onConfigure(
 	return nil
 }
 
-func onWatch(botConfig *config.BotConfig) error {
-	return trace.NotImplemented("watch not yet implemented")
-}
-
 func onStart(botConfig *config.BotConfig) error {
-	reloadChan := make(chan struct{})
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go handleSignals(log, reloadChan, cancel)
+	reloadCh := make(chan struct{})
+	botConfig.ReloadCh = reloadCh
+	go handleSignals(log, cancel, reloadCh)
 
-	b := tbot.New(botConfig, log, reloadChan)
+	telemetrySentCh := make(chan struct{})
+	go func() {
+		defer close(telemetrySentCh)
+
+		if err := sendTelemetry(
+			ctx, telemetryClient(os.Getenv), os.Getenv, log, botConfig,
+		); err != nil {
+			log.WithError(err).Error(
+				"Failed to send anonymous telemetry.",
+			)
+		}
+	}()
+	// Ensures telemetry finishes sending before function exits.
+	defer func() {
+		select {
+		case <-telemetrySentCh:
+			return
+		case <-ctx.Done():
+		default:
+		}
+
+		waitTime := 10 * time.Second
+		log.Infof(
+			"Waiting up to %s for anonymous telemetry to finish sending before exiting. Press CTRL-C to cancel.",
+			waitTime,
+		)
+		ctx, cancel := context.WithTimeout(ctx, waitTime)
+		defer cancel()
+		select {
+		case <-ctx.Done():
+			log.Warn(
+				"Anonymous telemetry transmission canceled due to signal or timeout.",
+			)
+		case <-telemetrySentCh:
+		}
+	}()
+
+	b := tbot.New(botConfig, log)
 	return trace.Wrap(b.Run(ctx))
 }
 
 // handleSignals handles incoming Unix signals.
-func handleSignals(log logrus.FieldLogger, reload chan struct{}, cancel context.CancelFunc) {
+func handleSignals(log logrus.FieldLogger, cancel context.CancelFunc, reloadCh chan<- struct{}) {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT, syscall.SIGHUP, syscall.SIGUSR1)
 
-	for signal := range signals {
-		switch signal {
+	for sig := range signals {
+		switch sig {
 		case syscall.SIGINT:
-			log.Info("Received interrupt, canceling...")
+			log.Info("Received interrupt, triggering shutdown.")
 			cancel()
 			return
 		case syscall.SIGHUP, syscall.SIGUSR1:
-			log.Info("Received reload signal, reloading...")
-			reload <- struct{}{}
+			log.Info("Received reload signal, queueing reload.")
+			select {
+			case reloadCh <- struct{}{}:
+			default:
+				log.Warn("Unable to queue reload, reload already queued.")
+			}
 		}
 	}
 }

@@ -44,74 +44,20 @@ func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatc
 	return out
 }
 
-// AWSSSM provides options to use when executing SSM documents
-type AWSSSM struct {
-	// DocumentName is the name of the document to use when executing an
-	// SSM command
-	DocumentName string
-}
-
-// InstallerParams are passed to the AWS SSM document
-type InstallerParams struct {
-	// JoinMethod is the method to use when joining the cluster
-	JoinMethod types.JoinMethod
-	// JoinToken is the token to use when joining the cluster
-	JoinToken string
-	// ScriptName is the name of the teleport script for the EC2
-	// instance to execute
-	ScriptName string
-	// InstallTeleport disables agentless discovery
-	InstallTeleport bool
-	// SSHDConfig provides the path to write sshd configuration changes
-	SSHDConfig string
-}
-
-// AWSMatcher matches AWS databases.
-type AWSMatcher struct {
-	// Types are AWS database types to match, "rds" or "redshift".
-	Types []string
-	// Regions are AWS regions to query for databases.
-	Regions []string
-	// Tags are AWS tags to match.
-	Tags types.Labels
-	// Params are passed to AWS when executing the SSM document
-	Params InstallerParams
-	// SSM provides options to use when sending a document command to
-	// an EC2 node
-	SSM *AWSSSM
-}
-
-// AzureMatcher matches Azure databases.
-type AzureMatcher struct {
-	// Subscriptions are Azure subscriptions to query for resources.
-	Subscriptions []string
-	// ResourceGroups are Azure resource groups to query for resources.
-	ResourceGroups []string
-	// Types are Azure resource types to match, for example "mysql" or "postgres".
-	Types []string
-	// Regions are Azure regions to query for resources.
-	Regions []string
-	// ResourceTags are Azure tags to match.
-	ResourceTags types.Labels
-}
-
-// GCPMatcher matches GCP resources.
-type GCPMatcher struct {
-	// Types are GKE resource types to match: "gke".
-	Types []string `yaml:"types,omitempty"`
-	// Locations are GCP locations to search resources for.
-	Locations []string `yaml:"locations,omitempty"`
-	// Tags are GCP labels to match.
-	Tags types.Labels `yaml:"tags,omitempty"`
-	// ProjectIDs are the GCP project IDs where the resources are deployed.
-	ProjectIDs []string `yaml:"project_ids,omitempty"`
+// AssumeRoleFromAWSMetadata is a conversion helper function that extracts
+// AWS IAM role ARN and external ID from AWS metadata.
+func AssumeRoleFromAWSMetadata(meta *types.AWS) types.AssumeRole {
+	return types.AssumeRole{
+		RoleARN:    meta.AssumeRoleARN,
+		ExternalID: meta.ExternalID,
+	}
 }
 
 // SimplifyAzureMatchers returns simplified Azure Matchers.
 // Selectors are deduplicated, wildcard in a selector reduces the selector
 // to just the wildcard, and defaults are applied.
-func SimplifyAzureMatchers(matchers []AzureMatcher) []AzureMatcher {
-	result := make([]AzureMatcher, 0, len(matchers))
+func SimplifyAzureMatchers(matchers []types.AzureMatcher) []types.AzureMatcher {
+	result := make([]types.AzureMatcher, 0, len(matchers))
 	for _, m := range matchers {
 		subs := apiutils.Deduplicate(m.Subscriptions)
 		groups := apiutils.Deduplicate(m.ResourceGroups)
@@ -130,12 +76,13 @@ func SimplifyAzureMatchers(matchers []AzureMatcher) []AzureMatcher {
 				regions[i] = azureutils.NormalizeLocation(region)
 			}
 		}
-		result = append(result, AzureMatcher{
+		result = append(result, types.AzureMatcher{
 			Subscriptions:  subs,
 			ResourceGroups: groups,
 			Regions:        regions,
 			Types:          ts,
 			ResourceTags:   m.ResourceTags,
+			Params:         m.Params,
 		})
 	}
 	return result
@@ -186,11 +133,12 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	case types.KindNode,
 		types.KindDatabaseService,
 		types.KindKubernetesCluster, types.KindKubePod,
-		types.KindWindowsDesktop, types.KindWindowsDesktopService:
+		types.KindWindowsDesktop, types.KindWindowsDesktopService,
+		types.KindUserGroup:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
-	case types.KindKubeService, types.KindKubeServer:
+	case types.KindKubeServer:
 		if seenMap != nil {
 			return false, trace.BadParameter("checking for duplicate matches for resource kind %q is not supported", filter.ResourceKind)
 		}
@@ -281,8 +229,6 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 	}
 
 	switch server := resource.(type) {
-	case types.Server:
-		return matchAndFilterKubeClustersLegacy(server, filter)
 	case types.KubeServer:
 		kubeCluster := server.GetCluster()
 		if kubeCluster == nil {
@@ -293,35 +239,6 @@ func matchAndFilterKubeClusters(resource types.ResourceWithLabels, filter MatchR
 	default:
 		return false, trace.BadParameter("unexpected kube server of type %T", resource)
 	}
-}
-
-// matchAndFilterKubeClustersLegacy is used by matchAndFilterKubeClusters to filter kube clusters that are stil living in old kube services
-// REMOVE in 13.0
-func matchAndFilterKubeClustersLegacy(server types.Server, filter MatchResourceFilter) (bool, error) {
-	kubeClusters := server.GetKubernetesClusters()
-
-	// Apply filter to each kube cluster.
-	filtered := make([]*types.KubernetesCluster, 0, len(kubeClusters))
-	for _, kube := range kubeClusters {
-		kubeResource, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-
-		match, err := matchResourceByFilters(kubeResource, filter)
-		if err != nil {
-			return false, trace.Wrap(err)
-		}
-		if match {
-			filtered = append(filtered, kube)
-		}
-	}
-
-	// Update in place with the filtered clusters.
-	server.SetKubernetesClusters(filtered)
-
-	// Length of 0 means this service does not contain any matches.
-	return len(filtered) > 0, nil
 }
 
 // MatchResourceFilter holds the filter values to match against a resource.
@@ -357,15 +274,29 @@ const (
 
 // SupportedAWSMatchers is list of AWS services currently supported by the
 // Teleport discovery service.
-var SupportedAWSMatchers = []string{
+var SupportedAWSMatchers = append([]string{
 	AWSMatcherEC2,
 	AWSMatcherEKS,
+}, SupportedAWSDatabaseMatchers...)
+
+// SupportedAWSDatabaseMatchers is a list of the AWS databases currently
+// supported by the Teleport discovery service.
+var SupportedAWSDatabaseMatchers = []string{
 	AWSMatcherRDS,
 	AWSMatcherRDSProxy,
 	AWSMatcherRedshift,
 	AWSMatcherRedshiftServerless,
 	AWSMatcherElastiCache,
 	AWSMatcherMemoryDB,
+}
+
+// RequireAWSIAMRolesAsUsersMatchers is a list of the AWS databases that
+// require AWS IAM roles as database users.
+// IMPORTANT: if you add database matchers for AWS keyspaces, OpenSearch, or
+// DynamoDB discovery, add them here and in RequireAWSIAMRolesAsUsers in
+// api/types.
+var RequireAWSIAMRolesAsUsersMatchers = []string{
+	AWSMatcherRedshiftServerless,
 }
 
 const (

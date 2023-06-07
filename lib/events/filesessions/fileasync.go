@@ -506,7 +506,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	for {
 		event, err := up.reader.Read(ctx)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			return sessionError{err: trace.Wrap(err)}
@@ -529,7 +529,7 @@ func (u *Uploader) upload(ctx context.Context, up *upload) error {
 	// before the files are closed to avoid async writes
 	// the timeout is a defensive measure to avoid blocking
 	// indefinitely in case of unforeseen error (e.g. write taking too long)
-	wctx, wcancel := context.WithTimeout(ctx, apidefaults.DefaultDialTimeout)
+	wctx, wcancel := context.WithTimeout(ctx, apidefaults.DefaultIOTimeout)
 	defer wcancel()
 
 	<-wctx.Done()

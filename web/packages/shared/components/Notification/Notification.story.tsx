@@ -26,7 +26,13 @@ export default {
 
 export const Notifications = () => {
   return (
-    <Flex gap={8}>
+    <div
+      css={`
+        display: grid;
+        grid-gap: ${props => props.theme.space[8]}px;
+        grid-template-columns: auto auto auto;
+      `}
+    >
       <Flex flexDirection="column" gap={4}>
         <Notification
           item={{
@@ -68,7 +74,7 @@ export const Notifications = () => {
             },
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -106,7 +112,7 @@ export const Notifications = () => {
             content: 'Multiline error without title. ' + loremIpsum,
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -144,12 +150,129 @@ export const Notifications = () => {
             content: 'Error without title',
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
       </Flex>
-    </Flex>
+
+      <Flex flexDirection="column" gap={4}>
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'info',
+            content: {
+              title: 'Info with link',
+              description: loremIpsum,
+              link: {
+                href: 'https://goteleport.com',
+                text: 'goteleport.com',
+              },
+            },
+          }}
+          Icon={Info}
+          getColor={theme => theme.colors.info}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'warn',
+            content: {
+              title: 'Warning with link',
+              description: loremIpsum,
+              link: {
+                href: 'https://goteleport.com',
+                text: 'goteleport.com',
+              },
+            },
+          }}
+          Icon={Warning}
+          getColor={theme => theme.colors.warning}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'error',
+            content: {
+              title: 'Error with link',
+              description: loremIpsum,
+              link: {
+                href: 'https://goteleport.com',
+                text: 'goteleport.com',
+              },
+            },
+          }}
+          Icon={Warning}
+          getColor={theme => theme.colors.error.main}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+      </Flex>
+
+      <Flex flexDirection="column" gap={4}>
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'info',
+            content: {
+              title: 'Info with list',
+              list: [loremIpsum, loremIpsum],
+            },
+          }}
+          Icon={Info}
+          getColor={theme => theme.colors.info}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'warn',
+            content: {
+              title: 'Warning with list',
+              list: [loremIpsum, loremIpsum],
+            },
+          }}
+          Icon={Warning}
+          getColor={theme => theme.colors.warning.main}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'error',
+            content: {
+              title: 'Error with list',
+              list: [loremIpsum, loremIpsum],
+            },
+          }}
+          Icon={Warning}
+          getColor={theme => theme.colors.error.main}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+      </Flex>
+
+      <Flex flexDirection="column" gap={4}>
+        <Notification
+          item={{
+            id: crypto.randomUUID(),
+            severity: 'info',
+            content:
+              'Unbreakable text. /Users/test/Library/ApplicationSupport/Electron/configuration.json',
+          }}
+          Icon={Info}
+          getColor={theme => theme.colors.info}
+          onRemove={() => {}}
+          isAutoRemovable={false}
+        />
+      </Flex>
+    </div>
   );
 };
 
@@ -157,6 +280,7 @@ export const AutoRemovable = () => {
   const [showInfo, setShowInfo] = useState(true);
   const [showWarning, setShowWarning] = useState(true);
   const [showError, setShowError] = useState(true);
+
   return (
     <Flex flexDirection="column" gap={4}>
       {showInfo ? (
@@ -203,7 +327,7 @@ export const AutoRemovable = () => {
           }}
           onRemove={() => setShowError(false)}
           Icon={Warning}
-          getColor={theme => theme.colors.danger}
+          getColor={theme => theme.colors.error.main}
           isAutoRemovable={false}
         />
       ) : (

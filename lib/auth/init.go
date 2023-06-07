@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"golang.org/x/crypto/ssh"
@@ -46,6 +47,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/tlsca"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -141,6 +143,9 @@ type InitConfig struct {
 	// Status is a service that manages cluster status info.
 	Status services.StatusInternal
 
+	// Assist is a service that implements the Teleport Assist functionality.
+	Assist services.Assistant
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 
@@ -153,7 +158,7 @@ type InitConfig struct {
 	AuthPreference types.AuthPreference
 
 	// AuditLog is used for emitting events to audit log.
-	AuditLog events.IAuditLog
+	AuditLog events.AuditLogSessionStreamer
 
 	// ClusterAuditConfig holds cluster audit configuration.
 	ClusterAuditConfig types.ClusterAuditConfig
@@ -187,11 +192,11 @@ type InitConfig struct {
 	// UserGroups is a service that manages user groups.
 	UserGroups services.UserGroups
 
+	// Integrations is a service that manages Integrations.
+	Integrations services.Integrations
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
-
-	// Enforcer is used to enforce Teleport Enterprise license compliance.
-	Enforcer services.Enforcer
 
 	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
 	ConnectionsDiagnostic services.ConnectionsDiagnostic
@@ -205,14 +210,25 @@ type InitConfig struct {
 	// Kubernetes is a service that manages kubernetes cluster resources.
 	Kubernetes services.Kubernetes
 
-	// AssertionReplayService is a service that mitigatates SSO assertion replay.
+	// AssertionReplayService is a service that mitigates SSO assertion replay.
 	*local.AssertionReplayService
 
 	// FIPS means FedRAMP/FIPS 140-2 compliant configuration was requested.
 	FIPS bool
 
 	// UsageReporter is a service that forwards cluster usage events.
-	UsageReporter services.UsageReporter
+	UsageReporter usagereporter.UsageReporter
+
+	// Okta is a service that manages Okta resources.
+	Okta services.Okta
+
+	// Clock is the clock instance auth uses. Typically you'd only want to set
+	// this during testing.
+	Clock clockwork.Clock
+
+	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
+	// STS requests. Used in test.
+	HTTPClientForAWSSTS utils.HTTPDoClient
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -227,7 +243,11 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	ctx := context.TODO()
 
 	domainName := cfg.ClusterName.GetClusterName()
-	lock, err := backend.AcquireLock(ctx, cfg.Backend, domainName, 30*time.Second)
+	lock, err := backend.AcquireLock(ctx, backend.LockConfiguration{
+		Backend:  cfg.Backend,
+		LockName: domainName,
+		TTL:      30 * time.Second,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -291,7 +311,7 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 		// Don't re-create CA if it already exists, otherwise
 		// the existing cluster configuration will be corrupted;
 		// this part of code is only used in tests.
-		if err := asrv.CreateCertAuthority(ca); err != nil {
+		if err := asrv.CreateCertAuthority(ctx, ca); err != nil {
 			if !trace.IsAlreadyExists(err) {
 				return nil, trace.Wrap(err)
 			}
@@ -594,6 +614,7 @@ type PresetRoleManager interface {
 // createPresets creates preset resources (eg, roles).
 func createPresets(ctx context.Context, rm PresetRoleManager) error {
 	roles := []types.Role{
+		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
@@ -610,7 +631,7 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 				return trace.Wrap(err)
 			}
 
-			role, err := services.AddDefaultAllowConditions(currentRole)
+			role, err := services.AddRoleDefaults(currentRole)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}
@@ -661,9 +682,9 @@ func checkResourceConsistency(ctx context.Context, keyStore *keystore.Manager, c
 			switch r.GetType() {
 			case types.HostCA, types.UserCA, types.OpenSSHCA:
 				_, signerErr = keyStore.GetSSHSigner(ctx, r)
-			case types.DatabaseCA:
+			case types.DatabaseCA, types.SAMLIDPCA:
 				_, _, signerErr = keyStore.GetTLSCertAndSigner(ctx, r)
-			case types.JWTSigner:
+			case types.JWTSigner, types.OIDCIdPCA:
 				_, signerErr = keyStore.GetJWTSigner(ctx, r)
 			default:
 				return trace.BadParameter("unexpected cert_authority type %s for cluster %v", r.GetType(), clusterName)
@@ -878,7 +899,7 @@ func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
 		User:            i.ID.HostUUID,
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
-		Timeout:         apidefaults.DefaultDialTimeout,
+		Timeout:         apidefaults.DefaultIOTimeout,
 	}, nil
 }
 
@@ -1185,7 +1206,7 @@ func migrateDBAuthority(ctx context.Context, asrv *Server) error {
 			return trace.Wrap(err)
 		}
 
-		err = asrv.CreateCertAuthority(dbCA)
+		err = asrv.CreateCertAuthority(ctx, dbCA)
 		switch {
 		case trace.IsAlreadyExists(err):
 			// Probably another auth server have created the DB CA since we last check.

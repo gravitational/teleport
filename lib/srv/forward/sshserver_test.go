@@ -146,7 +146,7 @@ func (n *newChannelMock) ExtraData() []byte {
 // TestDirectTCPIP ensures that ssh client using SessionJoinPrincipal as Login
 // cannot connect using "direct-tcpip" on forward mode.
 //
-// Forward requires a lot of depependencies and we don't have top level tests
+// Forward requires a lot of dependencies and we don't have top level tests
 // yet here. If we add it in future, test should be rework to use public methods
 // instead of internals.
 func TestDirectTCPIP(t *testing.T) {

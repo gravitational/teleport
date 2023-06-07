@@ -26,14 +26,14 @@ import (
 	"os/exec"
 	"strings"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	kyaml "k8s.io/apimachinery/pkg/util/yaml"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -43,14 +43,14 @@ import (
 type EditCommand struct {
 	app    *kingpin.Application
 	cmd    *kingpin.CmdClause
-	config *service.Config
+	config *servicecfg.Config
 	ref    services.Ref
 }
 
-func (e *EditCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (e *EditCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	e.app = app
 	e.config = config
-	e.cmd = app.Command("edit", "Edit a Teleport resource")
+	e.cmd = app.Command("edit", "Edit a Teleport resource.")
 	e.cmd.Arg("resource type/resource name", `Resource to update
 	<resource type>  Type of a resource [for example: rc]
 	<resource name>  Resource name to update

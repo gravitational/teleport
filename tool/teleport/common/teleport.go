@@ -18,40 +18,30 @@ package common
 
 import (
 	"context"
-	"crypto/tls"
 	"fmt"
-	"io"
 	"net/url"
 	"os"
-	"os/exec"
 	"os/user"
 	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/google/uuid"
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/auth/authclient"
-	"github.com/gravitational/teleport/lib/auth/native"
-	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/config"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
+	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -64,10 +54,8 @@ type Options struct {
 	InitOnly bool
 }
 
-const agentlessKeysDir = "/etc/teleport/agentless"
-
 // Run inits/starts the process according to the provided options
-func Run(options Options) (app *kingpin.Application, executedCommand string, conf *service.Config) {
+func Run(options Options) (app *kingpin.Application, executedCommand string, conf *servicecfg.Config) {
 	var err error
 
 	// configure trace's errors to produce full stack traces
@@ -78,7 +66,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLogger(utils.LoggingForDaemon, log.ErrorLevel)
-	app = utils.InitCLIParser("teleport", "Teleport Access Plane. Learn more at https://goteleport.com")
+	app = utils.InitCLIParser("teleport", "Teleport Access Platform. Learn more at https://goteleport.com")
 
 	// define global flags:
 	var (
@@ -91,6 +79,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		dbConfigCreateFlags              createDatabaseConfigFlags
 		systemdInstallFlags              installSystemdFlags
 		waitFlags                        waitFlags
+		rawVersion                       bool
 	)
 
 	// define commands:
@@ -98,8 +87,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	status := app.Command("status", "Print the status of the current SSH session.")
 	dump := app.Command("configure", "Generate a simple config file to get started.")
 	ver := app.Command("version", "Print the version of your teleport binary.")
-	join := app.Command("join", "Join a Teleport cluster without running the Teleport daemon")
-	joinOpenSSH := join.Command("openssh", "Join an SSH server to a Teleport cluster")
+	join := app.Command("join", "Join a Teleport cluster without running the Teleport daemon.")
+	joinOpenSSH := join.Command("openssh", "Join an SSH server to a Teleport cluster.")
 	scpc := app.Command("scp", "Server-side implementation of SCP.").Hidden()
 	sftp := app.Command("sftp", "Server-side implementation of SFTP.").Hidden()
 	exec := app.Command(teleport.ExecSubCommand, "Used internally by Teleport to re-exec itself to run a command.").Hidden()
@@ -237,6 +226,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbStartCmd.Flag("ca-cert", "Database CA certificate path.").StringVar(&ccf.DatabaseCACertFile)
 	dbStartCmd.Flag("aws-region", "(Only for RDS, Aurora, Redshift, ElastiCache or MemoryDB) AWS region AWS hosted database instance is running in.").StringVar(&ccf.DatabaseAWSRegion)
 	dbStartCmd.Flag("aws-account-id", "(Only for Keyspaces or DynamoDB) AWS Account ID.").StringVar(&ccf.DatabaseAWSAccountID)
+	dbStartCmd.Flag("aws-assume-role-arn", "Optional AWS IAM role to assume.").StringVar(&ccf.DatabaseAWSAssumeRoleARN)
 	dbStartCmd.Flag("aws-external-id", "Optional AWS external ID used when assuming an AWS role.").StringVar(&ccf.DatabaseAWSExternalID)
 	dbStartCmd.Flag("aws-redshift-cluster-id", "(Only for Redshift) Redshift database cluster identifier.").StringVar(&ccf.DatabaseAWSRedshiftClusterID)
 	dbStartCmd.Flag("aws-rds-instance-id", "(Only for RDS) RDS instance identifier.").StringVar(&ccf.DatabaseAWSRDSInstanceID)
@@ -279,6 +269,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureCreate.Flag("labels", "Comma-separated list of labels for the database, for example env=dev,dept=it").StringVar(&dbConfigCreateFlags.StaticDatabaseRawLabels)
 	dbConfigureCreate.Flag("aws-region", "(Only for AWS-hosted databases) AWS region RDS, Aurora, Redshift, Redshift Serverless, ElastiCache, or MemoryDB database instance is running in.").StringVar(&dbConfigCreateFlags.DatabaseAWSRegion)
 	dbConfigureCreate.Flag("aws-account-id", "(Only for Keyspaces or DynamoDB) AWS Account ID.").StringVar(&dbConfigCreateFlags.DatabaseAWSAccountID)
+	dbConfigureCreate.Flag("aws-assume-role-arn", "Optional AWS IAM role to assume.").StringVar(&dbConfigCreateFlags.DatabaseAWSAssumeRoleARN)
 	dbConfigureCreate.Flag("aws-external-id", "(Only for AWS-hosted databases) Optional AWS external ID to use when assuming AWS roles.").StringVar(&dbConfigCreateFlags.DatabaseAWSExternalID)
 	dbConfigureCreate.Flag("aws-redshift-cluster-id", "(Only for Redshift) Redshift database cluster identifier.").StringVar(&dbConfigCreateFlags.DatabaseAWSRedshiftClusterID)
 	dbConfigureCreate.Flag("aws-rds-cluster-id", "(Only for RDS Aurora) RDS Aurora database cluster identifier.").StringVar(&dbConfigCreateFlags.DatabaseAWSRDSClusterID)
@@ -304,6 +295,9 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureBootstrap.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDiscoveryBootstrapFlags.confirm)
 	dbConfigureBootstrap.Flag("attach-to-role", "Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToRole)
 	dbConfigureBootstrap.Flag("attach-to-user", "User name to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToUser)
+	dbConfigureBootstrap.Flag("assumes-roles",
+		"Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.").
+		StringVar(&configureDiscoveryBootstrapFlags.config.ForceAssumesRoles)
 
 	dbConfigureAWS := dbConfigure.Command("aws", "Bootstrap for AWS hosted databases.")
 	dbConfigureAWSPrintIAM := dbConfigureAWS.Command("print-iam", "Generate and show IAM policies.")
@@ -315,25 +309,36 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dbConfigureAWSPrintIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSPrintFlags.user)
 	dbConfigureAWSPrintIAM.Flag("policy", "Only print IAM policy document.").BoolVar(&configureDatabaseAWSPrintFlags.policyOnly)
 	dbConfigureAWSPrintIAM.Flag("boundary", "Only print IAM boundary policy document.").BoolVar(&configureDatabaseAWSPrintFlags.boundaryOnly)
+	dbConfigureAWSPrintIAM.Flag("assumes-roles",
+		"Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.").
+		StringVar(&configureDatabaseAWSPrintFlags.assumesRoles)
 	dbConfigureAWSCreateIAM := dbConfigureAWS.Command("create-iam", "Generate, create and attach IAM policies.")
 	dbConfigureAWSCreateIAM.Flag("types",
 		fmt.Sprintf("Comma-separated list of database types to include in the policy. Any of %s", strings.Join(awsDatabaseTypes, ","))).
 		Short('r').
 		StringVar(&configureDatabaseAWSCreateFlags.types)
 	dbConfigureAWSCreateIAM.Flag("name", "Created policy name. Defaults to empty. Will be auto-generated if not provided.").Default(awsconfigurators.DefaultPolicyName).StringVar(&configureDatabaseAWSCreateFlags.policyName)
-	dbConfigureAWSCreateIAM.Flag("attach", "Try to attach the policy to the IAM identity.").Default("true").BoolVar(&configureDatabaseAWSCreateFlags.attach)
+	// --attach flag is deprecated.
+	dbConfigureAWSCreateIAM.Flag("attach", "Try to attach the policy to the IAM identity.").Hidden().Default("true").BoolVar(&configureDatabaseAWSCreateFlags.attach)
 	dbConfigureAWSCreateIAM.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDatabaseAWSCreateFlags.confirm)
 	dbConfigureAWSCreateIAM.Flag("role", "IAM role name to attach policy to. Mutually exclusive with --user").StringVar(&configureDatabaseAWSCreateFlags.role)
 	dbConfigureAWSCreateIAM.Flag("user", "IAM user name to attach policy to. Mutually exclusive with --role").StringVar(&configureDatabaseAWSCreateFlags.user)
+	dbConfigureAWSCreateIAM.Flag("assumes-roles",
+		"Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.").
+		StringVar(&configureDatabaseAWSCreateFlags.assumesRoles)
 
-	// "teleport discovery" bootstrap command and subcommnads.
+	// "teleport discovery" bootstrap command and subcommands.
 	discoveryCmd := app.Command("discovery", "Teleport discovery service commands")
-	discoveryBootstrapCmd := discoveryCmd.Command("bootstrap", "Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.")
+	discoveryBootstrapCmd := discoveryCmd.Command("bootstrap", "Bootstrap the necessary configuration for the discovery agent. It reads the provided agent configuration to determine what will be bootstrapped.")
 	discoveryBootstrapCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').Default(defaults.ConfigFilePath).ExistingFileVar(&configureDiscoveryBootstrapFlags.config.ConfigPath)
-	discoveryBootstrapCmd.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDatabaseAWSCreateFlags.confirm)
+	discoveryBootstrapCmd.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDiscoveryBootstrapFlags.confirm)
 	discoveryBootstrapCmd.Flag("attach-to-role", "Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToRole)
 	discoveryBootstrapCmd.Flag("attach-to-user", "User name to attach policy to. Mutually exclusive with --attach-to-role. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToUser)
 	discoveryBootstrapCmd.Flag("policy-name", fmt.Sprintf("Name of the Teleport Discovery service policy. Default: %q.", awsconfigurators.EC2DiscoveryPolicyName)).Default(awsconfigurators.EC2DiscoveryPolicyName).StringVar(&configureDiscoveryBootstrapFlags.config.PolicyName)
+	discoveryBootstrapCmd.Flag("proxy", "Teleport proxy address to connect to").StringVar(&configureDiscoveryBootstrapFlags.config.Proxy)
+	discoveryBootstrapCmd.Flag("assumes-roles",
+		"Comma-separated list of additional IAM roles that the IAM identity should be able to assume. Each role can be either an IAM role ARN or the name of a role in the identity's account.").
+		StringVar(&configureDiscoveryBootstrapFlags.config.ForceAssumesRoles)
 
 	// "teleport install" command and its subcommands
 	installCmd := app.Command("install", "Teleport install commands.")
@@ -381,6 +386,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
+	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
+
 	dumpNode := app.Command("node", "SSH Node configuration commands")
 	dumpNodeConfigure := dumpNode.Command("configure", "Generate a configuration file for an SSH node.")
 	dumpNodeConfigure.Flag("cluster-name",
@@ -397,7 +404,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dumpNodeConfigure.Flag("labels", "Comma-separated list of labels to add to newly created nodes ex) env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 	dumpNodeConfigure.Flag("ca-pin", "Comma-separated list of SKPI hashes for the CA used to verify the auth server.").StringVar(&dumpFlags.CAPin)
 	dumpNodeConfigure.Flag("join-method", "Method to use to join the cluster (token, iam, ec2, kubernetes)").Default("token").EnumVar(&dumpFlags.JoinMethod, "token", "iam", "ec2", "kubernetes", "azure")
-	dumpNodeConfigure.Flag("node-name", "Name for the teleport node.").StringVar(&dumpFlags.NodeName)
+	dumpNodeConfigure.Flag("node-name", "Name for the Teleport node.").StringVar(&dumpFlags.NodeName)
 
 	waitCmd := app.Command(teleport.WaitSubCommand, "Used internally by Teleport to onWait until a specific condition is reached.").Hidden()
 	waitNoResolveCmd := waitCmd.Command("no-resolve", "Used internally to onWait until a domain stops resolving IP addresses.")
@@ -413,12 +420,17 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// teleport join --proxy-server=proxy.example.com --token=aws-join-token [--openssh-config=/path/to/sshd.conf] [--restart-sshd=true]
 	joinOpenSSH.Flag("proxy-server", "Address of the proxy server.").StringVar(&ccf.ProxyServer)
 	joinOpenSSH.Flag("token", "Invitation token to register with an auth server.").StringVar(&ccf.AuthToken)
-	joinOpenSSH.Flag("join-method", "Method to use to join the cluster (token, iam, ec2)").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
-	joinOpenSSH.Flag("openssh-config", "Path to the OpenSSH config file").Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
-	joinOpenSSH.Flag("openssh-keys-path", "Path to the place teleport keys and certs").Default(agentlessKeysDir).StringVar(&ccf.OpenSSHKeysPath)
-	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH").Default("true").BoolVar(&ccf.RestartOpenSSH)
-	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation").BoolVar(&ccf.InsecureMode)
-	joinOpenSSH.Flag("additional-principals", "Comma separated list of host names the node can be accessed by").StringVar(&ccf.AdditionalPrincipals)
+	joinOpenSSH.Flag("join-method", "Method to use to join the cluster (token, iam, ec2).").EnumVar(&ccf.JoinMethod, "token", "iam", "ec2")
+	joinOpenSSH.Flag("openssh-config", fmt.Sprintf("Path to the OpenSSH config file [%v].", "/etc/ssh/sshd_config")).Default("/etc/ssh/sshd_config").StringVar(&ccf.OpenSSHConfigPath)
+	joinOpenSSH.Flag("data-dir", fmt.Sprintf("Path to directory to store teleport data [%v].", defaults.DataDir)).Default(defaults.DataDir).StringVar(&ccf.DataDir)
+	joinOpenSSH.Flag("restart-sshd", "Restart OpenSSH.").Default("true").BoolVar(&ccf.RestartOpenSSH)
+	joinOpenSSH.Flag("sshd-check-command", "Command to use when checking OpenSSH config for validity. (sshd -t -f <sshd_config>)").Default("sshd -t -f").StringVar(&ccf.CheckCommand)
+	joinOpenSSH.Flag("sshd-restart-command", "Command to use when restarting openssh.").Default(openssh.DefaultRestartCommand).StringVar(&ccf.RestartCommand)
+	joinOpenSSH.Flag("labels", "Comma-separated list of labels for this OpenSSH node, for example env=dev,app=web.").StringVar(&ccf.Labels)
+	joinOpenSSH.Flag("address", "IP Address of this OpenSSH node.").StringVar(&ccf.Address)
+	joinOpenSSH.Flag("additional-principals", "Additional principal to include, can be specified multiple times.").StringVar(&ccf.AdditionalPrincipals)
+	joinOpenSSH.Flag("insecure", "Insecure mode disables certificate validation.").BoolVar(&ccf.InsecureMode)
+
 	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
 
 	// parse CLI commands+flags:
@@ -430,7 +442,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	}
 
 	// Create default configuration.
-	conf = service.MakeDefaultConfig()
+	conf = servicecfg.MakeDefaultConfig()
 
 	// If FIPS mode is specified update defaults to be FIPS appropriate and
 	// cross-validate the current config.
@@ -438,7 +450,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		if ccf.InsecureMode {
 			utils.FatalError(trace.BadParameter("--insecure not allowed in FIPS mode"))
 		}
-		service.ApplyFIPSDefaults(conf)
+		servicecfg.ApplyFIPSDefaults(conf)
 	}
 
 	// execute the selected command unless we're running tests
@@ -483,7 +495,13 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case kubeStateDelete.FullCommand():
 		err = onKubeStateDelete()
 	case ver.FullCommand():
-		utils.PrintVersion()
+		if rawVersion {
+			// raw version must print the exact version string (relied upon
+			// by the systemd unit upgrader).
+			fmt.Printf("%s\n", teleport.Version)
+		} else {
+			utils.PrintVersion()
+		}
 	case dbConfigureCreate.FullCommand():
 		err = onDumpDatabaseConfig(dbConfigCreateFlags)
 	case dbConfigureAWSPrintIAM.FullCommand():
@@ -499,7 +517,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDiscoveryBootstrapFlags.config.DiscoveryService = true
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
 	case joinOpenSSH.FullCommand():
-		err = onJoinOpenSSH(ccf)
+		err = onJoinOpenSSH(ccf, conf)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -508,7 +526,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 }
 
 // OnStart is the handler for "start" CLI command
-func OnStart(clf config.CommandLineFlags, config *service.Config) error {
+func OnStart(clf config.CommandLineFlags, config *servicecfg.Config) error {
 	// check to see if the config file is not passed and if the
 	// default config file is available. If available it will be used
 	configFileUsed := clf.ConfigFile
@@ -522,319 +540,6 @@ func OnStart(clf config.CommandLineFlags, config *service.Config) error {
 		config.Log.Infof("Starting Teleport v%s with a config file located at %q", teleport.Version, configFileUsed)
 	}
 	return service.Run(context.TODO(), *config, nil)
-}
-
-// GenerateKeys generates TLS and SSH keypairs.
-func GenerateKeys() (private, sshpub, tlspub []byte, err error) {
-	privateKey, publicKey, err := native.GenerateKeyPair()
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	sshPrivateKey, err := ssh.ParseRawPrivateKey(privateKey)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	tlsPublicKey, err := tlsca.MarshalPublicKeyFromPrivateKeyPEM(sshPrivateKey)
-	if err != nil {
-		return nil, nil, nil, trace.Wrap(err)
-	}
-
-	return privateKey, publicKey, tlsPublicKey, nil
-}
-
-func authenticatedUserClientFromIdentity(ctx context.Context, fips bool, proxy utils.NetAddr, id *auth.Identity) (auth.ClientI, error) {
-	var tlsConfig *tls.Config
-	var err error
-	var cipherSuites []uint16
-	if fips {
-		cipherSuites = defaults.FIPSCipherSuites
-	}
-	tlsConfig, err = id.TLSConfig(cipherSuites)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	sshConfig, err := id.SSHClientConfig(fips)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	authClientConfig := &authclient.Config{
-		TLS:         tlsConfig,
-		SSH:         sshConfig,
-		AuthServers: []utils.NetAddr{proxy},
-		Log:         log.StandardLogger(),
-	}
-
-	c, err := authclient.Connect(ctx, authClientConfig)
-	return c, trace.Wrap(err)
-}
-
-func getAWSInstanceHostname(ctx context.Context) (string, error) {
-	imds, err := aws.NewInstanceMetadataClient(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	hostname, err := imds.GetHostname(ctx)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	hostname = strings.ReplaceAll(hostname, " ", "_")
-	if utils.IsValidHostname(hostname) {
-		return hostname, nil
-	}
-	return "", trace.NotFound("failed to get a valid hostname from IMDS")
-}
-
-func tryCreateDefaultAgentlesKeysDir(agentlessKeysPath string) error {
-	baseTeleportDir := filepath.Dir(agentlessKeysPath)
-	_, err := os.Stat(baseTeleportDir)
-	if err != nil {
-		if os.IsNotExist(err) {
-			log.Debugf("%s did not exist, creating %s", baseTeleportDir, agentlessKeysPath)
-			return trace.Wrap(os.MkdirAll(agentlessKeysPath, 0700))
-		}
-		return trace.Wrap(err)
-	}
-
-	var alreadyExistedAndDeleted bool
-	_, err = os.Stat(agentlessKeysPath)
-	if err == nil {
-		log.Debugf("%s already existed, removing old files", agentlessKeysPath)
-		err = os.RemoveAll(agentlessKeysPath)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		alreadyExistedAndDeleted = true
-	}
-
-	if os.IsNotExist(err) || alreadyExistedAndDeleted {
-		log.Debugf("%s did not exist, creating", agentlessKeysPath)
-		return trace.Wrap(os.Mkdir(agentlessKeysPath, 0700))
-	}
-
-	return trace.Wrap(err)
-}
-
-func onJoinOpenSSH(clf config.CommandLineFlags) error {
-	if err := checkSSHDConfigAlreadyUpdated(clf.OpenSSHConfigPath); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if clf.Debug {
-		log.SetLevel(log.DebugLevel)
-	}
-
-	addr, err := utils.ParseAddr(clf.ProxyServer)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	privateKey, sshPublicKey, tlsPublicKey, err := GenerateKeys()
-	if err != nil {
-		return trace.Wrap(err, "unable to generate new keypairs")
-	}
-
-	ctx := context.Background()
-	hostname, err := getAWSInstanceHostname(ctx)
-	if err != nil {
-		var hostErr error
-		hostname, hostErr = os.Hostname()
-		if hostErr != nil {
-			return trace.NewAggregate(err, hostErr)
-		}
-	}
-
-	// TODO(amk) get uuid from a cli argument once agentless inventory management is implemented to allow tsh ssh access via uuid
-	uuid := uuid.NewString()
-
-	principals := []string{uuid}
-	for _, principal := range strings.Split(clf.AdditionalPrincipals, ",") {
-		if principal == "" {
-			continue
-		}
-		principals = append(principals, principal)
-	}
-
-	registerParams := auth.RegisterParams{
-		Token:                clf.AuthToken,
-		AdditionalPrincipals: principals,
-		JoinMethod:           types.JoinMethod(clf.JoinMethod),
-		ID: auth.IdentityID{
-			Role:     types.RoleNode,
-			NodeName: hostname,
-			HostUUID: uuid,
-		},
-		ProxyServer:        *addr,
-		PublicTLSKey:       tlsPublicKey,
-		PublicSSHKey:       sshPublicKey,
-		GetHostCredentials: client.HostCredentials,
-		FIPS:               clf.FIPS,
-	}
-
-	if clf.FIPS {
-		registerParams.CipherSuites = defaults.FIPSCipherSuites
-	}
-
-	certs, err := auth.Register(registerParams)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	identity, err := auth.ReadIdentityFromKeyPair(privateKey, certs)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	client, err := authenticatedUserClientFromIdentity(ctx, clf.FIPS, *addr, identity)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	cas, err := client.GetCertAuthorities(ctx, types.OpenSSHCA, false)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	var openSSHCA []byte
-	for _, ca := range cas {
-		for _, key := range ca.GetActiveKeys().SSH {
-			openSSHCA = append(openSSHCA, key.PublicKey...)
-			openSSHCA = append(openSSHCA, byte('\n'))
-		}
-	}
-
-	defaultKeysPath := clf.OpenSSHKeysPath == agentlessKeysDir
-	if defaultKeysPath {
-		if err := tryCreateDefaultAgentlesKeysDir(agentlessKeysDir); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	fmt.Printf("Writing Teleport keys to %s\n", clf.OpenSSHKeysPath)
-	if err := writeKeys(clf.OpenSSHKeysPath, privateKey, certs, openSSHCA); err != nil {
-		if defaultKeysPath {
-			rmdirErr := os.RemoveAll(agentlessKeysDir)
-			if rmdirErr != nil {
-				return trace.NewAggregate(err, rmdirErr)
-			}
-		}
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("Updating OpenSSH config")
-	if err := updateSSHDConfig(clf.OpenSSHKeysPath, clf.OpenSSHConfigPath); err != nil {
-		return trace.Wrap(err)
-	}
-
-	fmt.Println("Restarting the OpenSSH daemon")
-	if err := restartSSHD(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-const (
-	teleportKey       = "teleport"
-	teleportCert      = "teleport-cert.pub"
-	teleportOpenSSHCA = "teleport_user_ca.pub"
-)
-
-func writeKeys(sshdConfigDir string, private []byte, certs *proto.Certs, openSSHCA []byte) error {
-	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportKey), private, 0600); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportCert), certs.SSH, 0600); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := os.WriteFile(filepath.Join(sshdConfigDir, teleportOpenSSHCA), openSSHCA, 0600); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-const sshdConfigSectionModificationHeader = "### Section created by 'teleport join openssh'"
-
-func checkSSHDConfigAlreadyUpdated(sshdConfigPath string) error {
-	contents, err := os.ReadFile(sshdConfigPath)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if strings.Contains(string(contents), sshdConfigSectionModificationHeader) {
-		return trace.AlreadyExists("not updating %s as it has already been modified by teleport", sshdConfigPath)
-	}
-	return nil
-}
-
-const sshdBinary = "sshd"
-
-func updateSSHDConfig(keyDir, sshdConfigPath string) error {
-	// has to write to the beginning of the sshd_config file as
-	// openssh takes the first occurrence of a setting
-	sshdConfig, err := os.OpenFile(sshdConfigPath, os.O_RDONLY|os.O_CREATE, 0644)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer sshdConfig.Close()
-
-	configUpdate := fmt.Sprintf(`
-%s
-TrustedUserCaKeys %s
-HostKey %s
-HostCertificate %s
-### Section end
-`,
-		sshdConfigSectionModificationHeader,
-		filepath.Join(keyDir, "teleport_user_ca.pub"),
-		filepath.Join(keyDir, "teleport"),
-		filepath.Join(keyDir, "teleport-cert.pub"),
-	)
-	sshdConfigTmp, err := os.CreateTemp(keyDir, "")
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer sshdConfigTmp.Close()
-	if _, err := sshdConfigTmp.Write([]byte(configUpdate)); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if _, err := io.Copy(sshdConfigTmp, sshdConfig); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := sshdConfigTmp.Sync(); err != nil {
-		return trace.Wrap(err)
-	}
-
-	cmd := exec.Command(sshdBinary, "-t", "-f", sshdConfigTmp.Name())
-	if err := cmd.Run(); err != nil {
-		return trace.Wrap(err, "teleport generated an invalid ssh config file, not writing")
-	}
-
-	if err := os.Rename(sshdConfigTmp.Name(), sshdConfigPath); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return nil
-}
-
-func restartSSHD() error {
-	cmd := exec.Command("sshd", "-t")
-	if err := cmd.Run(); err != nil {
-		return trace.Wrap(err, "teleport generated an invalid ssh config file")
-	}
-
-	cmd = exec.Command("systemctl", "restart", "sshd")
-	if err := cmd.Run(); err != nil {
-		return trace.Wrap(err, "teleport failed to restart the sshd service")
-	}
-	return nil
 }
 
 // onStatus is the handler for "status" CLI command
@@ -956,32 +661,32 @@ func onConfigDump(flags dumpFlags) error {
 	entries, err := os.ReadDir(flags.DataDir)
 	if err != nil && !os.IsNotExist(err) {
 		fmt.Fprintf(
-			os.Stderr, "Could not check the contents of %s: %s\nThe data directory may contain existing cluster state.\n", flags.DataDir, err.Error())
+			os.Stderr, "%s Could not check the contents of %s: %s\n         The data directory may contain existing cluster state.\n", utils.Color(utils.Yellow, "WARNING:"), flags.DataDir, err.Error())
 	}
 
 	if err == nil && len(entries) != 0 {
 		fmt.Fprintf(
 			os.Stderr,
-			"The data directory %s is not empty and may contain existing cluster state. Running this configuration is likely a mistake. To join a new cluster, specify an alternate --data-dir or clear the %s directory.\n",
-			flags.DataDir, flags.DataDir)
+			"%s The data directory %s is not empty and may contain existing cluster state. Running this configuration is likely a mistake. To join a new cluster, specify an alternate --data-dir or clear the %s directory.\n",
+			utils.Color(utils.Yellow, "WARNING:"), flags.DataDir, flags.DataDir)
 	}
 
 	if strings.Contains(flags.Roles, defaults.RoleDatabase) {
-		fmt.Fprintln(os.Stderr, "Role db requires further configuration, db_service will be disabled")
+		fmt.Fprintf(os.Stderr, "%s Role db requires further configuration, db_service will be disabled. Use 'teleport db configure' command to create Teleport database service configurations.\n", utils.Color(utils.Red, "ERROR:"))
 	}
 
 	if strings.Contains(flags.Roles, defaults.RoleWindowsDesktop) {
-		fmt.Fprintln(os.Stderr, "Role windowsdesktop requires further configuration, windows_desktop_service will be disabled")
+		fmt.Fprintf(os.Stderr, "%s Role windowsdesktop requires further configuration, windows_desktop_service will be disabled. See https://goteleport.com/docs/desktop-access/ for configuration information.\n", utils.Color(utils.Red, "ERROR:"))
 	}
 
 	if configPath != "" {
 		canWriteToDataDir, err := utils.CanUserWriteTo(flags.DataDir)
 		if err != nil && !trace.IsNotImplemented(err) {
-			fmt.Fprintf(os.Stderr, "Failed to check data dir permissions: %+v", err)
+			fmt.Fprintf(os.Stderr, "%s Failed to check data dir permissions: %+v\n", utils.Color(utils.Yellow, "WARNING:"), err)
 		}
 		canWriteToConfDir, err := utils.CanUserWriteTo(filepath.Dir(configPath))
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to check config dir permissions: %+v", err)
+			fmt.Fprintf(os.Stderr, "%s Failed to check config dir permissions: %+v\n", utils.Color(utils.Yellow, "WARNING:"), err)
 		}
 		requiresRoot := !canWriteToDataDir || !canWriteToConfDir
 
@@ -1030,7 +735,7 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 			return "", trace.BadParameter("please use absolute path for file %v", uri.Path)
 		}
 
-		configDir := path.Dir(outputURI)
+		configDir := path.Dir(uri.Path)
 		err := os.MkdirAll(configDir, 0o755)
 		err = trace.ConvertSystemError(err)
 		if err != nil {
@@ -1124,4 +829,16 @@ func (rw *StdReadWriter) Read(b []byte) (int, error) {
 
 func (rw *StdReadWriter) Write(b []byte) (int, error) {
 	return os.Stdout.Write(b)
+}
+
+func onJoinOpenSSH(clf config.CommandLineFlags, conf *servicecfg.Config) error {
+	// configuration merge: defaults -> file-based conf -> CLI conf
+	conf.OpenSSH.Enabled = true
+	if err := config.ConfigureOpenSSH(&clf, conf); err != nil {
+		return trace.Wrap(err)
+	}
+	if err := OnStart(clf, conf); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
 }

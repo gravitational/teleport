@@ -225,10 +225,11 @@ func TestUpdateWithExec(t *testing.T) {
 	require.NoError(t, err)
 
 	tests := []struct {
-		name               string
-		namespace          string
-		impersonatedUser   string
-		impersonatedGroups []string
+		name                string
+		namespace           string
+		impersonatedUser    string
+		impersonatedGroups  []string
+		overrideContextName string
 	}{
 		{
 			name:               "config with namespace selection",
@@ -256,6 +257,13 @@ func TestUpdateWithExec(t *testing.T) {
 			impersonatedUser:   "user",
 			impersonatedGroups: []string{"group1", "group2"},
 		},
+		{
+			name:                "config with custom context name",
+			impersonatedUser:    "",
+			impersonatedGroups:  nil,
+			namespace:           namespace,
+			overrideContextName: "custom-context-name",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -274,18 +282,23 @@ func TestUpdateWithExec(t *testing.T) {
 						homeEnvVar: home,
 					},
 				},
+				OverrideContext: tt.overrideContextName,
 			}, false)
 			require.NoError(t, err)
 
 			wantConfig := initialConfig.DeepCopy()
 			contextName := ContextName(clusterName, kubeCluster)
+			authInfoName := contextName
+			if tt.overrideContextName != "" {
+				contextName = tt.overrideContextName
+			}
 			wantConfig.Clusters[clusterName] = &clientcmdapi.Cluster{
 				Server:                   clusterAddr,
 				CertificateAuthorityData: caCertPEM,
 				LocationOfOrigin:         kubeconfigPath,
 				Extensions:               map[string]runtime.Object{},
 			}
-			wantConfig.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
+			wantConfig.AuthInfos[authInfoName] = &clientcmdapi.AuthInfo{
 				LocationOfOrigin:  kubeconfigPath,
 				Extensions:        map[string]runtime.Object{},
 				Impersonate:       tt.impersonatedUser,
@@ -304,12 +317,11 @@ func TestUpdateWithExec(t *testing.T) {
 			}
 			wantConfig.Contexts[contextName] = &clientcmdapi.Context{
 				Cluster:          clusterName,
-				AuthInfo:         contextName,
+				AuthInfo:         authInfoName,
 				LocationOfOrigin: kubeconfigPath,
 				Extensions:       map[string]runtime.Object{},
 				Namespace:        tt.namespace,
 			}
-
 			config, err := Load(kubeconfigPath)
 			require.NoError(t, err)
 			require.Equal(t, wantConfig, config)
@@ -422,7 +434,7 @@ func TestUpdateLoadAllCAs(t *testing.T) {
 	}
 }
 
-func TestRemove(t *testing.T) {
+func TestRemoveByClusterName(t *testing.T) {
 	const (
 		clusterName = "teleport-cluster"
 		clusterAddr = "https://1.2.3.6:3080"
@@ -441,7 +453,7 @@ func TestRemove(t *testing.T) {
 	require.NoError(t, err)
 
 	// Remove those generated entries from kubeconfig.
-	err = Remove(kubeconfigPath, clusterName)
+	err = RemoveByClusterName(kubeconfigPath, clusterName)
 	require.NoError(t, err)
 
 	// Verify that kubeconfig changed back to the initial state.
@@ -471,7 +483,7 @@ func TestRemove(t *testing.T) {
 	require.NoError(t, err)
 
 	// Remove teleport-generated entries from kubeconfig.
-	err = Remove(kubeconfigPath, clusterName)
+	err = RemoveByClusterName(kubeconfigPath, clusterName)
 	require.NoError(t, err)
 
 	wantConfig = initialConfig.DeepCopy()
@@ -481,6 +493,47 @@ func TestRemove(t *testing.T) {
 	wantConfig.CurrentContext = "prod"
 	config, err = Load(kubeconfigPath)
 	require.NoError(t, err)
+	require.Equal(t, wantConfig, config)
+}
+
+func TestRemoveByServerAddr(t *testing.T) {
+	const (
+		rootKubeClusterAddr = "https://root-cluster.example.com"
+		rootClusterName     = "root-cluster"
+		leafClusterName     = "leaf-cluster"
+	)
+
+	kubeconfigPath, initialConfig := setup(t)
+	creds, _, err := genUserKey("localhost")
+	require.NoError(t, err)
+
+	// Add teleport-generated entries to kubeconfig.
+	require.NoError(t, Update(kubeconfigPath, Values{
+		TeleportClusterName: rootClusterName,
+		ClusterAddr:         rootKubeClusterAddr,
+		KubeClusters:        []string{"kube1"},
+		Credentials:         creds,
+	}, false))
+	require.NoError(t, Update(kubeconfigPath, Values{
+		TeleportClusterName: leafClusterName,
+		ClusterAddr:         rootKubeClusterAddr,
+		KubeClusters:        []string{"kube2"},
+		Credentials:         creds,
+	}, false))
+
+	// Remove those generated entries from kubeconfig.
+	err = RemoveByServerAddr(kubeconfigPath, rootKubeClusterAddr)
+	require.NoError(t, err)
+
+	// Verify that kubeconfig changed back to the initial state.
+	wantConfig := initialConfig.DeepCopy()
+	config, err := Load(kubeconfigPath)
+	require.NoError(t, err)
+	// CurrentContext can end up as either of the remaining contexts, as long
+	// as it's not the one we just removed.
+	require.NotEqual(t, rootClusterName, config.CurrentContext)
+	require.NotEqual(t, leafClusterName, config.CurrentContext)
+	wantConfig.CurrentContext = config.CurrentContext
 	require.Equal(t, wantConfig, config)
 }
 

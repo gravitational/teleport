@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/coreos/go-semver/semver"
+	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	collectortracev1 "go.opentelemetry.io/proto/otlp/collector/trace/v1"
@@ -32,17 +32,27 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/lib/auth/integration/integrationv1"
+	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	dtauthz "github.com/gravitational/teleport/lib/devicetrust/authz"
@@ -59,9 +69,9 @@ import (
 // methods that focuses on authorizing every request
 type ServerWithRoles struct {
 	authServer *Server
-	alog       events.IAuditLog
+	alog       events.AuditLogSessionStreamer
 	// context holds authorization context
-	context Context
+	context authz.Context
 }
 
 // CloseContext is closed when the auth server shuts down
@@ -86,7 +96,7 @@ func (a *ServerWithRoles) actionWithContext(ctx *services.Context, namespace, re
 
 type actionConfig struct {
 	quiet   bool
-	context Context
+	context authz.Context
 }
 
 type actionOption func(*actionConfig)
@@ -192,13 +202,29 @@ func (a *ServerWithRoles) actionForKindSession(namespace string, sid session.ID)
 	return trace.Wrap(a.actionWithExtendedContext(namespace, types.KindSession, types.VerbRead, extendContext))
 }
 
-// serverAction returns an access denied error if the role is not one of the builtin server roles.
-func (a *ServerWithRoles) serverAction() error {
-	role, ok := a.context.Identity.(BuiltinRole)
+// localServerAction returns an access denied error if the role is not one of the builtin server roles.
+func (a *ServerWithRoles) localServerAction() error {
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
 	return nil
+}
+
+// remoteServerAction returns an access denied error if the role is not one of the remote builtin server roles.
+func (a *ServerWithRoles) remoteServerAction() error {
+	role, ok := a.context.UnmappedIdentity.(authz.RemoteBuiltinRole)
+	if !ok || !role.IsRemoteServer() {
+		return trace.AccessDenied("this request can be only executed by a teleport remote server")
+	}
+	return nil
+}
+
+// isLocalOrRemoteServerAction returns true if the role is one of the builtin server roles (local or remote).
+func (a *ServerWithRoles) isLocalOrRemoteServerAction() bool {
+	errLocal := a.localServerAction()
+	errRemote := a.remoteServerAction()
+	return errLocal == nil || errRemote == nil
 }
 
 // hasBuiltinRole checks that the attached identity is a builtin role and
@@ -214,8 +240,8 @@ func (a *ServerWithRoles) hasBuiltinRole(roles ...types.SystemRole) bool {
 
 // HasBuiltinRole checks if the identity is a builtin role with the matching
 // name.
-func HasBuiltinRole(authContext Context, name string) bool {
-	if _, ok := authContext.Identity.(BuiltinRole); !ok {
+func HasBuiltinRole(authContext authz.Context, name string) bool {
+	if _, ok := authContext.Identity.(authz.BuiltinRole); !ok {
 		return false
 	}
 	if !authContext.Checker.HasRole(name) {
@@ -227,8 +253,8 @@ func HasBuiltinRole(authContext Context, name string) bool {
 
 // HasRemoteBuiltinRole checks if the identity is a remote builtin role with the
 // matching name.
-func HasRemoteBuiltinRole(authContext Context, name string) bool {
-	if _, ok := authContext.UnmappedIdentity.(RemoteBuiltinRole); !ok {
+func HasRemoteBuiltinRole(authContext authz.Context, name string) bool {
+	if _, ok := authContext.UnmappedIdentity.(authz.RemoteBuiltinRole); !ok {
 		return false
 	}
 	if !authContext.Checker.HasRole(name) {
@@ -244,14 +270,14 @@ func (a *ServerWithRoles) hasRemoteBuiltinRole(name string) bool {
 }
 
 // hasRemoteUserRole checks if the identity is a remote user or not.
-func hasRemoteUserRole(authContext Context) bool {
-	_, ok := authContext.UnmappedIdentity.(RemoteUser)
+func hasRemoteUserRole(authContext authz.Context) bool {
+	_, ok := authContext.UnmappedIdentity.(authz.RemoteUser)
 	return ok
 }
 
 // hasLocalUserRole checks if the identity is a local user or not.
-func hasLocalUserRole(authContext Context) bool {
-	_, ok := authContext.UnmappedIdentity.(LocalUser)
+func hasLocalUserRole(authContext authz.Context) bool {
+	_, ok := authContext.UnmappedIdentity.(authz.LocalUser)
 	return ok
 }
 
@@ -273,6 +299,14 @@ func (a *ServerWithRoles) LoginRuleClient() loginrulepb.LoginRuleServiceClient {
 	)
 }
 
+// OktaClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) OktaClient() services.Okta {
+	return okta.NewClient(oktapb.NewOktaServiceClient(
+		utils.NewGRPCDummyClientConnection("OktaClient() should not be called on ServerWithRoles")))
+}
+
 // PluginsClient allows ServerWithRoles to implement ClientI.
 // It should not be called through ServerWithRoles,
 // as it returns a dummy client that will always respond with "not implemented".
@@ -282,9 +316,153 @@ func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
 	)
 }
 
+// SAMLIdPClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
+	return samlidppb.NewSAMLIdPServiceClient(
+		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
+	)
+}
+
+// integrationsService returns an Integrations Service.
+func (a *ServerWithRoles) integrationsService() (*integrationv1.Service, error) {
+	igSvc, err := integrationv1.NewService(&integrationv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return igSvc, nil
+}
+
+// CreateIntegration creates an Integration.
+func (a *ServerWithRoles) CreateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	igv1, ok := ig.(*types.IntegrationV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected integration type %T", ig)
+	}
+
+	ig, err = igSvc.CreateIntegration(ctx, &integrationpb.CreateIntegrationRequest{Integration: igv1})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// GetIntegration returns an Integration by its name.
+func (a *ServerWithRoles) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ig, err := igSvc.GetIntegration(ctx, &integrationpb.GetIntegrationRequest{Name: name})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// ListIntegrations returns a list of Integrations.
+// A next page can be retreived by calling ListIntegrations again and passing the nextKey from the previous response.
+func (a *ServerWithRoles) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	resp, err := igSvc.ListIntegrations(ctx, &integrationpb.ListIntegrationsRequest{
+		Limit:   int32(pageSize),
+		NextKey: nextKey,
+	})
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+
+	integrations := make([]types.Integration, 0, len(resp.GetIntegrations()))
+	for _, ig := range resp.GetIntegrations() {
+		integrations = append(integrations, ig)
+	}
+
+	return integrations, resp.GetNextKey(), nil
+}
+
+// UpdateIntegration updates an Integration.
+func (a *ServerWithRoles) UpdateIntegration(ctx context.Context, ig types.Integration) (types.Integration, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	igv1, ok := ig.(*types.IntegrationV1)
+	if !ok {
+		return nil, trace.BadParameter("unexpected integration type %T", ig)
+	}
+
+	ig, err = igSvc.UpdateIntegration(ctx, &integrationpb.UpdateIntegrationRequest{Integration: igv1})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return ig, nil
+}
+
+// DeleteAllIntegrations deletes all integrations.
+func (a *ServerWithRoles) DeleteAllIntegrations(ctx context.Context) error {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = igSvc.DeleteAllIntegrations(ctx, &integrationpb.DeleteAllIntegrationsRequest{})
+	return trace.Wrap(err)
+}
+
+// DeleteIntegration deletes an integration integrations.
+func (a *ServerWithRoles) DeleteIntegration(ctx context.Context, name string) error {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	_, err = igSvc.DeleteIntegration(ctx, &integrationpb.DeleteIntegrationRequest{Name: name})
+	return trace.Wrap(err)
+}
+
+// GenerateAWSOIDCToken generates a token to be used when executing an AWS OIDC Integration action.
+func (a *ServerWithRoles) GenerateAWSOIDCToken(ctx context.Context, req types.GenerateAWSOIDCTokenRequest) (string, error) {
+	igSvc, err := a.integrationsService()
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	resp, err := igSvc.GenerateAWSOIDCToken(ctx, &integrationpb.GenerateAWSOIDCTokenRequest{
+		Issuer: req.Issuer,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp.Token, nil
+}
+
 // CreateSessionTracker creates a tracker resource for an active session.
 func (a *ServerWithRoles) CreateSessionTracker(ctx context.Context, tracker types.SessionTracker) (types.SessionTracker, error) {
-	if err := a.serverAction(); err != nil {
+	if err := a.localServerAction(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -303,6 +481,7 @@ func (a *ServerWithRoles) filterSessionTracker(ctx context.Context, joinerRoles 
 	if tracker.GetKind() == types.KindSSHSession {
 		ruleCtx := &services.Context{User: a.context.User}
 		ruleCtx.SSHSession = &session.Session{
+			Kind:           tracker.GetSessionKind(),
 			ID:             session.ID(tracker.GetSessionID()),
 			Namespace:      apidefaults.Namespace,
 			Login:          tracker.GetLogin(),
@@ -357,7 +536,7 @@ func (a *ServerWithRoles) Export(ctx context.Context, req *collectortracev1.Expo
 	sb.WriteString(a.context.User.GetName())
 
 	// if forwarded on behalf of a Teleport service add its system roles
-	if role, ok := a.context.Identity.(BuiltinRole); ok {
+	if role, ok := a.context.Identity.(authz.BuiltinRole); ok {
 		sb.WriteRune(':')
 		sb.WriteString(role.Role.String())
 		if len(role.AdditionalSystemRoles) > 0 {
@@ -440,7 +619,7 @@ func (a *ServerWithRoles) GetSessionTracker(ctx context.Context, sessionID strin
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.serverAction(); err == nil {
+	if err := a.localServerAction(); err == nil {
 		return tracker, nil
 	}
 
@@ -465,7 +644,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackers(ctx context.Context) ([]types
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.serverAction(); err == nil {
+	if err := a.localServerAction(); err == nil {
 		return sessions, nil
 	}
 
@@ -493,7 +672,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 		return nil, trace.Wrap(err)
 	}
 
-	if err := a.serverAction(); err == nil {
+	if err := a.localServerAction(); err == nil {
 		return sessions, nil
 	}
 
@@ -516,7 +695,7 @@ func (a *ServerWithRoles) GetActiveSessionTrackersWithFilter(ctx context.Context
 
 // RemoveSessionTracker removes a tracker resource for an active session.
 func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID string) error {
-	if err := a.serverAction(); err != nil {
+	if err := a.localServerAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -525,7 +704,7 @@ func (a *ServerWithRoles) RemoveSessionTracker(ctx context.Context, sessionID st
 
 // UpdateSessionTracker updates a tracker resource for an active session.
 func (a *ServerWithRoles) UpdateSessionTracker(ctx context.Context, req *proto.UpdateSessionTrackerRequest) error {
-	if err := a.serverAction(); err != nil {
+	if err := a.localServerAction(); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -554,8 +733,18 @@ func (a *ServerWithRoles) AuthenticateSSHUser(ctx context.Context, req Authentic
 	return a.authServer.AuthenticateSSHUser(ctx, req)
 }
 
+// GenerateOpenSSHCert signs a SSH certificate that can be used
+// to connect to Agentless nodes.
+func (a *ServerWithRoles) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCertRequest) (*proto.OpenSSHCert, error) {
+	// this limits the requests types to proxies to make it harder to break
+	if !a.hasBuiltinRole(types.RoleProxy) && !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) {
+		return nil, trace.AccessDenied("this request can be only executed by a proxy")
+	}
+	return a.authServer.GenerateOpenSSHCert(ctx, req)
+}
+
 // CreateCertAuthority not implemented: can only be called locally.
-func (a *ServerWithRoles) CreateCertAuthority(ca types.CertAuthority) error {
+func (a *ServerWithRoles) CreateCertAuthority(ctx context.Context, ca types.CertAuthority) error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
@@ -585,15 +774,25 @@ func (a *ServerWithRoles) RotateExternalCertAuthority(ctx context.Context, ca ty
 }
 
 // UpsertCertAuthority updates existing cert authority or updates the existing one.
-func (a *ServerWithRoles) UpsertCertAuthority(ca types.CertAuthority) error {
-	if ca == nil {
-		return trace.BadParameter("missing certificate authority")
-	}
-	ctx := &services.Context{User: a.context.User, Resource: ca}
-	if err := a.actionWithContext(ctx, apidefaults.Namespace, types.KindCertAuthority, types.VerbCreate, types.VerbUpdate); err != nil {
+func (a *ServerWithRoles) UpsertCertAuthority(ctx context.Context, ca types.CertAuthority) error {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertCertAuthority(ca)
+
+	cav2, ok := ca.(*types.CertAuthorityV2)
+	if !ok {
+		return trace.BadParameter("unexpected ca type %T", ca)
+	}
+
+	_, err = trust.UpsertCertAuthority(ctx, &trustpb.UpsertCertAuthorityRequest{CertAuthority: cav2})
+	return trace.Wrap(err)
 }
 
 // CompareAndSwapCertAuthority updates existing cert authority if the existing cert authority
@@ -605,34 +804,53 @@ func (a *ServerWithRoles) CompareAndSwapCertAuthority(new, existing types.CertAu
 	return a.authServer.CompareAndSwapCertAuthority(new, existing)
 }
 
-func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error) {
-	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbList, types.VerbReadNoSecrets); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if loadKeys {
-		if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	return a.authServer.GetCertAuthorities(ctx, caType, loadKeys, opts...)
-}
-
-func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool, opts ...services.MarshalOption) (types.CertAuthority, error) {
-	readVerb := types.VerbReadNoSecrets
-	if loadKeys {
-		readVerb = types.VerbRead
-	}
-
-	ca, err := a.authServer.GetCertAuthority(ctx, id, loadKeys, opts...)
+func (a *ServerWithRoles) GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error) {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	sctx := &services.Context{User: a.context.User, Resource: ca}
-	if err := a.actionWithContext(sctx, apidefaults.Namespace, types.KindCertAuthority, readVerb); err != nil {
+
+	resp, err := trust.GetCertAuthorities(ctx, &trustpb.GetCertAuthoritiesRequest{Type: string(caType), IncludeKey: loadKeys})
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ca, nil
+	cas := make([]types.CertAuthority, 0, len(resp.CertAuthoritiesV2))
+	for _, ca := range resp.CertAuthoritiesV2 {
+		cas = append(cas, ca)
+	}
+
+	return cas, trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := trust.GetCertAuthority(ctx, &trustpb.GetCertAuthorityRequest{
+		Domain:     id.DomainName,
+		Type:       string(id.Type),
+		IncludeKey: loadKeys,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return resp, trace.Wrap(err)
 }
 
 func (a *ServerWithRoles) GetDomainName(ctx context.Context) (string, error) {
@@ -650,11 +868,23 @@ func (a *ServerWithRoles) GetClusterCACert(
 	return a.authServer.GetClusterCACert(ctx)
 }
 
-func (a *ServerWithRoles) DeleteCertAuthority(id types.CertAuthID) error {
-	if err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbDelete); err != nil {
+func (a *ServerWithRoles) DeleteCertAuthority(ctx context.Context, id types.CertAuthID) error {
+	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
+		Authorizer: authz.AuthorizerFunc(func(context.Context) (*authz.Context, error) {
+			return &a.context, nil
+		}),
+		Cache:   a.authServer.Cache,
+		Backend: a.authServer.Services,
+	})
+	if err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteCertAuthority(id)
+
+	if _, err := trust.DeleteCertAuthority(ctx, &trustpb.DeleteCertAuthorityRequest{Domain: id.DomainName, Type: string(id.Type)}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
 }
 
 // ActivateCertAuthority not implemented: can only be called locally.
@@ -748,7 +978,7 @@ func (a *ServerWithRoles) GenerateHostCerts(ctx context.Context, req *proto.Host
 // checkAdditionalSystemRoles verifies additional system roles in host cert request.
 func (a *ServerWithRoles) checkAdditionalSystemRoles(ctx context.Context, req *proto.HostCertsRequest) error {
 	// ensure requesting cert's primary role is a server role.
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("additional system roles can only be claimed by a teleport built-in server")
 	}
@@ -799,7 +1029,7 @@ Outer:
 }
 
 func (a *ServerWithRoles) UnstableAssertSystemRole(ctx context.Context, req proto.UnstableSystemRoleAssertion) error {
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("system role assertions can only be executed by a teleport built-in server")
 	}
@@ -827,7 +1057,7 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 	var hello proto.UpstreamInventoryHello
 
 	// Ensure that caller is a teleport server
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return hello, trace.AccessDenied("inventory control streams can only be created by a teleport built-in server")
 	}
@@ -877,6 +1107,16 @@ func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.Inve
 	return a.authServer.GetInventoryStatus(ctx, req), nil
 }
 
+// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+func (a *ServerWithRoles) GetInventoryConnectedServiceCounts() (proto.InventoryConnectedServiceCounts, error) {
+	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
+	// the inventory APIs once they are more developed.
+	if !a.hasBuiltinRole(types.RoleAdmin) {
+		return proto.InventoryConnectedServiceCounts{}, trace.AccessDenied("requires builtin admin role")
+	}
+	return a.authServer.GetInventoryConnectedServiceCounts(), nil
+}
+
 func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
 	// admin-only for now, but we'll eventually want to develop an RBAC syntax for
 	// the inventory APIs once they are more developed.
@@ -918,9 +1158,13 @@ func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetC
 		}
 	}
 
-	// admin skips rbac checks, but still obeys acks and supersessions, so
-	// we store the result of the check for use per-alert during filtering.
-	isAdmin := a.hasBuiltinRole(types.RoleAdmin)
+	// by default we only show alerts whose labels specify that a given user should see them, but users
+	// with permissions to view all resources of kind 'cluster_alert' can opt into viewing all alerts
+	// regardless of labels for management/debug purposes.
+	var resourceLevelPermit bool
+	if query.WithUntargeted && a.withOptions(quietAction(true)).action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList) == nil {
+		resourceLevelPermit = true
+	}
 
 	// filter alerts by acks and teleport.internal 'permit' labels to determine whether the alert
 	// was intended to be visible to the calling user.
@@ -929,14 +1173,14 @@ Outer:
 	for _, alert := range alerts {
 		// skip acknowledged alerts
 		for _, ack := range acks {
-			if ack.AlertID == alert.Metadata.Name && ack.Severity >= alert.Spec.Severity {
+			if ack.AlertID == alert.Metadata.Name {
 				continue Outer
 			}
 		}
 
-		// remaining checks in this loop are access-controls, so short-circuit
-		// if caller is admin.
-		if isAdmin {
+		// remaining checks in this loop are evaluating per-alert access, so short-circuit
+		// if we are going off of resource-level permissions for this query.
+		if resourceLevelPermit {
 			filtered = append(filtered, alert)
 			continue Outer
 		}
@@ -997,47 +1241,35 @@ Outer:
 }
 
 func (a *ServerWithRoles) UpsertClusterAlert(ctx context.Context, alert types.ClusterAlert) error {
-	// admin-only API. the expected usage of this is mostly as something the auth server itself would do
-	// internally, but it is useful to be able to create alerts via tctl for testing/debug purposes.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
-		return trace.AccessDenied("cluster alert creation is admin-only")
+	if err := a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.UpsertClusterAlert(ctx, alert)
 }
 
 func (a *ServerWithRoles) CreateAlertAck(ctx context.Context, ack types.AlertAcknowledgement) error {
-	// alert acknowledgement is admin-only for now as it is a fairly niche feature,
-	// but we may want to develop custom rbac for this feature in the future
-	// if use of cluster alerts becomes more widespread.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
-		return trace.AccessDenied("alert ack is admin-only")
-	}
-
-	if ack.Severity >= types.AlertSeverity_HIGH {
-		return trace.AccessDenied("ack of high severity alerts is not permitted")
+	// we treat alert acks as an extension of the cluster alert resource rather than its own resource
+	if err := a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.CreateAlertAck(ctx, ack)
 }
 
 func (a *ServerWithRoles) GetAlertAcks(ctx context.Context) ([]types.AlertAcknowledgement, error) {
-	// alert acknowledgement is admin-only for now as it is a fairly niche feature,
-	// but we may want to develop custom rbac for this feature in the future
-	// if use of cluster alerts becomes more widespread.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
-		return nil, trace.AccessDenied("listing alert acks is admin-only")
+	// we treat alert acks as an extension of the cluster alert resource rather than its own resource.
+	if err := a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbRead, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return a.authServer.GetAlertAcks(ctx)
 }
 
 func (a *ServerWithRoles) ClearAlertAcks(ctx context.Context, req proto.ClearAlertAcksRequest) error {
-	// alert acknowledgement is admin-only for now as it is a fairly niche feature,
-	// but we may want to develop custom rbac for this feature in the future
-	// if use of cluster alerts becomes more widespread.
-	if !a.hasBuiltinRole(types.RoleAdmin) {
-		return trace.AccessDenied("clearing alert acks is admin-only")
+	// we treat alert acks as an extension of the cluster alert resource rather than its own resource
+	if err := a.action(apidefaults.Namespace, types.KindClusterAlert, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.ClearAlertAcks(ctx, req)
@@ -1048,30 +1280,6 @@ func (a *ServerWithRoles) UpsertNode(ctx context.Context, s types.Server) (*type
 		return nil, trace.Wrap(err)
 	}
 	return a.authServer.UpsertNode(ctx, s)
-}
-
-// DELETE IN: 5.1.0
-//
-// This logic has moved to KeepAliveServer.
-func (a *ServerWithRoles) KeepAliveNode(ctx context.Context, handle types.KeepAlive) error {
-	if !a.hasBuiltinRole(types.RoleNode) {
-		return trace.AccessDenied("[10] access denied")
-	}
-	clusterName, err := a.GetDomainName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	serverName, err := ExtractHostID(a.context.User.GetName(), clusterName)
-	if err != nil {
-		return trace.AccessDenied("[10] access denied")
-	}
-	if serverName != handle.Name {
-		return trace.AccessDenied("[10] access denied")
-	}
-	if err := a.action(apidefaults.Namespace, types.KindNode, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.KeepAliveNode(ctx, handle)
 }
 
 // KeepAliveServer updates expiry time of a server resource.
@@ -1106,7 +1314,7 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 				return trace.AccessDenied("access denied")
 			}
 		}
-		if !a.hasBuiltinRole(types.RoleApp) {
+		if !a.hasBuiltinRole(types.RoleApp) && !a.hasBuiltinRole(types.RoleOkta) {
 			return trace.AccessDenied("access denied")
 		}
 		if err := a.action(apidefaults.Namespace, types.KindAppServer, types.VerbUpdate); err != nil {
@@ -1136,14 +1344,10 @@ func (a *ServerWithRoles) KeepAliveServer(ctx context.Context, handle types.Keep
 			return trace.Wrap(err)
 		}
 	case constants.KeepAliveKube:
-		if handle.HostID != "" {
-			if serverName != handle.HostID {
-				return trace.AccessDenied("access denied")
-			}
-		} else { // DELETE IN 13.0. Legacy kubeservice server is heartbeating back.
-			if serverName != handle.Name {
-				return trace.AccessDenied("access denied")
-			}
+		if handle.HostID == "" {
+			return trace.BadParameter("hostID is required for kubernetes keep alive")
+		} else if serverName != handle.HostID {
+			return trace.AccessDenied("access denied")
 		}
 
 		if !a.hasBuiltinRole(types.RoleKube) {
@@ -1174,6 +1378,8 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 	if len(watch.Kinds) == 0 {
 		return nil, trace.AccessDenied("can't setup global watch")
 	}
+
+	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
 		// Check the permissions for data of each kind. For watching, most
 		// kinds of data just need a Read permission, but some have more
@@ -1185,63 +1391,63 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 				verb = types.VerbRead
 			}
 			if err := a.action(apidefaults.Namespace, types.KindCertAuthority, verb); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 		case types.KindAccessRequest:
 			var filter types.AccessRequestFilter
 			if err := filter.FromMap(kind.Filter); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 			if filter.User == "" || a.currentUserAction(filter.User) != nil {
 				if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbRead); err != nil {
+					if watch.AllowPartialSuccess {
+						continue
+					}
 					return nil, trace.Wrap(err)
 				}
-			}
-		case types.KindAppServer:
-			if err := a.action(apidefaults.Namespace, types.KindAppServer, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
 			}
 		case types.KindWebSession:
 			var filter types.WebSessionFilter
 			if err := filter.FromMap(kind.Filter); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			resource := types.KindWebSession
-			// Allow reading Snowflake sessions to DB service.
-			if kind.SubKind == types.KindSnowflakeSession {
-				resource = types.KindDatabase
-			}
-			if filter.User == "" || a.currentUserAction(filter.User) != nil {
-				if err := a.action(apidefaults.Namespace, resource, types.VerbRead); err != nil {
-					return nil, trace.Wrap(err)
+				if watch.AllowPartialSuccess {
+					continue
 				}
-			}
-		case types.KindWebToken:
-			if err := a.action(apidefaults.Namespace, types.KindWebToken, types.VerbRead); err != nil {
 				return nil, trace.Wrap(err)
 			}
-		case types.KindRemoteCluster:
-			if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindDatabaseServer:
-			if err := a.action(apidefaults.Namespace, types.KindDatabaseServer, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindKubeServer:
-			if err := a.action(apidefaults.Namespace, types.KindKubeServer, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
-			}
-		case types.KindWindowsDesktopService:
-			if err := a.action(apidefaults.Namespace, types.KindWindowsDesktopService, types.VerbRead); err != nil {
-				return nil, trace.Wrap(err)
+			// Allow reading Snowflake sessions to DB service.
+			if !(kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase)) {
+				if filter.User == "" || a.currentUserAction(filter.User) != nil {
+					if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
+						if watch.AllowPartialSuccess {
+							continue
+						}
+						return nil, trace.Wrap(err)
+					}
+				}
 			}
 		default:
 			if err := a.action(apidefaults.Namespace, kind.Kind, types.VerbRead); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.Wrap(err)
 			}
 		}
+
+		validKinds = append(validKinds, kind)
 	}
+
+	if len(validKinds) == 0 {
+		return nil, trace.BadParameter("none of the requested kinds can be watched")
+	}
+
+	watch.Kinds = validKinds
 	switch {
 	case a.hasBuiltinRole(types.RoleProxy):
 		watch.QueueSize = defaults.ProxyQueueSize
@@ -1328,8 +1534,36 @@ func (a *ServerWithRoles) GetNodes(ctx context.Context, namespace string) ([]typ
 	return filteredNodes, nil
 }
 
+const (
+	// kubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	kubeService = "kube_service"
+)
+
 // ListResources returns a paginated list of resources filtered by user access.
 func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	// kubeService is a special resource type that is used to keep compatibility
+	// with Teleport 12 clients.
+	// Teleport 13 no longer supports kube_service resource type, but Teleport 12
+	// clients still expect it to be present in the server.
+	// TODO(tigrato): DELETE in 14.0.0
+	if req.ResourceType == kubeService {
+		return &types.ListResourcesResponse{}, nil
+	}
+
+	// Check if auth server has a license for this resource type but only return an
+	// error if the requester is not a builtin or remote server.
+	// Builtin and remote server roles are allowed to list resources to avoid crashes
+	// even if the license is missing.
+	// Users with other roles will get an error if the license is missing so they
+	// can request a license with the correct features.
+	if err := enforceLicense(req.ResourceType); err != nil && !a.isLocalOrRemoteServerAction() {
+		return nil, trace.Wrap(err)
+	}
+
 	if req.UseSearchAsRoles || req.UsePreviewAsRoles {
 		var extraRoles []string
 		if req.UseSearchAsRoles {
@@ -1350,7 +1584,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 				Type: events.AccessRequestResourceSearch,
 				Code: events.AccessRequestResourceSearchCode,
 			},
-			UserMetadata:        ClientUserMetadata(ctx),
+			UserMetadata:        authz.ClientUserMetadata(ctx),
 			SearchAsRoles:       a.context.Checker.RoleNames(),
 			ResourceType:        req.ResourceType,
 			Namespace:           req.Namespace,
@@ -1395,7 +1629,7 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 		//   https://github.com/gravitational/teleport/pull/1224
 		actionVerbs = []string{types.VerbList}
 
-	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeService, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService:
+	case types.KindDatabaseServer, types.KindDatabaseService, types.KindAppServer, types.KindKubeServer, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindUserGroup:
 
 	default:
 		return nil, trace.NotImplemented("resource type %s does not support pagination", req.ResourceType)
@@ -1417,6 +1651,11 @@ func (a *ServerWithRoles) ListResources(ctx context.Context, req proto.ListResou
 	req.Labels = nil
 	req.SearchKeywords = nil
 	req.PredicateExpression = ""
+
+	// Increase the limit to one more than was requested so
+	// that an additional page load is not needed to determine
+	// the next key.
+	req.Limit++
 
 	resourceChecker, err := a.newResourceAccessChecker(req.ResourceType)
 	if err != nil {
@@ -1488,98 +1727,24 @@ func (r resourceChecker) CanAccess(resource types.Resource) error {
 		return r.CheckAccess(rr, state)
 	case types.WindowsDesktopService:
 		return r.CheckAccess(rr, state)
-	default:
-		return trace.BadParameter("could not check access to resource type %T", r)
-	}
-}
-
-// kubeChecker is a resourceAccessChecker that checks for access to kubernetes services
-type kubeChecker struct {
-	checker   services.AccessChecker
-	localUser bool
-}
-
-func newKubeChecker(authContext Context) *kubeChecker {
-	return &kubeChecker{
-		checker:   authContext.Checker,
-		localUser: hasLocalUserRole(authContext),
-	}
-}
-
-// CanAccess checks if a user has access to kubernetes clusters defined
-// in the server. Any clusters which aren't allowed will be removed from the
-// resource instead of an error being returned.
-func (k *kubeChecker) CanAccess(resource types.Resource) error {
-	switch server := resource.(type) {
-	case types.Server:
-		return k.canAccessKubernetesLegacy(server)
-	case types.KubeServer:
-		return k.canAccessKubernetes(server)
-	default:
-		return trace.BadParameter("unexpected resource type %T", resource)
-	}
-}
-
-// canAccessKubernetesLegacy checks if the user has access to Kubernetes Cluster when represented by `types.ServerV2`.
-// DELETE in 13.0.0
-func (k *kubeChecker) canAccessKubernetesLegacy(server types.Server) error {
-	// Filter out agents that don't have support for moderated sessions access
-	// checking if the user has any roles that require it.
-	if k.localUser {
-		roles := k.checker.Roles()
-		agentVersion, versionErr := semver.NewVersion(server.GetTeleportVersion())
-
-		hasK8SRequirePolicy := func() bool {
-			for _, role := range roles {
-				for _, policy := range role.GetSessionRequirePolicies() {
-					if ContainsSessionKind(policy.Kinds, types.KubernetesSessionKind) {
-						return true
-					}
-				}
-			}
-			return false
-		}
-
-		if hasK8SRequirePolicy() && (versionErr != nil || agentVersion.LessThan(*MinSupportedModeratedSessionsVersion)) {
-			return trace.AccessDenied("cannot use moderated sessions with pre-v9 kubernetes agents")
+	case types.UserGroup:
+		// Because usergroup only has ResourceWithLabels, it looks like this will match
+		// everything. To get around this, we'll match on it last and then double check
+		// that the kind is equal to usergroup. If it's not, we'll fall through and return
+		// the bad parameter as expected.
+		if rr.GetKind() == types.KindUserGroup {
+			return r.CheckAccess(rr, state)
 		}
 	}
 
-	filtered := make([]*types.KubernetesCluster, 0, len(server.GetKubernetesClusters()))
-	for _, kube := range server.GetKubernetesClusters() {
-		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(server.GetNamespace(), kube)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := k.checker.CheckAccess(k8sV3, services.AccessState{MFAVerified: true}); err != nil {
-			if trace.IsAccessDenied(err) {
-				continue
-			}
-
-			return trace.Wrap(err)
-		}
-
-		filtered = append(filtered, kube)
-	}
-
-	server.SetKubernetesClusters(filtered)
-	return nil
-}
-
-func (k *kubeChecker) canAccessKubernetes(server types.KubeServer) error {
-	kube := server.GetCluster()
-	err := k.checker.CheckAccess(kube, services.AccessState{MFAVerified: true})
-	return trace.Wrap(err)
+	return trace.BadParameter("could not check access to resource type %T", r)
 }
 
 // newResourceAccessChecker creates a resourceAccessChecker for the provided resource type
 func (a *ServerWithRoles) newResourceAccessChecker(resource string) (resourceAccessChecker, error) {
 	switch resource {
-	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode:
+	case types.KindAppServer, types.KindDatabaseServer, types.KindDatabaseService, types.KindWindowsDesktop, types.KindWindowsDesktopService, types.KindNode, types.KindKubeServer, types.KindUserGroup:
 		return &resourceChecker{AccessChecker: a.context.Checker}, nil
-	case types.KindKubeService, types.KindKubeServer:
-		return newKubeChecker(a.context), nil
 	default:
 		return nil, trace.BadParameter("could not check access to resource type %s", resource)
 	}
@@ -1669,6 +1834,29 @@ func (a *ServerWithRoles) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = desktops.AsResources()
+	case types.KindUserGroup:
+		var allUserGroups types.UserGroups
+		userGroups, nextKey, err := a.ListUserGroups(ctx, int(req.Limit), "")
+		for {
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			for _, ug := range userGroups {
+				allUserGroups = append(allUserGroups, ug)
+			}
+
+			if nextKey == "" {
+				break
+			}
+
+			userGroups, nextKey, err = a.ListUserGroups(ctx, int(req.Limit), nextKey)
+		}
+
+		if err := allUserGroups.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = allUserGroups.AsResources()
 
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for listResourcesWithSort", req.ResourceType)
@@ -1828,7 +2016,7 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
 // events. For now, this just emits trusted_cluster_token.create.
 func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken) {
-	userMetadata := ClientUserMetadata(ctx)
+	userMetadata := authz.ClientUserMetadata(ctx)
 	for _, role := range token.GetRoles() {
 		if role == types.RoleTrustedCluster {
 			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
@@ -2214,63 +2402,12 @@ func (a *ServerWithRoles) UpdatePluginData(ctx context.Context, params types.Plu
 	}
 }
 
-// pingCacheKey is used to with Server.ttlCache to cache frequently-loaded
-// values in the Ping method.
-type pingCacheKey struct {
-	kind string
-}
-
 // Ping gets basic info about the auth server.
 func (a *ServerWithRoles) Ping(ctx context.Context) (proto.PingResponse, error) {
 	// The Ping method does not require special permissions since it only returns
 	// basic status information.  This is an intentional design choice.  Alternative
 	// methods should be used for relaying any sensitive information.
-	cn, err := a.authServer.GetClusterName()
-	if err != nil {
-		return proto.PingResponse{}, trace.Wrap(err)
-	}
-
-	// license check result is loaded from real backend, and is not modified once loaded, so we
-	// can save a lot of IO by doing short-lived ttl caching.
-	heartbeat, err := utils.FnCacheGet(ctx, a.authServer.ttlCache, pingCacheKey{"license-check-result"}, a.authServer.GetLicenseCheckResult)
-	if err != nil {
-		log.Warnf("Failed to load license check result for Ping: %v", err)
-	}
-	var warnings []string
-	if heartbeat != nil {
-		for _, notification := range heartbeat.Spec.Notifications {
-			if notification.Type == LicenseExpiredNotification {
-				warnings = append(warnings, notification.Text)
-			}
-		}
-	}
-	return proto.PingResponse{
-		ClusterName:     cn.GetClusterName(),
-		ServerVersion:   teleport.Version,
-		ServerFeatures:  modules.GetModules().Features().ToProto(),
-		ProxyPublicAddr: a.getProxyPublicAddr(),
-		IsBoring:        modules.GetModules().IsBoringBinary(),
-		LicenseWarnings: warnings,
-		LoadAllCAs:      a.authServer.loadAllCAs,
-	}, nil
-}
-
-// getProxyPublicAddr gets the server's public proxy address.
-func (a *ServerWithRoles) getProxyPublicAddr() string {
-	if proxies, err := a.authServer.GetProxies(); err == nil {
-		for _, p := range proxies {
-			addr := p.GetPublicAddr()
-			if addr == "" {
-				continue
-			}
-			if _, err := utils.ParseAddr(addr); err != nil {
-				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
-				continue
-			}
-			return addr
-		}
-	}
-	return ""
+	return a.authServer.Ping(ctx)
 }
 
 func (a *ServerWithRoles) DeleteAccessRequest(ctx context.Context, name string) error {
@@ -2429,7 +2566,7 @@ func (a *ServerWithRoles) NewKeepAliver(ctx context.Context) (types.KeepAliver, 
 // access request expirations.
 func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.UserCertsRequest, user types.User) (*services.AccessInfo, error) {
 	if req.Username != a.context.User.GetName() {
-		if req.UseRoleRequests || len(req.RoleRequests) > 0 {
+		if isRoleImpersonation(*req) {
 			err := trace.AccessDenied("User %v tried to issue a cert for %v and added role requests. This is not supported.", a.context.User.GetName(), req.Username)
 			log.WithError(err).Warn()
 			return nil, err
@@ -2441,7 +2578,7 @@ func (a *ServerWithRoles) desiredAccessInfo(ctx context.Context, req *proto.User
 		}
 		return a.desiredAccessInfoForImpersonation(req, user)
 	}
-	if req.UseRoleRequests || len(req.RoleRequests) > 0 {
+	if isRoleImpersonation(*req) {
 		if len(req.AccessRequests) > 0 {
 			err := trace.AccessDenied("User %v tried to issue a cert with both role and access requests. This is not supported.", a.context.User.GetName())
 			log.WithError(err).Warn()
@@ -2465,9 +2602,7 @@ func (a *ServerWithRoles) desiredAccessInfoForImpersonation(req *proto.UserCerts
 func (a *ServerWithRoles) desiredAccessInfoForRoleRequest(req *proto.UserCertsRequest, traits wrappers.Traits) (*services.AccessInfo, error) {
 	// If UseRoleRequests is set, make sure we don't return unusable certs: an
 	// identity without roles can't be parsed.
-	// DEPRECATED: consider making role requests without UseRoleRequests set an
-	// error in V11.
-	if req.UseRoleRequests && len(req.RoleRequests) == 0 {
+	if len(req.RoleRequests) == 0 {
 		return nil, trace.BadParameter("at least one role request is required")
 	}
 
@@ -2574,6 +2709,16 @@ func (a *ServerWithRoles) GenerateUserCerts(ctx context.Context, req proto.UserC
 	)
 }
 
+func isRoleImpersonation(req proto.UserCertsRequest) bool {
+	// For now, either req.UseRoleRequests or len(req.RoleRequests) > 0
+	// indicates that role impersonation is being used.
+	// In Teleport 14.0.0, make using len(req.RoleRequests) > 0 without
+	// req.UseRoleRequests an error. This will simplify logic throughout
+	// by having a clear indicator of whether role impersonation is in use
+	// and make this helper redundant.
+	return req.UseRoleRequests || len(req.RoleRequests) > 0
+}
+
 func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserCertsRequest, opts ...certRequestOption) (*proto.Certs, error) {
 	// Device trust: authorize device before issuing certificates.
 	authPref, err := a.authServer.GetAuthPreference(ctx)
@@ -2582,6 +2727,16 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 	if err := a.verifyUserDeviceForCertIssuance(req.Usage, authPref.GetDeviceTrust()); err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	var verifiedMFADeviceID string
+	if req.MFAResponse != nil {
+		dev, _, err := a.authServer.validateMFAAuthResponse(
+			ctx, req.GetMFAResponse(), req.Username, false /* passwordless */)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		verifiedMFADeviceID = dev.Id
 	}
 
 	// this prevents clients who have no chance at getting a cert and impersonating anyone
@@ -2613,7 +2768,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 		if len(req.AccessRequests) > 0 {
 			return nil, trace.AccessDenied("access denied: impersonated user can not request new roles")
 		}
-		if req.UseRoleRequests || len(req.RoleRequests) > 0 {
+		if isRoleImpersonation(req) {
 			// Note: technically this should never be needed as all role
 			// impersonated certs should have the DisallowReissue set.
 			return nil, trace.AccessDenied("access denied: impersonated roles can not request other roles")
@@ -2636,7 +2791,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	}
 
 	// Do not allow SSO users to be impersonated.
-	if req.Username != a.context.User.GetName() && user.GetCreatedBy().Connector != nil {
+	if req.Username != a.context.User.GetName() && user.GetUserType() == types.UserTypeSSO {
 		log.Warningf("User %v tried to issue a cert for externally managed user %v, this is not supported.", a.context.User.GetName(), req.Username)
 		return nil, trace.AccessDenied("access denied")
 	}
@@ -2654,13 +2809,18 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			return nil, trace.AccessDenied("access denied: client credentials have expired, please relogin.")
 		}
 
-		// if these credentials are not renewable, we limit the TTL to the duration of the session
-		// (this prevents users renewing their certificates forever)
-		if req.Expires.After(sessionExpires) {
-			if !identity.Renewable {
-				req.Expires = sessionExpires
-			} else if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(max) {
+		if identity.Renewable || isRoleImpersonation(req) {
+			// Bot self-renewal or role impersonation can request certs with an
+			// expiry up to the global maximum allowed value.
+			if max := a.authServer.GetClock().Now().Add(defaults.MaxRenewableCertTTL); req.Expires.After(max) {
 				req.Expires = max
+			}
+		} else {
+			// Standard user impersonation has an expiry limited to the expiry
+			// of the current session. This prevents a user renewing their
+			// own certificates indefinitely to avoid re-authenticating.
+			if req.Expires.After(sessionExpires) {
+				req.Expires = sessionExpires
 			}
 		}
 	}
@@ -2697,8 +2857,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	case req.Username == a.context.User.GetName():
 		// users can impersonate themselves, but role impersonation requests
 		// must be checked.
-
-		if len(req.RoleRequests) > 0 {
+		if isRoleImpersonation(req) {
 			// Note: CheckImpersonateRoles() checks against the _stored_
 			// impersonate roles for the user rather than the set available
 			// to the current identity. If not explicitly denied (as above),
@@ -2756,6 +2915,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// Generate certificate, note that the roles TTL will be ignored because
 	// the request is coming from "tctl auth sign" itself.
 	certReq := certRequest{
+		mfaVerified:       verifiedMFADeviceID,
 		user:              user,
 		ttl:               req.Expires.Sub(a.authServer.GetClock().Now()),
 		compatibility:     req.Format,
@@ -2783,10 +2943,11 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 			AccessRequests: req.AccessRequests,
 		},
 		connectionDiagnosticID: req.ConnectionDiagnosticID,
+		attestationStatement:   keys.AttestationStatementFromProto(req.AttestationStatement),
 	}
 	if user.GetName() != a.context.User.GetName() {
 		certReq.impersonator = a.context.User.GetName()
-	} else if req.UseRoleRequests || len(req.RoleRequests) > 0 {
+	} else if isRoleImpersonation(req) {
 		// Role impersonation uses the user's own name as the impersonator value.
 		certReq.impersonator = a.context.User.GetName()
 
@@ -2824,8 +2985,7 @@ func (a *ServerWithRoles) generateUserCerts(ctx context.Context, req proto.UserC
 	// requests, or when the disallow-reissue flag has already been set.
 	if a.context.Identity.GetIdentity().Renewable &&
 		req.Username == a.context.User.GetName() &&
-		len(req.RoleRequests) == 0 &&
-		!req.UseRoleRequests &&
+		!isRoleImpersonation(req) &&
 		!certReq.disallowReissue {
 		certReq.renewable = true
 	}
@@ -3270,7 +3430,7 @@ func (a *ServerWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return trace.AccessDenied("this request can be only executed by a teleport built-in server")
 	}
@@ -3292,7 +3452,7 @@ func (a *ServerWithRoles) CreateAuditStream(ctx context.Context, sid session.ID)
 	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
@@ -3312,7 +3472,7 @@ func (a *ServerWithRoles) ResumeAuditStream(ctx context.Context, sid session.ID,
 	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbCreate, types.VerbUpdate); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, ok := a.context.Identity.(BuiltinRole)
+	role, ok := a.context.Identity.(authz.BuiltinRole)
 	if !ok || !role.IsServer() {
 		return nil, trace.AccessDenied("this request can be only executed by a Teleport server")
 	}
@@ -3378,7 +3538,7 @@ func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offs
 	return a.alog.GetSessionChunk(namespace, sid, offsetBytes, maxBytes)
 }
 
-func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int, includePrintEvents bool) ([]events.EventFields, error) {
+func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, afterN int) ([]events.EventFields, error) {
 	if err := a.actionForKindSession(namespace, sid); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3395,17 +3555,21 @@ func (a *ServerWithRoles) GetSessionEvents(namespace string, sid session.ID, aft
 		return nil, trace.Wrap(err)
 	}
 
-	return a.alog.GetSessionEvents(namespace, sid, afterN, includePrintEvents)
+	return a.alog.GetSessionEvents(namespace, sid, afterN)
 }
 
 func (a *ServerWithRoles) findSessionEndEvent(namespace string, sid session.ID) (apievents.AuditEvent, error) {
-	sessionEvents, _, err := a.alog.SearchSessionEvents(time.Time{}, a.authServer.clock.Now().UTC(),
-		defaults.EventsIterationLimit, types.EventOrderAscending, "",
-		&types.WhereExpr{Equals: types.WhereExpr2{
+	sessionEvents, _, err := a.alog.SearchSessionEvents(context.TODO(), events.SearchSessionEventsRequest{
+		From:  time.Time{},
+		To:    a.authServer.clock.Now().UTC(),
+		Limit: defaults.EventsIterationLimit,
+		Order: types.EventOrderAscending,
+		Cond: &types.WhereExpr{Equals: types.WhereExpr2{
 			L: &types.WhereExpr{Field: events.SessionEventID},
 			R: &types.WhereExpr{Literal: sid.String()},
-		}}, sid.String(),
-	)
+		}},
+		SessionID: sid.String(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3885,6 +4049,52 @@ func (a *ServerWithRoles) DeleteAllUsers() error {
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetServerInfos returns a stream of ServerInfos.
+func (a *ServerWithRoles) GetServerInfos(ctx context.Context) stream.Stream[types.ServerInfo] {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbList, types.VerbRead); err != nil {
+		return stream.Fail[types.ServerInfo](trace.Wrap(err))
+	}
+
+	return a.authServer.GetServerInfos(ctx)
+}
+
+// GetServerInfo returns a ServerInfo by name.
+func (a *ServerWithRoles) GetServerInfo(ctx context.Context, name string) (types.ServerInfo, error) {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	info, err := a.authServer.GetServerInfo(ctx, name)
+	return info, trace.Wrap(err)
+}
+
+// UpsertServerInfo upserts a ServerInfo.
+func (a *ServerWithRoles) UpsertServerInfo(ctx context.Context, si types.ServerInfo) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.UpsertServerInfo(ctx, si))
+}
+
+// DeleteServerInfo deletes a ServerInfo by name.
+func (a *ServerWithRoles) DeleteServerInfo(ctx context.Context, name string) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteServerInfo(ctx, name))
+}
+
+// DeleteAllServerInfos deletes all ServerInfos.
+func (a *ServerWithRoles) DeleteAllServerInfos(ctx context.Context) error {
+	if err := a.action(apidefaults.Namespace, types.KindServerInfo, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteAllServerInfos(ctx))
+}
+
 func (a *ServerWithRoles) GetTrustedClusters(ctx context.Context) ([]types.TrustedCluster, error) {
 	if err := a.action(apidefaults.Namespace, types.KindTrustedCluster, types.VerbList, types.VerbRead); err != nil {
 		return nil, trace.Wrap(err)
@@ -4020,11 +4230,11 @@ func (a *ServerWithRoles) filterRemoteClustersForUser(remoteClusters []types.Rem
 	return filteredClusters, nil
 }
 
-func (a *ServerWithRoles) DeleteRemoteCluster(clusterName string) error {
+func (a *ServerWithRoles) DeleteRemoteCluster(ctx context.Context, clusterName string) error {
 	if err := a.action(apidefaults.Namespace, types.KindRemoteCluster, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteRemoteCluster(clusterName)
+	return a.authServer.DeleteRemoteCluster(ctx, clusterName)
 }
 
 func (a *ServerWithRoles) DeleteAllRemoteClusters() error {
@@ -4219,7 +4429,7 @@ func (a *ServerWithRoles) GenerateSnowflakeJWT(ctx context.Context, req *proto.S
 // canImpersonateBuiltinRole checks if the current user can impersonate the
 // provided system role.
 func (a *ServerWithRoles) canImpersonateBuiltinRole(role types.SystemRole) error {
-	roleCtx, err := NewBuiltinRoleContext(role)
+	roleCtx, err := authz.NewBuiltinRoleContext(role)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4309,10 +4519,13 @@ func (a *ServerWithRoles) GetSnowflakeSession(ctx context.Context, req types.Get
 	if session.GetSubKind() != types.KindSnowflakeSession {
 		return nil, trace.AccessDenied("GetSnowflakeSession only allows reading sessions with SubKind Snowflake")
 	}
-	// Users can only fetch their own app sessions.
-	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
-			return nil, trace.Wrap(err)
+	// Check if this a database service.
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		// Users can only fetch their own web sessions.
+		if err := a.currentUserAction(session.GetUser()); err != nil {
+			if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 	}
 	return session, nil
@@ -4327,9 +4540,9 @@ func (a *ServerWithRoles) GetSAMLIdPSession(ctx context.Context, req types.GetSA
 	if session.GetSubKind() != types.KindSAMLIdPSession {
 		return nil, trace.AccessDenied("GetSAMLIdPSession only allows reading sessions with SubKind SAMLIdpSession")
 	}
-	// Users can only fetch their own SAML IdP sessions.
+	// Users can only fetch their own web sessions or the proxy can fetch all web sessions.
 	if err := a.currentUserAction(session.GetUser()); err != nil {
-		if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbRead); err != nil {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}
@@ -4361,8 +4574,11 @@ func (a *ServerWithRoles) ListAppSessions(ctx context.Context, pageSize int, pag
 
 // GetSnowflakeSessions gets all Snowflake web sessions.
 func (a *ServerWithRoles) GetSnowflakeSessions(ctx context.Context) ([]types.WebSession, error) {
-	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
+	// Check if this a database service.
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbRead); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	sessions, err := a.authServer.GetSnowflakeSessions(ctx)
@@ -4398,8 +4614,11 @@ func (a *ServerWithRoles) CreateAppSession(ctx context.Context, req types.Create
 
 // CreateSnowflakeSession creates a Snowflake web session.
 func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.CreateSnowflakeSessionRequest) (types.WebSession, error) {
-	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
+	// Check if this a database service.
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.currentUserAction(req.Username); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	snowflakeSession, err := a.authServer.CreateSnowflakeSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
@@ -4411,8 +4630,11 @@ func (a *ServerWithRoles) CreateSnowflakeSession(ctx context.Context, req types.
 
 // CreateSAMLIdPSession creates a SAML IdP session.
 func (a *ServerWithRoles) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLIdPSessionRequest) (types.WebSession, error) {
-	if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbCreate); err != nil {
-		return nil, trace.Wrap(err)
+	// Check if this a proxy service.
+	if !a.hasBuiltinRole(types.RoleProxy) {
+		if err := a.currentUserAction(req.Username); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	samlSession, err := a.authServer.CreateSAMLIdPSession(ctx, req, a.context.Identity.GetIdentity(), a.context.Checker)
@@ -4460,8 +4682,10 @@ func (a *ServerWithRoles) DeleteSnowflakeSession(ctx context.Context, req types.
 		return trace.Wrap(err)
 	}
 	// Check if user can delete this web session.
-	if err := a.canDeleteWebSession(snowflakeSession.GetUser()); err != nil {
-		return trace.Wrap(err)
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.canDeleteWebSession(snowflakeSession.GetUser()); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 	if err := a.authServer.DeleteSnowflakeSession(ctx, req); err != nil {
 		return trace.Wrap(err)
@@ -4487,8 +4711,10 @@ func (a *ServerWithRoles) DeleteSAMLIdPSession(ctx context.Context, req types.De
 
 // DeleteAllSnowflakeSessions removes all Snowflake web sessions.
 func (a *ServerWithRoles) DeleteAllSnowflakeSessions(ctx context.Context) error {
-	if err := a.action(apidefaults.Namespace, types.KindDatabase, types.VerbList, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
+	if !a.hasBuiltinRole(types.RoleDatabase) {
+		if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbList, types.VerbDelete); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if err := a.authServer.DeleteAllSnowflakeSessions(ctx); err != nil {
@@ -4578,40 +4804,6 @@ func (a *ServerWithRoles) Close() error {
 	return a.authServer.Close()
 }
 
-// UpsertKubeService creates or updates a Server representing a teleport
-// kubernetes service.
-func (a *ServerWithRoles) UpsertKubeService(ctx context.Context, s types.Server) error {
-	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbCreate, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
-	}
-
-	authPref, err := a.authServer.GetAuthPreference(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	state := a.context.GetAccessState(authPref)
-	for _, kube := range s.GetKubernetesClusters() {
-		k8sV3, err := types.NewKubernetesClusterV3FromLegacyCluster(s.GetNamespace(), kube)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if err := a.context.Checker.CheckAccess(k8sV3, state); err != nil {
-			return utils.OpaqueAccessDenied(err)
-		}
-	}
-	return a.authServer.UpsertKubeService(ctx, s)
-}
-
-// UpsertKubeServiceV2 creates or updates a Server representing a teleport
-// kubernetes service.
-func (a *ServerWithRoles) UpsertKubeServiceV2(ctx context.Context, s types.Server) (*types.KeepAlive, error) {
-	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbCreate, types.VerbUpdate); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return a.authServer.UpsertKubeServiceV2(ctx, s)
-}
-
 func (a *ServerWithRoles) checkAccessToKubeCluster(cluster types.KubeCluster) error {
 	return a.context.Checker.CheckAccess(
 		cluster,
@@ -4667,46 +4859,6 @@ func (a *ServerWithRoles) DeleteAllKubernetesServers(ctx context.Context) error 
 		return trace.Wrap(err)
 	}
 	return a.authServer.DeleteAllKubernetesServers(ctx)
-}
-
-// GetKubeServices returns all Servers representing teleport kubernetes
-// services.
-// DELETE in 13.0.0
-func (a *ServerWithRoles) GetKubeServices(ctx context.Context) ([]types.Server, error) {
-	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbList, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	servers, err := a.authServer.GetKubeServices(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	checker := newKubeChecker(a.context)
-
-	for _, server := range servers {
-		err = checker.CanAccess(server)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-
-	return servers, nil
-}
-
-// DeleteKubeService deletes a named kubernetes service.
-func (a *ServerWithRoles) DeleteKubeService(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteKubeService(ctx, name)
-}
-
-// DeleteAllKubeService deletes all registered kubernetes services.
-func (a *ServerWithRoles) DeleteAllKubeServices(ctx context.Context) error {
-	if err := a.action(apidefaults.Namespace, types.KindKubeService, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
-	}
-	return a.authServer.DeleteAllKubeServices(ctx)
 }
 
 // GetNetworkRestrictions retrieves all the network restrictions (allow/deny lists).
@@ -4775,6 +4927,13 @@ func (a *ServerWithRoles) GenerateUserSingleUseCerts(ctx context.Context) (proto
 	return nil, trace.NotImplemented("bug: GenerateUserSingleUseCerts must not be called on auth.ServerWithRoles")
 }
 
+// GetResources exists to satisfy auth.ClientI but is not
+// implemented here. It is a client only interface to make
+// interacting with ListResources friendlier.
+func (a *ServerWithRoles) GetResources(ctx context.Context, req *proto.ListResourcesRequest) (*proto.ListResourcesResponse, error) {
+	return nil, trace.NotImplemented("bug: GetResources must not be called on auth.ServerWithRoles")
+}
+
 func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
 	if !hasLocalUserRole(a.context) && !hasRemoteUserRole(a.context) {
 		return nil, trace.AccessDenied("only a user role can call IsMFARequired, got %T", a.context.Checker)
@@ -4783,37 +4942,38 @@ func (a *ServerWithRoles) IsMFARequired(ctx context.Context, req *proto.IsMFAReq
 }
 
 // SearchEvents allows searching audit events with pagination support.
-func (a *ServerWithRoles) SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) (events []apievents.AuditEvent, lastKey string, err error) {
+func (a *ServerWithRoles) SearchEvents(ctx context.Context, req events.SearchEventsRequest) (outEvents []apievents.AuditEvent, lastKey string, err error) {
 	if err := a.action(apidefaults.Namespace, types.KindEvent, types.VerbList); err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	events, lastKey, err = a.alog.SearchEvents(fromUTC, toUTC, namespace, eventTypes, limit, order, startKey)
+	outEvents, lastKey, err = a.alog.SearchEvents(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return events, lastKey, nil
+	return outEvents, lastKey, nil
 }
 
 // SearchSessionEvents allows searching session audit events with pagination support.
-func (a *ServerWithRoles) SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) (events []apievents.AuditEvent, lastKey string, err error) {
-	if cond != nil {
+func (a *ServerWithRoles) SearchSessionEvents(ctx context.Context, req events.SearchSessionEventsRequest) (outEvents []apievents.AuditEvent, lastKey string, err error) {
+	if req.Cond != nil {
 		return nil, "", trace.BadParameter("cond is an internal parameter, should not be set by client")
 	}
 
-	cond, err = a.actionForListWithCondition(apidefaults.Namespace, types.KindSession, services.SessionIdentifier)
+	cond, err := a.actionForListWithCondition(apidefaults.Namespace, types.KindSession, services.SessionIdentifier)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
 	// TODO(codingllama): Refactor cond out of SearchSessionEvents and simplify signature.
-	events, lastKey, err = a.alog.SearchSessionEvents(fromUTC, toUTC, limit, order, startKey, cond, sessionID)
+	req.Cond = cond
+	outEvents, lastKey, err = a.alog.SearchSessionEvents(ctx, req)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
 	}
 
-	return events, lastKey, nil
+	return outEvents, lastKey, nil
 }
 
 // GetLock gets a lock by name.
@@ -4837,6 +4997,20 @@ func (a *ServerWithRoles) UpsertLock(ctx context.Context, lock types.Lock) error
 	if err := a.action(apidefaults.Namespace, types.KindLock, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
+
+	if lock.CreatedBy() == "" {
+		hasAdmin := a.hasBuiltinRole(types.RoleAdmin)
+		createdBy := string(types.RoleAdmin)
+		if !hasAdmin {
+			createdBy = a.context.User.GetName()
+		}
+		lock.SetCreatedBy(createdBy)
+	}
+
+	if lock.CreatedAt().IsZero() {
+		lock.SetCreatedAt(a.authServer.clock.Now().UTC())
+	}
+
 	return a.authServer.UpsertLock(ctx, lock)
 }
 
@@ -4855,7 +5029,7 @@ func (a *ServerWithRoles) DeleteAllLocks(context.Context) error {
 
 // ReplaceRemoteLocks replaces the set of locks associated with a remote cluster.
 func (a *ServerWithRoles) ReplaceRemoteLocks(ctx context.Context, clusterName string, locks []types.Lock) error {
-	role, ok := a.context.Identity.(RemoteBuiltinRole)
+	role, ok := a.context.Identity.(authz.RemoteBuiltinRole)
 	if !a.hasRemoteBuiltinRole(string(types.RoleRemoteProxy)) || !ok || role.ClusterName != clusterName {
 		return trace.AccessDenied("this request can be only executed by a remote proxy of cluster %q", clusterName)
 	}
@@ -4872,7 +5046,7 @@ func (a *ServerWithRoles) StreamSessionEvents(ctx context.Context, sessionID ses
 		return nil, e
 	}
 
-	err := a.serverAction()
+	err := a.localServerAction()
 	isTeleportServer := err == nil
 
 	if !isTeleportServer {
@@ -5544,11 +5718,36 @@ func (a *ServerWithRoles) GetAccountRecoveryCodes(ctx context.Context, req *prot
 }
 
 // GenerateCertAuthorityCRL generates an empty CRL for a CA.
+//
+// This CRL can be requested by:
+//
+//   - Windows desktop service when updating the certificate authority contents
+//     on LDAP.
+//   - Cluster administrator using "tctl auth crl --type=db" command locally
+//     on the auth server to produce revocation list used to be configured on
+//     external services such as Windows certificate store.
+//   - Remote user using "tctl auth crl --type=db" command with a remote
+//     proxy (e.g. Teleport Cloud), as long as they have permission to read
+//     certificate authorities.
 func (a *ServerWithRoles) GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error) {
-	// Only windows_desktop_service should be requesting CRLs
-	if !a.hasBuiltinRole(types.RoleWindowsDesktop) {
-		return nil, trace.AccessDenied("access denied")
+	// Assume this is a user request, check if the user has permission to read CAs.
+	err := a.action(apidefaults.Namespace, types.KindCertAuthority, types.VerbReadNoSecrets)
+	if err != nil {
+		// An error means the user doesn't have permission to read CAs, or this
+		// is an admin on the auth server or the windows desktop service. We
+		// expect to see an access denied error in any of those cases.
+		if !trace.IsAccessDenied(err) {
+			return nil, trace.Wrap(err)
+		}
+
+		// If this is an admin on the auth server (types.RoleAdmin) or the
+		// windows desktop service (types.RoleWindowsDesktop), allow the
+		// request. Otherwise, return the access denied error.
+		if !a.hasBuiltinRole(types.RoleAdmin, types.RoleWindowsDesktop) {
+			return nil, trace.AccessDenied("access denied")
+		}
 	}
+
 	crl, err := a.authServer.GenerateCertAuthorityCRL(ctx, caType)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -5618,38 +5817,135 @@ func (a *ServerWithRoles) GetSAMLIdPServiceProvider(ctx context.Context, name st
 
 // CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
 func (a *ServerWithRoles) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err != nil {
-		return trace.Wrap(err)
+	code := events.SAMLIdPServiceProviderCreateFailureCode
+	var err error
+	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbCreate); err == nil {
+		err = a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
+		if err == nil {
+			code = events.SAMLIdPServiceProviderCreateCode
+		}
 	}
 
-	return a.authServer.CreateSAMLIdPServiceProvider(ctx, sp)
+	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderCreate{
+		Metadata: apievents.Metadata{
+			Type: events.SAMLIdPServiceProviderCreateEvent,
+			Code: code,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      sp.GetName(),
+			UpdatedBy: authz.ClientUsername(ctx),
+		},
+		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
+			ServiceProviderEntityID: sp.GetEntityID(),
+		},
+	}); emitErr != nil {
+		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider created event.")
+	}
+
+	return trace.Wrap(err)
 }
 
 // UpdateSAMLIdPServiceProvider updates an existing SAML IdP service provider resource.
 func (a *ServerWithRoles) UpdateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err != nil {
-		return trace.Wrap(err)
+	code := events.SAMLIdPServiceProviderUpdateFailureCode
+	var err error
+	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbUpdate); err == nil {
+		err = a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
+		if err == nil {
+			code = events.SAMLIdPServiceProviderUpdateCode
+		}
 	}
 
-	return a.authServer.UpdateSAMLIdPServiceProvider(ctx, sp)
+	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderUpdate{
+		Metadata: apievents.Metadata{
+			Type: events.SAMLIdPServiceProviderUpdateEvent,
+			Code: code,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      sp.GetName(),
+			UpdatedBy: authz.ClientUsername(ctx),
+		},
+		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
+			ServiceProviderEntityID: sp.GetEntityID(),
+		},
+	}); emitErr != nil {
+		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider updated event.")
+	}
+
+	return trace.Wrap(err)
 }
 
 // DeleteSAMLIdPServiceProvider removes the specified SAML IdP service provider resource.
 func (a *ServerWithRoles) DeleteSAMLIdPServiceProvider(ctx context.Context, name string) error {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
+	var entityID string
+	code := events.SAMLIdPServiceProviderDeleteFailureCode
+	var err error
+	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err == nil {
+		var sp types.SAMLIdPServiceProvider
+		// Get the service provider so we can emit its entity ID later.
+		sp, err = a.authServer.GetSAMLIdPServiceProvider(ctx, name)
+		if err == nil {
+			name = sp.GetName()
+			entityID = sp.GetEntityID()
+
+			// Delete the actual service provider.
+			err = a.authServer.DeleteSAMLIdPServiceProvider(ctx, name)
+			if err == nil {
+				code = events.SAMLIdPServiceProviderDeleteCode
+			}
+		}
 	}
 
-	return a.authServer.DeleteSAMLIdPServiceProvider(ctx, name)
+	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDelete{
+		Metadata: apievents.Metadata{
+			Type: events.SAMLIdPServiceProviderDeleteEvent,
+			Code: code,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			Name:      name,
+			UpdatedBy: authz.ClientUsername(ctx),
+		},
+		SAMLIdPServiceProviderMetadata: apievents.SAMLIdPServiceProviderMetadata{
+			ServiceProviderEntityID: entityID,
+		},
+	}); emitErr != nil {
+		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted event.")
+	}
+
+	return trace.Wrap(err)
 }
 
 // DeleteAllSAMLIdPServiceProviders removes all SAML IdP service providers.
 func (a *ServerWithRoles) DeleteAllSAMLIdPServiceProviders(ctx context.Context) error {
-	if err := a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err != nil {
-		return trace.Wrap(err)
+	code := events.SAMLIdPServiceProviderDeleteAllFailureCode
+	var err error
+	if err = a.action(apidefaults.Namespace, types.KindSAMLIdPServiceProvider, types.VerbDelete); err == nil {
+		err = a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
+		if err == nil {
+			code = events.SAMLIdPServiceProviderDeleteAllCode
+		}
 	}
 
-	return a.authServer.DeleteAllSAMLIdPServiceProviders(ctx)
+	if emitErr := a.authServer.emitter.EmitAuditEvent(a.authServer.closeCtx, &apievents.SAMLIdPServiceProviderDeleteAll{
+		Metadata: apievents.Metadata{
+			Type: events.SAMLIdPServiceProviderDeleteAllEvent,
+			Code: code,
+		},
+		ResourceMetadata: apievents.ResourceMetadata{
+			UpdatedBy: authz.ClientUsername(ctx),
+		},
+	}); emitErr != nil {
+		log.WithError(trace.NewAggregate(emitErr, err)).Warn("Failed to emit SAML IdP service provider deleted all event.")
+	}
+
+	return trace.Wrap(err)
+}
+
+func (a *ServerWithRoles) checkAccessToUserGroup(userGroup types.UserGroup) error {
+	return a.context.Checker.CheckAccess(
+		userGroup,
+		// MFA is not required for operations on user group resources.
+		services.AccessState{MFAVerified: true})
 }
 
 // ListUserGroups returns a paginated list of user group resources.
@@ -5658,7 +5954,44 @@ func (a *ServerWithRoles) ListUserGroups(ctx context.Context, pageSize int, next
 		return nil, "", trace.Wrap(err)
 	}
 
-	return a.authServer.ListUserGroups(ctx, pageSize, nextToken)
+	// We have to set a default here.
+	if pageSize == 0 {
+		pageSize = local.GroupMaxPageSize
+	}
+
+	// Because access to user groups is determined by label, we'll need to calculate the entire list of
+	// user groups and then check access to those user groups.
+	var filteredUserGroups []types.UserGroup
+
+	// Use the default page size since we're assembling our pages manually here.
+	userGroups, nextToken, err := a.authServer.ListUserGroups(ctx, 0, nextToken)
+	for {
+		if err != nil {
+			return nil, "", trace.Wrap(err)
+		}
+
+		for _, userGroup := range userGroups {
+			err := a.checkAccessToUserGroup(userGroup)
+			if err != nil && !trace.IsAccessDenied(err) {
+				return nil, "", trace.Wrap(err)
+			} else if err == nil {
+				filteredUserGroups = append(filteredUserGroups, userGroup)
+			}
+		}
+
+		if nextToken == "" {
+			break
+		}
+
+		userGroups, nextToken, err = a.authServer.ListUserGroups(ctx, 0, nextToken)
+	}
+
+	numUserGroups := len(filteredUserGroups)
+	if numUserGroups <= pageSize {
+		return filteredUserGroups, "", nil
+	}
+
+	return filteredUserGroups[:pageSize], backend.NextPaginationKey(filteredUserGroups[pageSize-1]), nil
 }
 
 // GetUserGroup returns the specified user group resources.
@@ -5667,30 +6000,61 @@ func (a *ServerWithRoles) GetUserGroup(ctx context.Context, name string) (types.
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetUserGroup(ctx, name)
+	userGroup, err := a.authServer.GetUserGroup(ctx, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := a.checkAccessToUserGroup(userGroup); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return userGroup, nil
 }
 
 // CreateUserGroup creates a new user group resource.
-func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, g types.UserGroup) error {
+func (a *ServerWithRoles) CreateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.CreateUserGroup(ctx, g)
+	if err := a.checkAccessToUserGroup(userGroup); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateUserGroup(ctx, userGroup)
 }
 
 // UpdateUserGroup updates an existing user group resource.
-func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, g types.UserGroup) error {
+func (a *ServerWithRoles) UpdateUserGroup(ctx context.Context, userGroup types.UserGroup) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.UpdateUserGroup(ctx, g)
+	previousUserGroup, err := a.authServer.GetUserGroup(ctx, userGroup.GetName())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.checkAccessToUserGroup(previousUserGroup); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateUserGroup(ctx, userGroup)
 }
 
 // DeleteUserGroup removes the specified user group resource.
 func (a *ServerWithRoles) DeleteUserGroup(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindUserGroup, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	previousUserGroup, err := a.authServer.GetUserGroup(ctx, name)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.checkAccessToUserGroup(previousUserGroup); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -5706,10 +6070,193 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	return a.authServer.DeleteAllUserGroups(ctx)
 }
 
+// GetHeadlessAuthentication retrieves a headless authentication by id.
+func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
+	// GetHeadlessAuthentication will wait for the headless details
+	// if they don't yet exist in the backend.
+	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Only users can get their own headless authentication requests.
+	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
+		// This method would usually time out above if the headless authentication
+		// does not exist, so we mimick this behavior here for users without access.
+		<-ctx.Done()
+		return nil, trace.Wrap(ctx.Err())
+	}
+
+	return headlessAuthn, nil
+}
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
+	// GetHeadlessAuthentication will wait for the headless details
+	// if they don't yet exist in the backend.
+	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
+	defer cancel()
+
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Only users can update their own headless authentication requests.
+	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
+		// This method would usually time out above if the headless authentication
+		// does not exist, so we mimick this behavior here for users without access.
+		<-ctx.Done()
+		return trace.Wrap(ctx.Err())
+	}
+
+	if headlessAuthn.State != types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING {
+		return trace.AccessDenied("cannot update a headless authentication state from a non-pending state")
+	}
+
+	// Shallow copy headless authn for compare and swap below.
+	replaceHeadlessAuthn := *headlessAuthn
+	replaceHeadlessAuthn.State = state
+
+	switch state {
+	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
+		// The user must authenticate with MFA to change the state to approved.
+		if mfaResp == nil {
+			return trace.BadParameter("expected MFA auth challenge response")
+		}
+
+		// Only WebAuthn is supported in headless login flow for superior phishing prevention.
+		if _, ok := mfaResp.Response.(*proto.MFAAuthenticateResponse_Webauthn); !ok {
+			return trace.BadParameter("expected WebAuthn challenge response, but got %T", mfaResp.Response)
+		}
+
+		mfaDevice, _, err := a.authServer.validateMFAAuthResponse(ctx, mfaResp, headlessAuthn.User, false /* passwordless */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		replaceHeadlessAuthn.MfaDevice = mfaDevice
+	case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
+		// continue to compare and swap without MFA.
+	default:
+		return trace.AccessDenied("cannot update a headless authentication state to %v", state.String())
+	}
+
+	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
+	return trace.Wrap(err)
+}
+
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.CreateAssistantConversation(ctx, req)
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (a *ServerWithRoles) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbList); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAssistantConversations(ctx, request)
+}
+
+// GetAssistantMessages returns all messages with given conversation ID.
+func (a *ServerWithRoles) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAssistantMessages(ctx, req)
+}
+
+// DeleteAssistantConversation deletes a conversation by ID.
+func (a *ServerWithRoles) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbDelete); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.DeleteAssistantConversation(ctx, req))
+}
+
+// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
+func (a *ServerWithRoles) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.IsAssistEnabled(ctx)
+}
+
+// CreateAssistantMessage adds the message to the backend.
+func (a *ServerWithRoles) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.CreateAssistantMessage(ctx, msg)
+}
+
+// UpdateAssistantConversationInfo updates the conversation info.
+func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
+}
+
+// CloneHTTPClient creates a new HTTP client with the same configuration.
+func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
+	return nil, trace.NotImplemented("not implemented")
+}
+
+// ExportUpgradeWindows is used to load derived upgrade window values for agents that
+// need to export schedules to external upgraders.
+func (a *ServerWithRoles) ExportUpgradeWindows(ctx context.Context, req proto.ExportUpgradeWindowsRequest) (proto.ExportUpgradeWindowsResponse, error) {
+	// Ensure that caller is a teleport server
+	role, ok := a.context.Identity.(authz.BuiltinRole)
+	if !ok || !role.IsServer() {
+		return proto.ExportUpgradeWindowsResponse{}, trace.AccessDenied("agent maintenance schedule is only accessible to teleport built-in servers")
+	}
+
+	return a.authServer.ExportUpgradeWindows(ctx, req)
+}
+
+// GetClusterMaintenanceConfig gets the current maintenance config singleton.
+func (a *ServerWithRoles) GetClusterMaintenanceConfig(ctx context.Context) (types.ClusterMaintenanceConfig, error) {
+	if err := a.action(apidefaults.Namespace, types.KindClusterMaintenanceConfig, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetClusterMaintenanceConfig(ctx)
+}
+
+// UpdateClusterMaintenanceConfig updates the current maintenance config singleton.
+func (a *ServerWithRoles) UpdateClusterMaintenanceConfig(ctx context.Context, cmc types.ClusterMaintenanceConfig) error {
+	if err := a.action(apidefaults.Namespace, types.KindClusterMaintenanceConfig, types.VerbCreate, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if modules.GetModules().Features().Cloud {
+		// maintenance configuration in cloud is derived from values stored in
+		// an external cloud-specific database.
+		return trace.NotImplemented("cloud clusters do not support custom cluster maintenance resources")
+	}
+
+	return a.authServer.UpdateClusterMaintenanceConfig(ctx, cmc)
+}
+
 // NewAdminAuthServer returns auth server authorized as admin,
 // used for auth server cached access
-func NewAdminAuthServer(authServer *Server, alog events.IAuditLog) (ClientI, error) {
-	ctx, err := NewAdminContext()
+func NewAdminAuthServer(authServer *Server, alog events.AuditLogSessionStreamer) (ClientI, error) {
+	ctx, err := authz.NewAdminContext()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -124,8 +124,15 @@ const (
 	// KindProxy is proxy resource
 	KindProxy = "proxy"
 
-	// KindNode is node resource
+	// KindNode is node resource. It can be either a Teleport node or
+	// a registered OpenSSH (agentless) node.
 	KindNode = "node"
+
+	// SubKindTeleportNode is a Teleport node.
+	SubKindTeleportNode = "teleport"
+
+	// SubKindOpenSSHNode is a registered OpenSSH (agentless) node.
+	SubKindOpenSSHNode = "openssh"
 
 	// KindAppServer is an application server resource.
 	KindAppServer = "app_server"
@@ -218,6 +225,9 @@ const (
 	// MetaNameClusterName is the name of a configuration resource for cluster name.
 	MetaNameClusterName = "cluster-name"
 
+	// MetaNameWatchStatus is the name of a watch status resource.
+	MetaNameWatchStatus = "watch-status"
+
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
 
@@ -251,10 +261,6 @@ const (
 
 	// KindState is local on disk process state
 	KindState = "state"
-
-	// KindKubeService is a kubernetes service resource
-	// DELETE in 13.0.0
-	KindKubeService = "kube_service"
 
 	// KindMFADevice is an MFA device for a user.
 	KindMFADevice = "mfa_device"
@@ -320,11 +326,43 @@ const (
 	// KindPlugin represents a plugin instance
 	KindPlugin = "plugin"
 
+	// KindPluginStaticCredentials represents plugin static credentials.
+	KindPluginStaticCredentials = "plugin_static_credentials"
+
 	// KindSAMLIdPServiceProvider is a SAML service provider for the built in Teleport IdP.
 	KindSAMLIdPServiceProvider = "saml_idp_service_provider"
 
 	// KindUserGroup is an externally sourced user group.
 	KindUserGroup = "user_group"
+
+	// KindOktaImportRule is a rule for importing Okta objects.
+	KindOktaImportRule = "okta_import_rule"
+
+	// KindOktaAssignment is a set of actions to apply to Okta.
+	KindOktaAssignment = "okta_assignment"
+
+	// KindHeadlessAuthentication is a headless authentication resource.
+	KindHeadlessAuthentication = "headless_authentication"
+
+	// KindAssistant is used to program RBAC for
+	// Teleport Assist resources.
+	KindAssistant = "assistant"
+
+	// KindIntegration is a connection to a 3rd party system API.
+	KindIntegration = "integration"
+
+	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
+	KindClusterMaintenanceConfig = "cluster_maintenance_config"
+
+	// KindServerInfo contains info that should be applied to joining Nodes.
+	KindServerInfo = "server_info"
+
+	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
+	// window singleton resource.
+	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
+
+	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
+	KindWatchStatus = "watch_status"
 
 	// V6 is the sixth version of resources.
 	V6 = "v6"
@@ -347,7 +385,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -379,11 +417,20 @@ const (
 	// VerbEnroll allows enrollment of trusted devices.
 	// Device Trust is a Teleport Enterprise feature.
 	VerbEnroll = "enroll"
+
+	// VerbUse allows the usage of an Integration.
+	// Roles with this verb can issue API calls using the integration.
+	VerbUse = "use"
 )
 
 const (
-	// TeleportNamespace is used as the namespace prefix for any
-	// labels defined by teleport
+	// TeleportNamespace is used as the namespace prefix for labels defined by Teleport which can
+	// carry metadata such as cloud AWS account or instance. Those labels can be used for RBAC.
+	//
+	// If a label with this prefix is used in a config file, the associated feature must take into
+	// account that the label might be removed, modified or could have been set by the user.
+	//
+	// See also TeleportInternalLabelPrefix and TeleportHiddenLabelPrefix.
 	TeleportNamespace = "teleport.dev"
 
 	// OriginLabel is a resource metadata label name used to identify a source
@@ -413,6 +460,10 @@ const (
 	// created from the Kubernetes Operator.
 	OriginKubernetes = "kubernetes"
 
+	// OriginOkta is an origin value indicating that the resource was
+	// created from the Okta service.
+	OriginOkta = "okta"
+
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -421,9 +472,27 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+	// AWSInstanceRegion is used to identify the region an EC2
+	// instance is running in
+	AWSInstanceRegion = TeleportNamespace + "/aws-region"
+	// SubscriptionIDLabel is used to identify virtual machines by Azure
+	// subscription ID found via automatic discovery, to avoid re-running
+	// installation commands on the node.
+	SubscriptionIDLabel = TeleportNamespace + "/subscription-id"
+	// VMIDLabel is used to identify virtual machines by ID found
+	// via automatic discovery, to avoid re-running installation commands
+	// on the node.
+	VMIDLabel = TeleportNamespace + "/vm-id"
 
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
+
+	// DatabaseAdminLabel is used to identify database admin user for auto-
+	// discovered databases.
+	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
+
+	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
+	ReqAnnotationSchedulesLabel = "/schedules"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -434,6 +503,65 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
+)
+
+const (
+	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels. Those labels
+	// are automatically populated by Teleport and are expected to be used by Teleport internal
+	// components and not for RBAC.
+	//
+	// See also TeleportNamespace and TeleportHiddenLabelPrefix.
+	TeleportInternalLabelPrefix = "teleport.internal/"
+
+	// TeleportHiddenLabelPrefix is the prefix used by all user specified hidden labels.
+	//
+	// See also TeleportNamespace and TeleportInternalLabelPrefix.
+	TeleportHiddenLabelPrefix = "teleport.hidden/"
+
+	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
+	BotLabel = TeleportInternalLabelPrefix + "bot"
+
+	// BotGenerationLabel is a label used to record the certificate generation counter.
+	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
+
+	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
+	// A pratical example of this is to create a correlation between a Node Provision Token and
+	// the Node that used that token to join the cluster
+	InternalResourceIDLabel = TeleportInternalLabelPrefix + "resource-id"
+
+	// AlertOnLogin is an internal label that indicates an alert should be displayed to users on login
+	AlertOnLogin = TeleportInternalLabelPrefix + "alert-on-login"
+
+	// AlertPermitAll is an internal label that indicates that an alert is suitable for display
+	// to all users.
+	AlertPermitAll = TeleportInternalLabelPrefix + "alert-permit-all"
+
+	// AlertLink is an internal label that indicates that an alert is a link.
+	AlertLink = TeleportInternalLabelPrefix + "link"
+
+	// AlertVerbPermit is an internal label that permits a user to view the alert if they
+	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
+	// a coarser control than it might initially appear and has the potential for accidental
+	// misuse. Because this permitting strategy doesn't take into account constraints such as
+	// label selectors or where clauses, it can't reliably protect information related to a
+	// specific resource. This label should be used only for permitting of alerts that are
+	// of concern to holders of a given <resource>:<verb> capability in the most general case.
+	AlertVerbPermit = TeleportInternalLabelPrefix + "alert-verb-permit"
+
+	// AlertSupersedes is an internal label used to indicate when one alert supersedes
+	// another. Teleport may choose to hide the superseded alert if the superseding alert
+	// is also visible to the user and of higher or equivalent severity. This intended as
+	// a mechanism for reducing noise/redundancy, and is not a form of access control. Use
+	// one of the "permit" labels if you need to restrict viewership of an alert.
+	AlertSupersedes = TeleportInternalLabelPrefix + "alert-supersedes"
+
+	// AlertLicenseExpired is an internal label that indicates that the license has expired.
+	AlertLicenseExpired = TeleportInternalLabelPrefix + "license-expired-warning"
+
+	// TeleportInternalDiscoveryGroupName is the label used to store the name of the discovery group
+	// that the discovered resource is owned by. It is used to differentiate resources
+	// that belong to different discovery services that operate on different sets of resources.
+	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
@@ -449,7 +577,14 @@ const (
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{OriginDefaults, OriginConfigFile, OriginDynamic, OriginCloud, OriginKubernetes}
+var OriginValues = []string{
+	OriginDefaults,
+	OriginConfigFile,
+	OriginDynamic,
+	OriginCloud,
+	OriginKubernetes,
+	OriginOkta,
+}
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
@@ -495,6 +630,9 @@ const (
 
 	// WindowsDesktopTunnel is a tunnel where the Windows desktop service dials back to the proxy.
 	WindowsDesktopTunnel TunnelType = "windows_desktop"
+
+	// OktaTunnel is a tunnel where the Okta service dials back to the proxy.
+	OktaTunnel TunnelType = "okta"
 )
 
 type TunnelStrategyType string
@@ -528,54 +666,6 @@ const (
 	ResourceSpecType = "type"
 )
 
-const (
-	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels
-	TeleportInternalLabelPrefix = "teleport.internal/"
-
-	// TeleportHiddenLabelPrefix is the prefix used by all user specified hidden labels
-	TeleportHiddenLabelPrefix = "teleport.hidden/"
-
-	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
-	BotLabel = TeleportInternalLabelPrefix + "bot"
-
-	// BotGenerationLabel is a label used to record the certificate generation counter.
-	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
-
-	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
-	// A pratical example of this is to create a correlation between a Node Provision Token and
-	// the Node that used that token to join the cluster
-	InternalResourceIDLabel = TeleportInternalLabelPrefix + "resource-id"
-
-	// AlertOnLogin is an internal label that indicates an alert should be displayed to users on login
-	AlertOnLogin = TeleportInternalLabelPrefix + "alert-on-login"
-
-	// AlertPermitAll is an internal label that indicates that an alert is suitable for display
-	// to all users.
-	AlertPermitAll = TeleportInternalLabelPrefix + "alert-permit-all"
-
-	// AlertLink is an internal label that indicates that an alert is a link.
-	AlertLink = TeleportInternalLabelPrefix + "link"
-
-	// AlertVerbPermit is an internal label that permits a user to view the alert if they
-	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
-	// a coarser control than it might initially appear and has the potential for accidental
-	// misuse. Because this permitting strategy doesn't take into account constraints such as
-	// label selectors or where clauses, it can't reliably protect information related to a
-	// specific resource. This label should be used only for permitting of alerts that are
-	// of concern to holders of a given <resource>:<verb> capability in the most general case.
-	AlertVerbPermit = TeleportInternalLabelPrefix + "alert-verb-permit"
-
-	// AlertSupersedes is an internal label used to indicate when one alert supersedes
-	// another. Teleport may choose to hide the superseded alert if the superseding alert
-	// is also visible to the user and of higher or equivalent severity. This intended as
-	// a mechanism for reducing noise/redundancy, and is not a form of access control. Use
-	// one of the "permit" labels if you need to restrict viewership of an alert.
-	AlertSupersedes = TeleportInternalLabelPrefix + "alert-supersedes"
-
-	// AlertLicenseExpired is an internal label that indicates that the license has expired.
-	AlertLicenseExpired = TeleportInternalLabelPrefix + "license-expired-warning"
-)
-
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
 var RequestableResourceKinds = []string{
 	KindNode,
@@ -584,6 +674,7 @@ var RequestableResourceKinds = []string{
 	KindApp,
 	KindWindowsDesktop,
 	KindKubePod,
+	KindUserGroup,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.

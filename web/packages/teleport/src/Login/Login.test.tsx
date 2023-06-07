@@ -62,7 +62,7 @@ test('login with SSO', () => {
   jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'sso');
   jest.spyOn(cfg, 'getAuthProviders').mockImplementation(() => [
     {
-      displayName: 'With Github',
+      displayName: 'With GitHub',
       type: 'github',
       name: 'github',
       url: '/github/login/web?redirect_url=:redirect?connector_id=:providerName',
@@ -72,7 +72,7 @@ test('login with SSO', () => {
   render(<Login />);
 
   // test login pathways
-  fireEvent.click(screen.getByText('With Github'));
+  fireEvent.click(screen.getByText('With GitHub'));
   expect(history.push).toHaveBeenCalledWith(
     'http://localhost/github/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=github',
     true

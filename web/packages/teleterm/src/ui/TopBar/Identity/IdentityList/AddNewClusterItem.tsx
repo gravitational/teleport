@@ -47,5 +47,5 @@ const StyledListItem = styled(ListItem)`
   border-radius: 0;
   height: 38px;
   justify-content: center;
-  color: ${props => props.theme.colors.text.secondary};
+  color: ${props => props.theme.colors.text.slightlyMuted};
 `;

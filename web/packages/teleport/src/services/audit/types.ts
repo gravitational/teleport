@@ -93,6 +93,9 @@ export const eventCodes = {
   CASSANDRA_EXECUTE_EVENT: 'TCA03I',
   CASSANDRA_REGISTER_EVENT: 'TCA04I',
   ELASTICSEARCH_REQUEST: 'TES00I',
+  ELASTICSEARCH_REQUEST_FAILURE: 'TES00E',
+  OPENSEARCH_REQUEST: 'TOS00I',
+  OPENSEARCH_REQUEST_FAILURE: 'TOS00E',
   DYNAMODB_REQUEST: 'TDY01I',
   DYNAMODB_REQUEST_FAILURE: 'TDY01E',
   DESKTOP_SESSION_STARTED: 'TDP00I',
@@ -112,6 +115,7 @@ export const eventCodes = {
   DEVICE_ENROLL_TOKEN_SPENT: 'TV004I',
   DEVICE_ENROLL: 'TV005I',
   DEVICE_AUTHENTICATE: 'TV006I',
+  DEVICE_UPDATE: 'TV007I',
   EXEC_FAILURE: 'T3002E',
   EXEC: 'T3002I',
   GITHUB_CONNECTOR_CREATED: 'T8000I',
@@ -218,6 +222,22 @@ export const eventCodes = {
   INSTANCE_JOIN: 'TJ002I',
   LOGIN_RULE_CREATE: 'TLR00I',
   LOGIN_RULE_DELETE: 'TLR01I',
+  SAML_IDP_AUTH_ATTEMPT: 'TSI000I',
+  SAML_IDP_SERVICE_PROVIDER_CREATE: 'TSI001I',
+  SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE: 'TSI001W',
+  SAML_IDP_SERVICE_PROVIDER_UPDATE: 'TSI002I',
+  SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE: 'TSI002W',
+  SAML_IDP_SERVICE_PROVIDER_DELETE: 'TSI003I',
+  SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE: 'TSI003W',
+  SAML_IDP_SERVICE_PROVIDER_DELETE_ALL: 'TSI004I',
+  SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE: 'TSI004W',
+  OKTA_GROUPS_UPDATE: 'TOK001I',
+  OKTA_APPLICATIONS_UPDATE: 'TOK002I',
+  OKTA_SYNC_FAILURE: 'TOK003E',
+  OKTA_ASSIGNMENT_PROCESS: 'TOK004I',
+  OKTA_ASSIGNMENT_PROCESS_FAILURE: 'TOK004E',
+  OKTA_ASSIGNMENT_CLEANUP: 'TOK005I',
+  OKTA_ASSIGNMENT_CLEANUP_FAILURE: 'TOK005E',
 } as const;
 
 /**
@@ -608,6 +628,7 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       db_user: string;
+      db_roles: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: RawEvent<
@@ -617,6 +638,7 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       db_user: string;
+      db_roles: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_ENDED]: RawEvent<
@@ -881,6 +903,42 @@ export type RawEvents = {
       path: string;
     }
   >;
+  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.ELASTICSEARCH_REQUEST_FAILURE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
+  >;
+  [eventCodes.OPENSEARCH_REQUEST]: RawEvent<
+    typeof eventCodes.OPENSEARCH_REQUEST,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
+  >;
+  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.OPENSEARCH_REQUEST_FAILURE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
+  >;
   [eventCodes.DYNAMODB_REQUEST]: RawEvent<
     typeof eventCodes.DYNAMODB_REQUEST,
     {
@@ -1042,6 +1100,7 @@ export type RawEvents = {
   [eventCodes.DEVICE_AUTHENTICATE]: RawDeviceEvent<
     typeof eventCodes.DEVICE_AUTHENTICATE
   >;
+  [eventCodes.DEVICE_UPDATE]: RawDeviceEvent<typeof eventCodes.DEVICE_UPDATE>;
   [eventCodes.UNKNOWN]: RawEvent<
     typeof eventCodes.UNKNOWN,
     {
@@ -1123,6 +1182,121 @@ export type RawEvents = {
     typeof eventCodes.LOGIN_RULE_DELETE,
     HasName
   >;
+  [eventCodes.SAML_IDP_AUTH_ATTEMPT]: RawEvent<
+    typeof eventCodes.SAML_IDP_AUTH_ATTEMPT,
+    {
+      success: boolean;
+      service_provider_entity_id: string;
+      service_provider_shortcut: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_CREATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_UPDATE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+      service_provider_entity_id: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE]: RawEvent<
+    typeof eventCodes.SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE,
+    {
+      name: string;
+      updated_by: string;
+    }
+  >;
+  [eventCodes.OKTA_GROUPS_UPDATE]: RawEvent<
+    typeof eventCodes.OKTA_GROUPS_UPDATE,
+    {
+      added: number;
+      updated: number;
+      deleted: number;
+    }
+  >;
+  [eventCodes.OKTA_APPLICATIONS_UPDATE]: RawEvent<
+    typeof eventCodes.OKTA_APPLICATIONS_UPDATE,
+    {
+      added: number;
+      updated: number;
+      deleted: number;
+    }
+  >;
+  [eventCodes.OKTA_SYNC_FAILURE]: RawEvent<typeof eventCodes.OKTA_SYNC_FAILURE>;
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    {
+      name: string;
+      source: string;
+    }
+  >;
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE,
+    {
+      name: string;
+      source: string;
+    }
+  >;
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    {
+      name: string;
+      source: string;
+    }
+  >;
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE,
+    {
+      name: string;
+      source: string;
+    }
+  >;
 };
 
 /**
@@ -1171,8 +1345,10 @@ type RawDeviceEvent<T extends EventCode> = RawEvent<
   T,
   {
     device: { asset_tag: string; device_id: string; os_type: number };
-    status: { success: boolean };
-    user: { user: string };
+    success?: boolean;
+    user?: string;
+    // status from "legacy" event format.
+    status?: { success: boolean };
   }
 >;
 

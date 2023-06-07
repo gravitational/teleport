@@ -139,8 +139,9 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 	t.Parallel()
 
 	server, err := types.NewServerWithLabels("banana", types.KindNode, types.ServerSpecV2{
-		Hostname: "foo",
-		Addr:     "bar",
+		Hostname:    "foo",
+		Addr:        "bar",
+		PublicAddrs: []string{"foo.example.com:3080"},
 	}, map[string]string{"env": "prod", "os": "mac"})
 	require.NoError(t, err)
 
@@ -176,6 +177,30 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 			},
 			assertErr:   require.NoError,
 			assertMatch: require.False,
+		},
+		{
+			name: "search keywords hostname match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"foo"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
+		},
+		{
+			name: "search keywords addr match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"bar"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
+		},
+		{
+			name: "search keywords public addr match",
+			filters: MatchResourceFilter{
+				SearchKeywords: []string{"foo.example.com"},
+			},
+			assertErr:   require.NoError,
+			assertMatch: require.True,
 		},
 		{
 			name: "expression match",
@@ -280,25 +305,40 @@ func TestMatchResourceByFilters_Helper(t *testing.T) {
 func TestMatchAndFilterKubeClusters(t *testing.T) {
 	t.Parallel()
 
-	getKubeService := func() types.Server {
-		kubeService, err := types.NewServer("_", types.KindKubeService, types.ServerSpecV2{
-			KubernetesClusters: []*types.KubernetesCluster{
-				{
-					Name:         "cluster-1",
-					StaticLabels: map[string]string{"env": "prod", "os": "mac"},
-				},
-				{
-					Name:         "cluster-2",
-					StaticLabels: map[string]string{"env": "staging", "os": "mac"},
-				},
-				{
-					Name:         "cluster-3",
-					StaticLabels: map[string]string{"env": "prod", "os": "mac"},
-				},
+	getKubeServers := func() []types.KubeServer {
+		cluster1, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name:   "cluster-1",
+				Labels: map[string]string{"env": "prod", "os": "mac"},
 			},
-		})
+			types.KubernetesClusterSpecV3{},
+		)
 		require.NoError(t, err)
-		return kubeService
+
+		cluster2, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name:   "cluster-2",
+				Labels: map[string]string{"env": "staging", "os": "mac"},
+			},
+			types.KubernetesClusterSpecV3{},
+		)
+		require.NoError(t, err)
+		cluster3, err := types.NewKubernetesClusterV3(
+			types.Metadata{
+				Name:   "cluster-3",
+				Labels: map[string]string{"env": "prod", "os": "mac"},
+			},
+			types.KubernetesClusterSpecV3{},
+		)
+
+		require.NoError(t, err)
+		var servers []types.KubeServer
+		for _, cluster := range []*types.KubernetesClusterV3{cluster1, cluster2, cluster3} {
+			server, err := types.NewKubernetesServerV3FromCluster(cluster, "_", "_")
+			require.NoError(t, err)
+			servers = append(servers, server)
+		}
+		return servers
 	}
 
 	testcases := []struct {
@@ -350,11 +390,20 @@ func TestMatchAndFilterKubeClusters(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			kubeService := getKubeService()
-			match, err := matchAndFilterKubeClusters(types.ResourceWithLabels(kubeService), tc.filters)
-			require.NoError(t, err)
-			tc.assertMatch(t, match)
-			require.Len(t, kubeService.GetKubernetesClusters(), tc.expectedLen)
+			kubeServers := getKubeServers()
+			atLeastOneMatch := false
+			matchedServers := make([]types.KubeServer, 0, len(kubeServers))
+			for _, kubeServer := range kubeServers {
+				match, err := matchAndFilterKubeClusters(types.ResourceWithLabels(kubeServer), tc.filters)
+				require.NoError(t, err)
+				if match {
+					atLeastOneMatch = true
+					matchedServers = append(matchedServers, kubeServer)
+				}
+			}
+			tc.assertMatch(t, atLeastOneMatch)
+
+			require.Len(t, matchedServers, tc.expectedLen)
 		})
 	}
 }
@@ -369,7 +418,6 @@ func TestMatchResourceByFilters(t *testing.T) {
 
 	testcases := []struct {
 		name           string
-		isKubeService  bool
 		wantNotImplErr bool
 		filters        MatchResourceFilter
 		resource       func() types.ResourceWithLabels
@@ -436,25 +484,7 @@ func TestMatchResourceByFilters(t *testing.T) {
 				PredicateExpression: filterExpression,
 			},
 		},
-		{
-			name:          "kube service",
-			isKubeService: true,
-			resource: func() types.ResourceWithLabels {
-				dbServer, err := types.NewServer("_", types.KindKubeService, types.ServerSpecV2{
-					KubernetesClusters: []*types.KubernetesCluster{
-						{Name: "bar"},
-						{Name: "foo"},
-						{Name: "foo"},
-					},
-				})
-				require.NoError(t, err)
-				return dbServer
-			},
-			filters: MatchResourceFilter{
-				ResourceKind:        types.KindKubeService,
-				PredicateExpression: filterExpression,
-			},
-		},
+
 		{
 			name: "kube cluster",
 			resource: func() types.ResourceWithLabels {
@@ -511,14 +541,6 @@ func TestMatchResourceByFilters(t *testing.T) {
 				require.NoError(t, err)
 				require.True(t, match)
 			}
-
-			if tc.isKubeService {
-				server, ok := resource.(types.Server)
-				require.True(t, ok)
-				require.Len(t, server.GetKubernetesClusters(), 2)
-				require.Equal(t, server.GetKubernetesClusters()[0].Name, "foo")
-				require.Equal(t, server.GetKubernetesClusters()[1].Name, "foo")
-			}
 		})
 	}
 }
@@ -535,7 +557,7 @@ func TestResourceMatchersToTypes(t *testing.T) {
 			out:  []*types.DatabaseResourceMatcher{},
 		},
 		{
-			name: "sinlge element with single label",
+			name: "single element with single label",
 			in: []ResourceMatcher{
 				{Labels: types.Labels{"elem1": []string{"elem1"}}},
 			},
@@ -544,7 +566,7 @@ func TestResourceMatchersToTypes(t *testing.T) {
 			},
 		},
 		{
-			name: "sinlge element with multiple labels",
+			name: "single element with multiple labels",
 			in: []ResourceMatcher{
 				{Labels: types.Labels{"elem2": []string{"elem1", "elem2"}}},
 			},

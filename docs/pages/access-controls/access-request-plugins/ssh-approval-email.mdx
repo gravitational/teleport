@@ -9,6 +9,8 @@ at least some of their communications, Teleport's email plugin makes it
 straightforward to integrate Access Requests into your existing workflows,
 letting you implement security best practices without compromising productivity.
 
+(!docs/pages/includes/plugins/diagram.mdx api="SMTP service" action="Listen for Access Requests" messages="Email messages" !)
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -25,7 +27,7 @@ regularly.
 
 </Admonition>
 
-(!/docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/7. Define RBAC resources
 
@@ -104,7 +106,7 @@ $ teleport-email version
 
 ## Step 4/7. Export the access plugin identity
 
-(!docs/pages/includes/plugins/identity-export.mdx!)
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
 
 ## Step 5/7. Configure the plugin
 
@@ -125,37 +127,7 @@ each value below.
 
 ### `[teleport]`
 
-<Tabs>
-<TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]}>
-
-**`addr`**: Include the hostname and HTTPS port of your Teleport Proxy Service
-(e.g., `mytenant.teleport.sh:443`). If you are configuring your plugin to
-connect directly to the Teleport Auth Service, use your Auth Service's gRPC
-endpoint (e.g., `teleport.example.com:3025`).
-
-**`identity`**, **`client_key`**, **`client_crt`**, **`root_cas`**: The values
-you will use for these fields depend on whether the email plugin will
-connect to the Proxy Service or the Auth Service. 
-
-If you exported an identity file earlier, fill in the `identity` field with the
-path to the file and comment out the other fields.
-
-If you exported a client key, client certificate, and root CAs earlier, fill in
-the `client_key`, `client_crt`, and `root_cas` fields with the paths to these
-files and leave `identity` commented out.
-
-</TabItem>
-<TabItem label="Teleport Cloud" scope="cloud">
-
-**`addr`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
-(e.g., `mytenant.teleport.sh:443`).
-
-**`identity`**, **`client_key`**, **`client_crt`**, **`root_cas`**: Fill in the
-`identity` field with the path to the identity file you exported earlier and
-comment out the other fields.
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
 ### `[mailgun]` or `[smtp]`
 
@@ -276,7 +248,7 @@ You configuration should resemble the following:
 ```toml
 # /etc/teleport-email.toml
 [teleport]
-addr = "example.com:3025"
+addr = "example.com:443"
 identity = "/var/lib/teleport/plugins/email/auth_id"
 
 [mailgun]

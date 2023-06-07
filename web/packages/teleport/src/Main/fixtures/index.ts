@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { fullAcl } from 'teleport/mocks/contexts';
+import { getAcl } from 'teleport/mocks/contexts';
 import makeUserContext from 'teleport/services/user/makeUserContext';
 
 export const userContext = makeUserContext({
@@ -24,7 +24,7 @@ export const userContext = makeUserContext({
     suggestedReviewers: ['george_washington@gmail.com', 'chad'],
     requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],
   },
-  userAcl: fullAcl,
+  userAcl: getAcl(),
   cluster: {
     name: 'aws',
     lastConnected: '2020-09-26T17:30:23.512876876Z',

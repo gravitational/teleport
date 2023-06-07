@@ -101,9 +101,6 @@ func TestParseShortcut(t *testing.T) {
 		"kube_cluster":  {expectedOutput: types.KindKubernetesCluster},
 		"kube_clusters": {expectedOutput: types.KindKubernetesCluster},
 
-		"kube_service":  {expectedOutput: types.KindKubeService},
-		"kube_services": {expectedOutput: types.KindKubeService},
-
 		"kube_server":  {expectedOutput: types.KindKubeServer},
 		"kube_servers": {expectedOutput: types.KindKubeServer},
 
@@ -147,6 +144,19 @@ func TestParseShortcut(t *testing.T) {
 		"user_groups": {expectedOutput: types.KindUserGroup},
 		"usergroup":   {expectedOutput: types.KindUserGroup},
 		"usergroups":  {expectedOutput: types.KindUserGroup},
+
+		"device":  {expectedOutput: types.KindDevice},
+		"devices": {expectedOutput: types.KindDevice},
+
+		"okta_import_rule":  {expectedOutput: types.KindOktaImportRule},
+		"okta_import_rules": {expectedOutput: types.KindOktaImportRule},
+		"oktaimportrule":    {expectedOutput: types.KindOktaImportRule},
+		"oktaimportrules":   {expectedOutput: types.KindOktaImportRule},
+
+		"okta_assignment":  {expectedOutput: types.KindOktaAssignment},
+		"okta_assignments": {expectedOutput: types.KindOktaAssignment},
+		"oktaassignment":   {expectedOutput: types.KindOktaAssignment},
+		"oktaassignments":  {expectedOutput: types.KindOktaAssignment},
 
 		"SamL_IDP_sERVICe_proVidER": {expectedOutput: types.KindSAMLIdPServiceProvider},
 

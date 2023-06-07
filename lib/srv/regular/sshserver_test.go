@@ -55,15 +55,16 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/tracing"
-	"github.com/gravitational/teleport/lib/pam"
 	libproxy "github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	sess "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -206,7 +207,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 
 	nodeID := uuid.New().String()
 	nodeClient, err := testServer.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -232,7 +233,7 @@ func newCustomFixture(t *testing.T, mutateCfg func(*auth.TestServerConfig), sshO
 		SetNamespace(apidefaults.Namespace),
 		SetEmitter(nodeClient),
 		SetShell("/bin/sh"),
-		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		SetLabels(
 			map[string]string{"foo": "bar"},
 			services.CommandLabels{
@@ -398,7 +399,7 @@ func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, strin
 	// create proxy client used in some tests
 	proxyID := uuid.New().String()
 	proxyClient, err := testSvr.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleProxy,
 			Username: proxyID,
 		},
@@ -410,7 +411,7 @@ func newProxyClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, strin
 func newNodeClient(t *testing.T, testSvr *auth.TestServer) (*auth.Client, string) {
 	nodeID := uuid.New().String()
 	nodeClient, err := testSvr.NewClient(auth.TestIdentity{
-		I: auth.BuiltinRole{
+		I: authz.BuiltinRole{
 			Role:     types.RoleNode,
 			Username: nodeID,
 		},
@@ -1462,7 +1463,7 @@ func TestProxyRoundRobin(t *testing.T) {
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
@@ -1603,7 +1604,7 @@ func TestProxyDirectAccess(t *testing.T) {
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
@@ -1649,7 +1650,8 @@ func TestPTY(t *testing.T) {
 	require.NoError(t, se.RequestPty(ctx, "xterm", 0, 0, ssh.TerminalModes{}))
 }
 
-// TestEnv requests setting environment variables. (We are currently ignoring these requests)
+// TestEnv requests setting environment variables via
+// a "env" request.
 func TestEnv(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1660,7 +1662,61 @@ func TestEnv(t *testing.T) {
 	require.NoError(t, err)
 	defer se.Close()
 
-	require.NoError(t, se.Setenv(ctx, "HOME", "/"))
+	require.NoError(t, se.Setenv(ctx, "HOME_TEST", "/test"))
+	output, err := se.Output(ctx, "env")
+	require.NoError(t, err)
+	require.Contains(t, string(output), "HOME_TEST=/test")
+}
+
+// TestEnvs requests setting environment variables via
+// a "envs@goteleport.com" request.
+func TestEnvs(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	f := newFixtureWithoutDiskBasedLogging(t)
+
+	se, err := f.ssh.clt.NewSession(ctx)
+	require.NoError(t, err)
+	defer se.Close()
+
+	envs := map[string]string{
+		"HOME_TEST": "/test",
+		"LLAMA":     "ALPACA",
+		"FISH":      "FROG",
+	}
+
+	require.NoError(t, se.SetEnvs(ctx, envs))
+	output, err := se.Output(ctx, "env")
+	require.NoError(t, err)
+
+	for k, v := range envs {
+		require.Contains(t, string(output), k+"="+v)
+	}
+}
+
+// TestUnknownRequest validates that any unknown session
+// requests do not terminate the session.
+func TestUnknownRequest(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	f := newFixtureWithoutDiskBasedLogging(t)
+
+	se, err := f.ssh.clt.NewSession(ctx)
+	require.NoError(t, err)
+	defer se.Close()
+
+	// send a random request that won't be handled
+	ok, err := se.SendRequest(ctx, uuid.NewString(), true, nil)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// ensure the session is still active
+	require.NoError(t, se.Setenv(ctx, "HOME_TEST", "/test"))
+	output, err := se.Output(ctx, "env")
+	require.NoError(t, err)
+	require.Contains(t, string(output), "HOME_TEST=/test")
 }
 
 // TestNoAuth tries to log in with no auth methods and should be rejected
@@ -1789,7 +1845,7 @@ func TestLimiter(t *testing.T) {
 		SetShell("/bin/sh"),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),
@@ -2329,7 +2385,7 @@ func TestIgnorePuTTYSimpleChannel(t *testing.T) {
 		SetProxyMode("", reverseTunnelServer, proxyClient, router),
 		SetEmitter(nodeClient),
 		SetNamespace(apidefaults.Namespace),
-		SetPAMConfig(&pam.Config{Enabled: false}),
+		SetPAMConfig(&servicecfg.PAMConfig{Enabled: false}),
 		SetBPF(&bpf.NOP{}),
 		SetRestrictedSessionManager(&restricted.NOP{}),
 		SetClock(f.clock),

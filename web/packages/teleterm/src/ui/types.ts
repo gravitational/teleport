@@ -18,7 +18,6 @@ import { MainProcessClient, SubscribeToTshdEvent } from 'teleterm/types';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { TerminalsService } from 'teleterm/ui/services/terminals';
-import { QuickInputService } from 'teleterm/ui/services/quickInput';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { CommandLauncher } from 'teleterm/ui/commandLauncher';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
@@ -30,6 +29,7 @@ import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ReloginService } from 'teleterm/services/relogin';
 import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
 import { UsageService } from 'teleterm/ui/services/usage';
+import { ConfigService } from 'teleterm/services/config';
 
 export interface IAppContext {
   clustersService: ClustersService;
@@ -37,7 +37,6 @@ export interface IAppContext {
   notificationsService: NotificationsService;
   terminalsService: TerminalsService;
   keyboardShortcutsService: KeyboardShortcutsService;
-  quickInputService: QuickInputService;
   statePersistenceService: StatePersistenceService;
   workspacesService: WorkspacesService;
   mainProcessClient: MainProcessClient;
@@ -49,6 +48,7 @@ export interface IAppContext {
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
   usageService: UsageService;
+  configService: ConfigService;
 
   init(): Promise<void>;
 }

@@ -51,7 +51,7 @@ export function useUserTraits(props: AgentStepProps) {
   // dynamic (user-defined) and static (role-defined) traits.
   let meta = props.agentMeta;
   let staticTraits = initUserTraits();
-  switch (props.selectedResourceKind) {
+  switch (props.resourceSpec.kind) {
     case ResourceKind.Kubernetes:
       const kube = (meta as KubeMeta).kube;
       staticTraits.kubeUsers = arrayStrDiff(
@@ -83,7 +83,7 @@ export function useUserTraits(props: AgentStepProps) {
 
     default:
       throw new Error(
-        `useUserTraits.ts:statiTraits: resource kind ${props.selectedResourceKind} is not handled`
+        `useUserTraits.ts:statiTraits: resource kind ${props.resourceSpec.kind} is not handled`
       );
   }
 
@@ -106,7 +106,7 @@ export function useUserTraits(props: AgentStepProps) {
   // onProceed deduplicates and removes static traits from the list of traits
   // before updating user in the backend.
   function onProceed(traitOpts: Partial<Record<Trait, Option[]>>) {
-    switch (props.selectedResourceKind) {
+    switch (props.resourceSpec.kind) {
       case ResourceKind.Kubernetes:
         const newDynamicKubeUsers = new Set<string>();
         traitOpts.kubeUsers.forEach(o => {
@@ -162,7 +162,7 @@ export function useUserTraits(props: AgentStepProps) {
 
       default:
         throw new Error(
-          `useUserTrait.ts:onProceed: resource kind ${props.selectedResourceKind} is not handled`
+          `useUserTrait.ts:onProceed: resource kind ${props.resourceSpec.kind} is not handled`
         );
     }
   }
@@ -173,7 +173,7 @@ export function useUserTraits(props: AgentStepProps) {
     newDynamicTraits: Partial<UserTraits>
   ) {
     let meta = props.agentMeta;
-    switch (props.selectedResourceKind) {
+    switch (props.resourceSpec.kind) {
       case ResourceKind.Kubernetes:
         const kube = (meta as KubeMeta).kube;
         props.updateAgentMeta({
@@ -220,7 +220,7 @@ export function useUserTraits(props: AgentStepProps) {
 
       default:
         throw new Error(
-          `useUserTraits.ts:updateResourceMetaDynamicTraits: resource kind ${props.selectedResourceKind} is not handled`
+          `useUserTraits.ts:updateResourceMetaDynamicTraits: resource kind ${props.resourceSpec.kind} is not handled`
         );
     }
   }
@@ -271,9 +271,21 @@ export function useUserTraits(props: AgentStepProps) {
     return initSelectedOptionsHelper({ trait, staticTraits, dynamicTraits });
   }
 
+  // Only allow kind database's to be able to go back from
+  // this step. The prev screen for databases's atm are either
+  // IamPolicy or MutualTls, which is mostly an informational
+  // step.
+  // For server and kubernetes, the prev screen is the download
+  // script which wouldn't make sense to go back to.
+  let onPrev;
+  if (props.resourceSpec.kind === ResourceKind.Database) {
+    onPrev = props.prevStep;
+  }
+
   return {
     attempt,
     onProceed,
+    onPrev,
     fetchUserTraits,
     isSsoUser,
     canEditUser,
@@ -282,7 +294,7 @@ export function useUserTraits(props: AgentStepProps) {
     getSelectableOptions,
     dynamicTraits,
     staticTraits,
-    resourceState: props.resourceState,
+    resourceSpec: props.resourceSpec,
   };
 }
 

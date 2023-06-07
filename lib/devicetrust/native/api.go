@@ -14,7 +14,11 @@
 
 package native
 
-import devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+import (
+	"runtime"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+)
 
 // EnrollDeviceInit creates the initial enrollment data for the device.
 // This includes fetching or creating a device credential, collecting device
@@ -38,4 +42,28 @@ func SignChallenge(chal []byte) (sig []byte, err error) {
 // GetDeviceCredential returns the current device credential, if it exists.
 func GetDeviceCredential() (*devicepb.DeviceCredential, error) {
 	return getDeviceCredential()
+}
+
+// SolveTPMEnrollChallenge completes a TPM enrollment challenge.
+func SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
+	return solveTPMEnrollChallenge(challenge)
+}
+
+// SolveTPMAuthnDeviceChallenge completes a TPM device authetication challenge.
+func SolveTPMAuthnDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return solveTPMAuthnDeviceChallenge(challenge)
+}
+
+// GetDeviceOSType returns the devicepb.OSType for the current OS
+func GetDeviceOSType() devicepb.OSType {
+	switch runtime.GOOS {
+	case "darwin":
+		return devicepb.OSType_OS_TYPE_MACOS
+	case "linux":
+		return devicepb.OSType_OS_TYPE_LINUX
+	case "windows":
+		return devicepb.OSType_OS_TYPE_WINDOWS
+	default:
+		return devicepb.OSType_OS_TYPE_UNSPECIFIED
+	}
 }

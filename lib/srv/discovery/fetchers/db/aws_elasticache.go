@@ -39,6 +39,8 @@ type elastiCacheFetcherConfig struct {
 	ElastiCache elasticacheiface.ElastiCacheAPI
 	// Region is the AWS region to query databases in.
 	Region string
+	// AssumeRole is the AWS IAM role to assume before discovering databases.
+	AssumeRole types.AssumeRole
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -74,6 +76,7 @@ func newElastiCacheFetcher(config elastiCacheFetcherConfig) (common.Fetcher, err
 			trace.Component: "watch:elasticache",
 			"labels":        config.Labels,
 			"region":        config.Region,
+			"role":          config.AssumeRole,
 		}),
 	}, nil
 }
@@ -168,6 +171,7 @@ func (f *elastiCacheFetcher) Get(ctx context.Context) (types.ResourcesWithLabels
 		}
 	}
 
+	applyAssumeRoleToDatabases(databases, f.cfg.AssumeRole)
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
 }
 

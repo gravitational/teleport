@@ -72,7 +72,7 @@ const (
 	Github = "github"
 
 	// HumanDateFormatSeconds is a human readable date formatting with seconds
-	HumanDateFormatSeconds = "Jan _2 15:04:05 UTC"
+	HumanDateFormatSeconds = "Jan _2 2006 15:04:05 UTC"
 
 	// MaxLeases serves as an identifying error string indicating that the
 	// semaphore system is rejecting an acquisition attempt due to max
@@ -157,6 +157,30 @@ const (
 
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
+
+	// OktaAssignmentStatusPending is represents a pending status for an Okta assignment.
+	OktaAssignmentStatusPending = "pending"
+
+	// OktaAssignmentStatusProcessing is represents an Okta assignment which is currently being acted on.
+	OktaAssignmentStatusProcessing = "processing"
+
+	// OktaAssignmentStatusSuccessful is represents a successfully applied Okta assignment.
+	OktaAssignmentStatusSuccessful = "successful"
+
+	// OktaAssignmentStatusFailed is represents an Okta assignment which failed to apply. It will be retried.
+	OktaAssignmentStatusFailed = "failed"
+
+	// OktaAssignmentStatusPending is represents a unknown status for an Okta assignment.
+	OktaAssignmentStatusUnknown = "unknown"
+
+	// OktaAssignmentTargetApplication is an application target of an Okta assignment.
+	OktaAssignmentTargetApplication = "application"
+
+	// OktaAssignmentActionTargetGroup is a group target of an Okta assignment.
+	OktaAssignmentTargetGroup = "group"
+
+	// OktaAssignmentTargetUnknown is an unknown target of an Okta assignment.
+	OktaAssignmentTargetUnknown = "unknown"
 )
 
 // SystemConnectors lists the names of the system-reserved connectors.
@@ -283,6 +307,10 @@ const (
 	ALPNSNIAuthProtocol = "teleport-auth@"
 	// ALPNSNIProtocolReverseTunnel is TLS ALPN protocol value used to indicate Proxy reversetunnel protocol.
 	ALPNSNIProtocolReverseTunnel = "teleport-reversetunnel"
+	// ALPNSNIProtocolSSH is the TLS ALPN protocol value used to indicate Proxy SSH protocol.
+	ALPNSNIProtocolSSH = "teleport-proxy-ssh"
+	// ALPNSNIProtocolPingSuffix is TLS ALPN suffix used to wrap connections with Ping.
+	ALPNSNIProtocolPingSuffix = "-ping"
 )
 
 const (
@@ -341,6 +369,10 @@ const (
 	// allowed database users.
 	TraitDBUsers = "db_users"
 
+	// TraitDBRoles is the name of the role variable used to store
+	// allowed database roles.
+	TraitDBRoles = "db_roles"
+
 	// TraitAWSRoleARNs is the name of the role variable used to store
 	// allowed AWS role ARNs.
 	TraitAWSRoleARNs = "aws_role_arns"
@@ -353,8 +385,51 @@ const (
 	// allowed GCP service accounts.
 	TraitGCPServiceAccounts = "gcp_service_accounts"
 )
+const (
+	// ProxyHelloSignature is a string which Teleport proxy will send
+	// right after the initial SSH "handshake/version" message if it detects
+	// talking to a Teleport server.
+	//
+	// This is also leveraged by tsh to propagate its tracing span ID.
+	ProxyHelloSignature = "Teleport-Proxy"
+)
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
-	TimeoutGetClusterAlerts = time.Millisecond * 500
+	TimeoutGetClusterAlerts = time.Millisecond * 750
+)
+
+const (
+	// WebAPIConnUpgrade is the HTTP web API to make the connection upgrade
+	// call.
+	WebAPIConnUpgrade = "/webapi/connectionupgrade"
+	// WebAPIConnUpgradeHeader is the header used to indicate the requested
+	// connection upgrade types in the connection upgrade API.
+	WebAPIConnUpgradeHeader = "Upgrade"
+	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
+	// the upgraded connection should be handled by the ALPN handler.
+	WebAPIConnUpgradeTypeALPN = "alpn"
+	// WebAPIConnUpgradeTypeALPNPing is a connection upgrade type that
+	// specifies the upgraded connection should be handled by the ALPN handler
+	// wrapped with the Ping protocol.
+	//
+	// This should be used when the tunneled TLS Routing protocol cannot keep
+	// long-lived connections alive as L7 LB usually ignores TCP keepalives and
+	// has very short idle timeouts.
+	WebAPIConnUpgradeTypeALPNPing = "alpn-ping"
+	// WebAPIConnUpgradeConnectionHeader is the standard header that controls
+	// whether the network connection stays open after the current transaction
+	// finishes.
+	WebAPIConnUpgradeConnectionHeader = "Connection"
+	// WebAPIConnUpgradeConnectionType is the value of the "Connection" header
+	// used for connection upgrades.
+	WebAPIConnUpgradeConnectionType = "Upgrade"
+)
+
+const (
+	// InitiateFileTransfer is used when creating a new file transfer request
+	InitiateFileTransfer string = "file-transfer@goteleport.com"
+	// FileTransferDecision is a request that will approve or deny an active file transfer.
+	// Multiple decisions can be sent for the same request if the policy requires it.
+	FileTransferDecision string = "file-transfer-decision@goteleport.com"
 )

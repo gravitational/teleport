@@ -18,6 +18,8 @@ package srv
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -42,8 +44,8 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/events"
-	"github.com/gravitational/teleport/lib/pam"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/uacc"
@@ -104,7 +106,7 @@ type AccessPoint interface {
 	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetCertAuthorities returns a list of cert authorities
-	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool, opts ...services.MarshalOption) ([]types.CertAuthority, error)
+	GetCertAuthorities(ctx context.Context, caType types.CertAuthType, loadKeys bool) ([]types.CertAuthority, error)
 
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
@@ -143,7 +145,7 @@ type Server interface {
 	GetDataDir() string
 
 	// GetPAM returns PAM configuration for this server.
-	GetPAM() (*pam.Config, error)
+	GetPAM() (*servicecfg.PAMConfig, error)
 
 	// GetClock returns a clock setup for the server
 	GetClock() clockwork.Clock
@@ -180,6 +182,47 @@ type Server interface {
 
 	// TargetMetadata returns metadata about the session target node.
 	TargetMetadata() apievents.ServerMetadata
+}
+
+// childProcessError is used to provide an underlying error
+// from a re-executed Teleport child process to its parent.
+type childProcessError struct {
+	Code     int    `json:"code"`
+	RawError []byte `json:"rawError"`
+}
+
+// writeChildError encodes the provided error
+// as json and writes it to w. Special care
+// is taken to preserve the error type by
+// including the error code and raw message
+// so that [DecodeChildError] will return
+// the matching error type and message.
+func writeChildError(w io.Writer, err error) {
+	if w == nil || err == nil {
+		return
+	}
+
+	data, jerr := json.Marshal(err)
+	if jerr != nil {
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(childProcessError{
+		Code:     trace.ErrorToCode(err),
+		RawError: data,
+	})
+}
+
+// DecodeChildError consumes the output from a child
+// process decoding it from its raw form back into
+// a concrete error.
+func DecodeChildError(r io.Reader) error {
+	var c childProcessError
+	if err := json.NewDecoder(r).Decode(&c); err != nil {
+		return nil
+	}
+
+	return trace.ReadError(c.Code, c.RawError)
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -351,6 +394,12 @@ type ServerContext struct {
 	killShellr *os.File
 	killShellw *os.File
 
+	// multiWriter is used to record non-interactive session output.
+	// Currently, used by Assist.
+	multiWriter io.Writer
+	// recordNonInteractiveSession enables non-interactive session recording. Used by Assist.
+	recordNonInteractiveSession bool
+
 	// ChannelType holds the type of the channel. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
 	ChannelType string
@@ -374,11 +423,23 @@ type ServerContext struct {
 	x11rdyr *os.File
 	x11rdyw *os.File
 
+	// err{r,w} is used to propagate errors from the child process to the
+	// parent process so the parent can get more information about why the child
+	// process failed and act accordingly.
+	errr *os.File
+	errw *os.File
+
 	// x11Config holds the xauth and XServer listener config for this session.
 	x11Config *X11Config
 
 	// JoinOnly is set if the connection was created using a join-only principal and may only be used to join other sessions.
 	JoinOnly bool
+
+	// ServerSubKind if the sub kind of the node this context is for.
+	ServerSubKind string
+
+	// UserCreatedByTeleport is true when the system user was created by Teleport user auto-provision.
+	UserCreatedByTeleport bool
 }
 
 // NewServerContext creates a new *ServerContext which is used to pass and
@@ -410,6 +471,7 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 		clientIdleTimeout:      identityContext.AccessChecker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout()),
 		cancelContext:          cancelContext,
 		cancel:                 cancel,
+		ServerSubKind:          srv.TargetMetadata().ServerSubKind,
 	}
 
 	fields := log.Fields{
@@ -515,6 +577,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	}
 	child.AddCloser(child.x11rdyr)
 	child.AddCloser(child.x11rdyw)
+
+	// Create pipe used to get errors from the child process.
+	child.errr, child.errw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.errr)
+	child.AddCloser(child.errw)
 
 	return ctx, child, nil
 }
@@ -661,11 +732,11 @@ func (c *ServerContext) SetAllowFileCopying(allow bool) {
 func (c *ServerContext) CheckFileCopyingAllowed() error {
 	// Check if remote file operations are disabled for this node.
 	if !c.AllowFileCopying {
-		return ErrNodeFileCopyingNotPermitted
+		return trace.Wrap(ErrNodeFileCopyingNotPermitted)
 	}
 	// Check if the user's RBAC role allows remote file operations.
 	if !c.Identity.AccessChecker.CanCopyFiles() {
-		return errRoleFileCopyingNotPermitted
+		return trace.Wrap(errRoleFileCopyingNotPermitted)
 	}
 
 	return nil
@@ -674,7 +745,7 @@ func (c *ServerContext) CheckFileCopyingAllowed() error {
 // CheckSFTPAllowed returns an error if remote file operations via SCP
 // or SFTP are not allowed by the user's role or the node's config, or
 // if the user is not allowed to start unattended sessions.
-func (c *ServerContext) CheckSFTPAllowed() error {
+func (c *ServerContext) CheckSFTPAllowed(registry *SessionRegistry) error {
 	if err := c.CheckFileCopyingAllowed(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -686,8 +757,21 @@ func (c *ServerContext) CheckSFTPAllowed() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if !canStart {
-		return errCannotStartUnattendedSession
+	// canStart will be true for non-moderated sessions. If canStart is false, check to
+	// see if the request has been approved through a moderated session next.
+	if canStart {
+		return nil
+	}
+	if registry == nil {
+		return trace.Wrap(errCannotStartUnattendedSession)
+	}
+
+	approved, err := registry.isApprovedFileTransfer(c)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !approved {
+		return trace.Wrap(errCannotStartUnattendedSession)
 	}
 
 	return nil
@@ -813,7 +897,7 @@ func (c *ServerContext) x11Ready() (bool, error) {
 	// Wait for child process to send signal (1 byte)
 	// or EOF if signal was already received.
 	_, err := io.ReadFull(c.x11rdyr, make([]byte, 1))
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return true, nil
 	} else if err != nil {
 		return false, trace.Wrap(err)
@@ -824,6 +908,11 @@ func (c *ServerContext) x11Ready() (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return true, nil
+}
+
+// GetChildError returns the error from the child process
+func (c *ServerContext) GetChildError() error {
+	return DecodeChildError(c.errr)
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null
@@ -984,13 +1073,13 @@ func getPAMConfig(c *ServerContext) (*PAMConfig, error) {
 		}
 
 		for key, value := range localPAMConfig.Environment {
-			expr, err := parse.NewExpression(value)
+			expr, err := parse.NewTraitsTemplateExpression(value)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 
 			varValidation := func(namespace, name string) error {
-				if namespace != teleport.TraitExternalPrefix && namespace != parse.LiteralNamespace {
+				if namespace != teleport.TraitExternalPrefix {
 					return trace.BadParameter("PAM environment interpolation only supports external traits, found %q", value)
 				}
 				return nil
@@ -1062,6 +1151,7 @@ func (c *ServerContext) ExecCommand() (*ExecCommand, error) {
 		ClientAddress:         c.ServerConn.RemoteAddr().String(),
 		RequestType:           requestType,
 		PermitUserEnvironment: c.srv.PermitUserEnvironment(),
+		UserCreatedByTeleport: c.UserCreatedByTeleport,
 		Environment:           buildEnvironment(c),
 		PAMConfig:             pamConfig,
 		IsTestStub:            c.IsTestStub,

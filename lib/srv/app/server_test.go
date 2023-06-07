@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/services"
@@ -81,6 +82,9 @@ type Suite struct {
 	testhttp              *httptest.Server
 	clientCertificate     tls.Certificate
 	awsConsoleCertificate tls.Certificate
+
+	appFoo *types.AppV3
+	appAWS *types.AppV3
 
 	user       types.User
 	role       types.Role
@@ -124,6 +128,12 @@ type suiteConfig struct {
 	AppLabels map[string]string
 	// RoleAppLabels are the labels set to allow for the user role.
 	RoleAppLabels types.Labels
+}
+
+type fakeConnMonitor struct{}
+
+func (f fakeConnMonitor) MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error) {
+	return ctx, nil
 }
 
 func SetUpSuite(t *testing.T) *Suite {
@@ -187,7 +197,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
 				AppLabels:   roleAppLabels,
-				AWSRoleARNs: []string{"readonly"},
+				AWSRoleARNs: []string{"arn:aws:iam::123456789012:role/readonly"},
 			},
 		},
 	}
@@ -244,7 +254,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	}
 
 	// Create apps that will be used for each test.
-	appFoo, err := types.NewAppV3(types.Metadata{
+	s.appFoo, err = types.NewAppV3(types.Metadata{
 		Name:   "foo",
 		Labels: appLabels,
 	}, types.AppSpecV3{
@@ -254,7 +264,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		DynamicLabels:      types.LabelsToV2(dynamicLabels),
 	})
 	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
+	s.appAWS, err = types.NewAppV3(types.Metadata{
 		Name:   "awsconsole",
 		Labels: staticLabels,
 	}, types.AppSpecV3{
@@ -281,7 +291,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	s.clientCertificate = s.generateCertificate(t, s.user, "foo.example.com", "")
 
 	// Generate certificate for AWS console application.
-	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "readonly")
+	s.awsConsoleCertificate = s.generateCertificate(t, s.user, "aws.example.com", "arn:aws:iam::123456789012:role/readonly")
 
 	lockWatcher, err := services.NewLockWatcher(s.closeContext, services.LockWatcherConfig{
 		ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -290,7 +300,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		},
 	})
 	require.NoError(t, err)
-	authorizer, err := auth.NewAuthorizer(auth.AuthorizerOpts{
+	authorizer, err := authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: "cluster-name",
 		AccessPoint: s.authClient,
 		LockWatcher: lockWatcher,
@@ -301,7 +311,7 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 		lockWatcher.Close()
 	})
 
-	apps := types.Apps{appFoo, appAWS}
+	apps := types.Apps{s.appFoo.Copy(), s.appAWS.Copy()}
 	if len(config.Apps) > 0 {
 		apps = config.Apps
 	}
@@ -309,24 +319,24 @@ func SetUpSuiteWithConfig(t *testing.T, config suiteConfig) *Suite {
 	discard := events.NewDiscardEmitter()
 
 	s.appServer, err = New(s.closeContext, &Config{
-		Clock:            s.clock,
-		DataDir:          s.dataDir,
-		AccessPoint:      s.authClient,
-		AuthClient:       s.authClient,
-		TLSConfig:        tlsConfig,
-		CipherSuites:     utils.DefaultCipherSuites(),
-		HostID:           s.hostUUID,
-		Hostname:         "test",
-		Authorizer:       authorizer,
-		GetRotation:      testRotationGetter,
-		Apps:             apps,
-		OnHeartbeat:      func(err error) {},
-		Cloud:            &testCloud{},
-		ResourceMatchers: config.ResourceMatchers,
-		OnReconcile:      config.OnReconcile,
-		LockWatcher:      lockWatcher,
-		Emitter:          discard,
-		CloudLabels:      config.CloudImporter,
+		Clock:             s.clock,
+		DataDir:           s.dataDir,
+		AccessPoint:       s.authClient,
+		AuthClient:        s.authClient,
+		TLSConfig:         tlsConfig,
+		CipherSuites:      utils.DefaultCipherSuites(),
+		HostID:            s.hostUUID,
+		Hostname:          "test",
+		Authorizer:        authorizer,
+		GetRotation:       testRotationGetter,
+		Apps:              apps,
+		OnHeartbeat:       func(err error) {},
+		Cloud:             &testCloud{},
+		ResourceMatchers:  config.ResourceMatchers,
+		OnReconcile:       config.OnReconcile,
+		Emitter:           discard,
+		CloudLabels:       config.CloudImporter,
+		ConnectionMonitor: fakeConnMonitor{},
 	})
 	require.NoError(t, err)
 
@@ -377,31 +387,18 @@ func TestStart(t *testing.T) {
 
 	// Check that the services.Server sent via heartbeat is correct. For example,
 	// check that the dynamic labels have been evaluated.
-	appFoo, err := types.NewAppV3(types.Metadata{
-		Name:   "foo",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:                s.testhttp.URL,
-		PublicAddr:         "foo.example.com",
-		InsecureSkipVerify: true,
-		DynamicLabels: map[string]types.CommandLabelV2{
-			dynamicLabelName: {
-				Period:  dynamicLabelPeriod,
-				Command: dynamicLabelCommand,
-				Result:  "4",
-			},
+	appFoo := s.appFoo.Copy()
+	appAWS := s.appAWS.Copy()
+
+	appFoo.SetDynamicLabels(map[string]types.CommandLabel{
+		dynamicLabelName: &types.CommandLabelV2{
+			Period:  dynamicLabelPeriod,
+			Command: dynamicLabelCommand,
+			Result:  "4",
 		},
 	})
-	require.NoError(t, err)
+
 	serverFoo, err := types.NewAppServerV3FromApp(appFoo, "test", s.hostUUID)
-	require.NoError(t, err)
-	appAWS, err := types.NewAppV3(types.Metadata{
-		Name:   "awsconsole",
-		Labels: staticLabels,
-	}, types.AppSpecV3{
-		URI:        constants.AWSConsoleURL,
-		PublicAddr: "aws.example.com",
-	})
 	require.NoError(t, err)
 	serverAWS, err := types.NewAppServerV3FromApp(appAWS, "test", s.hostUUID)
 	require.NoError(t, err)
@@ -940,7 +937,14 @@ func TestRequestAuditEvents(t *testing.T) {
 		}, 500*time.Millisecond, 50*time.Millisecond, "app.session.request event not generated")
 	})
 
-	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(time.Time{}, time.Now().Add(time.Minute), "", []string{events.AppSessionChunkEvent}, 10, types.EventOrderDescending, "")
+	ctx := context.Background()
+	searchEvents, _, err := s.authServer.AuditLog.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       time.Time{},
+		To:         time.Now().Add(time.Minute),
+		EventTypes: []string{events.AppSessionChunkEvent},
+		Limit:      10,
+		Order:      types.EventOrderDescending,
+	})
 	require.NoError(t, err)
 	require.Len(t, searchEvents, 1)
 

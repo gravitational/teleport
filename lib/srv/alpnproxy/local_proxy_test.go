@@ -37,11 +37,13 @@ import (
 	v4 "github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/aws/aws-sdk-go/service/s3"
 	"github.com/gravitational/trace"
+	"github.com/jackc/pgproto3/v2"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -112,6 +114,9 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 		},
 	}
 
+	httpClient := &http.Client{
+		Timeout: 5 * time.Second,
+	}
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -131,7 +136,7 @@ func TestHandleAWSAccessSigVerification(t *testing.T) {
 
 			tc.signFunc(req, bytes.NewReader(payload), awsService, awsRegion, time.Now())
 
-			resp, err := http.DefaultClient.Do(req)
+			resp, err := httpClient.Do(req)
 			require.NoError(t, err)
 			require.Equal(t, tc.wantStatus, resp.StatusCode)
 			require.NoError(t, resp.Body.Close())
@@ -155,7 +160,11 @@ func TestHandleAWSAccessS3Signing(t *testing.T) {
 		WithEndpoint(lp.GetAddr()).
 		WithS3ForcePathStyle(true)
 
-	s3client := s3.New(session.Must(session.NewSession(awsConfig)))
+	s3client := s3.New(session.Must(session.NewSession(awsConfig)),
+		&aws.Config{
+			HTTPClient: &http.Client{Timeout: 5 * time.Second},
+			MaxRetries: aws.Int(0),
+		})
 
 	// Use a bucket name with special charaters. AWS SDK actually signs the
 	// request with the unescaped bucket name.
@@ -277,15 +286,17 @@ func TestMiddleware(t *testing.T) {
 }
 
 // mockCertRenewer is a mock middleware for the local proxy that always sets the local proxy certs slice.
-type mockCertRenewer struct{}
+type mockCertRenewer struct {
+	certs []tls.Certificate
+}
 
 func (m *mockCertRenewer) OnNewConnection(_ context.Context, lp *LocalProxy, _ net.Conn) error {
-	lp.SetCerts([]tls.Certificate{})
+	lp.SetCerts(append([]tls.Certificate(nil), m.certs...))
 	return nil
 }
 
 func (m *mockCertRenewer) OnStart(_ context.Context, lp *LocalProxy) error {
-	lp.SetCerts([]tls.Certificate{})
+	lp.SetCerts(append([]tls.Certificate(nil), m.certs...))
 	return nil
 }
 
@@ -301,7 +312,7 @@ func TestLocalProxyConcurrentCertRenewal(t *testing.T) {
 		Protocols:          []common.Protocol{common.ProtocolHTTP},
 		ParentContext:      context.Background(),
 		InsecureSkipVerify: true,
-		Middleware:         &mockCertRenewer{},
+		Middleware:         &mockCertRenewer{certs: []tls.Certificate{}},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -454,7 +465,110 @@ func TestLocalProxyClosesConnOnError(t *testing.T) {
 	buf := make([]byte, 512)
 	_, err = conn.Read(buf)
 	require.Error(t, err)
-	require.ErrorIs(t, err, io.EOF)
+	require.ErrorIs(t, err, io.EOF, "connection should have been closed by local proxy")
+}
+
+func TestKubeMiddleware(t *testing.T) {
+	t.Parallel()
+
+	now := time.Now()
+	clock := clockwork.NewFakeClockAt(now)
+	var certReissuer KubeCertReissuer
+
+	ca := mustGenSelfSignedCert(t)
+	kube1Cert := mustGenCertSignedWithCA(t, ca,
+		withIdentity(tlsca.Identity{
+			Username:          "test-user",
+			Groups:            []string{"test-group"},
+			KubernetesCluster: "kube1",
+		}),
+		withClock(clock),
+	)
+	kube2Cert := mustGenCertSignedWithCA(t, ca,
+		withIdentity(tlsca.Identity{
+			Username:          "test-user",
+			Groups:            []string{"test-group"},
+			KubernetesCluster: "kube2",
+		}),
+		withClock(clock),
+	)
+	newCert := mustGenCertSignedWithCA(t, ca,
+		withIdentity(tlsca.Identity{
+			Username:          "test-user",
+			Groups:            []string{"test-group"},
+			KubernetesCluster: "kube1newCert",
+		}),
+		withClock(clock),
+	)
+
+	certReissuer = func(ctx context.Context, teleportCluster, kubeCluster string) (tls.Certificate, error) {
+		return newCert, nil
+	}
+
+	testCases := []struct {
+		name            string
+		reqClusterName  string
+		startCerts      KubeClientCerts
+		clock           clockwork.Clock
+		overwrittenCert tls.Certificate
+		wantErr         string
+	}{
+		{
+			name:           "kube cluster not found",
+			reqClusterName: "kube3",
+			startCerts:     KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			clock:          clockwork.NewFakeClockAt(now),
+			wantErr:        "no client cert found for kube3",
+		},
+		{
+			name:            "expired cert reissued",
+			reqClusterName:  "kube1",
+			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			clock:           clockwork.NewFakeClockAt(now.Add(time.Hour * 2)),
+			overwrittenCert: newCert,
+			wantErr:         "",
+		},
+		{
+			name:            "success kube1",
+			reqClusterName:  "kube1",
+			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			clock:           clockwork.NewFakeClockAt(now),
+			overwrittenCert: kube1Cert,
+			wantErr:         "",
+		},
+		{
+			name:            "success kube2",
+			reqClusterName:  "kube2",
+			startCerts:      KubeClientCerts{"kube1": kube1Cert, "kube2": kube2Cert},
+			clock:           clockwork.NewFakeClockAt(now),
+			overwrittenCert: kube2Cert,
+			wantErr:         "",
+		},
+	}
+
+	for _, tt := range testCases {
+		t.Run(tt.name, func(t *testing.T) {
+			req := http.Request{
+				TLS: &tls.ConnectionState{
+					ServerName: tt.reqClusterName,
+				},
+			}
+			km := NewKubeMiddleware(tt.startCerts, certReissuer, tt.clock, nil)
+
+			// HandleRequest will reissue certificate if needed
+			km.HandleRequest(responsewriters.NewMemoryResponseWriter(), &req)
+
+			certs, err := km.OverwriteClientCerts(&req)
+
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, 1, len(certs))
+				require.Equal(t, tt.overwrittenCert, certs[0])
+			}
+		})
+	}
 }
 
 func createAWSAccessProxySuite(t *testing.T, cred *credentials.Credentials) *LocalProxy {
@@ -505,4 +619,87 @@ func requireCertSubjectDatabaseErr(t require.TestingT, err error, _ ...interface
 	}
 	require.Error(t, err)
 	require.ErrorContains(t, err, "certificate subject is for database name")
+}
+
+// stubConn implements net.Conn interface and is used to stub a client
+// connection to local proxy.
+type stubConn struct {
+	net.Conn
+	buff bytes.Buffer
+}
+
+func (c *stubConn) Write(p []byte) (n int, err error) {
+	return c.buff.Write(p)
+}
+func (c *stubConn) Read(p []byte) (n int, err error) {
+	return c.buff.Read(p)
+}
+
+func TestGetCertsForConn(t *testing.T) {
+	suite := NewSuite(t)
+	dbRouteInCert := tlsca.RouteToDatabase{
+		ServiceName: "svc1",
+		Protocol:    defaults.ProtocolPostgres,
+		Username:    "user1",
+		Database:    "db1",
+	}
+	tlsCert := mustGenCertSignedWithCA(t, suite.ca,
+		withIdentity(tlsca.Identity{
+			Username:        "test-user",
+			Groups:          []string{"test-group"},
+			RouteToDatabase: dbRouteInCert,
+		}),
+	)
+
+	tests := map[string]struct {
+		checkCertsNeeded bool
+		addProtocols     []common.Protocol
+		stubConnBytes    []byte
+		wantCerts        bool
+	}{
+		"tunnel always": {
+			checkCertsNeeded: false,
+			wantCerts:        true,
+		},
+		"no tunnel when not needed for protocol": {
+			checkCertsNeeded: true,
+			wantCerts:        false,
+		},
+		"no tunnel when not needed for postgres protocol": {
+			checkCertsNeeded: true,
+			addProtocols:     []common.Protocol{common.ProtocolPostgres},
+			stubConnBytes:    (&pgproto3.SSLRequest{}).Encode(nil),
+			wantCerts:        false,
+		},
+		"tunnel when needed for postgres protocol": {
+			checkCertsNeeded: true,
+			addProtocols:     []common.Protocol{common.ProtocolPostgres},
+			stubConnBytes:    (&pgproto3.CancelRequest{}).Encode(nil),
+			wantCerts:        true,
+		},
+	}
+	for name, tt := range tests {
+		tt := tt
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			// we wont actually be listening for connections, but local proxy config needs to be valid to pass checks.
+			lp, err := NewLocalProxy(LocalProxyConfig{
+				RemoteProxyAddr:  "localhost",
+				Protocols:        append([]common.Protocol{"foo-bar-proto"}, tt.addProtocols...),
+				ParentContext:    context.Background(),
+				CheckCertsNeeded: tt.checkCertsNeeded,
+				Certs:            []tls.Certificate{tlsCert},
+			})
+			require.NoError(t, err)
+			conn := &stubConn{buff: *bytes.NewBuffer(tt.stubConnBytes)}
+			gotCerts, _, err := lp.getCertsForConn(context.Background(), conn)
+			require.NoError(t, err)
+			if tt.wantCerts {
+				require.Len(t, gotCerts, 1)
+				require.Equal(t, tlsCert, gotCerts[0])
+			} else {
+				require.Empty(t, gotCerts)
+			}
+		})
+	}
 }

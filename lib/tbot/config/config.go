@@ -19,31 +19,36 @@ package config
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
-	DefaultJoinMethod     = "token"
 )
 
 var SupportedJoinMethods = []string{
 	string(types.JoinMethodToken),
-	string(types.JoinMethodIAM),
-	string(types.JoinMethodGitHub),
+	string(types.JoinMethodAzure),
 	string(types.JoinMethodCircleCI),
+	string(types.JoinMethodGitHub),
+	string(types.JoinMethodGitLab),
+	string(types.JoinMethodIAM),
 }
 
 var log = logrus.WithFields(logrus.Fields{
@@ -148,33 +153,62 @@ type CLIConf struct {
 	// RemainingArgs is the remaining string arguments for commands that
 	// require them.
 	RemainingArgs []string
+
+	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
+	// regulations. This means the bot should:
+	// - Refuse to run if not compiled with boringcrypto
+	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
+	// - Restrict TLS / SSH cipher suites and TLS version
+	// - RSA2048 should be used for private key generation
+	FIPS bool
+
+	// DiagAddr is the address the diagnostics http service should listen on.
+	// If not set, no diagnostics listener is created.
+	DiagAddr string
 }
 
-// OnboardingConfig contains values only required on first connect.
+// AzureOnboardingConfig holds configuration relevant to the "azure" join method.
+type AzureOnboardingConfig struct {
+	// ClientID of the managed identity to use. Required if the VM has more
+	// than one assigned identity.
+	ClientID string `yaml:"client_id,omitempty"`
+}
+
+// OnboardingConfig contains values relevant to how the bot authenticates with
+// the Teleport cluster.
 type OnboardingConfig struct {
 	// TokenValue is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
 	// You should use Token() instead - this has to be an exported field for YAML unmarshalling
 	// to work correctly, but this could be a path instead of a token
-	TokenValue string `yaml:"token"`
+	TokenValue string `yaml:"token,omitempty"`
 
 	// CAPath is an optional path to a CA certificate.
-	CAPath string `yaml:"ca_path"`
+	CAPath string `yaml:"ca_path,omitempty"`
 
 	// CAPins is a list of certificate authority pins, used to validate the
 	// connection to the Teleport auth server.
-	CAPins []string `yaml:"ca_pins"`
+	CAPins []string `yaml:"ca_pins,omitempty"`
 
 	// JoinMethod is the method the bot should use to exchange a token for the
 	// initial certificate
 	JoinMethod types.JoinMethod `yaml:"join_method"`
+
+	// Azure holds configuration relevant to the azure joining method.
+	Azure AzureOnboardingConfig `yaml:"azure,omitempty"`
 }
 
 // HasToken gives the ability to check if there has been a token value stored
 // in the config
 func (conf *OnboardingConfig) HasToken() bool {
 	return conf.TokenValue != ""
+}
+
+// RenewableJoinMethod indicates that certificate renewal should be used with
+// this join method rather than rejoining each time.
+func (conf *OnboardingConfig) RenewableJoinMethod() bool {
+	return conf.JoinMethod == types.JoinMethodToken
 }
 
 // SetToken stores the value for --token or auth_token in the config
@@ -204,7 +238,7 @@ func (conf *OnboardingConfig) Token() (string, error) {
 
 // BotConfig is the bot's root config object.
 type BotConfig struct {
-	Onboarding   *OnboardingConfig    `yaml:"onboarding,omitempty"`
+	Onboarding   OnboardingConfig     `yaml:"onboarding,omitempty"`
 	Storage      *StorageConfig       `yaml:"storage,omitempty"`
 	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
 
@@ -213,6 +247,27 @@ type BotConfig struct {
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
 	Oneshot         bool          `yaml:"oneshot"`
+	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
+	// regulations. This means the bot should:
+	// - Refuse to run if not compiled with boringcrypto
+	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
+	// - Restrict TLS / SSH cipher suites and TLS version
+	// - RSA2048 should be used for private key generation
+	FIPS bool `yaml:"fips"`
+	// DiagAddr is the address the diagnostics http service should listen on.
+	// If not set, no diagnostics listener is created.
+	DiagAddr string `yaml:"diag_addr,omitempty"`
+
+	// ReloadCh allows a channel to be injected into the bot to trigger a
+	// renewal.
+	ReloadCh <-chan struct{} `yaml:"-"`
+}
+
+func (conf *BotConfig) CipherSuites() []uint16 {
+	if conf.FIPS {
+		return defaults.FIPSCipherSuites
+	}
+	return utils.DefaultCipherSuites()
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
@@ -236,6 +291,15 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 
 	if conf.RenewalInterval == 0 {
 		conf.RenewalInterval = DefaultRenewInterval
+	}
+
+	// We require the join method for `configure` and `start` but not for `init`
+	// Therefore, we need to check its valid here, but enforce its presence
+	// elsewhere.
+	if conf.Onboarding.JoinMethod != types.JoinMethodUnspecified {
+		if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
+			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
+		}
 	}
 
 	return nil
@@ -267,12 +331,15 @@ func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, er
 	return nil, nil
 }
 
-// NewDefaultConfig creates a new minimal bot configuration from defaults.
-// CheckAndSetDefaults() will be called.
-func NewDefaultConfig(authServer string) (*BotConfig, error) {
+// newTestConfig creates a new minimal bot configuration from defaults for use
+// in tests
+func newTestConfig(authServer string) (*BotConfig, error) {
 	// Note: we need authServer for CheckAndSetDefaults to succeed.
 	cfg := BotConfig{
 		AuthServer: authServer,
+		Onboarding: OnboardingConfig{
+			JoinMethod: types.JoinMethodToken,
+		},
 	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -281,10 +348,43 @@ func NewDefaultConfig(authServer string) (*BotConfig, error) {
 	return &cfg, nil
 }
 
-// isJoinMethodDefault determines if the given join method (as input on the
-// CLI) is set to a default value.
-func isJoinMethodDefault(joinMethod string) bool {
-	return joinMethod == "" || joinMethod == DefaultJoinMethod
+func storageConfigFromCLIConf(dataDir string) (*StorageConfig, error) {
+	uri, err := url.Parse(dataDir)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing --data-dir")
+	}
+	switch uri.Scheme {
+	case "", "file":
+		if uri.Host != "" {
+			return nil, trace.BadParameter(
+				"file-backed data storage must be on the local host",
+			)
+		}
+		// TODO(strideynet): eventually we can allow for URI query parameters
+		// to be used to configure symlinks/acl protection.
+		return &StorageConfig{
+			DestinationMixin: DestinationMixin{
+				Directory: &DestinationDirectory{
+					Path: uri.Path,
+				},
+			},
+		}, nil
+	case "memory":
+		if uri.Host != "" || uri.Path != "" {
+			return nil, trace.BadParameter(
+				"memory-backed data storage should not have host or path specified",
+			)
+		}
+		return &StorageConfig{
+			DestinationMixin: DestinationMixin{
+				Memory: &DestinationMemory{},
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter(
+			"unrecognized data storage scheme",
+		)
+	}
 }
 
 // FromCLIConf loads bot config from CLI parameters, potentially loading and
@@ -337,16 +437,15 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	if cf.DataDir != "" {
 		if config.Storage != nil {
 			if _, err := config.Storage.GetDestination(); err != nil {
-				log.Warnf("CLI parameters are overriding storage location from %s", cf.ConfigPath)
+				log.Warnf(
+					"CLI parameters are overriding storage location from %s",
+					cf.ConfigPath,
+				)
 			}
 		}
-
-		config.Storage = &StorageConfig{
-			DestinationMixin: DestinationMixin{
-				Directory: &DestinationDirectory{
-					Path: cf.DataDir,
-				},
-			},
+		config.Storage, err = storageConfigFromCLIConf(cf.DataDir)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -371,19 +470,28 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// (CAPath, CAPins, etc follow different codepaths so we don't want a
 	// situation where different fields become set weirdly due to struct
 	// merging)
-	if cf.Token != "" || len(cf.CAPins) > 0 || !isJoinMethodDefault(cf.JoinMethod) {
-		onboarding := config.Onboarding
-		if onboarding != nil && (onboarding.HasToken() || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || !isJoinMethodDefault(cf.JoinMethod) {
+	if cf.Token != "" || cf.JoinMethod != "" || len(cf.CAPins) > 0 {
+		if !reflect.DeepEqual(config.Onboarding, OnboardingConfig{}) {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
 
-		config.Onboarding = &OnboardingConfig{
+		config.Onboarding = OnboardingConfig{
 			CAPins:     cf.CAPins,
 			JoinMethod: types.JoinMethod(cf.JoinMethod),
 		}
-
 		config.Onboarding.SetToken(cf.Token)
+	}
+
+	if cf.FIPS {
+		config.FIPS = cf.FIPS
+	}
+
+	if cf.DiagAddr != "" {
+		if config.DiagAddr != "" {
+			log.Warnf("CLI parameters are overriding diagnostics address configured in %s", cf.ConfigPath)
+		}
+		config.DiagAddr = cf.DiagAddr
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {

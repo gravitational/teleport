@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
@@ -46,14 +47,13 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 	"github.com/gravitational/teleport/lib/utils"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // FileConfig structure represents the teleport configuration stored in a config file
@@ -90,6 +90,15 @@ type FileConfig struct {
 	// Discovery is the "discovery_service" section in the Teleport
 	// configuration file
 	Discovery Discovery `yaml:"discovery_service,omitempty"`
+
+	// Okta is the "okta_service" section in the Teleport configuration file
+	Okta Okta `yaml:"okta_service,omitempty"`
+
+	// Jamf is the "jamf_service" section in the config file.
+	Jamf JamfService `yaml:"jamf_service,omitempty"`
+
+	// Plugins is the section of the config for configuring the plugin service.
+	Plugins PluginService `yaml:"plugin_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -194,7 +203,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 		}
 	}
 
-	conf := service.MakeDefaultConfig()
+	conf := servicecfg.MakeDefaultConfig()
 
 	var g Global
 
@@ -292,7 +301,7 @@ func MakeSampleFileConfig(flags SampleFlags) (fc *FileConfig, err error) {
 	return fc, nil
 }
 
-func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) (SSH, error) {
+func makeSampleSSHConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (SSH, error) {
 	var s SSH
 	if enabled {
 		s.EnabledFlag = "yes"
@@ -316,7 +325,7 @@ func makeSampleSSHConfig(conf *service.Config, flags SampleFlags, enabled bool) 
 	return s, nil
 }
 
-func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool) Auth {
+func makeSampleAuthConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) Auth {
 	var a Auth
 	if enabled {
 		a.ListenAddress = conf.Auth.ListenAddr.Addr
@@ -338,7 +347,7 @@ func makeSampleAuthConfig(conf *service.Config, flags SampleFlags, enabled bool)
 	return a
 }
 
-func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool) (Proxy, error) {
+func makeSampleProxyConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Proxy, error) {
 	var p Proxy
 	if enabled {
 		p.EnabledFlag = "yes"
@@ -380,7 +389,7 @@ func makeSampleProxyConfig(conf *service.Config, flags SampleFlags, enabled bool
 	return p, nil
 }
 
-func makeSampleAppsConfig(conf *service.Config, flags SampleFlags, enabled bool) (Apps, error) {
+func makeSampleAppsConfig(conf *servicecfg.Config, flags SampleFlags, enabled bool) (Apps, error) {
 	var apps Apps
 	// assume users want app role if they added app name and/or uri but didn't add app role
 	if enabled || flags.AppURI != "" || flags.AppName != "" {
@@ -436,6 +445,7 @@ func (conf *FileConfig) CheckAndSetDefaults() error {
 	conf.Proxy.defaultEnabled = true
 	conf.SSH.defaultEnabled = true
 	conf.Kube.defaultEnabled = false
+	conf.Okta.defaultEnabled = false
 	if conf.Version == "" {
 		conf.Version = defaults.TeleportConfigVersionV1
 	}
@@ -508,11 +518,25 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 			}
 		}
 
+		if matcher.AssumeRoleARN != "" {
+			_, err := awsutils.ParseRoleARN(matcher.AssumeRoleARN)
+			if err != nil {
+				return trace.Wrap(err, "discovery service AWS matcher assume_role_arn is invalid")
+			}
+		} else if matcher.ExternalID != "" {
+			for _, t := range matcher.Types {
+				if !slices.Contains(services.RequireAWSIAMRolesAsUsersMatchers, t) {
+					return trace.BadParameter("discovery service AWS matcher assume_role_arn is empty, but has external_id %q",
+						matcher.ExternalID)
+				}
+			}
+		}
+
 		if matcher.Tags == nil || len(matcher.Tags) == 0 {
 			matcher.Tags = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
 		}
 
-		var installParams services.InstallerParams
+		var installParams types.InstallerParams
 		var err error
 
 		if matcher.InstallParams == nil {
@@ -587,6 +611,12 @@ func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
 			}
 		}
 
+		if slices.Contains(matcher.Types, services.AzureMatcherVM) {
+			if err := checkAndSetDefaultsForAzureInstaller(matcher); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
 		if slices.Contains(matcher.Regions, types.Wildcard) || len(matcher.Regions) == 0 {
 			matcher.Regions = []string{types.Wildcard}
 		}
@@ -605,6 +635,35 @@ func checkAndSetDefaultsForAzureMatchers(matcherInput []AzureMatcher) error {
 			}
 		}
 
+	}
+	return nil
+}
+
+func checkAndSetDefaultsForAzureInstaller(matcher *AzureMatcher) error {
+	if matcher.InstallParams == nil {
+		matcher.InstallParams = &InstallParams{
+			JoinParams: JoinParams{
+				TokenName: defaults.AzureInviteTokenName,
+				Method:    types.JoinMethodAzure,
+			},
+			ScriptName: installers.InstallerScriptName,
+		}
+		return nil
+	}
+
+	switch matcher.InstallParams.JoinParams.Method {
+	case types.JoinMethodAzure, "":
+		matcher.InstallParams.JoinParams.Method = types.JoinMethodAzure
+	default:
+		return trace.BadParameter("only Azure joining is supported for Azure auto-discovery")
+	}
+
+	if token := matcher.InstallParams.JoinParams.TokenName; token == "" {
+		matcher.InstallParams.JoinParams.TokenName = defaults.AzureInviteTokenName
+	}
+
+	if installer := matcher.InstallParams.ScriptName; installer == "" {
+		matcher.InstallParams.ScriptName = installers.InstallerScriptName
 	}
 	return nil
 }
@@ -793,6 +852,8 @@ type CachePolicy struct {
 	EnabledFlag string `yaml:"enabled,omitempty"`
 	// TTL sets maximum TTL for the cached values
 	TTL string `yaml:"ttl,omitempty"`
+	// MaxBackoff sets the maximum backoff on error.
+	MaxBackoff time.Duration `yaml:"max_backoff,omitempty"`
 }
 
 // Enabled determines if a given "_service" section has been set to 'true'
@@ -805,9 +866,10 @@ func (c *CachePolicy) Enabled() bool {
 }
 
 // Parse parses cache policy from Teleport config
-func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
-	out := service.CachePolicy{
-		Enabled: c.Enabled(),
+func (c *CachePolicy) Parse() (*servicecfg.CachePolicy, error) {
+	out := servicecfg.CachePolicy{
+		Enabled:        c.Enabled(),
+		MaxRetryPeriod: c.MaxBackoff,
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -947,6 +1009,23 @@ type Auth struct {
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+
+	// HostedPlugins configures the hosted plugins runtime.
+	// This is currently Cloud-specific.
+	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
+}
+
+// PluginService represents the configuration for the plugin service.
+type PluginService struct {
+	Enabled bool `yaml:"enabled"`
+	// Plugins is a map of matchers for enabled plugin resources.
+	Plugins map[string]string `yaml:"plugins,omitempty"`
+}
+
+// Opsgenie represents the configuration for the Opsgenie plugin.
+type Opsgenie struct {
+	// APIKeyFile is the path to a file containing an Opsgenie API key.
+	APIKeyFile string `yaml:"api_key_file"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
@@ -1176,7 +1255,7 @@ type UniversalSecondFactor struct {
 }
 
 func (u *UniversalSecondFactor) Parse() (*types.U2F, error) {
-	attestationCAs, err := getAttestationPEMs(u.DeviceAttestationCAs)
+	attestationCAs, err := getCertificatePEMs(u.DeviceAttestationCAs)
 	if err != nil {
 		return nil, trace.BadParameter("u2f.device_attestation_cas: %v", err)
 	}
@@ -1196,11 +1275,11 @@ type Webauthn struct {
 }
 
 func (w *Webauthn) Parse() (*types.Webauthn, error) {
-	allowedCAs, err := getAttestationPEMs(w.AttestationAllowedCAs)
+	allowedCAs, err := getCertificatePEMs(w.AttestationAllowedCAs)
 	if err != nil {
 		return nil, trace.BadParameter("webauthn.attestation_allowed_cas: %v", err)
 	}
-	deniedCAs, err := getAttestationPEMs(w.AttestationDeniedCAs)
+	deniedCAs, err := getCertificatePEMs(w.AttestationDeniedCAs)
 	if err != nil {
 		return nil, trace.BadParameter("webauthn.attestation_denied_cas: %v", err)
 	}
@@ -1219,10 +1298,10 @@ func (w *Webauthn) Parse() (*types.Webauthn, error) {
 	}, nil
 }
 
-func getAttestationPEMs(certOrPaths []string) ([]string, error) {
+func getCertificatePEMs(certOrPaths []string) ([]string, error) {
 	res := make([]string, len(certOrPaths))
 	for i, certOrPath := range certOrPaths {
-		pem, err := getAttestationPEM(certOrPath)
+		pem, err := getCertificatePEM(certOrPath)
 		if err != nil {
 			return nil, err
 		}
@@ -1231,7 +1310,7 @@ func getAttestationPEMs(certOrPaths []string) ([]string, error) {
 	return res, nil
 }
 
-func getAttestationPEM(certOrPath string) (string, error) {
+func getCertificatePEM(certOrPath string) (string, error) {
 	_, parseErr := tlsutils.ParseCertificatePEM([]byte(certOrPath))
 	if parseErr == nil {
 		return certOrPath, nil // OK, valid inline PEM
@@ -1257,11 +1336,111 @@ type DeviceTrust struct {
 	// Mode is the trusted device verification mode.
 	// Mirrors types.DeviceTrust.Mode.
 	Mode string `yaml:"mode,omitempty"`
+	// AutoEnroll is the toggle for the device auto-enroll feature.
+	AutoEnroll string `yaml:"auto_enroll,omitempty"`
+	// EKCertAllowedCAs is an allow list of EKCert CAs. These may be specified
+	// as a PEM encoded certificate or as a path to a PEM encoded certificate.
+	//
+	// If present, only TPM devices that present an EKCert that is signed by a
+	// CA specified here may be enrolled (existing enrollments are
+	// unchanged).
+	//
+	// If not present, then the CA of TPM EKCerts will not be checked during
+	// enrollment, this allows any device to enroll.
+	EKCertAllowedCAs []string `yaml:"ekcert_allowed_cas,omitempty"`
 }
 
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
+	autoEnroll := false
+	if dt.AutoEnroll != "" {
+		var err error
+		autoEnroll, err = apiutils.ParseBool(dt.AutoEnroll)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	allowedCAs, err := getCertificatePEMs(dt.EKCertAllowedCAs)
+	if err != nil {
+		return nil, trace.BadParameter("device_trust.ekcert_allowed_cas: %v", err)
+	}
+
 	return &types.DeviceTrust{
-		Mode: dt.Mode,
+		Mode:             dt.Mode,
+		AutoEnroll:       autoEnroll,
+		EKCertAllowedCAs: allowedCAs,
+	}, nil
+}
+
+// AssistOptions is a set of options related to the Teleport Assist feature.
+type AssistOptions struct {
+	// OpenAI is a set of options related to the OpenAI assist backend.
+	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
+}
+
+// OpenAIOptions stores options related to the OpenAI assist backend.
+type OpenAIOptions struct {
+	// APITokenPath is the path to a file with OpenAI API key.
+	APITokenPath string `yaml:"api_token_path,omitempty"`
+}
+
+// HostedPlugins defines 'auth_service/plugins' Enterprise extension
+type HostedPlugins struct {
+	Enabled        bool                 `yaml:"enabled"`
+	OAuthProviders PluginOAuthProviders `yaml:"oauth_providers,omitempty"`
+}
+
+// PluginOAuthProviders holds application credentials for each
+// 3rd party API provider.
+type PluginOAuthProviders struct {
+	Slack *OAuthClientCredentials `yaml:"slack,omitempty"`
+}
+
+func (p *PluginOAuthProviders) Parse() (servicecfg.PluginOAuthProviders, error) {
+	out := servicecfg.PluginOAuthProviders{}
+	if p.Slack == nil {
+		return out, trace.BadParameter("when plugin runtime is enabled, at least one plugin provider must be specified")
+	}
+
+	slack, err := p.Slack.Parse()
+	if err != nil {
+		return out, trace.Wrap(err)
+	}
+	out.Slack = slack
+	return out, nil
+}
+
+// OAuthClientCredentials holds paths from which to read
+// client credentials for Teleport's OAuth app.
+type OAuthClientCredentials struct {
+	// ClientID is the path to the file containing the Client ID
+	ClientID string `yaml:"client_id"`
+	// ClientSecret is the path to the file containing the Client Secret
+	ClientSecret string `yaml:"client_secret"`
+}
+
+func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
+	if o.ClientID == "" || o.ClientSecret == "" {
+		return nil, trace.BadParameter("both client_id and client_secret paths must be specified")
+	}
+
+	var clientID, clientSecret string
+
+	content, err := os.ReadFile(o.ClientID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientID = strings.TrimSpace(string(content))
+
+	content, err = os.ReadFile(o.ClientSecret)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientSecret = strings.TrimSpace(string(content))
+
+	return &oauth2.ClientCredentials{
+		ID:     clientID,
+		Secret: clientSecret,
 	}, nil
 }
 
@@ -1380,6 +1559,15 @@ type Discovery struct {
 
 	// GCPMatchers are used to match GCP resources.
 	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
+
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
 }
 
 // GCPMatcher matches GCP resources.
@@ -1418,14 +1606,14 @@ type PAM struct {
 	Environment map[string]string `yaml:"environment,omitempty"`
 }
 
-// Parse returns a parsed pam.Config.
-func (p *PAM) Parse() *pam.Config {
+// Parse returns a parsed PAM config.
+func (p *PAM) Parse() *servicecfg.PAMConfig {
 	serviceName := p.ServiceName
 	if serviceName == "" {
 		serviceName = defaults.PAMServiceName
 	}
 	enabled, _ := apiutils.ParseBool(p.Enabled)
-	return &pam.Config{
+	return &servicecfg.PAMConfig{
 		Enabled:     enabled,
 		ServiceName: serviceName,
 		UsePAMAuth:  p.UsePAMAuth,
@@ -1452,9 +1640,9 @@ type BPF struct {
 }
 
 // Parse will parse the enhanced session recording configuration.
-func (b *BPF) Parse() *bpf.Config {
+func (b *BPF) Parse() *servicecfg.BPFConfig {
 	enabled, _ := apiutils.ParseBool(b.Enabled)
-	return &bpf.Config{
+	return &servicecfg.BPFConfig{
 		Enabled:           enabled,
 		CommandBufferSize: b.CommandBufferSize,
 		DiskBufferSize:    b.DiskBufferSize,
@@ -1474,13 +1662,13 @@ type RestrictedSession struct {
 }
 
 // Parse will parse the enhanced session recording configuration.
-func (r *RestrictedSession) Parse() (*bpf.RestrictedSessionConfig, error) {
+func (r *RestrictedSession) Parse() (*servicecfg.RestrictedSessionConfig, error) {
 	enabled, err := apiutils.ParseBool(r.Enabled)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &bpf.RestrictedSessionConfig{
+	return &servicecfg.RestrictedSessionConfig{
 		Enabled:          enabled,
 		EventsBufferSize: r.EventsBufferSize,
 	}, nil
@@ -1527,6 +1715,11 @@ type AWSMatcher struct {
 	Types []string `yaml:"types,omitempty"`
 	// Regions are AWS regions to query for databases.
 	Regions []string `yaml:"regions,omitempty"`
+	// AssumeRoleARN is the AWS role to assume for database discovery.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is the AWS external ID to use when assuming a role for
+	// database discovery in an external AWS account.
+	ExternalID string `yaml:"external_id,omitempty"`
 	// Tags are AWS tags to match.
 	Tags map[string]apiutils.Strings `yaml:"tags,omitempty"`
 	// InstallParams sets the join method when installing on
@@ -1540,19 +1733,22 @@ type AWSMatcher struct {
 // InstallParams sets join method to use on discovered nodes
 type InstallParams struct {
 	// JoinParams sets the token and method to use when generating
-	// config on EC2 instances
+	// config on cloud instances
 	JoinParams JoinParams `yaml:"join_params,omitempty"`
 	// ScriptName is the name of the teleport installer script
-	// resource for the EC2 instance to execute
+	// resource for the cloud instance to execute
 	ScriptName string `yaml:"script_name,omitempty"`
 	// InstallTeleport disables agentless discovery
 	InstallTeleport string `yaml:"install_teleport,omitempty"`
 	// SSHDConfig provides the path to write sshd configuration changes
 	SSHDConfig string `yaml:"sshd_config,omitempty"`
+	// PublicProxyAddr is the address of the proxy the discovered node should use
+	// to connect to the cluster. Used ony in Azure.
+	PublicProxyAddr string `yaml:"public_proxy_addr,omitempty"`
 }
 
-func (ip *InstallParams) Parse() (services.InstallerParams, error) {
-	install := services.InstallerParams{
+func (ip *InstallParams) Parse() (types.InstallerParams, error) {
+	install := types.InstallerParams{
 		JoinMethod:      ip.JoinParams.Method,
 		JoinToken:       ip.JoinParams.TokenName,
 		ScriptName:      ip.ScriptName,
@@ -1567,7 +1763,7 @@ func (ip *InstallParams) Parse() (services.InstallerParams, error) {
 	var err error
 	install.InstallTeleport, err = apiutils.ParseBool(ip.InstallTeleport)
 	if err != nil {
-		return services.InstallerParams{}, trace.Wrap(err)
+		return types.InstallerParams{}, trace.Wrap(err)
 	}
 
 	return install, nil
@@ -1592,6 +1788,9 @@ type AzureMatcher struct {
 	Regions []string `yaml:"regions,omitempty"`
 	// ResourceTags are Azure tags on resources to match.
 	ResourceTags map[string]apiutils.Strings `yaml:"tags,omitempty"`
+	// InstallParams sets the join method when installing on
+	// discovered Azure nodes.
+	InstallParams *InstallParams `yaml:"install,omitempty"`
 }
 
 // Database represents a single database proxied by the service.
@@ -1623,6 +1822,14 @@ type Database struct {
 	AD DatabaseAD `yaml:"ad"`
 	// Azure contains Azure database configuration.
 	Azure DatabaseAzure `yaml:"azure"`
+	// AdminUser describes database privileged user for auto-provisioning.
+	AdminUser DatabaseAdminUser `yaml:"admin_user"`
+}
+
+// DatabaseAdminUser describes database privileged user for auto-provisioning.
+type DatabaseAdminUser struct {
+	// Name is the database admin username (e.g. "postgres").
+	Name string `yaml:"name"`
 }
 
 // DatabaseAD contains database Active Directory configuration.
@@ -1635,6 +1842,10 @@ type DatabaseAD struct {
 	Domain string `yaml:"domain"`
 	// SPN is the service principal name for the database.
 	SPN string `yaml:"spn"`
+	// LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication.
+	LDAPCert string `yaml:"ldap_cert,omitempty"`
+	// KDCHostName is the host name for a KDC for x509 Authentication.
+	KDCHostName string `yaml:"kdc_host_name,omitempty"`
 }
 
 // DatabaseTLS keeps TLS settings used when connecting to database.
@@ -1679,6 +1890,8 @@ type DatabaseAWS struct {
 	MemoryDB DatabaseAWSMemoryDB `yaml:"memorydb"`
 	// AccountID is the AWS account ID.
 	AccountID string `yaml:"account_id,omitempty"`
+	// AssumeRoleARN is the AWS role to assume to before accessing the database.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
 	// ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
 	ExternalID string `yaml:"external_id,omitempty"`
 	// RedshiftServerless contains RedshiftServerless specific settings.
@@ -1864,6 +2077,9 @@ type Proxy struct {
 	// client connections.
 	MySQLPublicAddr apiutils.Strings `yaml:"mysql_public_addr,omitempty"`
 
+	// MySQLServerVersion allow to overwrite proxy default mysql engine version reported by Teleport proxy.
+	MySQLServerVersion string `yaml:"mysql_server_version,omitempty"`
+
 	// PostgresAddr is Postgres proxy listen address.
 	PostgresAddr string `yaml:"postgres_listen_addr,omitempty"`
 	// PostgresPublicAddr is the hostport the proxy advertises for Postgres
@@ -1883,6 +2099,9 @@ type Proxy struct {
 
 	// UI provides config options for the web UI
 	UI *UIConfig `yaml:"ui,omitempty"`
+
+	// Assist is a set of options related to the Teleport Assist feature.
+	Assist *AssistOptions `yaml:"assist,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.
@@ -1902,9 +2121,9 @@ type ACME struct {
 }
 
 // Parse parses ACME section values
-func (a ACME) Parse() (*service.ACME, error) {
+func (a ACME) Parse() (*servicecfg.ACME, error) {
 	// ACME is disabled by default
-	out := service.ACME{}
+	out := servicecfg.ACME{}
 	if a.EnabledFlag == "" {
 		return &out, nil
 	}
@@ -2181,4 +2400,107 @@ func (s *TracingService) Enabled() bool {
 		return false
 	}
 	return v
+}
+
+// Okta represents an okta_service section in the config file.
+type Okta struct {
+	Service `yaml:",inline"`
+
+	// APIEndpoint is the Okta API endpoint to use.
+	APIEndpoint string `yaml:"api_endpoint,omitempty"`
+
+	// APITokenPath is the path to the Okta API token.
+	APITokenPath string `yaml:"api_token_path,omitempty"`
+}
+
+// JamfService is the yaml representation of jamf_service.
+// Corresponds to [types.JamfSpecV1].
+type JamfService struct {
+	Service `yaml:",inline"`
+	// Name is the name of the sync device source.
+	Name string `yaml:"name,omitempty"`
+	// SyncDelay is the initial sync delay.
+	// Zero means "server default", negative means "immediate".
+	SyncDelay time.Duration `yaml:"sync_delay,omitempty"`
+	// ExitOnSync tells the service to exit immediately after the first sync.
+	ExitOnSync bool `yaml:"exit_on_sync,omitempty"`
+	// APIEndpoint is the Jamf Pro API endpoint.
+	// Example: "https://yourtenant.jamfcloud.com".
+	APIEndpoint string `yaml:"api_endpoint,omitempty"`
+	// Username is the Jamf Pro API username.
+	Username string `yaml:"username,omitempty"`
+	// PasswordFile is a file containing the  Jamf Pro API password.
+	// A single trailing newline is trimmed, anything else is taken literally.
+	PasswordFile string `yaml:"password_file,omitempty"`
+	// Inventory are the entries for inventory sync.
+	Inventory []*JamfInventoryEntry `yaml:"inventory,omitempty"`
+}
+
+// JamfInventoryEntry is the yaml representation of a jamf_service.inventory
+// entry.
+// Corresponds to [types.JamfInventoryEntry].
+type JamfInventoryEntry struct {
+	// FilterRSQL is a Jamf Pro API RSQL filter string.
+	FilterRSQL string `yaml:"filter_rsql,omitempty"`
+	// SyncPeriodPartial is the period for PARTIAL syncs.
+	// Zero means "server default", negative means "disabled".
+	SyncPeriodPartial time.Duration `yaml:"sync_period_partial,omitempty"`
+	// SyncPeriodFull is the period for FULL syncs.
+	// Zero means "server default", negative means "disabled".
+	SyncPeriodFull time.Duration `yaml:"sync_period_full,omitempty"`
+	// OnMissing is the trigger for devices missing from the MDM inventory view.
+	// See [types.JamfInventoryEntry.OnMissing].
+	OnMissing string `yaml:"on_missing,omitempty"`
+}
+
+func (j *JamfService) toJamfSpecV1() (*types.JamfSpecV1, error) {
+	switch {
+	case j == nil:
+		return nil, trace.BadParameter("jamf_service is nil")
+	case j.ListenAddress != "":
+		return nil, trace.BadParameter("jamf listen_addr not supported")
+	case j.PasswordFile == "":
+		return nil, trace.BadParameter("jamf password_file required")
+	}
+
+	// Read password from file.
+	pwdBytes, err := os.ReadFile(j.PasswordFile)
+	if err != nil {
+		return nil, trace.BadParameter("jamf password_file: %v", err)
+	}
+	pwd := string(pwdBytes)
+	if pwd == "" {
+		return nil, trace.BadParameter("jamf password_file is empty")
+	}
+	// Trim trailing \n?
+	if l := len(pwd); pwd[l-1] == '\n' {
+		pwd = pwd[:l-1]
+	}
+
+	// Assemble spec.
+	inventory := make([]*types.JamfInventoryEntry, len(j.Inventory))
+	for i, e := range j.Inventory {
+		inventory[i] = &types.JamfInventoryEntry{
+			FilterRsql:        e.FilterRSQL,
+			SyncPeriodPartial: types.Duration(e.SyncPeriodPartial),
+			SyncPeriodFull:    types.Duration(e.SyncPeriodFull),
+			OnMissing:         e.OnMissing,
+		}
+	}
+	spec := &types.JamfSpecV1{
+		Enabled:     j.Enabled(),
+		Name:        j.Name,
+		SyncDelay:   types.Duration(j.SyncDelay),
+		ApiEndpoint: j.APIEndpoint,
+		Username:    j.Username,
+		Password:    pwd,
+		Inventory:   inventory,
+	}
+
+	// Validate.
+	if err := types.ValidateJamfSpecV1(spec); err != nil {
+		return nil, trace.BadParameter("jamf_service %v", err)
+	}
+
+	return spec, nil
 }

@@ -549,54 +549,72 @@ func TestDynamoDBConfig(t *testing.T) {
 		uri        string
 		region     string
 		account    string
+		roleARN    string
+		externalID string
 		wantSpec   DatabaseSpecV3
 		wantErrMsg string
 	}{
 		{
 			desc:    "account and region and empty URI is correct",
 			region:  "us-west-1",
-			account: "12345",
+			account: "123456789012",
 			wantSpec: DatabaseSpecV3{
 				URI: "aws://dynamodb.us-west-1.amazonaws.com",
 				AWS: AWS{
 					Region:    "us-west-1",
-					AccountID: "12345",
+					AccountID: "123456789012",
+				},
+			},
+		},
+		{
+			desc:       "account and region and assume role is correct",
+			region:     "us-west-1",
+			account:    "123456789012",
+			roleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
+			externalID: "externalid123",
+			wantSpec: DatabaseSpecV3{
+				URI: "aws://dynamodb.us-west-1.amazonaws.com",
+				AWS: AWS{
+					Region:        "us-west-1",
+					AccountID:     "123456789012",
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBDiscoverer",
+					ExternalID:    "externalid123",
 				},
 			},
 		},
 		{
 			desc:    "account and AWS URI and empty region is correct",
 			uri:     "dynamodb.us-west-1.amazonaws.com",
-			account: "12345",
+			account: "123456789012",
 			wantSpec: DatabaseSpecV3{
 				URI: "dynamodb.us-west-1.amazonaws.com",
 				AWS: AWS{
 					Region:    "us-west-1",
-					AccountID: "12345",
+					AccountID: "123456789012",
 				},
 			},
 		},
 		{
 			desc:    "account and AWS streams dynamodb URI and empty region is correct",
 			uri:     "streams.dynamodb.us-west-1.amazonaws.com",
-			account: "12345",
+			account: "123456789012",
 			wantSpec: DatabaseSpecV3{
 				URI: "streams.dynamodb.us-west-1.amazonaws.com",
 				AWS: AWS{
 					Region:    "us-west-1",
-					AccountID: "12345",
+					AccountID: "123456789012",
 				},
 			},
 		},
 		{
 			desc:    "account and AWS dax URI and empty region is correct",
 			uri:     "dax.us-west-1.amazonaws.com",
-			account: "12345",
+			account: "123456789012",
 			wantSpec: DatabaseSpecV3{
 				URI: "dax.us-west-1.amazonaws.com",
 				AWS: AWS{
 					Region:    "us-west-1",
-					AccountID: "12345",
+					AccountID: "123456789012",
 				},
 			},
 		},
@@ -604,12 +622,12 @@ func TestDynamoDBConfig(t *testing.T) {
 			desc:    "account and region and matching AWS URI region is correct",
 			uri:     "dynamodb.us-west-1.amazonaws.com",
 			region:  "us-west-1",
-			account: "12345",
+			account: "123456789012",
 			wantSpec: DatabaseSpecV3{
 				URI: "dynamodb.us-west-1.amazonaws.com",
 				AWS: AWS{
 					Region:    "us-west-1",
-					AccountID: "12345",
+					AccountID: "123456789012",
 				},
 			},
 		},
@@ -617,12 +635,27 @@ func TestDynamoDBConfig(t *testing.T) {
 			desc:    "account and region and custom URI is correct",
 			uri:     "localhost:8080",
 			region:  "us-west-1",
-			account: "12345",
+			account: "123456789012",
 			wantSpec: DatabaseSpecV3{
 				URI: "localhost:8080",
 				AWS: AWS{
 					Region:    "us-west-1",
-					AccountID: "12345",
+					AccountID: "123456789012",
+				},
+			},
+		},
+		{
+			desc:       "configured external ID but not assume role is ok",
+			uri:        "localhost:8080",
+			region:     "us-west-1",
+			account:    "123456789012",
+			externalID: "externalid123",
+			wantSpec: DatabaseSpecV3{
+				URI: "localhost:8080",
+				AWS: AWS{
+					Region:     "us-west-1",
+					AccountID:  "123456789012",
+					ExternalID: "externalid123",
 				},
 			},
 		},
@@ -630,28 +663,36 @@ func TestDynamoDBConfig(t *testing.T) {
 			desc:       "region and different AWS URI region is an error",
 			uri:        "dynamodb.us-west-2.amazonaws.com",
 			region:     "us-west-1",
-			account:    "12345",
+			account:    "123456789012",
 			wantErrMsg: "does not match the configured URI",
 		},
 		{
 			desc:       "invalid AWS URI is an error",
 			uri:        "a.streams.dynamodb.us-west-1.amazonaws.com",
 			region:     "us-west-1",
-			account:    "12345",
+			account:    "123456789012",
 			wantErrMsg: "invalid DynamoDB endpoint",
 		},
 		{
-			desc:       "custom URI and empty region is an error",
+			desc:       "custom URI and missing region is an error",
 			uri:        "localhost:8080",
-			account:    "12345",
+			account:    "123456789012",
 			wantErrMsg: "region is empty",
 		},
 		{
-			desc:       "empty URI and empty region is an error",
-			account:    "12345",
-			wantErrMsg: "region is empty",
+			desc:       "missing URI and missing region is an error",
+			account:    "123456789012",
+			wantErrMsg: "URI is empty",
 		},
 		{
+			desc:       "invalid AWS account ID is an error",
+			uri:        "localhost:8080",
+			region:     "us-west-1",
+			account:    "12345",
+			wantErrMsg: "must be 12-digit",
+		},
+		{
+			region:     "us-west-1",
 			desc:       "missing account id",
 			wantErrMsg: "account ID is empty",
 		},
@@ -667,8 +708,10 @@ func TestDynamoDBConfig(t *testing.T) {
 				Protocol: "dynamodb",
 				URI:      tt.uri,
 				AWS: AWS{
-					Region:    tt.region,
-					AccountID: tt.account,
+					Region:        tt.region,
+					AccountID:     tt.account,
+					AssumeRoleARN: tt.roleARN,
+					ExternalID:    tt.externalID,
 				},
 			})
 			if tt.wantErrMsg != "" {
@@ -679,6 +722,126 @@ func TestDynamoDBConfig(t *testing.T) {
 			require.NoError(t, err)
 			diff := cmp.Diff(tt.wantSpec, database.Spec, cmpopts.IgnoreFields(DatabaseSpecV3{}, "Protocol"))
 			require.Empty(t, diff)
+		})
+	}
+}
+
+func TestOpenSearchConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		desc       string
+		uri        string
+		region     string
+		account    string
+		wantSpec   DatabaseSpecV3
+		wantErrMsg string
+	}{
+		{
+			desc:       "missing account is an error",
+			uri:        "my-opensearch-instance-xxxxxx.us-west-2.amazonaws.com",
+			region:     "us-west-2",
+			account:    "",
+			wantErrMsg: "database \"test\" AWS account ID is empty",
+		},
+		{
+			desc:       "custom URI without region is an error",
+			uri:        "localhost:8080",
+			region:     "",
+			account:    "123456789012",
+			wantErrMsg: "database \"test\" AWS region is missing and cannot be derived from the URI \"localhost:8080\"",
+		},
+		{
+			desc:    "custom URI with region is correct",
+			uri:     "localhost:8080",
+			region:  "eu-central-1",
+			account: "123456789012",
+			wantSpec: DatabaseSpecV3{
+				Protocol: "opensearch",
+				URI:      "localhost:8080",
+				AWS: AWS{
+					Region:    "eu-central-1",
+					AccountID: "123456789012",
+				},
+			},
+		},
+		{
+			desc:       "AWS URI for wrong service",
+			uri:        "my-opensearch-instance-xxxxxx.eu-central-1.foobar.amazonaws.com",
+			region:     "eu-central-1",
+			account:    "123456789012",
+			wantErrMsg: "invalid OpenSearch endpoint \"my-opensearch-instance-xxxxxx.eu-central-1.foobar.amazonaws.com\", invalid service \"foobar\"",
+		},
+		{
+			desc:    "region is optional if it can be derived from URI",
+			uri:     "my-opensearch-instance-xxxxxx.eu-central-1.es.amazonaws.com",
+			region:  "",
+			account: "123456789012",
+			wantSpec: DatabaseSpecV3{
+				Protocol: "opensearch",
+				URI:      "my-opensearch-instance-xxxxxx.eu-central-1.es.amazonaws.com",
+				AWS: AWS{
+					Region:    "eu-central-1",
+					AccountID: "123456789012",
+				},
+			},
+		},
+		{
+			desc:       "URI-derived region must match explicit region",
+			uri:        "my-opensearch-instance-xxxxxx.eu-central-1.es.amazonaws.com",
+			region:     "eu-central-2",
+			account:    "123456789012",
+			wantErrMsg: "database \"test\" AWS region \"eu-central-2\" does not match the configured URI region \"eu-central-1\"",
+		},
+
+		{
+			desc:    "no error when full data provided and matches",
+			uri:     "my-opensearch-instance-xxxxxx.eu-central-1.es.amazonaws.com",
+			region:  "eu-central-1",
+			account: "123456789012",
+			wantSpec: DatabaseSpecV3{
+				Protocol: "opensearch",
+				URI:      "my-opensearch-instance-xxxxxx.eu-central-1.es.amazonaws.com",
+				AWS: AWS{
+					Region:    "eu-central-1",
+					AccountID: "123456789012",
+				},
+			},
+		},
+
+		{
+			desc:       "invalid AWS account ID is an error",
+			uri:        "localhost:8080",
+			region:     "us-west-1",
+			account:    "12345",
+			wantErrMsg: "must be 12-digit",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.desc, func(t *testing.T) {
+			t.Parallel()
+			database, err := NewDatabaseV3(Metadata{
+				Name: "test",
+			}, DatabaseSpecV3{
+				Protocol: "opensearch",
+				URI:      tt.uri,
+				AWS: AWS{
+					Region:    tt.region,
+					AccountID: tt.account,
+				},
+			})
+
+			if tt.wantErrMsg != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, tt.wantErrMsg)
+				return
+			}
+
+			require.NoError(t, err)
+			require.True(t, database.IsOpenSearch())
+			require.Equal(t, tt.wantSpec, database.Spec)
 		})
 	}
 }

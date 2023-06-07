@@ -97,27 +97,14 @@ type Watch struct {
 
 	// MetricComponent is used for reporting
 	MetricComponent string
-}
 
-// WatchKind specifies resource kind to watch
-type WatchKind struct {
-	// Kind is a resource kind to watch
-	Kind string
-	// SubKind optionally specifies the subkind of resource to watch.
-	// Some resource kinds are ambigious like web sessions, subkind in this case
-	// specifies the type of web session
-	SubKind string
-	// Name is an optional specific resource type to watch,
-	// if specified, only the events with the given resource
-	// name will be sent
-	Name string
-	// Version optionally specifies the resource version to watch.
-	Version string
-	// LoadSecrets specifies whether to load secrets
-	LoadSecrets bool
-	// Filter supplies custom event filter parameters that differ by
-	// resource (e.g. "state":"pending" for access requests).
-	Filter map[string]string
+	// AllowPartialSuccess enables a mode in which a watch will succeed if some of the requested kinds aren't available.
+	// When this is set, the client must inspect the WatchStatus resource attached to the first OpInit event emitted
+	// by the watcher for a list of kinds confirmed by the event source. Kinds requested but omitted from the confirmation
+	// will not be included in the event stream.
+	// If AllowPartialSuccess was set, but OpInit doesn't have a resource attached, it means that the event source
+	// doesn't support partial success and all requested resource kinds should be considered confirmed.
+	AllowPartialSuccess bool
 }
 
 // Matches attempts to determine if the supplied event matches
@@ -166,6 +153,32 @@ func (kind WatchKind) Matches(e Event) (bool, error) {
 // IsTrivial returns true iff the WatchKind only specifies a Kind but no other field.
 func (kind WatchKind) IsTrivial() bool {
 	return kind.SubKind == "" && kind.Name == "" && kind.Version == "" && !kind.LoadSecrets && len(kind.Filter) == 0
+}
+
+// Contains determines whether kind (receiver) targets exactly the same or a wider scope of events as the given subset kind.
+// Generally this means that if kind specifies a filter, its subset must have exactly the same or a narrower one.
+// Currently, does not take resource versions into account.
+func (kind WatchKind) Contains(subset WatchKind) bool {
+	// kind and subkind must always be equal
+	if kind.Kind != subset.Kind || kind.SubKind != subset.SubKind {
+		return false
+	}
+
+	if kind.Name != "" && kind.Name != subset.Name {
+		return false
+	}
+
+	if !kind.LoadSecrets && subset.LoadSecrets {
+		return false
+	}
+
+	for k, v := range kind.Filter {
+		if subset.Filter[k] != v {
+			return false
+		}
+	}
+
+	return true
 }
 
 // Events returns new events interface

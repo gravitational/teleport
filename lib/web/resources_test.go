@@ -160,6 +160,7 @@ func TestNewResourceItemGithub(t *testing.T) {
 metadata:
   name: githubName
 spec:
+  api_endpoint_url: ""
   client_id: ""
   client_secret: ""
   display: ""
@@ -217,6 +218,8 @@ spec:
   deny: {}
   options:
     cert_format: standard
+    create_db_user: false
+    create_desktop_user: false
     create_host_user: false
     desktop_clipboard: true
     desktop_directory_sharing: true
@@ -625,15 +628,7 @@ func TestListResources(t *testing.T) {
 			httpReq, err := http.NewRequest("", tc.url, nil)
 			require.NoError(t, err)
 
-			m := &mockedResourceAPIGetter{}
-			m.mockListResources = func(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
-				if !tc.wantBadParamErr {
-					require.Equal(t, tc.expected, req)
-				}
-				return nil, nil
-			}
-
-			_, err = listResources(m, httpReq, types.KindNode)
+			_, err = convertListResourcesRequest(httpReq, types.KindNode)
 			if tc.wantBadParamErr {
 				require.True(t, trace.IsBadParameter(err))
 			} else {

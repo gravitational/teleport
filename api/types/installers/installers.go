@@ -51,4 +51,12 @@ type Template struct {
 	PublicProxyAddr string
 	// MajorVersion is the major version of the Teleport auth node
 	MajorVersion string
+	// TeleportPackage is the teleport package to use. `teleport` or
+	// `teleport-ent` depending on if the cluster is enterprise or not.
+	TeleportPackage string
+	// RepoChannel is the repo's channel name to install.
+	RepoChannel string
+	// AutomaticUpgrades indicates whether Automatic Upgrades are enabled or disabled.
+	// Its value is either `true` or `false`.
+	AutomaticUpgrades string
 }

@@ -91,14 +91,29 @@ func (c *TemplateSSHClient) Describe(destination bot.Destination) []FileDescript
 // using non-filesystem backends.
 var sshConfigUnsupportedWarning sync.Once
 
-func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Identity, destination *DestinationConfig) error {
-	dest, err := destination.GetDestination()
+func getClusterNames(
+	bot provider, connectedClusterName string,
+) ([]string, error) {
+	allClusterNames := []string{connectedClusterName}
+
+	leafClusters, err := bot.GetRemoteClusters()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
+	}
+	for _, lc := range leafClusters {
+		allClusterNames = append(allClusterNames, lc.GetName())
 	}
 
-	authClient := bot.Client()
-	clusterName, err := authClient.GetClusterName()
+	return allClusterNames, nil
+}
+
+func (c *TemplateSSHClient) Render(
+	ctx context.Context,
+	bot provider,
+	_ *identity.Identity,
+	destination *DestinationConfig,
+) error {
+	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -111,6 +126,11 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 	proxyHost, _, err := utils.SplitHostPort(ping.ProxyPublicAddr)
 	if err != nil {
 		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
+	}
+
+	clusterNames, err := getClusterNames(bot, ping.ClusterName)
+	if err != nil {
+		return trace.Wrap(err)
 	}
 
 	// Backend note: Prefer to use absolute paths for filesystem backends.
@@ -130,7 +150,12 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 
 	// We'll write known_hosts regardless of destination type, it's still
 	// useful alongside a manually-written ssh_config.
-	knownHosts, err := fetchKnownHosts(ctx, authClient, clusterName.GetClusterName(), proxyHost)
+	knownHosts, err := fetchKnownHosts(
+		ctx,
+		bot,
+		clusterNames,
+		proxyHost,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -164,7 +189,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 	sshConf := openssh.NewSSHConfig(c.getSSHVersion, log)
 	if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
 		AppName:             openssh.TbotApp,
-		ClusterNames:        []string{clusterName.GetClusterName()},
+		ClusterNames:        clusterNames,
 		KnownHostsPath:      knownHostsPath,
 		IdentityFilePath:    identityFilePath,
 		CertificateFilePath: certificateFilePath,
@@ -182,17 +207,21 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 	return nil
 }
 
-func fetchKnownHosts(ctx context.Context, client auth.ClientI, clusterName, proxyHosts string) (string, error) {
-	ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
-		Type:       types.HostCA,
-		DomainName: clusterName,
-	}, false)
-	if err != nil {
-		return "", trace.Wrap(err)
+func fetchKnownHosts(ctx context.Context, bot provider, clusterNames []string, proxyHosts string) (string, error) {
+	certAuthorities := make([]types.CertAuthority, 0, len(clusterNames))
+	for _, cn := range clusterNames {
+		ca, err := bot.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       types.HostCA,
+			DomainName: cn,
+		}, false)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		certAuthorities = append(certAuthorities, ca)
 	}
 
 	var sb strings.Builder
-	for _, auth := range auth.AuthoritiesToTrustedCerts([]types.CertAuthority{ca}) {
+	for _, auth := range auth.AuthoritiesToTrustedCerts(certAuthorities) {
 		pubKeys, err := auth.SSHCertPublicKeys()
 		if err != nil {
 			return "", trace.Wrap(err)

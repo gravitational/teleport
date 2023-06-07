@@ -11,10 +11,10 @@ Teleport encourages users to practice defense in depth so that every component o
 - [Automatically prevent some roles from requesting others](#automatically-prevent-some-roles-from-requesting-others)
 - [Restrict role requests based on user traits](#restrict-role-requests-based-on-user-traits)
 - [Set up your RBAC without admin roles](#set-up-your-rbac-without-admin-roles)
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Make MFA mandatory for `tsh login`
+
 If a user sets up an account to authenticate to their Teleport cluster with only a password, an adversary can gain access to the password using brute-force attacks, person-in-the-middle attacks, or phishing. But even if a user's password is compromised, you can stop an attacker from authenticating with it when they run `tsh login`.
 
 Teleport lets you make it mandatory for a user to enroll an MFA device when they create an account, and to authenticate using that device when they begin a new Teleport session.
@@ -83,7 +83,6 @@ If your `second_factor` configuration is set to `off` and a user creates an acco
 - Set `second_factor` to `optional` until you have confirmed that existing users have enrolled their MFA devices.
 - Run the `tctl users reset <account>` command to force a user to enter new credentials, including any required MFA device.
 </Admonition>
-
 
 ## Present an MFA challenge for every attempt to access a resource
 After a user logs into a Teleport cluster, they can request access to a particular resource, e.g., a node, database, application, or Kubernetes cluster. In this case, the Teleport Auth Service issues a single-use certificate for accessing that resource. You can prevent attackers from doing damage with a compromised certificate by enabling per-session MFA. With this setting, whenever a user requests a one-time certificate to access a resource, the Teleport Auth Service will issue an MFA challenge, even if the user has already begun a Teleport session via `tsh login`.
@@ -161,7 +160,6 @@ spec:
 
 The `spec.allow.request.roles` field lists the names of other roles that a user with the `reviewee` role can request. When a reviewee requests access to one of these roles, Teleport notifies reviewers via your access plugins. The `spec.allow.requests.roles.thresholds` field indicates how many reviews are required to approve or deny the request.
 
-
 ## Automatically prevent some roles from requesting others
 A malicious Teleport user could request a more privileged role and trick a reviewer into granting access. You can prevent such a scenario by defining roles that prohibit users from even requesting access to particular roles.
 
@@ -192,7 +190,6 @@ However, the Auth Service denies the request.
 Creating request...
 ERROR: user "myuser" can not request role "admin"
 ```
-
 
 ## Restrict role requests based on user traits
 Teleport's `role` resource lets you take precautions against accidental privilege escalation by ensuring that any user with particular attributes will have restricted access to certain roles. You can assign a list of `traits` to a user, then define a `role` resource that prevents any user whose traits match a regular expression from requesting elevated privileges.
@@ -240,7 +237,6 @@ spec:
 ```
 
 The `claims_to_roles` field within an `allow` or `deny` rule maps a user's `traits` to `roles` that they are either permitted or forbidden to request. In this case, we use the `{{regexp.not_match(\"admin\")}}` template function to prevent any user  from requesting the `db-writer` role unless they have a `groups` trait with a value like `administrator` or `admins`. Users who *do* have such a trait can request the role with two approvals.
-
 
 ## Set up your RBAC without admin roles
 You can design your Teleport RBAC so that there is no all-powerful administrator in the system, or even a `reviewer` role with elevated privileges. This way, you can reduce the blast radius if an attacker successfully impersonates a Teleport user and requests a more privileged role.

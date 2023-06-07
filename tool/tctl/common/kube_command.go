@@ -21,17 +21,17 @@ import (
 	"os"
 	"text/template"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
 // KubeCommand implements "tctl kube" group of commands.
 type KubeCommand struct {
-	config *service.Config
+	config *servicecfg.Config
 
 	// format is the output format (text or yaml)
 	format string
@@ -44,7 +44,7 @@ type KubeCommand struct {
 }
 
 // Initialize allows KubeCommand to plug itself into the CLI parser
-func (c *KubeCommand) Initialize(app *kingpin.Application, config *service.Config) {
+func (c *KubeCommand) Initialize(app *kingpin.Application, config *servicecfg.Config) {
 	c.config = config
 
 	kube := app.Command("kube", "Operate on registered Kubernetes clusters.")

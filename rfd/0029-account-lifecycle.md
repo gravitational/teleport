@@ -1,6 +1,6 @@
 ---
 authors: Sasha Klizhentas (sasha@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 29 - Account Life-cycle: Recovery and Cancellation
@@ -497,7 +497,7 @@ Please check documentation: https://goteleport.com/docs/cloud/locksmiths for mor
 * If account owner or locksmith can edit or create roles and users, display notification:
 
 ```
-A user <username> can lock the account or cancel it, but has too many privileges and can modifify roles
+A user <username> can lock the account or cancel it, but has too many privileges and can modify roles
 to override protections.
 
 To improve security and prevent account loss please add a second account locksmith.

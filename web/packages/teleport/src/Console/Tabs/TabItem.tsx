@@ -53,7 +53,7 @@ function fromProps({ theme, active }) {
     border: 'none',
     borderRight: `1px solid ${theme.colors.bgTerminal}`,
     '&:hover, &:focus': {
-      color: theme.colors.primary.contrastText,
+      color: theme.colors.text.main,
       transition: 'color .3s',
     },
   };
@@ -62,7 +62,7 @@ function fromProps({ theme, active }) {
     styles = {
       ...styles,
       backgroundColor: theme.colors.bgTerminal,
-      color: theme.colors.primary.contrastText,
+      color: theme.colors.text.main,
       fontWeight: 'bold',
       transition: 'none',
     };
@@ -109,7 +109,7 @@ const StyledCloseButton = styled.button`
   transition: all 0.3s;
 
   &:hover {
-    background: ${props => props.theme.colors.danger};
+    background: ${props => props.theme.colors.error.main};
   }
   ${space}
 `;

@@ -1,6 +1,6 @@
 ---
 author: Gavin Frazar (gavin.frazar@goteleport.com)
-state: draft
+state: implemented (v12.1.0)
 ---
  
 # RFD 90 - Database MFA Sessions
@@ -22,29 +22,15 @@ Currently, database certs are issued with 1 minute ttl if per-session-MFA is ena
 This causes poor UX when the GUI client can establish a new connection at any time,
 and a user may be prompt once per minute for their MFA.
 
-We should remove the 1 minute restriction on database cert TTL to improve UX.
+We should remove the 1 minute restriction on database cert TTL in this case to
+improve UX.
 
 ## Details
-When per-session-MFA is enabled, we should not restrict database cert TTL to 1 minute.
+When per-session-MFA is enabled, we should not always restrict database cert TTL to
+1 minute.
 
 Instead, database cert TTL should be restricted to `max_session_ttl`, and the cert
-should be kept in-memory by a local proxy tunnel.
-
-The commands `tsh db login` and `tsh proxy db` (without --tunnel) should return an error message if used when
-per-session-mfa is required, since these commands both save certs to disk.
-A user should be directed by the error message to use `tsh db connect` or `tsh proxy db --tunnel` instead:
-
-```bash
-$ tsh db login example-db
-ERROR: per-session-mfa is required to access database "example-db", but per-session-mfa is not supported
-by this command. Use `tsh db connect` or `tsh proxy db --tunnel` instead.
-See: $docs_reference for more details.
-
-$ tsh proxy db example-db
-ERROR: per-session-mfa is required to access database "example-db", but per-session-mfa is not supported
-by this command. Use `tsh db connect` or `tsh proxy db --tunnel` instead.
-See: $docs_reference for more details.
-```
+should be kept in-memory by a local proxy tunnel if possible.
 
 "Doesn't this just disable per-session-mfa for database access?" (My initial thinking)
 
@@ -53,32 +39,26 @@ See: $docs_reference for more details.
 
 ### API
 
-We should change the auth service to always issue database certs without capping the cert TTL to
-1 minute for per-session-MFA; clients will only keep the newly issued database certs in-memory
-when per-session-mfa is required.
+We should change the auth service to issue database certs without capping the
+cert TTL to 1 minute for per-session-MFA when the certs are requested for a
+db local proxy tunnel, which will only keep the database certs in-memory.
 
 ### Local Proxy With Tunnel
 
-Make the local proxy tunnel keep its database certs in-memory only, and to always request for cert reissue when the local proxy starts.
-This way, the certs are ephemeral and their lifetime is narrowed by the lifetime of the proxy.
+Make the local proxy tunnel keep its database certs in-memory only.
+This way, the certs are ephemeral and their lifetime is narrowed by the
+lifetime of the proxy.
 
-Right now, we load certs from the filesystem when using `tsh proxy db --tunnel`.
-So this change will affect per-session-MFA UX flow in that `tsh proxy db --tunnel` will always prompt for MFA when the local proxy starts.
-
-The local proxy can also refresh its certs as needed by invoking a callback function on each new connection which checks the local proxy's db cert expiry.
+The local proxy can refresh its certs as needed by invoking a callback function
+on start and on each new connection which checks the local proxy's db cert is
+valid.
+When it refreshes its certs, the local proxy tunnel will identify itself as the
+cert requester and therefore per-session-mfa 1-minute TTL will not be applied.
 
 ### Local Proxy Without Tunnel
 
-If per-session-MFA is required, then we should forbid `tsh proxy db <database>` and give the user an error message telling them to add the `--tunnel` flag since per-session-MFA is required.
-
-This prevents per-session-MFA database certs from being saved to the filesystem and directs users towards the better UX of using a local proxy tunnel.
-
-### `tsh db login`
-
-When per-session-MFA is required, we should have behavior like that of `tsh proxy db <database>`: Error message and tell the user to simply connect with `tsh db connect` instead.
-This is for the same reason: prevent database certs from being saved to the filesystem when per-session-MFA is required.
-
-It's also better UX, because if we allowed them to use `tsh db login` for per-session-MFA then they would immediately be re-prompted for MFA by `tsh db connect`, which is confusing and annoying behavior.
+`tsh proxy db <database>` will not request certs on each new connection.
+If this command triggers database login, the certs will still have 1-minute TTL.
 
 ### `tsh db connect`
 

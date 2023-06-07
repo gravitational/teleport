@@ -20,34 +20,32 @@ exports[`bash set to false does not render $ sign 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c2:active {
-  opacity: 0.56;
-}
-
 .c2:hover,
 .c2:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c2:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c2:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
   box-sizing: border-box;
   padding: 8px;
+  color: #FFFFFF;
   background-color: #010B1C;
   border-radius: 4px;
   display: flex;
@@ -64,6 +62,7 @@ exports[`bash set to false does not render $ sign 1`] = `
 <div>
   <div
     class="c0"
+    color="light"
   >
     <div
       class="c1"
@@ -109,34 +108,32 @@ exports[`default, renders $ sign 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c3:active {
-  opacity: 0.56;
-}
-
 .c3:hover,
 .c3:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c3:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c3:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c0 {
   box-sizing: border-box;
   padding: 8px;
+  color: #FFFFFF;
   background-color: #010B1C;
   border-radius: 4px;
   display: flex;
@@ -153,6 +150,7 @@ exports[`default, renders $ sign 1`] = `
 <div>
   <div
     class="c0"
+    color="light"
   >
     <div
       class="c1"

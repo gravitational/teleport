@@ -26,6 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/cloud"
+	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 )
 
 var (
@@ -69,6 +70,10 @@ func CheckEngines(names ...string) error {
 	enginesMu.RLock()
 	defer enginesMu.RUnlock()
 	for _, name := range names {
+		if err := enterprise.ProtocolValidation(name); err != nil {
+			// Don't assert Enterprise protocol is a build is OSS
+			continue
+		}
 		if engines[name] == nil {
 			return trace.NotFound("database engine %q is not registered", name)
 		}
@@ -96,6 +101,8 @@ type EngineConfig struct {
 	Users Users
 	// DataDir is the Teleport data directory
 	DataDir string
+	// GetUserProvisioner is automatic database users creation handler.
+	GetUserProvisioner func(AutoUsers) *UserProvisioner
 }
 
 // CheckAndSetDefaults validates the config and sets default values.

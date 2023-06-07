@@ -45,7 +45,7 @@ func TestRun_Configure(t *testing.T) {
 		return cpy
 	}
 
-	baseArgs := []string{"configure"}
+	baseArgs := []string{"configure", "--join-method", "token"}
 	tests := []struct {
 		name string
 		args []string
@@ -65,6 +65,7 @@ func TestRun_Configure(t *testing.T) {
 				"--oneshot",
 				"--certificate-ttl", "42m",
 				"--renewal-interval", "21m",
+				"--fips",
 			}...),
 		},
 	}

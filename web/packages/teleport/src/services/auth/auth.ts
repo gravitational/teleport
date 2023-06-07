@@ -18,6 +18,8 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
 
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+
 import makePasswordToken from './makePasswordToken';
 import { makeChangedUserAuthn } from './make';
 import {
@@ -26,7 +28,11 @@ import {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
 } from './makeMfa';
-import { UserCredentials, NewCredentialRequest } from './types';
+import {
+  ResetPasswordReqWithEvent,
+  ResetPasswordWithWebauthnReqWithEvent,
+  UserCredentials,
+} from './types';
 
 const auth = {
   checkWebauthnSupport() {
@@ -40,7 +46,11 @@ const auth = {
       )
     );
   },
-
+  checkMfaRequired(
+    params: IsMfaRequiredRequest
+  ): Promise<{ required: boolean }> {
+    return api.post(cfg.getMfaRequiredUrl(), params);
+  },
   createMfaRegistrationChallenge(
     tokenId: string,
     deviceType: DeviceType,
@@ -62,7 +72,7 @@ const auth = {
 
   // mfaLoginBegin retrieves users mfa challenges for their
   // registered devices. Empty creds indicates request for passwordless challenges.
-  // Otherwise non-passwordless challenges requires creds to be verified.
+  // Otherwise, non-passwordless challenges requires creds to be verified.
   mfaLoginBegin(creds?: UserCredentials) {
     return api
       .post(cfg.api.mfaLoginBegin, {
@@ -120,14 +130,17 @@ const auth = {
   // resetPasswordWithWebauthn either sets a new password and a new webauthn device,
   // or if passwordless is requested (indicated by empty password param),
   // skips setting a new password and only sets a passwordless device.
-  resetPasswordWithWebauthn(req: NewCredentialRequest) {
+  resetPasswordWithWebauthn(props: ResetPasswordWithWebauthnReqWithEvent) {
+    const { req, eventMeta } = props;
+    const deviceUsage: DeviceUsage = req.password ? 'mfa' : 'passwordless';
+
     return auth
       .checkWebauthnSupport()
       .then(() =>
         auth.createMfaRegistrationChallenge(
           req.tokenId,
           'webauthn',
-          req.password ? 'mfa' : 'passwordless'
+          deviceUsage
         )
       )
       .then(res =>
@@ -145,10 +158,27 @@ const auth = {
 
         return api.put(cfg.getPasswordTokenUrl(), request);
       })
-      .then(makeChangedUserAuthn);
+      .then(j => {
+        if (eventMeta) {
+          userEventService.capturePreUserEvent({
+            event: CaptureEvent.PreUserOnboardSetCredentialSubmitEvent,
+            username: eventMeta.username,
+          });
+
+          userEventService.capturePreUserEvent({
+            event: CaptureEvent.PreUserOnboardRegisterChallengeSubmitEvent,
+            username: eventMeta.username,
+            mfaType: eventMeta.mfaType,
+            loginFlow: deviceUsage,
+          });
+        }
+        return makeChangedUserAuthn(j);
+      });
   },
 
-  resetPassword(req: NewCredentialRequest) {
+  resetPassword(props: ResetPasswordReqWithEvent) {
+    const { req, eventMeta } = props;
+
     const request = {
       password: base64EncodeUnicode(req.password),
       second_factor_token: req.otpCode,
@@ -156,9 +186,15 @@ const auth = {
       deviceName: req.deviceName,
     };
 
-    return api
-      .put(cfg.getPasswordTokenUrl(), request)
-      .then(makeChangedUserAuthn);
+    return api.put(cfg.getPasswordTokenUrl(), request).then(j => {
+      if (eventMeta) {
+        userEventService.capturePreUserEvent({
+          event: CaptureEvent.PreUserOnboardSetCredentialSubmitEvent,
+          username: eventMeta.username,
+        });
+      }
+      return makeChangedUserAuthn(j);
+    });
   },
 
   changePassword(oldPass: string, newPass: string, token: string) {
@@ -191,11 +227,51 @@ const auth = {
       });
   },
 
+  headlessSSOGet(transactionId: string) {
+    return auth
+      .checkWebauthnSupport()
+      .then(() => api.get(cfg.getHeadlessSsoPath(transactionId)))
+      .then((json: any) => {
+        json = json || {};
+
+        return {
+          clientIpAddress: json.client_ip_address,
+        };
+      });
+  },
+
+  headlessSSOAccept(transactionId: string) {
+    return auth
+      .checkWebauthnSupport()
+      .then(() => api.post(cfg.api.mfaAuthnChallengePath))
+      .then(res =>
+        navigator.credentials.get({
+          publicKey: makeMfaAuthenticateChallenge(res).webauthnPublicKey,
+        })
+      )
+      .then(res => {
+        const request = {
+          action: 'accept',
+          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+        };
+
+        return api.put(cfg.getHeadlessSsoPath(transactionId), request);
+      });
+  },
+
+  headlessSSOReject(transactionId: string) {
+    const request = {
+      action: 'denied',
+    };
+
+    return api.put(cfg.getHeadlessSsoPath(transactionId), request);
+  },
+
   createPrivilegeTokenWithTotp(secondFactorToken: string) {
     return api.post(cfg.api.createPrivilegeTokenPath, { secondFactorToken });
   },
 
-  createPrivilegeTokenWithWebauthn() {
+  fetchWebauthnChallenge() {
     return auth
       .checkWebauthnSupport()
       .then(() =>
@@ -207,16 +283,25 @@ const auth = {
         navigator.credentials.get({
           publicKey: res.webauthnPublicKey,
         })
-      )
-      .then(res =>
-        api.post(cfg.api.createPrivilegeTokenPath, {
-          webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
-        })
       );
+  },
+
+  createPrivilegeTokenWithWebauthn() {
+    return auth.fetchWebauthnChallenge().then(res =>
+      api.post(cfg.api.createPrivilegeTokenPath, {
+        webauthnAssertionResponse: makeWebauthnAssertionResponse(res),
+      })
+    );
   },
 
   createRestrictedPrivilegeToken() {
     return api.post(cfg.api.createPrivilegeTokenPath, {});
+  },
+
+  getWebauthnResponse() {
+    return auth
+      .fetchWebauthnChallenge()
+      .then(res => makeWebauthnAssertionResponse(res));
   },
 };
 
@@ -230,3 +315,47 @@ function base64EncodeUnicode(str: string) {
 }
 
 export default auth;
+
+export type IsMfaRequiredRequest =
+  | IsMfaRequiredDatabase
+  | IsMfaRequiredNode
+  | IsMfaRequiredKube
+  | IsMfaRequiredWindowsDesktop;
+
+export type IsMfaRequiredDatabase = {
+  database: {
+    // service_name is the database service name.
+    service_name: string;
+    // protocol is the type of the database protocol.
+    protocol: string;
+    // username is an optional database username.
+    username?: string;
+    // database_name is an optional database name.
+    database_name?: string;
+  };
+};
+
+export type IsMfaRequiredNode = {
+  node: {
+    // node_name can be node's hostname or UUID.
+    node_name: string;
+    // login is the OS login name.
+    login: string;
+  };
+};
+
+export type IsMfaRequiredWindowsDesktop = {
+  windows_desktop: {
+    // desktop_name is the Windows Desktop server name.
+    desktop_name: string;
+    // login is the Windows desktop user login.
+    login: string;
+  };
+};
+
+export type IsMfaRequiredKube = {
+  kube: {
+    // cluster_name is the name of the kube cluster.
+    cluster_name: string;
+  };
+};

@@ -32,27 +32,31 @@ type Anonymizer interface {
 
 	// AnonymizeString anonymizes the given string data using HMAC
 	AnonymizeString(s string) string
+
+	// AnonymizeNonEmpty anonymizes the given string into bytes if the string is
+	// nonempty, otherwise returns an empty slice.
+	AnonymizeNonEmpty(s string) []byte
 }
 
 // hmacAnonymizer implements anonymization using HMAC
 type HMACAnonymizer struct {
 	// key is the HMAC key
-	key string
+	key []byte
 }
+
+var _ Anonymizer = (*HMACAnonymizer)(nil)
 
 // NewHMACAnonymizer returns a new HMAC-based anonymizer
 func NewHMACAnonymizer(key string) (*HMACAnonymizer, error) {
 	if strings.TrimSpace(key) == "" {
 		return nil, trace.BadParameter("HMAC key must not be empty")
 	}
-	return &HMACAnonymizer{
-		key: key,
-	}, nil
+	return &HMACAnonymizer{key: []byte(key)}, nil
 }
 
 // Anonymize anonymizes the provided data using HMAC
 func (a *HMACAnonymizer) Anonymize(data []byte) string {
-	h := hmac.New(sha256.New, []byte(a.key))
+	h := hmac.New(sha256.New, a.key)
 	h.Write(data)
 	return base64.StdEncoding.EncodeToString(h.Sum(nil))
 }
@@ -60,4 +64,14 @@ func (a *HMACAnonymizer) Anonymize(data []byte) string {
 // AnonymizeString anonymizes the given string data using HMAC
 func (a *HMACAnonymizer) AnonymizeString(s string) string {
 	return a.Anonymize([]byte(s))
+}
+
+// AnonymizeNonEmpty implements [Anonymizer].
+func (a *HMACAnonymizer) AnonymizeNonEmpty(s string) []byte {
+	if s == "" {
+		return nil
+	}
+	h := hmac.New(sha256.New, a.key)
+	h.Write([]byte(s))
+	return h.Sum(nil)
 }

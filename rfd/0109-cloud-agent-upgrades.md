@@ -55,7 +55,7 @@ From the start, we will support the following scenarios:
 
 - Teleport agents installed via a dedicated `apt` or `yum` package that sets up the installer.
 
-Agents deployed in one of the above manners will automically be "enrolled" in the cloud upgrade system as part of the
+Agents deployed in one of the above manners will automatically be "enrolled" in the cloud upgrade system as part of the
 installation process. Enrollment will not be coordinated at the cluster-level (i.e. agents will not check with the
 cluster to determine if upgrades should occur). It will be assumed that the latest available cloud-stable package is
 always the "correct" package to be running. This is an important divergence from how teleport versioning is typically
@@ -86,11 +86,11 @@ Rollout of a new version to cloud-stable will generally follow the following ste
 
 3. The target version of the cloud-stable endpoint is updated to point to the new target client version.
 
-4. A grace period is observed, during which the control plane is not updated s.t. it breaks comatibility with
+4. A grace period is observed, during which the control plane is not updated s.t. it breaks compatibility with
 agents that have yet to be upgraded. I.e. if cloud-stable targets `v1` at `T1`, then the control plane must maintain
 compatibility with `v1` until at least `T1 + grace_period`.
 
-Note that in practice, wether or not the ordering/timing of the above steps matters depends entirely on what changes
+Note that in practice, whether or not the ordering/timing of the above steps matters depends entirely on what changes
 were made between versions. Most minor/patch releases don't actually require this kind of procedure, tho its best to
 assume that the procedure is required unless we are rolling out a critical bug fix that was specifically designed to
 be self-contained.
@@ -245,14 +245,14 @@ Kubernetes based agents will be managed by a separate cloud-stable upgrade contr
 be responsible for all teleport agents installed by the helm chart, and will perform rolling
 updates, applying the latest immutable image tag to all agents.
 
-Agents running in kuberentes mode will periodically export their schedules to a kubernetes config object to be
+Agents running in kubernetes mode will periodically export their schedules to a kubernetes config object to be
 consumed by the controller.
 
 The k8s controller's specific loop will end up looking like this:
 
 ![Upgrade Controller](https://user-images.githubusercontent.com/16366487/219150279-9255d4b3-74fb-48f7-b966-04cb79520e66.png)
 
-The kuberenetes controller will leverage cosign based image signing for an added layer of security.
+The kubernetes controller will leverage cosign based image signing for an added layer of security.
 
 Our kube agent helm chart will be updated to support enabling all necessary cloud-stable behaviors
 (added controller and any necessary command/env changes) via a single flag. Ex:
@@ -291,13 +291,13 @@ to firing approximately every 30min. When healthy, teleport agents will export a
 the default monotonic fire rate and setting an `OnCalendar` directive matching the current agent maintenance schedule,
 thereby limiting the upgrade timer to firing only during maintenance windows.
 
-The `teleport-upgrade-check.timer` unit will peridoically check `cloud-stable/critical`. If it detects a critical update
+The `teleport-upgrade-check.timer` unit will periodically check `cloud-stable/critical`. If it detects a critical update
 *and* that the currently installed teleport version differs from the cloud-stable target, it will revert the primary
 timer back to monotonic/high-frequency mode. Note that we *could* invoke the upgrade script directly instead and the
 system would be simpler overall, however this would lead to duplicate sources of truth for what a "firing" upgrade
 was, and potentially lead to confusing interactions between conflicting check rates. After some back and forth,
 I'm opting to commit to the concept of a single upgrade timer whose modes are switched by external actors, but
-which utimately retains sole control over the upgrade process.
+which ultimately retains sole control over the upgrade process.
 
 
 ### Automatic/Guided Install Changes
@@ -332,7 +332,7 @@ by ec2 discovery.
 After initial trials, we would like tracking cloud-stable to become the default for new cloud clusters. Because of this, we will
 need to make some updates to existing documentation to guide new cloud users to invoke the necessary install variants.
 
-Mostly, this will consist of adding appropiate `ScopedBlock`s to docs that display cloud variants of install
+Mostly, this will consist of adding appropriate `ScopedBlock`s to docs that display cloud variants of install
 commands. A number of the pages under `deploy-a-cluster/helm-deployments/` will need this treatment. Most cloud guides prompt
 users to use a join script, so the majority of those will be able to be left untouched, as clusters will automatically serve
 the correct script variant.

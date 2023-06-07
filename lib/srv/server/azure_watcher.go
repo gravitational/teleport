@@ -38,12 +38,20 @@ type AzureInstances struct {
 	SubscriptionID string
 	// ResourceGroup is the resource group for the instances.
 	ResourceGroup string
+	// ScriptName is the name of the script to execute on the instances to
+	// install Teleport.
+	ScriptName string
+	// PublicProxyAddr is the address of the proxy the discovered node should use
+	// to connect to the cluster.
+	PublicProxyAddr string
+	// Parameters are the parameters passed to the installation script.
+	Parameters []string
 	// Instances is a list of discovered Azure virtual machines.
 	Instances []*armcompute.VirtualMachine
 }
 
 // NewAzureWatcher creates a new Azure watcher instance.
-func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clients cloud.Clients) (*Watcher, error) {
+func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients cloud.Clients) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
 		fetchers:      []Fetcher{},
@@ -73,7 +81,7 @@ func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clie
 }
 
 type azureFetcherConfig struct {
-	Matcher       services.AzureMatcher
+	Matcher       types.AzureMatcher
 	Subscription  string
 	ResourceGroup string
 	AzureClient   azure.VirtualMachinesClient
@@ -85,20 +93,35 @@ type azureInstanceFetcher struct {
 	Subscription  string
 	ResourceGroup string
 	Labels        types.Labels
+	Parameters    map[string]string
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
-	return &azureInstanceFetcher{
+	ret := &azureInstanceFetcher{
 		Azure:         cfg.AzureClient,
 		Regions:       cfg.Matcher.Regions,
 		Subscription:  cfg.Subscription,
 		ResourceGroup: cfg.ResourceGroup,
 		Labels:        cfg.Matcher.ResourceTags,
 	}
+
+	if cfg.Matcher.Params != nil {
+		ret.Parameters = map[string]string{
+			"token":           cfg.Matcher.Params.JoinToken,
+			"scriptName":      cfg.Matcher.Params.ScriptName,
+			"publicProxyAddr": cfg.Matcher.Params.PublicProxyAddr,
+		}
+	}
+
+	return ret
+}
+
+func (*azureInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {
+	return nil, trace.NotImplemented("not implemented for azure fetchers")
 }
 
 // GetInstances fetches all Azure virtual machines matching configured filters.
-func (f *azureInstanceFetcher) GetInstances(ctx context.Context) ([]Instances, error) {
+func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Instances, error) {
 	instancesByRegion := make(map[string][]*armcompute.VirtualMachine)
 	for _, region := range f.Regions {
 		instancesByRegion[region] = []*armcompute.VirtualMachine{}
@@ -128,10 +151,13 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context) ([]Instances, e
 	for region, vms := range instancesByRegion {
 		if len(vms) > 0 {
 			instances = append(instances, Instances{AzureInstances: &AzureInstances{
-				SubscriptionID: f.Subscription,
-				Region:         region,
-				ResourceGroup:  f.ResourceGroup,
-				Instances:      vms,
+				SubscriptionID:  f.Subscription,
+				Region:          region,
+				ResourceGroup:   f.ResourceGroup,
+				Instances:       vms,
+				ScriptName:      f.Parameters["scriptName"],
+				PublicProxyAddr: f.Parameters["publicProxyAddr"],
+				Parameters:      []string{f.Parameters["token"]},
 			}})
 		}
 	}

@@ -10,38 +10,26 @@ with a configuration file that is automatically managed by Machine ID.
 
 You will need the following tools to use Teleport with Ansible.
 
-- The Teleport Auth Service and Proxy Service version >= 9.0.0, deployed on
-  your own infrastructure or managed via Teleport Cloud.
-- The `tsh` client tool version >= (=teleport.version=).
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - `ssh` OpenSSH tool
+
 - `ansible` >= (=ansible.min_version=)
-- Optional tool `jq` to process `JSON` output
 
-<Admonition type="note" title="Machine ID and TLS Routing">
-TLS Routing support will be added to Machine ID in [Teleport
-9.3](https://goteleport.com/docs/preview/upcoming-releases/#teleport-93). Until
-that time, the Teleport Proxy Server will need to be configured with a
-dedicated SSH listener.
+- Optional: [`jq`](https://stedolan.github.io/jq/) to process `JSON` output
 
-```yaml
-version: v1
-proxy_service:
-  enabled: "yes"
-  listen_addr: "0.0.0.0:3023"
-  ...
-```
-</Admonition>
+- If you already have not done so, follow the
+  [Machine ID Getting Started Guide](../getting-started.mdx) to create a bot
+  user and start Machine ID.
 
-In addition, if you already have not done so, follow the
-[Machine ID Getting Started Guide](../getting-started.mdx) to create a bot
-user and start Machine ID.
+- If you followed the above guide, note the `--destination-dir=/opt/machine-id`
+  flag, which defines the directory where SSH certificates and OpenSSH configuration
+  used by Ansible will be written.
 
-If you followed the above guide, you are interested in the
-`--destination-dir=/opt/machine-id` flag, which defines the directory where
-SSH certificates and OpenSSH configuration used by Ansible will be written.
+  In particular, you will be using the `/opt/machine-id/ssh_config` file in your
+  Ansible configuration to define how Ansible should connect to Teleport Nodes.
 
-In particular, you will be using the `/opt/machine-id/ssh_config` file in your
-Ansible configuration to define how Ansible should connect to Teleport Nodes.
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/2. Configure Ansible
 
@@ -76,7 +64,7 @@ $ # Replace ".example.com" below with the name of your cluster.
 $ tsh ls --format=json | jq -r '.[].spec.hostname + ".example.com"' > hosts
 ```
 
-<Details title="Not seeing Nodes?" opened={false}>
+<Details title="Not seeing Nodes?">
 
 (!docs/pages/includes/node-logins.mdx!)
 

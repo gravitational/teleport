@@ -21,13 +21,13 @@ export default function CardEmpty(props) {
   const { title, children, ...styles } = props;
   return (
     <Box
-      bg="primary.light"
+      bg="levels.surface"
       p="4"
       width="100%"
       m="0 auto"
       maxWidth="600px"
       textAlign="center"
-      color="text.primary"
+      color="text.main"
       style={{ borderRadius: '6px' }}
       {...styles}
     >

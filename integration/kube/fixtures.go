@@ -38,6 +38,7 @@ const TestImpersonationGroup = "teleport-ci-test-group"
 type ProxyConfig struct {
 	T                   *helpers.TeleInstance
 	Username            string
+	PinnedIP            string
 	KubeUsers           []string
 	KubeGroups          []string
 	Impersonation       *rest.ImpersonationConfig
@@ -96,6 +97,7 @@ func ProxyClient(cfg ProxyConfig) (*kubernetes.Clientset, *rest.Config, error) {
 		KubernetesUsers:  cfg.KubeUsers,
 		KubernetesGroups: cfg.KubeGroups,
 		RouteToCluster:   cfg.RouteToCluster,
+		PinnedIP:         cfg.PinnedIP,
 	}
 	subj, err := id.Subject()
 	if err != nil {

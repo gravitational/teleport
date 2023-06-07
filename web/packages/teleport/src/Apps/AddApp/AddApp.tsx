@@ -24,9 +24,9 @@ import useTeleport from 'teleport/useTeleport';
 
 import { TabIcon } from 'teleport/components/TabIcon';
 
-import Manually from './Manually';
+import { Manually } from './Manually';
 
-import Automatically from './Automatically';
+import { Automatically } from './Automatically';
 import useAddApp, { State } from './useAddApp';
 
 export default function Container(props: Props) {

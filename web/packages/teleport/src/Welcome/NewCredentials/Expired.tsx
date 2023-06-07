@@ -23,8 +23,15 @@ export function Expired({ resetMode = false }) {
   const paraCodeTxt = resetMode ? 'reset' : 'invite';
 
   return (
-    <Card width="540px" color="text.onLight" p={6} bg="light" mt={6} mx="auto">
-      <Text typography="h1" textAlign="center" fontSize={8} color="text" mb={3}>
+    <Card
+      width="540px"
+      color="text.main"
+      p={6}
+      bg="levels.elevated"
+      mt={6}
+      mx="auto"
+    >
+      <Text typography="h1" textAlign="center" fontSize={8} mb={3}>
         {titleCodeTxt} Code Expired
       </Text>
       <Text typography="paragraph" mb="2">
@@ -43,8 +50,8 @@ export function Expired({ resetMode = false }) {
 const GithubLink = styled.a.attrs({
   href: 'https://github.com/gravitational/teleport/issues/new',
 })`
-  color: ${props => props.theme.colors.link};
+  color: ${props => props.theme.colors.buttons.link.default};
   &:visted {
-    color: ${props => props.theme.colors.link};
+    color: ${props => props.theme.colors.buttons.link.default};
   }
 `;

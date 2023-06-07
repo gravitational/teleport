@@ -9,7 +9,7 @@ metadata:
   annotations:
     "helm.sh/hook": pre-install,pre-upgrade
     "helm.sh/hook-weight": "5"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   backoffLimit: 1
   template:
@@ -25,6 +25,10 @@ spec:
       - name: "teleport"
         image: '{{ if $proxy.enterprise }}{{ $proxy.enterpriseImage }}{{ else }}{{ $proxy.image }}{{ end }}:{{ include "teleport-cluster.version" . }}'
         imagePullPolicy: {{ $proxy.imagePullPolicy }}
+{{- if $proxy.resources }}
+        resources:
+  {{- toYaml $proxy.resources | nindent 10 }}
+{{- end }}
 {{- if or $proxy.extraEnv $proxy.tls.existingCASecretName }}
         env:
   {{- if (gt (len $proxy.extraEnv) 0) }}

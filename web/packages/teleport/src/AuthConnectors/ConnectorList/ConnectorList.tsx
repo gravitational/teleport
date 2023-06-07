@@ -61,7 +61,7 @@ function ConnectorListItem({ name, id, onEdit, onDelete }) {
       flexDirection="column"
       alignItems="center"
       justifyContent="center"
-      bg="primary.light"
+      bg="levels.surface"
       px="5"
       pt="2"
       pb="5"
@@ -84,7 +84,7 @@ function ConnectorListItem({ name, id, onEdit, onDelete }) {
         <Icons.Github
           style={{ textAlign: 'center' }}
           fontSize="50px"
-          color="text.primary"
+          color="text.main"
           mb={3}
           mt={3}
         />

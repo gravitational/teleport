@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Suspense } from 'react';
+import React, { Suspense, lazy } from 'react';
 import ThemeProvider from 'design/ThemeProvider';
 
 import { Router, Route, Switch } from 'teleport/components/Router';
@@ -29,9 +29,7 @@ import cfg from './config';
 
 import type { History } from 'history';
 
-const AppLauncher = React.lazy(
-  () => import(/* webpackChunkName: "app-launcher" */ './AppLauncher')
-);
+const AppLauncher = lazy(() => import('./AppLauncher'));
 
 const Teleport: React.FC<Props> = props => {
   const { ctx, history } = props;
@@ -66,30 +64,18 @@ const Teleport: React.FC<Props> = props => {
   );
 };
 
-const LoginFailed = React.lazy(
-  () => import(/* webpackChunkName: "login-failed" */ './Login/LoginFailed')
-);
-const LoginSuccess = React.lazy(
-  () => import(/* webpackChunkName: "login-success" */ './Login/LoginSuccess')
-);
-const Login = React.lazy(
-  () => import(/* webpackChunkName: "login" */ './Login')
-);
-const Welcome = React.lazy(
-  () => import(/* webpackChunkName: "welcome" */ './Welcome')
-);
+const LoginFailed = lazy(() => import('./Login/LoginFailed'));
+const LoginSuccess = lazy(() => import('./Login/LoginSuccess'));
+const Login = lazy(() => import('./Login'));
+const Welcome = lazy(() => import('./Welcome'));
 
-const Console = React.lazy(
-  () => import(/* webpackChunkName: "console" */ './Console')
-);
-const Player = React.lazy(
-  () => import(/* webpackChunkName: "player" */ './Player')
-);
-const DesktopSession = React.lazy(
-  () => import(/* webpackChunkName: "desktop-session" */ './DesktopSession')
-);
+const Console = lazy(() => import('./Console'));
+const Player = lazy(() => import('./Player'));
+const DesktopSession = lazy(() => import('./DesktopSession'));
 
-const Main = React.lazy(() => import(/* webpackChunkName: "main" */ './Main'));
+const HeadlessRequest = lazy(() => import('./HeadlessRequest'));
+
+const Main = lazy(() => import('./Main'));
 
 function publicOSSRoutes() {
   return [
@@ -159,6 +145,11 @@ export function getSharedPrivateRoutes() {
     />,
     <Route key="console" path={cfg.routes.console} component={Console} />,
     <Route key="player" path={cfg.routes.player} component={Player} />,
+    <Route
+      key="headlessSSO"
+      path={cfg.routes.headlessSso}
+      component={HeadlessRequest}
+    />,
   ];
 }
 

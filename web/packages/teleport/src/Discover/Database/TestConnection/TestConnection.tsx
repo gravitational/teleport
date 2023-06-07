@@ -22,14 +22,15 @@ import Select, { Option } from 'shared/components/Select';
 
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import { generateTshLoginCommand } from 'teleport/lib/util';
+import ReAuthenticate from 'teleport/components/ReAuthenticate';
 
 import {
   ActionButtons,
   HeaderSubtitle,
-  HeaderWithBackBtn,
+  Header,
   ConnectionDiagnosticResult,
 } from '../../Shared';
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -53,6 +54,8 @@ export function TestConnectionView({
   username,
   clusterId,
   dbEngine,
+  showMfaDialog,
+  cancelMfaDialog,
 }: State) {
   const userOpts = db.users.map(l => ({ value: l, label: l }));
   const nameOpts = db.names.map(l => ({ value: l, label: l }));
@@ -67,9 +70,22 @@ export function TestConnectionView({
     tshDbCmd += ` --db-name=${selectedName.value}`;
   }
 
+  function makeTestConnRequest() {
+    return {
+      name: selectedName?.value,
+      user: selectedUser?.value,
+    };
+  }
+
   return (
     <Box>
-      <HeaderWithBackBtn onPrev={prevStep}>Test Connection</HeaderWithBackBtn>
+      {showMfaDialog && (
+        <ReAuthenticate
+          onMfaResponse={res => testConnection(makeTestConnRequest(), res)}
+          onClose={cancelMfaDialog}
+        />
+      )}
+      <Header>Test Connection</Header>
       <HeaderSubtitle>
         Optionally verify that you can successfully connect to the Database you
         just added.
@@ -113,7 +129,7 @@ export function TestConnectionView({
               attempt.status === 'processing' || nameOpts.length === 0
             }
             // Database name is required for Postgres.
-            isClearable={dbEngine !== DatabaseEngine.PostgreSQL}
+            isClearable={dbEngine !== DatabaseEngine.Postgres}
           />
         </Box>
       </StyledBox>
@@ -121,12 +137,7 @@ export function TestConnectionView({
         attempt={attempt}
         diagnosis={diagnosis}
         canTestConnection={canTestConnection}
-        testConnection={() =>
-          testConnection({
-            name: selectedName?.value,
-            user: selectedUser?.value,
-          })
-        }
+        testConnection={() => testConnection(makeTestConnRequest())}
         stepNumber={2}
         stepDescription="Verify that your database is accessible"
       />
@@ -150,14 +161,14 @@ export function TestConnectionView({
           <TextSelectCopy mt="1" text={tshDbCmd} />
         </Box>
       </StyledBox>
-      <ActionButtons onProceed={nextStep} lastStep={true} />
+      <ActionButtons onProceed={nextStep} lastStep={true} onPrev={prevStep} />
     </Box>
   );
 }
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 20px;
 `;

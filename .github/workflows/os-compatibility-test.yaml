@@ -1,19 +1,18 @@
 name: OS Compatibility Test
 run-name: OS Compatibility Test
 on:
-  push:
-    branches:
-      - master
   pull_request:
     paths-ignore:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
+      - '**/*.md*'
   merge_group:
     paths-ignore:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
+      - '**/*.md*'      
 
 jobs:
   build:
@@ -25,9 +24,10 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport13
+      image: ghcr.io/gravitational/teleport-buildbox-centos7:teleport14
       env:
         GOCACHE: /tmp/gocache
+        WEBASSETS_SKIP_BUILD: 1
 
     steps:
       - name: Checkout Teleport

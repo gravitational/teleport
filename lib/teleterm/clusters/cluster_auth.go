@@ -19,12 +19,12 @@ package clusters
 import (
 	"context"
 	"errors"
-	"fmt"
 	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/keys"
@@ -42,6 +42,11 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Do the ALPN handshake test to decide if connection upgrades are required
+	// for TLS Routing. Only do the test once Ping verifies the cluster is
+	// reachable.
+	c.clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(c.clusterClient.WebProxyAddr, c.clusterClient.InsecureSkipVerify)
 
 	if err := c.clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
@@ -65,15 +70,8 @@ func (c *Cluster) Logout(ctx context.Context) error {
 		}
 	}
 
-	// Get the address of the active Kubernetes proxy to find AuthInfos,
-	// Clusters, and Contexts in kubeconfig.
-	clusterName, _ := c.clusterClient.KubeProxyHostPort()
-	if c.clusterClient.SiteName != "" {
-		clusterName = fmt.Sprintf("%v.%v", c.clusterClient.SiteName, clusterName)
-	}
-
 	// Remove cluster entries from kubeconfig
-	if err := kubeconfig.Remove("", clusterName); err != nil {
+	if err := kubeconfig.RemoveByServerAddr("", c.clusterClient.KubeClusterAddr()); err != nil {
 		return trace.Wrap(err)
 	}
 

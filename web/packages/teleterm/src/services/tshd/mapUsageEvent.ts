@@ -65,7 +65,8 @@ function mapPrehogBody(
     const reqEvent = new prehogApi.ConnectProtocolUseEvent()
       .setClusterName(event.clusterName)
       .setUserName(event.userName)
-      .setProtocol(event.protocol);
+      .setProtocol(event.protocol)
+      .setOrigin(event.origin);
 
     return req.setProtocolUse(reqEvent);
   }

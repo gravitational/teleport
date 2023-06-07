@@ -19,7 +19,7 @@ import { screen } from '@testing-library/react';
 
 import { render, fireEvent } from 'design/utils/testing';
 
-import theme from 'design/theme';
+import { darkTheme } from 'design/theme';
 
 import * as useRule from '../Validation/useRule';
 
@@ -63,7 +63,7 @@ test('valid values, autofocus, onChange, onKeyPress', () => {
 
 test('input validation error state', () => {
   const rule = jest.fn();
-  const errorColor = theme.colors.error.main;
+  const errorColor = darkTheme.colors.error.main;
 
   // mock negative validation
   jest

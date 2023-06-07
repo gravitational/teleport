@@ -6,11 +6,8 @@ For each Node in the user's Teleport cluster, the Auth Service applies the
 following checks in order and, if one check fails, hides the Node from the user:
 
 - None of the user's roles contain a `deny` rule that matches the Node's labels.
-- None of the user's roles contain a `deny` rule that matches the user's login.
 - At least one of the user's roles contains an `allow` rule that matches the
   Node's labels.
-- At least one of the user's roles contains an `allow` rule that matches the
-  user's login.
 
 If you are not seeing Nodes when expected, make sure that your user's roles
 include the appropriate `allow` and `deny` rules as documented in the

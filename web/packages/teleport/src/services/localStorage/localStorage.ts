@@ -19,9 +19,21 @@ import { OnboardDiscover } from 'teleport/services/user';
 
 import { KeysEnum } from './types';
 
+import type { ThemeOption } from 'design/theme';
+
+// This is an array of local storage `KeysEnum` that are kept when a user logs out
+const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
+  KeysEnum.THEME,
+  KeysEnum.SHOW_ASSIST_POPUP,
+];
+
 const storage = {
   clear() {
-    window.localStorage.clear();
+    Object.keys(window.localStorage).forEach(key => {
+      if (!KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
+        window.localStorage.removeItem(key);
+      }
+    });
   },
 
   subscribe(fn) {
@@ -78,6 +90,22 @@ const storage = {
       return JSON.parse(item);
     }
     return null;
+  },
+
+  setThemeOption(theme: ThemeOption) {
+    window.localStorage.setItem(KeysEnum.THEME, theme);
+    // This is to trigger the event listener in the current tab
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: KeysEnum.THEME,
+        newValue: theme,
+      })
+    );
+  },
+
+  getThemeOption(): ThemeOption {
+    const theme = window.localStorage.getItem(KeysEnum.THEME) as ThemeOption;
+    return theme || 'light';
   },
 
   broadcast(messageType, messageBody) {

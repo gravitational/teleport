@@ -139,7 +139,7 @@ export function PageIndicatorText({
   return (
     <Text
       typography="body2"
-      color="primary.contrastText"
+      color="text.main"
       style={{ textTransform: 'uppercase' }}
       mr={1}
     >

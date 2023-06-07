@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
 // IAMConfig is the IAM configurator config.
@@ -58,7 +59,11 @@ func (c *IAMConfig) Check() error {
 		return trace.BadParameter("missing AccessPoint")
 	}
 	if c.Clients == nil {
-		c.Clients = cloud.NewClients()
+		cloudClients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.Clients = cloudClients
 	}
 	if c.HostID == "" {
 		return trace.BadParameter("missing HostID")
@@ -83,11 +88,15 @@ type iamTask struct {
 // same policy. These tasks are processed in a background goroutine to avoid
 // blocking callers when acquiring the locks with retries.
 type IAM struct {
-	cfg         IAMConfig
-	log         logrus.FieldLogger
-	awsIdentity awslib.Identity
-	mu          sync.RWMutex
-	tasks       chan iamTask
+	cfg IAMConfig
+	log logrus.FieldLogger
+	// agentIdentity is the db agent's identity, as determined by
+	// shared config credential chain used to call AWS STS GetCallerIdentity.
+	// Use getAWSIdentity to get the correct identity for a database,
+	// which may have assume_role_arn set.
+	agentIdentity awslib.Identity
+	mu            sync.RWMutex
+	tasks         chan iamTask
 }
 
 // NewIAM returns a new IAM configurator service.
@@ -151,9 +160,18 @@ func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
 // isSetupRequiredForDatabase returns true if database type is supported.
 func (c *IAM) isSetupRequiredForDatabase(database types.Database) bool {
 	switch database.GetType() {
-	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy, types.DatabaseTypeRedshift:
+	case types.DatabaseTypeRDS,
+		types.DatabaseTypeRDSProxy,
+		types.DatabaseTypeRedshift:
 		return true
-
+	case types.DatabaseTypeElastiCache:
+		ok, err := iam.CheckElastiCacheSupportsIAMAuth(database)
+		if err != nil {
+			c.log.WithError(err).Debugf("Assuming database %s supports IAM auth.",
+				database.GetName())
+			return true
+		}
+		return ok
 	default:
 		return false
 	}
@@ -161,7 +179,7 @@ func (c *IAM) isSetupRequiredForDatabase(database types.Database) bool {
 
 // getAWSConfigurator returns configurator instance for the provided database.
 func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (*awsClient, error) {
-	identity, err := c.getAWSIdentity(ctx)
+	identity, err := c.getAWSIdentity(ctx, database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -177,15 +195,23 @@ func (c *IAM) getAWSConfigurator(ctx context.Context, database types.Database) (
 	})
 }
 
-// getAWSIdentity returns this process' AWS identity.
-func (c *IAM) getAWSIdentity(ctx context.Context) (awslib.Identity, error) {
+// getAWSIdentity returns the identity used to access the given database,
+// that is either the agent's identity or the database's configured assume-role.
+func (c *IAM) getAWSIdentity(ctx context.Context, database types.Database) (awslib.Identity, error) {
+	meta := database.GetAWS()
+	if meta.AssumeRoleARN != "" {
+		// If the database has an assume role ARN, use that instead of
+		// agent identity. This avoids an unnecessary sts call too.
+		return awslib.IdentityFromArn(meta.AssumeRoleARN)
+	}
+
 	c.mu.RLock()
-	if c.awsIdentity != nil {
+	if c.agentIdentity != nil {
 		defer c.mu.RUnlock()
-		return c.awsIdentity, nil
+		return c.agentIdentity, nil
 	}
 	c.mu.RUnlock()
-	sts, err := c.cfg.Clients.GetAWSSTSClient("")
+	sts, err := c.cfg.Clients.GetAWSSTSClient(ctx, meta.Region)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -195,8 +221,8 @@ func (c *IAM) getAWSIdentity(ctx context.Context) (awslib.Identity, error) {
 	}
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	c.awsIdentity = awsIdentity
-	return c.awsIdentity, nil
+	c.agentIdentity = awsIdentity
+	return c.agentIdentity, nil
 }
 
 // getPolicyName returns the inline policy name.
@@ -239,6 +265,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 			SemaphoreKind: configurator.cfg.policyName,
 			SemaphoreName: configurator.cfg.identity.GetName(),
 			MaxLeases:     1,
+			Holder:        c.cfg.HostID,
 
 			// If the semaphore fails to release for some reason, it will expire in a
 			// minute on its own.

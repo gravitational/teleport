@@ -52,6 +52,8 @@ const (
 	kubeDirSuffix = "-kube"
 	// kubeConfigSuffix is the suffix of a kubeconfig file stored under the keys directory.
 	kubeConfigSuffix = "-kubeconfig"
+	// fileNameKubeCredLock is file name of lockfile used to prevent excessive login attempts.
+	fileNameKubeCredLock = "kube_credentials.lock"
 	// casDir is the directory name for where clusters certs are stored.
 	casDir = "cas"
 	// fileExtPem is the extension of a file where a public certificate is stored.
@@ -60,6 +62,8 @@ const (
 	currentProfileFilename = "current-profile"
 	// profileFileExt is the suffix of a profile file.
 	profileFileExt = ".yaml"
+	// oracleWalletDirSuffix is the suffix of the oracle wallet database directory.
+	oracleWalletDirSuffix = "-wallet"
 )
 
 // Here's the file layout of all these keypaths.
@@ -74,29 +78,33 @@ const (
 //    │   ├── foo                      --> Private Key for user "foo"
 //    │   ├── foo.pub                  --> Public Key
 //    │   ├── foo.ppk                  --> PuTTY PPK-formatted keypair for user "foo"
+//    │   ├── kube_credentials.lock    --> Kube credential lockfile, used to prevent excessive relogin attempts
 //    │   ├── foo-x509.pem             --> TLS client certificate for Auth Server
 //    │   ├── foo-ssh                  --> SSH certs for user "foo"
 //    │   │   ├── root-cert.pub        --> SSH cert for Teleport cluster "root"
 //    │   │   └── leaf-cert.pub        --> SSH cert for Teleport cluster "leaf"
-//    │   ├── foo-app                  --> Database access certs for user "foo"
-//    │   │   ├── root                 --> Database access certs for cluster "root"
+//    │   ├── foo-app                  --> App access certs for user "foo"
+//    │   │   ├── root                 --> App access certs for cluster "root"
 //    │   │   │   ├── appA-x509.pem    --> TLS cert for app service "appA"
 //    │   │   │   └── appB-x509.pem    --> TLS cert for app service "appB"
 //    │   │   │   └── appB-localca.pem --> Self-signed localhost CA cert for app service "appB"
-//    │   │   └── leaf                 --> Database access certs for cluster "leaf"
-//    │   │       └── appC-x509.pem    --> TLS cert for app service "appC"
-//    │   ├── foo-db                   --> App access certs for user "foo"
-//    │   │   ├── root                 --> App access certs for cluster "root"
-//    │   │   │   ├── dbA-x509.pem     --> TLS cert for database service "dbA"
-//    │   │   │   └── dbB-x509.pem     --> TLS cert for database service "dbB"
 //    │   │   └── leaf                 --> App access certs for cluster "leaf"
-//    │   │       └── dbC-x509.pem     --> TLS cert for database service "dbC"
+//    │   │       └── appC-x509.pem    --> TLS cert for app service "appC"
+//    │   ├── foo-db                   --> Database access certs for user "foo"
+//    │   │   ├── root                 --> Database access certs for cluster "root"
+//    │   │   │   ├── dbA-x509.pem     --> TLS cert for database service "dbA"
+//    │   │   │   ├── dbB-x509.pem     --> TLS cert for database service "dbB"
+//    │   │   │   └── dbC-wallet       --> Oracle Client wallet Configuration directory.
+//    │   │   ├── leaf                 --> Database access certs for cluster "leaf"
+//    │   │   │   └── dbC-x509.pem     --> TLS cert for database service "dbC"
+//    │   │   └── proxy-localca.pem    --> Self-signed TLS Routing local proxy CA
 //    │   ├── foo-kube                 --> Kubernetes certs for user "foo"
 //    │   |    ├── root                 --> Kubernetes certs for Teleport cluster "root"
 //    │   |    │   ├── kubeA-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeA"
 //    │   |    │   ├── kubeA-x509.pem   --> TLS cert for Kubernetes cluster "kubeA"
 //    │   |    │   ├── kubeB-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeB"
-//    │   |    │   └── kubeB-x509.pem   --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |    │   ├── kubeB-x509.pem   --> TLS cert for Kubernetes cluster "kubeB"
+//    │   |    │   └── localca.pem      --> Self-signed localhost CA cert for Teleport cluster "root"
 //    │   |    └── leaf                 --> Kubernetes certs for Teleport cluster "leaf"
 //    │   |        ├── kubeC-kubeconfig --> standalone kubeconfig for Kubernetes cluster "kubeC"
 //    │   |        └── kubeC-x509.pem   --> TLS cert for Kubernetes cluster "kubeC"
@@ -267,6 +275,13 @@ func DatabaseCertPath(baseDir, proxy, username, cluster, dbname string) string {
 	return filepath.Join(DatabaseCertDir(baseDir, proxy, username, cluster), dbname+fileExtTLSCert)
 }
 
+// DatabaseOracleWalletDirectory returns the path to the user's Oracle Wallet configuration directory.
+// for the given proxy, cluster and database.
+// <baseDir>/keys/<proxy>/<username>-db/<cluster>/dbname-wallet/
+func DatabaseOracleWalletDirectory(baseDir, proxy, username, cluster, dbname string) string {
+	return filepath.Join(DatabaseCertDir(baseDir, proxy, username, cluster), dbname+oracleWalletDirSuffix)
+}
+
 // KubeDir returns the path to the user's kube directory
 // for the given proxy.
 //
@@ -297,6 +312,13 @@ func KubeCertPath(baseDir, proxy, username, cluster, kubename string) string {
 // <baseDir>/keys/<proxy>/<username>-kube/<cluster>/<kubename>-kubeconfig
 func KubeConfigPath(baseDir, proxy, username, cluster, kubename string) string {
 	return filepath.Join(KubeCertDir(baseDir, proxy, username, cluster), kubename+kubeConfigSuffix)
+}
+
+// KubeCredLockfilePath returns the kube credentials lock file for given proxy
+//
+// <baseDir>/keys/<proxy>/kube_credentials.lock
+func KubeCredLockfilePath(baseDir, proxy string) string {
+	return filepath.Join(ProxyKeyDir(baseDir, proxy), fileNameKubeCredLock)
 }
 
 // IsProfileKubeConfigPath makes a best effort attempt to check if the given

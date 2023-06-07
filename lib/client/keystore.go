@@ -17,6 +17,8 @@ limitations under the License.
 package client
 
 import (
+	"errors"
+	iofs "io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -122,6 +124,11 @@ func (fs *FSKeyStore) ppkFilePath(idx KeyIndex) string {
 	return keypaths.PPKFilePath(fs.KeyDir, idx.ProxyHost, idx.Username)
 }
 
+// kubeCredLockfilePath returns kube credentials lockfile path for the given KeyIndex.
+func (fs *FSKeyStore) kubeCredLockfilePath(idx KeyIndex) string {
+	return keypaths.KubeCredLockfilePath(fs.KeyDir, idx.ProxyHost)
+}
+
 // publicKeyPath returns the public key path for the given KeyIndex.
 func (fs *FSKeyStore) publicKeyPath(idx KeyIndex) string {
 	return keypaths.PublicKeyPath(fs.KeyDir, idx.ProxyHost, idx.Username)
@@ -160,17 +167,19 @@ func (fs *FSKeyStore) AddKey(key *Key) error {
 	if err := fs.writeBytes(key.TLSCert, fs.tlsCertPath(key.KeyIndex)); err != nil {
 		return trace.Wrap(err)
 	}
+
+	// We only generate PPK files for use by PuTTY when running tsh on Windows.
 	if runtime.GOOS == constants.WindowsOS {
 		ppkFile, err := key.PPKFile()
-		if err == nil {
+		// PPKFile can only be generated from an RSA private key. If the key is in a different
+		// format, a BadParameter error is returned and we can skip PPK generation.
+		if err != nil && !trace.IsBadParameter(err) {
+			fs.log.Debugf("Cannot convert private key to PPK-formatted keypair: %v", err)
+		} else {
 			if err := fs.writeBytes(ppkFile, fs.ppkFilePath(key.KeyIndex)); err != nil {
 				return trace.Wrap(err)
 			}
-		} else if !trace.IsBadParameter(err) {
-			return trace.Wrap(err)
 		}
-		// PPKFile can only be generated from an RSA private key.
-		fs.log.WithError(err).Debugf("Cannot convert private key to PPK-formatted keypair.")
 	}
 
 	// Store per-cluster key data.
@@ -234,7 +243,13 @@ func (fs *FSKeyStore) DeleteKey(idx KeyIndex) error {
 	// but it may not exist when upgrading from v9 -> v10 and logging into an existing cluster.
 	// as such, deletion should be best-effort and not generate an error if it fails.
 	if runtime.GOOS == constants.WindowsOS {
-		os.Remove(fs.ppkFilePath(idx))
+		_ = os.Remove(fs.ppkFilePath(idx))
+	}
+
+	// And try to delete kube credentials lockfile in case it exists
+	err := os.Remove(fs.kubeCredLockfilePath(idx))
+	if err != nil && !errors.Is(err, iofs.ErrNotExist) {
+		log.Debugf("Could not remove kube credentials file: %v", err)
 	}
 
 	// Clear ClusterName to delete the user certs stored for all clusters.

@@ -88,7 +88,10 @@ func (s *HandlerConfig) CheckAndSetDefaults() error {
 		s.Log = logrus.WithField(trace.Component, "gcp:fwd")
 	}
 	if s.cloudClientGCP == nil {
-		clients := cloud.NewClients()
+		clients, err := cloud.NewClients()
+		if err != nil {
+			return trace.Wrap(err)
+		}
 		s.cloudClientGCP = &cloudClientGCPImpl[*gcpcredentials.IamCredentialsClient]{getGCPIAMClient: clients.GetGCPIAMClient}
 	}
 	return nil

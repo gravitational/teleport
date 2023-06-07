@@ -67,12 +67,12 @@ function getTestSetup({ documents }: { documents: Document[] }) {
     // @ts-expect-error we don't provide entire config
     getShortcutsConfig() {
       return {
-        'tab-close': 'Command-W',
-        'tab-new': 'Command-T',
-        'open-quick-input': 'Command-K',
-        'toggle-connections': 'Command-P',
-        'toggle-clusters': 'Command-E',
-        'toggle-identity': 'Command-I',
+        closeTab: 'Command-W',
+        newTab: 'Command-T',
+        openSearchBar: 'Command-K',
+        openConnections: 'Command-P',
+        openClusters: 'Command-E',
+        openProfiles: 'Command-I',
       };
     },
   };
