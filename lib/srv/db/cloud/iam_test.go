@@ -138,7 +138,7 @@ func TestAWSIAM(t *testing.T) {
 			require.Fail(t, "Failed to wait for task is processed")
 		}
 	}
-	assumedRole := services.AssumeRole{
+	assumedRole := types.AssumeRole{
 		RoleARN:    "arn:aws:iam::123456789012:role/role-to-assume",
 		ExternalID: "externalid123",
 	}
@@ -210,7 +210,7 @@ func TestAWSIAM(t *testing.T) {
 	}
 
 	for testName, tt := range tests {
-		for _, assumeRole := range []services.AssumeRole{{}, assumedRole} {
+		for _, assumeRole := range []types.AssumeRole{{}, assumedRole} {
 			getRolePolicyInput := &iam.GetRolePolicyInput{
 				RoleName:   aws.String("test-role"),
 				PolicyName: aws.String(policyName),

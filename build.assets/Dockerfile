@@ -1,20 +1,16 @@
 # This Dockerfile makes the "build box" the container used to:
-# * build Teleport Connect
 # * run test and linters in CI
 # * building other Docker images
 #
 # For Teleport releases we're using CentOS 7 box to keep the binaries compatible
 # with older Linux distributions (glibc 2.17+).
 #
-# This image uses Ubuntu 20.04 as a base as Connect links against glibc and
-# we want to keep the required version as low as possible.
-#
 # Check the README to learn how to safely introduce changes to Dockerfiles.
 
 ## LIBFIDO2 ###################################################################
 
 # Build libfido2 separately for isolation, speed and flexibility.
-FROM buildpack-deps:20.04 AS libfido2
+FROM buildpack-deps:22.04 AS libfido2
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends cmake && \
@@ -66,7 +62,7 @@ RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.13.0 && \
 
 ## LIBBPF #####################################################################
 
-FROM buildpack-deps:20.04 AS libbpf
+FROM buildpack-deps:22.04 AS libbpf
 
 # Install required dependencies
 RUN apt-get update -y --fix-missing && \
@@ -98,7 +94,7 @@ RUN mkdir -p /opt && cd /opt &&  \
 # 4. Fast, language-dependent dependencies
 # 5. Multi-stage layer copies
 
-FROM ubuntu:20.04 AS buildbox
+FROM ubuntu:22.04 AS buildbox
 
 COPY locale.gen /etc/locale.gen
 COPY profile /etc/profile
@@ -150,8 +146,6 @@ RUN apt-get -y update && \
         python3-setuptools \
         python3-wheel \
         pkg-config \
-        # Used during tag builds to build the RPM package of Connect.
-        rpm \
         softhsm2 \
         sudo \
         tree \
