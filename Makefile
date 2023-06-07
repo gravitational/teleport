@@ -675,13 +675,13 @@ helmunit/installed:
 # environment variable.
 .PHONY: test-helm
 test-helm: helmunit/installed
-	helm unittest -3 examples/chart/teleport-cluster
-	helm unittest -3 examples/chart/teleport-kube-agent
+	helm unittest examples/chart/teleport-cluster
+	helm unittest examples/chart/teleport-kube-agent
 
 .PHONY: test-helm-update-snapshots
 test-helm-update-snapshots: helmunit/installed
-	helm unittest -3 -u examples/chart/teleport-cluster
-	helm unittest -3 -u examples/chart/teleport-kube-agent
+	helm unittest -u examples/chart/teleport-cluster
+	helm unittest -u examples/chart/teleport-kube-agent
 
 #
 # Runs all Go tests except integration, called by CI/CD.
