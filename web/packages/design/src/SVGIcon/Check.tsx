@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,12 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export const KeysEnum = {
-  TOKEN: 'grv_teleport_token',
-  TOKEN_RENEW: 'grv_teleport_token_renew',
-  LAST_ACTIVE: 'grv_teleport_last_active',
-  DISCOVER: 'grv_teleport_discover',
-  THEME: 'grv_teleport_ui_theme',
-  SHOW_ASSIST_POPUP: 'grv_teleport_show_assist',
-  ASSIST_VIEW_MODE: 'grv_teleport_assist_view_mode',
-};
+import React from 'react';
+
+import { SVGIcon } from './SVGIcon';
+
+import type { SVGIconProps } from './common';
+
+export function CheckIcon({ size = 32, fill }: SVGIconProps) {
+  return (
+    <SVGIcon fill={fill} size={size} viewBox="0 0 32 32">
+      <path d="M27 4 12 19l-7-7-5 5 12 12L32 9z" />
+    </SVGIcon>
+  );
+}

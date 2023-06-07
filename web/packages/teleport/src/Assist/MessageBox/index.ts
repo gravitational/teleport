@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export { MiniAssist as default } from './MiniAssist';
+export { MessageBox } from './MessageBox';
