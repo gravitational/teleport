@@ -96,5 +96,5 @@ func (o KubernetesOutput) MarshalYAML() (interface{}, error) {
 }
 
 func (o *KubernetesOutput) String() string {
-	return fmt.Sprintf("%s (%s)", KubernetesOutputType, o.Common.Destination)
+	return fmt.Sprintf("%s (%s)", KubernetesOutputType, o.GetDestination())
 }

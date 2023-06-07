@@ -94,5 +94,5 @@ func (o SSHHostOutput) MarshalYAML() (interface{}, error) {
 }
 
 func (o *SSHHostOutput) String() string {
-	return fmt.Sprintf("%s (%s)", SSHHostOutputType, o.Common.Destination)
+	return fmt.Sprintf("%s (%s)", SSHHostOutputType, o.GetDestination())
 }

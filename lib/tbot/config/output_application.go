@@ -102,5 +102,5 @@ func (o ApplicationOutput) MarshalYAML() (interface{}, error) {
 }
 
 func (o *ApplicationOutput) String() string {
-	return fmt.Sprintf("%s (%s)", ApplicationOutputType, o.Common.Destination)
+	return fmt.Sprintf("%s (%s)", ApplicationOutputType, o.GetDestination())
 }

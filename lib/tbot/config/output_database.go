@@ -149,5 +149,5 @@ func (o DatabaseOutput) MarshalYAML() (interface{}, error) {
 }
 
 func (o *DatabaseOutput) String() string {
-	return fmt.Sprintf("%s (%s)", DatabaseOutputType, o.Common.Destination)
+	return fmt.Sprintf("%s (%s)", DatabaseOutputType, o.GetDestination())
 }

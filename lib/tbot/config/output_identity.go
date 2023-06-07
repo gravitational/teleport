@@ -121,5 +121,5 @@ func (o IdentityOutput) MarshalYAML() (interface{}, error) {
 }
 
 func (o *IdentityOutput) String() string {
-	return fmt.Sprintf("%s (%s)", IdentityOutputType, o.Common.Destination)
+	return fmt.Sprintf("%s (%s)", IdentityOutputType, o.GetDestination())
 }
