@@ -114,7 +114,7 @@ require (
 	github.com/miekg/pkcs11 v1.1.1
 	github.com/mitchellh/mapstructure v1.5.0
 	github.com/moby/term v0.5.0
-	github.com/okta/okta-sdk-golang/v2 v2.18.0
+	github.com/okta/okta-sdk-golang/v2 v2.19.0
 	github.com/opensearch-project/opensearch-go/v2 v2.3.0
 	github.com/pavlo-v-chernykh/keystore-go/v4 v4.4.1
 	github.com/pelletier/go-toml v1.9.5
