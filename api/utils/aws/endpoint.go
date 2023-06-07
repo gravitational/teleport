@@ -352,6 +352,13 @@ const (
 	MemoryDBClusterEndpoint = "cluster"
 	// MemoryDBNodeEndpoint is the endpoint of an individual MemoryDB node.
 	MemoryDBNodeEndpoint = "node"
+
+	// OpenSearchDefaultEndpoint is the default endpoint for domain.
+	OpenSearchDefaultEndpoint = "default"
+	// OpenSearchCustomEndpoint is the custom endpoint configured for domain.
+	OpenSearchCustomEndpoint = "custom"
+	// OpenSearchVPCEndpoint is the VPC endpoint for domain.
+	OpenSearchVPCEndpoint = "vpc"
 )
 
 // ParseElastiCacheEndpoint extracts the details from the provided
