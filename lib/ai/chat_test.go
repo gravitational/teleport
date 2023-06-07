@@ -23,6 +23,7 @@ import (
 	"testing"
 
 	"github.com/sashabaranov/go-openai"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/tiktoken-go/tokenizer/codec"
 )
@@ -107,11 +108,12 @@ func TestChat_Complete(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 
-		require.GreaterOrEqual(t, len(responses), 1, "Unexpected request")
+		// Use assert as require doesn't work when called from a goroutine
+		assert.GreaterOrEqual(t, len(responses), 1, "Unexpected request")
 		dataBytes := responses[0]
 
 		_, err := w.Write(dataBytes)
-		require.NoError(t, err, "Write error")
+		assert.NoError(t, err, "Write error")
 
 		responses = responses[1:]
 	}))
