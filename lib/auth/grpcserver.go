@@ -386,6 +386,13 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return watcher.Error()
 		case event := <-watcher.Events():
+			if role, ok := event.Resource.(*types.RoleV6); ok {
+				downgraded, err := maybeDowngradeRole(stream.Context(), role)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				event.Resource = downgraded
+			}
 			out, err := client.EventToGRPC(event)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1974,6 +1981,71 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *proto.
 	return &emptypb.Empty{}, nil
 }
 
+// maybeDowngradeRole tests the client version passed through the GRPC metadata,
+// and if the client version is unknown or less than the minimum supported
+// version for some features of the role returns a shallow copy of the given
+// role downgraded for compatibility with the older version.
+func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6, error) {
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		// This client is not reporting its version via gRPC metadata. Teleport
+		// clients have been reporting their version for long enough that older
+		// clients won't even support v6 roles at all, so this is likely a
+		// third-party client, and we shouldn't assume that downgrading the role
+		// will do more good than harm.
+		return role, nil
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+	}
+
+	role, err = maybeDowngradeRoleLabelExpressions(ctx, role, clientVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return role, nil
+}
+
+var minSupportedLabelExpressionVersion = semver.Version{Major: 13, Minor: 2}
+
+func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) (*types.RoleV6, error) {
+	if !clientVersion.LessThan(minSupportedLabelExpressionVersion) {
+		return role, nil
+	}
+	hasLabelExpression := false
+	for _, kind := range types.LabelMatcherKinds {
+		allowLabelMatchers, err := role.GetLabelMatchers(types.Allow, kind)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		denyLabelMatchers, err := role.GetLabelMatchers(types.Deny, kind)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(allowLabelMatchers.Expression) == 0 && len(denyLabelMatchers.Expression) == 0 {
+			continue
+		}
+		hasLabelExpression = true
+		denyLabelMatchers.Labels = types.Labels{types.Wildcard: {types.Wildcard}}
+		role.SetLabelMatchers(types.Deny, kind, denyLabelMatchers)
+	}
+	if hasLabelExpression {
+		reason := fmt.Sprintf(
+			"client version %q does not support label expressions, wildcard deny labels have been added for all resource kinds with configured label expressions",
+			clientVersion)
+		if role.Metadata.Labels == nil {
+			role.Metadata.Labels = make(map[string]string, 1)
+		}
+		role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+		log.Debugf(`Downgrading role %q before returning it to the client: %s`,
+			role.GetName(), reason)
+	}
+	return role, nil
+}
+
 // GetRole retrieves a role by name.
 func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
@@ -1989,7 +2061,12 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 		return nil, trace.Errorf("encountered unexpected role type: %T", role)
 	}
 
-	return roleV6, nil
+	downgraded, err := maybeDowngradeRole(ctx, roleV6)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return downgraded, nil
 }
 
 // GetRoles retrieves all roles.
@@ -2008,7 +2085,11 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*proto.Get
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", r)
 		}
-		rolesV6 = append(rolesV6, role)
+		downgraded, err := maybeDowngradeRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		rolesV6 = append(rolesV6, downgraded)
 	}
 	return &proto.GetRolesResponse{
 		Roles: rolesV6,

@@ -1641,3 +1641,17 @@ func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatch
 	}
 	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
 }
+
+// LabelMatcherKinds is the complete list of resource kinds that support label
+// matchers.
+var LabelMatcherKinds = []string{
+	KindRemoteCluster,
+	KindNode,
+	KindKubernetesCluster,
+	KindApp,
+	KindDatabase,
+	KindDatabaseService,
+	KindWindowsDesktop,
+	KindWindowsDesktopService,
+	KindUserGroup,
+}
