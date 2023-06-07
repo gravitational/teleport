@@ -3577,6 +3577,7 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 		Name: "dynamodb",
 	}, types.DatabaseSpecV3{
 		Protocol: "dynamodb",
+		URI:      "test.xxxxxxx.mongodb.net",
 		AWS: types.AWS{
 			AccountID: "123456789012",
 			Region:    "us-east-1",
@@ -3597,6 +3598,36 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 			},
 		},
 	}
+
+	roleWithUsersAndAWSRoles := &types.RoleV6{
+		Metadata: types.Metadata{Name: "users-and-aws-roles", Namespace: apidefaults.Namespace},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Namespaces:     []string{apidefaults.Namespace},
+				DatabaseLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+				DatabaseUsers: []string{
+					"regular-user",
+					"role/allow-role-with-partial-arn",
+					"arn:aws:iam::123456789012:role/allow-role-with-full-arn",
+				},
+			},
+		},
+	}
+	dbSupportAWSRoles, err := types.NewDatabaseV3(types.Metadata{
+		Name: "mongo-atlas",
+	}, types.DatabaseSpecV3{
+		Protocol: "mongodb",
+		URI:      "test.xxxxxxx.mongodb.net",
+		MongoAtlas: types.MongoAtlas{
+			Name: "instance",
+		},
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			Region:    "us-east-1",
+		},
+	})
+	require.NoError(t, err)
+	require.True(t, dbSupportAWSRoles.SupportAWSIAMRoleARNAsUsers())
 
 	type access struct {
 		server types.Database
@@ -3639,15 +3670,32 @@ func TestCheckAccessToDatabaseUser(t *testing.T) {
 				{server: dbRequireAWSRoles, dbUser: "arn:aws-cn:iam::123456789012:role/allow-role-with-short-name", access: false},
 			},
 		},
+		{
+			name:  "database types support AWS roles and regular users",
+			roles: RoleSet{roleWithUsersAndAWSRoles},
+			access: []access{
+				{server: dbSupportAWSRoles, dbUser: "role/allow-role-with-partial-arn", access: true},
+				{server: dbSupportAWSRoles, dbUser: "arn:aws:iam::123456789012:role/allow-role-with-partial-arn", access: true},
+				{server: dbSupportAWSRoles, dbUser: "role/unknown-role", access: false},
+				{server: dbSupportAWSRoles, dbUser: "allow-role-with-partial-arn", access: false},
+				{server: dbSupportAWSRoles, dbUser: "arn:aws:iam::123456789012:role/allow-role-with-full-arn", access: true},
+				{server: dbSupportAWSRoles, dbUser: "role/allow-role-with-full-arn", access: true},
+				{server: dbSupportAWSRoles, dbUser: "arn:aws:iam::123456789012:role/unknown-role", access: false},
+				{server: dbSupportAWSRoles, dbUser: "regular-user", access: true},
+				{server: dbSupportAWSRoles, dbUser: "role/regular-user", access: false},
+				{server: dbSupportAWSRoles, dbUser: "arn:aws:iam::123456789012:role/regular-user", access: false},
+				{server: dbSupportAWSRoles, dbUser: "unknown-user", access: false},
+			},
+		},
 	}
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			for _, access := range tc.access {
 				err := tc.roles.checkAccess(access.server, AccessState{}, NewDatabaseUserMatcher(access.server, access.dbUser))
 				if access.access {
-					require.NoError(t, err)
+					require.NoError(t, err, "access check shouldn't have failed for username %q", access.dbUser)
 				} else {
-					require.Error(t, err)
+					require.Error(t, err, "access check should have failed for username %q", access.dbUser)
 					require.True(t, trace.IsAccessDenied(err))
 				}
 			}
