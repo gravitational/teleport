@@ -271,7 +271,7 @@ has been locked due to a certificate generation mismatch, possibly indicating a 
 In order to resolve this issue, remove any Teleport Kubernetes Operator sidecars connecting to the shared backend that are not in the same
 Kubernetes cluster or namespace.  Then redeploy the Auth Server pods.  When the operator starts, it deletes the cached information and recreates all required resources.
 
-### Teleport Resource Name is Invalid with the Operator
+### Teleport resource name is invalid with the Operator
 
 Kubernetes enforces all custom resource names to follow RFC 1123.  If attempting to create a resource using the operator with a name that is invalid, you will
 observe an error message similar to:
