@@ -1717,6 +1717,46 @@ func (m *mockResourceLister) ListResources(ctx context.Context, _ proto.ListReso
 	}, nil
 }
 
+func TestDetailsID(t *testing.T) {
+	clusterName := "cluster"
+
+	tests := []struct {
+		name       string
+		resourceID types.ResourceID
+		expected   string
+	}{
+		{
+			name:       "no translation",
+			resourceID: newResourceID(clusterName, types.KindCertAuthority, "ca"),
+			expected:   types.ResourceIDToString(newResourceID(clusterName, types.KindCertAuthority, "ca")),
+		},
+		{
+			name:       "app server",
+			resourceID: newResourceID(clusterName, types.KindAppServer, "app"),
+			expected:   types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app")),
+		},
+		{
+			name:       "database server",
+			resourceID: newResourceID(clusterName, types.KindDatabaseServer, "db"),
+			expected:   types.ResourceIDToString(newResourceID(clusterName, types.KindDatabase, "db")),
+		},
+		{
+			name:       "database server",
+			resourceID: newResourceID(clusterName, types.KindKubeServer, "kube"),
+			expected:   types.ResourceIDToString(newResourceID(clusterName, types.KindKubernetesCluster, "kube")),
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			require.Equal(t, test.expected, DetailsID(test.resourceID))
+		})
+	}
+}
+
 func TestGetResourceDetails(t *testing.T) {
 	clusterName := "cluster"
 
