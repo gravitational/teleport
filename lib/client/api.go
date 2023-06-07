@@ -430,6 +430,21 @@ type Config struct {
 
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	PROXYSigner multiplexer.PROXYHeaderSigner
+
+	// DTAuthnRunCeremony allows tests to override the default device
+	// authentication function.
+	// Defaults to [dtauthn.NewCeremony().Run].
+	DTAuthnRunCeremony DTAuthnRunCeremonyFunc
+
+	// dtAttemptLoginIgnorePing and dtAutoEnrollIgnorePing allow Device Trust
+	// tests to ignore Ping responses.
+	// Useful to force flows that only typically happen on Teleport Enterprise.
+	dtAttemptLoginIgnorePing, dtAutoEnrollIgnorePing bool
+
+	// dtAutoEnroll allows tests to override the default device auto-enroll
+	// function.
+	// Defaults to [dtenroll.AutoEnroll].
+	dtAutoEnroll dtAutoEnrollFunc
 }
 
 // CachePolicy defines cache policy for local clients
@@ -942,8 +957,8 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 	}
 }
 
-// dtAuthnRunCeremonyFunc matches the signature of [dtauthn.RunCeremony].
-type dtAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
+// DTAuthnRunCeremonyFunc matches the signature of [dtauthn.RunCeremony].
+type DTAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
 
 // dtAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
 type dtAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (*devicepb.Device, error)
@@ -966,21 +981,6 @@ type TeleportClient struct {
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
-
-	// dtAttemptLoginIgnorePing and dtAutoEnrollIgnorePing allow Device Trust
-	// tests to ignore Ping responses.
-	// Useful to force flows that only typically happen on Teleport Enterprise.
-	dtAttemptLoginIgnorePing, dtAutoEnrollIgnorePing bool
-
-	// dtAuthnRunCeremony allows tests to override the default device
-	// authentication function.
-	// Defaults to [dtauthn.NewCeremony().Run].
-	dtAuthnRunCeremony dtAuthnRunCeremonyFunc
-
-	// dtAutoEnroll allows tests to override the default device auto-enroll
-	// function.
-	// Defaults to [dtenroll.AutoEnroll].
-	dtAutoEnroll dtAutoEnrollFunc
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -3179,15 +3179,11 @@ func (g *proxyClusterGuesser) authMethod(ctx context.Context) ssh.AuthMethod {
 // profile.
 func (tc *TeleportClient) WithoutJumpHosts(fn func(tcNoJump *TeleportClient) error) error {
 	tcNoJump := &TeleportClient{
-		Config:                   tc.Config,
-		localAgent:               tc.localAgent,
-		OnShellCreated:           tc.OnShellCreated,
-		eventsCh:                 make(chan events.EventFields, 1024),
-		lastPing:                 tc.lastPing,
-		dtAttemptLoginIgnorePing: tc.dtAttemptLoginIgnorePing,
-		dtAutoEnrollIgnorePing:   tc.dtAutoEnrollIgnorePing,
-		dtAuthnRunCeremony:       tc.dtAuthnRunCeremony,
-		dtAutoEnroll:             tc.dtAutoEnroll,
+		Config:         tc.Config,
+		localAgent:     tc.localAgent,
+		OnShellCreated: tc.OnShellCreated,
+		eventsCh:       make(chan events.EventFields, 1024),
+		lastPing:       tc.lastPing,
 	}
 	tcNoJump.JumpHosts = nil
 
@@ -3410,7 +3406,7 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	defer authClient.Close()
 
 	// Allow tests to override the default authn function.
-	runCeremony := tc.dtAuthnRunCeremony
+	runCeremony := tc.DTAuthnRunCeremony
 	if runCeremony == nil {
 		runCeremony = dtauthn.NewCeremony().Run
 	}

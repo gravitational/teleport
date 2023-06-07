@@ -24,8 +24,8 @@ func (tc *TeleportClient) SetDTAutoEnrollIgnorePing(val bool) {
 	tc.dtAutoEnrollIgnorePing = val
 }
 
-func (tc *TeleportClient) SetDTAuthnRunCeremony(fn dtAuthnRunCeremonyFunc) {
-	tc.dtAuthnRunCeremony = fn
+func (tc *TeleportClient) SetDTAuthnRunCeremony(fn DTAuthnRunCeremonyFunc) {
+	tc.DTAuthnRunCeremony = fn
 }
 
 func (tc *TeleportClient) SetDTAutoEnroll(fn dtAutoEnrollFunc) {
