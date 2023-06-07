@@ -1159,7 +1159,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: This part should be removed once the plugin support is added to OSS.
+	// TODO(jakule): This part should be removed once the plugin support is added to OSS.
 	if proxyConfig.AssistEnabled {
 		// TODO(jakule): Currently assist is disabled when per-session MFA is enabled as this part is not implemented.
 		authPreference, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
@@ -1382,12 +1382,23 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
-	if clusterFeatures.GetCloud() {
-		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
-		if err != nil {
-			h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
-		} else {
+	assistEnabled := false // TODO(jakule)
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
+	} else {
+		if clusterFeatures.GetCloud() {
 			tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
+		}
+		// TODO(jakule): This part should be removed once the plugin support is added to OSS.
+		if proxyConfig.AssistEnabled {
+			enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// disable if auth doesn't support assist
+			assistEnabled = enabled.Enabled
 		}
 	}
 
@@ -1409,6 +1420,8 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		UI:                   h.getUIConfig(r.Context()),
 		IsDashboard:          isDashboard(clusterFeatures),
 		IsUsageBasedBilling:  clusterFeatures.GetIsUsageBased(),
+		AutomaticUpgrades:    clusterFeatures.GetAutomaticUpgrades(),
+		AssistEnabled:        assistEnabled,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
