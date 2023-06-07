@@ -655,7 +655,6 @@ func FilterBootstrapResourcesByType(resources ...types.Resource) (filteredResour
 			filteredResources.LocalResources = append(filteredResources.LocalResources, r)
 		}
 	}
-
 	return
 }
 
