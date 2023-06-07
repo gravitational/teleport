@@ -5,6 +5,9 @@
   ],
   "enabledManagers": ["gomod", "cargo"],
   "reviewers": ["codingllama", "jentfoo", "rosstimothy", "zmb3"],
+  "branchConcurrentLimit": 10,
+  "prConcurrentLimit": 10,
+  "prHourlyLimit": 0,
   "packageRules": [
     {
       "matchManagers": ["gomod"],
