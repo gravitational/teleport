@@ -5,13 +5,9 @@ import {
   IntegrationEnrollEvent,
   userEventService,
 } from 'teleport/services/userEvent';
-import { Plugin } from 'teleport/services/integrations';
+import { Plugin, PluginKind } from 'teleport/services/integrations';
 
-import {
-  pluginMap,
-  PluginTypes,
-  pluginTypeToIntegrationEnrollKind,
-} from './plugins';
+import { pluginMap, pluginTypeToIntegrationEnrollKind } from './plugins';
 import { PluginEnrollSuccess } from './PluginEnrollSuccess';
 import { PluginEnrollFailedDialog } from './PluginEnrollFailedDialog';
 import { SubmittablePluginForm } from './SubmittablePluginForm';
@@ -37,7 +33,7 @@ type StaticPluginResponse = {
 export type PluginEnrollResponse = StaticPluginResponse | OAuthPluginResponse;
 
 export function PluginEnroll() {
-  const { type: selectedPluginType } = useParams<{ type: PluginTypes }>();
+  const { type: selectedPluginType } = useParams<{ type: PluginKind }>();
   const { search } = useLocation();
   const history = useHistory();
 

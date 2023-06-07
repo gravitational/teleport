@@ -4,6 +4,8 @@ import styled from 'styled-components';
 import { Text } from 'design';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
+import oktaIcon from 'design/assets/images/icons/okta.svg';
+import opsgenieIcon from 'design/assets/images/icons/opsgenie.svg';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import pagerdutyIcon from 'design/assets/images/icons/pagerduty.svg';
 import emailIcon from 'design/assets/images/icons/email.svg';
@@ -12,8 +14,11 @@ import discordIcon from 'design/assets/images/icons/discord.svg';
 import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
 import msteamsIcon from 'design/assets/images/icons/msteams.svg';
 import FieldInput from 'shared/components/FieldInput';
+import FieldSelect from 'shared/components/FieldSelect';
+import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent';
+import { PluginKind } from 'teleport/services/integrations';
 
 type Permission = {
   title: string;
@@ -34,23 +39,8 @@ export type EnrollSuccessResponse = {
   };
 };
 
-// PluginTypes represents the type of the plugin
-// and should be the same value as defined in the backend:
-// https://github.com/gravitational/teleport/blob/a410acef01e0023d41c18ca6b0a7b384d738bb32/api/types/plugin.go#L27
-export type PluginTypes =
-  | 'slack'
-  | 'pagerduty'
-  | 'email'
-  | 'jira'
-  | 'discord'
-  | 'mattermost'
-  | 'msteams'
-  | 'opsgenie'
-  | 'okta'
-  | 'jamf';
-
 export type PluginBase = {
-  type: PluginTypes;
+  type: PluginKind;
   name: string;
   icon: string;
   url: string;
@@ -129,7 +119,7 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
           <StyledFieldInput
             width="260px"
             label="Default channel"
-            name="fallback_channel"
+            name="fallback_channel" // must be the same name as expected by the backend as form value
             rule={requiredField('Default channel must be specified')}
             value={channel}
             onChange={e => setChannel(e.target.value)}
@@ -152,6 +142,179 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
           to channel <strong>{fallbackChannel}</strong> in your Slack workspace.
         </Text>
       );
+    },
+  },
+  {
+    type: 'okta',
+    name: 'Okta',
+    icon: oktaIcon, // TODO(lisa): update all these icons to SVGIcon for theme friendly
+    url: 'https://goteleport.com/docs/application-access/okta/guide/',
+    hosted: true,
+    fullName: 'Okta Integration',
+    Description: () => (
+      <Text>
+        Teleport provides an Okta Service that is responsible for dealing with
+        all interactions with Okta.
+      </Text>
+    ),
+    permissions: [
+      {
+        category: 'Synchronization',
+        permissions: [
+          {
+            title:
+              'Runs every 2 minutes, Okta Service will import both Okta applications and user groups into Teleport',
+          },
+        ],
+      },
+      {
+        category: 'User Access',
+        permissions: [
+          {
+            title: 'Longer lived permissions',
+          },
+          {
+            title:
+              'Grant access to Okta applications and user groups that users have access to within Teleport',
+          },
+        ],
+      },
+      {
+        category: 'Access Requests',
+        permissions: [
+          {
+            title: 'Short lived permissions',
+          },
+          {
+            title:
+              'Request temporary access to Okta applications and user groups',
+          },
+        ],
+      },
+    ],
+    FormMixin: () => {
+      const [url, setUrl] = useState('');
+      const [token, setToken] = useState('');
+      return (
+        <>
+          <FieldInput
+            width="500px"
+            label="Organization URL"
+            name="orgURL" // must be the same name as expected by the backend as form value
+            rule={requiredField('Organization URL Required')}
+            value={url}
+            onChange={e => setUrl(e.target.value)}
+            autoFocus
+            placeholder="examplecompanyname.okta.com"
+            toolTipContent="Okta organization URL are used for API communication"
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="API Token"
+            name="apiToken" // must be the same name as expected by the backend as form value
+            type="password"
+            rule={requiredField('API Token Required')}
+            value={token}
+            onChange={e => setToken(e.target.value)}
+            placeholder="00QCjAl4MlV-WPXM...0HmjFx-vbGua"
+            toolTipContent="Okta API tokens are used to authenticate requests to Okta APIs"
+          />
+        </>
+      );
+    },
+    NextSteps: () => {
+      return (
+        <Text typography="body1">
+          It may take a while before all applications and groups are synced to
+          Teleport.
+        </Text>
+      );
+    },
+  },
+  {
+    type: 'opsgenie',
+    name: 'OpsGenie',
+    icon: opsgenieIcon, // TODO(lisa): update all these icons to SVGIcon for theme friendly
+    url: 'https://goteleport.com/docs/application-access/okta/guide/',
+    hosted: true,
+    fullName: 'OpsGenie Alerts',
+    Description: () => (
+      <Text>
+        <p>
+          Integrating with OpsGenie allows Teleport access requests to show up
+          as alerts in the specified Opsgenie schedule.
+        </p>
+        <p>
+          You will need to provide an API key with the following permissions
+          'Read Access' and 'Create and Update Access'
+        </p>
+      </Text>
+    ),
+    permissions: [
+      {
+        category: 'Creating Alerts',
+        permissions: [
+          {
+            title: 'Create alerts for incoming access requests',
+          },
+        ],
+      },
+    ],
+    FormMixin: () => {
+      const [apiEndpoint, setApiEndpoint] = useState<Option>();
+      const [token, setToken] = useState('');
+      const [scheduleName, setScheduleName] = useState('');
+      return (
+        <>
+          <FieldSelect
+            width="250px"
+            label="API Endpoint"
+            name="apiEndpoint" // must be the same name as expected by the backend as form value
+            rule={requiredField('API Endpoint Required')}
+            value={apiEndpoint}
+            onChange={o => setApiEndpoint(o as Option)}
+            autoFocus
+            options={[
+              {
+                value: 'https://api.opsgenie.com',
+                label: 'https://api.opsgenie.com',
+              },
+              {
+                value: 'https://api.eu.opsgenie.com',
+                label: 'https://api.eu.opsgenie.com',
+              },
+            ]}
+            placeholder="Select a API Endpoint"
+            isSearchable
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="API Key"
+            name="apiKey" // must be the same name as expected by the backend as form value
+            rule={requiredField('API Key Required')}
+            value={token}
+            type="password"
+            onChange={e => setToken(e.target.value)}
+            placeholder="abc-def...-123"
+            toolTipContent="API Key is used to request to Opsgenie REST API and requires the permissons: 'Read Access' and 'Create and Update Access'"
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="Default Schedule Name (Optional)"
+            name="scheduleName" // must be the same name as expected by the backend as form value
+            value={scheduleName}
+            onChange={e => setScheduleName(e.target.value)}
+            placeholder="schedule name"
+            toolTipContent="The name of schedule that will receive alerts"
+          />
+        </>
+      );
+    },
+    NextSteps: () => {
+      return null; // TODO(lisa): help with next step blurb, empty for now
     },
   },
   {
@@ -218,7 +381,7 @@ const StyledFieldInput = styled(FieldInput)`
   }
 `;
 
-export function pluginTypeToIntegrationEnrollKind(p: PluginTypes) {
+export function pluginTypeToIntegrationEnrollKind(p: PluginKind) {
   switch (p) {
     case 'discord':
       return IntegrationEnrollKind.Discord;

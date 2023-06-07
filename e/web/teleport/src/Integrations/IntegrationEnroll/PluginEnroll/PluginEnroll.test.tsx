@@ -7,9 +7,9 @@ import {
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
+import { PluginKind } from 'teleport/services/integrations';
 
 import { PluginEnroll } from './PluginEnroll';
-import { PluginTypes } from './plugins';
 
 describe('slack PluginEnroll.tsx', () => {
   beforeEach(() => {
@@ -81,7 +81,7 @@ describe('slack PluginEnroll.tsx', () => {
   });
 });
 
-function renderPluginEnroll(pluginType: PluginTypes, search?: string) {
+function renderPluginEnroll(pluginType: PluginKind, search?: string) {
   render(
     <MemoryRouter
       initialEntries={[

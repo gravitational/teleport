@@ -2,10 +2,10 @@ import api from 'teleport/services/api';
 
 import cfg from 'e-teleport/config';
 
-import type { Plugin } from 'teleport/services/integrations';
+import type { Plugin, PluginKind } from 'teleport/services/integrations';
 
 export const pluginsService = {
-  fetchAvailableTypes(): Promise<string[]> {
+  fetchAvailableTypes(): Promise<PluginKind[]> {
     return api.get(cfg.api.pluginTypesPath);
   },
 

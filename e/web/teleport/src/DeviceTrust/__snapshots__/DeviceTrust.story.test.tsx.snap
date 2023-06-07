@@ -1120,8 +1120,9 @@ exports[`empty with CTA 1`] = `
       >
         <a
           class="c30"
-          href="https://goteleport.com/r/upgrade-team?4.4.0-dev&campaign=CTA_TRUSTED_DEVICES"
+          href="https://goteleport.com/r/upgrade-team?4.4.0-dev&utm_campaign=CTA_TRUSTED_DEVICES"
           kind="primary"
+          rel="noreferrer"
           style="text-transform: none;"
           target="blank"
           width="100%"

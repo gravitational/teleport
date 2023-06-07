@@ -1114,6 +1114,58 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
+            class="c9"
+            data-testid="tile-okta"
+            disabled=""
+            href="/web/integrations/new/okta"
+          >
+            <img
+              class="c10 c11"
+              src="file_stub"
+            />
+            <div
+              class="c12"
+            >
+              <div
+                class="c13"
+              >
+                Okta
+              </div>
+            </div>
+            <div
+              class="c14"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </a>
+          <a
+            class="c9"
+            data-testid="tile-opsgenie"
+            disabled=""
+            href="/web/integrations/new/opsgenie"
+          >
+            <img
+              class="c10 c11"
+              src="file_stub"
+            />
+            <div
+              class="c12"
+            >
+              <div
+                class="c13"
+              >
+                OpsGenie
+              </div>
+            </div>
+            <div
+              class="c14"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </a>
+          <a
             class="c15"
             data-testid="tile-aws-oidc"
             href="/web/integrations/new/aws-oidc"

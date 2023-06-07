@@ -37,6 +37,7 @@ import {
   IntegrationEnrollEvent,
   userEventService,
 } from 'teleport/services/userEvent';
+import { PluginKind } from 'teleport/services/integrations';
 
 import cfg from 'e-teleport/config';
 import useTeleport from 'e-teleport/useTeleportE';
@@ -51,9 +52,9 @@ import {
 import { PluginIcon } from './PluginIcon';
 
 type Plugins = {
-  // enrolled are names of plugins that have
+  // enrolled are names of plugin types that have
   // already been created.
-  enrolled: string[];
+  enrolled: PluginKind[];
   // available plugins are adapted for hosting,
   // and which the auth server is set up for,
   // and are plugins that are not already enrolled yet.
