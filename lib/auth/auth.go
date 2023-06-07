@@ -1512,7 +1512,11 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	accessInfo := services.AccessInfoFromUser(req.User)
 	roles := make([]types.Role, len(req.Roles))
 	for i := range req.Roles {
-		roles[i] = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		var err error
+		roles[i], err = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	roleSet := services.NewRoleSet(roles...)
 
