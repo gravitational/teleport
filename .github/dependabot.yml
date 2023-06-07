@@ -11,8 +11,6 @@ updates:
       - dependency-name: github.com/gravitational/ttlmap
       # Breaks backwards compatibility
       - dependency-name: github.com/go-webauthn/webauthn
-      # TODO(greedy52): Update mongo-driver and fix API changes.
-      - dependency-name: go.mongodb.org/mongo-driver
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies
