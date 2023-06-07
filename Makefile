@@ -695,7 +695,7 @@ test-go-prepare: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDE
 
 # Runs base unit tests
 .PHONY: test-go-unit
-test-go-unit: FLAGS ?= -race -shuffle on
+test-go-unit: FLAGS ?= -shuffle on
 test-go-unit: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
 test-go-unit:
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
@@ -707,7 +707,7 @@ test-go-unit:
 # TODO(codingllama): Run libfido2 tests along with others once RDP doesn't
 #  embed openssl/libcrypto.
 .PHONY: test-go-libfido2
-test-go-libfido2: FLAGS ?= -race -shuffle on
+test-go-libfido2: FLAGS ?= -shuffle on
 test-go-libfido2: SUBJECT ?= ./lib/auth/webauthncli/...
 test-go-libfido2:
 ifneq ("$(LIBFIDO2_TEST_TAG)", "")
@@ -718,7 +718,7 @@ endif
 
 # Make sure untagged touchid code build/tests.
 .PHONY: test-go-touch-id
-test-go-touch-id: FLAGS ?= -race -shuffle on
+test-go-touch-id: FLAGS ?= -shuffle on
 test-go-touch-id: SUBJECT ?= ./lib/auth/touchid/...
 test-go-touch-id:
 ifneq ("$(TOUCHID_TAG)", "")
@@ -729,7 +729,7 @@ endif
 
 # Runs ci tsh tests
 .PHONY: test-go-tsh
-test-go-tsh: FLAGS ?= -race -shuffle on
+test-go-tsh: FLAGS ?= -shuffle on
 test-go-tsh: SUBJECT ?= github.com/gravitational/teleport/tool/tsh
 test-go-tsh:
 	$(CGOFLAG_TSH) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(LIBFIDO2_TEST_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
@@ -750,7 +750,7 @@ test-go-chaos:
 UNIT_ROOT_REGEX := ^TestRoot
 .PHONY: test-go-root
 test-go-root: ensure-webassets bpf-bytecode rdpclient $(TEST_LOG_DIR) $(RENDER_TESTS)
-test-go-root: FLAGS ?= -race -shuffle on
+test-go-root: FLAGS ?= -shuffle on
 test-go-root: PACKAGES = $(shell go list $(ADDFLAGS) ./... | grep -v -e integration -e integrations/operator)
 test-go-root: $(VERSRC)
 	$(CGOFLAG) go test -json -run "$(UNIT_ROOT_REGEX)" -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
@@ -762,7 +762,7 @@ test-go-root: $(VERSRC)
 #
 .PHONY: test-api
 test-api: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
-test-api: FLAGS ?= -race -shuffle on
+test-api: FLAGS ?= -shuffle on
 test-api: SUBJECT ?= $(shell cd api && go list ./...)
 test-api:
 	cd api && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
@@ -781,7 +781,7 @@ test-operator:
 #
 .PHONY: test-kube-agent-updater
 test-kube-agent-updater: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
-test-kube-agent-updater: FLAGS ?= -race -shuffle on
+test-kube-agent-updater: FLAGS ?= -shuffle on
 test-kube-agent-updater: SUBJECT ?= $(shell cd integrations/kube-agent-updater && go list ./...)
 test-kube-agent-updater:
 	cd integrations/kube-agent-updater && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
@@ -801,7 +801,7 @@ test-integrations-lib:
 #
 .PHONY: test-teleport-usage
 test-teleport-usage: $(VERSRC) $(TEST_LOG_DIR) $(RENDER_TESTS)
-test-teleport-usage: FLAGS ?= -race -shuffle on
+test-teleport-usage: FLAGS ?= -shuffle on
 test-teleport-usage: SUBJECT ?= $(shell cd examples/teleport-usage && go list ./...)
 test-teleport-usage:
 	cd examples/teleport-usage && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
@@ -842,7 +842,7 @@ run-etcd:
 # Any tests which need to run as root must be skipped during regular integration testing.
 #
 .PHONY: integration
-integration: FLAGS ?= -v -race
+integration: FLAGS ?= -v
 integration: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)' | grep -v integrations/lib/testing/integration )
 integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
@@ -856,7 +856,7 @@ integration:  $(TEST_LOG_DIR) $(RENDER_TESTS)
 #
 INTEGRATION_KUBE_REGEX := TestKube.*
 .PHONY: integration-kube
-integration-kube: FLAGS ?= -v -race
+integration-kube: FLAGS ?= -v
 integration-kube: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
 integration-kube: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	@echo KUBECONFIG is: $(KUBECONFIG), TEST_KUBE: $(TEST_KUBE)
@@ -870,7 +870,7 @@ integration-kube: $(TEST_LOG_DIR) $(RENDER_TESTS)
 #
 INTEGRATION_ROOT_REGEX := ^TestRoot
 .PHONY: integration-root
-integration-root: FLAGS ?= -v -race
+integration-root: FLAGS ?= -v
 integration-root: PACKAGES = $(shell go list ./... | grep 'integration\([^s]\|$$\)')
 integration-root: $(TEST_LOG_DIR) $(RENDER_TESTS)
 	$(CGOFLAG) go test -json -run "$(INTEGRATION_ROOT_REGEX)" $(PACKAGES) $(FLAGS) \

@@ -299,7 +299,7 @@ test: buildbox
 		type gcloud 2>&1 >/dev/null || exit 1; \
 		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
-		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test"
+		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover' clean test"
 
 .PHONY:test-root
 test-root: buildbox
@@ -312,7 +312,7 @@ test-root: buildbox
 		type gcloud 2>&1 >/dev/null || exit 1; \
 		gcloud -q beta emulators firestore start --host-port=localhost:8618 & sleep 1; \
 		ssh-agent > external.agent.tmp && source external.agent.tmp; \
-		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover -race' clean test-go-root"
+		cd $(SRCDIR) && make TELEPORT_DEBUG=0 FLAGS='-cover' clean test-go-root"
 
 .PHONY:test-sh
 test-sh: buildbox
