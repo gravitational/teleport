@@ -25,17 +25,21 @@ export default function InputSearch({
   children,
 }: Props) {
   return (
-    <Wrapper>
-      <StyledInput
-        placeholder="SEARCH..."
-        px={3}
-        value={searchValue}
-        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
-          setSearchValue(e.target.value)
-        }
-      />
-      <ChildWrapper>{children}</ChildWrapper>
-    </Wrapper>
+    <WrapperBackground>
+      <Wrapper>
+        <StyledInput
+          placeholder="SEARCH..."
+          px={3}
+          value={searchValue}
+          onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+            setSearchValue(e.target.value)
+          }
+        />
+        <ChildWrapperBackground>
+          <ChildWrapper>{children}</ChildWrapper>
+        </ChildWrapperBackground>
+      </Wrapper>
+    </WrapperBackground>
   );
 }
 
@@ -46,13 +50,27 @@ type Props = {
 };
 
 const ChildWrapper = styled.div`
+  position: relative;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: ${props => props.theme.colors.spotBackground[0]};
+  border-radius: 200px;
+`;
+
+const ChildWrapperBackground = styled.div`
   position: absolute;
   height: 100%;
   right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props => props.theme.colors.levels.elevated};
+  background: ${props =>
+    props.theme.name === 'dark'
+      ? props.theme.colors.levels.surface
+      : props.theme.colors.levels.deep};
   border-radius: 200px;
 `;
 
@@ -63,7 +81,14 @@ const Wrapper = styled.div`
   width: 100%;
   border-radius: 200px;
   height: 32px;
-  background: ${props => props.theme.colors.levels.sunkenSecondary};
+  background: transparent;
+`;
+
+const WrapperBackground = styled.div`
+  background: ${props => props.theme.colors.levels.sunken};
+  border-radius: 200px;
+  width: 100%;
+  height: 32px;
 `;
 
 const StyledInput = styled.input`
@@ -83,16 +108,21 @@ const StyledInput = styled.input`
 
 function fromTheme(props) {
   return {
-    color: props.theme.colors.text.primary,
-    background: props.theme.colors.levels.sunkenSecondary,
+    color: props.theme.colors.text.main,
+    background:
+      props.theme.name === 'dark'
+        ? props.theme.colors.levels.sunken
+        : props.theme.colors.levels.deep,
 
-    '&: hover, &:focus, &:active': {
-      background: props.theme.colors.levels.surfaceSecondary,
-      boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, .24)',
-      color: props.theme.colors.text.primary,
+    '&:hover, &:focus, &:active': {
+      color: props.theme.colors.text.main,
+      background:
+        props.theme.name === 'dark'
+          ? props.theme.colors.spotBackground[0]
+          : props.theme.colors.levels.sunken,
     },
     '&::placeholder': {
-      color: props.theme.colors.text.placeholder,
+      color: props.theme.colors.text.muted,
       fontSize: props.theme.fontSizes[1],
     },
   };

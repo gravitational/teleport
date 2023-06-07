@@ -17,7 +17,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        branch: [ 'master', 'branch/v10', 'branch/v11', 'branch/v12' ]
+        branch: [ 'master', 'branch/v11', 'branch/v12', 'branch/v13' ]
         language: [ 'go', 'javascript' ]
 
     steps:
@@ -29,7 +29,7 @@ jobs:
     - name: Set up Go
       uses: actions/setup-go@v4
       with:
-        cache-dependency-path: '**/go.sum'
+        cache: false
       if: ${{ matrix.language == 'go' }}
 
     - name: Initialize the CodeQL tools for scanning

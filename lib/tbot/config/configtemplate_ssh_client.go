@@ -91,14 +91,12 @@ func (c *TemplateSSHClient) Describe(destination bot.Destination) []FileDescript
 // using non-filesystem backends.
 var sshConfigUnsupportedWarning sync.Once
 
-func getClusterNames(client auth.ClientI) ([]string, error) {
-	cn, err := client.GetClusterName()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	allClusterNames := []string{cn.GetClusterName()}
+func getClusterNames(
+	bot provider, connectedClusterName string,
+) ([]string, error) {
+	allClusterNames := []string{connectedClusterName}
 
-	leafClusters, err := client.GetRemoteClusters()
+	leafClusters, err := bot.GetRemoteClusters()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -109,13 +107,17 @@ func getClusterNames(client auth.ClientI) ([]string, error) {
 	return allClusterNames, nil
 }
 
-func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(
+	ctx context.Context,
+	bot provider,
+	_ *identity.Identity,
+	destination *DestinationConfig,
+) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	authClient := bot.Client()
 	ping, err := bot.AuthPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -126,7 +128,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
 	}
 
-	clusterNames, err := getClusterNames(authClient)
+	clusterNames, err := getClusterNames(bot, ping.ClusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -150,7 +152,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 	// useful alongside a manually-written ssh_config.
 	knownHosts, err := fetchKnownHosts(
 		ctx,
-		authClient,
+		bot,
 		clusterNames,
 		proxyHost,
 	)
@@ -205,10 +207,10 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 	return nil
 }
 
-func fetchKnownHosts(ctx context.Context, client auth.ClientI, clusterNames []string, proxyHosts string) (string, error) {
+func fetchKnownHosts(ctx context.Context, bot provider, clusterNames []string, proxyHosts string) (string, error) {
 	certAuthorities := make([]types.CertAuthority, 0, len(clusterNames))
 	for _, cn := range clusterNames {
-		ca, err := client.GetCertAuthority(ctx, types.CertAuthID{
+		ca, err := bot.GetCertAuthority(ctx, types.CertAuthID{
 			Type:       types.HostCA,
 			DomainName: cn,
 		}, false)

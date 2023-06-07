@@ -35,5 +35,5 @@ const PamCircle = styled.div`
   align-content: center;
   justify-content: center;
   border-radius: 50%;
-  background: rgba(255, 255, 255, 0.1);
+  background: ${props => props.theme.colors.spotBackground[0]};
 `;

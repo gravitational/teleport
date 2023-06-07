@@ -45,6 +45,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/desktop"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
@@ -165,11 +166,14 @@ func (h *Handler) createDesktopConnection(
 		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
 	})
 
+	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(r.Context())
+
 	c := &connector{
-		log:      log,
-		clt:      clt,
-		site:     site,
-		userAddr: r.RemoteAddr,
+		log:           log,
+		clt:           clt,
+		site:          site,
+		clientSrcAddr: clientSrcAddr,
+		clientDstAddr: clientDstAddr,
 	}
 	serviceConn, err := c.connectToWindowsService(clusterName, validServiceIDs)
 	if err != nil {
@@ -177,7 +181,7 @@ func (h *Handler) createDesktopConnection(
 	}
 	defer serviceConn.Close()
 
-	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username)
+	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username, h.cfg.PROXYSigner)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err))
 	}
@@ -211,7 +215,7 @@ func (h *Handler) createDesktopConnection(
 	return nil
 }
 
-func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser string) (*client.ProxyClient, error) {
+func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser string, proxySigner multiplexer.PROXYHeaderSigner) (*client.ProxyClient, error) {
 	cfg, err := makeTeleportClientConfig(ctx, sessCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -221,6 +225,8 @@ func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser
 	// Unix user Teleport is running as (which doesn't work in containerized
 	// environments where we're running as an arbitrary UID)
 	cfg.HostLogin = windowsUser
+
+	cfg.PROXYSigner = proxySigner
 
 	if err := cfg.ParseProxyHost(addr); err != nil {
 		return nil, trace.Wrap(err)
@@ -258,7 +264,7 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(stream, tdpMFACodec{}))
+	}, promptMFAChallenge(&stream.WSStream, tdpMFACodec{}))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -281,10 +287,11 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 }
 
 type connector struct {
-	log      *logrus.Entry
-	clt      auth.ClientI
-	site     reversetunnel.RemoteSite
-	userAddr string
+	log           *logrus.Entry
+	clt           auth.ClientI
+	site          reversetunnel.RemoteSite
+	clientSrcAddr net.Addr
+	clientDstAddr net.Addr
 }
 
 // connectToWindowsService tries to make a connection to a Windows Desktop Service
@@ -318,11 +325,12 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 	*c.log = *c.log.WithField("windows-service-uuid", service.GetName())
 	*c.log = *c.log.WithField("windows-service-addr", service.GetAddr())
 	return c.site.DialTCP(reversetunnel.DialParams{
-		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: c.userAddr},
-		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
-		ConnType: types.WindowsDesktopTunnel,
-		ServerID: service.GetName() + "." + clusterName,
-		ProxyIDs: service.GetProxyIDs(),
+		From:                  c.clientSrcAddr,
+		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
+		ConnType:              types.WindowsDesktopTunnel,
+		ServerID:              service.GetName() + "." + clusterName,
+		ProxyIDs:              service.GetProxyIDs(),
+		OriginalClientDstAddr: c.clientDstAddr,
 	})
 }
 

@@ -1,6 +1,6 @@
 ---
 authors: Tiago Silva (tiago.silva@goteleport.com)
-state: draft
+state: implemented (v13.0.0)
 ---
 
 # RFD 117 - Forward User Identity between Teleport services
@@ -8,7 +8,7 @@ state: draft
 ## Required Approvers
 
 - Engineering: `@r0mant`
-- Security: `@reedloden`
+- Security: `@reedloden || @jentfoo`
 
 ## What
 
@@ -99,7 +99,8 @@ Since the proxy has full access to the HTTP request, it can add the user's ident
 to the request headers before forwarding it to the upstream service.
 
 ```go
-headers["TELEPORT_IMPERSONATE_IDENTITY"] = json(clientCert.Subject)
+headers["Teleport-Impersonate-User"] = json(clientCert.Subject)
+headers["Teleport-Impersonate-IP"] = userIP
 ```
 
 In order to prevent the user from tampering with the headers, the authorization
@@ -145,7 +146,7 @@ is not forwarded, the upstream service will reject the request.
 
 ### Phase 2: Enable the proxy forwarding of user identity to Kube Service/Proxy
 
-- Teleport 14.0
+- Teleport 15.0
 
 We will enable the proxy to forward user identity to Kube Service/Proxy.
 At this point, Teleport supports clients running Teleport 13.0 and newer and we can

@@ -29,6 +29,7 @@ type access struct {
 	Edit   bool `json:"edit"`
 	Create bool `json:"create"`
 	Delete bool `json:"remove"`
+	Use    bool `json:"use"`
 }
 
 type accessStrategy struct {
@@ -95,8 +96,14 @@ type userACL struct {
 	License access `json:"license"`
 	// Plugins defines whether the user has access to manage hosted plugin instances
 	Plugins access `json:"plugins"`
+	// Integrations defines whether the user has access to manage integrations.
+	Integrations access `json:"integrations"`
 	// DeviceTrust defines access to device trust.
 	DeviceTrust access `json:"deviceTrust"`
+	// Locks defines access to locking resources.
+	Locks access `json:"lock"`
+	// Assist defines access to assist feature.
+	Assist access `json:"assist"`
 }
 
 type authType string
@@ -143,6 +150,7 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 		Edit:   hasAccess(roleSet, ctx, kind, types.VerbUpdate),
 		Create: hasAccess(roleSet, ctx, kind, types.VerbCreate),
 		Delete: hasAccess(roleSet, ctx, kind, types.VerbDelete),
+		Use:    hasAccess(roleSet, ctx, kind, types.VerbUse),
 	}
 }
 
@@ -190,6 +198,11 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
 
+	var assistAccess access
+	if features.Assist {
+		assistAccess = newAccess(userRoles, ctx, types.KindAssistant)
+	}
+
 	var billingAccess access
 	if features.Cloud {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
@@ -207,6 +220,8 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	download := newAccess(userRoles, ctx, types.KindDownload)
 	license := newAccess(userRoles, ctx, types.KindLicense)
 	deviceTrust := newAccess(userRoles, ctx, types.KindDevice)
+	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
+	lockAccess := newAccess(userRoles, ctx, types.KindLock)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -232,7 +247,10 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		Download:                download,
 		License:                 license,
 		Plugins:                 pluginsAccess,
+		Integrations:            integrationsAccess,
 		DeviceTrust:             deviceTrust,
+		Locks:                   lockAccess,
+		Assist:                  assistAccess,
 	}
 
 	// local user

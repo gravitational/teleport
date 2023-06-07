@@ -99,7 +99,7 @@ func (r *remoteFS) Open(ctx context.Context, path string) (fs.File, error) {
 	return f, nil
 }
 
-func (r *remoteFS) Create(ctx context.Context, path string) (io.WriteCloser, error) {
+func (r *remoteFS) Create(ctx context.Context, path string, _ int64) (io.WriteCloser, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, trace.Wrap(err)
 	}

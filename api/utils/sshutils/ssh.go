@@ -21,6 +21,7 @@ package sshutils
 import (
 	"crypto"
 	"crypto/subtle"
+	"errors"
 	"io"
 	"net"
 	"regexp"
@@ -67,7 +68,7 @@ func ParseKnownHosts(knownHosts [][]byte, matchHostnames ...string) ([]ssh.Publi
 	for _, line := range knownHosts {
 		for {
 			_, hosts, publicKey, _, bytes, err := ssh.ParseKnownHosts(line)
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			} else if err != nil {
 				return nil, trace.Wrap(err, "failed parsing known hosts: %v; raw line: %q", err, line)

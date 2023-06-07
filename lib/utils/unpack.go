@@ -18,6 +18,7 @@ package utils
 
 import (
 	"archive/tar"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -38,7 +39,7 @@ func Extract(r io.Reader, dir string) error {
 
 	for {
 		header, err := tarball.Next()
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			break
 		} else if err != nil {
 			return trace.Wrap(err)

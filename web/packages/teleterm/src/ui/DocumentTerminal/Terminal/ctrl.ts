@@ -37,6 +37,7 @@ export default class TtyTerminal {
   private resizeHandler: IDisposable;
   private debouncedResize: () => void;
   private logger = new Logger('lib/term/terminal');
+  private removePtyProcessOnDataListener: () => void;
 
   constructor(private ptyProcess: IPtyProcess, private options: Options) {
     this.el = options.el;
@@ -60,8 +61,29 @@ export default class TtyTerminal {
       fontFamily: this.el.style.fontFamily,
       fontSize: this.options.fontSize,
       scrollback: 5000,
+      minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
       theme: {
-        background: theme.colors.levels.sunken,
+        foreground: theme.colors.terminal.foreground,
+        background: theme.colors.terminal.background,
+        selectionBackground: theme.colors.terminal.selectionBackground,
+        cursor: theme.colors.terminal.cursor,
+        cursorAccent: theme.colors.terminal.cursorAccent,
+        red: theme.colors.terminal.red,
+        green: theme.colors.terminal.green,
+        yellow: theme.colors.terminal.yellow,
+        blue: theme.colors.terminal.blue,
+        magenta: theme.colors.terminal.magenta,
+        cyan: theme.colors.terminal.cyan,
+        brightWhite: theme.colors.terminal.brightWhite,
+        white: theme.colors.terminal.white,
+        brightBlack: theme.colors.terminal.brightBlack,
+        black: theme.colors.terminal.black,
+        brightRed: theme.colors.terminal.brightRed,
+        brightGreen: theme.colors.terminal.brightGreen,
+        brightYellow: theme.colors.terminal.brightYellow,
+        brightBlue: theme.colors.terminal.brightBlue,
+        brightMagenta: theme.colors.terminal.brightMagenta,
+        brightCyan: theme.colors.terminal.brightCyan,
       },
       windowOptions: {
         setWinSizeChars: true,
@@ -84,8 +106,14 @@ export default class TtyTerminal {
       this.ptyProcess.resize(size.cols, size.rows);
     });
 
-    this.ptyProcess.onData(data => this.handleData(data));
+    this.removePtyProcessOnDataListener = this.ptyProcess.onData(data =>
+      this.handleData(data)
+    );
 
+    // TODO(ravicious): Don't call start if the process was already started.
+    // This is what is causing the terminal to visually repeat the input on hot reload.
+    // The shared process version of PtyProcess knows whether it was started or not (the status
+    // field), so it's a matter of exposing this field through gRPC and reading it here.
     this.ptyProcess.start(this.term.cols, this.term.rows);
 
     window.addEventListener('resize', this.debouncedResize);
@@ -105,7 +133,7 @@ export default class TtyTerminal {
   }
 
   destroy(): void {
-    this.ptyProcess?.dispose();
+    this.removePtyProcessOnDataListener?.();
     this.term?.dispose();
     this.fitAddon.dispose();
     this.resizeHandler?.dispose();

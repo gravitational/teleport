@@ -194,12 +194,12 @@ $ tctl create dev.yaml
 
 ## Testing
 
-The Web UI now contains a new "Okta" button at the login screen. The CLI
-behaves the same as before, but now you provide the email associated with an
-Okta account:
+The Web UI now contains a new "Okta" button at the login screen. To 
+authenticate via the `tsh` CLI, specify the Proxy Service address and `tsh` will 
+automatically use the default authentication type:
 
 ```code
-$ tsh login --proxy=proxy.example.com --user=alice@example.com
+$ tsh login --proxy=proxy.example.com
 ```
 
 This command prints the SSO login URL (and will try to open it automatically
@@ -210,7 +210,7 @@ Teleport can use multiple SAML connectors. In this case a connector name
 can be passed via the `--auth` flag. For the connector we created above:
 
 ```code
-$ tsh login --proxy=proxy.example.com --user=alice@example.com --auth=okta
+$ tsh login --proxy=proxy.example.com --auth=okta
 ```
 
 </Admonition>

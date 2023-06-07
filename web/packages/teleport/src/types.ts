@@ -28,7 +28,7 @@ export interface Context {
   getFeatureFlags(): FeatureFlags;
 }
 
-interface TeleportFeatureNavigationItem {
+export interface TeleportFeatureNavigationItem {
   title: string;
   icon: React.ReactNode;
   exact?: boolean;
@@ -36,7 +36,7 @@ interface TeleportFeatureNavigationItem {
   isExternalLink?: boolean;
 }
 
-interface TeleportFeatureRoute {
+export interface TeleportFeatureRoute {
   title: string;
   path: string;
   exact?: boolean;
@@ -48,9 +48,20 @@ export interface TeleportFeature {
   category?: NavigationCategory;
   section?: ManagementSection;
   hasAccess(flags: FeatureFlags): boolean;
+  // route defines react router Route fields.
+  // This field can be left undefined to indicate
+  // this feature is a parent to children features
+  // eg: FeatureAccessRequests is parent to sub features
+  // FeatureNewAccessRequest and FeatureReviewAccessRequests.
+  // These childrens will be responsible for routing.
   route?: TeleportFeatureRoute;
   navigationItem?: TeleportFeatureNavigationItem;
   topMenuItem?: TeleportFeatureNavigationItem;
+  // alternative items to display when the user has permissions (RBAC)
+  // but the cluster lacks the feature:
+  isLocked?(lockedFeatures: LockedFeatures): boolean;
+  lockedNavigationItem?: TeleportFeatureNavigationItem;
+  lockedRoute?: TeleportFeatureRoute;
 }
 
 export type StickyCluster = {
@@ -90,5 +101,20 @@ export interface FeatureFlags {
   downloadCenter: boolean;
   discover: boolean;
   plugins: boolean;
+  integrations: boolean;
+  enrollIntegrationsOrPlugins: boolean;
+  enrollIntegrations: boolean;
   deviceTrust: boolean;
+  locks: boolean;
+  newLocks: boolean;
+  assist: boolean;
 }
+
+// LockedFeatures are used for determining which features are disabled in the user's cluster.
+export type LockedFeatures = {
+  authConnectors: boolean;
+  activeSessions: boolean;
+  accessRequests: boolean;
+  premiumSupport: boolean;
+  trustedDevices: boolean;
+};

@@ -121,9 +121,9 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					Namespace: defaults.Namespace,
 				},
 				Spec: ServerSpecV2{
-					Addr:       "1.2.3.4:3022",
-					Hostname:   "teleport-node",
-					PublicAddr: "1.2.3.4:3080",
+					Addr:        "1.2.3.4:3022",
+					Hostname:    "teleport-node",
+					PublicAddrs: []string{"1.2.3.4:3080"},
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
@@ -137,9 +137,9 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 					Spec: ServerSpecV2{
-						Addr:       "1.2.3.4:3022",
-						Hostname:   "teleport-node",
-						PublicAddr: "1.2.3.4:3080",
+						Addr:        "1.2.3.4:3022",
+						Hostname:    "teleport-node",
+						PublicAddrs: []string{"1.2.3.4:3080"},
 					},
 				}
 				require.Equal(t, expectedServer, s)
@@ -155,9 +155,9 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					Namespace: defaults.Namespace,
 				},
 				Spec: ServerSpecV2{
-					Addr:       "1.2.3.4:3022",
-					Hostname:   "teleport-node",
-					PublicAddr: "1.2.3.4:3080",
+					Addr:        "1.2.3.4:3022",
+					Hostname:    "teleport-node",
+					PublicAddrs: []string{"1.2.3.4:3080"},
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
@@ -170,9 +170,9 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 					Spec: ServerSpecV2{
-						Addr:       "1.2.3.4:3022",
-						Hostname:   "teleport-node",
-						PublicAddr: "1.2.3.4:3080",
+						Addr:        "1.2.3.4:3022",
+						Hostname:    "teleport-node",
+						PublicAddrs: []string{"1.2.3.4:3080"},
 					},
 				}
 				require.Equal(t, expectedServer, s)
@@ -205,6 +205,39 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					},
 					Spec: ServerSpecV2{
 						Addr:     "1.2.3.4:3022",
+						Hostname: "openssh-node",
+					},
+				}
+				require.Equal(t, expectedServer, s)
+			},
+		},
+		{
+			name: "OpenSSH node with dns address",
+			server: &ServerV2{
+				Kind:    KindNode,
+				SubKind: SubKindOpenSSHNode,
+				Version: V2,
+				Metadata: Metadata{
+					Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+					Namespace: defaults.Namespace,
+				},
+				Spec: ServerSpecV2{
+					Addr:     "example:22",
+					Hostname: "openssh-node",
+				},
+			},
+			assertion: func(t *testing.T, s *ServerV2, err error) {
+				require.NoError(t, err)
+				expectedServer := &ServerV2{
+					Kind:    KindNode,
+					SubKind: SubKindOpenSSHNode,
+					Version: V2,
+					Metadata: Metadata{
+						Name:      "5da56852-2adb-4540-a37c-80790203f6a9",
+						Namespace: defaults.Namespace,
+					},
+					Spec: ServerSpecV2{
+						Addr:     "example:22",
 						Hostname: "openssh-node",
 					},
 				}
@@ -274,13 +307,13 @@ func TestServerCheckAndSetDefaults(t *testing.T) {
 					Namespace: defaults.Namespace,
 				},
 				Spec: ServerSpecV2{
-					Addr:       "1.2.3.4:3022",
-					Hostname:   "openssh-node",
-					PublicAddr: "1.2.3.4:80",
+					Addr:        "1.2.3.4:3022",
+					Hostname:    "openssh-node",
+					PublicAddrs: []string{"1.2.3.4:80"},
 				},
 			},
 			assertion: func(t *testing.T, s *ServerV2, err error) {
-				require.EqualError(t, err, `PublicAddr must not be set when server SubKind is "openssh"`)
+				require.EqualError(t, err, `PublicAddrs must not be set when server SubKind is "openssh"`)
 			},
 		},
 		{

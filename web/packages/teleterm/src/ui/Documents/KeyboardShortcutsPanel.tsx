@@ -76,12 +76,7 @@ function Entry(props: { title: string; accelerator: string }) {
       <Text textAlign="right" color="light" typography="subtitle1" py="4px">
         {props.title}
       </Text>
-      <MonoText
-        bg="levels.surfaceSecondary"
-        textAlign="left"
-        px="12px"
-        py="4px"
-      >
+      <MonoText bg="levels.surface" textAlign="left" px="12px" py="4px">
         {props.accelerator}
       </MonoText>
     </>

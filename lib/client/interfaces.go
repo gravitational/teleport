@@ -37,7 +37,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/sshutils"
-	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/services"
@@ -208,7 +207,7 @@ func (k *Key) authorizedHostKeys(hostnames ...string) ([]ssh.PublicKey, error) {
 		// Mirror the hosts we would find in a known_hosts entry.
 		hosts := []string{k.ProxyHost, ca.ClusterName, "*." + ca.ClusterName}
 
-		if len(hostnames) == 0 || apisshutils.HostNameMatch(hostnames, hosts) {
+		if len(hostnames) == 0 || sshutils.HostNameMatch(hostnames, hosts) {
 			for _, authorizedKey := range ca.AuthorizedKeys {
 				sshPub, _, _, _, err := ssh.ParseAuthorizedKey(authorizedKey)
 				if err != nil {
@@ -281,7 +280,7 @@ func (k *Key) ProxyClientSSHConfig(hostname string) (*ssh.ClientConfig, error) {
 		return nil, trace.Wrap(err, "failed to extract username from SSH certificate")
 	}
 
-	sshConfig, err := apisshutils.ProxyClientSSHConfig(sshCert, k)
+	sshConfig, err := sshutils.ProxyClientSSHConfig(sshCert, k)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -481,7 +480,7 @@ func (k *Key) AsAuthMethod() (ssh.AuthMethod, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return apisshutils.AsAuthMethod(cert, k)
+	return sshutils.AsAuthMethod(cert, k)
 }
 
 // SSHSigner returns an ssh.Signer using the SSH certificate in this key.
@@ -490,7 +489,7 @@ func (k *Key) SSHSigner() (ssh.Signer, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return apisshutils.SSHSigner(cert, k)
+	return sshutils.SSHSigner(cert, k)
 }
 
 // SSHCert returns parsed SSH certificate
@@ -498,7 +497,7 @@ func (k *Key) SSHCert() (*ssh.Certificate, error) {
 	if k.Cert == nil {
 		return nil, trace.NotFound("SSH cert not available")
 	}
-	return apisshutils.ParseCertificate(k.Cert)
+	return sshutils.ParseCertificate(k.Cert)
 }
 
 // ActiveRequests gets the active requests associated with this key.
@@ -535,13 +534,13 @@ func (k *Key) CheckCert() error {
 func (k *Key) checkCert(sshCert *ssh.Certificate) error {
 	// Check that the certificate was for the current public key. If not, the
 	// public/private key pair may have been rotated.
-	if !apisshutils.KeysEqual(sshCert.Key, k.SSHPublicKey()) {
+	if !sshutils.KeysEqual(sshCert.Key, k.SSHPublicKey()) {
 		return trace.CompareFailed("public key in profile does not match the public key in SSH certificate")
 	}
 
 	// A valid principal is always passed in because the principals are not being
 	// checked here, but rather the validity period, signature, and algorithms.
-	certChecker := apisshutils.CertChecker{
+	certChecker := sshutils.CertChecker{
 		FIPS: isFIPS(),
 	}
 	if len(sshCert.ValidPrincipals) == 0 {

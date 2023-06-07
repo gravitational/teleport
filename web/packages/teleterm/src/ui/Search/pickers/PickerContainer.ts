@@ -23,11 +23,13 @@ export const PickerContainer = styled.div`
   box-sizing: border-box;
   z-index: 1000;
   font-size: 12px;
-  color: ${props => props.theme.colors.text.contrast};
-  background: ${props => props.theme.colors.levels.surface};
-  box-shadow: 8px 8px 18px rgb(0, 0, 0, 0.56);
+  color: ${props => props.theme.colors.text.main};
+  background: ${props => props.theme.colors.levels.elevated};
+  box-shadow: ${props => props.theme.boxShadow[1]};
   border-radius: ${props => props.theme.radii[2]}px;
-  border: 1px solid ${props => props.theme.colors.action.hover};
+  // we have to use a border of the same width as in SearchBar when it is closed to keep
+  // the layout from shifting when switching between open and closed state
+  border: 1px solid ${props => props.theme.colors.levels.elevated};
   text-shadow: none;
   // Prevents inner items from covering the border on rounded corners.
   overflow: hidden;

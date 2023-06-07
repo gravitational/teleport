@@ -119,23 +119,22 @@ func exportSSHUserCAs(cas []types.CertAuthority, localAuthName string) (string, 
 }
 
 // Render generates SSH host cert files.
-func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHHostCert) Render(
+	ctx context.Context,
+	bot provider,
+	_ *identity.Identity,
+	destination *DestinationConfig,
+) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// We'll need a client for the impersonated identity to request the certs.
-	authClient, err := bot.AuthenticatedUserClientFromIdentity(ctx, currentIdentity)
+	authPong, err := bot.AuthPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	cn, err := authClient.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	clusterName := cn.GetClusterName()
+	clusterName := authPong.ClusterName
 
 	// generate a keypair
 	key, err := client.GenerateRSAKey()
@@ -145,10 +144,16 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 
 	// For now, we'll reuse the bot's regular TTL, and hostID and nodeName are
 	// left unset.
-	botCfg := bot.Config()
-	key.Cert, err = authClient.GenerateHostCert(ctx, key.MarshalSSHPublicKey(),
-		"", "", c.Principals,
-		clusterName, types.RoleNode, botCfg.CertificateTTL)
+	key.Cert, err = bot.GenerateHostCert(
+		ctx,
+		key.MarshalSSHPublicKey(),
+		"",
+		"",
+		c.Principals,
+		clusterName,
+		types.RoleNode,
+		bot.Config().CertificateTTL,
+	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -175,13 +180,7 @@ func (c *TemplateSSHHostCert) Render(ctx context.Context, bot Bot, currentIdenti
 		return trace.Wrap(err)
 	}
 
-	// get the local domain name, used to exclude trusted CAs
-	localAuthName, err := bot.Client().GetDomainName(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	exportedCAs, err := exportSSHUserCAs(userCAs, localAuthName)
+	exportedCAs, err := exportSSHUserCAs(userCAs, clusterName)
 	if err != nil {
 		return trace.Wrap(err)
 	}

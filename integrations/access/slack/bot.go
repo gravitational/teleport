@@ -24,6 +24,7 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
@@ -33,6 +34,7 @@ import (
 
 const slackMaxConns = 100
 const slackHTTPTimeout = 10 * time.Second
+const statusEmitTimeout = 10 * time.Second
 
 // Bot is a slack client that works with AccessRequest.
 // It's responsible for formatting and posting a message on Slack when an
@@ -45,21 +47,38 @@ type Bot struct {
 }
 
 // onAfterResponseSlack resty error function for Slack
-func onAfterResponseSlack(_ *resty.Client, resp *resty.Response) error {
-	if !resp.IsSuccess() {
-		return trace.Errorf("slack api returned unexpected code %v", resp.StatusCode())
-	}
+func onAfterResponseSlack(sink common.StatusSink) func(_ *resty.Client, resp *resty.Response) error {
+	return func(_ *resty.Client, resp *resty.Response) error {
+		status := statusFromStatusCode(resp.StatusCode())
+		defer func() {
+			if sink == nil {
+				return
+			}
 
-	var result APIResponse
-	if err := json.Unmarshal(resp.Body(), &result); err != nil {
-		return trace.Wrap(err)
-	}
+			// No context in scope, use background with a reasonable timeout
+			ctx, cancel := context.WithTimeout(context.Background(), statusEmitTimeout)
+			defer cancel()
+			if err := sink.Emit(ctx, status); err != nil {
+				log.Errorf("Error while emitting plugin status: %v", err)
+			}
+		}()
 
-	if !result.Ok {
-		return trace.Errorf("%s", result.Error)
-	}
+		if !resp.IsSuccess() {
+			return trace.Errorf("slack api returned unexpected code %v", resp.StatusCode())
+		}
 
-	return nil
+		var result APIResponse
+		if err := json.Unmarshal(resp.Body(), &result); err != nil {
+			return trace.Wrap(err)
+		}
+		status = statusFromResponse(&result)
+
+		if !result.Ok {
+			return trace.Errorf("%s", result.Error)
+		}
+
+		return nil
+	}
 }
 
 func (b Bot) CheckHealth(ctx context.Context) error {

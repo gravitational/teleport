@@ -1,6 +1,6 @@
 ---
 authors: Noah Stride <noah@goteleport.com>
-state: implemented(v11.0.0)
+state: implemented (v11.0.0)
 ---
 
 # RFD 79 - OIDC JWT Joining
@@ -69,7 +69,7 @@ We will cache these for two reasons:
 
 - Improve the performance of validating JWTs, as we will not need to make a HTTPS request to the issuer.
 - Improve the reliability, as we can validate JWTs even if the issuer is experiencing some downtime.
-- Reduce the impact of Teleport on an issuer. If onboarding a large number of nodes, we do not want to unduly place pressure on the issuer. 
+- Reduce the impact of Teleport on an issuer. If onboarding a large number of nodes, we do not want to unduly place pressure on the issuer.
 
 We should keep in mind the following considerations:
 

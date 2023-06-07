@@ -614,7 +614,7 @@ func TestPresets(t *testing.T) {
 	})
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		presetRoleCount := 3
+		presetRoleCount := 4
 
 		roleManager := &mockRoleManager{
 			roles: make(map[string]types.Role, presetRoleCount),
@@ -623,8 +623,8 @@ func TestPresets(t *testing.T) {
 		err := createPresets(ctx, roleManager)
 		require.NoError(t, err)
 
-		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
-		require.Equal(t, 0, roleManager.getRoleCallsCount, "unexpectd call to GetRole")
+		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
+		require.Equal(t, 0, roleManager.getRoleCallsCount, "unexpected call to GetRole")
 		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
 
 		// Running a second time should return Already Exists, so it fetches the role.
@@ -634,7 +634,7 @@ func TestPresets(t *testing.T) {
 		err = createPresets(ctx, roleManager)
 		require.NoError(t, err)
 
-		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Zero(t, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
 		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
 		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
 
@@ -649,13 +649,14 @@ func TestPresets(t *testing.T) {
 			allowRulesWithoutConnectionDiag = append(allowRulesWithoutConnectionDiag, r)
 		}
 		editorRole.SetRules(types.Allow, allowRulesWithoutConnectionDiag)
-		roleManager.UpsertRole(ctx, editorRole)
+		err = roleManager.UpsertRole(ctx, editorRole)
+		require.NoError(t, err)
 
 		roleManager.ResetCallCounters()
 		err = createPresets(ctx, roleManager)
 		require.NoError(t, err)
 
-		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpectd call to UpsertRole")
+		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
 		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
 		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
 	})

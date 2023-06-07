@@ -24,11 +24,11 @@ package scp
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"path/filepath"
-	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -416,7 +416,7 @@ func (cmd *command) serveSink(ch io.ReadWriter) error {
 	for {
 		n, err := ch.Read(b[:])
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -778,59 +778,4 @@ func (r *reader) read() error {
 		return trace.BadParameter("error from receiver: %q", r.s.Text())
 	}
 	return trace.BadParameter("unrecognized command: %v", r.b)
-}
-
-var reSCP = regexp.MustCompile(
-	// optional username, note that outside group
-	// is a non-capturing as it includes @ signs we don't want
-	`(?:(?P<username>.+)@)?` +
-		// either some stuff in brackets - [ipv6]
-		// or some stuff without brackets and colons
-		`(?P<host>` +
-		// this says: [stuff in brackets that is not brackets] - loose definition of the IP address
-		`(?:\[[^@\[\]]+\])` +
-		// or
-		`|` +
-		// some stuff without brackets or colons to make sure the OR condition
-		// is not ambiguous
-		`(?:[^@\[\:\]]+)` +
-		`)` +
-		// after colon, there is a path that could consist technically of
-		// any char including empty which stands for the implicit home directory
-		`:(?P<path>.*)`,
-)
-
-// Destination is SCP destination to copy to or from
-type Destination struct {
-	// Login is an optional login username
-	Login string
-	// Host is a host to copy to/from
-	Host utils.NetAddr
-	// Path is a path to copy to/from.
-	// An empty path name is valid, and it refers to the user's default directory (usually
-	// the user's home directory).
-	// See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
-	Path string
-}
-
-// ParseSCPDestination takes a string representing a remote resource for SCP
-// to download/upload, like "user@host:/path/to/resource.txt" and parses it into
-// a structured form.
-//
-// See https://tools.ietf.org/html/draft-ietf-secsh-filexfer-09#page-14, 'File Names'
-// section about details on file names.
-func ParseSCPDestination(s string) (*Destination, error) {
-	out := reSCP.FindStringSubmatch(s)
-	if len(out) < 4 {
-		return nil, trace.BadParameter("failed to parse %q, try form user@host:/path", s)
-	}
-	addr, err := utils.ParseAddr(out[2])
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	path := out[3]
-	if path == "" {
-		path = "."
-	}
-	return &Destination{Login: out[1], Host: *addr, Path: path}, nil
 }

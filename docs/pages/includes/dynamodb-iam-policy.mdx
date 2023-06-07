@@ -1,3 +1,99 @@
+On startup, the Teleport Auth Service checks whether the DynamoDB table you have
+specified in its configuration file exists. If the table does not exist, the
+Auth Service attempts to create one.
+
+The IAM permissions that the Auth Service requires to manage DynamoDB tables
+depends on whether you expect to create a table yourself or enable the Auth
+Service to create and configure one for you:
+
+<Tabs>
+<TabItem label="Manage a Table Yourself">
+
+If you choose to manage a DynamoDB table yourself, the table must have the
+following attribute definitions:
+
+|Name|Type|
+|---|---|
+|`HashKey`|`S`|
+|`FullPath`|`S`|
+
+The table must also have the following key schema elements:
+
+|Name|Type|
+|---|---|
+|`HashKey`|`HASH`|
+|`FullPath`|`RANGE`|
+
+You'll need to replace these values in the policy example below:
+
+| Placeholder value       | Replace with                                                                                       |
+|-------------------------|----------------------------------------------------------------------------------------------------|
+| `us-west-2`             | AWS region                                                                                         |
+| `1234567890`            | AWS account ID                                                                                     |
+| `teleport-helm-backend` | DynamoDB table name to use for the Teleport backend                                                |
+| `teleport-helm-events`  | DynamoDB table name to use for the Teleport audit log (**must** be different to the backend table) |
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "ClusterStateStorage",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:BatchWriteItem",
+                "dynamodb:UpdateTimeToLive",
+                "dynamodb:PutItem",
+                "dynamodb:DeleteItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:DescribeStream",
+                "dynamodb:UpdateItem",
+                "dynamodb:DescribeTimeToLive",
+                "dynamodb:DescribeTable",
+                "dynamodb:GetShardIterator",
+                "dynamodb:GetItem",
+                "dynamodb:UpdateTable",
+                "dynamodb:GetRecords",
+                "dynamodb:UpdateContinuousBackups"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend",
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-backend/stream/*"
+            ]
+        },
+        {
+            "Sid": "ClusterEventsStorage",
+            "Effect": "Allow",
+            "Action": [
+                "dynamodb:BatchWriteItem",
+                "dynamodb:UpdateTimeToLive",
+                "dynamodb:PutItem",
+                "dynamodb:DescribeTable",
+                "dynamodb:DeleteItem",
+                "dynamodb:GetItem",
+                "dynamodb:Scan",
+                "dynamodb:Query",
+                "dynamodb:UpdateItem",
+                "dynamodb:DescribeTimeToLive",
+                "dynamodb:UpdateTable",
+                "dynamodb:UpdateContinuousBackups"
+            ],
+            "Resource": [
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-events",
+                "arn:aws:dynamodb:us-west-2:1234567890:table/teleport-helm-events/index/*"
+            ]
+        }
+    ]
+}
+```
+
+Note that you can omit the `dynamodb:UpdateContinuousBackups` permission if
+disabling continuous backups.
+
+</TabItem>
+<TabItem label="Auth Service Creates a Table">
+
 You'll need to replace these values in the policy example below:
 
 | Placeholder value       | Replace with                                                                                       |
@@ -64,3 +160,5 @@ You'll need to replace these values in the policy example below:
 }
 ```
 
+</TabItem>
+</Tabs>

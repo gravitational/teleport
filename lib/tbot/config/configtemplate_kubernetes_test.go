@@ -33,12 +33,11 @@ import (
 // to the saved golden result.
 func TestTemplateKubernetesRender(t *testing.T) {
 	dir := t.TempDir()
-	mockAuth := newMockAuth(t)
 
-	cfg, err := NewDefaultConfig("example.com")
+	cfg, err := newTestConfig("example.com")
 	require.NoError(t, err)
 
-	mockBot := newMockBot(cfg, mockAuth)
+	mockBot := newMockProvider(cfg)
 	template := TemplateKubernetes{
 		getExecutablePath: func() (string, error) {
 			return "tbot", nil

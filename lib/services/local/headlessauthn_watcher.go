@@ -18,42 +18,38 @@ package local
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// maxWaiters is the maximum number of concurrent waiters that a headless authentication watcher
-// will accept. This limit is introduced because the headless login flow creates waiters from an
+// maxSubscribers is the maximum number of concurrent subscribers that a headless authentication watcher
+// will accept. This limit is introduced because the headless login flow creates subscribers from an
 // unauthenticated endpoint, which could be exploited in a ddos attack without the limit in place.
 //
 // 1024 was chosen as a reasonable limit, as under normal conditions, a single Teleport Cluster
 // would never have over 1000 concurrent headless logins, each of which has a maximum lifetime
 // of 30-60 seconds. If this limit is exceeded in a reasonable scenario, this limit should be
 // made configurable in the server configuration file.
-const maxWaiters = 1024
+const maxSubscribers = 1024
 
-var watcherClosedErr = trace.Errorf("headless authentication watcher closed")
+var ErrHeadlessAuthenticationWatcherClosed = errors.New("headless authentication watcher closed")
 
+// HeadlessAuthenticationWatcherConfig contains configuration options for a HeadlessAuthenticationWatcher.
 type HeadlessAuthenticationWatcherConfig struct {
 	// Backend is the storage backend used to create watchers.
 	Backend backend.Backend
-	// WatcherService is a service used to create new watchers.
-	// If nil, Backend will be used as the watcher service.
-	WatcherService interface {
-		NewWatcher(ctx context.Context, watch backend.Watch) (backend.Watcher, error)
-	}
 	// Log is a logger.
 	Log logrus.FieldLogger
 	// Clock is used to control time.
@@ -66,9 +62,6 @@ type HeadlessAuthenticationWatcherConfig struct {
 func (cfg *HeadlessAuthenticationWatcherConfig) CheckAndSetDefaults() error {
 	if cfg.Backend == nil {
 		return trace.BadParameter("missing parameter Backend")
-	}
-	if cfg.WatcherService == nil {
-		cfg.WatcherService = cfg.Backend
 	}
 	if cfg.Log == nil {
 		cfg.Log = logrus.StandardLogger()
@@ -84,14 +77,15 @@ func (cfg *HeadlessAuthenticationWatcherConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-// HeadlessAuthenticationWatcher is a custom backend watcher for the headless authentication resource.
+// HeadlessAuthenticationWatcher is a light weight backend watcher for the headless authentication resource.
 type HeadlessAuthenticationWatcher struct {
 	HeadlessAuthenticationWatcherConfig
 	identityService *IdentityService
 	retry           retryutils.Retry
 	mux             sync.Mutex
-	waiters         [maxWaiters]headlessAuthenticationWaiter
+	subscribers     [maxSubscribers]*headlessAuthenticationSubscriber
 	closed          chan struct{}
+	running         chan struct{}
 }
 
 // NewHeadlessAuthenticationWatcher creates a new headless authentication resource watcher.
@@ -112,16 +106,31 @@ func NewHeadlessAuthenticationWatcher(ctx context.Context, cfg HeadlessAuthentic
 		return nil, trace.Wrap(err)
 	}
 
-	watcher := &HeadlessAuthenticationWatcher{
+	h := &HeadlessAuthenticationWatcher{
 		HeadlessAuthenticationWatcherConfig: cfg,
 		identityService:                     NewIdentityService(cfg.Backend),
 		retry:                               retry,
 		closed:                              make(chan struct{}),
+		running:                             make(chan struct{}),
 	}
 
-	go watcher.runWatchLoop(ctx)
+	go h.runWatchLoop(ctx)
 
-	return watcher, nil
+	return h, nil
+}
+
+// WaitInit waits for the watch loop to initialize.
+func (h *HeadlessAuthenticationWatcher) WaitInit(ctx context.Context) error {
+	select {
+	case <-h.running:
+	case <-ctx.Done():
+	}
+	return trace.Wrap(ctx.Err())
+}
+
+// Done returns a channel that's closed when the watcher is closed.
+func (h *HeadlessAuthenticationWatcher) Done() <-chan struct{} {
+	return h.closed
 }
 
 func (h *HeadlessAuthenticationWatcher) close() {
@@ -138,7 +147,7 @@ func (h *HeadlessAuthenticationWatcher) runWatchLoop(ctx context.Context) {
 		startedWaiting := h.Clock.Now()
 		select {
 		case t := <-h.retry.After():
-			h.Log.Debugf("Attempting to restart watch after waiting %v.", t.Sub(startedWaiting))
+			h.Log.Warningf("Restarting watch on error after waiting %v. Error: %v.", t.Sub(startedWaiting), err)
 			h.retry.Inc()
 		case <-ctx.Done():
 			h.Log.WithError(ctx.Err()).Debugf("Context closed with err. Returning from watch loop.")
@@ -147,42 +156,21 @@ func (h *HeadlessAuthenticationWatcher) runWatchLoop(ctx context.Context) {
 			h.Log.Debug("Watcher closed. Returning from watch loop.")
 			return
 		}
-		if err != nil {
-			h.Log.Warningf("Restart watch on error: %v.", err)
-		}
 	}
 }
 
 func (h *HeadlessAuthenticationWatcher) watch(ctx context.Context) error {
-	watcher, err := h.WatcherService.NewWatcher(ctx, backend.Watch{
-		Name:            types.KindHeadlessAuthentication,
-		MetricComponent: types.KindHeadlessAuthentication,
-		Prefixes:        [][]byte{headlessAuthenticationKey("")},
-	})
+	watcher, err := h.newWatcher(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
 
-	select {
-	case <-watcher.Done():
-		return fmt.Errorf("watcher closed")
-	case <-ctx.Done():
-		return ctx.Err()
-	case event := <-watcher.Events():
-		if event.Type != types.OpInit {
-			return trace.BadParameter("expected init event, got %v instead", event.Type)
-		}
-	}
-
-	h.retry.Reset()
-
+	// Notify any subscribers initiated before the new watcher initialized.
 	headlessAuthns, err := h.identityService.GetHeadlessAuthentications(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
-	// Notify any waiters initiated before the new watcher initialized.
 	h.notify(headlessAuthns...)
 
 	for {
@@ -198,168 +186,198 @@ func (h *HeadlessAuthenticationWatcher) watch(ctx context.Context) error {
 				}
 			}
 		case <-watcher.Done():
-			return fmt.Errorf("watcher closed")
+			return errors.New("watcher closed")
 		case <-ctx.Done():
 			return ctx.Err()
+		case h.running <- struct{}{}:
 		}
 	}
+}
+
+func (h *HeadlessAuthenticationWatcher) newWatcher(ctx context.Context) (backend.Watcher, error) {
+	watcher, err := h.identityService.NewWatcher(ctx, backend.Watch{
+		Name:            types.KindHeadlessAuthentication,
+		MetricComponent: types.KindHeadlessAuthentication,
+		Prefixes:        [][]byte{headlessAuthenticationKey("")},
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	select {
+	case <-watcher.Done():
+		return nil, errors.New("watcher closed")
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case event := <-watcher.Events():
+		if event.Type != types.OpInit {
+			return nil, trace.BadParameter("expected init event, got %v instead", event.Type)
+		}
+	}
+
+	h.retry.Reset()
+	return watcher, nil
 }
 
 func (h *HeadlessAuthenticationWatcher) notify(headlessAuthns ...*types.HeadlessAuthentication) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
+
 	for _, ha := range headlessAuthns {
-		for _, waiter := range h.waiters {
-			if waiter.name == ha.Metadata.Name {
+		for _, s := range h.subscribers {
+			if s != nil && s.name == ha.Metadata.Name {
 				select {
-				case waiter.ch <- proto.Clone(ha).(*types.HeadlessAuthentication):
+				case s.updates <- apiutils.CloneProtoMsg(ha):
 				default:
-					waiter.markStale()
+					select {
+					case s.stale <- struct{}{}:
+					default:
+						// subscriber is already stale, skip.
+					}
 				}
 			}
 		}
 	}
 }
 
-// Wait watches for the headless authentication with the given id to be added/updated
-// in the backend, and waits for the given condition to be met, to result in an error,
-// or for the given context to close.
-func (h *HeadlessAuthenticationWatcher) Wait(ctx context.Context, name string, cond func(*types.HeadlessAuthentication) (ok bool, err error)) (*types.HeadlessAuthentication, error) {
-	const bufferSize = 3 // one for each of the "main", "stale", and "initial backend check" goroutines.
-	conditionMet := make(chan *types.HeadlessAuthentication, bufferSize)
-	conditionErr := make(chan error, bufferSize)
-	checkCondition := func(ha *types.HeadlessAuthentication) {
-		if ok, err := cond(ha); err != nil {
-			conditionErr <- trace.Wrap(err)
-		} else if ok {
-			conditionMet <- ha
-		}
-	}
+// HeadlessAuthenticationSubscriber is a subscriber of updates
+// for a specific headless authentication resource.
+type HeadlessAuthenticationSubscriber interface {
+	Name() string
+	// Updates is a channel used by the watcher to send headless authentication updates.
+	// After receiving an update, the caller should check the stale channel to ensure it
+	// is not a stale update.
+	Updates() <-chan *types.HeadlessAuthentication
+	// Stale is a channel used by the watcher to notify the subscriber that one or more
+	// updates have been missed, due to slow receives on the Updates channel.
+	Stale() <-chan struct{}
+	// Close closes the subscriber and its channels. This frees up resources for the watcher
+	// and should always be called on completion.
+	Close()
+}
 
-	waiter, err := h.assignWaiter(name)
+// Subscribe creates a new headless authentication subscriber for the given headless authentication name.
+func (h *HeadlessAuthenticationWatcher) Subscribe(ctx context.Context, name string) (HeadlessAuthenticationSubscriber, error) {
+	i, err := h.assignSubscriber(name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	subscriber := h.subscribers[i]
 
-	ctx, cancel := context.WithCancel(ctx)
-	var wg sync.WaitGroup
-	defer func() {
-		cancel()
-		wg.Wait()
-		h.unassignWaiter(waiter)
-	}()
-
-	// Consume the main channel.
-	wg.Add(1)
 	go func() {
-		defer wg.Done()
-		for {
-			select {
-			case ha := <-waiter.ch:
-				checkCondition(ha)
-			case <-ctx.Done():
-				return
-			}
-		}
-	}()
-
-	// Consume the stale channel.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
 		select {
-		case <-waiter.stale:
-			ha, err := h.identityService.GetHeadlessAuthentication(ctx, name)
-			if err != nil {
-				conditionErr <- trace.Wrap(err)
-			} else {
-				checkCondition(ha)
-			}
 		case <-ctx.Done():
-			return
+		case <-subscriber.closed:
 		}
+
+		// reclaim the subscriber and close remaining open channels.
+		h.unassignSubscriber(i)
+		close(subscriber.updates)
+		close(subscriber.stale)
 	}()
 
-	// With the waiter allocated, check the backend for an existing entry.
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		ha, err := h.identityService.GetHeadlessAuthentication(ctx, name)
-		if trace.IsNotFound(err) {
-			// Ignore not found errors in the initial stale check.
-			return
-		} else if err != nil {
-			conditionErr <- trace.Wrap(err)
-		} else {
-			checkCondition(ha)
-		}
-	}()
-
-	select {
-	case ha := <-conditionMet:
-		return ha, nil
-	case err := <-conditionErr:
-		return nil, trace.Wrap(err)
-	case <-ctx.Done():
-		return nil, trace.Wrap(ctx.Err())
-	case <-h.closed:
-		return nil, watcherClosedErr
-	}
+	return subscriber, nil
 }
 
-func (h *HeadlessAuthenticationWatcher) assignWaiter(name string) (*headlessAuthenticationWaiter, error) {
+func (h *HeadlessAuthenticationWatcher) assignSubscriber(name string) (int, error) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
 
 	select {
 	case <-h.closed:
-		return nil, watcherClosedErr
+		return 0, ErrHeadlessAuthenticationWatcherClosed
 	default:
 	}
 
-	for i := range h.waiters {
-		if h.waiters[i].ch != nil {
-			continue
+	for i := range h.subscribers {
+		if h.subscribers[i] == nil {
+			h.subscribers[i] = &headlessAuthenticationSubscriber{
+				name: name,
+				// small buffer for updates to avoid unnecessary stale checks.
+				updates: make(chan *types.HeadlessAuthentication, 1),
+				// buffer required to mark as stale.
+				stale:  make(chan struct{}, 1),
+				closed: make(chan struct{}),
+			}
+			return i, nil
 		}
-		h.waiters[i].ch = make(chan *types.HeadlessAuthentication)
-		h.waiters[i].name = name
-		h.waiters[i].stale = make(chan struct{}, 1) // buffer required by markStale
-		return &h.waiters[i], nil
 	}
 
-	return nil, trace.LimitExceeded("too many in-flight headless login requests")
+	return 0, trace.LimitExceeded("too many in-flight headless login requests")
 }
 
-func (h *HeadlessAuthenticationWatcher) unassignWaiter(waiter *headlessAuthenticationWaiter) {
+func (h *HeadlessAuthenticationWatcher) unassignSubscriber(i int) {
 	h.mux.Lock()
 	defer h.mux.Unlock()
-
-	// close channels.
-	close(waiter.ch)
-	close(waiter.stale)
-
-	waiter.ch = nil
-	waiter.name = ""
-	waiter.stale = nil
+	h.subscribers[i] = nil
 }
 
-// headlessAuthenticationWaiter is a waiter for a specific headless authentication.
-type headlessAuthenticationWaiter struct {
-	// name is the name of the headless authentication resource being waited on.
+// headlessAuthenticationSubscriber is a subscriber for a specific headless authentication.
+type headlessAuthenticationSubscriber struct {
+	// name is the name of the headless authentication resource being subscribed to.
 	name string
-	// ch is a channel used by the watcher to send resource updates.
-	ch chan *types.HeadlessAuthentication
-	// stale is a channel used to determine if the waiter is stale and
+	// updates is a channel used by the watcher to send resource updates.
+	updates chan *types.HeadlessAuthentication
+	// stale is a channel used to determine if the subscriber is stale and
 	// needs to check the backend for missed data.
 	stale chan struct{}
+	// closed is a channel used to determine if the subscriber is closed.
+	closed chan struct{}
 }
 
-// markStale marks a waiter as stale so it will update itself once available.
-// This should be called when a waiter misses an update due to slow consumption on its channel.
-func (w *headlessAuthenticationWaiter) markStale() {
-	select {
-	case w.stale <- struct{}{}:
-	default:
-		// waiter is already stale, carry on.
+func (s *headlessAuthenticationSubscriber) Name() string {
+	return s.name
+}
+
+func (s *headlessAuthenticationSubscriber) Updates() <-chan *types.HeadlessAuthentication {
+	return s.updates
+}
+
+func (s *headlessAuthenticationSubscriber) Stale() <-chan struct{} {
+	return s.stale
+}
+
+func (s *headlessAuthenticationSubscriber) Close() {
+	close(s.closed)
+}
+
+// WaitForUpdate waits until the headless authentication with the given name is updated in the
+// backend to meet the given condition or returns early if the condition results in an
+// error or if the watcher or given context is closed.
+func (h *HeadlessAuthenticationWatcher) WaitForUpdate(ctx context.Context, subscriber HeadlessAuthenticationSubscriber, cond func(*types.HeadlessAuthentication) (bool, error)) (*types.HeadlessAuthentication, error) {
+	// First check for an existing backend entry.
+	ha, err := h.identityService.GetHeadlessAuthentication(ctx, subscriber.Name())
+	if trace.IsNotFound(err) {
+		// If not found, that's ok. Continue to watch update channel.
+	} else if err != nil {
+		return nil, trace.Wrap(err)
+	} else if ok, err := cond(ha); err != nil {
+		return nil, trace.Wrap(err)
+	} else if ok {
+		return ha, nil
+	}
+
+	for {
+		select {
+		case ha := <-subscriber.Updates():
+			select {
+			case <-subscriber.Stale():
+				// If stale, then this update is not the most recent. Check the backend.
+				ha, err = h.identityService.GetHeadlessAuthentication(ctx, subscriber.Name())
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+			default:
+			}
+			if ok, err := cond(ha); err != nil {
+				return nil, trace.Wrap(err)
+			} else if ok {
+				return ha, nil
+			}
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		case <-h.Done():
+			return nil, ErrHeadlessAuthenticationWatcherClosed
+		}
 	}
 }

@@ -16,6 +16,8 @@
 
 import React from 'react';
 
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
+
 import { ClusterLogout } from './ClusterLogout';
 
 export default {
@@ -24,13 +26,12 @@ export default {
 
 export const Story = () => {
   return (
-    <ClusterLogout
-      status=""
-      statusText=""
-      removeCluster={() => Promise.resolve([undefined, null])}
-      onClose={() => {}}
-      clusterUri="/clusters/foo"
-      clusterTitle="foo"
-    />
+    <MockAppContextProvider>
+      <ClusterLogout
+        onClose={() => {}}
+        clusterUri="/clusters/foo"
+        clusterTitle="foo"
+      />
+    </MockAppContextProvider>
   );
 };

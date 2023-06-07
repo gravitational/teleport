@@ -74,6 +74,7 @@ export function TopBar() {
           {title}
         </Text>
       )}
+      <Text fontSize="18px" id="topbar-portal" ml={2}></Text>
       <ClusterSelector
         value={clusterId}
         width="384px"
@@ -96,6 +97,5 @@ export const TopBarContainer = styled(TopNav)`
   padding-left: ${({ theme }) => `${theme.space[6]}px`};
   overflow-y: initial;
   flex-shrink: 0;
-  border-bottom: 1px solid
-    ${({ theme }) => theme.colors.levels.surfaceSecondary};
+  border-bottom: 1px solid ${({ theme }) => theme.colors.spotBackground[0]};
 `;

@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/fixtures"
+	"github.com/gravitational/teleport/api/utils/pingconn"
 )
 
 func TestIsALPNConnUpgradeRequired(t *testing.T) {
@@ -123,42 +124,58 @@ func TestIsALPNConnUpgradeRequiredByEnv(t *testing.T) {
 func TestALPNConnUpgradeDialer(t *testing.T) {
 	t.Parallel()
 
-	t.Run("connection upgraded", func(t *testing.T) {
-		ctx := context.Background()
+	tests := []struct {
+		name          string
+		serverHandler http.Handler
+		withPing      bool
+		wantError     bool
+	}{
+		{
+			name:          "connection upgrade",
+			serverHandler: mockConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPN, []byte("hello")),
+		},
+		{
+			name:          "connection upgrade with ping",
+			serverHandler: mockConnUpgradeHandler(t, constants.WebAPIConnUpgradeTypeALPNPing, []byte("hello")),
+			withPing:      true,
+		},
+		{
+			name:          "connection upgrade API not found",
+			serverHandler: http.NotFoundHandler(),
+			wantError:     true,
+		},
+	}
 
-		server := httptest.NewTLSServer(mockConnUpgradeHandler(t, "alpn", []byte("hello")))
-		t.Cleanup(server.Close)
-		addr, err := url.Parse(server.URL)
-		require.NoError(t, err)
-		pool := x509.NewCertPool()
-		pool.AddCert(server.Certificate())
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := context.Background()
 
-		tlsConfig := &tls.Config{RootCAs: pool}
-		preDialer := NewDialer(ctx, 0, 5*time.Second)
-		dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig)
-		conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
-		require.NoError(t, err)
+			server := httptest.NewTLSServer(test.serverHandler)
+			t.Cleanup(server.Close)
+			addr, err := url.Parse(server.URL)
+			require.NoError(t, err)
+			pool := x509.NewCertPool()
+			pool.AddCert(server.Certificate())
 
-		data := make([]byte, 100)
-		n, err := conn.Read(data)
-		require.NoError(t, err)
-		require.Equal(t, string(data[:n]), "hello")
-	})
+			tlsConfig := &tls.Config{RootCAs: pool}
+			preDialer := newDirectDialer(0, 5*time.Second)
+			dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig, test.withPing)
+			conn, err := dialer.DialContext(ctx, "tcp", addr.Host)
+			if test.wantError {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			defer conn.Close()
 
-	t.Run("connection upgrade API not found", func(t *testing.T) {
-		ctx := context.Background()
-
-		server := httptest.NewTLSServer(http.NotFoundHandler())
-		t.Cleanup(server.Close)
-		addr, err := url.Parse(server.URL)
-		require.NoError(t, err)
-
-		tlsConfig := &tls.Config{InsecureSkipVerify: true}
-		preDialer := NewDialer(ctx, 0, 5*time.Second)
-		dialer := newALPNConnUpgradeDialer(preDialer, tlsConfig)
-		_, err = dialer.DialContext(ctx, "tcp", addr.Host)
-		require.Error(t, err)
-	})
+			data := make([]byte, 100)
+			n, err := conn.Read(data)
+			require.NoError(t, err)
+			require.Equal(t, string(data[:n]), "hello")
+		})
+	}
 }
 
 type mockALPNServer struct {
@@ -218,9 +235,12 @@ func mustStartMockALPNServer(t *testing.T, supportedProtos []string) *mockALPNSe
 // mockConnUpgradeHandler mocks the server side implementation to handle an
 // upgrade request and sends back some data inside the tunnel.
 func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http.Handler {
+	t.Helper()
+
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, constants.WebAPIConnUpgrade, r.URL.Path)
 		require.Equal(t, upgradeType, r.Header.Get(constants.WebAPIConnUpgradeHeader))
+		require.Equal(t, constants.WebAPIConnUpgradeConnectionType, r.Header.Get(constants.WebAPIConnUpgradeConnectionHeader))
 
 		hj, ok := w.(http.Hijacker)
 		require.True(t, ok)
@@ -238,7 +258,18 @@ func mockConnUpgradeHandler(t *testing.T, upgradeType string, write []byte) http
 		require.NoError(t, response.Write(conn))
 
 		// Upgraded.
-		_, err = conn.Write(write)
-		require.NoError(t, err)
+		switch upgradeType {
+		case constants.WebAPIConnUpgradeTypeALPNPing:
+			// Wrap conn with Ping and write some pings.
+			pingConn := pingconn.New(conn)
+			pingConn.WritePing()
+			_, err = pingConn.Write(write)
+			require.NoError(t, err)
+			pingConn.WritePing()
+
+		default:
+			_, err = conn.Write(write)
+			require.NoError(t, err)
+		}
 	})
 }

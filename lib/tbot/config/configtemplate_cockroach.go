@@ -57,7 +57,12 @@ func (t *TemplateCockroach) Describe(destination bot.Destination) []FileDescript
 	}
 }
 
-func (t *TemplateCockroach) Render(ctx context.Context, bot Bot, currentIdentity *identity.Identity, destination *DestinationConfig) error {
+func (t *TemplateCockroach) Render(
+	ctx context.Context,
+	bot provider,
+	identity *identity.Identity,
+	destination *DestinationConfig,
+) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
@@ -68,7 +73,7 @@ func (t *TemplateCockroach) Render(ctx context.Context, bot Bot, currentIdentity
 		return trace.Wrap(err)
 	}
 
-	key, err := newClientKey(currentIdentity, dbCAs)
+	key, err := newClientKey(identity, dbCAs)
 	if err != nil {
 		return trace.Wrap(err)
 	}

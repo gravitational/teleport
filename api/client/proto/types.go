@@ -90,3 +90,5 @@ type DownstreamInventoryMessage interface {
 func (h DownstreamInventoryHello) sealedDownstreamInventoryMessage() {}
 
 func (p DownstreamInventoryPing) sealedDownstreamInventoryMessage() {}
+
+func (u DownstreamInventoryUpdateLabels) sealedDownstreamInventoryMessage() {}

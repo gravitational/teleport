@@ -375,12 +375,9 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 	id := uuid.New()
 	log := forwarder.log.WithField("session", id.String())
 	log.Debug("Creating session")
-	roles, err := getRolesByName(forwarder, ctx.Context.Identity.GetIdentity().Groups)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	var policySets []*types.SessionTrackerPolicySet
+	roles := ctx.Checker.Roles()
 	for _, role := range roles {
 		policySet := role.GetSessionPolicySet()
 		policySets = append(policySets, &policySet)
@@ -1192,16 +1189,40 @@ func (s *session) trackSession(p *party, policySet []*types.SessionTrackerPolicy
 		HostUser:          p.Ctx.User.GetName(),
 		HostPolicies:      policySet,
 		Login:             "root",
-		Created:           time.Now(),
+		Created:           s.forwarder.cfg.Clock.Now(),
 		Reason:            s.reason,
 		Invited:           s.invitedUsers,
+		HostID:            s.forwarder.cfg.HostID,
 	}
 
 	s.log.Debug("Creating session tracker")
-	var err error
-	s.tracker, err = srv.NewSessionTracker(s.forwarder.ctx, trackerSpec, s.forwarder.cfg.AuthClient)
-	if err != nil {
+	sessionTrackerService := s.forwarder.cfg.AuthClient
+
+	ctx := s.req.Context()
+
+	tracker, err := srv.NewSessionTracker(ctx, trackerSpec, sessionTrackerService)
+	switch {
+	// there was an error creating the tracker for a moderated session - terminate the session
+	case err != nil && s.accessEvaluator.IsModerated():
+		s.log.WithError(err).Warn("Failed to create session tracker, unable to proceed for moderated session")
 		return trace.Wrap(err)
+	// there was an error creating the tracker for a non-moderated session - permit the session with a local tracker
+	case err != nil && !s.accessEvaluator.IsModerated():
+		s.log.Warn("Failed to create session tracker, proceeding with local session tracker for non-moderated session")
+
+		localTracker, err := srv.NewSessionTracker(ctx, trackerSpec, nil)
+		// this error means there are problems with the trackerSpec, we need to return it
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		s.tracker = localTracker
+	// there was an error even though the tracker wasn't being propagated - return it
+	case err != nil:
+		return trace.Wrap(err)
+	// the tracker was created successfully
+	case err == nil:
+		s.tracker = tracker
 	}
 
 	go func() {

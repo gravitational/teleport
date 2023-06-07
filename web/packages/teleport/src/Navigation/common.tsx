@@ -57,7 +57,7 @@ export const LinkContent = styled.div<LinkContentProps>`
 export const commonNavigationItemStyles = css`
   display: flex;
   position: relative;
-  color: white;
+  color: ${props => props.theme.colors.text.main};
   text-decoration: none;
   user-select: none;
   font-size: 14px;
@@ -67,6 +67,6 @@ export const commonNavigationItemStyles = css`
   will-change: transform;
 
   &:hover {
-    background: rgba(255, 255, 255, 0.05);
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;

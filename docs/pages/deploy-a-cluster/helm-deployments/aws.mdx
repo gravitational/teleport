@@ -6,11 +6,12 @@ description: Install and configure an HA Teleport cluster using an AWS EKS clust
 In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and AWS products (DynamoDB and S3).
 
-<ScopedBlock scope="cloud">
-
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
-
-</ScopedBlock>
+<Admonition type="tip" title="Have an existing Teleport cluster?">
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
+</Admonition>
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -28,8 +29,9 @@ using Teleport Helm charts and AWS products (DynamoDB and S3).
 
 ## Step 3/7. Set up AWS IAM configuration
 
-For Teleport to be able to create the DynamoDB tables, indexes, and the S3 storage bucket it needs,
-you'll need to configure AWS IAM policies to allow access.
+For Teleport to be able to manage the DynamoDB tables, indexes, and the S3
+storage bucket it needs, you'll need to configure AWS IAM policies to allow
+access.
 
 <Admonition type="note">
   These IAM policies should be added to your AWS account, then granted to the instance role associated with the
@@ -43,10 +45,6 @@ you'll need to configure AWS IAM policies to allow access.
 ### S3 IAM policy
 
 (!docs/pages/includes/s3-iam-policy.mdx!)
-
-Note that Teleport will only use S3 buckets with versioning enabled. This
-ensures that a session log cannot be permanently altered or deleted, as
-Teleport will always look at the oldest version of a recording.
 
 ## Step 4/7. Configure TLS certificates for Teleport
 
@@ -65,7 +63,7 @@ these options:
 You can use `cert-manager` to provision and automatically renew TLS credentials
 by completing ACME challenges via Let's Encrypt. We recommend this approach if
 you require CLI access to web applications using client certificates via
-Teleport Application Access.
+the Teleport Application Service.
 
 #### Using AWS Certificate Manager
 
@@ -75,10 +73,10 @@ certificates.
 You should be aware of the limitations for using AWS Certificate Manager to
 provision TLS credentials for Teleport:
 
-- This will prevent Teleport Application Access from working via CLI using
-  client certificates. Application Access will still work via a browser.
-- Command-line Application Access does not work with ACM. Using ACM will prevent
-  Teleport from facilitating Application Access via CLI (using client
+- This will prevent the Teleport Application Service from working via CLI using
+  client certificates. Application access will still work via a browser.
+- Command-line application access does not work with ACM. Using ACM will prevent
+  Teleport from facilitating application access via CLI (using client
   certificates), as Teleport will not be handling its own TLS termination.
 - Using ACM through a AWS Load Balancer prevents the required traffic for
   Postgres or MongoDB through Teleport's web port. If you choose to use the ACM
@@ -270,9 +268,7 @@ Edit your `values.yaml` file to refer to the name of your secret:
 Before you can install Teleport in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
 
-Download your Teleport Enterprise license from the
-[Customer Portal](https://dashboard.gravitational.com/web/login) and save it to
-a file called `license.pem`.
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
 Create a secret from your license file. Teleport will automatically discover
 this secret as long as your file is named `license.pem`.
@@ -619,8 +615,9 @@ $ helm --namespace cert-manager uninstall cert-manager
 
 ## Next steps
 
-You can follow our [Getting Started with Teleport guide](../../management/guides/docker.mdx#step-34-creating-a-teleport-user) to finish setting up your
-Teleport cluster.
+Now that you have deployed a Teleport cluster, read the [Manage
+Access](../../access-controls/introduction.mdx) section to get started enrolling
+users and setting up RBAC.
 
 See the [high availability section of our Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx#highavailability) for more details on high availability.
 

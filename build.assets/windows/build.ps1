@@ -89,8 +89,9 @@ function Install-Go {
         [string] $GoVersion
     )
     begin {
+        New-Item -Path "$ToolchainDir" -ItemType Directory -Force | Out-Null
         $GoDownloadUrl = "https://go.dev/dl/go$GoVersion.windows-amd64.zip"
-        $GoInstallZip = "go$GoVersion.windows-amd64.zip"
+        $GoInstallZip = "$ToolchainDir/go$GoVersion.windows-amd64.zip"
         Invoke-WebRequest -Uri $GoDownloadUrl -OutFile $GoInstallZip
         Expand-Archive -Path $GoInstallZip -DestinationPath $ToolchainDir
         Enable-Go -ToolchainDir $ToolchainDir
@@ -124,7 +125,8 @@ function Install-Node {
         [string] $NodeVersion
     )
     begin {
-        $NodeZipfile = "node-$NodeVersion-win-x64.zip"
+        New-Item -Path "$ToolchainDir" -ItemType Directory -Force | Out-Null
+        $NodeZipfile = "$ToolchainDir/node-$NodeVersion-win-x64.zip"
         Invoke-WebRequest -Uri https://nodejs.org/download/release/v$NodeVersion/node-v$NodeVersion-win-x64.zip -OutFile $NodeZipfile
         Expand-Archive -Path $NodeZipfile -DestinationPath $ToolchainDir
         Rename-Item -Path "$ToolchainDir/node-v$NodeVersion-win-x64" -NewName "$ToolchainDir/node"
@@ -137,7 +139,7 @@ function Install-Node {
 function Enable-Node {
     <#
     .SYNOPSIS
-        Adds the Node toolchaion to the system search path 
+        Adds the Node toolchain to the system search path
     #>
     [CmdletBinding()]
     param(
