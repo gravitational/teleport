@@ -73,6 +73,8 @@ physical access to a device can find ways to beat the game. Strong processes
 greatly increase the effectiveness of the system and layered defenses are
 necessary to detect compromise.
 
+The implementation details for TPM support is now specified in [RFD 0008e - Device Trust TPM Support](./0008e-device-trust-tpm.md)
+
 ### Enrollment ceremony
 
 ```
@@ -328,127 +330,7 @@ message MacOSEnrollChallengeResponse {
 
 #### TPM-based enrollment
 
-```
-                           TPM Enrollment
-
-     ┌───┐                                                ┌────┐
-     │tsh│                                                │Auth│
-     └─┬─┘                                                └─┬──┘
-       ────┐                                                │
-           │ fetch EKs                                      │
-       <───┘                                                │
-       │                                                    │
-       ────┐                                                │
-           │ create new AK                                  │
-       <───┘                                                │
-       │                                                    │
-       ────┐                                                │
-           │ assemble attestation data                      │
-       <───┘                                                │
-       │                                                    │
-       ────┐                                                │
-           │ create new application key                     │
-       <───┘                                                │
-       │                                                    │
-       ────┐                                                │
-           │ assemble certification parameters              │
-       <───┘                                                │
-       │                                                    │
-       ────┐                                                │
-           │ collect device data                            │
-       <───┘                                                │
-       │                                                    │
-       │EnrollDeviceInit(token, collectedData, attestations)│
-       │*stream starts*                                     │
-       │────────────────────────────────────────────────────>
-       │                                                    │
-       │     TPMEnrollChallenge(cred, encryptedSecret)      │
-       │<────────────────────────────────────────────────────
-       │                                                    │
-       ────┐                                                │
-           │ activate credential (cred, encryptedSecret)    │
-       <───┘                                                │
-       │                                                    │
-       │         TPMEnrollChallengeResponse(secret)         │
-       │────────────────────────────────────────────────────>
-       │                                                    │
-       │                EnrollDeviceSuccess                 │
-       │                *stream ends*                       │
-       │<────────────────────────────────────────────────────
-     ┌─┴─┐                                                ┌─┴──┐
-     │tsh│                                                │Auth│
-     └───┘                                                └────┘
-```
-
-TPM-based enrollment is used for Linux and Windows. It's presented here as a
-draft, meant to be detailed by an upcoming RFD (or a future update to this RFD).
-
-<details open><summary>TPM enrollment messages</summary>
-
-```proto
-message TPMEnrollPayload {
-  // ek_public is the device's Endorsement Key in PKIX, ASN.1 DER form.
-  bytes ek_public = 1;
-
-  // ak_public is the device's Attesation Key in PKIX, ASN.1 DER form.
-  bytes ak_public = 2;
-
-  // app_public is the device's Application Key in PKIX, ASN.1 DER form.
-  bytes app_public = 3;
-
-  // Attestation data collected from the TPM.
-  TPMAttestationData attestation_data = 4;
-
-  // Certification parameters for the application key.
-  TPMCertificationParameters app_certification_params = 5;
-}
-
-// See
-// https://pkg.go.dev/github.com/google/go-attestation/attest#AttestationParameters.
-message TPMAttestationData {
-  // If true, activation challenges should use the TCSD-speficic format
-  // (trousers daemon).
-  bool use_tcsd_activation_format = 1;
-
-  // create_data represents the properties of a TPM key, encoded as a
-  // TPMS_CREATION_DATA structure.
-  bytes create_data = 2;
-
-  // create_attestation represents an assertion as to the details of the key,
-  // encoded as a TPMS_ATTEST structure.
-  bytes create_attestation = 3;
-
-  // create_signature is a signature of create_attestation, encoded as a
-  // TPMT_SIGNATURE structure.
-  bytes create_signature = 4;
-}
-
-// See
-// https://pkg.go.dev/github.com/google/go-attestation/attest#CertificationParameters
-message TPMCertificationParameters {
-  // Public key canonical encoding.
-  // Includes public key and signing parameters.
-  bytes public = 1;
-
-  bytes create_data = 2;
-  bytes create_attestation = 3;
-  bytes create_signature = 4;
-}
-
-message TPMEnrollChallenge {
-  // credential is the AK credential handle.
-  bytes credential = 1;
-  // encrypted_secret used for the TPM to prove possession of both EK and AK.
-  bytes encrypted_secret = 2;
-}
-
-message TPMEnrollChallengeResponse {
-  // secret is the decrypted challenge secret.
-  bytes secret = 2;
-}
-```
-
-</details>
+TPM-based enrollment is specified in [RFD 0008e - Device Trust TPM Support](./0008e-device-trust-tpm.md#device-enrollment)
 
 #### Device enrollment token
 
