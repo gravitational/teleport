@@ -194,7 +194,7 @@ func (c *TemplateSSHClient) Render(
 		IdentityFilePath:    identityFilePath,
 		CertificateFilePath: certificateFilePath,
 		ProxyHost:           proxyHost,
-    ProxyPort:           proxyPort, 
+		ProxyPort:           proxyPort,
 		ExecutablePath:      executablePath,
 		DestinationDir:      destDir,
 	}); err != nil {
