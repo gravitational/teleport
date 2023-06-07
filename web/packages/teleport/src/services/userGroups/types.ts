@@ -24,6 +24,8 @@ export type UserGroup = {
   description: string;
   // Labels for the user group.
   labels: AgentLabel[];
+  // FriendlyName for the user group.
+  friendlyName?: string;
 };
 
 export type UserGroupsResponse = {

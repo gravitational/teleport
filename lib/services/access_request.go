@@ -1680,15 +1680,8 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister Resource
 
 	result := make(map[string]types.ResourceDetails)
 	for _, resource := range resources {
-		// Right now, only resources sourced from Okta and nodes have friendly names.
-		var friendlyName string
-		if resource.Origin() == types.OriginOkta {
-			friendlyName = resource.GetMetadata().Description
-		}
+		friendlyName := FriendlyName(resource)
 
-		if hn, ok := resource.(interface{ GetHostname() string }); ok {
-			friendlyName = hn.GetHostname()
-		}
 		// No friendly name was found, so skip to the next resource.
 		if friendlyName == "" {
 			continue
