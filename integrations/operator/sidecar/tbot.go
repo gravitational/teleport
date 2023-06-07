@@ -71,12 +71,12 @@ func (b *Bot) initializeConfig() {
 			JoinMethod: types.JoinMethodToken,
 		},
 		Storage: &config.StorageConfig{
-			Destination: config.DestinationWrapper{rootMemoryStore},
+			Destination: config.WrapDestination(rootMemoryStore),
 		},
 		Outputs: []config.Output{
 			&config.IdentityOutput{
 				Common: config.OutputCommon{
-					Destination: config.DestinationWrapper{destMemoryStore},
+					Destination: config.WrapDestination(destMemoryStore),
 				},
 			},
 		},
