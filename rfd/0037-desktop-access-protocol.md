@@ -282,3 +282,13 @@ It is sent from TDP server to client. At the time of writing, the purpose of thi
 Some messages passed to the TDP client via a FastPath Frame warrant a response, which can be sent from the TDP client to the server with this message.
 At the time of writing this message is used to send responses to RemoteFX frames, which occasionaly demand such, but in theory it can be used to carry
 any raw RDP response message intended to be written directly into the TDP server-side's RDP connection.
+
+#### 31 - RDP Channel IDs
+
+```
+| message type (31) | io_channel_id uint16 | user_channel_id uint16 |
+```
+
+During the RDP connection sequence the client and server negotiate channel ids for the I/O and user channels, which are used in the RemoteFX
+response frames (see message type 30, above) . This message is sent by the TDP server to the TDP client so that such response frames can be
+properly formulated.

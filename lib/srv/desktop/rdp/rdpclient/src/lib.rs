@@ -416,6 +416,22 @@ fn connect_rdp_inner(
 
         debug!("connection_result: {:?}", connection_result);
 
+        unsafe {
+            match handle_rdp_channel_ids(
+                go_ref,
+                connection_result.io_channel_id,
+                connection_result.user_channel_id,
+            ) {
+                CGOErrCode::ErrCodeSuccess => {}
+                _ => {
+                    return Err(ConnectError::IronRdpError(SessionError::new(
+                        "handle_rdp_channel_ids error",
+                        SessionErrorKind::General,
+                    )));
+                }
+            };
+        };
+
         let x224_processor = x224::Processor::new(
             swap_hashmap_kv(connection_result.static_channels),
             connection_result.user_channel_id,
@@ -794,9 +810,8 @@ async fn read_rdp_output_inner(client: &mut Client) -> ReadRdpOutputReturns {
             }
             ironrdp_pdu::Action::FastPath => {
                 let go_ref = client.go_ref;
-                match unsafe {
-                    handle_remote_fx_frame(go_ref, frame.as_mut_ptr(), frame.len() as u32)
-                } {
+                match unsafe { handle_fastpath_pdu(go_ref, frame.as_mut_ptr(), frame.len() as u32) }
+                {
                     CGOErrCode::ErrCodeSuccess => continue,
                     err => {
                         error!("failed to process fastpath frame: {:?}", err);
@@ -1525,7 +1540,12 @@ pub struct CGOSharedDirectoryListRequest {
 extern "C" {
     fn handle_png(client_ref: usize, b: *mut CGOPNG) -> CGOErrCode;
     fn handle_remote_copy(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
-    fn handle_remote_fx_frame(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
+    fn handle_fastpath_pdu(client_ref: usize, data: *mut u8, len: u32) -> CGOErrCode;
+    fn handle_rdp_channel_ids(
+        client_ref: usize,
+        io_channel_id: u16,
+        user_channel_id: u16,
+    ) -> CGOErrCode;
     fn tdp_sd_acknowledge(client_ref: usize, ack: *mut CGOSharedDirectoryAcknowledge)
         -> CGOErrCode;
     fn tdp_sd_info_request(

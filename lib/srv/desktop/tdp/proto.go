@@ -76,6 +76,7 @@ const (
 	TypeNotification                  = MessageType(28)
 	TypeRDPFastPathPDU                = MessageType(29)
 	TypeRDPResponsePDU                = MessageType(30)
+	TypeRDPChannelIDs                 = MessageType(31)
 )
 
 // Message is a Go representation of a desktop protocol message.
@@ -118,6 +119,8 @@ func decodeMessage(firstByte byte, in byteReader) (Message, error) {
 		return decodeRDPFastPathPDU(in)
 	case TypeRDPResponsePDU:
 		return decodeRDPResponsePDU(in)
+	case TypeRDPChannelIDs:
+		return decodeRDPChannelIDs(in)
 	case TypeMouseMove:
 		return decodeMouseMove(in)
 	case TypeMouseButton:
@@ -344,6 +347,28 @@ func (r RDPResponsePDU) Encode() ([]byte, error) {
 	writeUint32(buf, uint32(len(r)))
 	buf.Write(r)
 	return buf.Bytes(), nil
+}
+
+// RDPChannelIDs are the io and user channel ids negotiated during the RDP connection.
+//
+// | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
+type RDPChannelIDs struct {
+	IoChannelID   uint16
+	UserChannelID uint16
+}
+
+func (c RDPChannelIDs) Encode() ([]byte, error) {
+	buf := new(bytes.Buffer)
+	buf.WriteByte(byte(TypeRDPChannelIDs))
+	writeUint16(buf, c.IoChannelID)
+	writeUint16(buf, c.UserChannelID)
+	return buf.Bytes(), nil
+}
+
+func decodeRDPChannelIDs(in byteReader) (RDPChannelIDs, error) {
+	var ids RDPChannelIDs
+	err := binary.Read(in, binary.BigEndian, &ids)
+	return ids, trace.Wrap(err)
 }
 
 // MouseMove is the mouse movement message.
@@ -1512,6 +1537,12 @@ func decodeString(r io.Reader, maxLen uint32) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return string(s), nil
+}
+
+// writeUint16 writes v to b in big endian order
+func writeUint16(b *bytes.Buffer, v uint16) {
+	b.WriteByte(byte(v >> 8))
+	b.WriteByte(byte(v))
 }
 
 // writeUint32 writes v to b in big endian order
