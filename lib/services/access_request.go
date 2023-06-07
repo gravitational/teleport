@@ -1717,12 +1717,10 @@ func GetResourceDetails(ctx context.Context, clusterName string, lister Resource
 	return result, nil
 }
 
-func GetNodeResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceID {
+// GetResourceIDsByCluster will return resource IDs grouped by cluster.
+func GetResourceIDsByCluster(r types.AccessRequest) map[string][]types.ResourceID {
 	resourceIDsByCluster := make(map[string][]types.ResourceID)
 	for _, resourceID := range r.GetRequestedResourceIDs() {
-		if resourceID.Kind != types.KindNode {
-			continue
-		}
 		resourceIDsByCluster[resourceID.ClusterName] = append(resourceIDsByCluster[resourceID.ClusterName], resourceID)
 	}
 	return resourceIDsByCluster
@@ -1784,6 +1782,25 @@ func MapResourceKindToListResourcesType(kind string) string {
 	default:
 		return kind
 	}
+}
+
+// DetailsID returns the identifier needed to access resource details. This is
+// needed because, for certain resource kinds, the resource ID supplied to the
+// details function doesn't map directly to the identifier used in the resulting
+// resource details map.
+// Note that this assumes that the name of both the leaf resource type and the
+// original are identical, which should be the case.
+func DetailsID(resourceID types.ResourceID) string {
+	switch resourceID.Kind {
+	case types.KindAppServer:
+		resourceID.Kind = types.KindApp
+	case types.KindDatabaseServer:
+		resourceID.Kind = types.KindDatabase
+	case types.KindKubeServer:
+		resourceID.Kind = types.KindKubernetesCluster
+	}
+
+	return types.ResourceIDToString(resourceID)
 }
 
 // MapListResourcesResultToLeafResource is the inverse of

@@ -30,7 +30,8 @@ import (
 )
 
 type ResourceDetails struct {
-	Hostname string
+	Hostname     string
+	FriendlyName string
 }
 
 type AccessRequest struct {
@@ -268,7 +269,7 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 }
 
 func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.ClientI) (map[string]ResourceDetails, error) {
-	resourceIDsByCluster := services.GetNodeResourceIDsByCluster(req)
+	resourceIDsByCluster := services.GetResourceIDsByCluster(req)
 
 	resourceDetails := make(map[string]ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
@@ -278,7 +279,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, clt auth.C
 		}
 		for id, d := range details {
 			resourceDetails[id] = ResourceDetails{
-				Hostname: d.Hostname,
+				FriendlyName: d.FriendlyName,
 			}
 		}
 	}
