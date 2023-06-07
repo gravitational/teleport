@@ -4107,9 +4107,11 @@ func TestGetWebConfig(t *testing.T) {
 			LocalConnectorName: constants.PasswordlessConnector,
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
 		},
-		CanJoinSessions:  true,
-		ProxyClusterName: env.server.ClusterName(),
-		IsCloud:          false,
+		CanJoinSessions:   true,
+		ProxyClusterName:  env.server.ClusterName(),
+		IsCloud:           false,
+		AssistEnabled:     false,
+		AutomaticUpgrades: false,
 	}
 
 	// Make a request.
@@ -4132,13 +4134,23 @@ func TestGetWebConfig(t *testing.T) {
 		TestFeatures: modules.Features{
 			Cloud:               true,
 			IsUsageBasedBilling: true,
+			AutomaticUpgrades:   true,
 		},
 	})
 
+	mockProxySetting := &mockProxySettings{
+		mockedGetProxySettings: func(ctx context.Context) (*webclient.ProxySettings, error) {
+			return &webclient.ProxySettings{AssistEnabled: true}, nil
+		},
+	}
+	env.proxies[0].handler.handler.cfg.ProxySettings = mockProxySetting
+
 	expectedCfg.IsCloud = true
 	expectedCfg.IsUsageBasedBilling = true
+	expectedCfg.AutomaticUpgrades = true
+	expectedCfg.AssistEnabled = true
 
-	// request and verify again
+	// request and verify enabled features are enabled.
 	re, err = clt.Get(ctx, endpoint, nil)
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(string(re.Bytes()), "var GRV_CONFIG"))
@@ -4155,6 +4167,7 @@ func TestGetWebConfig(t *testing.T) {
 		},
 	}
 	env.proxies[0].client = mockClient
+	expectedCfg.AutomaticUpgrades = false
 
 	// update modules but NOT the expected config
 	modules.SetTestModules(t, &modules.TestModules{
@@ -7586,9 +7599,14 @@ func validateTerminalStream(t *testing.T, ws *websocket.Conn) {
 	require.NoError(t, waitForOutput(stream, "teleport"))
 }
 
-type mockProxySettings struct{}
+type mockProxySettings struct {
+	mockedGetProxySettings func(ctx context.Context) (*webclient.ProxySettings, error)
+}
 
 func (mock *mockProxySettings) GetProxySettings(ctx context.Context) (*webclient.ProxySettings, error) {
+	if mock.mockedGetProxySettings != nil {
+		return mock.mockedGetProxySettings(ctx)
+	}
 	return &webclient.ProxySettings{}, nil
 }
 
