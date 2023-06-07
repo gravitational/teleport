@@ -3344,8 +3344,7 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			log.Debugf("Will connect to proxy %q according to proxy template.", tProxy)
 		}
 
-		// Don't overwrite cluster if explicitly provided
-		if cf.SiteName == "" && tCluster != "" {
+		if tCluster != "" {
 			cf.SiteName = tCluster
 			log.Debugf("Will connect to cluster %q according to proxy template.", tCluster)
 		}
