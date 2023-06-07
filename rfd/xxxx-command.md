@@ -1,4 +1,4 @@
-# RFD 01xx - Teleport Command
+# RFD 0132 - Teleport Command
 
 ## Required Approvers
 
@@ -10,12 +10,12 @@
 
 Implement Teleport Command, a non-interactive local host management agent, in
 our infrastructure. The implementation of Teleport Command will provide a safer
-interface for localhost debugging and management, reducing the reliance on
-interactive shells for emergency debugging and recovery.
+interface for debugging and management, reducing the reliance on interactive 
+shells for emergency debugging and recovery.
 
 ## Why
 
-Our infrastructure often requires emergency debugging and management,
+Any infrastructure often requires emergency debugging and management,
 traditionally done through an interactive shell. This approach,
 while effective, presents potential security risks as interactive shells can be
 prone to exploitation. Implementing Teleport Command allows for stronger
@@ -33,7 +33,7 @@ Example use cases include:
 
 #### Teleport Command implementation design principles
 
-The implementation of SansShell should fulfil the following design principles
+The implementation should fulfil the following design principles
 to ensure maximum security and efficiency:
 
 1. **Non-interactive:** SansShell is primarily a non-interactive agent,
@@ -71,7 +71,7 @@ participant proxy
 participant node1
 participant node2
 
-tsh ->> proxy: tsh command exec
+tsh ->> proxy: tsh command run
 proxy ->> node1: execute command
 proxy ->> node2: execute command
 node1 ->> proxy: command output
@@ -84,6 +84,7 @@ Teleport Proxy will be used as the main command execution engine.
 * It will allow parallel execution of commands on multiple nodes (configurable execution pool size).
 * It will allow to stream output from multiple nodes to the client.
 * Nodes will record the session and upload in the same way as interactive session are recorded.
+* It will allow command execution on Teleport and OpenSSH nodes.
 * It will ensure that even in case of a network failure the command will continue to run on the node.
   (all commands should be one shot. If an initial connection to the node fails, the proxy will retry.
   If the connection is lost during the command execution, the command will continue to run on the node
@@ -140,7 +141,7 @@ but not on `prod` nodes).
 
 ```yaml
 kind: role
-version: v5
+version: v6
 metadata:
   name: developer
 spec:
@@ -156,6 +157,11 @@ spec:
      environment: ["prod"]
 ```
 
+We will always require both `command_execution_labels` and `command_labels` to be
+specified. If only one of them is provided, the role will be rejected.
+This will prevent a situation where a role with execution permission has been created
+but no one can access it and vice versa.
+
 Important thing to note is that a user could have access to a command but not
 the node itself (interactive ssh access). This will allow to harden the access
 to the node by allowing to execute only a specific set of commands.
@@ -165,7 +171,7 @@ to the node by allowing to execute only a specific set of commands.
 `tsh` will learn new commands:
 
 1. `tsh command ls` - allowing to list all available commands.
-2. `tsh command exec` - allowing to execute commands on one or multiple nodes. User will be reqired to provide:
+2. `tsh command run` - allowing to execute commands on one or multiple nodes. User will be reqired to provide:
    * node query using [predicate launguage](https://goteleport.com/docs/reference/predicate-language/) 
    * OS user that will be used to execute the command
 3. `tsh command cancel` - (optional) allowing to cancel a command execution.
@@ -178,7 +184,7 @@ very long. To avoid this, Teleport Command will detect long output and will
 redirect it to a file. The user will be notified about this.
 
 ```shell
-$ tsh command exec cat-log
+$ tsh command run cat-log
 node1: Detected long output. Redirecting to node1.log file
 node2: Detected long output. Redirecting to node2.log file
 ```
