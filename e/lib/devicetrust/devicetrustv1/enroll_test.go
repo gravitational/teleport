@@ -23,24 +23,12 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
 
-// simulator pretends to be a client device, and can have its behavior tweaked
-// to trigger unhappy paths.
-type simulator interface {
-	setup() (closer func(), err error)
-	enrollRequest(dev *devicepb.Device, enrollToken string) *devicepb.EnrollDeviceRequest
-	handleEnrollStream(
-		resp *devicepb.EnrollDeviceResponse,
-		stream devicepb.DeviceTrustService_EnrollDeviceClient,
-	) (*devicepb.Device, error)
-	wantCredential() *devicepb.DeviceCredential
-}
-
 type unsupportedDeviceSimulator struct {
 	simulator
 }
 
 func (e *unsupportedDeviceSimulator) setup() (closer func(), err error) {
-	return nil, nil
+	return func() {}, nil
 }
 
 func (e *unsupportedDeviceSimulator) enrollRequest(dev *devicepb.Device, enrollToken string) *devicepb.EnrollDeviceRequest {
@@ -537,9 +525,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			if err != nil {
 				t.Fatalf("Failed to setup device simulator: %v", err)
 			}
-			if cleanup != nil {
-				defer cleanup()
-			}
+			defer cleanup()
 
 			// Create device and enrollment token to use below.
 			var created *devicepb.Device
@@ -601,7 +587,7 @@ func TestService_EnrollDevice(t *testing.T) {
 			}
 
 			// Flow varies per OS after init.
-			gotDev, err := test.simulator.handleEnrollStream(resp, stream)
+			gotDev, err := test.simulator.handleEnrollStream(resp, stream, true /* testBehavior */)
 			switch {
 			case test.assertHandleErr == nil && err == nil: // OK!
 			case test.assertHandleErr == nil && err != nil:

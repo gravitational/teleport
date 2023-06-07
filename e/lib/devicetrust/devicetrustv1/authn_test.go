@@ -26,7 +26,31 @@ import (
 	"github.com/gravitational/teleport/lib/events/eventstest"
 )
 
+func enrollSimulator(
+	ctx context.Context, devices devicepb.DeviceTrustServiceClient, dev *devicepb.Device, sim simulator,
+) (*devicepb.Device, error) {
+	stream, err := devices.EnrollDevice(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("starting enroll device stream: %w", err)
+	}
+	req := sim.enrollRequest(dev, dev.EnrollToken.Token)
+	if err := stream.Send(req); err != nil {
+		return nil, fmt.Errorf("sending enroll request: %w", err)
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, fmt.Errorf("recv: %w", err)
+	}
+	enrolledDev, err := sim.handleEnrollStream(resp, stream, false /* testBehavior */)
+	if err != nil {
+		return nil, fmt.Errorf("handling enroll stream: %w", err)
+	}
+	return enrolledDev, nil
+}
+
 func TestService_AuthenticateDevice(t *testing.T) {
+	setTPMFeatureActive(t, true)
+
 	emitter := &eventstest.MockEmitter{}
 	env := testenv.NewUsingT(
 		t,
@@ -37,92 +61,84 @@ func TestService_AuthenticateDevice(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	macOSDev, macOSKey, err := createAndEnroll(ctx, devices, &devicepb.Device{
-		OsType:   devicepb.OSType_OS_TYPE_MACOS,
-		AssetTag: "llama",
-	})
-	if err != nil {
-		t.Fatalf("createAndEnroll failed: %v", err)
-	}
-
 	tests := []struct {
-		name string
-		dev  *devicepb.Device
-		key  *fakeEnclaveKey
+		name           string
+		shouldSkip     string
+		deviceTemplate *devicepb.Device
+		simulator      simulator
+		wantErr        string
 	}{
 		{
-			name: "macOS device",
-			dev:  macOSDev,
-			key:  macOSKey,
+			name: "macOS: success",
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "macos-success",
+			},
+			simulator: newMacOSSimulator(macOSBehavior{}),
+		},
+		{
+			name:       "windows: success",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "windows-success",
+			},
+			simulator: newTPMSimulator(tpmBehavior{}),
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			emitter.Reset()
+			// Allowing skipping of tests on non-supported platforms.
+			if test.shouldSkip != "" {
+				t.Skip(test.shouldSkip)
+			}
+
+			// Allow underlying device mock to be set up
+			cleanup, err := test.simulator.setup()
+			if err != nil {
+				t.Fatalf("Failed to setup device simulator: %v", err)
+			}
+			defer cleanup()
+
+			// Create and then enroll the device to use for auth
+			dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+				Device:            test.deviceTemplate,
+				CreateEnrollToken: true,
+			})
+			if err != nil {
+				t.Fatalf("CreateDevice failed: %v", err)
+			}
+			enrolledDev, err := enrollSimulator(
+				ctx, devices, dev, test.simulator,
+			)
+			if err != nil {
+				t.Fatalf("enrollSimulator failed: %v", err)
+			}
 
 			// Fetch the device before the ceremony so we can compare collected data
 			// entries at the end.
 			devBefore, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
-				DeviceId: test.dev.Id,
+				DeviceId: enrolledDev.Id,
 			})
 			if err != nil {
 				t.Fatalf("GetDevice failed: %v", err)
 			}
 
+			emitter.Reset()
 			stream, err := devices.AuthenticateDevice(ctx)
 			if err != nil {
 				t.Fatalf("AuthenticateDevice failed: %v", err)
 			}
-
-			// 1. Init.
 			initCerts := &devicepb.UserCertificates{
 				X509Der:          []byte("ignored"), // mTLS cert takes its place.
 				SshAuthorizedKey: []byte{1, 2, 3, 4, 6},
 			}
-			if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-				Payload: &devicepb.AuthenticateDeviceRequest_Init{
-					Init: &devicepb.AuthenticateDeviceInit{
-						UserCertificates: initCerts,
-						CredentialId:     test.key.id,
-						DeviceData: &devicepb.DeviceCollectedData{
-							CollectTime:  timestamppb.Now(),
-							OsType:       test.dev.OsType,
-							SerialNumber: test.dev.AssetTag,
-						},
-					},
-				},
-			}); err != nil {
-				t.Fatalf("Send failed: %v", err)
-			}
-			resp, err := stream.Recv()
+			resp, err := test.simulator.authenticate(ctx, enrolledDev, stream, initCerts)
 			if err != nil {
-				t.Fatalf("init: Recv failed: %v", err)
+				t.Fatalf("authenticate failed: %v", err)
 			}
 
-			// 2. Challenge.
-			chalResp := resp.GetChallenge()
-			if chalResp == nil {
-				t.Fatalf("Got unexpected payload=%T, want AuthenticateDeviceChallenge ", resp.Payload)
-			}
-			sig, err := test.key.signChallenge(chalResp.Challenge)
-			if err != nil {
-				t.Fatalf("signChallenge failed: %v", err)
-			}
-			if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-				Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-					ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
-						Signature: sig,
-					},
-				},
-			}); err != nil {
-				t.Fatalf("Send failed: %v", err)
-			}
-			resp, err = stream.Recv()
-			if err != nil {
-				t.Fatalf("challenge: Recv failed: %v", err)
-			}
-
-			// 3. UserCertificates.
+			// UserCertificates.
 			gotCerts := resp.GetUserCertificates()
 			if gotCerts == nil {
 				t.Fatalf("Got unexpected payload=%T, want UserCertificates", resp.Payload)
@@ -138,9 +154,9 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			certsProto, _ := fakeAugmentFunc(ctx, &authz.Context{}, &auth.AugmentUserCertificateOpts{
 				SSHAuthorizedKey: initCerts.SshAuthorizedKey,
 				DeviceExtensions: &auth.DeviceExtensions{
-					DeviceID:     test.dev.Id,
-					AssetTag:     test.dev.AssetTag,
-					CredentialID: test.dev.Credential.Id,
+					DeviceID:     enrolledDev.Id,
+					AssetTag:     enrolledDev.AssetTag,
+					CredentialID: enrolledDev.Credential.Id,
 				},
 			})
 			block, _ := pem.Decode(certsProto.TLS)
@@ -158,7 +174,7 @@ func TestService_AuthenticateDevice(t *testing.T) {
 
 			// Verify collected data recording.
 			devAfter, err := devices.GetDevice(ctx, &devicepb.GetDeviceRequest{
-				DeviceId: test.dev.Id,
+				DeviceId: enrolledDev.Id,
 			})
 			if err != nil {
 				t.Fatalf("GetDevice failed: %v", err)
@@ -180,6 +196,8 @@ func TestService_AuthenticateDevice(t *testing.T) {
 }
 
 func TestService_AuthenticateDevice_errors(t *testing.T) {
+	setTPMFeatureActive(t, true)
+
 	emitter := &eventstest.MockEmitter{}
 	env := testenv.NewUsingT(
 		t,
@@ -189,189 +207,215 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	// Create an enrolled and a plain device for tests.
-	dev1, key1, err := createAndEnroll(ctx, devices, &devicepb.Device{
-		OsType:   devicepb.OSType_OS_TYPE_MACOS,
-		AssetTag: "llama",
-	})
-	if err != nil {
-		t.Fatalf("createAndEnroll failed: %v", err)
-	}
-	notEnrolled, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
-		Device: &devicepb.Device{
-			OsType:   devicepb.OSType_OS_TYPE_MACOS,
-			AssetTag: "alpaca",
-		},
-	})
-	if err != nil {
-		t.Fatalf("CreateDevice failed: %v", err)
-	}
-
-	// failKey is used for various failure scenarios.
-	failKey, err := newFakeEnclaveKey()
-	if err != nil {
-		t.Fatalf("newFakeEnclaveKey failed: %v", err)
-	}
-
-	validInit := func(dev *devicepb.Device, key *fakeEnclaveKey) func() *devicepb.AuthenticateDeviceInit {
-		return func() *devicepb.AuthenticateDeviceInit {
-			return &devicepb.AuthenticateDeviceInit{
-				UserCertificates: nil, // only mTLS cert is augmented.
-				CredentialId:     key.id,
-				DeviceData: &devicepb.DeviceCollectedData{
-					CollectTime:  timestamppb.Now(),
-					OsType:       dev.OsType,
-					SerialNumber: dev.AssetTag,
-				},
-			}
-		}
-	}
-	validChallenge := func(sig []byte) *devicepb.AuthenticateDeviceChallengeResponse {
-		return &devicepb.AuthenticateDeviceChallengeResponse{
-			Signature: sig,
-		}
-	}
-
 	tests := []struct {
-		name                string
-		dev                 *devicepb.Device
-		key                 *fakeEnclaveKey
-		createInitReq       func() *devicepb.AuthenticateDeviceInit
-		createChallengeResp func(sig []byte) *devicepb.AuthenticateDeviceChallengeResponse
-		assertErr           func(error) bool
-		wantErr             string
+		name       string
+		shouldSkip string
+
+		noEnroll       bool
+		deviceTemplate *devicepb.Device
+		simulator      simulator
+
+		assertErr func(error) bool
+		wantErr   string
 	}{
 		// Init step errors.
 		{
 			name: "init: CredentialId empty",
-			dev:  dev1,
-			key:  key1,
-			createInitReq: func() *devicepb.AuthenticateDeviceInit {
-				init := validInit(dev1, key1)()
-				init.CredentialId = ""
-				return init
+			simulator: newMacOSSimulator(macOSBehavior{
+				modifyAuthenticateDeviceInit: func(r *devicepb.AuthenticateDeviceInit) {
+					r.CredentialId = ""
+				},
+			}),
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "credential-id-empty",
 			},
 			assertErr: trace.IsBadParameter,
 			wantErr:   "credential ID",
 		},
 		{
 			name: "init: CredentialId mismatch",
-			dev:  dev1,
-			key:  key1,
-			createInitReq: func() *devicepb.AuthenticateDeviceInit {
-				init := validInit(dev1, key1)()
-				init.CredentialId = failKey.id
-				return init
+			simulator: newMacOSSimulator(macOSBehavior{
+				modifyAuthenticateDeviceInit: func(r *devicepb.AuthenticateDeviceInit) {
+					r.CredentialId = "different-credential-id"
+				},
+			}),
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "credential-id-unknown",
 			},
 			assertErr: trace.IsBadParameter,
 			wantErr:   "unknown device credential",
 		},
 		{
 			name: "init: DeviceData nil",
-			dev:  dev1,
-			key:  key1,
-			createInitReq: func() *devicepb.AuthenticateDeviceInit {
-				init := validInit(dev1, key1)()
-				init.DeviceData = nil
-				return init
+			simulator: newMacOSSimulator(macOSBehavior{
+				modifyAuthenticateDeviceInit: func(r *devicepb.AuthenticateDeviceInit) {
+					r.DeviceData = nil
+				},
+			}),
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "device-data-nil",
 			},
 			assertErr: trace.IsBadParameter,
 			wantErr:   "device data required",
 		},
 		{
 			name: "init: DeviceData mismatch",
-			dev:  dev1,
-			key:  key1,
-			createInitReq: func() *devicepb.AuthenticateDeviceInit {
-				init := validInit(dev1, key1)()
-				init.DeviceData.SerialNumber = "ceni n'est pas une serial number"
-				return init
+			simulator: newMacOSSimulator(macOSBehavior{
+				modifyAuthenticateDeviceInit: func(r *devicepb.AuthenticateDeviceInit) {
+					r.DeviceData.SerialNumber = "ceni n'est pas une serial number"
+				},
+			}),
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "device-data-mismatch",
 			},
 			assertErr: trace.IsNotFound,
 			wantErr:   "not registered",
 		},
 
-		// Challenge step errors.
 		{
-			name:          "challenge: Signature nil",
-			dev:           dev1,
-			key:           key1,
-			createInitReq: validInit(dev1, key1),
-			createChallengeResp: func(sig []byte) *devicepb.AuthenticateDeviceChallengeResponse {
-				return &devicepb.AuthenticateDeviceChallengeResponse{
-					Signature: nil,
-				}
+			name:      "unenrolled device",
+			noEnroll:  true,
+			simulator: newMacOSSimulator(macOSBehavior{}),
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "unenrolled",
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "device not enrolled",
+		},
+
+		// macOS specific errors.
+		{
+			name: "macos: Signature nil",
+			simulator: newMacOSSimulator(macOSBehavior{
+				nilSignature: true,
+			}),
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "macos-nil-signature",
 			},
 			assertErr: trace.IsBadParameter,
 			wantErr:   "signature required",
 		},
 		{
-			name:          "challenge: Signature invalid",
-			dev:           dev1,
-			key:           key1,
-			createInitReq: validInit(dev1, key1),
-			createChallengeResp: func(sig []byte) *devicepb.AuthenticateDeviceChallengeResponse {
-				return &devicepb.AuthenticateDeviceChallengeResponse{
-					Signature: []byte("not a signature"),
-				}
+			name: "macos: Signature invalid",
+			simulator: newMacOSSimulator(macOSBehavior{
+				incorrectSignature: true,
+			}),
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "macos-invalid-signature",
 			},
 			assertErr: trace.IsBadParameter,
 			wantErr:   "verification failed",
 		},
-
 		{
-			name:          "unenrolled device",
-			dev:           notEnrolled,
-			key:           failKey,
-			createInitReq: validInit(notEnrolled, failKey),
-			assertErr:     trace.IsBadParameter,
-			wantErr:       "device not enrolled",
+			name: "macOS: wrong key signs the challenge",
+			simulator: newMacOSSimulator(macOSBehavior{
+				incorrectSigningKey: true,
+			}),
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "macos-wrong-signing-key",
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "verification failed",
+		},
+		// tpm specific errors.
+		{
+			name:       "tpm: incorrect platform attestation AK",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "tpm-incorrect-attest-ak",
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				incorrectAttestAK: true,
+			}),
+			assertErr: trace.IsBadParameter,
+			wantErr:   "platform attestation verification failed",
+		},
+		{
+			name:       "tpm: incorrect platform attestation nonce",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "tpm-incorrect-attest-nonce",
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				incorrectAttestNonce: true,
+			}),
+			assertErr: trace.IsBadParameter,
+			wantErr:   "platform attestation verification failed",
+		},
+		{
+			name:       "tpm: incorrect platform attestation pcr",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "tpm-incorrect-attest-pcr",
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				incorrectAttestPCR: true,
+			}),
+			assertErr: trace.IsBadParameter,
+			wantErr:   "platform attestation verification failed",
+		},
+		{
+			name:       "tpm: incorrect platform attestation event",
+			shouldSkip: tpmSkip,
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+				AssetTag: "tpm-incorrect-attest-event",
+			},
+			simulator: newTPMSimulator(tpmBehavior{
+				incorrectAttestEvent: true,
+			}),
+			assertErr: trace.IsBadParameter,
+			wantErr:   "platform attestation verification failed",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			// Allowing skipping of tests on non-supported platforms.
+			if test.shouldSkip != "" {
+				t.Skip(test.shouldSkip)
+			}
+
+			// Allow underlying device mock to be set up
+			cleanup, err := test.simulator.setup()
+			if err != nil {
+				t.Fatalf("Failed to setup device simulator: %v", err)
+			}
+			defer cleanup()
+
+			// Create and then enroll the device to use for auth
+			dev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+				Device:            test.deviceTemplate,
+				CreateEnrollToken: true,
+			})
+			if err != nil {
+				t.Fatalf("CreateDevice failed: %v", err)
+			}
+			if !test.noEnroll {
+				dev, err = enrollSimulator(
+					ctx, devices, dev, test.simulator,
+				)
+				if err != nil {
+					t.Fatalf("enrollSimulator failed: %v", err)
+				}
+			}
 			emitter.Reset()
 
-			if test.createChallengeResp == nil {
-				test.createChallengeResp = validChallenge
+			stream, err := devices.AuthenticateDevice(ctx)
+			if err != nil {
+				t.Fatalf("AuthenticateDevice failed: %v", err)
 			}
-
-			authenticate := func() error {
-				stream, err := devices.AuthenticateDevice(ctx)
-				if err != nil {
-					return err
-				}
-
-				// 1. Init.
-				if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-					Payload: &devicepb.AuthenticateDeviceRequest_Init{
-						Init: test.createInitReq(),
-					},
-				}); err != nil {
-					return err
-				}
-				resp, err := stream.Recv()
-				if err != nil {
-					return err
-				}
-
-				chalResp := resp.GetChallenge()
-				sig, err := test.key.signChallenge(chalResp.Challenge)
-				if err != nil {
-					return err
-				}
-				if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
-					Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
-						ChallengeResponse: test.createChallengeResp(sig),
-					},
-				}); err != nil {
-					return err
-				}
-				_, err = stream.Recv()
-				return err
-			}
-
-			err := authenticate()
+			_, err = test.simulator.authenticate(ctx, dev, stream, &devicepb.UserCertificates{})
 			if !test.assertErr(err) {
 				t.Errorf("AuthenticateDevice: assertErr failed, err=%v", err)
 			}

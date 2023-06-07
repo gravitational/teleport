@@ -4,6 +4,7 @@ package devicetrustv1_test
 
 import (
 	"bytes"
+	"context"
 	"crypto/sha1"
 	"crypto/x509"
 	"fmt"
@@ -161,9 +162,6 @@ func newTPMSimulator(behavior tpmBehavior) *tpmSimulator {
 }
 
 func (e *tpmSimulator) setup() (closer func(), err error) {
-	if e.behavior.incorrectAttestEvent && e.behavior.incorrectAttestPCR {
-		return nil, fmt.Errorf("incorrectAttestEvent and incorrectAttestPCR are mutually exclusive")
-	}
 	closeFn := func() {
 		if e.tpm != nil {
 			if e.ak != nil {
@@ -176,14 +174,17 @@ func (e *tpmSimulator) setup() (closer func(), err error) {
 		}
 	}
 	defer func() {
-		// If we exit with an error, we invoke the closer internally to tidy
-		// up any created resources (e.g the simulator.Simulator, as this can
-		// only have one instance per process). If there's no error, we rely on
-		// the consumer calling closer when they are done with this.
+		// Force closure if returning with an error. This ensures one failing
+		// test doesn't affect others (the TPM simulator is not concurrency
+		// safe)
 		if err != nil {
 			closeFn()
 		}
 	}()
+
+	if e.behavior.incorrectAttestEvent && e.behavior.incorrectAttestPCR {
+		return nil, fmt.Errorf("incorrectAttestEvent and incorrectAttestPCR are mutually exclusive")
+	}
 
 	e.sim, err = tpmsimulator.Get()
 	if err != nil {
@@ -265,65 +266,19 @@ func (e *tpmSimulator) enrollRequest(
 func (e *tpmSimulator) handleEnrollStream(
 	resp *devicepb.EnrollDeviceResponse,
 	stream devicepb.DeviceTrustService_EnrollDeviceClient,
+	testBehavior bool,
 ) (*devicepb.Device, error) {
 	c := resp.GetTpmChallenge()
 
-	var eventLog []byte
-	// By default, we just inject the event that signals to the verifier that
-	// the rest of the event log is in TPM2.0 format.
-	eventLog = append(eventLog, eventLogHeader...)
-	if e.behavior.incorrectAttestEvent {
-		// Simulate a bad actor injecting an event into the event log which
-		// has not been applied to the PCRs. This creates a mismatch between
-		// the event log and the PCRs.
-		// This should yield an error like:
-		// `verifying event log\n\tevent log failed to verify: the following registers failed to replay: [16]`
-		eventLog = append(eventLog, pcrAppendEvent...)
-	}
-
-	ak := e.ak
-	if e.behavior.incorrectAttestAK {
-		// Simulate a bad actor signing the platform attestation with an AK
-		// they control rather than the AK we expect.
-		// This should yield an error like:
-		// `verifying pcrs\n\tquote 0: invalid quote signature: crypto/rsa: verification error`
-		newAK, err := e.tpm.NewAK(&attest.AKConfig{})
-		if err != nil {
-			return nil, fmt.Errorf("creating incorrect ak: %w", err)
-		}
-		ak = newAK
-	}
-	nonce := c.AttestationNonce
-	if e.behavior.incorrectAttestNonce {
-		// Simulate a bad actor replaying an old platform attestation with
-		// an old nonce.
-		// This should yield an error like:
-		// `"verifying pcrs\n\tquote 0: nonce`
-		nonce = []byte("some-previous-nonce")
-	}
-	platParams, err := e.tpm.AttestPlatform(
-		ak, nonce, &attest.PlatformAttestConfig{
-			EventLog: eventLog,
-		},
-	)
+	platParams, err := e.attest(c.AttestationNonce, testBehavior)
 	if err != nil {
-		return nil, fmt.Errorf("performing platform attestation: %w", err)
+		return nil, fmt.Errorf("attesting: %w", err)
 	}
 
-	if e.behavior.incorrectAttestPCR {
-		// Simulate a bad actor interfering with the PCR values sent in the
-		// platform attestation after a quote has been taken. This ensures the
-		// backend checks the PCR values against the Quote.
-		//
-		// This should yield an error like:
-		// `verifying pcrs\n\tquote 0: quote digest didn't match pcrs provided`
-		//
-		// The first PCR bank in the msft simulator is SHA-1.
-		platParams.PCRs[debugPCR].Digest = bytes.Repeat([]byte{0xab}, sha1.Size)
-	}
-
-	solution := []byte("incorrect-solution")
-	if !e.behavior.incorrectCredActivateSolution {
+	var solution []byte
+	if testBehavior && e.behavior.incorrectCredActivateSolution {
+		solution = []byte("incorrect-solution")
+	} else {
 		solution, err = e.ak.ActivateCredential(
 			e.tpm, dtoss.EncryptedCredentialFromProto(c.EncryptedCredential),
 		)
@@ -360,6 +315,115 @@ func (e *tpmSimulator) wantCredential() *devicepb.DeviceCredential {
 	if e.behavior.ekCertGenerator != nil {
 		cred.TpmEkcertSerial = ekCertSerial
 	}
-
 	return cred
+}
+
+func (e *tpmSimulator) attest(chalNonce []byte, testBehavior bool) (*attest.PlatformParameters, error) {
+	var eventLog []byte
+	// By default, we just inject the event that signals to the verifier that
+	// the rest of the event log is in TPM2.0 format.
+	eventLog = append(eventLog, eventLogHeader...)
+	if testBehavior && e.behavior.incorrectAttestEvent {
+		// Simulate a bad actor injecting an event into the event log which
+		// has not been applied to the PCRs. This creates a mismatch between
+		// the event log and the PCRs.
+		// This should yield an error like:
+		// `verifying event log\n\tevent log failed to verify: the following registers failed to replay: [16]`
+		eventLog = append(eventLog, pcrAppendEvent...)
+	}
+
+	ak := e.ak
+	if testBehavior && e.behavior.incorrectAttestAK {
+		// Simulate a bad actor signing the platform attestation with an AK
+		// they control rather than the AK we expect.
+		// This should yield an error like:
+		// `verifying pcrs\n\tquote 0: invalid quote signature: crypto/rsa: verification error`
+		newAK, err := e.tpm.NewAK(&attest.AKConfig{})
+		if err != nil {
+			return nil, fmt.Errorf("creating incorrect ak: %w", err)
+		}
+		ak = newAK
+	}
+	nonce := chalNonce
+	if testBehavior && e.behavior.incorrectAttestNonce {
+		// Simulate a bad actor replaying an old platform attestation with
+		// an old nonce.
+		// This should yield an error like:
+		// `"verifying pcrs\n\tquote 0: nonce`
+		nonce = []byte("some-previous-nonce")
+	}
+	platParams, err := e.tpm.AttestPlatform(
+		ak, nonce, &attest.PlatformAttestConfig{
+			EventLog: eventLog,
+		},
+	)
+	if err != nil {
+		return nil, fmt.Errorf("performing platform attestation: %w", err)
+	}
+
+	if testBehavior && e.behavior.incorrectAttestPCR {
+		// Simulate a bad actor interfering with the PCR values sent in the
+		// platform attestation after a quote has been taken. This ensures the
+		// backend checks the PCR values against the Quote.
+		//
+		// This should yield an error like:
+		// `verifying pcrs\n\tquote 0: quote digest didn't match pcrs provided`
+		//
+		// The first PCR bank in the msft simulator is SHA-1.
+		platParams.PCRs[debugPCR].Digest = bytes.Repeat([]byte{0xab}, sha1.Size)
+	}
+
+	return platParams, nil
+}
+
+func (e *tpmSimulator) authenticate(
+	ctx context.Context,
+	dev *devicepb.Device,
+	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
+	certs *devicepb.UserCertificates,
+) (*devicepb.AuthenticateDeviceResponse, error) {
+	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
+		Payload: &devicepb.AuthenticateDeviceRequest_Init{
+			Init: &devicepb.AuthenticateDeviceInit{
+				UserCertificates: certs,
+				CredentialId:     e.credentialID,
+				DeviceData: &devicepb.DeviceCollectedData{
+					CollectTime:  timestamppb.Now(),
+					OsType:       dev.OsType,
+					SerialNumber: dev.AssetTag,
+				},
+			},
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("sending AuthenticateDeviceRequest_Init: %w", err)
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, err // Unaltered, so it can be asserted.
+	}
+
+	challenge := resp.GetTpmChallenge()
+	if challenge == nil {
+		return nil, fmt.Errorf("unexpected payload=%T, want TPMAuthenticateDeviceChallenge ", resp.Payload)
+	}
+
+	platParams, err := e.attest(challenge.AttestationNonce, true)
+	if err != nil {
+		return nil, fmt.Errorf("attesting: %w", err)
+	}
+
+	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
+		Payload: &devicepb.AuthenticateDeviceRequest_TpmChallengeResponse{
+			TpmChallengeResponse: &devicepb.TPMAuthenticateDeviceChallengeResponse{
+				PlatformParameters: dtoss.PlatformParametersToProto(platParams),
+			},
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("sending AuthenticateDeviceRequest_ChallengeResponse: %w", err)
+	}
+	resp, err = stream.Recv()
+	if err != nil {
+		return nil, err // Unaltered, so it can be asserted.
+	}
+	return resp, nil
 }

@@ -2,7 +2,11 @@
 
 package devicetrustv1_test
 
-import devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+import (
+	"context"
+
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+)
 
 // package to use when `tpmsimulator` build tag is not provided.
 // implementation to use when provided is in tpm_simulator_enabled_test.go
@@ -32,10 +36,20 @@ func (e *tpmSimulator) enrollRequest(
 func (e *tpmSimulator) handleEnrollStream(
 	resp *devicepb.EnrollDeviceResponse,
 	stream devicepb.DeviceTrustService_EnrollDeviceClient,
+	testBehavior bool,
 ) (*devicepb.Device, error) {
 	panic("unimplemented")
 }
 
 func (e *tpmSimulator) wantCredential() *devicepb.DeviceCredential {
+	panic("unimplemented")
+}
+
+func (e *tpmSimulator) authenticate(
+	ctx context.Context,
+	dev *devicepb.Device,
+	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
+	certs *devicepb.UserCertificates,
+) (*devicepb.AuthenticateDeviceResponse, error) {
 	panic("unimplemented")
 }

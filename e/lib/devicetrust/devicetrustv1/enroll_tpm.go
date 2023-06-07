@@ -118,13 +118,13 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	// Use the values sent by the client in the challenge response to finish
 	// the credential activation and platform attestation challenges
 	if err := finishCredentialActivation(chalResp.Solution); err != nil {
-		logger.WithError(err).Debug("TPM credential activation provided in enrollment challenge response failed verification")
+		logger.WithError(err).Debug("TPM credential activation failed verification")
 		return nil, trace.BadParameter("credential activation verification failed")
 	}
 	if err := finishPlatformAttestation(
 		dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
 	); err != nil {
-		logger.WithError(err).Debug("TPM platform attestation provided in enrollment challenge response failed verification")
+		logger.WithError(err).Debug("TPM platform attestation failed verification")
 		return nil, trace.BadParameter("platform attestation verification failed")
 	}
 

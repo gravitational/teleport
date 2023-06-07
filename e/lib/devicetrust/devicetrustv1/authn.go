@@ -16,6 +16,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/challenge"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
+	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
 type authnCeremony struct {
@@ -108,42 +109,22 @@ func (c *authnCeremony) authenticate(stream devicepb.DeviceTrustService_Authenti
 		return nil, trace.BadParameter("unknown device credential")
 	}
 
-	pubKey, err := x509.ParsePKIXPublicKey(dev.Credential.PublicKeyDer)
+	// Hand off to the platform dependent implementations
+	var err error
+	switch dev.OsType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		err = c.authenticateDeviceMacOS(dev, stream)
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		err = c.authenticateDeviceTPM(dev, stream)
+	default:
+		return nil, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.OsType))
+	}
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// 2. Challenge.
-	chal, err := challenge.New()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
-		Payload: &devicepb.AuthenticateDeviceResponse_Challenge{
-			Challenge: &devicepb.AuthenticateDeviceChallenge{
-				Challenge: chal,
-			},
-		},
-	}); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	// 3. Challenge response.
-	resp, err := stream.Recv()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	chalResp := resp.GetChallengeResponse()
-	switch {
-	case chalResp == nil:
-		return nil, trace.BadParameter("bad payload, expected AuthenticateDeviceChallengeResponse")
-	case len(chalResp.Signature) == 0:
-		return nil, trace.BadParameter("signature required")
-	}
-	if err := challenge.Verify(chal, chalResp.Signature, pubKey, crypto.SHA256); err != nil {
-		c.logger.WithError(err).Debug("AuthenticateDevice: signature verification failed")
-		return nil, trace.BadParameter("signature verification failed")
-	}
+	// From this point, the device has been authenticated by the platform
+	// dependent implementations. We can now hand return to the general task
+	// of generating their augmented certificates.
 
 	// Augment certificates.
 	ctx := stream.Context()
@@ -178,4 +159,98 @@ func (c *authnCeremony) authenticate(stream devicepb.DeviceTrustService_Authenti
 		X509Der:          x509DER,
 		SshAuthorizedKey: newCerts.SSH,
 	}, nil
+}
+
+func (c *authnCeremony) authenticateDeviceMacOS(
+	dev *devicepb.Device,
+	stream devicepb.DeviceTrustService_AuthenticateDeviceServer,
+) error {
+	pubKey, err := x509.ParsePKIXPublicKey(dev.Credential.PublicKeyDer)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// 2. Challenge.
+	chal, err := challenge.New()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
+		Payload: &devicepb.AuthenticateDeviceResponse_Challenge{
+			Challenge: &devicepb.AuthenticateDeviceChallenge{
+				Challenge: chal,
+			},
+		},
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// 3. Challenge response.
+	resp, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	chalResp := resp.GetChallengeResponse()
+	switch {
+	case chalResp == nil:
+		return trace.BadParameter("bad payload, expected AuthenticateDeviceChallengeResponse")
+	case len(chalResp.Signature) == 0:
+		return trace.BadParameter("signature required")
+	}
+	if err := challenge.Verify(chal, chalResp.Signature, pubKey, crypto.SHA256); err != nil {
+		c.logger.WithError(err).Debug("AuthenticateDevice: signature verification failed")
+		return trace.BadParameter("signature verification failed")
+	}
+
+	return nil
+}
+
+// authenticateDeviceTPM issues a platform attestation challenge based on the
+// known AK of the device (from enrollment). The device completes the platform
+// attestation and returns this to the server, where we can then validate that
+// the platform attestation includes the nonce the server provided and that
+// the quotes within the attestation are signed by the known AK.
+func (c *authnCeremony) authenticateDeviceTPM(
+	dev *devicepb.Device,
+	stream devicepb.DeviceTrustService_AuthenticateDeviceServer,
+) error {
+	// 2. Issue challenge
+	nonce, finishPlatformAttestation, err := platformAttestationChallenge(
+		dev.Credential.TpmAkPublic,
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	c.logger.Debug("AuthenticateDevice : Sending TPM authentication challenge")
+	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
+		Payload: &devicepb.AuthenticateDeviceResponse_TpmChallenge{
+			TpmChallenge: &devicepb.TPMAuthenticateDeviceChallenge{
+				AttestationNonce: nonce,
+			},
+		},
+	}); err != nil {
+		return trace.Wrap(err)
+	}
+
+	// 3. Challenge response.
+	c.logger.Debug("AuthenticateDevice: Received TPM authentication challenge response")
+	resp, err := stream.Recv()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	chalResp := resp.GetTpmChallengeResponse()
+	switch {
+	case chalResp == nil:
+		return trace.BadParameter("bad payload, expected TPMAuthenticateDeviceChallengeResponse")
+	case chalResp.PlatformParameters == nil:
+		return trace.BadParameter("platform parameters required")
+	}
+	if err := finishPlatformAttestation(
+		dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
+	); err != nil {
+		c.logger.WithError(err).Debug("TPM platform attestation failed verification")
+		return trace.BadParameter("platform attestation verification failed")
+	}
+
+	return nil
 }

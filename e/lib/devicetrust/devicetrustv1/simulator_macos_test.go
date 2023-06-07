@@ -1,6 +1,7 @@
 package devicetrustv1_test
 
 import (
+	"context"
 	"fmt"
 
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -11,8 +12,10 @@ import (
 type macOSBehavior struct {
 	incorrectSigningKey bool
 	incorrectSignature  bool
+	nilSignature        bool
 
-	modifyEnrollDeviceInit func(r *devicepb.EnrollDeviceInit)
+	modifyEnrollDeviceInit       func(r *devicepb.EnrollDeviceInit)
+	modifyAuthenticateDeviceInit func(r *devicepb.AuthenticateDeviceInit)
 }
 
 type macOSSimulator struct {
@@ -27,11 +30,12 @@ func newMacOSSimulator(behavior macOSBehavior) *macOSSimulator {
 }
 
 func (e *macOSSimulator) setup() (closer func(), err error) {
+	nopCloser := func() {}
 	e.key, err = newFakeEnclaveKey()
 	if err != nil {
 		return nil, fmt.Errorf("creating key fake: %w", err)
 	}
-	return func() {}, nil
+	return nopCloser, nil
 }
 
 func (e *macOSSimulator) enrollRequest(
@@ -63,23 +67,11 @@ func (e *macOSSimulator) enrollRequest(
 func (e *macOSSimulator) handleEnrollStream(
 	resp *devicepb.EnrollDeviceResponse,
 	stream devicepb.DeviceTrustService_EnrollDeviceClient,
+	testBehavior bool,
 ) (*devicepb.Device, error) {
-	var err error
-	signingKey := e.key
-	if e.behavior.incorrectSigningKey {
-		signingKey, err = newFakeEnclaveKey()
-		if err != nil {
-			return nil, fmt.Errorf("creating fake key: %w", err)
-		}
-	}
-
-	var sig = []byte("not a signature")
-	if !e.behavior.incorrectSignature {
-		c := resp.GetMacosChallenge().GetChallenge()
-		sig, err = signingKey.signChallenge(c)
-		if err != nil {
-			return nil, fmt.Errorf("signing challenge: %w", err)
-		}
+	sig, err := e.signChallenge(resp.GetMacosChallenge().Challenge, testBehavior)
+	if err != nil {
+		return nil, fmt.Errorf("signing challenge: %w", err)
 	}
 
 	// 2. Challenge.
@@ -103,4 +95,84 @@ func (e *macOSSimulator) handleEnrollStream(
 
 func (e *macOSSimulator) wantCredential() *devicepb.DeviceCredential {
 	return e.key.deviceCredential()
+}
+
+func (e *macOSSimulator) signChallenge(c []byte, testBehavior bool) ([]byte, error) {
+	if testBehavior && e.behavior.nilSignature {
+		return nil, nil
+	}
+
+	var err error
+	signingKey := e.key
+	if testBehavior && e.behavior.incorrectSigningKey {
+		signingKey, err = newFakeEnclaveKey()
+		if err != nil {
+			return nil, fmt.Errorf("creating fake key: %w", err)
+		}
+	}
+
+	if testBehavior && e.behavior.incorrectSignature {
+		return []byte("not a signature"), nil
+	}
+
+	sig, err := signingKey.signChallenge(c)
+	if err != nil {
+		return nil, fmt.Errorf("signing challenge: %w", err)
+	}
+
+	return sig, nil
+}
+
+func (e *macOSSimulator) authenticate(
+	ctx context.Context,
+	dev *devicepb.Device,
+	stream devicepb.DeviceTrustService_AuthenticateDeviceClient,
+	certs *devicepb.UserCertificates,
+) (*devicepb.AuthenticateDeviceResponse, error) {
+	init := &devicepb.AuthenticateDeviceInit{
+		UserCertificates: certs,
+		CredentialId:     e.key.id,
+		DeviceData: &devicepb.DeviceCollectedData{
+			CollectTime:  timestamppb.Now(),
+			OsType:       devicepb.OSType_OS_TYPE_MACOS,
+			SerialNumber: dev.AssetTag,
+		},
+	}
+	if e.behavior.modifyAuthenticateDeviceInit != nil {
+		e.behavior.modifyAuthenticateDeviceInit(init)
+	}
+	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
+		Payload: &devicepb.AuthenticateDeviceRequest_Init{
+			Init: init,
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("sending AuthenticateDeviceRequest_Init: %w", err)
+	}
+	resp, err := stream.Recv()
+	if err != nil {
+		return nil, err // Unaltered, so it can be asserted.
+	}
+
+	chalResp := resp.GetChallenge()
+	if chalResp == nil {
+		return nil, fmt.Errorf("unexpected payload=%T, want AuthenticateDeviceChallenge ", resp.Payload)
+	}
+	sig, err := e.signChallenge(chalResp.Challenge, true)
+	if err != nil {
+		return nil, fmt.Errorf("signing challenge: %w", err)
+	}
+	if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
+		Payload: &devicepb.AuthenticateDeviceRequest_ChallengeResponse{
+			ChallengeResponse: &devicepb.AuthenticateDeviceChallengeResponse{
+				Signature: sig,
+			},
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("sending AuthenticateDeviceRequest_ChallengeResponse: %w", err)
+	}
+	resp, err = stream.Recv()
+	if err != nil {
+		return nil, err // Unaltered, so it can be asserted.
+	}
+	return resp, nil
 }
