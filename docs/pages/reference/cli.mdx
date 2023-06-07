@@ -1743,7 +1743,7 @@ $ tctl auth rotate [<flags>]
 | `--grace-period` | none | relative duration like 5s, 2m, or 3h | Grace period keeps previous certificate authorities signatures valid, if set to 0 will force users to log in again and nodes to re-register. |
 | `--manual` | none | none | Activate manual rotation, set rotation phases manually |
 | `--type` | `user,host` | `user` or `host` | Certificate authority to rotate |
-| `--phase` | | `init, standby, update_clients, update_servers, rollback` | Target rotation phase to set, used in manual rotation |
+| `--phase` | | `init`, `standby`, `update_clients`, `update_servers`, `rollback` | Target rotation phase to set, used in manual rotation |
 
 #### Global flags
 
