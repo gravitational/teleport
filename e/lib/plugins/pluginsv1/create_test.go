@@ -76,6 +76,23 @@ func TestPluginCreateDelete(t *testing.T) {
 			},
 		},
 	}
+	staticCredentialsForBadOkta := &types.PluginStaticCredentialsV1{
+		ResourceHeader: types.ResourceHeader{
+			Metadata: types.Metadata{
+				Name: "static-creds-for-bad-okta",
+				Labels: map[string]string{
+					"label1":                          "value1",
+					"label2":                          "value2",
+					types.TeleportInternalLabelPrefix: "filtered",
+				},
+			},
+		},
+		Spec: &types.PluginStaticCredentialsSpecV1{
+			Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+				APIToken: "some-token",
+			},
+		},
+	}
 
 	slackPlugin := types.NewPluginV1(
 		types.Metadata{Name: "slack-default"},
@@ -96,14 +113,13 @@ func TestPluginCreateDelete(t *testing.T) {
 				},
 			},
 		},
-		// TODO(mdwn): Remove this once the bearer token is no longer needed for the Okta plugin.
-		&types.PluginCredentialsV1{
-			Credentials: &types.PluginCredentialsV1_BearerToken{
-				BearerToken: &types.PluginBearerTokenCredentials{
-					Token: "bearer-token",
-				},
-			},
-		})
+		nil)
+	badOkta := &types.PluginV1{
+		Metadata: types.Metadata{Name: "bad-okta"},
+		Spec: types.PluginSpecV1{
+			Settings: &types.PluginSpecV1_Okta{},
+		},
+	}
 
 	exchangedCreds := &storage.Credentials{
 		AccessToken:  "my-access-token",
@@ -216,5 +232,19 @@ func TestPluginCreateDelete(t *testing.T) {
 		allCreds, err = suite.pluginStaticCredentialsService.GetPluginStaticCredentialsByLabels(ctx, credRefLabels)
 		require.NoError(t, err)
 		require.Empty(t, allCreds)
+	})
+
+	t.Run("bad request with static credentials", func(t *testing.T) {
+		_, err := suite.svc.CreatePlugin(ctx, &pluginspb.CreatePluginRequest{
+			Plugin:            badOkta,
+			StaticCredentials: staticCredentialsForBadOkta,
+		})
+		require.Error(t, err)
+
+		_, err = suite.pluginService.GetPlugin(ctx, badOkta.GetName(), true)
+		require.True(t, trace.IsNotFound(err))
+
+		_, err = suite.pluginStaticCredentialsService.GetPluginStaticCredentials(ctx, staticCredentialsForBadOkta.GetName())
+		require.True(t, trace.IsNotFound(err))
 	})
 }

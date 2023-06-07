@@ -93,7 +93,7 @@ func (s *Service) CreatePlugin(ctx context.Context, req *pluginspb.CreatePluginR
 		return nil, trace.Wrap(err)
 	}
 
-	if err := s.updatePluginWithStaticCredentials(ctx, plugin, req.StaticCredentials); err != nil {
+	if err := s.updatePluginAndCreateStaticCredentials(ctx, plugin, req.StaticCredentials); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -139,8 +139,8 @@ func (s *Service) updatePluginWithLiveCredentials(ctx context.Context, plugin ty
 	}))
 }
 
-// updatePluginWithStaticCredetials will update the plugin with static credentials if needed.
-func (s *Service) updatePluginWithStaticCredentials(ctx context.Context, plugin types.Plugin, staticCreds *types.PluginStaticCredentialsV1) error {
+// updatePluginAndCreateStaticCredetials will update the plugin with static credentials and create them if needed.
+func (s *Service) updatePluginAndCreateStaticCredentials(ctx context.Context, plugin types.Plugin, staticCreds *types.PluginStaticCredentialsV1) error {
 	if staticCreds == nil {
 		return nil
 	}
@@ -162,17 +162,23 @@ func (s *Service) updatePluginWithStaticCredentials(ctx context.Context, plugin 
 	labels[teleport.PluginLabel] = pluginUUID
 	staticCreds.SetStaticLabels(labels)
 
-	if err := s.pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, staticCreds); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(plugin.SetCredentials(&types.PluginCredentialsV1{
+	err := plugin.SetCredentials(&types.PluginCredentialsV1{
 		Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
 			StaticCredentialsRef: &types.PluginStaticCredentialsRef{
 				Labels: labels,
 			},
 		},
-	}))
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Before adding any static credentials, make sure the plugin is valid.
+	if err := plugin.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(s.pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, staticCreds))
 }
 
 // GetPlugin returns a plugin instance by name.
