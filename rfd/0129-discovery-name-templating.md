@@ -290,7 +290,6 @@ argument. These commands shall support
 - `tsh db env`
 - `tsh db config`
 - `tsh proxy db`
-- `tsh proxy app`
 - `tsh proxy kube`
 - `tsh kube login`
 
