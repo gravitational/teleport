@@ -14,16 +14,18 @@
 
 package servicecfg
 
-import "github.com/gravitational/teleport/lib/services"
+import (
+	"github.com/gravitational/teleport/api/types"
+)
 
 type DiscoveryConfig struct {
 	Enabled bool
 	// AWSMatchers are used to match EC2 instances for auto enrollment.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers are used to match resources for auto enrollment.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 	// GCPMatchers are used to match GCP resources for auto discovery.
-	GCPMatchers []services.GCPMatcher
+	GCPMatchers []types.GCPMatcher
 	// DiscoveryGroup is the name of the discovery group that the current
 	// discovery service is a part of.
 	// It is used to filter out discovered resources that belong to another

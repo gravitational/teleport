@@ -1,0 +1,38 @@
+{"Time":"2023-05-30T15:35:36.877912355+10:00","Action":"start","Package":"example.com/package1"}
+{"Time":"2023-05-30T15:35:36.877982756+10:00","Action":"run","Package":"example.com/package1","Test":"Test1"}
+{"Time":"2023-05-30T15:35:36.877987994+10:00","Action":"output","Package":"example.com/package1","Test":"Test1","Output":"=== RUN   Test1\n"}
+{"Time":"2023-05-30T15:35:36.877994279+10:00","Action":"output","Package":"example.com/package1","Test":"Test1","Output":"    foo_test.go:6: doing stuff\n"}
+{"Time":"2023-05-30T15:35:36.877999587+10:00","Action":"output","Package":"example.com/package1","Test":"Test1","Output":"x =  1\n"}
+{"Time":"2023-05-30T15:35:36.878006711+10:00","Action":"output","Package":"example.com/package1","Test":"Test1","Output":"--- PASS: Test1 (0.00s)\n"}
+{"Time":"2023-05-30T15:35:36.878011879+10:00","Action":"pass","Package":"example.com/package1","Test":"Test1","Elapsed":0}
+{"Time":"2023-05-30T15:35:36.878017606+10:00","Action":"run","Package":"example.com/package1","Test":"Test2"}
+{"Time":"2023-05-30T15:35:36.878021867+10:00","Action":"output","Package":"example.com/package1","Test":"Test2","Output":"=== RUN   Test2\n"}
+{"Time":"2023-05-30T15:35:36.878026756+10:00","Action":"output","Package":"example.com/package1","Test":"Test2","Output":"    foo_test.go:12: stuff doing\n"}
+{"Time":"2023-05-30T15:35:36.878031505+10:00","Action":"output","Package":"example.com/package1","Test":"Test2","Output":"--- PASS: Test2 (0.00s)\n"}
+{"Time":"2023-05-30T15:35:36.878036254+10:00","Action":"pass","Package":"example.com/package1","Test":"Test2","Elapsed":0}
+{"Time":"2023-05-30T15:35:36.878041003+10:00","Action":"output","Package":"example.com/package1","Output":"PASS\n"}
+{"Time":"2023-05-30T15:35:36.878045264+10:00","Action":"output","Package":"example.com/package1","Output":"\texample.com/package1\tcoverage: 60.0% of statements\n"}
+{"Time":"2023-05-30T15:35:36.878050013+10:00","Action":"output","Package":"example.com/package1","Output":"ok  \texample.com/package1\t(cached)\tcoverage: 60.0% of statements\n"}
+{"Time":"2023-05-30T15:35:36.87806014+10:00","Action":"pass","Package":"example.com/package1","Elapsed":0}
+{"Time":"2023-05-30T15:35:36.878058673+10:00","Action":"start","Package":"example.com/package2"}
+{"Time":"2023-05-30T15:35:36.878085772+10:00","Action":"run","Package":"example.com/package2","Test":"Test3"}
+{"Time":"2023-05-30T15:35:36.878091149+10:00","Action":"output","Package":"example.com/package2","Test":"Test3","Output":"=== RUN   Test3\n"}
+{"Time":"2023-05-30T15:35:36.878097854+10:00","Action":"output","Package":"example.com/package2","Test":"Test3","Output":"--- PASS: Test3 (0.00s)\n"}
+{"Time":"2023-05-30T15:35:36.878103441+10:00","Action":"pass","Package":"example.com/package2","Test":"Test3","Elapsed":0}
+{"Time":"2023-05-30T15:35:36.87810868+10:00","Action":"output","Package":"example.com/package2","Output":"PASS\n"}
+{"Time":"2023-05-30T15:35:36.878113918+10:00","Action":"output","Package":"example.com/package2","Output":"\texample.com/package2\tcoverage: 0.0% of statements\n"}
+{"Time":"2023-05-30T15:35:36.878118737+10:00","Action":"output","Package":"example.com/package2","Output":"ok  \texample.com/package2\t(cached)\tcoverage: 0.0% of statements\n"}
+{"Time":"2023-05-30T15:35:36.878125022+10:00","Action":"pass","Package":"example.com/package2","Elapsed":0}
+{"Time":"2023-05-30T15:35:36.878156521+10:00","Action":"start","Package":"example.com/package3"}
+{"Time":"2023-05-30T15:35:36.878174889+10:00","Action":"run","Package":"example.com/package3","Test":"Test4"}
+{"Time":"2023-05-30T15:35:36.878180057+10:00","Action":"output","Package":"example.com/package3","Test":"Test4","Output":"=== RUN   Test4\n"}
+{"Time":"2023-05-30T15:35:36.878185854+10:00","Action":"output","Package":"example.com/package3","Test":"Test4","Output":"--- PASS: Test4 (0.00s)\n"}
+{"Time":"2023-05-30T15:35:36.878191092+10:00","Action":"pass","Package":"example.com/package3","Test":"Test4","Elapsed":0}
+{"Time":"2023-05-30T15:35:36.878195004+10:00","Action":"run","Package":"example.com/package3","Test":"Test5"}
+{"Time":"2023-05-30T15:35:36.878199753+10:00","Action":"output","Package":"example.com/package3","Test":"Test5","Output":"=== RUN   Test5\n"}
+{"Time":"2023-05-30T15:35:36.878212953+10:00","Action":"output","Package":"example.com/package3","Test":"Test5","Output":"--- PASS: Test5 (0.00s)\n"}
+{"Time":"2023-05-30T15:35:36.87821875+10:00","Action":"pass","Package":"example.com/package3","Test":"Test5","Elapsed":0}
+{"Time":"2023-05-30T15:35:36.87822308+10:00","Action":"output","Package":"example.com/package3","Output":"PASS\n"}
+{"Time":"2023-05-30T15:35:36.878227899+10:00","Action":"output","Package":"example.com/package3","Output":"coverage: [no statements]\n"}
+{"Time":"2023-05-30T15:35:36.878232159+10:00","Action":"output","Package":"example.com/package3","Output":"ok  \texample.com/package3\t(cached)\tcoverage: [no statements]\n"}
+{"Time":"2023-05-30T15:35:36.878239213+10:00","Action":"pass","Package":"example.com/package3","Elapsed":0}

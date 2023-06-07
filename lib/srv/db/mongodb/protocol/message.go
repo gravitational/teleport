@@ -78,8 +78,7 @@ func ReadMessage(reader io.Reader) (Message, error) {
 
 // ReadServerMessage reads wire protocol message from the MongoDB server connection.
 func ReadServerMessage(ctx context.Context, conn driver.Connection) (Message, error) {
-	var wm []byte
-	wm, err := conn.ReadWireMessage(ctx, wm)
+	wm, err := conn.ReadWireMessage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
