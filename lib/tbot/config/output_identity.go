@@ -43,7 +43,7 @@ type IdentityOutput struct {
 	// with the root cluster's proxy which will forward the request to the
 	// leaf cluster.
 	// For now, only SSH is supported.
-	Cluster string `yaml:"string,omitempty"`
+	Cluster string `yaml:"cluster,omitempty"`
 
 	destPath string
 }
