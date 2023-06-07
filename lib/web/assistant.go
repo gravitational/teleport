@@ -378,7 +378,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 			_ = ws.WriteJSON(&assistantMessage{
 				Type:        assist.MessageKindError,
 				Payload:     err.Error(),
-				CreatedTime: h.clock.Now().Format(time.RFC3339),
+				CreatedTime: h.clock.Now().UTC().Format(time.RFC3339),
 			})
 			// Set server error code and message: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
 			closureReason = websocket.CloseInternalServerErr
