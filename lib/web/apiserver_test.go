@@ -7143,7 +7143,8 @@ func (s *WebSuite) makeTerminal(t *testing.T, pack *authPack, opts ...terminalOp
 func waitForOutput(r io.Reader, substr string) error {
 	timeoutCh := time.After(10 * time.Second)
 
-	size := len(substr) * 2
+	var prev string
+	out := make([]byte, int64(len(substr)*2))
 	for {
 		select {
 		case <-timeoutCh:
@@ -7151,17 +7152,23 @@ func waitForOutput(r io.Reader, substr string) error {
 		default:
 		}
 
-		out := make([]byte, size)
 		n, err := r.Read(out)
+		outStr := removeSpace(string(out[:n]))
 
-		// check for the string before checking the error,
-		// as it's valid for n > 0 even when there is an error
-		if n > 0 && strings.Contains(removeSpace(string(out[:n])), substr) {
+		// Check for [substr] before checking the error,
+		// as it's valid for n > 0 even when there is an error.
+		// The [substr] is checked against the current and previous
+		// output to account for scenarios where the [substr] is split
+		// across two reads. While we try to prevent this by reading
+		// twice the length of [substr] there are no guarantees the
+		// whole thing will arrive in a single read.
+		if n > 0 && strings.Contains(prev+outStr, substr) {
 			return nil
 		}
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		prev = outStr
 	}
 }
 
