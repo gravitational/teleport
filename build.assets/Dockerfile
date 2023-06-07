@@ -254,6 +254,13 @@ RUN mkdir -p helm-tarball && \
     curl -fsSL https://get.helm.sh/helm-v3.5.2-$(go env GOOS)-$(go env GOARCH).tar.gz | tar -C helm-tarball -xz && \
     cp helm-tarball/$(go env GOOS)-$(go env GOARCH)/helm /bin/ && \
     rm -r helm-tarball*
+# TODO(hugoShaka): remove this backward compatible hack with teleportv13 buildbox
+RUN helm plugin install https://github.com/quintush/helm-unittest --version 0.2.11 && \
+    mkdir -p /home/ci/.local/share/helm && \
+    cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm/plugins-new && \
+    chown -R ci /home/ci/.local/share/helm && \
+    helm plugin uninstall unittest && \
+    HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new helm plugin list
 RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     mkdir -p /home/ci/.local/share/helm && \
     cp -r /root/.local/share/helm/plugins /home/ci/.local/share/helm && \
