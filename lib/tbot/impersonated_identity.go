@@ -580,22 +580,10 @@ type outputRenewalCache struct {
 	_proxyPong *webclient.PingResponse
 }
 
-// certAuthorities returns cached CAs of the given type.
-func (drc *outputRenewalCache) certAuthorities(
-	caType types.CertAuthType,
-) []types.CertAuthority {
-	drc.mu.Lock()
-	defer drc.mu.Unlock()
-
-	return drc._cas[caType]
-}
-
-// GetCertAuthorities returns the possibly cached CAs of the given type and
-// requests them from the server if unavailable.
-func (drc *outputRenewalCache) GetCertAuthorities(
+func (drc *outputRenewalCache) getCertAuthorities(
 	ctx context.Context, caType types.CertAuthType,
 ) ([]types.CertAuthority, error) {
-	if cas := drc.certAuthorities(caType); len(cas) > 0 {
+	if cas := drc._cas[caType]; len(cas) > 0 {
 		return cas, nil
 	}
 
@@ -604,9 +592,6 @@ func (drc *outputRenewalCache) GetCertAuthorities(
 		return nil, trace.Wrap(err)
 	}
 
-	drc.mu.Lock()
-	defer drc.mu.Unlock()
-
 	if drc._cas == nil {
 		drc._cas = map[types.CertAuthType][]types.CertAuthority{}
 	}
@@ -614,10 +599,17 @@ func (drc *outputRenewalCache) GetCertAuthorities(
 	return cas, nil
 }
 
-// AuthPing pings the auth server and returns the (possibly cached) response.
-func (drc *outputRenewalCache) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
+// GetCertAuthorities returns the possibly cached CAs of the given type and
+// requests them from the server if unavailable.
+func (drc *outputRenewalCache) GetCertAuthorities(
+	ctx context.Context, caType types.CertAuthType,
+) ([]types.CertAuthority, error) {
 	drc.mu.Lock()
 	defer drc.mu.Unlock()
+	return drc.getCertAuthorities(ctx, caType)
+}
+
+func (drc *outputRenewalCache) authPing(ctx context.Context) (*proto.PingResponse, error) {
 	if drc._authPong != nil {
 		return drc._authPong, nil
 	}
@@ -631,19 +623,21 @@ func (drc *outputRenewalCache) AuthPing(ctx context.Context) (*proto.PingRespons
 	return &pong, nil
 }
 
-// ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
-// Note that it relies on the auth server being configured with a sane proxy
-// public address.
-func (drc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+// AuthPing pings the auth server and returns the (possibly cached) response.
+func (drc *outputRenewalCache) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
 	drc.mu.Lock()
 	defer drc.mu.Unlock()
+	return drc.authPing(ctx)
+}
+
+func (drc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingResponse, error) {
 	if drc._proxyPong != nil {
 		return drc._proxyPong, nil
 	}
 
 	// Note: this relies on the auth server's proxy address. We could
 	// potentially support some manual parameter here in the future if desired.
-	authPong, err := drc.AuthPing(ctx)
+	authPong, err := drc.authPing(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -659,6 +653,15 @@ func (drc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingRe
 	drc._proxyPong = proxyPong
 
 	return proxyPong, nil
+}
+
+// ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
+// Note that it relies on the auth server being configured with a sane proxy
+// public address.
+func (drc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+	drc.mu.Lock()
+	defer drc.mu.Unlock()
+	return drc.proxyPing(ctx)
 }
 
 // outputProvider bundles the dependencies an output needs in order to render.
