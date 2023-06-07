@@ -1742,19 +1742,20 @@ func TestGetResourceDetails(t *testing.T) {
 	details, err := GetResourceDetails(ctx, clusterName, presence, resourceIDs)
 	require.NoError(t, err)
 
-	require.Equal(t, "hostname 1", details[types.ResourceIDToString(newResourceID(clusterName, types.KindNode, "node1"))].Hostname)
-	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindNode, "node1"))].FriendlyName)
+	// Check the resource details to see if friendly names properly propagated.
 
-	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app1"))].Hostname)
+	// Node should be named for its hostname.
+	require.Equal(t, "hostname 1", details[types.ResourceIDToString(newResourceID(clusterName, types.KindNode, "node1"))].FriendlyName)
+
+	// app1 and app2 are expected to be empty because they're not Okta sourced resources.
 	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app1"))].FriendlyName)
 
-	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app2"))].Hostname)
 	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app2"))].FriendlyName)
 
-	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app3"))].Hostname)
+	// This Okta sourced app should have a friendly name.
 	require.Equal(t, "friendly app 3", details[types.ResourceIDToString(newResourceID(clusterName, types.KindApp, "app3"))].FriendlyName)
 
-	require.Empty(t, details[types.ResourceIDToString(newResourceID(clusterName, types.KindUserGroup, "group1"))].Hostname)
+	// This Okta sourced user group should have a friendly name.
 	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(newResourceID(clusterName, types.KindUserGroup, "group1"))].FriendlyName)
 }
 
