@@ -474,6 +474,8 @@ func (b *Bot) generateImpersonatedIdentity(
 		b.log.Infof("Generated identity for app %q", output.AppName)
 
 		return routedIdentity, impersonatedClient, nil
+	case *config.SSHHostOutput:
+		return impersonatedIdentity, impersonatedClient, nil
 	default:
 		return nil, nil, trace.BadParameter("generateImpersonatedIdentity does not support output type (%T)", output)
 	}
@@ -520,6 +522,10 @@ func (b *Bot) renewOutputs(
 
 	// Next, generate impersonated certs
 	for _, output := range b.cfg.Outputs {
+		b.log.WithFields(logrus.Fields{
+			"output": output,
+		}).Info("Generating output.")
+
 		dest := output.GetDestination()
 		// Check the ACLs. We can't fix them, but we can warn if they're
 		// misconfigured. We'll need to precompute a list of keys to check.
@@ -544,23 +550,23 @@ func (b *Bot) renewOutputs(
 		}
 		defer impersonatedClient.Close()
 
-		b.log.Infof("Renewed destination certificates for %s, %s", output, describeTLSIdentity(b.log, impersonatedIdentity))
-
-		if err := identity.SaveIdentity(impersonatedIdentity, dest, identity.DestinationKinds()...); err != nil {
-			return trace.Wrap(err, "saving impersonated identity for output: %s", output)
-		}
-
 		// Create a destination provider to bundle up all the dependencies that
 		// a destination template might need to render.
 		dp := &outputProvider{
 			outputRenewalCache: drc,
 			impersonatedClient: impersonatedClient,
+			cfg:                b.cfg,
 		}
 
 		if err := output.Render(ctx, dp, impersonatedIdentity); err != nil {
 			b.log.WithError(err).Warnf("Failed to render output %s", output)
 			return trace.Wrap(err, "rendering output: %s", output)
 		}
+
+		b.log.WithFields(logrus.Fields{
+			"output":   output,
+			"identity": describeTLSIdentity(b.log, impersonatedIdentity),
+		}).Info("Generated output.")
 	}
 
 	return nil

@@ -53,9 +53,14 @@ func (o *ApplicationOutput) templates() []template {
 }
 
 func (o *ApplicationOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
+	dest := o.GetDestination()
+	if err := identity.SaveIdentity(ident, dest, identity.DestinationKinds()...); err != nil {
+		return trace.Wrap(err, "persisting identity")
+	}
+
 	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, o.GetDestination()); err != nil {
-			return trace.Wrap(err, "rendering %s", t.name())
+		if err := t.render(ctx, p, ident, dest); err != nil {
+			return trace.Wrap(err, "rendering template %s", t.name())
 		}
 	}
 
