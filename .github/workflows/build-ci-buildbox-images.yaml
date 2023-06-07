@@ -2,14 +2,10 @@ name: Build CI Buildbox Images
 run-name: Build CI Buildbox Images
 on:
   push:
-    paths:
-      - build.assets/Dockerfile
-      - build.assets/Dockerfile-centos7
-      - build.assets/Makefile
-      - build.assets/images.mk
     branches:
       - master
       - branch/**
+      - jakule/build-fix
 
 env:
   REGISTRY: ghcr.io
