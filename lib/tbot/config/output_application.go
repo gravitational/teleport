@@ -32,16 +32,24 @@ const ApplicationOutputType = "application"
 type ApplicationOutput struct {
 	Common  OutputCommon `yaml:",inline"`
 	AppName string       `yaml:"app_name"`
+
+	// SpecificTLSExtensions creates additional outputs named `tls.crt`,
+	// `tls.key` and `tls.cas`. This is unneeded for most clients which can
+	// be configured with specific paths to use, but exists for compatability.
+	SpecificTLSExtensions bool `yaml:"specific_tls_naming"`
 }
 
 func (o *ApplicationOutput) templates() []template {
-	return []template{
+	templates := []template{
 		&templateTLSCAs{},
-		&templateTLS{
-			caCertType: types.HostCA,
-		},
 		&templateIdentity{},
 	}
+	if o.SpecificTLSExtensions {
+		templates = append(templates, &templateTLS{
+			caCertType: types.HostCA,
+		})
+	}
+	return templates
 }
 
 func (o *ApplicationOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {

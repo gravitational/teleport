@@ -41,9 +41,12 @@ var (
 	TLSDatabaseSubtype DatabaseSubtype = "tls"
 	// MongoDatabaseSubtype indicates credentials should be generated which
 	// are compatible with MongoDB.
+	// This outputs `mongo.crt` and `mongo.cas`.
 	MongoDatabaseSubtype DatabaseSubtype = "mongo"
 	// CockroachDatabaseSubtype indicates credentials should be generated which
 	// are compatible with CockroachDB.
+	// This outputs `cockroach/node.key`, `cockroach/node.crt` and
+	// `cockroach/ca.crt`.
 	CockroachDatabaseSubtype DatabaseSubtype = "cockroach"
 
 	databaseSubtypes = []DatabaseSubtype{
