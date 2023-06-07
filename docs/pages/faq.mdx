@@ -62,11 +62,11 @@ Yes, Teleport supports tunnel multiplexing on a single port. Set the
 setting in the `proxy_service` configuration. Teleport will automatically use
 multiplexing with that configuration.
 
-## Can I copy files on a machine without being logged in, i.e. headless authentication?
+## Can I copy files from one Teleport node to another?
 
-Yes, Teleport supports [Headless WebAuthn authentication](./access-controls/guides/headless.mdx) that allows you to perform operations like
-downloading or uploading via `scp` or opening `ssh` sessions on remote stations you aren't
-logged into. You confirm the operation easily from your local browser or terminal.
+Yes, Teleport supports [Headless WebAuthn authentication](./access-controls/guides/headless.mdx)
+that allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
+are not logged in to Teleport or may not have access to a browser.
 
 ## I'm getting `ssh: subsystem request failed` while I try to copy files, what to do?
 
@@ -123,7 +123,7 @@ Teleport offers this feature for the [Enterprise versions of Teleport](choose-an
 ## Does Teleport send any data back to the cloud?
 
 The open source and Enterprise editions of Teleport do not send any information
-to our company, and can be used on servers without internet access. 
+to our company, and can be used on servers without internet access.
 
 The commercial editions of Teleport can optionally be configured to send
 anonymized information, depending on the license purchased. This information
