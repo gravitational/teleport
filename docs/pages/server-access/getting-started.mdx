@@ -1,10 +1,11 @@
 ---
 title: Server Access Getting Started Guide
-description: Getting started with Teleport Server Access.
+description: Getting started with Teleport server access.
 videoBanner: 6ynLlAUipNE
 ---
 
-Server Access involves managing your resources, configuring new clusters, and issuing commands through a CLI or programmatically to an API.
+Server access involves managing your resources, configuring new clusters, and
+issuing commands through a CLI or programmatically to an API.
 
 This guide introduces some of these common scenarios and how to interact with Teleport to accomplish them:
 
@@ -60,7 +61,7 @@ Next, create a join token so you can add the Node to your Teleport cluster.
 
 ```code
 Let's save the token to a file
-$ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
+$ tctl tokens add --type=node --format=text > token.file
 ```
 
 </TabItem>
@@ -68,7 +69,7 @@ $ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
 
 ```code
 Let's save the token to a file
-$ tctl tokens add --type=node | grep -o 'token: .*' | cut -d' ' -f2 > token.file
+$ tctl tokens add --type=node --format=text > token.file
 ```
 
 </TabItem>

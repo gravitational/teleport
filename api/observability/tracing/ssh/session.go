@@ -16,8 +16,11 @@ package ssh
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 
+	"github.com/gravitational/trace"
 	"go.opentelemetry.io/otel/attribute"
 	semconv "go.opentelemetry.io/otel/semconv/v1.10.0"
 	oteltrace "go.opentelemetry.io/otel/trace"
@@ -51,7 +54,8 @@ func (s *Session) SendRequest(ctx context.Context, name string, wantReply bool, 
 
 	// no need to wrap payload here, the session's channel wrapper will do it for us
 	s.wrapper.addContext(ctx, name)
-	return s.Session.SendRequest(name, wantReply, payload)
+	ok, err := s.Session.SendRequest(name, wantReply, payload)
+	return ok, trace.Wrap(err)
 }
 
 // Setenv sets an environment variable that will be applied to any
@@ -72,7 +76,66 @@ func (s *Session) Setenv(ctx context.Context, name, value string) error {
 	defer span.End()
 
 	s.wrapper.addContext(ctx, request)
-	return s.Session.Setenv(name, value)
+	return trace.Wrap(s.Session.Setenv(name, value))
+}
+
+// SetEnvs sets environment variables that will be applied to any
+// command executed by Shell or Run. If the server does not handle
+// [EnvsRequest] requests then the client falls back to sending individual
+// "env" requests until all provided environment variables have been set
+// or an error was received.
+func (s *Session) SetEnvs(ctx context.Context, envs map[string]string) error {
+	config := tracing.NewConfig(s.wrapper.opts)
+	ctx, span := config.TracerProvider.Tracer(instrumentationName).Start(
+		ctx,
+		"ssh.SetEnvs",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			semconv.RPCServiceKey.String("ssh.Session"),
+			semconv.RPCMethodKey.String("SendRequest"),
+			semconv.RPCSystemKey.String("ssh"),
+		),
+	)
+	defer span.End()
+
+	if len(envs) == 0 {
+		return nil
+	}
+
+	// If the server isn't Teleport fallback to individual "env" requests
+	if !strings.HasPrefix(string(s.wrapper.ServerVersion()), "SSH-2.0-Teleport") {
+		return trace.Wrap(s.setEnvFallback(ctx, envs))
+	}
+
+	raw, err := json.Marshal(envs)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	s.wrapper.addContext(ctx, EnvsRequest)
+	ok, err := s.Session.SendRequest(EnvsRequest, true, ssh.Marshal(EnvsReq{EnvsJSON: raw}))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// The server does not handle EnvsRequest requests so fall back
+	// to sending individual requests.
+	if !ok {
+		return trace.Wrap(s.setEnvFallback(ctx, envs))
+	}
+
+	return nil
+}
+
+// setEnvFallback sends an "env" request for each item in envs.
+func (s *Session) setEnvFallback(ctx context.Context, envs map[string]string) error {
+	for k, v := range envs {
+		if err := s.Setenv(ctx, k, v); err != nil {
+			return trace.Wrap(err, "failed to set environment variable %s", k)
+		}
+	}
+
+	return nil
 }
 
 // RequestPty requests the association of a pty with the session on the remote host.
@@ -95,7 +158,7 @@ func (s *Session) RequestPty(ctx context.Context, term string, h, w int, termmod
 	defer span.End()
 
 	s.wrapper.addContext(ctx, request)
-	return s.Session.RequestPty(term, h, w, termmodes)
+	return trace.Wrap(s.Session.RequestPty(term, h, w, termmodes))
 }
 
 // RequestSubsystem requests the association of a subsystem with the session on the remote host.
@@ -116,7 +179,7 @@ func (s *Session) RequestSubsystem(ctx context.Context, subsystem string) error 
 	defer span.End()
 
 	s.wrapper.addContext(ctx, request)
-	return s.Session.RequestSubsystem(subsystem)
+	return trace.Wrap(s.Session.RequestSubsystem(subsystem))
 }
 
 // WindowChange informs the remote host about a terminal window dimension change to h rows and w columns.
@@ -138,7 +201,7 @@ func (s *Session) WindowChange(ctx context.Context, h, w int) error {
 	defer span.End()
 
 	s.wrapper.addContext(ctx, request)
-	return s.Session.WindowChange(h, w)
+	return trace.Wrap(s.Session.WindowChange(h, w))
 }
 
 // Signal sends the given signal to the remote process.
@@ -159,7 +222,7 @@ func (s *Session) Signal(ctx context.Context, sig ssh.Signal) error {
 	defer span.End()
 
 	s.wrapper.addContext(ctx, request)
-	return s.Session.Signal(sig)
+	return trace.Wrap(s.Session.Signal(sig))
 }
 
 // Start runs cmd on the remote host. Typically, the remote
@@ -181,7 +244,7 @@ func (s *Session) Start(ctx context.Context, cmd string) error {
 	defer span.End()
 
 	s.wrapper.addContext(ctx, request)
-	return s.Session.Start(cmd)
+	return trace.Wrap(s.Session.Start(cmd))
 }
 
 // Shell starts a login shell on the remote host. A Session only
@@ -202,7 +265,7 @@ func (s *Session) Shell(ctx context.Context) error {
 	defer span.End()
 
 	s.wrapper.addContext(ctx, request)
-	return s.Session.Shell()
+	return trace.Wrap(s.Session.Shell())
 }
 
 // Run runs cmd on the remote host. Typically, the remote
@@ -234,7 +297,7 @@ func (s *Session) Run(ctx context.Context, cmd string) error {
 	defer span.End()
 
 	s.wrapper.addContext(ctx, request)
-	return s.Session.Run(cmd)
+	return trace.Wrap(s.Session.Run(cmd))
 }
 
 // Output runs cmd on the remote host and returns its standard output.
@@ -254,7 +317,8 @@ func (s *Session) Output(ctx context.Context, cmd string) ([]byte, error) {
 	defer span.End()
 
 	s.wrapper.addContext(ctx, request)
-	return s.Session.Output(cmd)
+	output, err := s.Session.Output(cmd)
+	return output, trace.Wrap(err)
 }
 
 // CombinedOutput runs cmd on the remote host and returns its combined
@@ -275,5 +339,6 @@ func (s *Session) CombinedOutput(ctx context.Context, cmd string) ([]byte, error
 	defer span.End()
 
 	s.wrapper.addContext(ctx, request)
-	return s.Session.CombinedOutput(cmd)
+	output, err := s.Session.CombinedOutput(cmd)
+	return output, trace.Wrap(err)
 }

@@ -29,20 +29,21 @@ import (
 type pipeline struct {
 	comment string
 
-	Kind        string           `yaml:"kind"`
-	Type        string           `yaml:"type"`
-	Name        string           `yaml:"name"`
-	Environment map[string]value `yaml:"environment,omitempty"`
-	Trigger     trigger          `yaml:"trigger"`
-	Workspace   workspace        `yaml:"workspace,omitempty"`
-	Platform    platform         `yaml:"platform,omitempty"`
-	Node        map[string]value `yaml:"node,omitempty"`
-	Clone       clone            `yaml:"clone,omitempty"`
-	DependsOn   []string         `yaml:"depends_on,omitempty"`
-	Concurrency concurrency      `yaml:"concurrency,omitempty"`
-	Steps       []step           `yaml:"steps"`
-	Services    []service        `yaml:"services,omitempty"`
-	Volumes     []volume         `yaml:"volumes,omitempty"`
+	Kind             string           `yaml:"kind"`
+	Type             string           `yaml:"type"`
+	Name             string           `yaml:"name"`
+	Environment      map[string]value `yaml:"environment,omitempty"`
+	Trigger          trigger          `yaml:"trigger"`
+	Workspace        workspace        `yaml:"workspace,omitempty"`
+	Platform         platform         `yaml:"platform,omitempty"`
+	Node             map[string]value `yaml:"node,omitempty"`
+	Clone            clone            `yaml:"clone,omitempty"`
+	DependsOn        []string         `yaml:"depends_on,omitempty"`
+	Concurrency      concurrency      `yaml:"concurrency,omitempty"`
+	Steps            []step           `yaml:"steps"`
+	Services         []service        `yaml:"services,omitempty"`
+	Volumes          []volume         `yaml:"volumes,omitempty"`
+	ImagePullSecrets []string         `yaml:"image_pull_secrets,omitempty"`
 }
 
 func newKubePipeline(name string) pipeline {
@@ -170,11 +171,11 @@ type volumeRef struct {
 type step struct {
 	Name        string              `yaml:"name"`
 	Image       string              `yaml:"image,omitempty"`
+	Pull        string              `yaml:"pull,omitempty"`
 	Commands    []string            `yaml:"commands,omitempty"`
 	Environment map[string]value    `yaml:"environment,omitempty"`
 	Volumes     []volumeRef         `yaml:"volumes,omitempty"`
 	Settings    map[string]value    `yaml:"settings,omitempty"`
-	Template    []string            `yaml:"template,omitempty"`
 	When        *condition          `yaml:"when,omitempty"`
 	Failure     string              `yaml:"failure,omitempty"`
 	Resources   *containerResources `yaml:"resources,omitempty"`

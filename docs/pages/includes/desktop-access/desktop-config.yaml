@@ -1,7 +1,7 @@
 windows_desktop_service:
   enabled: yes
   # This is the address that windows_desktop_service will listen on.
-  listen_addr: "localhost:3028"
+  listen_addr: "0.0.0.0:3028"
   # (optional) This is the address that windows_desktop_service will advertise
   # to the rest of Teleport for incoming connections. Only proxy_service should
   # connect to windows_desktop_service, users connect to the proxy's web UI

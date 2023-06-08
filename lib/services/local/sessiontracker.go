@@ -215,6 +215,20 @@ func (s *sessionTracker) UpdateSessionTracker(ctx context.Context, req *proto.Up
 		case *types.SessionTrackerV1:
 			switch update := req.Update.(type) {
 			case *proto.UpdateSessionTrackerRequest_UpdateState:
+				// Since we are using a CAS loop, we can safely check the state of the session
+				// before updating it. If the session is already closed, we can return an error
+				// to the caller to indicate that the session is no longer active and the update
+				// should not be applied.
+				// Before, we were relying on the caller to send the updates in the correct order
+				// and to not send updates for closed sessions. This was error prone and led to
+				// sessions getting stuck as active. The expiry of the session was correctly stored
+				// in the backend, but since dynamodb deletion is eventually consistent, the session
+				// could still be returned by GetActiveSessionTrackers for days if a
+				// running event is received after the session termination event.
+				if session.GetState() == types.SessionState_SessionStateTerminated {
+					return trace.BadParameter("session %q is already closed", session.GetSessionID())
+				}
+
 				if err := session.SetState(update.UpdateState.State); err != nil {
 					return trace.Wrap(err)
 				}

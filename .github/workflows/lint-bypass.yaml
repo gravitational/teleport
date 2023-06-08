@@ -10,9 +10,6 @@
 name: Lint (Go)
 run-name: make lint
 on:
-  push:
-    branches:
-      - branch/v10
   pull_request:
     paths:
       - 'docs/**'
@@ -25,7 +22,7 @@ on:
 jobs:
   lint:
     name: Lint (Go)
-    runs-on: ubuntu-latest  
+    runs-on: ubuntu-latest
 
     permissions:
       contents: none

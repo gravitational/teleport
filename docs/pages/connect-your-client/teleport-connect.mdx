@@ -215,3 +215,52 @@ $ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
 ````
 </TabItem>
 </Tabs>
+
+## Uninstalling Teleport Connect
+
+<Tabs>
+<TabItem label="macOS">
+
+Remove Teleport Connect for MacOS from the Applications directory with this command:
+
+```code
+$ sudo rm -f /Applications/Teleport\ Connect.app
+```
+
+To remove the local user data directory:
+
+```code
+$ rm -rf ~/Library/Application\ Support/Teleport\ Connect
+```
+
+</TabItem>
+<TabItem label="Windows">
+
+(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
+
+To remove the local user data directory:
+
+```powershell
+$ rmdir /s /q "%APPDATA%\Teleport Connect"
+```
+
+</TabItem>
+<TabItem label="Linux">
+
+For DEB installations uninstall Teleport Connect using APT:
+
+```code
+$ sudo apt remove teleport-connect
+```
+
+For RPM installations uninstall Teleport Connect using YUM:
+
+```code
+$ sudo yum remove teleport-connect
+```
+
+Installs based on a tarball should remove the
+`teleport-connect` directory and any copied/linked executables.
+
+</TabItem>
+</Tabs>

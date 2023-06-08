@@ -28,6 +28,7 @@ import (
 	"net/url"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	gwebsocket "github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
@@ -243,6 +244,7 @@ func (e *wsStreamClient) Close() {
 //	CLOSE
 func (e *wsStreamClient) stream(conn *gwebsocket.Conn, options clientremotecommand.StreamOptions) error {
 	errChan := make(chan error, 3)
+	statusReport := &atomic.Bool{}
 	wg := sync.WaitGroup{}
 	if options.Stdin != nil {
 		wg.Add(1)
@@ -302,7 +304,7 @@ func (e *wsStreamClient) stream(conn *gwebsocket.Conn, options clientremotecomma
 				case streamStderr:
 					w = options.Stderr
 				case streamErr:
-					_, err := parseError(buf[1:])
+					_, err := parseError(buf[1:], statusReport)
 					errChan <- err
 					// Once we receive an error from streamErr, we must stop processing.
 					// The server also stops the execution and closes the connection.
@@ -328,10 +330,9 @@ func (e *wsStreamClient) stream(conn *gwebsocket.Conn, options clientremotecomma
 			if err != nil {
 				// check the connection was properly closed by server, and if true ignore the error.
 				var websocketErr *gwebsocket.CloseError
-				if errors.As(err, &websocketErr) && websocketErr.Code == gwebsocket.CloseNormalClosure {
-					err = nil
+				if errors.As(err, &websocketErr) && websocketErr.Code != gwebsocket.CloseNormalClosure {
+					errChan <- err
 				}
-				errChan <- err
 				return
 			}
 			e.mu.Lock()
@@ -343,7 +344,15 @@ func (e *wsStreamClient) stream(conn *gwebsocket.Conn, options clientremotecomma
 
 	wg.Wait()
 	close(errChan)
+	// always expect an error from the errChan since it means that the connection was closed
+	// by the server by sending a streamErr with the error.
+	// If no error happened during the remote execution, the server sends a streamErr with
+	// status = Success field.
 	err := <-errChan
+	// only check if status was reported on success.
+	if err == nil && !statusReport.Load() {
+		return trace.ConnectionProblem(nil, "server didn't report exec status using the error websocket channel")
+	}
 	return err
 }
 
@@ -502,7 +511,7 @@ func dial(rt http.RoundTripper, method string, url string) error {
 		// drain response body
 
 		_ = resp.Body.Close()
-		isStatusErr, err := parseError(responseErrorBytes)
+		isStatusErr, err := parseError(responseErrorBytes, nil)
 		if isStatusErr {
 			return err
 		}
@@ -534,9 +543,14 @@ func (e *wsStreamClient) RoundTrip(request *http.Request) (retResp *http.Respons
 }
 
 // parseError parses the error received from Kube API and checks if the returned error is *metav1.Status
-func parseError(errorBytes []byte) (bool, error) {
+func parseError(errorBytes []byte, statusReporter *atomic.Bool) (bool, error) {
 	if obj, _, err := statusCodecs.UniversalDecoder().Decode(errorBytes, nil, &metav1.Status{}); err == nil {
-		if status, ok := obj.(*metav1.Status); ok {
+		if status, ok := obj.(*metav1.Status); ok && status.Status == metav1.StatusSuccess {
+			if statusReporter != nil {
+				statusReporter.Store(true)
+			}
+			return true, nil
+		} else if ok {
 			return true, &apierrors.StatusError{ErrStatus: *status}
 		}
 		return false, fmt.Errorf("unexpected error type: %T", obj)

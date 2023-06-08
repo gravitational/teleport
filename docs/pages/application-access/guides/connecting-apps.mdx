@@ -1,6 +1,6 @@
 ---
 title: Web Application Access
-description: How to configure Teleport for Application Access.
+description: How to configure Teleport for application access.
 ---
 
 Download the latest version of Teleport for your platform from our [downloads page](https://goteleport.com/teleport/download)
@@ -9,7 +9,7 @@ and follow the installation [instructions](../../installation.mdx).
 ## Start Auth/Proxy service
 
 Create a configuration file for a Teleport service that will be running
-auth and proxy servers:
+the Auth and Proxy Services:
 
 ```yaml
 teleport:
@@ -26,11 +26,7 @@ ssh_service:
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-Start the service:
-
-```code
-$ sudo teleport start --config=/path/to/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx!)
 
 ### Generate a token
 
@@ -97,7 +93,7 @@ comes with a built-in `access` role that grants access to all apps:
 $ tctl --config=/path/to/teleport.yaml users add --roles=access appuser
 ```
 
-## Start application service with CLI flags
+## Start the Application Service with CLI flags
 
 Install Teleport:
 
@@ -116,7 +112,7 @@ $ sudo teleport start \
 ```
 
 Note that the `--auth-server` flag must point to the Teleport cluster's proxy
-endpoint because the application service always connects back to the cluster over
+endpoint because the Application Service always connects back to the cluster over
 a reverse tunnel.
 
 ### Application name
@@ -128,7 +124,7 @@ e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
 `grafana.acme.com` if you configure the appropriate DNS entry to point to the
 Teleport proxy server.
 
-## Start application service with a config file
+## Start the Application Service with a config file
 
 Example `teleport.yaml` configuration:
 
@@ -176,7 +172,7 @@ proxy_service:
   enabled: "no"
 ```
 
-Start the application service:
+Start the Application Service:
 
 ```code
 $ sudo teleport start --config=/path/to/teleport.yaml
@@ -237,7 +233,7 @@ The URI should be updated to include the subdirectory:
 
 ```yaml
 - name: "k8s"
-  uri: "http://10.0.1.60:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/#/overview?namespace=default"
+  uri: "http://10.0.1.60:8001/api/v1/namespaces/kube-system/services/https:kubernetes-dashboard:/proxy/#/overview"
   public_addr: "k8s.example.com"
 ```
 

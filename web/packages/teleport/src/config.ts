@@ -158,6 +158,7 @@ const cfg = {
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
+    mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
     mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
@@ -361,6 +362,11 @@ const cfg = {
   getConnectionDiagnosticUrl() {
     const clusterId = cfg.proxyCluster;
     return generatePath(cfg.api.connectionDiagnostic, { clusterId });
+  },
+
+  getMfaRequiredUrl() {
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.mfaRequired, { clusterId });
   },
 
   getCheckAccessToRegisteredResourceUrl() {

@@ -27,6 +27,7 @@ import { Option } from 'shared/components/Select';
 import TextSelectCopy from 'teleport/components/TextSelectCopy';
 import useTeleport from 'teleport/useTeleport';
 import { YamlReader } from 'teleport/Discover/Shared/SetupAccess/AccessInfo';
+import ReAuthenticate from 'teleport/components/ReAuthenticate';
 
 import {
   ActionButtons,
@@ -39,6 +40,7 @@ import {
 import { useTestConnection, State } from './useTestConnection';
 
 import type { AgentStepProps } from '../../types';
+import type { KubeImpersonation } from 'teleport/services/agents';
 
 export default function Container(props: AgentStepProps) {
   const ctx = useTeleport();
@@ -58,6 +60,8 @@ export function TestConnection({
   authType,
   username,
   clusterId,
+  showMfaDialog,
+  cancelMfaDialog,
 }: State) {
   const userOpts = kube.users.map(l => ({ value: l, label: l }));
   const groupOpts = kube.groups.map(l => ({ value: l, label: l }));
@@ -108,17 +112,29 @@ export function TestConnection({
       return;
     }
 
-    runConnectionDiagnostic({
+    runConnectionDiagnostic(makeTestConnRequest());
+  }
+
+  function makeTestConnRequest(): KubeImpersonation {
+    return {
       namespace,
       user: selectedUser?.value,
       groups: selectedGroups?.map(g => g.value),
-    });
+    };
   }
 
   return (
     <Validation>
       {({ validator }) => (
         <Box>
+          {showMfaDialog && (
+            <ReAuthenticate
+              onMfaResponse={res =>
+                runConnectionDiagnostic(makeTestConnRequest(), res)
+              }
+              onClose={cancelMfaDialog}
+            />
+          )}
           <HeaderWithBackBtn onPrev={prevStep}>
             Test Connection
           </HeaderWithBackBtn>

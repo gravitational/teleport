@@ -655,7 +655,7 @@ proxy_service:
     tunnel_listen_addr: 0.0.0.0:3024
 
     # The HTTPS listen address to serve the Web UI and also to authenticate the
-    # command line (CLI) users via password+HOTP
+    # command line (CLI) users via password+TOTP
     # Also handles the PostgreSQL proxy if database access is enabled.
     web_listen_addr: 0.0.0.0:3080
 
@@ -752,7 +752,7 @@ proxy_service:
     #  enabled: yes
     #  email: user@example.com
 
-# This section configures the 'application service'
+# This section configures the Application Service
 app_service:
     # Turns 'app' role on. Default is 'no'
     enabled: yes
@@ -828,7 +828,7 @@ kubernetes_service:
       command: ['curl', 'http://metadata.google.internal/computeMetadata/v1/instance/attributes/cluster-name', '-H', 'Metadata-Flavor: Google']
       period: 1m0s
 
-# This section configures the 'discovery service'
+# This section configures the Discovery Service
 discovery_service:
     enabled: yes
     aws:
@@ -859,9 +859,9 @@ discovery_service:
          # Optional, defaults to: "TeleportDiscoveryInstaller".
          document_name: "TeleportDiscoveryInstaller"
 
-# This section configures the 'database service'.
+# This section configures the Database Service.
 (!docs/pages/includes/database-access/database-config.yaml!)
 
-# This section configures the windows desktop service
+# This section configures the Windows Desktop Service
 (!docs/pages/includes/desktop-access/desktop-config.yaml!)
 ```

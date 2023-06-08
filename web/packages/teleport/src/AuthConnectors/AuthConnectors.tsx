@@ -59,7 +59,7 @@ export function AuthConnectors(props: State) {
           width="240px"
           onClick={() => resources.create('github')}
         >
-          New Github Connector
+          New GitHub Connector
         </ButtonPrimary>
       </FeatureHeader>
       {attempt.status === 'failed' && <Alert children={attempt.statusText} />}

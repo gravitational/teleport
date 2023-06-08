@@ -260,7 +260,7 @@ RUN curl -fsSL https://github.com/golangci/golangci-lint/releases/download/v1.46
 
 # Install Buf.
 RUN BIN="/usr/local/bin" && \
-    VERSION="1.15.1" && \
+    VERSION="1.17.0" && \
       curl -fsSL \
         "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
         -o "${BIN}/buf" && \

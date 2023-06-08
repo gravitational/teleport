@@ -101,9 +101,9 @@ Use `tctl` to confirm that there is an active rotation in progress:
 $ tctl status
 # Cluster  acme.cluster
 # Version  (=teleport.version=)
-# Host CA  initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
-# User CA  rotated Sep 20 01:42:54 UTC
-# Jwt CA   rotated Sep 20 01:42:54 UTC
+# Host CA  initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
+# User CA  rotated Sep 20 2023 01:42:54 UTC
+# Jwt CA   rotated Sep 20 2023 01:42:54 UTC
 # CA pin   sha256:hash
 ```
 
@@ -140,7 +140,7 @@ $ tctl auth rotate --phase=update_clients --manual
 $ tctl status
 # Cluster  acme.cluster
 # Version  (=teleport.version=)
-# Host CA  rotating clients (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
+# Host CA  rotating clients (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
 ```
 
 <Admonition type="note">
@@ -171,7 +171,7 @@ $ tctl auth rotate --phase=update_servers --manual
 $ tctl status
 # Cluster  acme.cluster
 # Version  (=teleport.version=)
-# Host CA  rotating servers (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
+# Host CA  rotating servers (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
 ```
 
 <Admonition type="note">
@@ -215,9 +215,9 @@ Verify that the rotation has completed with `tctl`:
 $ tctl status
 Cluster  acme.cluster
 Version  (=teleport.version=)
-Host CA  rotated Sep 20 02:11:25 UTC
-User CA  rotated Sep 20 01:42:54 UTC
-Jwt CA   rotated Sep 20 01:42:54 UTC
+Host CA  rotated Sep 20 2023 02:11:25 UTC
+User CA  rotated Sep 20 2023 01:42:54 UTC
+Jwt CA   rotated Sep 20 2023 01:42:54 UTC
 CA pin   sha256:hash
 ```
 
@@ -285,7 +285,7 @@ Check the cluster status:
 $ tctl status
 Cluster  acme.cluster
 Version  (=teleport.version=)
-Host CA  initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
+Host CA  initialized (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
 ```
 
 Check the status of individual nodes:

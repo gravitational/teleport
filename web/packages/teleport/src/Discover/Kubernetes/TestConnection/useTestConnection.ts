@@ -26,26 +26,56 @@ import type {
   KubeImpersonation,
 } from 'teleport/services/agents';
 import type { AgentStepProps } from '../../types';
+import type { MfaAuthnResponse } from 'teleport/services/mfa';
 
 export function useTestConnection({ ctx, props }: Props) {
-  const { attempt, run } = useAttempt('');
+  const { attempt, setAttempt, handleError } = useAttempt('');
   const [diagnosis, setDiagnosis] = useState<ConnectionDiagnostic>();
+  const [showMfaDialog, setShowMfaDialog] = useState(false);
 
   const access = ctx.storeUser.getConnectionDiagnosticAccess();
   const canTestConnection = access.create && access.edit && access.read;
 
-  function runConnectionDiagnostic(impersonate: KubeImpersonation) {
+  async function runConnectionDiagnostic(
+    impersonate: KubeImpersonation,
+    mfaAuthnResponse?: MfaAuthnResponse
+  ) {
     const meta = props.agentMeta as KubeMeta;
     setDiagnosis(null);
-    run(() =>
-      ctx.agentService
-        .createConnectionDiagnostic({
-          resourceKind: 'kube_cluster',
-          resourceName: meta.kube.name,
-          kubeImpersonation: impersonate,
-        })
-        .then(setDiagnosis)
-    );
+    setShowMfaDialog(false);
+    setAttempt({ status: 'processing' });
+
+    try {
+      if (!mfaAuthnResponse) {
+        const mfaReq = {
+          kube: {
+            cluster_name: meta.kube.name,
+          },
+        };
+        const sessionMfa = await ctx.mfaService.isMfaRequired(mfaReq);
+        if (sessionMfa.required) {
+          setShowMfaDialog(true);
+          return;
+        }
+      }
+
+      const diag = await ctx.agentService.createConnectionDiagnostic({
+        resourceKind: 'kube_cluster',
+        resourceName: meta.kube.name,
+        kubeImpersonation: impersonate,
+        mfaAuthnResponse,
+      });
+
+      setAttempt({ status: 'success' });
+      setDiagnosis(diag);
+    } catch (err) {
+      handleError(err);
+    }
+  }
+
+  function cancelMfaDialog() {
+    setAttempt({ status: '' });
+    setShowMfaDialog(false);
   }
 
   const { username, authType, cluster } = ctx.storeUser.state;
@@ -61,6 +91,8 @@ export function useTestConnection({ ctx, props }: Props) {
     username,
     authType,
     clusterId: cluster.clusterId,
+    showMfaDialog,
+    cancelMfaDialog,
   };
 }
 

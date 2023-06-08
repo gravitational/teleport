@@ -3197,7 +3197,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [unimplemented] deleted Github connector [new_github_connector]
+          User [unimplemented] deleted GitHub connector [new_github_connector]
         </td>
         <td
           style="min-width: 120px;"
@@ -3234,7 +3234,7 @@ exports[`list of all events 1`] = `
         <td
           style="word-break: break-word;"
         >
-          User [unimplemented] created Github connector [new_github_connector] has been created
+          User [unimplemented] created GitHub connector [new_github_connector] has been created
         </td>
         <td
           style="min-width: 120px;"

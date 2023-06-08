@@ -21,6 +21,8 @@ import { Kube } from 'teleport/services/kube';
 import { Desktop, WindowsDesktopService } from 'teleport/services/desktops';
 import { AgentQueryMeta } from 'teleport/services/resources';
 
+import type { MfaAuthnResponse } from '../mfa';
+
 export type AgentKind =
   | App
   | Database
@@ -97,6 +99,7 @@ export type ConnectionDiagnosticRequest = {
   resourceName: string; //`json:"resource_name"`
   sshPrincipal?: string; //`json:"ssh_principal"`
   kubeImpersonation?: KubeImpersonation; // `json:"kubernetes_impersonation`
+  mfaAuthnResponse?: MfaAuthnResponse;
 };
 
 export type KubeImpersonation = {

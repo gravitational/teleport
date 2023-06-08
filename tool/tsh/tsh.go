@@ -2548,7 +2548,6 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			getUsersForDb(database, roleSet),
 			database.LabelsString(),
 			connect,
-			database.Expiry().Format(constants.HumanDateFormatSeconds),
 		)
 	} else {
 		row = append(row,
@@ -2575,7 +2574,7 @@ func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Data
 	}
 	var t asciitable.Table
 	if verbose {
-		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect", "Expires"}, rows...)
+		t = asciitable.MakeTable([]string{"Name", "Description", "Protocol", "Type", "URI", "Allowed Users", "Labels", "Connect"}, rows...)
 	} else {
 		t = asciitable.MakeTableWithTruncatedColumn([]string{"Name", "Description", "Allowed Users", "Labels", "Connect"}, rows, "Labels")
 	}
@@ -3552,10 +3551,14 @@ func onShow(cf *CLIConf) error {
 // printStatus prints the status of the profile.
 func printStatus(debug bool, p *profileInfo, env map[string]string, isActive bool) {
 	var prefix string
-	duration := time.Until(p.ValidUntil)
 	humanDuration := "EXPIRED"
+	duration := time.Until(p.ValidUntil)
 	if duration.Nanoseconds() > 0 {
 		humanDuration = fmt.Sprintf("valid for %v", duration.Round(time.Minute))
+		// If certificate is valid for less than a minute, display "<1m" instead of "0s".
+		if duration < time.Minute {
+			humanDuration = "valid for <1m"
+		}
 	}
 
 	proxyURL := p.getProxyURLLine(isActive, env)
@@ -3588,7 +3591,9 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 			count = count + 1
 		}
 	}
-	fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+	if len(p.Logins) > 0 {
+		fmt.Printf("  Logins:             %v\n", strings.Join(p.Logins, ", "))
+	}
 	if p.KubernetesEnabled {
 		fmt.Printf("  Kubernetes:         enabled\n")
 		if kubeCluster != "" {
@@ -3714,6 +3719,22 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 	if p == nil {
 		return nil
 	}
+
+	// Filter out login names that were added internally.
+	// These are for internal use and are not valid UNIX login names
+	// because they start with a hyphen.
+	var logins []string
+	for _, login := range p.Logins {
+		// Specifically filters out these:
+		//   - api/constants.NoLoginPrefix
+		//   - teleport/constants.SSHSessionJoinPrincipal
+		isTeleportDefinedLogin := strings.HasPrefix(login, "-teleport-")
+
+		if !isTeleportDefinedLogin {
+			logins = append(logins, login)
+		}
+	}
+
 	out := &profileInfo{
 		ProxyURL:           p.ProxyURL.String(),
 		Username:           p.Username,
@@ -3721,7 +3742,7 @@ func makeProfileInfo(p *client.ProfileStatus, env map[string]string, isActive bo
 		Cluster:            p.Cluster,
 		Roles:              p.Roles,
 		Traits:             p.Traits,
-		Logins:             p.Logins,
+		Logins:             logins,
 		KubernetesEnabled:  p.KubeEnabled,
 		KubernetesCluster:  selectedKubeCluster(p.Cluster),
 		KubernetesUsers:    p.KubeUsers,

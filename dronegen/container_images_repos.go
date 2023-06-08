@@ -62,6 +62,7 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, roleSecret, d
 	loginCommands := []string{
 		"apk add --no-cache aws-cli",
 		fmt.Sprintf("aws %s get-login-password --region=%s | docker login -u=\"AWS\" --password-stdin %s", loginSubcommand, ecrRegion, domain),
+		`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin`,
 	}
 
 	if guaranteeUnique {
@@ -72,7 +73,9 @@ func NewEcrContainerRepo(accessKeyIDSecret, secretAccessKeySecret, roleSecret, d
 		Name:        repoName,
 		IsImmutable: isImmutable,
 		EnvironmentVars: map[string]value{
-			"AWS_PROFILE": {raw: profileName},
+			"AWS_PROFILE":        {raw: profileName},
+			"DOCKERHUB_USERNAME": {fromSecret: "DOCKERHUB_USERNAME"},
+			"DOCKERHUB_PASSWORD": {fromSecret: "DOCKERHUB_READONLY_TOKEN"},
 		},
 		RegistryDomain: domain,
 		RegistryOrg:    registryOrg,
@@ -112,17 +115,16 @@ func NewQuayContainerRepo(dockerUsername, dockerPassword string) *ContainerRepo 
 		Name:        "Quay",
 		IsImmutable: false,
 		EnvironmentVars: map[string]value{
-			"QUAY_USERNAME": {
-				fromSecret: dockerUsername,
-			},
-			"QUAY_PASSWORD": {
-				fromSecret: dockerPassword,
-			},
+			"QUAY_USERNAME":      {fromSecret: dockerUsername},
+			"QUAY_PASSWORD":      {fromSecret: dockerPassword},
+			"DOCKERHUB_USERNAME": {fromSecret: "DOCKERHUB_USERNAME"},
+			"DOCKERHUB_PASSWORD": {fromSecret: "DOCKERHUB_READONLY_TOKEN"},
 		},
 		RegistryDomain: ProductionRegistryQuay,
 		RegistryOrg:    registryOrg,
 		LoginCommands: []string{
 			fmt.Sprintf("docker login -u=\"$QUAY_USERNAME\" -p=\"$QUAY_PASSWORD\" %q", ProductionRegistryQuay),
+			`printenv DOCKERHUB_PASSWORD | docker login -u="$DOCKERHUB_USERNAME" --password-stdin`,
 		},
 	}
 }
@@ -254,7 +256,7 @@ func (cr *ContainerRepo) pullPushStep(image *Image, dependencySteps []string) (s
 	return step{
 		Name:        fmt.Sprintf("Pull %s and push it to %s", image.GetDisplayName(), localRepo.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
+		Volumes:     []volumeRef{volumeRefAwsConfig, volumeRefDocker}, // no docker config volume, as this will race
 		Environment: cr.EnvironmentVars,
 		Commands:    commands,
 		DependsOn:   dependencySteps,
@@ -304,7 +306,7 @@ func (cr *ContainerRepo) tagAndPushStep(buildStepDetails *buildStepOutput, image
 	step := step{
 		Name:        fmt.Sprintf("Tag and push image %q to %s", buildStepDetails.BuiltImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
+		Volumes:     []volumeRef{volumeRefAwsConfig, volumeRefDocker}, // no docker config volume, as this will race
 		Environment: cr.EnvironmentVars,
 		Commands:    commands,
 		DependsOn:   dependencySteps,
@@ -332,7 +334,7 @@ func (cr *ContainerRepo) createAndPushManifestStep(manifestImage *Image, pushSte
 	return step{
 		Name:        fmt.Sprintf("Create manifest and push %q to %s", manifestImage.GetDisplayName(), cr.Name),
 		Image:       "docker",
-		Volumes:     dockerVolumeRefs(volumeRefAwsConfig),
+		Volumes:     []volumeRef{volumeRefAwsConfig, volumeRefDocker}, // no docker config volume, as this will race
 		Environment: cr.EnvironmentVars,
 		Commands:    cr.buildCommandsWithLogin(commands),
 		DependsOn:   pushStepNames,

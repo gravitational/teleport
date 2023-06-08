@@ -17,13 +17,29 @@ limitations under the License.
 package srv
 
 import (
+	"bytes"
+	"os/user"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/services"
 )
+
+// TestDecodeChildError ensures that child error message marshaling
+// and unmarshaling returns the original values.
+func TestDecodeChildError(t *testing.T) {
+	var buf bytes.Buffer
+	require.NoError(t, DecodeChildError(&buf))
+
+	targetErr := trace.NotFound(user.UnknownUserError("test").Error())
+
+	writeChildError(&buf, targetErr)
+
+	require.ErrorIs(t, DecodeChildError(&buf), targetErr)
+}
 
 func TestCheckSFTPAllowed(t *testing.T) {
 	srv := newMockServer(t)

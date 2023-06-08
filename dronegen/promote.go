@@ -16,13 +16,13 @@ package main
 
 func promoteBuildPipelines() []pipeline {
 	promotePipelines := make([]pipeline, 0)
-	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipelines()...)
+	promotePipelines = append(promotePipelines, promoteBuildOsRepoPipeline())
 
 	return promotePipelines
 }
 
 func publishReleasePipeline() pipeline {
-	p := relcliPipeline(triggerPromote, "publish-rlz", "Publish in Release API", "relcli auto_publish -f -v 6")
+	p := relcliPipeline(triggerPromote, "publish-rlz", "Publish in Release API", "auto_publish -f -v 6")
 
 	p.DependsOn = []string{"promote-build"} // Manually written pipeline
 

@@ -38,27 +38,6 @@ func TestMain(m *testing.M) {
 	os.Exit(m.Run())
 }
 
-// TestLinear tests retry logic
-func TestLinear(t *testing.T) {
-	t.Parallel()
-	r, err := NewLinear(LinearConfig{
-		Step: time.Second,
-		Max:  3 * time.Second,
-	})
-	require.NoError(t, err)
-	require.Equal(t, r.Duration(), time.Duration(0))
-	r.Inc()
-	require.Equal(t, r.Duration(), time.Second)
-	r.Inc()
-	require.Equal(t, r.Duration(), 2*time.Second)
-	r.Inc()
-	require.Equal(t, r.Duration(), 3*time.Second)
-	r.Inc()
-	require.Equal(t, r.Duration(), 3*time.Second)
-	r.Reset()
-	require.Equal(t, r.Duration(), time.Duration(0))
-}
-
 func TestHostUUIDIdempotent(t *testing.T) {
 	// call twice, get same result
 	t.Parallel()

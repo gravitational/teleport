@@ -865,14 +865,10 @@ func TestHandleClusterWindowsGetFallback(t *testing.T) {
 		return proto.PingResponse{ServerVersion: "9.1"}, nil
 	}
 
-	m.mockGetRoles = func(ctx context.Context) ([]types.Role, error) {
-		return []types.Role{}, nil
-	}
-
 	mockHTTPReq, err := http.NewRequest("", "", nil)
 	require.NoError(t, err)
 
-	res, err := handleClusterDesktopsGet(m, mockHTTPReq)
+	res, err := handleClusterDesktopsGet(m, []types.Role{}, mockHTTPReq)
 	require.NoError(t, err)
 	require.Nil(t, res.StartKey)
 	require.Nil(t, res.TotalCount)

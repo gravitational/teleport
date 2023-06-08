@@ -1,9 +1,6 @@
 name: Lint (Go)
 run-name: make lint
 on:
-  push:
-    branches:
-      - branch/v10
   pull_request:
     paths-ignore:
       - 'docs/**'

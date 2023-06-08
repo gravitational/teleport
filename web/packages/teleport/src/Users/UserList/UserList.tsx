@@ -61,7 +61,9 @@ export default function UserList({
           headerText: 'Type',
           isSortable: true,
           render: ({ authType }) => (
-            <Cell style={{ textTransform: 'capitalize' }}>{authType}</Cell>
+            <Cell style={{ textTransform: 'capitalize' }}>
+              {renderAuthType(authType)}
+            </Cell>
           ),
         },
         {
@@ -81,6 +83,18 @@ export default function UserList({
       pagination={{ pageSize }}
     />
   );
+
+  function renderAuthType(authType: string) {
+    switch (authType) {
+      case 'github':
+        return 'GitHub';
+      case 'saml':
+        return 'SAML';
+      case 'oidc':
+        return 'OIDC';
+    }
+    return authType;
+  }
 }
 
 const ActionCell = ({

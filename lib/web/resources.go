@@ -571,11 +571,7 @@ func handleClusterAppsGet(clt resourcesAPIGetter, r *http.Request, cfg ui.MakeAp
 	}, nil
 }
 
-func handleClusterDesktopsGet(clt resourcesAPIGetter, r *http.Request) (*listResourcesGetResponse, error) {
-	roles, err := clt.GetRoles(r.Context())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+func handleClusterDesktopsGet(clt resourcesAPIGetter, roles []types.Role, r *http.Request) (*listResourcesGetResponse, error) {
 	resp, err := attemptListResources(clt, r, types.KindWindowsDesktop)
 	if err == nil {
 		windowsDesktops, err := types.ResourcesWithLabels(resp.Resources).AsWindowsDesktops()

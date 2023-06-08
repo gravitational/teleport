@@ -198,6 +198,7 @@ func setupClient(t *testing.T, clientCA, serverCA *tlsca.CertAuthority, role typ
 		getConfigForServer:      getConfigForServer,
 		sync:                    func() {},
 		connShuffler:            noopConnShuffler(),
+		ClusterName:             "test",
 	})
 	require.NoError(t, err)
 
@@ -213,7 +214,8 @@ type serverTestOption func(*ServerConfig)
 // setupServer return a Server object.
 func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthority, role types.SystemRole, options ...serverTestOption) (*Server, types.Server) {
 	tlsConf := certFromIdentity(t, serverCA, tlsca.Identity{
-		Groups: []string{string(role)},
+		Username: name + ".test",
+		Groups:   []string{string(role)},
 	})
 
 	getConfigForClient := func(chi *tls.ClientHelloInfo) (*tls.Config, error) {
@@ -235,6 +237,7 @@ func setupServer(t *testing.T, name string, serverCA, clientCA *tlsca.CertAuthor
 		ClusterDialer:      &mockClusterDialer{},
 		getConfigForClient: getConfigForClient,
 		service:            &mockProxyService{},
+		ClusterName:        "test",
 	}
 	for _, option := range options {
 		option(&config)

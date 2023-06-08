@@ -63,7 +63,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	// configure logger for a typical CLI scenario until configuration file is
 	// parsed
 	utils.InitLogger(utils.LoggingForDaemon, log.ErrorLevel)
-	app = utils.InitCLIParser("teleport", "Teleport Access Plane. Learn more at https://goteleport.com")
+	app = utils.InitCLIParser("teleport", "Teleport Access Platform. Learn more at https://goteleport.com")
 
 	// define global flags:
 	var (
@@ -75,6 +75,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		configureDatabaseBootstrapFlags configureDatabaseBootstrapFlags
 		dbConfigCreateFlags             createDatabaseConfigFlags
 		systemdInstallFlags             installSystemdFlags
+		rawVersion                      bool
 	)
 
 	// define commands:
@@ -332,6 +333,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	dump.Flag("app-uri", "Internal address of the application to proxy.").StringVar(&dumpFlags.AppURI)
 	dump.Flag("node-labels", "Comma-separated list of labels to add to newly created nodes, for example env=staging,cloud=aws.").StringVar(&dumpFlags.NodeLabels)
 
+	ver.Flag("raw", "Print the raw teleport version string.").BoolVar(&rawVersion)
+
 	dumpNode := app.Command("node", "SSH Node configuration commands")
 	dumpNodeConfigure := dumpNode.Command("configure", "Generate a configuration file for an SSH node.")
 	dumpNodeConfigure.Flag("cluster-name",
@@ -404,7 +407,11 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case park.FullCommand():
 		srv.RunAndExit(teleport.ParkSubCommand)
 	case ver.FullCommand():
-		utils.PrintVersion()
+		if rawVersion {
+			fmt.Printf("%s\n", teleport.Version)
+		} else {
+			utils.PrintVersion()
+		}
 	case dbConfigureCreate.FullCommand():
 		err = onDumpDatabaseConfig(dbConfigCreateFlags)
 	case dbConfigureAWSPrintIAM.FullCommand():
@@ -544,22 +551,22 @@ func onConfigDump(flags dumpFlags) error {
 	entries, err := os.ReadDir(flags.DataDir)
 	if err != nil && !os.IsNotExist(err) {
 		fmt.Fprintf(
-			os.Stderr, "Could not check the contents of %s: %s\nThe data directory may contain existing cluster state.\n", flags.DataDir, err.Error())
+			os.Stderr, "%s: Could not check the contents of %s: %s\n         The data directory may contain existing cluster state.\n", utils.Color(utils.Yellow, "WARNING:"), flags.DataDir, err.Error())
 	}
 
 	if err == nil && len(entries) != 0 {
 		fmt.Fprintf(
 			os.Stderr,
-			"The data directory %s is not empty and may contain existing cluster state. Running this configuration is likely a mistake. To join a new cluster, specify an alternate --data-dir or clear the %s directory.\n",
-			flags.DataDir, flags.DataDir)
+			"%s The data directory %s is not empty and may contain existing cluster state. Running this configuration is likely a mistake. To join a new cluster, specify an alternate --data-dir or clear the %s directory.\n",
+			utils.Color(utils.Yellow, "WARNING:"), flags.DataDir, flags.DataDir)
 	}
 
 	if strings.Contains(flags.Roles, defaults.RoleDatabase) {
-		fmt.Fprintln(os.Stderr, "Role db requires further configuration, db_service will be disabled")
+		fmt.Fprintf(os.Stderr, "%s Role db requires further configuration, db_service will be disabled. Use 'teleport db configure' command to create Teleport database service configurations.\n", utils.Color(utils.Red, "ERROR:"))
 	}
 
 	if strings.Contains(flags.Roles, defaults.RoleWindowsDesktop) {
-		fmt.Fprintln(os.Stderr, "Role windowsdesktop requires further configuration, windows_desktop_service will be disabled")
+		fmt.Fprintf(os.Stderr, "%s Role windowsdesktop requires further configuration, windows_desktop_service will be disabled. See https://goteleport.com/docs/desktop-access/ for configuration information.\n", utils.Color(utils.Red, "ERROR:"))
 	}
 
 	if configPath != "" {

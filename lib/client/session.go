@@ -226,10 +226,10 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 	}
 
 	// pass language info into the remote session.
-	evarsToPass := []string{"LANG", "LANGUAGE"}
-	for _, evar := range evarsToPass {
-		if value := os.Getenv(evar); value != "" {
-			err = sess.Setenv(ctx, evar, value)
+	langVars := []string{"LANG", "LANGUAGE"}
+	for _, env := range langVars {
+		if value := os.Getenv(env); value != "" {
+			err = sess.Setenv(ctx, env, value)
 			if err != nil {
 				log.Warn(err)
 			}

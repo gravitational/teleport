@@ -3,17 +3,17 @@ version: v3
 metadata:
   name: github
 spec:
-  # Github OAuth app client ID
+  # GitHub OAuth app client ID
   client_id: <client-id>
-  # Github OAuth app client secret
+  # GitHub OAuth app client secret
   client_secret: <client-secret>
-  # Github will make a callback to this URL after successful authentication
+  # GitHub will make a callback to this URL after successful authentication
   # cluster-url is the address the cluster UI is reachable at
   redirect_url: "https://<cluster-url>/v1/webapi/github/callback"
   # connector display name that will be appended to the title of "Login with"
-  # button on the cluster login screen so it will say "Login with Github"
-  display: Github
-  # mapping of Github team memberships to Teleport cluster roles
+  # button on the cluster login screen so it will say "Login with GitHub"
+  display: GitHub
+  # mapping of GitHub team memberships to Teleport cluster roles
   teams_to_logins:
   - logins:
     - access

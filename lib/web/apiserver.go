@@ -1104,7 +1104,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	// get all Github connectors
 	githubConnectors, err := h.cfg.ProxyClient.GetGithubConnectors(r.Context(), false)
 	if err != nil {
-		h.log.WithError(err).Error("Cannot retrieve Github connectors.")
+		h.log.WithError(err).Error("Cannot retrieve GitHub connectors.")
 	}
 	for _, item := range githubConnectors {
 		authProviders = append(authProviders, webclient.WebConfigAuthProvider{
@@ -1309,7 +1309,7 @@ func (h *Handler) githubLoginConsole(w http.ResponseWriter, r *http.Request, p h
 		KubernetesCluster: req.KubernetesCluster,
 	})
 	if err != nil {
-		logger.WithError(err).Error("Failed to create Github auth request.")
+		logger.WithError(err).Error("Failed to create GitHub auth request.")
 		return nil, trace.AccessDenied(ssoLoginConsoleErr)
 	}
 
@@ -1830,7 +1830,7 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	newContext, err := h.auth.newSessionContextFromSession(newSession)
+	newContext, err := h.auth.newSessionContextFromSession(r.Context(), newSession)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3142,7 +3142,7 @@ func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, ch
 		logger.WithError(err).Warn("Failed to decode cookie.")
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
-	ctx, err := h.auth.validateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
+	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
 		logger.WithError(err).Warn("Invalid session.")
 		ClearSession(w)

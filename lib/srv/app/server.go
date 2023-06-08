@@ -642,9 +642,11 @@ func (s *Server) HandleConnection(conn net.Conn) {
 	}
 
 	if err != nil {
-		s.log.WithError(err).Warnf("Failed to handle client connection.")
-		if err := conn.Close(); err != nil {
-			s.log.WithError(err).Warnf("Failed to close client connection.")
+		if !utils.IsOKNetworkError(err) {
+			s.log.WithError(err).Warn("Failed to handle client connection.")
+		}
+		if err := conn.Close(); err != nil && !utils.IsOKNetworkError(err) {
+			s.log.WithError(err).Warn("Failed to close client connection.")
 		}
 		return
 	}

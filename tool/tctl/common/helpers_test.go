@@ -192,6 +192,13 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	// timeout here because this isn't the kind of problem that this test is meant to catch.
 	require.NoError(t, err, "auth server didn't start after 30s")
 
+	// Wait for proxy to start up if it's enabled. Otherwise we may get racy
+	// behavior between startup and shutdown.
+	if cfg.Proxy.Enabled {
+		_, err = auth.WaitForEventTimeout(30*time.Second, service.ProxyWebServerReady)
+		require.NoError(t, err, "proxy server didn't start after 30s")
+	}
+
 	return auth
 }
 

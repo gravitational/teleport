@@ -93,6 +93,7 @@ func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
 	return step{
 		Name:  s.name,
 		Image: "amazon/aws-cli",
+		Pull:  "if-not-exists",
 		Environment: map[string]value{
 			"AWS_ACCESS_KEY_ID":     s.awsAccessKeyID,
 			"AWS_SECRET_ACCESS_KEY": s.awsSecretAccessKey,
@@ -125,6 +126,7 @@ func kubernetesUploadToS3Step(s kubernetesS3Settings) step {
 	return step{
 		Name:  "Upload to S3",
 		Image: "amazon/aws-cli",
+		Pull:  "if-not-exists",
 		Environment: map[string]value{
 			"AWS_S3_BUCKET": {fromSecret: "AWS_S3_BUCKET"},
 			"AWS_REGION":    {raw: s.region},

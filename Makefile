@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=10.3.13
+VERSION=10.3.16
 
 DOCKER_IMAGE ?= teleport
 
@@ -72,8 +72,12 @@ CGOFLAG_TSH = $(CGOFLAG)
 endif
 endif
 
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+GO_ENV_OS := $(shell go env GOOS)
+OS ?= $(GO_ENV_OS)
+
+GO_ENV_ARCH := $(shell go env GOARCH)
+ARCH ?= $(GO_ENV_ARCH)
+
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
@@ -138,6 +142,11 @@ endif
 # Check if rust and cargo are installed before compiling
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
+
+# Have cargo use sparse crates.io protocol:
+# https://blog.rust-lang.org/2023/03/09/Rust-1.68.0.html
+# TODO: Delete when it becomes default in Rust 1.70.0
+export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 with_rdpclient := no
 RDPCLIENT_MESSAGE := "without Windows RDP client"
@@ -854,12 +863,13 @@ update-api-import-path:
 # 		- build binaries with 'make release'
 # 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
 .PHONY: update-tag
+update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
-	git push origin $(GITTAG) && git push origin api/$(GITTAG)
+	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
 # build/webassets directory contains the web assets (UI) which get
 # embedded in the teleport binary

@@ -2,14 +2,13 @@ name: Unit Tests (Helm)
 run-name: Unit Tests (Helm) - ${{ github.run_id }} - @${{ github.actor }}
 
 on:
-  push:
-    branches:
-      - master
   pull_request:
     paths:
+      - '.github/workflows/unit-tests-helm.yaml'
       - 'examples/chart/**'
   merge_group:
     paths:
+      - '.github/workflows/unit-tests-helm.yaml'
       - 'examples/chart/**'
 
 jobs:
