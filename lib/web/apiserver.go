@@ -2642,11 +2642,13 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	var sessionData session.Session
-	var displayLogin string
+	var (
+		sessionData  session.Session
+		displayLogin string
+		tracker      types.SessionTracker
+	)
 
 	clusterName := site.GetName()
-
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
 		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx)
@@ -2655,10 +2657,11 @@ func (h *Handler) siteNodeConnect(
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		sessionData, displayLogin, err = h.fetchExistingSession(ctx, clt, req, clusterName)
+		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		displayLogin = tracker.GetLogin()
 	}
 
 	// If the participantMode is not specified, and the user is the one who created the session,
@@ -2708,6 +2711,8 @@ func (h *Handler) siteNodeConnect(
 		TracerProvider:     h.cfg.TracerProvider,
 		ParticipantMode:    req.ParticipantMode,
 		PROXYSigner:        h.cfg.PROXYSigner,
+		Tracker:            tracker,
+		Clock:              h.clock,
 	}
 
 	term, err := NewTerminal(ctx, terminalConfig)
@@ -2895,20 +2900,20 @@ func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*host
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
-func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {
+func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
 	sessionID, err := session.ParseID(req.SessionID.String())
 	if err != nil {
-		return session.Session{}, "", trace.Wrap(err)
+		return session.Session{}, nil, trace.Wrap(err)
 	}
 	h.log.Infof("Attempting to join existing session: %s\n", sessionID)
 
 	tracker, err := clt.GetSessionTracker(ctx, string(*sessionID))
 	if err != nil {
-		return session.Session{}, "", trace.Wrap(err)
+		return session.Session{}, nil, trace.Wrap(err)
 	}
 
 	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
-		return session.Session{}, "", trace.NotFound("SSH session %v not found", sessionID)
+		return session.Session{}, nil, trace.NotFound("SSH session %v not found", sessionID)
 	}
 
 	sessionData := trackerToLegacySession(tracker, siteName)
@@ -2918,12 +2923,8 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, re
 	// new ones themselves for auditing purposes. Otherwise, the user would
 	// fail the SSH lib username validation step.
 	sessionData.Login = teleport.SSHSessionJoinPrincipal
-	// Using the Login above will then display `-teleport-internal-join` as the
-	// username that the user is logging in as, so we need to instead show the
-	// session username in the UI.
-	displayLogin := tracker.GetLogin()
 
-	return sessionData, displayLogin, nil
+	return sessionData, tracker, nil
 }
 
 type siteSessionGenerateResponse struct {

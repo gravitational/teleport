@@ -41,7 +41,7 @@ type WSConn interface {
 	WriteMessage(messageType int, data []byte) error
 	NextReader() (messageType int, r io.Reader, err error)
 	ReadMessage() (messageType int, p []byte, err error)
-
+	SetReadLimit(limit int64)
 	SetReadDeadline(t time.Time) error
 	PingHandler() func(appData string) error
 	SetPingHandler(h func(appData string) error)
