@@ -28,7 +28,7 @@ on:
           ARN of the role that grants promotion rights
         required: true
         type: string
-        default: arn:aws:iam::146628656107:role/teleport-oci-promotion-gha
+        default: arn:aws:iam::146628656107:role/teleport-ami-promotion-gha
 
       dest-ami-regions:
         description: |
