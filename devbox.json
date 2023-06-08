@@ -22,6 +22,7 @@
     "path:build.assets/flake#helm",
     "path:build.assets/flake#golangci-lint",
     "path:build.assets/flake#grpc-tools",
+    "path:build.assets/flake#libpcsclite",
     "path:build.assets/flake#protoc-gen-gogo",
     "path:build.assets/flake#rust"
   ],
