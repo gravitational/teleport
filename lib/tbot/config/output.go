@@ -87,7 +87,7 @@ func listSubdirectories(templates []template) ([]string, error) {
 // destination and then remove key/values from the yaml.Node that specify
 // the destination. This *hack* allows us to have the bot.Destination as a
 // field directly on an Output without needing a struct to wrap it for
-// polymorphic unmarshalling.
+// polymorphic unmarshaling.
 func extractOutputDestination(node *yaml.Node) (bot.Destination, error) {
 	for i, subNode := range node.Content {
 		if subNode.Value == "destination" {
