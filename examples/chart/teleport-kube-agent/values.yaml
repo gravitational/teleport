@@ -366,6 +366,17 @@ extraVolumeMounts: []
 # - name: myvolume
 #   mountPath: /path/on/host
 
+# Pod Host aliases (see https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/)
+hostAliases: []
+# - ip: "127.0.0.1"
+#   hostnames:
+#     - "foo.local"
+#     - "bar.local"
+# - ip: "10.1.2.3"
+#   hostnames:
+#     - "foo.remote"
+#     - "bar.remote"
+
 # Allow the imagePullPolicy to be overridden
 imagePullPolicy: IfNotPresent
 
