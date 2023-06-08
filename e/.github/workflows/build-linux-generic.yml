@@ -82,6 +82,13 @@ jobs:
       GOCACHE: /tmp/gocache
 
     steps:
+      - name: Ensure required packages are installed
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          sudo apt update
+          sudo apt install -y make
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
 
