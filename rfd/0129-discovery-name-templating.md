@@ -39,7 +39,8 @@ Name collisions can be avoided with the addition of other resource metadata
 in the resource name.
 
 Since discovered resource names will be longer and more tedious to use, we
-should support resource name prefixes and label matching in `tsh` for better UX.
+should support resource name prefixes and label matching in `tsh`, Teleport
+Connect, and the web UI for better UX.
 
 Relevant issue:
 - https://github.com/gravitational/teleport/issues/22438
@@ -343,6 +344,28 @@ $ tsh db connect --db-user=alice --db-name-postgres foo region=us-west-1
 $ tsh db connect --db-user=alice --db-name-postgres region=us-west-1,env=prod
 #...connects to "foo-rds-us-west-1-0123456789012" by multiple labels...
 ```
+
+### Web UI and Teleport Connect UX
+
+Both the web UI and Teleport Connect already support searching for substrings
+in resource names and labels.
+
+Searching by substring is a "fuzzier" kind of search than prefix-based name
+search (like this RFD proposed prefix-based search for `tsh`) - it's more
+likely to match more than one resource.
+However, GUI UX is fundamentally different from CLI - users can search and then
+interactively select from multiple matching resources.
+So this kind of search is appropriate for the web UI and Teleport Connect, but
+not for `tsh`.
+
+Both web UI and Teleport Connect also support label-based searching with
+the predicate language, e.g.:
+
+```
+labels["env"] == "dev" && labels["region"] == "us-west-1"
+```
+
+Therefore, no UX changes are required for these user interfaces.
 
 ### Security
 
