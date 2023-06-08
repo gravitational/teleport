@@ -160,9 +160,13 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 	return bot
 }
 
-// MakeMemoryBotConfig creates a usable bot config from joining parameters. It
-// only writes artifacts to memory and can be further modified if desired.
-func MakeMemoryBotConfig(
+// DefaultBotConfig creates a usable bot config from joining parameters.
+// By default it:
+// - Has the outputs provided to it via the parameter `outputs`
+// - Runs in oneshot mode
+// - Uses a memory storage destination
+// - Does not verify Proxy WebAPI certificates
+func DefaultBotConfig(
 	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output,
 ) *botconfig.BotConfig {
 	t.Helper()

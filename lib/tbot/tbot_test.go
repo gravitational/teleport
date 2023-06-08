@@ -23,7 +23,6 @@ import (
 	"fmt"
 	"os"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -32,9 +31,9 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
-	libconfig "github.com/gravitational/teleport/lib/config"
 	apisshutils "github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/tbot/testhelpers"
@@ -63,54 +62,48 @@ func TestBot(t *testing.T) {
 
 	// Make a new auth server.
 	fc, fds := testhelpers.DefaultConfig(t)
-	const appName = "test-app"
-	fc.Apps = libconfig.Apps{
-		Service: libconfig.Service{
-			EnabledFlag: "true",
-		},
-		Apps: []*libconfig.App{
-			{
-				Name:       appName,
-				PublicAddr: "test-app.example.com",
-				URI:        "http://test-app.example.com:1234",
-			},
-		},
-	}
 	const (
+		fakeHostname        = "test-host"
+		fakeHostID          = "uuid"
+		appName             = "test-app"
 		databaseServiceName = "test-database-service"
 		databaseUsername    = "test-database-username"
 		databaseName        = "test-database"
+		kubeClusterName     = "test-kube-cluster"
 	)
-	fc.Databases = libconfig.Databases{
-		Service: libconfig.Service{
-			EnabledFlag: "true",
-		},
-		Databases: []*libconfig.Database{
-			{
-				Name:     databaseServiceName,
-				Protocol: "mysql",
-				URI:      "example.com:1234",
-			},
-		},
-	}
-
 	clusterName := string(fc.Auth.ClusterName)
 	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
 	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
 
-	// Wait for the app/db to become available. Sometimes this takes a bit
-	// of time in CI.
-	require.Eventually(t, func() bool {
-		_, err := getApp(ctx, rootClient, appName)
-		if err != nil {
-			return false
-		}
-		_, err = getDatabase(ctx, rootClient, databaseServiceName)
-		return err == nil
-	}, 15*time.Second, 100*time.Millisecond)
-
-	// Register a "fake" Kubernetes cluster so tbot can request certs for it.
-	kubeClusterName := "test-kube-cluster"
+	// Register an application server so the bot can request certs for it.
+	app, err := types.NewAppV3(types.Metadata{
+		Name: appName,
+	}, types.AppSpecV3{
+		PublicAddr: "test-app.example.com",
+		URI:        "http://test-app.example.com:1234",
+	})
+	require.NoError(t, err)
+	appServer, err := types.NewAppServerV3FromApp(app, fakeHostname, fakeHostID)
+	require.NoError(t, err)
+	_, err = rootClient.UpsertApplicationServer(ctx, appServer)
+	require.NoError(t, err)
+	// Register a database server so the bot can request certs for it.
+	db, err := types.NewDatabaseV3(types.Metadata{
+		Name: databaseServiceName,
+	}, types.DatabaseSpecV3{
+		Protocol: "mysql",
+		URI:      "example.com:1234",
+	})
+	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
+		Name: databaseServiceName,
+	}, types.DatabaseServerSpecV3{
+		HostID:   fakeHostID,
+		Hostname: fakeHostname,
+		Database: db,
+	})
+	_, err = rootClient.UpsertDatabaseServer(ctx, dbServer)
+	require.NoError(t, err)
+	// Register a kubernetes server so the bot can request certs for it.
 	kubeCluster, err := types.NewKubernetesClusterV3(
 		types.Metadata{
 			Name: kubeClusterName,
@@ -118,7 +111,7 @@ func TestBot(t *testing.T) {
 		types.KubernetesClusterSpecV3{},
 	)
 	require.NoError(t, err)
-	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, "test-host", "uuid")
+	kubeServer, err := types.NewKubernetesServerV3FromCluster(kubeCluster, fakeHostname, fakeHostID)
 	require.NoError(t, err)
 	_, err = rootClient.UpsertKubernetesServer(ctx, kubeServer)
 	require.NoError(t, err)
@@ -135,13 +128,17 @@ func TestBot(t *testing.T) {
 	}, false)
 	require.NoError(t, err)
 
-	const (
-		roleName      = "output-role"
+	var (
+		mainRole      = "main-role"
+		secondaryRole = "secondary-role"
+		defaultRoles  = []string{mainRole, secondaryRole}
 		hostPrincipal = "node.example.com"
+		kubeGroups    = []string{"system:masters"}
+		kubeUsers     = []string{"kubernetes-user"}
 	)
 	hostCertRule := types.NewRule("host_cert", []string{"create"})
 	hostCertRule.Where = fmt.Sprintf("is_subset(host_cert.principals, \"%s\")", hostPrincipal)
-	role, err := types.NewRole(roleName, types.RoleSpecV6{
+	role, err := types.NewRole(mainRole, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			// Grant access to all apps
 			AppLabels: types.Labels{
@@ -152,7 +149,8 @@ func TestBot(t *testing.T) {
 			KubernetesLabels: types.Labels{
 				"*": apiutils.Strings{"*"},
 			},
-			KubeGroups: []string{"system:masters"},
+			KubeGroups: kubeGroups,
+			KubeUsers:  kubeUsers,
 
 			// Grant access to database
 			// Note: we don't actually need a role granting us database access to
@@ -172,13 +170,24 @@ func TestBot(t *testing.T) {
 	})
 	require.NoError(t, err)
 	require.NoError(t, rootClient.UpsertRole(ctx, role))
+	// Create a blank secondary role that we can use to check that the default
+	// behaviour of impersonating all roles available works
+	role, err = types.NewRole(secondaryRole, types.RoleSpecV6{})
+	require.NoError(t, err)
+	require.NoError(t, rootClient.UpsertRole(ctx, role))
 
 	// Make and join a new bot instance.
-	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
+	botParams := testhelpers.MakeBot(t, rootClient, "test", defaultRoles...)
 
 	identityOutput := &config.IdentityOutput{
 		Common: config.OutputCommon{
 			Destination: config.WrapDestination(&config.DestinationMemory{}),
+		},
+	}
+	identityOutputWithRoles := &config.IdentityOutput{
+		Common: config.OutputCommon{
+			Destination: config.WrapDestination(&config.DestinationMemory{}),
+			Roles:       []string{mainRole},
 		},
 	}
 	appOutput := &config.ApplicationOutput{
@@ -210,9 +219,10 @@ func TestBot(t *testing.T) {
 		},
 		Principals: []string{hostPrincipal},
 	}
-	botConfig := testhelpers.MakeMemoryBotConfig(
+	botConfig := testhelpers.DefaultBotConfig(
 		t, fc, botParams, []config.Output{
 			identityOutput,
+			identityOutputWithRoles,
 			appOutput,
 			dbOutput,
 			sshHostOutput,
@@ -222,7 +232,7 @@ func TestBot(t *testing.T) {
 	b := New(botConfig, log)
 	require.NoError(t, b.Run(ctx))
 
-	t.Run("validate bot identity", func(t *testing.T) {
+	t.Run("bot identity", func(t *testing.T) {
 		// Some rough checks to ensure the bot identity used follows our
 		// expected rules for bot identities.
 		botIdent := b.ident()
@@ -235,22 +245,36 @@ func TestBot(t *testing.T) {
 	})
 
 	t.Run("output: identity", func(t *testing.T) {
-		_ = tlsIdentFromDest(t, identityOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(t, identityOutput.GetDestination())
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+	})
+
+	t.Run("output: identity with role specified", func(t *testing.T) {
+		tlsIdent := tlsIdentFromDest(t, identityOutputWithRoles.GetDestination())
+		requireValidOutputTLSIdent(t, tlsIdent, []string{mainRole}, botParams.UserName)
 	})
 
 	t.Run("output: kubernetes", func(t *testing.T) {
-		_ = tlsIdentFromDest(t, kubeOutput.GetDestination())
+		tlsIdent := tlsIdentFromDest(t, kubeOutput.GetDestination())
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		require.Equal(t, kubeClusterName, tlsIdent.KubernetesCluster)
+		require.Equal(t, kubeGroups, tlsIdent.KubernetesGroups)
+		require.Equal(t, kubeUsers, tlsIdent.KubernetesUsers)
 	})
 
 	t.Run("output: application", func(t *testing.T) {
-		route := tlsIdentFromDest(t, appOutput.GetDestination()).RouteToApp
+		tlsIdent := tlsIdentFromDest(t, appOutput.GetDestination())
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		route := tlsIdent.RouteToApp
 		require.Equal(t, appName, route.Name)
 		require.Equal(t, "test-app.example.com", route.PublicAddr)
 		require.NotEmpty(t, route.SessionID)
 	})
 
 	t.Run("output: database", func(t *testing.T) {
-		route := tlsIdentFromDest(t, dbOutput.GetDestination()).RouteToDatabase
+		tlsIdent := tlsIdentFromDest(t, dbOutput.GetDestination())
+		requireValidOutputTLSIdent(t, tlsIdent, defaultRoles, botParams.UserName)
+		route := tlsIdent.RouteToDatabase
 		require.Equal(t, databaseServiceName, route.ServiceName)
 		require.Equal(t, databaseName, route.Database)
 		require.Equal(t, databaseUsername, route.Username)
@@ -307,6 +331,17 @@ func TestBot(t *testing.T) {
 	})
 }
 
+// requireValidOutputTLSIdent runs general validation against the TLS identity
+// created by a normal output. This ensures several key parts of the identity
+// have sane values.
+func requireValidOutputTLSIdent(t *testing.T, ident *tlsca.Identity, wantRoles []string, botUsername string) {
+	require.True(t, ident.DisallowReissue)
+	require.False(t, ident.Renewable)
+	require.Equal(t, botUsername, ident.Impersonator)
+	require.Equal(t, botUsername, ident.Username)
+	require.Equal(t, wantRoles, ident.Groups)
+}
+
 func tlsIdentFromDest(t *testing.T, dest bot.Destination) *tlsca.Identity {
 	t.Helper()
 	keyBytes, err := dest.Read(identity.PrivateKeyKey)
@@ -324,4 +359,47 @@ func tlsIdentFromDest(t *testing.T, dest bot.Destination) *tlsca.Identity {
 	)
 	require.NoError(t, err)
 	return tlsIdent
+}
+
+// TestBot_ResumeFromStorage ensures that after the bot stops, another instance
+// of the bot can be started from the state persisted to the storage
+// destination. This ensures that the renewable token join method will function
+// correctly.
+func TestBot_ResumeFromStorage(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	log := utils.NewLoggerForTests()
+
+	// Make a new auth server.
+	fc, fds := testhelpers.DefaultConfig(t)
+	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
+	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
+
+	// Create bot user and join token
+	botParams := testhelpers.MakeBot(t, rootClient, "test", "access")
+
+	botConfig := testhelpers.DefaultBotConfig(t, fc, botParams, []config.Output{})
+	// Use a destination directory to ensure locking behaves correctly and
+	// the bot isn't left in a locked state.
+	directoryDest := &config.DestinationDirectory{
+		Path:     t.TempDir(),
+		Symlinks: botfs.SymlinksInsecure,
+		ACLs:     botfs.ACLOff,
+	}
+	botConfig.Storage.Destination = config.WrapDestination(directoryDest)
+
+	// Run the bot a first time
+	firstBot := New(botConfig, log)
+	require.NoError(t, firstBot.Run(ctx))
+
+	// Run the bot a second time, with the exact same config
+	secondBot := New(botConfig, log)
+	require.NoError(t, secondBot.Run(ctx))
+
+	// Simulate user removing token from config, and run the bot a third time.
+	// It should see it already has a valid identity and use that - ignoring
+	// the fact that the token has been cleared from config.
+	botConfig.Onboarding.TokenValue = ""
+	thirdBot := New(botConfig, log)
+	require.NoError(t, thirdBot.Run(ctx))
 }
