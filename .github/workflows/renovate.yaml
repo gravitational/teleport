@@ -86,12 +86,13 @@ jobs:
       - name: Renovate
         uses: renovatebot/github-action@v38.1.2
         env:
-          LOG_LEVEL: 'trace'
+          LOG_LEVEL: 'debug'
           RENOVATE_DRY_RUN: false,
           RENOVATE_USERNAME: ${{ steps.app-jwt-info.outputs.app-username }}
           RENOVATE_GIT_AUTHOR: "${{ steps.app-jwt-info.outputs.app-username }} <${{ steps.app-installation-info.outputs.user-email }}>"
           RENOVATE_REPOSITORIES: ${{ github.repository }}
         with:
-          renovate-version: 35.115.0
+          useSlim: false
+          renovate-version: 34.57.0
           token: ${{ steps.generate-tokens.outputs.app-installation-token }}
           configurationFile: .github/renovate.json
