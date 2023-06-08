@@ -12,7 +12,7 @@
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["go.mod"],
-      "groupName": "Teleport - Go",
+      "groupName": "Teleport - Go"
     },
     {
       "matchManagers": ["gomod"],
