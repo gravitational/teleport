@@ -1017,7 +1017,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := newFIDO2Command(app)
-	// touchid subcommands.
 	tid := newTouchIDCommand(app)
 	webauthnwin := newWebauthnwinCommand(app)
 
