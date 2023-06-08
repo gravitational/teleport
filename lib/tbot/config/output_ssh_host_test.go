@@ -19,25 +19,21 @@ package config
 import "testing"
 
 func TestSSHHostOutput_YAML(t *testing.T) {
-	dest := WrapDestination(&DestinationMemory{})
+	dest := &DestinationMemory{}
 	tests := []testYAMLCase[SSHHostOutput]{
 		{
 			name: "full",
 			in: SSHHostOutput{
-				Common: OutputCommon{
-					Destination: dest,
-					Roles:       []string{"access"},
-				},
-				Principals: []string{"host.example.com"},
+				Destination: dest,
+				Roles:       []string{"access"},
+				Principals:  []string{"host.example.com"},
 			},
 		},
 		{
 			name: "minimal",
 			in: SSHHostOutput{
-				Common: OutputCommon{
-					Destination: dest,
-				},
-				Principals: []string{"host.example.com"},
+				Destination: dest,
+				Principals:  []string{"host.example.com"},
 			},
 		},
 	}

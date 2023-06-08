@@ -21,24 +21,20 @@ import (
 )
 
 func TestIdentityOutput_YAML(t *testing.T) {
-	dest := WrapDestination(&DestinationMemory{})
+	dest := &DestinationMemory{}
 	tests := []testYAMLCase[IdentityOutput]{
 		{
 			name: "full",
 			in: IdentityOutput{
-				Common: OutputCommon{
-					Destination: dest,
-					Roles:       []string{"access"},
-				},
-				Cluster: "leaf.example.com",
+				Destination: dest,
+				Roles:       []string{"access"},
+				Cluster:     "leaf.example.com",
 			},
 		},
 		{
 			name: "minimal",
 			in: IdentityOutput{
-				Common: OutputCommon{
-					Destination: dest,
-				},
+				Destination: dest,
 			},
 		},
 	}

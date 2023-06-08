@@ -19,27 +19,23 @@ package config
 import "testing"
 
 func TestDatabaseOutput_YAML(t *testing.T) {
-	dest := WrapDestination(&DestinationMemory{})
+	dest := &DestinationMemory{}
 	tests := []testYAMLCase[DatabaseOutput]{
 		{
 			name: "full",
 			in: DatabaseOutput{
-				Common: OutputCommon{
-					Destination: dest,
-					Roles:       []string{"access"},
-				},
-				Service:  "my-database-service",
-				Database: "my-database",
-				Username: "my-username",
+				Destination: dest,
+				Roles:       []string{"access"},
+				Service:     "my-database-service",
+				Database:    "my-database",
+				Username:    "my-username",
 			},
 		},
 		{
 			name: "minimal",
 			in: DatabaseOutput{
-				Common: OutputCommon{
-					Destination: dest,
-				},
-				Service: "my-database-service",
+				Destination: dest,
+				Service:     "my-database-service",
 			},
 		},
 	}

@@ -19,24 +19,20 @@ package config
 import "testing"
 
 func TestKubernetesOutput_YAML(t *testing.T) {
-	dest := WrapDestination(&DestinationMemory{})
+	dest := &DestinationMemory{}
 	tests := []testYAMLCase[KubernetesOutput]{
 		{
 			name: "full",
 			in: KubernetesOutput{
-				Common: OutputCommon{
-					Destination: dest,
-					Roles:       []string{"access"},
-				},
+				Destination: dest,
+				Roles:       []string{"access"},
 				ClusterName: "k8s.example.com",
 			},
 		},
 		{
 			name: "minimal",
 			in: KubernetesOutput{
-				Common: OutputCommon{
-					Destination: dest,
-				},
+				Destination: dest,
 				ClusterName: "k8s.example.com",
 			},
 		},

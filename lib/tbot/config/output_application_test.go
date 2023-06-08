@@ -19,25 +19,21 @@ package config
 import "testing"
 
 func TestApplicationOutput_YAML(t *testing.T) {
-	dest := WrapDestination(&DestinationMemory{})
+	dest := &DestinationMemory{}
 	tests := []testYAMLCase[ApplicationOutput]{
 		{
 			name: "full",
 			in: ApplicationOutput{
-				Common: OutputCommon{
-					Destination: dest,
-					Roles:       []string{"access"},
-				},
-				AppName: "my-app",
+				Destination: dest,
+				Roles:       []string{"access"},
+				AppName:     "my-app",
 			},
 		},
 		{
 			name: "minimal",
 			in: ApplicationOutput{
-				Common: OutputCommon{
-					Destination: dest,
-				},
-				AppName: "my-app",
+				Destination: dest,
+				AppName:     "my-app",
 			},
 		},
 	}
@@ -50,11 +46,9 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *ApplicationOutput {
 				return &ApplicationOutput{
-					Common: OutputCommon{
-						Destination: WrapDestination(&DestinationMemory{store: map[string][]byte{}}),
-						Roles:       []string{"access"},
-					},
-					AppName: "app",
+					Destination: &DestinationMemory{store: map[string][]byte{}},
+					Roles:       []string{"access"},
+					AppName:     "app",
 				}
 			},
 		},
