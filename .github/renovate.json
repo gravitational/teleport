@@ -1,8 +1,6 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": [
-    "config:base"
-  ],
+  "extends": ["config:base", "config:base"],
   "enabledManagers": ["gomod", "cargo"],
   "reviewers": ["codingllama", "jentfoo", "rosstimothy", "zmb3"],
   "branchConcurrentLimit": 10,
@@ -11,22 +9,19 @@
   "packageRules": [
     {
       "matchManagers": ["gomod"],
-      "matchDepTypes": ["indirect"],
-      "enabled": false
-    },
-    {
-      "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["go.mod"],
-      "groupName": "Teleport - Go"
+      "groupName": "Teleport - Go",
+      "matchDatasources": ["golang-version"],
+      "rangeStrategy": "bump"
     },
     {
       "matchManagers": ["gomod"],
       "enabled": false,
       "matchFiles": ["go.mod"],
       "groupName": "Teleport - Go",
-      "packageNames": [
+      "matchPackageNames": [
         "github.com/alecthomas/kingpin/v2",
         "github.com/aquasecurity/libbpfgo",
         "github.com/coreos/go-oidc",
@@ -34,6 +29,7 @@
         "github.com/go-redis/redis/v9",
         "github.com/go-webauthn/webauthn",
         "github.com/gogo/protobuf",
+        "github.com/gravitational/teleport/api",
         "github.com/gravitational/ttlmap",
         "github.com/julienschmidt/httprouter",
         "github.com/keys-pub/go-libfido2",
@@ -48,7 +44,9 @@
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["api/go.mod"],
-      "groupName": "Teleport API"
+      "groupName": "Teleport API",
+      "matchDatasources": ["golang-version"],
+      "rangeStrategy": "bump"
     },
     {
       "matchManagers": ["cargo"],
@@ -68,48 +66,49 @@
       "enabled": true,
       "matchFiles": ["assets/aws/go.mod"],
       "groupName": "Assets - AWS ",
-      "excludePackageNames": [
-        "github.com/alecthomas/kingpin/v2"
-      ]
+      "matchDatasources": ["golang-version"],
+      "rangeStrategy": "bump"
     },
     {
       "matchManagers": ["gomod"],
       "enabled": false,
       "matchFiles": ["assets/aws/go.mod"],
       "groupName": "Assets - AWS ",
-      "packageNames": [
-        "github.com/alecthomas/kingpin/v2"
-      ]
+      "matchPackageNames": ["github.com/alecthomas/kingpin/v2"]
     },
     {
       "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["assets/backport/go.mod"],
-      "groupName": "Assets - Backport"
+      "groupName": "Assets - Backport",
+      "matchDatasources": ["golang-version"],
+      "rangeStrategy": "bump"
     },
     {
       "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["build.assets/tooling/go.mod"],
-      "groupName": "Build Assets - Tooling"
+      "groupName": "Build Assets - Tooling",
+      "matchDatasources": ["golang-version"],
+      "rangeStrategy": "bump"
     },
     {
       "matchManagers": ["gomod"],
       "enabled": false,
       "matchFiles": ["build.assets/tooling/go.mod"],
       "groupName": "Build Assets - Tooling",
-      "packageNames": [
-        "github.com/alecthomas/kingpin/v2"
-      ]
+      "matchPackageNames": ["github.com/alecthomas/kingpin/v2"]
     },
     {
       "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["integrations/kube-agent-updater/go.mod"],
-      "groupName": "Integrations - Kube Updater"
+      "groupName": "Integrations - Kube Updater",
+      "matchDatasources": ["golang-version"],
+      "rangeStrategy": "bump"
     }
   ],
   "ignoreDeps": ["dockerfile"],
