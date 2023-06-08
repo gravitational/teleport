@@ -84,7 +84,7 @@ jobs:
             core.setOutput("user-id", userId);
             core.setOutput("user-email", `${userId}+${process.env.APP_USERNAME}@users.noreply.github.com`);
       - name: Renovate
-        uses: renovatebot/github-action@v36.0.0
+        uses: renovatebot/github-action@v38.1.2
         env:
           LOG_LEVEL: 'trace'
           RENOVATE_DRY_RUN: true,
