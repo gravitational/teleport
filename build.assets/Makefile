@@ -7,8 +7,9 @@ endif
 HOSTNAME=buildbox
 SRCDIR=/go/src/github.com/gravitational/teleport
 GOMODCACHE ?= /tmp/gomodcache
+GOCACHE ?= /tmp/gocache
 # TODO(hugoShaka) remove HELM_PLUGINS with teleport13 buildbox
-DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
+DOCKERFLAGS := --rm=true -v "$$(pwd)/../":$(SRCDIR) -v /tmp:/tmp -w $(SRCDIR) -h $(HOSTNAME) -e GOMODCACHE=$(GOMODCACHE) -e GOCACHE=$(GOCACHE) -e HELM_PLUGINS=/home/ci/.local/share/helm/plugins-new
 
 ADDFLAGS ?=
 BATSFLAGS :=
@@ -94,6 +95,10 @@ ifeq ("$(RUNTIME_ARCH)","arm64")
 else
 	DEVTOOLSET ?= devtoolset-11
 endif
+
+.PHONY:testthis
+testthis:
+	echo "$(UID):$(GID)"
 
 #
 # Build 'teleport' release inside a docker container
