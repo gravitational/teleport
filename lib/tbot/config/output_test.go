@@ -15,3 +15,39 @@ limitations under the License.
 */
 
 package config
+
+import (
+	"github.com/stretchr/testify/require"
+	"testing"
+)
+
+type testCheckAndSetDefaultsCase[T Output] struct {
+	name string
+	in   func() T
+
+	// want specifies the desired state of the Output after check and set
+	// defaults has been run. If want is nil, the Output is compared to its
+	// initial state.
+	want    Output
+	wantErr string
+}
+
+func testCheckAndSetDefaults[T Output](t *testing.T, tests []testCheckAndSetDefaultsCase[T]) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.in()
+			err := got.CheckAndSetDefaults()
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+
+			want := tt.want
+			if want == nil {
+				want = tt.in()
+			}
+			require.NoError(t, err)
+			require.Equal(t, want, got)
+		})
+	}
+}

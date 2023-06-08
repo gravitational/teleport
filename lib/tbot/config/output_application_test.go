@@ -43,3 +43,21 @@ func TestApplicationOutput_YAML(t *testing.T) {
 	}
 	testYAML(t, tests)
 }
+
+func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testCheckAndSetDefaultsCase[*ApplicationOutput]{
+		{
+			name: "valid",
+			in: func() *ApplicationOutput {
+				return &ApplicationOutput{
+					Common: OutputCommon{
+						Destination: WrapDestination(&DestinationMemory{store: map[string][]byte{}}),
+						Roles:       []string{"access"},
+					},
+					AppName: "app",
+				}
+			},
+		},
+	}
+	testCheckAndSetDefaults(t, tests)
+}
