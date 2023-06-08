@@ -262,6 +262,61 @@ func Test_overwriteKubeconfigFlagInEnv(t *testing.T) {
 	require.Equal(t, wantEnv, overwriteKubeconfigInEnv(inputEnv, "new-path"))
 }
 
+func Test_profileRequireKubeLocalProxy(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name         string
+		inputProfile *profile.Profile
+		checkResult  require.BoolAssertionFunc
+	}{
+		{
+			name: "kube not enabled",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				TLSRoutingEnabled:             true,
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.False,
+		},
+		{
+			name: "ALPN connection upgrade not required",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:      "example.com:443",
+				KubeProxyAddr:     "example.com:443",
+				TLSRoutingEnabled: true,
+			},
+			checkResult: require.False,
+		},
+		{
+			name: "kube uses separate listener",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				KubeProxyAddr:                 "example.com:3026",
+				TLSRoutingEnabled:             false,
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.False,
+		},
+		{
+			name: "local proxy required",
+			inputProfile: &profile.Profile{
+				WebProxyAddr:                  "example.com:443",
+				KubeProxyAddr:                 "example.com:443",
+				TLSRoutingEnabled:             true,
+				TLSRoutingConnUpgradeRequired: true,
+			},
+			checkResult: require.True,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			test.checkResult(t, profileRequireKubeLocalProxy(test.inputProfile))
+		})
+	}
+}
+
 func mustSetupKubeconfig(t *testing.T, tshHome, kubeCluster string) string {
 	kubeconfigLocation := path.Join(tshHome, "kubeconfig")
 	priv, err := keys.ParsePrivateKey([]byte(fixtures.SSHCAPrivateKey))
