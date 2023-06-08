@@ -103,7 +103,7 @@ export type ClipboardData = {
 };
 
 // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-export type RDPChannelIds = {
+export type RDPChannelIDs = {
   ioChannelId: number;
   userChannelId: number;
 };
@@ -962,7 +962,7 @@ export default class Codec {
   }
 
   // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
-  decodeRDPChannelIds(buffer: ArrayBuffer): RDPChannelIds {
+  decodeRDPChannelIDs(buffer: ArrayBuffer): RDPChannelIDs {
     const dv = new DataView(buffer);
     let offset = 0;
     offset += byteLength; // eat message type

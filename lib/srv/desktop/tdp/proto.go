@@ -351,16 +351,18 @@ func (r RDPResponsePDU) Encode() ([]byte, error) {
 
 // RDPChannelIDs are the io and user channel ids negotiated during the RDP connection.
 //
+// See "3. Channel Connection" at https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/023f1e69-cfe8-4ee6-9ee0-7e759fb4e4ee
+//
 // | message type (31) | io_channel_id uint16 | user_channel_id uint16 |
 type RDPChannelIDs struct {
-	IoChannelID   uint16
+	IOChannelID   uint16
 	UserChannelID uint16
 }
 
 func (c RDPChannelIDs) Encode() ([]byte, error) {
 	buf := new(bytes.Buffer)
 	buf.WriteByte(byte(TypeRDPChannelIDs))
-	writeUint16(buf, c.IoChannelID)
+	writeUint16(buf, c.IOChannelID)
 	writeUint16(buf, c.UserChannelID)
 	return buf.Bytes(), nil
 }

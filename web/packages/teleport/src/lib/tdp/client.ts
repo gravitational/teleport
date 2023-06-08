@@ -153,7 +153,7 @@ export default class Client extends EventEmitterWebAuthnSender {
           this.handlePng2Frame(buffer);
           break;
         case MessageType.RDP_CHANNEL_IDS:
-          this.handleRDPChannelIds(buffer);
+          this.handleRDPChannelIDs(buffer);
           break;
         case MessageType.RDP_FASTPATH_PDU:
           this.handleRDPFastPathPDU(buffer);
@@ -276,9 +276,9 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  handleRDPChannelIds(buffer: ArrayBuffer) {
+  handleRDPChannelIDs(buffer: ArrayBuffer) {
     const { ioChannelId, userChannelId } =
-      this.codec.decodeRDPChannelIds(buffer);
+      this.codec.decodeRDPChannelIDs(buffer);
 
     this.fastPathProcessor = new FastPathProcessor(
       this.width,

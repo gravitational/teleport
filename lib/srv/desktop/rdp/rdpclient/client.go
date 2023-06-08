@@ -667,12 +667,12 @@ func handle_rdp_channel_ids(handle C.uintptr_t, io_channel_id C.uint16_t, user_c
 	return cgo.Handle(handle).Value().(*Client).handleRDPChannelIDs(io_channel_id, user_channel_id)
 }
 
-func (c *Client) handleRDPChannelIDs(io_channel_id, user_channel_id C.uint16_t) C.CGOErrCode {
-	c.cfg.Log.Debugf("Received RDP channel IDs: io_channel_id=%d, user_channel_id=%d", io_channel_id, user_channel_id)
+func (c *Client) handleRDPChannelIDs(ioChannelID, userChannelID C.uint16_t) C.CGOErrCode {
+	c.cfg.Log.Debugf("Received RDP channel IDs: io_channel_id=%d, user_channel_id=%d", ioChannelID, userChannelID)
 
 	if err := c.cfg.Conn.WriteMessage(tdp.RDPChannelIDs{
-		IoChannelID:   uint16(io_channel_id),
-		UserChannelID: uint16(user_channel_id),
+		IOChannelID:   uint16(ioChannelID),
+		UserChannelID: uint16(userChannelID),
 	}); err != nil {
 		c.cfg.Log.Errorf("failed handling RDPChannelIDs: %v", err)
 		return C.ErrCodeFailure
