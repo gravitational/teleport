@@ -908,8 +908,8 @@ github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a h1:PN5vAN1ZA
 github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a/go.mod h1:jaxS7X2ouXfNd2Pxpybd01qNQK15UmkixKj4vtpp7f8=
 github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680 h1:acbjjEJoR2vu1cuSE15Q9YDgWZxWRFj7nr2Vsi/Pn18=
 github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680/go.mod h1:SP8xfwGas4wleDVXDmeVpfn/Fv+wD8rrb2SqN/DlNXQ=
-github.com/gravitational/predicate v1.3.0 h1:n1lmH6YU1oX/Y546qHQNJb50FJy6Ou/+MvW8W9ICrlw=
-github.com/gravitational/predicate v1.3.0/go.mod h1:wPNu01gNYh2LRVtIGmFBvRpfBzl4nI2EaxbYDG8Mm4w=
+github.com/gravitational/predicate v1.3.1 h1:f1uGg2FF6z5wZbcafYpLZJ1gl+82I0MlSd0cQKDPQe0=
+github.com/gravitational/predicate v1.3.1/go.mod h1:H5e9dUW7zb/cuKkkhfnyT9SsI/WHWJ8Ra011La16DTY=
 github.com/gravitational/protobuf v1.3.2-teleport.1 h1:h5mh+UOKPurqDxn1hRVcr1WzSkmBi+D9qkXpaXA9PFM=
 github.com/gravitational/protobuf v1.3.2-teleport.1/go.mod h1:P1XiOD3dCwIKUDQYPy72D8LYyHL2YPYrpS2s69NZV8Q=
 github.com/gravitational/redis/v9 v9.0.0-teleport.3 h1:Eg/j3jiNUZ558KDXOqzF682EFmf97vxAFFnMgZ0YHns=
