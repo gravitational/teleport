@@ -303,46 +303,49 @@ To illustrate the new UX for `tsh` sub-commands, here is an example using
 $ tsh db ls
 Name   Description         Allowed Users       Labels                      Connect 
 ------ ------------------- ------------------- --------------------------- ------- 
-foo-rds-us-west-1-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-1,env=prod,...
-bar-rds-us-west-1-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-1,env=dev,...
-bar-rds-us-west-2-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-2,env=dev,...
+bar    RDS instance in ... [*] account-id=123456789012,region=us-west-1,env=dev,...
+bar    RDS instance in ... [*] account-id=123456789012,region=us-west-2,env=dev,...
+foo    RDS instance in ... [*] account-id=123456789012,region=us-west-1,env=prod,...
 
 # connect by prefix name
 $ tsh db connect --db-user=alice --db-name-postgres foo
-#...connects to "foo-rds-us-west-1-0123456789012" by prefix...
+#...connects to "foo-rds-us-west-1-123456789012" by prefix...
 
 # ambiguous prefix name is an error
 $ tsh db connect --db-user=alice --db-name-postgres bar
 error: ambiguous database name could match multiple databases:
-Name   Description         Allowed Users       Labels                      Connect 
------- ------------------- ------------------- --------------------------- ------- 
-bar-rds-us-west-1-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-1,env=dev,...
-bar-rds-us-west-2-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-2,env=dev,...
+Name                           Description               Protocol Type URI                                                     Allowed Users Labels                                                                                                                                    Connect 
+------------------------------ ------------------------- -------- ---- ------------------------------------------------------- ------------- ----------------------------------------------------------------------------------------------------------------------------------------- ------- 
+bar-rds-us-west-1-123456789012 RDS instance in us-west-1 postgres rds  bar.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432 [*]           account-id=123456789012,endpoint-type=instance,engine-version=13.10,engine=postgres,env=dev,region=us-west-1,teleport.dev/origin=dynamic          
+bar-rds-us-west-2-123456789012 RDS instance in us-west-2 postgres rds  bar.abcdefghijklmnop.us-west-2.rds.amazonaws.com:5432 [*]           account-id=123456789012,endpoint-type=instance,engine-version=13.10,engine=postgres,env=dev,region=us-west-2,teleport.dev/origin=dynamic          
 
-Hint: try addressing the database by its full name or by matching its labels.
-Hint: use `tsh db ls -v` to list all databases with verbose detail.
+Hint: try addressing the database by its full name or by matching its labels (ex: tsh db connect key1=value1,key2=value2).
+Hint: use `tsh db ls -v` or `tsh db ls --format=[yaml | json]` to list all databases with verbose details.
 
 # resolve the error by connecting with an unambiguous prefix 
 $ tsh db connect --db-user=alice --db-name-postgres bar-rds-us-west-2
-#...connects to "bar-rds-us-west-2-0123456789012" by prefix...
+#...connects to "bar-rds-us-west-2-123456789012" by prefix...
 
 # or connect by label(s)
 $ tsh db connect --db-user=alice --db-name-postgres region=us-west-2 
-#...connects to "bar-rds-us-west-2-0123456789012" by matching region label...
+#...connects to "bar-rds-us-west-2-123456789012" by matching region label...
 
 # ambiguous label(s) match is also an error
 $ tsh db connect --db-user=alice --db-name-postgres region=us-west-1 
 error: ambiguous database labels could match multiple databases:
-Name   Description         Allowed Users       Labels                      Connect 
------- ------------------- ------------------- --------------------------- ------- 
-foo-rds-us-west-1-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-1,env=prod,...
-bar-rds-us-west-1-0123456789012 RDS instance in ... [*] account-id=0123456789012,region=us-west-1,env=dev,...
+Name                           Description               Protocol Type URI                                                     Allowed Users Labels                                                                                                                                    Connect 
+------------------------------ ------------------------- -------- ---- ------------------------------------------------------- ------------- ----------------------------------------------------------------------------------------------------------------------------------------- ------- 
+bar-rds-us-west-1-123456789012 RDS instance in us-west-1 postgres rds  bar.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432 [*]           account-id=123456789012,endpoint-type=instance,engine-version=13.10,engine=postgres,env=dev,region=us-west-1,teleport.dev/origin=dynamic          
+foo-rds-us-west-1-123456789012 RDS instance in us-west-1 postgres rds  foo.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432   [*]           account-id=123456789012,endpoint-type=instance,engine-version=13.10,engine=postgres,env=prod,region=us-west-1,teleport.dev/origin=dynamic         
+
+Hint: try addressing the database by its full name or by matching its labels (ex: tsh db connect key1=value1,key2=value2).
+Hint: use `tsh db ls -v` or `tsh db ls --format=[yaml | json]` to list all databases with verbose details.
 
 # resolve the error by using either more specific labels or adding a prefix name
 $ tsh db connect --db-user=alice --db-name-postgres foo region=us-west-1 
-#...connects to "foo-rds-us-west-1-0123456789012" by prefix and label...
+#...connects to "foo-rds-us-west-1-123456789012" by prefix and label...
 $ tsh db connect --db-user=alice --db-name-postgres region=us-west-1,env=prod
-#...connects to "foo-rds-us-west-1-0123456789012" by multiple labels...
+#...connects to "foo-rds-us-west-1-123456789012" by multiple labels...
 ```
 
 ### Web UI and Teleport Connect UX
