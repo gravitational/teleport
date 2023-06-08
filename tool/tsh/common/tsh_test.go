@@ -3599,9 +3599,10 @@ func TestSerializeDatabases(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
 			expected := fmt.Sprintf(expectedFmt, tt.dbUsersData)
 			testSerialization(t, expected, func(f string) (string, error) {
-				return serializeDatabases([]types.Database{db}, f, tt.roles)
+				return serializeDatabases([]types.Database{db}, f, accessChecker)
 			})
 		})
 	}
@@ -4257,10 +4258,13 @@ func TestListDatabasesWithUsers(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			gotUsers := getDBUsers(tt.database, tt.roles)
+
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
+
+			gotUsers := getDBUsers(tt.database, accessChecker)
 			require.Equal(t, tt.wantUsers, gotUsers)
 
-			gotText := formatUsersForDB(tt.database, tt.roles)
+			gotText := formatUsersForDB(tt.database, accessChecker)
 			require.Equal(t, tt.wantText, gotText)
 		})
 	}

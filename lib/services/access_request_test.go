@@ -1095,6 +1095,7 @@ func TestPruneRequestRoles(t *testing.T) {
 					SearchAsRoles: []string{
 						"node-admins",
 						"node-access",
+						"node-team",
 						"kube-admins",
 						"db-admins",
 						"app-admins",
@@ -1120,6 +1121,14 @@ func TestPruneRequestRoles(t *testing.T) {
 					"owner": {"node-admins"},
 				},
 				Logins: []string{"{{internal.logins}}", "root"},
+			},
+		},
+		"node-team": {
+			// Grants root access to nodes owned by user's team via label
+			// expression.
+			Allow: types.RoleConditions{
+				NodeLabelsExpression: `contains(user.spec.traits["team"], labels["owner"])`,
+				Logins:               []string{"{{internal.logins}}", "root"},
 			},
 		},
 		"kube-admins": {
@@ -1163,6 +1172,7 @@ func TestPruneRequestRoles(t *testing.T) {
 	user := g.user(t, "response-team")
 	g.users[user].SetTraits(map[string][]string{
 		"logins": {"responder"},
+		"team":   {"response-team"},
 	})
 
 	nodeDesc := []struct {
@@ -1179,6 +1189,12 @@ func TestPruneRequestRoles(t *testing.T) {
 			name: "admins-node-2",
 			labels: map[string]string{
 				"owner": "node-admins",
+			},
+		},
+		{
+			name: "responders-node",
+			labels: map[string]string{
+				"owner": "response-team",
 			},
 		},
 		{
@@ -1239,7 +1255,6 @@ func TestPruneRequestRoles(t *testing.T) {
 		desc               string
 		requestResourceIDs []types.ResourceID
 		loginHint          string
-		userTraits         map[string][]string
 		expectRoles        []string
 		expectError        bool
 	}{
@@ -1255,6 +1270,17 @@ func TestPruneRequestRoles(t *testing.T) {
 			// Without the login hint, all roles granting access will be
 			// requested.
 			expectRoles: []string{"node-admins", "node-access"},
+		},
+		{
+			desc: "label expression role",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "responders-node",
+				},
+			},
+			expectRoles: []string{"node-team", "node-access"},
 		},
 		{
 			desc: "user login hint",
@@ -1404,7 +1430,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			},
 			// Request for foreign resource should request all available roles,
 			// we don't know which one is necessary
-			expectRoles: []string{"node-access", "node-admins", "kube-admins", "db-admins", "app-admins", "windows-admins", "empty"},
+			expectRoles: []string{"node-access", "node-admins", "node-team", "kube-admins", "db-admins", "app-admins", "windows-admins", "empty"},
 		},
 	}
 	for _, tc := range testCases {

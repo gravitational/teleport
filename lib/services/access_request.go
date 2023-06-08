@@ -1558,7 +1558,7 @@ func (m *RequestValidator) pruneResourceRequestRoles(
 			resourceMatcher = NewKubeResourcesMatcher(kubernetesResources)
 		}
 		for _, role := range allRoles {
-			roleAllowsAccess, err := roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
+			roleAllowsAccess, err := m.roleAllowsResource(ctx, role, resource, loginHint, resourceMatcherToMatcherSlice(resourceMatcher)...)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
@@ -1638,7 +1638,7 @@ func countAllowedLogins(role types.Role) int {
 	return len(allowed)
 }
 
-func roleAllowsResource(
+func (m *RequestValidator) roleAllowsResource(
 	ctx context.Context,
 	role types.Role,
 	resource types.ResourceWithLabels,
@@ -1651,7 +1651,7 @@ func roleAllowsResource(
 		matchers = append(matchers, NewLoginMatcher(loginHint))
 	}
 	matchers = append(matchers, extraMatchers...)
-	err := roleSet.checkAccess(resource, AccessState{MFAVerified: true}, matchers...)
+	err := roleSet.checkAccess(resource, m.user.GetTraits(), AccessState{MFAVerified: true}, matchers...)
 	if trace.IsAccessDenied(err) {
 		// Access denied, this role does not allow access to this resource, no
 		// unexpected error to report.
