@@ -1713,10 +1713,6 @@ A list of extra environment variables to be set on the main Teleport container.
 
 ## `extraVolumeMounts`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
-
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
 A list of extra Kubernetes volume mounts which should be mounted into any `Pod` created by the chart. These volume
@@ -1730,11 +1726,28 @@ mounts will also be mounted into any `initContainers` configured by the chart.
     mountPath: /path/to/mount/volume
   ```
 
-## `imagePullPolicy`
+## `hostAliases`
 
-| Type     | Default value  | Can be used in `custom` mode? |
-|----------|----------------|-------------------------------|
-| `string` | `IfNotPresent` | ✅                             |
+Configure aliases in the pod's `/etc/hosts`.
+This can be used to have the agent join the Teleport cluster through a different
+non-public route, or to allow the agent to access applications or databases that
+are not resolvable. See [the Kubernetes documentation
+](https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/) for
+more details.
+
+```yaml
+hostAliases:
+  - ip: "127.0.0.1"
+    hostnames:
+      - "foo.local"
+      - "bar.local"
+  - ip: "10.1.2.3"
+    hostnames:
+      - "foo.remote"
+      - "bar.remote"
+```
+
+## `imagePullPolicy`
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 
