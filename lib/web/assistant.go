@@ -434,7 +434,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	if chat.IsNewConversation() {
 		// new conversation, generate a hello message
-		if _, err := chat.ProcessComplete(ctx, onMessageFn); err != nil {
+		if _, err := chat.ProcessComplete(ctx, onMessageFn, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -466,11 +466,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		}
 
 		//TODO(jakule): Should we sanitize the payload?
-		if err := chat.InsertAssistantMessage(ctx, assist.MessageKindUserMessage, wsIncoming.Payload); err != nil {
-			return trace.Wrap(err)
-		}
-
-		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn)
+		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn, wsIncoming.Payload)
 		if err != nil {
 			return trace.Wrap(err)
 		}
