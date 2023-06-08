@@ -2277,7 +2277,7 @@ func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleCon
 	if err != nil {
 		return false, trace.Wrap(err)
 	}
-	ok, _, err := checkLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels))
+	ok, _, err := checkLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels), false)
 	return ok, trace.Wrap(err)
 }
 
@@ -2353,7 +2353,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			continue
 		}
 
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r)
+		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r, isDebugEnabled)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2397,7 +2397,7 @@ func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state 
 			continue
 		}
 
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r)
+		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isDebugEnabled)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2489,12 +2489,13 @@ func checkRoleLabelsMatch(
 	role types.Role,
 	userTraits wrappers.Traits,
 	resource AccessCheckable,
+	debug bool,
 ) (bool, string, error) {
 	labelMatchers, err := role.GetLabelMatchers(condition, resource.GetKind())
 	if err != nil {
 		return false, "", trace.Wrap(err)
 	}
-	return checkLabelsMatch(condition, labelMatchers, userTraits, resource)
+	return checkLabelsMatch(condition, labelMatchers, userTraits, resource, debug)
 }
 
 // checkLabelsMatch checks if the [labelMatchers] match the labels of [resource]
@@ -2515,40 +2516,52 @@ func checkLabelsMatch(
 	labelMatchers types.LabelMatchers,
 	userTraits wrappers.Traits,
 	resource LabelGetter,
+	debug bool,
 ) (bool, string, error) {
 	if labelMatchers.Empty() {
 		return false, "no label matchers or label expression", nil
 	}
 
-	var matches []bool
-	var messages []string
+	var message string
+	labelsUnsetOrMatch, expressionUnsetOrMatch := true, true
 
 	if len(labelMatchers.Labels) > 0 {
-		match, message, err := MatchLabelGetter(labelMatchers.Labels, resource)
+		match, msg, err := MatchLabelGetter(labelMatchers.Labels, resource)
 		if err != nil {
 			return false, "", trace.Wrap(err)
 		}
-		matches = append(matches, match)
-		messages = append(messages, "label="+message)
+		if debug {
+			message += "label=" + msg
+		}
+		// Deny rules are greedy, if either matches, it's a match.
+		if condition == types.Deny && match {
+			return true, message, nil
+		}
+		labelsUnsetOrMatch = match
 	}
 
 	if len(labelMatchers.Expression) > 0 {
-		match, message, err := matchLabelExpression(labelMatchers.Expression, resource, userTraits)
+		match, msg, err := matchLabelExpression(labelMatchers.Expression, resource, userTraits)
 		if err != nil {
 			return false, "", trace.Wrap(err)
 		}
-		matches = append(matches, match)
-		messages = append(messages, "expression="+message)
+		if debug {
+			message = strings.Join([]string{message, "expression=" + msg}, ", ")
+		}
+		// Deny rules are greedy, if either matches, it's a match.
+		if condition == types.Deny {
+			return match, message, nil
+		}
+		expressionUnsetOrMatch = match
 	}
 
-	message := strings.Join(messages, ", ")
-
-	// Deny rules are greedy, if either matched, it's a match.
 	if condition == types.Deny {
-		return slices.Contains(matches, true), message, nil
+		// Either branch would have returned if it was a match.
+		return false, message, nil
 	}
+
 	// Allow rules are not greedy, both must match if they are set.
-	return !slices.Contains(matches, false), message, nil
+	return labelsUnsetOrMatch && expressionUnsetOrMatch, message, nil
 }
 
 func matchLabelExpression(labelExpression string, resource LabelGetter, userTraits wrappers.Traits) (bool, string, error) {
@@ -2803,7 +2816,7 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 // GetKubeResources returns allowed and denied list of Kubernetes Resources configured in the RoleSet.
 func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappers.Traits) (allowed, denied []types.KubernetesResource) {
 	for _, role := range set {
-		matchLabels, _, err := checkRoleLabelsMatch(types.Allow, role, userTraits, cluster)
+		matchLabels, _, err := checkRoleLabelsMatch(types.Allow, role, userTraits, cluster, false)
 		if err != nil || !matchLabels {
 			continue
 		}
@@ -2811,7 +2824,7 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappe
 	}
 
 	for _, role := range set {
-		matchLabels, _, err := checkRoleLabelsMatch(types.Deny, role, userTraits, cluster)
+		matchLabels, _, err := checkRoleLabelsMatch(types.Deny, role, userTraits, cluster, false)
 		if err != nil || !matchLabels {
 			continue
 		}
