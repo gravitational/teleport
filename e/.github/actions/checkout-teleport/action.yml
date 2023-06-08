@@ -110,3 +110,9 @@ runs:
         repository: gravitational/teleport.e
         ref: ${{ steps.determine-enterprise-ref.outputs.ref }}
         path: e
+
+    - id: mark-workspace-safe
+      name: Mark workspace as git safe.directory
+      shell: bash
+      run: |
+        git config --global --add safe.directory ${GITHUB_WORKSPACE}
