@@ -119,76 +119,58 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path:     "/path/storage",
 						ACLs:     botfs.ACLRequired,
 						Symlinks: botfs.SymlinksSecure,
-					}),
+					},
 				},
 				Outputs: []Output{
 					&IdentityOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path: "/path/destination",
-							}),
-							Roles: []string{"foo"},
+						Destination: &DestinationDirectory{
+							Path: "/path/destination",
 						},
+						Roles: []string{"foo"},
 					},
 					&ApplicationOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationMemory{}),
-						},
+						Destination:           &DestinationMemory{},
 						AppName:               "my-app",
 						SpecificTLSExtensions: true,
 					},
 					&ApplicationOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationMemory{}),
-						},
-						AppName: "my-app",
+						Destination: &DestinationMemory{},
+						AppName:     "my-app",
 					},
 					&KubernetesOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationMemory{}),
-						},
+						Destination: &DestinationMemory{},
 						ClusterName: "my-kubernetes-cluster",
 					},
 					&DatabaseOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationMemory{}),
-						},
-						Service:  "my-db-service",
-						Database: "the-db",
-						Username: "alice",
-						Subtype:  UnspecifiedDatabaseSubtype,
+						Destination: &DestinationMemory{},
+						Service:     "my-db-service",
+						Database:    "the-db",
+						Username:    "alice",
+						Subtype:     UnspecifiedDatabaseSubtype,
 					},
 					&DatabaseOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationMemory{}),
-						},
-						Service: "my-db-service",
-						Subtype: MongoDatabaseSubtype,
+						Destination: &DestinationMemory{},
+						Service:     "my-db-service",
+						Subtype:     MongoDatabaseSubtype,
 					},
 					&DatabaseOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationMemory{}),
-						},
-						Service: "my-db-service",
-						Subtype: TLSDatabaseSubtype,
+						Destination: &DestinationMemory{},
+						Service:     "my-db-service",
+						Subtype:     TLSDatabaseSubtype,
 					},
 					&DatabaseOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationMemory{}),
-						},
-						Service: "my-db-service",
-						Subtype: CockroachDatabaseSubtype,
+						Destination: &DestinationMemory{},
+						Service:     "my-db-service",
+						Subtype:     CockroachDatabaseSubtype,
 					},
 					&SSHHostOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationMemory{}),
-							Roles:       []string{"foo"},
-						},
-						Principals: []string{"example.com", "second.example.com"},
+						Destination: &DestinationMemory{},
+						Roles:       []string{"foo"},
+						Principals:  []string{"example.com", "second.example.com"},
 					},
 				},
 			},
@@ -221,17 +203,15 @@ destinations:
 					TokenValue: "my-token",
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationMemory{}),
+					Destination: &DestinationMemory{},
 				},
 				Outputs: []Output{
 					&IdentityOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path:     "/path/example",
-								Symlinks: "try-secure",
-							}),
-							Roles: []string{},
+						Destination: &DestinationDirectory{
+							Path:     "/path/example",
+							Symlinks: "try-secure",
 						},
+						Roles: []string{},
 					},
 				},
 			},
@@ -264,17 +244,15 @@ destinations:
 					TokenValue: "my-token",
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationMemory{}),
+					Destination: &DestinationMemory{},
 				},
 				Outputs: []Output{
 					&KubernetesOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path:     "/path/example",
-								Symlinks: "try-secure",
-							}),
-							Roles: []string{},
+						Destination: &DestinationDirectory{
+							Path:     "/path/example",
+							Symlinks: "try-secure",
 						},
+						Roles:       []string{},
 						ClusterName: "my-cluster",
 					},
 				},
@@ -308,17 +286,15 @@ destinations:
 					TokenValue: "my-token",
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationMemory{}),
+					Destination: &DestinationMemory{},
 				},
 				Outputs: []Output{
 					&ApplicationOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path:     "/path/example",
-								Symlinks: "try-secure",
-							}),
-							Roles: []string{},
+						Destination: &DestinationDirectory{
+							Path:     "/path/example",
+							Symlinks: "try-secure",
 						},
+						Roles:   []string{},
 						AppName: "my-app",
 					},
 				},
@@ -350,16 +326,14 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path: "/var/lib/teleport/bot",
-					}),
+					},
 				},
 				Outputs: []Output{
 					&IdentityOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path: "/opt/machine-id",
-							}),
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
 						},
 					},
 				},
@@ -395,16 +369,14 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path: "/var/lib/teleport/bot",
-					}),
+					},
 				},
 				Outputs: []Output{
 					&DatabaseOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path: "/opt/machine-id",
-							}),
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
 						},
 						Service:  "example-server",
 						Username: "alice",
@@ -447,16 +419,14 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path: "/var/lib/teleport/bot",
-					}),
+					},
 				},
 				Outputs: []Output{
 					&DatabaseOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path: "/opt/machine-id",
-							}),
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
 						},
 						Subtype:  MongoDatabaseSubtype,
 						Service:  "example-server",
@@ -499,16 +469,14 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path: "/var/lib/teleport/bot",
-					}),
+					},
 				},
 				Outputs: []Output{
 					&DatabaseOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path: "/opt/machine-id",
-							}),
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
 						},
 						Subtype:  CockroachDatabaseSubtype,
 						Service:  "example-server",
@@ -551,16 +519,14 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path: "/var/lib/teleport/bot",
-					}),
+					},
 				},
 				Outputs: []Output{
 					&DatabaseOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path: "/opt/machine-id",
-							}),
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
 						},
 						Subtype:  TLSDatabaseSubtype,
 						Service:  "example-server",
@@ -609,18 +575,16 @@ oneshot: false
 				RenewalInterval: DefaultRenewInterval,
 				CertificateTTL:  DefaultCertificateTTL,
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path:     "/var/lib/teleport/bot",
 						Symlinks: "secure",
 						ACLs:     "try",
-					}),
+					},
 				},
 				Outputs: []Output{
 					&SSHHostOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path: "/opt/machine-id",
-							}),
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
 						},
 						Principals: []string{"nodename.my.domain.com"},
 					},
@@ -653,16 +617,14 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path: "/var/lib/teleport/bot",
-					}),
+					},
 				},
 				Outputs: []Output{
 					&ApplicationOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path: "/opt/machine-id",
-							}),
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
 						},
 						AppName: "grafana-example",
 					},
@@ -698,16 +660,14 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path: "/var/lib/teleport/bot",
-					}),
+					},
 				},
 				Outputs: []Output{
 					&ApplicationOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path: "/opt/machine-id",
-							}),
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
 						},
 						AppName:               "grafana-example",
 						SpecificTLSExtensions: true,
@@ -741,16 +701,14 @@ destinations:
 					},
 				},
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path: "/var/lib/teleport/bot",
-					}),
+					},
 				},
 				Outputs: []Output{
 					&KubernetesOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationDirectory{
-								Path: "/opt/machine-id",
-							}),
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
 						},
 						ClusterName: "example-k8s-cluster",
 					},

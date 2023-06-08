@@ -58,7 +58,7 @@ func (c *storageConfigV1) migrate() (*StorageConfig, error) {
 	}
 
 	return &StorageConfig{
-		Destination: WrapDestination(dest),
+		Destination: dest,
 	}, nil
 }
 
@@ -265,10 +265,8 @@ func (c *configV1Destination) migrate() (Output, error) {
 			}
 		}
 		return &ApplicationOutput{
-			Common: OutputCommon{
-				Destination: WrapDestination(dest),
-				Roles:       c.Roles,
-			},
+			Destination:           dest,
+			Roles:                 c.Roles,
 			AppName:               c.App,
 			SpecificTLSExtensions: specificTLSExtensions,
 		}, nil
@@ -302,14 +300,12 @@ func (c *configV1Destination) migrate() (Output, error) {
 			}
 		}
 		return &DatabaseOutput{
-			Common: OutputCommon{
-				Destination: WrapDestination(dest),
-				Roles:       c.Roles,
-			},
-			Subtype:  subtype,
-			Database: c.Database.Database,
-			Service:  c.Database.Service,
-			Username: c.Database.Username,
+			Destination: dest,
+			Roles:       c.Roles,
+			Subtype:     subtype,
+			Database:    c.Database.Database,
+			Service:     c.Database.Service,
+			Username:    c.Database.Username,
 		}, nil
 	case kubernetesConfigured:
 		if err := validateTemplates(
@@ -320,10 +316,8 @@ func (c *configV1Destination) migrate() (Output, error) {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
 		return &KubernetesOutput{
-			Common: OutputCommon{
-				Destination: WrapDestination(dest),
-				Roles:       c.Roles,
-			},
+			Destination: dest,
+			Roles:       c.Roles,
 			ClusterName: c.KubernetesCluster,
 		}, nil
 	case hostCertConfigured:
@@ -344,11 +338,9 @@ func (c *configV1Destination) migrate() (Output, error) {
 			}
 		}
 		return &SSHHostOutput{
-			Common: OutputCommon{
-				Destination: WrapDestination(dest),
-				Roles:       c.Roles,
-			},
-			Principals: principals,
+			Destination: dest,
+			Roles:       c.Roles,
+			Principals:  principals,
 		}, nil
 	default:
 		if err := validateTemplates(
@@ -359,11 +351,9 @@ func (c *configV1Destination) migrate() (Output, error) {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
 		return &IdentityOutput{
-			Common: OutputCommon{
-				Destination: WrapDestination(dest),
-				Roles:       c.Roles,
-			},
-			Cluster: c.Cluster,
+			Destination: dest,
+			Roles:       c.Roles,
+			Cluster:     c.Cluster,
 		}, nil
 	}
 }
