@@ -1,5 +1,6 @@
 name: Renovate
 on:
+  pull_request:
   workflow_dispatch:
   schedule:
     - cron: '0 21 * * 0' # At 9:00 PM every Sunday UTC
