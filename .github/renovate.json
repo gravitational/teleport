@@ -10,7 +10,7 @@
     {
       "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
-      "enabled": true,
+      "enabled": false,
       "matchFiles": ["go.mod"],
       "groupName": "Teleport - Go"
     },
@@ -40,26 +40,26 @@
     {
       "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
-      "enabled": true,
+      "enabled": false,
       "matchFiles": ["api/go.mod"],
       "groupName": "Teleport API"
     },
     {
       "matchManagers": ["cargo"],
-      "enabled": true,
+      "enabled": false,
       "matchFiles": ["Cargo.toml"],
       "groupName": "Teleport - Rust"
     },
     {
       "matchManagers": ["cargo"],
-      "enabled": true,
+      "enabled": false,
       "matchFiles": ["lib/srv/desktop/rdp/rdpclient/Cargo.toml"],
       "groupName": "RDP Client"
     },
     {
       "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
-      "enabled": true,
+      "enabled": false,
       "matchFiles": ["assets/aws/go.mod"],
       "groupName": "Assets - AWS "
     },
@@ -73,14 +73,14 @@
     {
       "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
-      "enabled": true,
+      "enabled": false,
       "matchFiles": ["assets/backport/go.mod"],
       "groupName": "Assets - Backport"
     },
     {
       "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
-      "enabled": true,
+      "enabled": false,
       "matchFiles": ["build.assets/tooling/go.mod"],
       "groupName": "Build Assets - Tooling"
     },
