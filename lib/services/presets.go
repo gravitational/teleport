@@ -337,8 +337,12 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	// Labels
 	defaultLabels, ok := defaultAllowLabels()[role.GetName()]
 	if ok {
-		if len(defaultLabels.DatabaseServiceLabels) > 0 && len(role.GetDatabaseServiceLabels(types.Allow)) == 0 && len(role.GetDatabaseServiceLabels(types.Deny)) == 0 {
-			role.SetDatabaseServiceLabels(types.Allow, defaultLabels.DatabaseServiceLabels)
+		if unset, err := labelMatchersUnset(role, types.KindDatabaseService); err != nil {
+			return nil, trace.Wrap(err)
+		} else if unset && len(defaultLabels.DatabaseServiceLabels) > 0 {
+			role.SetLabelMatchers(types.Allow, types.KindDatabaseService, types.LabelMatchers{
+				Labels: defaultLabels.DatabaseServiceLabels,
+			})
 			changed = true
 		}
 		if len(defaultLabels.DatabaseRoles) > 0 && len(role.GetDatabaseRoles(types.Allow)) == 0 {
@@ -370,6 +374,19 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	}
 
 	return role, nil
+}
+
+func labelMatchersUnset(role types.Role, kind string) (bool, error) {
+	for _, cond := range []types.RoleConditionType{types.Allow, types.Deny} {
+		labelMatchers, err := role.GetLabelMatchers(cond, kind)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !labelMatchers.Empty() {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func resourceBelongsToRules(rules []types.Rule, resources []string) bool {

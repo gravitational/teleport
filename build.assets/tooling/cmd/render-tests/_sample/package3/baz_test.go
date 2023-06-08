@@ -14,15 +14,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import api from 'teleport/services/api';
-import cfg from 'teleport/config';
+package package3
 
-import { makePing } from './makePing';
+import "testing"
 
-const service = {
-  fetchPing() {
-    return api.get(cfg.api.webapiPingPath).then(makePing);
-  },
-};
+func Test4(t *testing.T) {
+	// t.Fatal("sometimes I flake") // uncomment for flaky results
+}
 
-export default service;
+func Test5(t *testing.T) {
+	// t.Fatal("nevermind") // uncomment for flaky result
+}

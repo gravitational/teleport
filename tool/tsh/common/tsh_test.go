@@ -2488,6 +2488,73 @@ func TestEnvFlags(t *testing.T) {
 			},
 		}))
 	})
+
+	t.Run("tsh ssh session env", func(t *testing.T) {
+		t.Run("ignore ssh session env without headless", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: false,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: false,
+			},
+		}))
+		t.Run("use ssh session env with headless cli flag", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: true,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+		}))
+		t.Run("use ssh session env with headless auth connector cli flag", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				AuthConnector: constants.HeadlessConnector,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				AuthConnector: constants.HeadlessConnector,
+				Proxy:         "proxy.example.com",
+				Username:      "alice",
+				SiteName:      "root-cluster",
+			},
+		}))
+		t.Run("does not overwrite cli flags", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "other.example.com",
+				teleport.SSHTeleportUser:        "bob",
+				teleport.SSHTeleportClusterName: "leaf-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+		}))
+	})
 }
 
 func TestKubeConfigUpdate(t *testing.T) {
@@ -3381,7 +3448,8 @@ func TestSerializeDatabases(t *testing.T) {
       "ad": {
         "domain": "",
         "spn": ""
-      }
+      },
+      "mongo_atlas": {}
     },
     "status": {
       "mysql": {},
@@ -3531,9 +3599,10 @@ func TestSerializeDatabases(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
 			expected := fmt.Sprintf(expectedFmt, tt.dbUsersData)
 			testSerialization(t, expected, func(f string) (string, error) {
-				return serializeDatabases([]types.Database{db}, f, tt.roles)
+				return serializeDatabases([]types.Database{db}, f, accessChecker)
 			})
 		})
 	}
@@ -4189,10 +4258,13 @@ func TestListDatabasesWithUsers(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			gotUsers := getDBUsers(tt.database, tt.roles)
+
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
+
+			gotUsers := getDBUsers(tt.database, accessChecker)
 			require.Equal(t, tt.wantUsers, gotUsers)
 
-			gotText := formatUsersForDB(tt.database, tt.roles)
+			gotText := formatUsersForDB(tt.database, accessChecker)
 			require.Equal(t, tt.wantText, gotText)
 		})
 	}

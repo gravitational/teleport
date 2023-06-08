@@ -25,6 +25,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
@@ -35,6 +36,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -5244,4 +5246,151 @@ func createSessionTestUsers(t *testing.T, authServer *Server) (string, string, s
 	})
 	require.NoError(t, err)
 	return "alice", "bob", "admin"
+}
+
+func TestCheckInventorySupportsRole(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	emptyRole, err := types.NewRole("empty", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	roleWithLabelExpressions, err := types.NewRole("expressions", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabelsExpression: `contains(user.spec.traits["allow-env"], labels["env"])`,
+		},
+	})
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc                   string
+		role                   types.Role
+		authVersion            string
+		inventoryVersions      []string
+		assertErr              require.ErrorAssertionFunc
+		expectNoInventoryCheck bool
+	}{
+		{
+			desc:                   "basic",
+			role:                   emptyRole,
+			authVersion:            api.Version,
+			inventoryVersions:      []string{"12.1.2", "13.0.0", api.Version},
+			assertErr:              require.NoError,
+			expectNoInventoryCheck: true,
+		},
+		{
+			desc:              "label expressions supported",
+			role:              roleWithLabelExpressions,
+			authVersion:       "14.0.0-dev",
+			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.2.3"},
+			assertErr:         require.NoError,
+		},
+		{
+			desc:              "unparseable server version doesn't break UpsertRole",
+			role:              roleWithLabelExpressions,
+			authVersion:       "14.0.0-dev",
+			inventoryVersions: []string{"Not a version"},
+			assertErr:         require.NoError,
+		},
+		{
+			desc:              "block upsert with unsupported nodes in v13",
+			role:              roleWithLabelExpressions,
+			authVersion:       "13.2.3",
+			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.0.0-unsupported", "13.2.3"},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
+				require.ErrorContains(t, err, "does not support the label expressions used in this role")
+			},
+		},
+		{
+			desc:              "block upsert with unsupported nodes in v14",
+			role:              roleWithLabelExpressions,
+			authVersion:       "14.1.2",
+			inventoryVersions: []string{minSupportedLabelExpressionVersion.String(), "13.0.0-unsupported", "13.2.3"},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.Error(t, err)
+				require.True(t, trace.IsBadParameter(err), "expected bad parameter error, got %v", err)
+				require.ErrorContains(t, err, "does not support the label expressions used in this role")
+			},
+		},
+		{
+			desc:                   "skip inventory check in 15",
+			role:                   roleWithLabelExpressions,
+			authVersion:            "15.0.0-dev",
+			inventoryVersions:      []string{"14.0.0", "15.0.0"},
+			assertErr:              require.NoError,
+			expectNoInventoryCheck: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			getInventory := func(context.Context, proto.InventoryStatusRequest) proto.InventoryStatusSummary {
+				if tc.expectNoInventoryCheck {
+					require.Fail(t, "getInventory called when the inventory check should have been skipped")
+				}
+
+				hellos := make([]proto.UpstreamInventoryHello, 0, len(tc.inventoryVersions))
+				for _, v := range tc.inventoryVersions {
+					hellos = append(hellos, proto.UpstreamInventoryHello{
+						Version: v,
+					})
+				}
+				return proto.InventoryStatusSummary{
+					Connected: hellos,
+				}
+			}
+
+			err := checkInventorySupportsRole(ctx, tc.role, tc.authVersion, getInventory)
+			tc.assertErr(t, err)
+		})
+	}
+}
+
+func TestSafeToSkipInventoryCheck(t *testing.T) {
+	for _, tc := range []struct {
+		desc               string
+		authVersion        string
+		minRequiredVersion string
+		safeToSkip         bool
+	}{
+		{
+			desc:               "auth two majors ahead of required minor release",
+			authVersion:        "15.0.0",
+			minRequiredVersion: "13.1.0",
+			safeToSkip:         true,
+		},
+		{
+			desc:               "auth within one major of required minor release",
+			authVersion:        "14.0.0",
+			minRequiredVersion: "13.1.0",
+			safeToSkip:         false,
+		},
+		{
+			desc:               "auth one major greater than required major release",
+			authVersion:        "14.0.0",
+			minRequiredVersion: "13.0.0",
+			safeToSkip:         true, // anything older than 13.0.0 is >1 major behind 14.0.0
+		},
+		{
+			desc:               "auth within one major of required major release",
+			authVersion:        "13.3.12",
+			minRequiredVersion: "13.0.0",
+			safeToSkip:         false,
+		},
+		{
+			desc:               "matching releases",
+			authVersion:        "13.2.0",
+			minRequiredVersion: "13.2.0",
+			safeToSkip:         false,
+		},
+		{
+			desc:               "skip for zero version",
+			authVersion:        "13.2.0",
+			minRequiredVersion: "0.0.0",
+			safeToSkip:         true,
+		},
+	} {
+		require.Equal(t, tc.safeToSkip,
+			safeToSkipInventoryCheck(*semver.New(tc.authVersion), *semver.New(tc.minRequiredVersion)))
+	}
 }

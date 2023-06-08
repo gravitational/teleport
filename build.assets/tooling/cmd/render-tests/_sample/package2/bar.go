@@ -14,7 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export interface PingResponse {
-  automaticUpgrades: boolean;
-  assistEnabled: boolean;
+package package2
+
+import "fmt"
+
+func bar() {
+	fmt.Println("bar")
 }

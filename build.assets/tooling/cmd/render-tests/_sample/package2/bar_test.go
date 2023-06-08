@@ -14,6 +14,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import service from './ping';
-export * from './types';
-export default service;
+package package2
+
+import "testing"
+
+func Test3(t *testing.T) {
+	// t.Fatal("not implemented")
+}
