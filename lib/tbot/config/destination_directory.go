@@ -243,5 +243,5 @@ func (dd *DestinationDirectory) TryLock() (func() error, error) {
 
 func (dm DestinationDirectory) MarshalYAML() (interface{}, error) {
 	type raw DestinationDirectory
-	return marshalHeadered(raw(dm), DestinationDirectoryType)
+	return withTypeHeader(raw(dm), DestinationDirectoryType)
 }

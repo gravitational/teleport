@@ -31,7 +31,12 @@ const SSHHostOutputType = "ssh_host"
 // SSHHostOutput generates a host certificate signed by the Teleport CA. This
 // can be used to allow OpenSSH server to be trusted by Teleport SSH clients.
 type SSHHostOutput struct {
-	Common OutputCommon `yaml:",inline"`
+	// Destination is where the credentials should be written to.
+	Destination bot.Destination `yaml:"destination"`
+	// Roles is the list of roles to request for the generated credentials.
+	// If empty, it defaults to all the bot's roles.
+	Roles []string `yaml:"roles,omitempty"`
+
 	// Principals is a list of principals to request for the host cert.
 	Principals []string `yaml:"principals"`
 }
@@ -46,7 +51,7 @@ func (o *SSHHostOutput) templates() []template {
 
 func (o *SSHHostOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
 	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, o.GetDestination()); err != nil {
+		if err := t.render(ctx, p, ident, o.Destination); err != nil {
 			return trace.Wrap(err, "rendering template %s", t.name())
 		}
 	}
@@ -60,23 +65,26 @@ func (o *SSHHostOutput) Init() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.GetDestination().Init(subDirs))
+	return trace.Wrap(o.Destination.Init(subDirs))
 }
 
 func (o *SSHHostOutput) GetDestination() bot.Destination {
-	return o.Common.Destination.Get()
+	return o.Destination
 }
 
 func (o *SSHHostOutput) GetRoles() []string {
-	return o.Common.Roles
+	return o.Roles
 }
 
 func (o *SSHHostOutput) CheckAndSetDefaults() error {
+	if err := validateOutputDestination(o.Destination); err != nil {
+		return trace.Wrap(err)
+	}
 	if len(o.Principals) == 0 {
 		return trace.BadParameter("at least one principal must be specified")
 	}
 
-	return trace.Wrap(o.Common.CheckAndSetDefaults())
+	return nil
 }
 
 func (o *SSHHostOutput) Describe() []FileDescription {
@@ -90,7 +98,7 @@ func (o *SSHHostOutput) Describe() []FileDescription {
 
 func (o SSHHostOutput) MarshalYAML() (interface{}, error) {
 	type raw SSHHostOutput
-	return marshalHeadered(raw(o), SSHHostOutputType)
+	return withTypeHeader(raw(o), SSHHostOutputType)
 }
 
 func (o *SSHHostOutput) String() string {

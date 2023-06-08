@@ -182,44 +182,32 @@ func TestBot(t *testing.T) {
 	botParams := testhelpers.MakeBot(t, rootClient, "test", defaultRoles...)
 
 	identityOutput := &config.IdentityOutput{
-		Common: config.OutputCommon{
-			Destination: config.WrapDestination(&config.DestinationMemory{}),
-		},
+		Destination: &config.DestinationMemory{},
 	}
 	identityOutputWithRoles := &config.IdentityOutput{
-		Common: config.OutputCommon{
-			Destination: config.WrapDestination(&config.DestinationMemory{}),
-			Roles:       []string{mainRole},
-		},
+		Destination: &config.DestinationMemory{},
+		Roles:       []string{mainRole},
 	}
 	appOutput := &config.ApplicationOutput{
-		Common: config.OutputCommon{
-			Destination: config.WrapDestination(&config.DestinationMemory{}),
-		},
-		AppName: appName,
+		Destination: &config.DestinationMemory{},
+		AppName:     appName,
 	}
 	dbOutput := &config.DatabaseOutput{
-		Common: config.OutputCommon{
-			Destination: config.WrapDestination(&config.DestinationMemory{}),
-		},
-		Service:  databaseServiceName,
-		Database: databaseName,
-		Username: databaseUsername,
+		Destination: &config.DestinationMemory{},
+		Service:     databaseServiceName,
+		Database:    databaseName,
+		Username:    databaseUsername,
 	}
 	kubeOutput := &config.KubernetesOutput{
-		Common: config.OutputCommon{
-			// DestinationDirectory required or output will fail.
-			Destination: config.WrapDestination(&config.DestinationDirectory{
-				Path: t.TempDir(),
-			}),
+		// DestinationDirectory required or output will fail.
+		Destination: &config.DestinationDirectory{
+			Path: t.TempDir(),
 		},
 		ClusterName: kubeClusterName,
 	}
 	sshHostOutput := &config.SSHHostOutput{
-		Common: config.OutputCommon{
-			Destination: config.WrapDestination(&config.DestinationMemory{}),
-		},
-		Principals: []string{hostPrincipal},
+		Destination: &config.DestinationMemory{},
+		Principals:  []string{hostPrincipal},
 	}
 	botConfig := testhelpers.DefaultBotConfig(
 		t, fc, botParams, []config.Output{
@@ -389,7 +377,7 @@ func TestBot_ResumeFromStorage(t *testing.T) {
 		Symlinks: botfs.SymlinksInsecure,
 		ACLs:     botfs.ACLOff,
 	}
-	botConfig.Storage.Destination = config.WrapDestination(directoryDest)
+	botConfig.Storage.Destination = directoryDest
 
 	// Run the bot a first time
 	firstBot := New(botConfig, log)

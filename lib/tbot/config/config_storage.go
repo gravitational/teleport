@@ -23,6 +23,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 var defaultStoragePath = filepath.Join(defaults.DataDir, "bot")
@@ -31,19 +32,17 @@ var defaultStoragePath = filepath.Join(defaults.DataDir, "bot")
 // storage.
 type StorageConfig struct {
 	// Destination's yaml is handled by MarshalYAML/UnmarshalYAML
-	Destination destinationWrapper
+	Destination bot.Destination
 }
 
 func (sc *StorageConfig) CheckAndSetDefaults() error {
-	if sc.Destination.Get() == nil {
-		sc.Destination = WrapDestination(
-			&DestinationDirectory{
-				Path: defaultStoragePath,
-			},
-		)
+	if sc.Destination == nil {
+		sc.Destination = &DestinationDirectory{
+			Path: defaultStoragePath,
+		}
 	}
 
-	return trace.Wrap(sc.Destination.Get().CheckAndSetDefaults())
+	return trace.Wrap(sc.Destination.CheckAndSetDefaults())
 }
 
 func (sc *StorageConfig) MarshalYAML() (interface{}, error) {
@@ -53,5 +52,10 @@ func (sc *StorageConfig) MarshalYAML() (interface{}, error) {
 
 func (sc *StorageConfig) UnmarshalYAML(node *yaml.Node) error {
 	// Effectively inlines the destination
-	return sc.Destination.UnmarshalYAML(node)
+	dest, err := unmarshalDestination(node)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sc.Destination = dest
+	return nil
 }

@@ -71,13 +71,11 @@ func (b *Bot) initializeConfig() {
 			JoinMethod: types.JoinMethodToken,
 		},
 		Storage: &config.StorageConfig{
-			Destination: config.WrapDestination(rootMemoryStore),
+			Destination: rootMemoryStore,
 		},
 		Outputs: []config.Output{
 			&config.IdentityOutput{
-				Common: config.OutputCommon{
-					Destination: config.WrapDestination(destMemoryStore),
-				},
+				Destination: destMemoryStore,
 			},
 		},
 
@@ -105,7 +103,7 @@ func (b *Bot) GetClient(ctx context.Context) (*client.Client, error) {
 	}
 	// If the bot has not joined the cluster yet or not generated client certs we bail out
 	// This is either temporary or the bot is dead and the manager will shut down everything.
-	storageDestination := b.cfg.Storage.Destination.Get()
+	storageDestination := b.cfg.Storage.Destination
 	if botCert, err := storageDestination.Read(identity.TLSCertKey); err != nil || len(botCert) == 0 {
 		return nil, trace.Retry(err, "bot cert not yet present")
 	}

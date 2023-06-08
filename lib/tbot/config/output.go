@@ -20,6 +20,7 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -63,26 +64,6 @@ type Output interface {
 	Describe() []FileDescription
 }
 
-type OutputCommon struct {
-	// Destination is where the Output should write the generated data to.
-	Destination destinationWrapper `yaml:"destination"`
-	// Roles is the list of roles to impersonate when generating the outputted
-	// credentials for this output. If this is empty then all the roles the bot
-	// is allowed to impersonated will be used.
-	Roles []string `yaml:"roles,omitempty"`
-}
-
-// CheckAndSetDefaults validates any configuration on OutputCommon and also
-// calls CheckAndSetDefaults on the configured destination.
-func (oc *OutputCommon) CheckAndSetDefaults() error {
-	dest := oc.Destination.Get()
-	if dest == nil {
-		return trace.BadParameter("output requires a configured destination")
-	}
-
-	return trace.Wrap(oc.Destination.Get().CheckAndSetDefaults())
-}
-
 // ListSubdirectories lists all subdirectories that will be used by the given
 // templates.. Primarily used for on-the-fly directory creation.
 func listSubdirectories(templates []template) ([]string, error) {
@@ -100,4 +81,35 @@ func listSubdirectories(templates []template) ([]string, error) {
 	}
 
 	return subDirs, nil
+}
+
+// extractOutputDestination performs surgery on yaml.Node to unmarshal a
+// destination and then remove key/values from the yaml.Node that specify
+// the destination. This *hack* allows us to have the bot.Destination as a
+// field directly on an Output without needing a struct to wrap it for
+// polymorphic unmarshaling.
+func extractOutputDestination(node *yaml.Node) (bot.Destination, error) {
+	for i, subNode := range node.Content {
+		if subNode.Value == "destination" {
+			// Next node will be the contents
+			dest, err := unmarshalDestination(node.Content[i+1])
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Remove key and contents from root node
+			node.Content = append(node.Content[:i], node.Content[i+2:]...)
+			return dest, nil
+		}
+	}
+	return nil, nil
+}
+
+func validateOutputDestination(dest bot.Destination) error {
+	if dest == nil {
+		return trace.BadParameter("no destination configured for output")
+	}
+	if err := dest.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err, "validating configured destination")
+	}
+	return nil
 }

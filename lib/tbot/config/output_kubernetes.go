@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -31,7 +32,12 @@ const KubernetesOutputType = "kubernetes"
 // KubernetesOutput produces credentials which can be used to connect to a
 // Kubernetes Cluster through teleport.
 type KubernetesOutput struct {
-	Common OutputCommon `yaml:",inline"`
+	// Destination is where the credentials should be written to.
+	Destination bot.Destination `yaml:"destination"`
+	// Roles is the list of roles to request for the generated credentials.
+	// If empty, it defaults to all the bot's roles.
+	Roles []string `yaml:"roles,omitempty"`
+
 	// ClusterName is the name of the Kubernetes cluster in Teleport.
 	ClusterName string `yaml:"cluster_name"`
 }
@@ -67,23 +73,25 @@ func (o *KubernetesOutput) Init() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.Common.Destination.Get().Init(subDirs))
+	return trace.Wrap(o.Destination.Init(subDirs))
 }
 
 func (o *KubernetesOutput) CheckAndSetDefaults() error {
+	if err := validateOutputDestination(o.Destination); err != nil {
+		return trace.Wrap(err)
+	}
 	if o.ClusterName == "" {
 		return trace.BadParameter("cluster_name must not be empty")
 	}
-
-	return o.Common.CheckAndSetDefaults()
+	return nil
 }
 
 func (o *KubernetesOutput) GetDestination() bot.Destination {
-	return o.Common.Destination.Get()
+	return o.Destination
 }
 
 func (o *KubernetesOutput) GetRoles() []string {
-	return o.Common.Roles
+	return o.Roles
 }
 
 func (o *KubernetesOutput) Describe() []FileDescription {
@@ -97,7 +105,21 @@ func (o *KubernetesOutput) Describe() []FileDescription {
 
 func (o KubernetesOutput) MarshalYAML() (interface{}, error) {
 	type raw KubernetesOutput
-	return marshalHeadered(raw(o), KubernetesOutputType)
+	return withTypeHeader(raw(o), KubernetesOutputType)
+}
+
+func (o *KubernetesOutput) UnmarshalYAML(node *yaml.Node) error {
+	dest, err := extractOutputDestination(node)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Alias type to remove UnmarshalYAML to avoid recursion
+	type raw KubernetesOutput
+	if err := node.Decode((*raw)(o)); err != nil {
+		return trace.Wrap(err)
+	}
+	o.Destination = dest
+	return nil
 }
 
 func (o *KubernetesOutput) String() string {
