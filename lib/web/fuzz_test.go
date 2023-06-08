@@ -28,7 +28,7 @@ func FuzzTdpMFACodecDecode(f *testing.F) {
 	f.Fuzz(func(t *testing.T, buf []byte) {
 		require.NotPanics(t, func() {
 			codec := tdpMFACodec{}
-			_, _ = codec.decode(buf, "")
+			_, _ = codec.decodeResponse(buf, "")
 		})
 	})
 }

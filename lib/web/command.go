@@ -305,8 +305,7 @@ func getMFACacheFn() mfaFuncCache {
 			return authMethods, nil
 		}
 
-		var err error
-		authMethods, err = issueMfaAuthFn()
+		authMethods, err := issueMfaAuthFn()
 		return authMethods, trace.Wrap(err)
 	}
 }
@@ -485,7 +484,7 @@ func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 }
 
 func (t *commandHandler) handler(r *http.Request) {
-	t.stream = NewWStream(t.ws)
+	t.stream = NewWStream(r.Context(), t.ws, t.log, nil)
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -500,8 +499,7 @@ func (t *commandHandler) handler(r *http.Request) {
 
 	// Update the read deadline upon receiving a pong message.
 	t.ws.SetPongHandler(func(_ string) error {
-		t.ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
-		return nil
+		return trace.Wrap(t.ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval)))
 	})
 
 	// Start sending ping frames through websocket to the client.
