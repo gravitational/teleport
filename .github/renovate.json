@@ -11,6 +11,11 @@
   "packageRules": [
     {
       "matchManagers": ["gomod"],
+      "matchDepTypes": ["indirect"],
+      "enabled": false
+    },
+    {
+      "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["go.mod"],
