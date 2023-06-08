@@ -17,16 +17,15 @@ and running, but in the long run, we would recommend replacing `sshd` with `tele
 - [Advanced session recording](bpf-session-recording.mdx)
 - [Restricting outbound network connections in SSH sessions](restricted-session.mdx)
 
-Teleport supports OpenSSH by proxying SSH connections through the Proxy Service.
-When a Teleport user requests to connect to an OpenSSH node, RBAC is checked  by the Proxy Service.
-If the RBAC checks succeed, the Proxy Service authenticates to the OpenSSH node with a dynamically
-generated certificate signed by a Teleport CA. This allows the Proxy Service to record and audit
-connections to OpenSSH nodes. This prevents Teleport users from bypassing auditing by requiring
-a certificate signed by a Teleport CA only the Auth Service possesses.
+Teleport supports OpenSSH by proxying SSH connections through the Proxy Service. When a Teleport user requests to connect to an OpenSSH node, the Proxy Service checks the user's Teleport roles. 
 
-Teleport nodes preform RBAC checks, audit and record sessions and more on the node's host,
-which drops the need for connection termination when recording SSH sessions and allows for
-other advanced features to be utilized as described above.
+If the RBAC checks succeed, the Proxy Service authenticates to the OpenSSH node with a dynamically generated certificate signed by a Teleport CA. This allows the
+Proxy Service to record and audit connections to OpenSSH nodes. 
+
+The Proxy Service prevents Teleport users from bypassing auditing by requiring
+a certificate signed by a Teleport CA that only the Auth Service possesses.
+
+In this setup, the Teleport SSH Service performs RBAC checks as well as audits and records sessions on its host, which eliminates the need for connection termination when recording SSH sessions.
 
 ## Prerequisites
 
