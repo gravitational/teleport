@@ -13,8 +13,6 @@
       "enabled": true,
       "matchFiles": ["go.mod"],
       "groupName": "Teleport - Go",
-      "matchDatasources": ["golang-version"],
-      "rangeStrategy": "bump"
     },
     {
       "matchManagers": ["gomod"],
@@ -44,9 +42,7 @@
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["api/go.mod"],
-      "groupName": "Teleport API",
-      "matchDatasources": ["golang-version"],
-      "rangeStrategy": "bump"
+      "groupName": "Teleport API"
     },
     {
       "matchManagers": ["cargo"],
@@ -65,9 +61,7 @@
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["assets/aws/go.mod"],
-      "groupName": "Assets - AWS ",
-      "matchDatasources": ["golang-version"],
-      "rangeStrategy": "bump"
+      "groupName": "Assets - AWS "
     },
     {
       "matchManagers": ["gomod"],
@@ -81,18 +75,14 @@
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["assets/backport/go.mod"],
-      "groupName": "Assets - Backport",
-      "matchDatasources": ["golang-version"],
-      "rangeStrategy": "bump"
+      "groupName": "Assets - Backport"
     },
     {
       "matchManagers": ["gomod"],
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["build.assets/tooling/go.mod"],
-      "groupName": "Build Assets - Tooling",
-      "matchDatasources": ["golang-version"],
-      "rangeStrategy": "bump"
+      "groupName": "Build Assets - Tooling"
     },
     {
       "matchManagers": ["gomod"],
@@ -106,9 +96,7 @@
       "postUpdateOptions": ["gomodTidy"],
       "enabled": true,
       "matchFiles": ["integrations/kube-agent-updater/go.mod"],
-      "groupName": "Integrations - Kube Updater",
-      "matchDatasources": ["golang-version"],
-      "rangeStrategy": "bump"
+      "groupName": "Integrations - Kube Updater"
     }
   ],
   "ignoreDeps": ["dockerfile"],

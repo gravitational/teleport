@@ -91,5 +91,6 @@ jobs:
           RENOVATE_GIT_AUTHOR: "${{ steps.app-jwt-info.outputs.app-username }} <${{ steps.app-installation-info.outputs.user-email }}>"
           RENOVATE_REPOSITORIES: ${{ github.repository }}
         with:
+          renovate-version: 35.115.0
           token: ${{ steps.generate-tokens.outputs.app-installation-token }}
           configurationFile: .github/renovate.json
