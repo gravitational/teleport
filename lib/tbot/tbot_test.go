@@ -131,25 +131,19 @@ func TestBot(t *testing.T) {
 		t, fc, botParams, []config.Output{
 			// Our first output is pure identity
 			&config.IdentityOutput{
-				Common: config.OutputCommon{
-					Destination: config.WrapDestination(&config.DestinationMemory{}),
-				},
+				Destination: &config.DestinationMemory{},
 			},
 			// Our second output tests application access
 			&config.ApplicationOutput{
-				Common: config.OutputCommon{
-					Destination: config.WrapDestination(&config.DestinationMemory{}),
-				},
-				AppName: appName,
+				Destination: &config.DestinationMemory{},
+				AppName:     appName,
 			},
 			// Our third destination tests database access
 			&config.DatabaseOutput{
-				Common: config.OutputCommon{
-					Destination: config.WrapDestination(&config.DestinationMemory{}),
-				},
-				Service:  "foo",
-				Database: "bar",
-				Username: "baz",
+				Destination: &config.DestinationMemory{},
+				Service:     "foo",
+				Database:    "bar",
+				Username:    "baz",
 			},
 		},
 	)

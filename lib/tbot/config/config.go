@@ -240,7 +240,7 @@ func (conf *OnboardingConfig) Token() (string, error) {
 // BotConfig is the bot's root config object.
 type BotConfig struct {
 	Version    Version          `yaml:"version"`
-	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
+	Onboarding OnboardingConfig `yaml:"onboarding"`
 	Storage    *StorageConfig   `yaml:"storage,omitempty"`
 	Outputs    Outputs          `yaml:"outputs,omitempty"`
 
@@ -364,7 +364,7 @@ func (o *Outputs) UnmarshalYAML(node *yaml.Node) error {
 	return nil
 }
 
-func marshalHeadered[T any](payload T, payloadType string) (interface{}, error) {
+func withTypeHeader[T any](payload T, payloadType string) (interface{}, error) {
 	header := struct {
 		Type    string `yaml:"type"`
 		Payload T      `yaml:",inline"`
@@ -376,62 +376,32 @@ func marshalHeadered[T any](payload T, payloadType string) (interface{}, error) 
 	return header, nil
 }
 
-// destinationWrapper wraps a destination for the purposes of Polymorphic
-// Marshaling and Unmarshaling.
-//
-// This is required due to a bug in go.pkg/yaml.v3 that means structs with an
-// UnmarshalYAML will fail to Marshal if inlined. See:
-// https://github.com/go-yaml/yaml/issues/822
-type destinationWrapper struct {
-	// impl is the underlying destination. You should access this field via
-	// .Get().
-	impl bot.Destination
-}
-
-func (d *destinationWrapper) UnmarshalYAML(node *yaml.Node) error {
+// unmarshalDestination takes a *yaml.Node and produces a bot.Destination by
+// considering the `type` field.
+func unmarshalDestination(node *yaml.Node) (bot.Destination, error) {
 	header := struct {
 		Type string `yaml:"type"`
 	}{}
 	if err := node.Decode(&header); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	switch header.Type {
 	case DestinationMemoryType:
 		v := &DestinationMemory{}
 		if err := node.Decode(v); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		d.impl = v
-		return nil
+		return v, nil
 	case DestinationDirectoryType:
 		v := &DestinationDirectory{}
 		if err := node.Decode(v); err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
-		d.impl = v
-		return nil
+		return v, nil
 	default:
-		return trace.BadParameter("unrecognized destination type (%s)", header.Type)
+		return nil, trace.BadParameter("unrecognized destination type (%s)", header.Type)
 	}
-}
-
-func (d destinationWrapper) MarshalYAML() (interface{}, error) {
-	// mimics omitempty
-	if d.impl == nil {
-		return nil, nil
-	}
-	return d.impl.MarshalYAML()
-}
-
-// Get returns the underlying destination implementation. This should always
-// be used when trying to access the destination.
-func (d destinationWrapper) Get() bot.Destination {
-	return d.impl
-}
-
-func WrapDestination(dest bot.Destination) destinationWrapper {
-	return destinationWrapper{impl: dest}
 }
 
 // GetOutputByPath attempts to fetch a Destination by its filesystem path.
@@ -553,7 +523,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 
 	// DataDir overrides any previously-configured storage config
 	if cf.DataDir != "" {
-		if config.Storage != nil && config.Storage.Destination.Get() != nil {
+		if config.Storage != nil && config.Storage.Destination != nil {
 			log.Warnf(
 				"CLI parameters are overriding storage location from %s",
 				cf.ConfigPath,
@@ -563,7 +533,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		config.Storage = &StorageConfig{Destination: WrapDestination(dest)}
+		config.Storage = &StorageConfig{Destination: dest}
 	}
 
 	if cf.DestinationDir != "" {
@@ -582,12 +552,8 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		// output for that directory.
 		config.Outputs = []Output{
 			&IdentityOutput{
-				Common: OutputCommon{
-					Destination: WrapDestination(
-						&DestinationDirectory{
-							Path: cf.DestinationDir,
-						},
-					),
+				Destination: &DestinationDirectory{
+					Path: cf.DestinationDir,
 				},
 			},
 		}
