@@ -19,15 +19,17 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.20.4
+GOLANG_VERSION ?= go1.20.4 # Sync with devbox.json.
 
-NODE_VERSION ?= 16.18.1
+NODE_VERSION ?= 16.18.1 # Sync with devbox.json.
 
+# Sync any version changes below with devbox.json.
 # run lint-rust check locally before merging code after you bump this
 RUST_VERSION ?= 1.68.0
 LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
+# Sync any version changes below with devbox.json.
 # Protogen related versions.
 BUF_VERSION ?= 1.20.0
 # Keep in sync with api/proto/buf.yaml (and buf.lock)
