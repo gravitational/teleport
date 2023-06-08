@@ -153,8 +153,9 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if p.Credentials == nil {
 			return trace.BadParameter("credentials must be set")
 		}
-		if p.Credentials.GetIdSecret().Id == "" || p.Credentials.GetIdSecret().Secret == "" {
-			return trace.BadParameter("Jamf plugin requires Jamf account username and password")
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("jamf plugin must be used with the static credentials ref type")
 		}
 	case *PluginSpecV1_Okta:
 		// Check settings.
