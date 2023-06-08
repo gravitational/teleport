@@ -18,14 +18,17 @@ package tbot
 
 import (
 	"context"
+	"crypto/rsa"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth/native"
 	libconfig "github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -43,12 +46,13 @@ func TestMain(m *testing.M) {
 }
 
 // TestBot is a one-shot run of the bot that communicates with a stood up
-// in memory auth server. This auth server is configured with resources to
-// support the testing of app/db destinations.
-// This is effectively as end-to-end as tbot testing gets.
+// in memory auth server.
 //
-// TODO(noah): Make this test more extensible for testing different kinds of
-// destination in future.
+// Assertions here should focus on the content of output credentials,
+// rather than their exact formatting. Tests that check the exact formatting
+// of rendered destinations should be kept closer to the implementation.
+//
+// This test suite should assume the auth server/proxy is well-behaved
 func TestBot(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -66,9 +70,6 @@ func TestBot(t *testing.T) {
 				Name:       appName,
 				PublicAddr: "foo.example.com",
 				URI:        "http://foo.example.com:1234",
-				StaticLabels: map[string]string{
-					"env": "dev",
-				},
 			},
 		},
 	}
@@ -81,9 +82,6 @@ func TestBot(t *testing.T) {
 				Name:     "foo",
 				Protocol: "mysql",
 				URI:      "foo.example.com:1234",
-				StaticLabels: map[string]string{
-					"env": "dev",
-				},
 			},
 		},
 	}
@@ -102,12 +100,13 @@ func TestBot(t *testing.T) {
 		return err == nil
 	}, 10*time.Second, 100*time.Millisecond)
 
-	// Make and join a new bot instance.
-	const roleName = "destination-role"
+	const roleName = "output-role"
+	hostCertRule := types.NewRule("host_cert", []string{"create"})
+	hostCertRule.Where = "is_subset(host_cert.principals, \"nodename.my.domain.com\")"
 	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			AppLabels: types.Labels{
-				"env": apiutils.Strings{"dev"},
+				"*": apiutils.Strings{"*"},
 			},
 
 			// Note: we don't actually need a role granting us database access to
@@ -120,37 +119,47 @@ func TestBot(t *testing.T) {
 			DatabaseUsers: []string{"baz"},
 			Rules: []types.Rule{
 				types.NewRule("db_server", []string{"read", "list"}),
+				hostCertRule,
 			},
 		},
 	})
 	require.NoError(t, err)
 	require.NoError(t, rootClient.UpsertRole(ctx, role))
 
+	// Make and join a new bot instance.
 	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
+
+	identityOutput := &config.IdentityOutput{
+		Common: config.OutputCommon{
+			Destination: config.WrapDestination(&config.DestinationMemory{}),
+		},
+	}
+	appOutput := &config.ApplicationOutput{
+		Common: config.OutputCommon{
+			Destination: config.WrapDestination(&config.DestinationMemory{}),
+		},
+		AppName: appName,
+	}
+	dbOutput := &config.DatabaseOutput{
+		Common: config.OutputCommon{
+			Destination: config.WrapDestination(&config.DestinationMemory{}),
+		},
+		Service:  "foo",
+		Database: "bar",
+		Username: "baz",
+	}
+	sshHostOutput := &config.SSHHostOutput{
+		Common: config.OutputCommon{
+			Destination: config.WrapDestination(&config.DestinationMemory{}),
+		},
+		Principals: []string{"nodename.my.domain.com"},
+	}
 	botConfig := testhelpers.MakeMemoryBotConfig(
 		t, fc, botParams, []config.Output{
-			// Our first output is pure identity
-			&config.IdentityOutput{
-				Common: config.OutputCommon{
-					Destination: config.WrapDestination(&config.DestinationMemory{}),
-				},
-			},
-			// Our second output tests application access
-			&config.ApplicationOutput{
-				Common: config.OutputCommon{
-					Destination: config.WrapDestination(&config.DestinationMemory{}),
-				},
-				AppName: appName,
-			},
-			// Our third destination tests database access
-			&config.DatabaseOutput{
-				Common: config.OutputCommon{
-					Destination: config.WrapDestination(&config.DestinationMemory{}),
-				},
-				Service:  "foo",
-				Database: "bar",
-				Username: "baz",
-			},
+			identityOutput,
+			appOutput,
+			dbOutput,
+			sshHostOutput,
 		},
 	)
 	b := New(botConfig, log)
@@ -168,40 +177,52 @@ func TestBot(t *testing.T) {
 		require.ElementsMatch(t, []string{botParams.RoleName}, tlsIdent.Groups)
 	})
 
-	t.Run("validate templates", func(t *testing.T) {
-		// Check destinations filled as expected
-		_ = botConfig.Outputs[0]
-		/**
-		destImpl, err := dest.GetDestination()
-		require.NoError(t, err)
-
-		for _, templateName := range config.GetRequiredConfigs() {
-			cfg := dest.GetConfigByName(templateName)
-			require.NotNilf(t, cfg, "template %q must exist", templateName)
-
-			validateTemplate(t, cfg, destImpl)
-		}*/
-	})
-
-	t.Run("validate app destination", func(t *testing.T) {
-		dest := botConfig.Outputs[1]
-
-		// Validate that the correct identity fields have been set
-		route := tlsIdentFromDest(t, dest.GetDestination()).RouteToApp
+	t.Run("output: identity", func(t *testing.T) {
+		route := tlsIdentFromDest(t, appOutput.GetDestination()).RouteToApp
 		require.Equal(t, appName, route.Name)
 		require.Equal(t, "foo.example.com", route.PublicAddr)
 		require.NotEmpty(t, route.SessionID)
 	})
 
-	t.Run("validate db destination", func(t *testing.T) {
-		dest := botConfig.Outputs[2]
+	t.Run("output: application", func(t *testing.T) {
+		route := tlsIdentFromDest(t, appOutput.GetDestination()).RouteToApp
+		require.Equal(t, appName, route.Name)
+		require.Equal(t, "foo.example.com", route.PublicAddr)
+		require.NotEmpty(t, route.SessionID)
+	})
 
-		// Validate that the correct identity fields have been set
-		route := tlsIdentFromDest(t, dest.GetDestination()).RouteToDatabase
+	t.Run("output: database", func(t *testing.T) {
+		route := tlsIdentFromDest(t, dbOutput.GetDestination()).RouteToDatabase
 		require.Equal(t, "foo", route.ServiceName)
 		require.Equal(t, "bar", route.Database)
 		require.Equal(t, "baz", route.Username)
 		require.Equal(t, "mysql", route.Protocol)
+	})
+
+	t.Run("output: ssh_host", func(t *testing.T) {
+		dest := sshHostOutput.GetDestination()
+
+		// Validate ssh_host
+		keyBytes, err := dest.Read("ssh_host")
+		require.NoError(t, err)
+		privateKey, err := ssh.ParseRawPrivateKey(keyBytes)
+		require.NoError(t, err)
+		rsaPrivateKey := privateKey.(*rsa.PrivateKey)
+
+		// Validate ssh_host-cert.pub
+		certBytes, err := dest.Read("ssh_host-cert.pub")
+		require.NoError(t, err)
+		cert, err := sshutils.ParseCertificate(certBytes)
+		require.NoError(t, err)
+		certPublicKey := cert.Key.(ssh.CryptoPublicKey).CryptoPublicKey()
+		require.True(
+			t,
+			rsaPrivateKey.PublicKey.Equal(certPublicKey),
+			"the public key of the host cert should match the private key",
+		)
+
+		_, err = dest.Read("ssh_host-user-ca.pub")
+		require.NoError(t, err)
 	})
 }
 
