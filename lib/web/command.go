@@ -228,10 +228,12 @@ func (h *Handler) executeCommand(
 
 		msgPayload, err := json.Marshal(struct {
 			NodeID      string `json:"node_id"`
+			NodeName    string `json:"node_name"`
 			ExecutionID string `json:"execution_id"`
 			SessionID   string `json:"session_id"`
 		}{
 			NodeID:      host.id,
+			NodeName:    host.hostName,
 			ExecutionID: req.ExecutionID,
 			SessionID:   string(sessionData.ID),
 		})
