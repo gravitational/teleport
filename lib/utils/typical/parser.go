@@ -735,7 +735,7 @@ func (e ternaryVariadicFuncExpr[TEnv, TArg1, TArg2, TVarArgs, TResult]) Evaluate
 
 type booleanOperator[TEnv, TArgs any] struct {
 	name string
-	f    func(a, b TArgs) bool
+	f    func(env TEnv, a, b Expression[TEnv, TArgs]) (bool, error)
 }
 
 func (b booleanOperator[TEnv, TArgs]) buildExpression(lhs, rhs any) (Expression[TEnv, bool], error) {
@@ -752,47 +752,87 @@ func (b booleanOperator[TEnv, TArgs]) buildExpression(lhs, rhs any) (Expression[
 
 type booleanOperatorExpr[TEnv, TArgs any] struct {
 	name             string
-	f                func(a, b TArgs) bool
+	f                func(env TEnv, a, b Expression[TEnv, TArgs]) (bool, error)
 	lhsExpr, rhsExpr Expression[TEnv, TArgs]
 }
 
 func (b booleanOperatorExpr[TEnv, TArgs]) Evaluate(env TEnv) (bool, error) {
-	lhs, err := b.lhsExpr.Evaluate(env)
-	if err != nil {
-		return false, trace.Wrap(err, "evaluating lhs of (%s) operator", b.name)
-	}
-	rhs, err := b.rhsExpr.Evaluate(env)
-	if err != nil {
-		return false, trace.Wrap(err, "evaluating rhs of (%s) operator", b.name)
-	}
-	return b.f(lhs, rhs), nil
+	return b.f(env, b.lhsExpr, b.rhsExpr)
 }
 
 func and[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 	return booleanOperator[TEnv, bool]{
 		name: "&&",
-		f:    func(lhs, rhs bool) bool { return lhs && rhs },
+		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, bool]) (bool, error) {
+			lhs, err := lhsExpr.Evaluate(env)
+			if err != nil {
+				return false, trace.Wrap(err, "evaluating lhs of (&&) operator")
+			}
+			// Short-circuit if possible.
+			if !lhs {
+				return false, nil
+			}
+			rhs, err := rhsExpr.Evaluate(env)
+			if err != nil {
+				return false, trace.Wrap(err, "evaluating rhs of (&&) operator")
+			}
+			return rhs, nil
+		},
 	}.buildExpression
 }
 
 func or[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 	return booleanOperator[TEnv, bool]{
 		name: "||",
-		f:    func(lhs, rhs bool) bool { return lhs || rhs },
+		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, bool]) (bool, error) {
+			lhs, err := lhsExpr.Evaluate(env)
+			if err != nil {
+				return false, trace.Wrap(err, "evaluating lhs of (||) operator")
+			}
+			// Short-circuit if possible.
+			if lhs {
+				return true, nil
+			}
+			rhs, err := rhsExpr.Evaluate(env)
+			if err != nil {
+				return false, trace.Wrap(err, "evaluating rhs of (||) operator")
+			}
+			return rhs, nil
+		},
 	}.buildExpression
 }
 
 func eq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 	return booleanOperator[TEnv, string]{
 		name: "==",
-		f:    func(lhs, rhs string) bool { return lhs == rhs },
+		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, string]) (bool, error) {
+			lhs, err := lhsExpr.Evaluate(env)
+			if err != nil {
+				return false, trace.Wrap(err, "evaluating lhs of (==) operator")
+			}
+			rhs, err := rhsExpr.Evaluate(env)
+			if err != nil {
+				return false, trace.Wrap(err, "evaluating rhs of (==) operator")
+			}
+			return lhs == rhs, nil
+		},
 	}.buildExpression
 }
 
 func neq[TEnv any]() func(lhs, rhs any) (Expression[TEnv, bool], error) {
 	return booleanOperator[TEnv, string]{
 		name: "!=",
-		f:    func(lhs, rhs string) bool { return lhs != rhs },
+		f: func(env TEnv, lhsExpr, rhsExpr Expression[TEnv, string]) (bool, error) {
+			lhs, err := lhsExpr.Evaluate(env)
+			if err != nil {
+				return false, trace.Wrap(err, "evaluating lhs of (!=) operator")
+			}
+			rhs, err := rhsExpr.Evaluate(env)
+			if err != nil {
+				return false, trace.Wrap(err, "evaluating rhs of (!=) operator")
+			}
+			return lhs != rhs, nil
+		},
 	}.buildExpression
 }
 
