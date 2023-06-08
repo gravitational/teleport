@@ -11,6 +11,6 @@ Host *.tele.blackmesa.gov tele.blackmesa.gov
 # Flags for all tele.blackmesa.gov hosts except the proxy
 Host *.tele.blackmesa.gov !tele.blackmesa.gov
     Port 3022
-    ProxyCommand "/path/to/tbot" proxy --destination-dir=/test/dir --proxy=tele.blackmesa.gov ssh --cluster=tele.blackmesa.gov  %r@%h:%p
+    ProxyCommand "/path/to/tbot" proxy --destination-dir=/test/dir --proxy=tele.blackmesa.gov:443 ssh --cluster=tele.blackmesa.gov  %r@%h:%p
 
 # End generated Teleport configuration
