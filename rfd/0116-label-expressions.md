@@ -138,10 +138,10 @@ Label expressions can appear in `allow` or `deny` role conditions.
 
 Label expressions will have access to the following context:
 
-| Syntax             | Type                  | Description |
-|--------------------|-----------------------|-------------|
-| `labels`           | `map[string]string`   | Combined static and dynamic labels of the resource (node, app, db, etc.) being accessed |
-| `user.spec.traits` | `map[string][]string` | `external` or `internal` traits of the user accessing the resource |
+| Syntax             | Type                    | Description |
+|--------------------|-------------------------|-------------|
+| `user.spec.traits` | `map[string][]string`   | `external` or `internal` traits of the user accessing the resource |
+| `labels`           | `map[string]string`     | Combined static and dynamic labels of the resource (node, app, db, etc.) being accessed |
 
 #### Helper functions
 
@@ -155,10 +155,14 @@ resource label or a string literal).
 | Syntax | Return type | Description | Example |
 |--------|-------------|-------------|---------|
 | `contains(list, item)` | Boolean | Returns true if `list` contains an exact match for `item` | `contains(user.spec.traits[teams], labels["team"])` |
+| `contains_any(list, items)` | Boolean | Returns true if `list` contains an exact match for any element of `items` | `contains_any(user.spec.traits["projects"], labels_matching("project-*"))` |
+| `contains_all(list, items)` | Boolean | Returns true if `list` contains an exact match for all elements of `items` | `contains_all(user.spec.traits["projects"], labels_matching("project-*"))` |
 | `regexp.match(list, re)` | Boolean | Returns true if `list` contains a match for `re` | `regexp.match(labels["team"], "dev-team-\d+$")` |
 | `regexp.replace(list, re, replacement)` | `[]string` | Replaces all matches of `re` with replacement for all items in `list` | `contains(regexp.replace(user.spec.traits["allowed-env"], "^env-(.*)$", "$1"), labels["env"])`
+| `email.local(list)` | `[]string` | Returns the local part of each email in `list`, or an error if any email fails to parse | `contains(email.local(user.spec.traits["email"]), labels["owner"])`
 | `strings.upper(list)` | `[]string` | Converts all items of the list to uppercase | `contains(strings.upper(user.spec.traits["username"]), labels["owner"])`
 | `strings.lower(list)` | `[]string` | Converts all items of the list to lowercase | `contains(strings.lower(user.spec.traits["username"]), labels["owner"])`
+| `labels_matching(re)` | `[]string` | Returns the aggregate of all label values with keys matching `re`, which can be a glob or a regular expression. | `contains(labels_matching("^project-(team|label)$"), "skunkworks")`
 
 #### Operators
 
