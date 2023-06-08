@@ -62,7 +62,7 @@ func wildcardFromHostname(hostname string) string {
 //     valid for that hostname, then checks whether the host's presented CA matches any of them. If there is a CA -> hostname
 //     match, the connection will continue successfully. If not, an error will be shown.
 //
-// Intended behaviour of this function:
+// Intended operation of this function:
 //   - This function is passed the current list of trusted hostnames for a given host CA (retrieved from the registry), along
 //     with a new hostname entry (from tsh puttyconfig <hostname>) which should be added to the list.
 //   - It appends the new hostname to the end of the hostList
