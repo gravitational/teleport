@@ -27,14 +27,3 @@ type commandPayload struct {
 	Nodes   []string      `json:"nodes,omitempty"`
 	Labels  []model.Label `json:"labels,omitempty"`
 }
-
-// partialMessagePayload is a payload for a partial message.
-type partialMessagePayload struct {
-	Content string `json:"content,omitempty"`
-	Idx     int    `json:"idx,omitempty"`
-}
-
-// partialFinalizePayload is a payload for a partial finalize message.
-type partialFinalizePayload struct {
-	Idx int `json:"idx,omitempty"`
-}

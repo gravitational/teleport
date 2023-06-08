@@ -292,7 +292,7 @@ func parseJSONFromModel[T any](text string) (T, *invalidOutputError) {
 	}
 	cleaned = strings.TrimPrefix(cleaned, "```json")
 	cleaned = strings.TrimPrefix(cleaned, "```")
-	strings.TrimSuffix(cleaned, "```")
+	cleaned = strings.TrimSuffix(cleaned, "```")
 	cleaned = strings.TrimSpace(cleaned)
 	var output T
 	err := json.Unmarshal([]byte(cleaned), &output)
