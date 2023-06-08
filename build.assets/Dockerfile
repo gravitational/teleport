@@ -274,13 +274,11 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install JS gRPC tools.
-# Keep the version below synced with devbox.json
 ARG NODE_GRPC_TOOLS_VERSION # eg, "1.12.4"
 ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
 RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
 # Install protoc.
-# Keep the version below synced with devbox.json
 ARG PROTOC_VER # eg, "3.20.2"
 RUN VERSION="$PROTOC_VER" && \
   PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
@@ -290,7 +288,6 @@ RUN VERSION="$PROTOC_VER" && \
   rm -f "$PB_FILE"
 
 # Install protoc-gen-gogofast.
-# Keep the version below synced with devbox.json
 ARG GOGO_PROTO_TAG # eg, "v1.3.2"
 RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
@@ -309,7 +306,6 @@ RUN TAG='v1.53.2' && \
     sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 
 # Install Buf.
-# Keep the version below synced with devbox.json
 ARG BUF_VERSION # eg, "1.19.0"
 RUN BIN='/usr/local/bin' && \
   VERSION="$BUF_VERSION" && \
