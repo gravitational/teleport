@@ -173,7 +173,7 @@ For the last step, you'll need to export the signing key:
 $ tctl saml export adfs > saml.cer
 ```
 
-Copy `saml.crt`, to ADFS server, open the "Relying Party Trust" and add this
+Copy `saml.cer`, to ADFS server, open the "Relying Party Trust" and add this
 file as one of the signature verification certificates:
 
 ![adfs-add-teleport-cert.png](../../../img/adfs-add-teleport-cert.png)
