@@ -1,0 +1,4 @@
+type: kubernetes
+destination:
+  type: memory
+cluster_name: k8s.example.com
