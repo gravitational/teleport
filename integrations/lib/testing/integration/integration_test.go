@@ -38,9 +38,9 @@ func (s *IntegrationSuite) SetupTest() {
 func (s *IntegrationSuite) TestVersion() {
 	t := s.T()
 
-	versionMin, err := version.NewVersion("v11.0.0")
+	versionMin, err := version.NewVersion("v13.0.0")
 	require.NoError(t, err)
-	versionMax, err := version.NewVersion("v13")
+	versionMax, err := version.NewVersion("v14")
 	require.NoError(t, err)
 
 	assert.True(t, s.Integration.Version().GreaterThanOrEqual(versionMin))
