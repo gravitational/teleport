@@ -129,6 +129,7 @@ export interface ConversationMessage {
 
 export interface CommandResultPayload {
   node_id: string;
+  node_name: string;
   session_id: string;
   execution_id: string;
 }

@@ -86,7 +86,7 @@ export function CommandResultEntry(props: CommandResultEntryProps) {
   return (
     <Container>
       <Header>
-        <Title>Command output for {props.nodeName}</Title>
+        <Title>Command output for {props.nodeName || props.nodeId}</Title>
         {!props.finished && (
           <SpinnerContainer>
             <Spinner />

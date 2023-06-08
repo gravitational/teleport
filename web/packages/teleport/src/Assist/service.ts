@@ -142,9 +142,6 @@ export async function resolveServerCommandResultMessage(
       sid: payload.session_id,
     });
 
-    // const node = await getNodesFromQuery(`id == "${payload.node_id}`, clusterId);
-    const nodeName = 'TODO';
-
     let output = await getSessionStream(sessionUrl);
 
     if (!output) {
@@ -157,7 +154,7 @@ export async function resolveServerCommandResultMessage(
     return {
       type: ServerMessageType.CommandResult,
       nodeId: payload.node_id,
-      nodeName,
+      nodeName: payload.node_name,
       executionId: payload.execution_id,
       sessionId: payload.session_id,
       created: new Date(message.created_time),
@@ -167,7 +164,7 @@ export async function resolveServerCommandResultMessage(
     return {
       type: ServerMessageType.CommandResult,
       nodeId: payload.node_id,
-      nodeName: null,
+      nodeName: payload.node_name,
       executionId: payload.execution_id,
       sessionId: payload.session_id,
       created: new Date(message.created_time),
