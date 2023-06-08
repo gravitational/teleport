@@ -240,7 +240,7 @@ func (conf *OnboardingConfig) Token() (string, error) {
 // BotConfig is the bot's root config object.
 type BotConfig struct {
 	Version    Version          `yaml:"version"`
-	Onboarding OnboardingConfig `yaml:"onboarding"`
+	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
 	Storage    *StorageConfig   `yaml:"storage,omitempty"`
 	Outputs    Outputs          `yaml:"outputs,omitempty"`
 
