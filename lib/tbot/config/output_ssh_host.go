@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/identity"
@@ -99,6 +100,20 @@ func (o *SSHHostOutput) Describe() []FileDescription {
 func (o SSHHostOutput) MarshalYAML() (interface{}, error) {
 	type raw SSHHostOutput
 	return withTypeHeader(raw(o), SSHHostOutputType)
+}
+
+func (o *SSHHostOutput) UnmarshalYAML(node *yaml.Node) error {
+	dest, err := extractOutputDestination(node)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Alias type to remove UnmarshalYAML to avoid recursion
+	type raw SSHHostOutput
+	if err := node.Decode((*raw)(o)); err != nil {
+		return trace.Wrap(err)
+	}
+	o.Destination = dest
+	return nil
 }
 
 func (o *SSHHostOutput) String() string {
