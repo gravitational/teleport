@@ -314,8 +314,8 @@ $ tsh db connect --db-user=alice --db-name-postgres foo
 # ambiguous prefix name is an error
 $ tsh db connect --db-user=alice --db-name-postgres bar
 error: ambiguous database name could match multiple databases:
-Name                           Description               Protocol Type URI                                                     Allowed Users Labels                                                                                                                                    Connect 
------------------------------- ------------------------- -------- ---- ------------------------------------------------------- ------------- ----------------------------------------------------------------------------------------------------------------------------------------- ------- 
+Name                           Description               Protocol Type URI                                                   Allowed Users Labels                                                                                                                                    Connect 
+------------------------------ ------------------------- -------- ---- ----------------------------------------------------- ------------- ----------------------------------------------------------------------------------------------------------------------------------------- ------- 
 bar-rds-us-west-1-123456789012 RDS instance in us-west-1 postgres rds  bar.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432 [*]           account-id=123456789012,endpoint-type=instance,engine-version=13.10,engine=postgres,env=dev,region=us-west-1,teleport.dev/origin=dynamic          
 bar-rds-us-west-2-123456789012 RDS instance in us-west-2 postgres rds  bar.abcdefghijklmnop.us-west-2.rds.amazonaws.com:5432 [*]           account-id=123456789012,endpoint-type=instance,engine-version=13.10,engine=postgres,env=dev,region=us-west-2,teleport.dev/origin=dynamic          
 
@@ -333,10 +333,10 @@ $ tsh db connect --db-user=alice --db-name-postgres region=us-west-2
 # ambiguous label(s) match is also an error
 $ tsh db connect --db-user=alice --db-name-postgres region=us-west-1 
 error: ambiguous database labels could match multiple databases:
-Name                           Description               Protocol Type URI                                                     Allowed Users Labels                                                                                                                                    Connect 
------------------------------- ------------------------- -------- ---- ------------------------------------------------------- ------------- ----------------------------------------------------------------------------------------------------------------------------------------- ------- 
+Name                           Description               Protocol Type URI                                                   Allowed Users Labels                                                                                                                                    Connect 
+------------------------------ ------------------------- -------- ---- ----------------------------------------------------- ------------- ----------------------------------------------------------------------------------------------------------------------------------------- ------- 
 bar-rds-us-west-1-123456789012 RDS instance in us-west-1 postgres rds  bar.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432 [*]           account-id=123456789012,endpoint-type=instance,engine-version=13.10,engine=postgres,env=dev,region=us-west-1,teleport.dev/origin=dynamic          
-foo-rds-us-west-1-123456789012 RDS instance in us-west-1 postgres rds  foo.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432   [*]           account-id=123456789012,endpoint-type=instance,engine-version=13.10,engine=postgres,env=prod,region=us-west-1,teleport.dev/origin=dynamic         
+foo-rds-us-west-1-123456789012 RDS instance in us-west-1 postgres rds  foo.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432 [*]           account-id=123456789012,endpoint-type=instance,engine-version=13.10,engine=postgres,env=prod,region=us-west-1,teleport.dev/origin=dynamic         
 
 Hint: try addressing the database by its full name or by matching its labels (ex: tsh db connect key1=value1,key2=value2).
 Hint: use `tsh db ls -v` or `tsh db ls --format=[yaml | json]` to list all databases with verbose details.
