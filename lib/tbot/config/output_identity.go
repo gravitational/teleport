@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/lib/config/openssh"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -36,7 +37,12 @@ const IdentityOutputType = "identity"
 // It cannot be used to connect to Applications, Databases or Kubernetes
 // Clusters.
 type IdentityOutput struct {
-	Common OutputCommon `yaml:",inline"`
+	// Destination is where the credentials should be written to.
+	Destination bot.Destination `yaml:"destination"`
+	// Roles is the list of roles to request for the generated credentials.
+	// If empty, it defaults to all the bot's roles.
+	Roles []string `yaml:"roles,omitempty"`
+
 	// Cluster allows certificates to be generated for a leaf cluster of the
 	// cluster that the bot is connected to. These certificates can be used
 	// to directly connect to a Teleport proxy of that leaf cluster, or used
@@ -80,23 +86,22 @@ func (o *IdentityOutput) Init() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.GetDestination().Init(subDirs))
+	return trace.Wrap(o.Destination.Init(subDirs))
 }
 
 func (o *IdentityOutput) GetDestination() bot.Destination {
-	return o.Common.Destination.Get()
+	return o.Destination
 }
 
 func (o *IdentityOutput) GetRoles() []string {
-	return o.Common.Roles
+	return o.Roles
 }
 
 func (o *IdentityOutput) CheckAndSetDefaults() error {
-	if err := o.Common.CheckAndSetDefaults(); err != nil {
+	if err := validateOutputDestination(o.Destination); err != nil {
 		return trace.Wrap(err)
 	}
-
-	dest, ok := o.Common.Destination.Get().(*DestinationDirectory)
+	dest, ok := o.Destination.(*DestinationDirectory)
 	if ok {
 		o.destPath = dest.Path
 	} else {
@@ -122,7 +127,21 @@ func (o *IdentityOutput) Describe() []FileDescription {
 
 func (o IdentityOutput) MarshalYAML() (interface{}, error) {
 	type raw IdentityOutput
-	return marshalHeadered(raw(o), IdentityOutputType)
+	return withTypeHeader(raw(o), IdentityOutputType)
+}
+
+func (o *IdentityOutput) UnmarshalYAML(node *yaml.Node) error {
+	dest, err := extractOutputDestination(node)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Alias type to remove UnmarshalYAML to avoid recursion
+	type raw IdentityOutput
+	if err := node.Decode((*raw)(o)); err != nil {
+		return trace.Wrap(err)
+	}
+	o.Destination = dest
+	return nil
 }
 
 func (o *IdentityOutput) String() string {

@@ -58,7 +58,7 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.Equal(t, cf.CAPins, cfg.Onboarding.CAPins)
 
 	// Storage is still default
-	storageImpl, ok := cfg.Storage.Destination.Get().(*DestinationDirectory)
+	storageImpl, ok := cfg.Storage.Destination.(*DestinationDirectory)
 	require.True(t, ok)
 	require.Equal(t, defaultStoragePath, storageImpl.Path)
 
@@ -91,7 +91,7 @@ func TestConfigFile(t *testing.T) {
 	require.Equal(t, "foo", token)
 	require.ElementsMatch(t, []string{"sha256:abc123"}, cfg.Onboarding.CAPins)
 
-	_, ok := cfg.Storage.Destination.Get().(*DestinationMemory)
+	_, ok := cfg.Storage.Destination.(*DestinationMemory)
 	require.True(t, ok)
 
 	require.Len(t, cfg.Outputs, 1)
@@ -217,11 +217,11 @@ func TestBotConfig_MarshalYAML(t *testing.T) {
 			in: BotConfig{
 				Version: V2,
 				Storage: &StorageConfig{
-					Destination: WrapDestination(&DestinationDirectory{
+					Destination: &DestinationDirectory{
 						Path:     "/bot/storage",
 						ACLs:     botfs.ACLTry,
 						Symlinks: botfs.SymlinksSecure,
-					}),
+					},
 				},
 				FIPS:            true,
 				Debug:           true,
@@ -232,20 +232,14 @@ func TestBotConfig_MarshalYAML(t *testing.T) {
 				RenewalInterval: time.Second * 30,
 				Outputs: Outputs{
 					&IdentityOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(
-								&DestinationDirectory{
-									Path: "/bot/output",
-								},
-							),
-							Roles: []string{"editor"},
+						Destination: &DestinationDirectory{
+							Path: "/bot/output",
 						},
+						Roles:   []string{"editor"},
 						Cluster: "example.teleport.sh",
 					},
 					&IdentityOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationMemory{}),
-						},
+						Destination: &DestinationMemory{},
 					},
 				},
 			},
@@ -259,9 +253,7 @@ func TestBotConfig_MarshalYAML(t *testing.T) {
 				RenewalInterval: time.Second * 30,
 				Outputs: Outputs{
 					&IdentityOutput{
-						Common: OutputCommon{
-							Destination: WrapDestination(&DestinationMemory{}),
-						},
+						Destination: &DestinationMemory{},
 					},
 				},
 			},

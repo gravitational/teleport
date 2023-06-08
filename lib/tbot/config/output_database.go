@@ -22,6 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
@@ -60,7 +61,12 @@ var (
 // DatabaseOutput produces credentials which can be used to connect to a
 // database through teleport.
 type DatabaseOutput struct {
-	Common OutputCommon `yaml:",inline"`
+	// Destination is where the credentials should be written to.
+	Destination bot.Destination `yaml:"destination"`
+	// Roles is the list of roles to request for the generated credentials.
+	// If empty, it defaults to all the bot's roles.
+	Roles []string `yaml:"roles,omitempty"`
+
 	// Subtype indicates the type of the database you are generating credentials
 	// for. An empty value is supported by most database, but CockroachDB and
 	// MongoDB require this value to be set to `mongo` and `cockroach`
@@ -96,13 +102,12 @@ func (o *DatabaseOutput) templates() []template {
 }
 
 func (o *DatabaseOutput) Render(ctx context.Context, p provider, ident *identity.Identity) error {
-	dest := o.GetDestination()
-	if err := identity.SaveIdentity(ident, dest, identity.DestinationKinds()...); err != nil {
+	if err := identity.SaveIdentity(ident, o.Destination, identity.DestinationKinds()...); err != nil {
 		return trace.Wrap(err, "persisting identity")
 	}
 
 	for _, t := range o.templates() {
-		if err := t.render(ctx, p, ident, dest); err != nil {
+		if err := t.render(ctx, p, ident, o.Destination); err != nil {
 			return trace.Wrap(err, "rendering template %s", t.name())
 		}
 	}
@@ -116,10 +121,14 @@ func (o *DatabaseOutput) Init() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(o.GetDestination().Init(subDirs))
+	return trace.Wrap(o.Destination.Init(subDirs))
 }
 
 func (o *DatabaseOutput) CheckAndSetDefaults() error {
+	if err := validateOutputDestination(o.Destination); err != nil {
+		return trace.Wrap(err)
+	}
+
 	if o.Service == "" {
 		return trace.BadParameter("service must not be empty")
 	}
@@ -128,15 +137,15 @@ func (o *DatabaseOutput) CheckAndSetDefaults() error {
 		return trace.BadParameter("unrecognized subtype (%s)", o.Subtype)
 	}
 
-	return trace.Wrap(o.Common.CheckAndSetDefaults())
+	return nil
 }
 
 func (o *DatabaseOutput) GetDestination() bot.Destination {
-	return o.Common.Destination.Get()
+	return o.Destination
 }
 
 func (o *DatabaseOutput) GetRoles() []string {
-	return o.Common.Roles
+	return o.Roles
 }
 
 func (o *DatabaseOutput) Describe() []FileDescription {
@@ -150,7 +159,21 @@ func (o *DatabaseOutput) Describe() []FileDescription {
 
 func (o DatabaseOutput) MarshalYAML() (interface{}, error) {
 	type raw DatabaseOutput
-	return marshalHeadered(raw(o), DatabaseOutputType)
+	return withTypeHeader(raw(o), DatabaseOutputType)
+}
+
+func (o *DatabaseOutput) UnmarshalYAML(node *yaml.Node) error {
+	dest, err := extractOutputDestination(node)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	// Alias type to remove UnmarshalYAML to avoid recursion
+	type raw DatabaseOutput
+	if err := node.Decode((*raw)(o)); err != nil {
+		return trace.Wrap(err)
+	}
+	o.Destination = dest
+	return nil
 }
 
 func (o *DatabaseOutput) String() string {
