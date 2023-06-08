@@ -834,7 +834,9 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			go func() {
 				defer close(errC)
 
-				headlessAuthn, err := srv.Auth().GetHeadlessAuthentication(ctx, headlessID)
+				headlessAuthn, err := srv.Auth().GetHeadlessAuthenticationFromWatcher(ctx, headlessID, func(ha *types.HeadlessAuthentication) (bool, error) {
+					return services.ValidateHeadlessAuthentication(ha) == nil, nil
+				})
 				if err != nil {
 					errC <- err
 					return

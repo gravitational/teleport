@@ -5178,8 +5178,32 @@ func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.G
 		return nil, trace.Wrap(err)
 	}
 
-	authReq, err := auth.GetHeadlessAuthentication(ctx, req.Id)
+	authReq, err := auth.GetHeadlessAuthenticationFromWatcher(ctx, req.Id, func(ha *types.HeadlessAuthentication) (bool, error) {
+		return services.ValidateHeadlessAuthentication(ha) == nil, nil
+	})
 	return authReq, trace.Wrap(err)
+}
+
+// WatchHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+func (g *GRPCServer) WatchHeadlessAuthentications(_ *emptypb.Empty, stream proto.AuthService_WatchHeadlessAuthenticationsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		// Get a pending headless authentication for the given user name.
+		ha, err := auth.authServer.GetHeadlessAuthenticationFromWatcher(stream.Context(), auth.context.User.GetName(), func(ha *types.HeadlessAuthentication) (bool, error) {
+			return services.ValidateHeadlessAuthentication(ha) == nil && ha.State == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING, nil
+		})
+		if errors.Is(err, context.DeadlineExceeded) && stream.Context().Err() == nil {
+			continue
+		} else if err != nil {
+			return trace.Wrap(err)
+		}
+
+		stream.Send(ha)
+	}
 }
 
 // ExportUpgradeWindows is used to load derived upgrade window values for agents that

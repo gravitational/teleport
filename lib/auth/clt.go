@@ -653,6 +653,8 @@ type IdentityService interface {
 	UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error
 	// GetHeadlessAuthentication retrieves a headless authentication by id.
 	GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error)
+	// WatchHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+	WatchHeadlessAuthentications(ctx context.Context) (proto.AuthService_WatchHeadlessAuthenticationsClient, error)
 }
 
 // ProvisioningService is a service in control

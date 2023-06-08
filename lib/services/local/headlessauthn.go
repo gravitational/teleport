@@ -23,29 +23,22 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// CreateHeadlessAuthenticationStub creates a headless authentication stub in the backend.
-func (s *IdentityService) CreateHeadlessAuthenticationStub(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	expires := s.Clock().Now().Add(defaults.CallbackTimeout)
-	headlessAuthn, err := types.NewHeadlessAuthenticationStub(name, expires)
+// UpsertHeadlessAuthentication upserts a headless authentication in the backend.
+func (s *IdentityService) UpsertHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication) error {
+	item, err := MarshalHeadlessAuthenticationToItem(ha)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	item, err := MarshalHeadlessAuthenticationToItem(headlessAuthn)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	if _, err = s.Put(ctx, *item); err != nil {
+		return trace.Wrap(err)
 	}
 
-	if _, err = s.Create(ctx, *item); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return headlessAuthn, nil
+	return nil
 }
 
 // CompareAndSwapHeadlessAuthentication validates the new headless authentication and

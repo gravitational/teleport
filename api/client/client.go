@@ -3903,6 +3903,15 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 	return headlessAuthn, nil
 }
 
+// WatchHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+func (c *Client) WatchHeadlessAuthentications(ctx context.Context) (proto.AuthService_WatchHeadlessAuthenticationsClient, error) {
+	stream, err := c.grpc.WatchHeadlessAuthentications(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return stream, nil
+}
+
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (c *Client) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
 	resp, err := c.grpc.CreateAssistantConversation(ctx, req)

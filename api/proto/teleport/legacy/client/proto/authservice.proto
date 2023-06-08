@@ -3001,6 +3001,9 @@ service AuthService {
   // GetHeadlessAuthentication is a request to retrieve a headless authentication from the backend.
   rpc GetHeadlessAuthentication(GetHeadlessAuthenticationRequest) returns (types.HeadlessAuthentication);
 
+  // WatchHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+  rpc WatchHeadlessAuthentications(google.protobuf.Empty) returns (stream types.HeadlessAuthentication);
+
   // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
   rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);
 

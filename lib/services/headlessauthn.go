@@ -26,8 +26,8 @@ import (
 )
 
 // ValidateHeadlessAuthentication verifies that the headless authentication has
-// all of the required fields set. headless authentication stubs created with
-// CreateHeadlessAuthenticationStub will not pass this validation.
+// all of the required fields set. headless authentication stubs will not pass
+// this validation.
 func ValidateHeadlessAuthentication(h *types.HeadlessAuthentication) error {
 	if err := h.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)

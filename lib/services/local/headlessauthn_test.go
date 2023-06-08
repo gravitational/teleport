@@ -116,12 +116,15 @@ func TestIdentityService_HeadlessAuthenticationBackend(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			stub, err := identity.CreateHeadlessAuthenticationStub(ctx, test.ha.Metadata.Name)
+			expires := identity.Clock().Now().Add(time.Minute)
+			stub, err := types.NewHeadlessAuthenticationStub(test.ha.Metadata.Name, expires)
 			if test.createStubErr != nil {
 				test.createStubErr(t, err)
 				return
 			}
-			require.NoError(t, err, "CreateHeadlessAuthenticationStub returned non-nil error")
+
+			err = identity.UpsertHeadlessAuthentication(ctx, stub)
+			require.NoError(t, err, "UpsertHeadlessAuthentication returned non-nil error")
 
 			t.Cleanup(func() {
 				err = identity.DeleteHeadlessAuthentication(ctx, test.ha.Metadata.Name)

@@ -4697,11 +4697,8 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 
 			// create headless authn
 			headlessAuthn := newTestHeadlessAuthn(t, username, srv.Auth().clock)
-			stub, err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, headlessAuthn.GetName())
+			err = srv.Auth().UpsertHeadlessAuthentication(ctx, headlessAuthn)
 			require.NoError(t, err)
-			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
-			require.NoError(t, err)
-
 			client, err := srv.NewClient(tc.identity)
 			require.NoError(t, err)
 
@@ -4797,9 +4794,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 
 			// create headless authn
 			headlessAuthn := newTestHeadlessAuthn(t, mfa.User, srv.Auth().clock)
-			stub, err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, headlessAuthn.GetName())
-			require.NoError(t, err)
-			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
+			err = srv.Auth().UpsertHeadlessAuthentication(ctx, headlessAuthn)
 			require.NoError(t, err)
 
 			// default to mfa user

@@ -6174,14 +6174,16 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	return a.authServer.DeleteAllUserGroups(ctx)
 }
 
-// GetHeadlessAuthentication retrieves a headless authentication by id.
-func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
-	// GetHeadlessAuthentication will wait for the headless details
-	// if they don't yet exist in the backend.
+// GetHeadlessAuthenticationFromWatcher gets a headless authentication by ID or username
+// from the headless authentication watcher. The first headless authentication found by
+// the watcher that passes the given condition will be returned.
+func (a *ServerWithRoles) GetHeadlessAuthenticationFromWatcher(ctx context.Context, name string, cond func(*types.HeadlessAuthentication) (bool, error)) (*types.HeadlessAuthentication, error) {
 	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
 	defer cancel()
 
-	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
+	// GetHeadlessAuthentication will wait for the headless details
+	// if they don't yet exist in the backend.
+	headlessAuthn, err := a.authServer.GetHeadlessAuthenticationFromWatcher(ctx, name, cond)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -6199,11 +6201,6 @@ func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id stri
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
-	// GetHeadlessAuthentication will wait for the headless details
-	// if they don't yet exist in the backend.
-	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
-	defer cancel()
-
 	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
 	if err != nil {
 		return trace.Wrap(err)
@@ -6251,6 +6248,17 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 
 	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
 	return trace.Wrap(err)
+}
+
+// GetHeadlessAuthentication retrieves a headless authentication by id.
+func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
+	return nil, trace.NotImplemented("bug: GetHeadlessAuthentication must not be called on auth.ServerWithRoles")
+}
+
+// WatchHeadlessAuthentications exists to satisfy auth.ClientI but is not implemented here.
+// Use auth.GRPCServer.WatchHeadlessAuthentications or client.Client.WatchHeadlessAuthentications instead.
+func (a *ServerWithRoles) WatchHeadlessAuthentications(ctx context.Context) (proto.AuthService_WatchHeadlessAuthenticationsClient, error) {
+	return nil, trace.NotImplemented("bug: WatchHeadlessAuthentications must not be called on auth.ServerWithRoles")
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
