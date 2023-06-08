@@ -53,7 +53,7 @@ func TestMain(m *testing.M) {
 // This test suite should ensure that outputs result in credentials with the
 // expected attributes. The exact format of rendered templates is a concern
 // that should be tested at a lower level. Generally assume that the auth server
-// has good behaviour (e.g is enforcing rbac correctly) and avoid testing cases
+// has good behavior (e.g is enforcing rbac correctly) and avoid testing cases
 // such as the bot not having a role granting access to a resource.
 func TestBot(t *testing.T) {
 	t.Parallel()
@@ -94,6 +94,7 @@ func TestBot(t *testing.T) {
 		Protocol: "mysql",
 		URI:      "example.com:1234",
 	})
+	require.NoError(t, err)
 	dbServer, err := types.NewDatabaseServerV3(types.Metadata{
 		Name: databaseServiceName,
 	}, types.DatabaseServerSpecV3{
@@ -101,6 +102,7 @@ func TestBot(t *testing.T) {
 		Hostname: fakeHostname,
 		Database: db,
 	})
+	require.NoError(t, err)
 	_, err = rootClient.UpsertDatabaseServer(ctx, dbServer)
 	require.NoError(t, err)
 	// Register a kubernetes server so the bot can request certs for it.
@@ -171,7 +173,7 @@ func TestBot(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, rootClient.UpsertRole(ctx, role))
 	// Create a blank secondary role that we can use to check that the default
-	// behaviour of impersonating all roles available works
+	// behavior of impersonating all roles available works
 	role, err = types.NewRole(secondaryRole, types.RoleSpecV6{})
 	require.NoError(t, err)
 	require.NoError(t, rootClient.UpsertRole(ctx, role))
@@ -302,6 +304,7 @@ func TestBot(t *testing.T) {
 		// Check cert is signed by host CA, and that the host key can sign things
 		// which can be verified with the host cert.
 		publicKeys, err := apisshutils.GetCheckers(hostCA)
+		require.NoError(t, err)
 		hostCertChecker := ssh.CertChecker{
 			IsHostAuthority: func(v ssh.PublicKey, _ string) bool {
 				for _, pk := range publicKeys {
