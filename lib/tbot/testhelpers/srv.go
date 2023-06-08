@@ -56,9 +56,10 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []servicecfg.FileDescripto
 			},
 			WebAddr:    testenv.NewTCPListener(t, service.ListenerProxyWeb, &fds),
 			TunAddr:    testenv.NewTCPListener(t, service.ListenerProxyTunnel, &fds),
-			PublicAddr: []string{"proxy.example.com"},
+			PublicAddr: []string{"localhost"}, // ListenerProxyWeb port will be appended
 		},
 		Auth: config.Auth{
+			ClusterName: "localhost",
 			Service: config.Service{
 				EnabledFlag:   "true",
 				ListenAddress: testenv.NewTCPListener(t, service.ListenerAuth, &fds),
@@ -180,6 +181,9 @@ func MakeMemoryBotConfig(
 		},
 		Oneshot: true,
 		Outputs: outputs,
+		// Set Insecure so the bot will trust the Proxy's webapi default signed
+		// certs.
+		Insecure: true,
 	}
 
 	cfg.Onboarding.SetToken(botParams.TokenID)
