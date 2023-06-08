@@ -117,8 +117,8 @@ jobs:
 
       - name: Fix cache permissions
         run: |
-          mkdir -p ${{ env.GOMODCACHE }} ${{ env.GOCACHE }} 
-          chown -Rf $(id -u):$(id -g) ${{ env.GOMODCACHE }} ${{ env.GOCACHE }}
+          sudo mkdir -p ${{ env.GOMODCACHE }} ${{ env.GOCACHE }} 
+          sudo chown -Rf $(id -u):$(id -g) ${{ env.GOMODCACHE }} ${{ env.GOCACHE }}
 
       - name: Build Release
         run: |
