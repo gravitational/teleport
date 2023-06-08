@@ -193,7 +193,7 @@ destinations:
 				},
 			},
 		},
-		// Backwards compatability with GHA
+		// Backwards compat with GHA
 		{
 			name: "backwards compat with @teleport-actions/auth",
 			input: `
