@@ -3903,6 +3903,15 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 	return headlessAuthn, nil
 }
 
+// PollHeadlessAuthentications polls the backend for headless authentication requests for the user.
+func (c *Client) PollHeadlessAuthentications(ctx context.Context) (proto.AuthService_PollHeadlessAuthenticationsClient, error) {
+	stream, err := c.grpc.PollHeadlessAuthentications(ctx, &emptypb.Empty{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return stream, nil
+}
+
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (c *Client) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
 	resp, err := c.grpc.CreateAssistantConversation(ctx, req)

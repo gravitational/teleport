@@ -225,7 +225,7 @@ func (h *HeadlessAuthenticationWatcher) notify(headlessAuthns ...*types.Headless
 
 	for _, ha := range headlessAuthns {
 		for _, s := range h.subscribers {
-			if s != nil && s.name == ha.Metadata.Name {
+			if s != nil && (s.name == ha.Metadata.Name || s.name == ha.User) {
 				select {
 				case s.updates <- apiutils.CloneProtoMsg(ha):
 				default:
@@ -312,9 +312,9 @@ func (h *HeadlessAuthenticationWatcher) unassignSubscriber(i int) {
 	h.subscribers[i] = nil
 }
 
-// headlessAuthenticationSubscriber is a subscriber for a specific headless authentication.
+// headlessAuthenticationSubscriber is a subscriber for a headless authentication.
 type headlessAuthenticationSubscriber struct {
-	// name is the name of the headless authentication resource being subscribed to.
+	// name is a headless authentication request id or user name to subscribe to.
 	name string
 	// updates is a channel used by the watcher to send resource updates.
 	updates chan *types.HeadlessAuthentication

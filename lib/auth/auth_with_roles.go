@@ -6253,6 +6253,12 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 	return trace.Wrap(err)
 }
 
+// PollHeadlessAuthentications exists to satisfy auth.ClientI but is not implemented here.
+// Use auth.GRPCServer.PollHeadlessAuthentications or client.Client.PollHeadlessAuthentications instead.
+func (a *ServerWithRoles) PollHeadlessAuthentications(ctx context.Context) (proto.AuthService_PollHeadlessAuthenticationsClient, error) {
+	return nil, trace.NotImplemented("bug: PollHeadlessAuthentications must not be called on auth.ServerWithRoles")
+}
+
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (a *ServerWithRoles) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
 	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbCreate); err != nil {

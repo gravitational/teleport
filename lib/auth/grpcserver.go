@@ -5068,6 +5068,43 @@ func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.G
 	return authReq, trace.Wrap(err)
 }
 
+// PollHeadlessAuthentications polls the backend for headless authentication requests for the user.
+func (g *GRPCServer) PollHeadlessAuthentications(_ *emptypb.Empty, stream proto.AuthService_PollHeadlessAuthenticationsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Create a headless authentication stub for the user to authorize all headless request attempts
+	// to add the full request details to the backend.
+	if _, err := auth.authServer.CreateHeadlessAuthenticationStub(stream.Context(), auth.context.User.GetName()); err != nil && !trace.IsAlreadyExists(err) {
+		return trace.Wrap(err)
+	}
+	defer func() {
+		if err := auth.authServer.DeleteHeadlessAuthentication(stream.Context(), auth.context.User.GetName()); err != nil {
+			g.Logger.WithError(err).Debug("Failed to delete headless authentication stub for user.")
+		}
+	}()
+
+	for {
+		// Get any pending headless requests created for the user.
+		sub, err := auth.authServer.headlessAuthenticationWatcher.Subscribe(stream.Context(), auth.context.User.GetName())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer sub.Close()
+
+		headlessAuthn, err := auth.authServer.headlessAuthenticationWatcher.WaitForUpdate(stream.Context(), sub, func(ha *types.HeadlessAuthentication) (bool, error) {
+			return services.ValidateHeadlessAuthentication(ha) == nil && ha.State == types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING, nil
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		stream.Send(headlessAuthn)
+	}
+}
+
 // ExportUpgradeWindows is used to load derived upgrade window values for agents that
 // need to export schedules to external upgraders.
 func (g *GRPCServer) ExportUpgradeWindows(ctx context.Context, req *proto.ExportUpgradeWindowsRequest) (*proto.ExportUpgradeWindowsResponse, error) {

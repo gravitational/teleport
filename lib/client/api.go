@@ -4745,7 +4745,7 @@ func (tc *TeleportClient) RootClusterCACertPool(ctx context.Context) (*x509.Cert
 }
 
 // HeadlessApprove handles approval of a headless authentication request.
-func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthenticationID string) error {
+func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthenticationID string, withConfirmationPrompt bool) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/HeadlessApprove",
@@ -4783,15 +4783,16 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Errorf("cannot approve a headless authentication from a non-pending state: %v", headlessAuthn.State.Stringify())
 	}
 
-	confirmationPrompt := fmt.Sprintf("Headless login attempt from IP address %q requires approval.\nContact your administrator if you didn't initiate this login attempt.\nApprove?", headlessAuthn.ClientIpAddress)
-	ok, err := prompt.Confirmation(ctx, tc.Stdout, prompt.Stdin(), confirmationPrompt)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if !ok {
-		err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
-		return trace.Wrap(err)
+	if withConfirmationPrompt {
+		confirmationPrompt := fmt.Sprintf("Headless login attempt from IP address %q requires approval.\nContact your administrator if you didn't initiate this login attempt.\nApprove?", headlessAuthn.ClientIpAddress)
+		ok, err := prompt.Confirmation(ctx, tc.Stdout, prompt.Stdin(), confirmationPrompt)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !ok {
+			err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthn.GetName(), types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
+			return trace.Wrap(err)
+		}
 	}
 
 	chall, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
@@ -4809,5 +4810,85 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	}
 
 	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
+	return trace.Wrap(err)
+}
+
+// HeadlessPoll handles polling and approval of a headless authentication request.
+func (tc *TeleportClient) HeadlessPoll(ctx context.Context, withConfirmationPrompt bool) error {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/HeadlessPoll",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+		oteltrace.WithAttributes(
+			attribute.String("proxy_web", tc.Config.WebProxyAddr),
+			attribute.String("proxy_ssh", tc.Config.SSHProxyAddr),
+		),
+	)
+	defer span.End()
+
+	// connect to proxy first:
+	if !tc.Config.ProxySpecified() {
+		return trace.BadParameter("proxy server is not specified")
+	}
+
+	proxyClient, err := tc.ConnectToProxy(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer proxyClient.Close()
+
+	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	stream, err := rootClient.PollHeadlessAuthentications(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for {
+		headlessAuthn, err := stream.Recv()
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		tc.headlessResolve(ctx, headlessAuthn, rootClient, withConfirmationPrompt)
+	}
+}
+
+func (tc *TeleportClient) headlessResolve(ctx context.Context, ha *types.HeadlessAuthentication, clt auth.ClientI, withConfirmationPrompt bool) error {
+	if ha.State != types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING {
+		return trace.Errorf("cannot approve a headless authentication from a non-pending state: %v", ha.State.Stringify())
+	}
+
+	fmt.Fprintf(tc.Stdout, "Headless login attempt from IP address %q requires approval.\nContact your administrator if you didn't initiate this login attempt.\n", ha.ClientIpAddress)
+	if withConfirmationPrompt {
+		ok, err := prompt.Confirmation(ctx, tc.Stdout, prompt.Stdin(), "Approve?")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if !ok {
+			err = clt.UpdateHeadlessAuthenticationState(ctx, ha.GetName(), types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
+			return trace.Wrap(err)
+		}
+	}
+
+	chall, err := clt.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
+			ContextUser: &proto.ContextUser{},
+		},
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	resp, err := tc.PromptMFAChallenge(ctx, tc.WebProxyAddr, chall, nil)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = clt.UpdateHeadlessAuthenticationState(ctx, ha.GetName(), types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
 	return trace.Wrap(err)
 }

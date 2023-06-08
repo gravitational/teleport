@@ -452,6 +452,9 @@ type CLIConf struct {
 	// HeadlessAuthenticationID is the ID of a headless authentication.
 	HeadlessAuthenticationID string
 
+	// headlessAutoConfirm tells the client to skip the y/N confirmation step in headless approval.
+	headlessAutoConfirm bool
+
 	// DTAuthnRunCeremony allows tests to override the default device
 	// authentication function.
 	// Defaults to [dtauthn.NewCeremony().Run].
@@ -975,8 +978,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Headless login approval
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
-	approve := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
-	approve.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
+	headlessApprove.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessPoll := headless.Command("poll", "Poll and approve headless authentication requests.").Interspersed(true).Hidden()
+	headlessPoll.Flag("auto-confirm", "Automatically confirms headless authentication request details, skipping to the MFA approval step.").BoolVar(&cf.headlessAutoConfirm)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -1331,8 +1336,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])
-	case approve.FullCommand():
+	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
+	case headlessPoll.FullCommand():
+		err = onHeadlessPoll(&cf)
 	default:
 		// Handle commands that might not be available.
 		switch {
@@ -4826,7 +4833,21 @@ func onHeadlessApprove(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID)
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessAutoConfirm)
+	})
+	return trace.Wrap(err)
+}
+
+// onHeadlessPoll executes 'tsh headless poll' command
+func onHeadlessPoll(cf *CLIConf) error {
+	tc, err := makeClient(cf)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	tc.Stdin = os.Stdin
+	err = client.RetryWithRelogin(cf.Context, tc, func() error {
+		return tc.HeadlessPoll(cf.Context, !cf.headlessAutoConfirm)
 	})
 	return trace.Wrap(err)
 }
