@@ -128,7 +128,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.12.0
 	go.opentelemetry.io/otel/trace v1.13.0
 	go.opentelemetry.io/proto/otlp v0.19.0
-	golang.org/x/crypto v0.6.0 // replaced
+	golang.org/x/crypto v0.7.0 // replaced
 	golang.org/x/exp v0.0.0-20230105202349-8879d0199aa3
 	golang.org/x/mod v0.8.0
 	golang.org/x/net v0.8.0
@@ -383,7 +383,7 @@ replace (
 	github.com/julienschmidt/httprouter => github.com/gravitational/httprouter v1.3.1-0.20220408074523-c876c5e705a5
 	github.com/keys-pub/go-libfido2 => github.com/gravitational/go-libfido2 v1.5.3-0.20230202181331-c71192ef1c8a
 	github.com/microsoft/go-mssqldb => github.com/gravitational/go-mssqldb v0.11.1-0.20230209180904-0f00ae61fb60
-	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
 	// Use our internal crypto fork, to work around the issue with OpenSSH <= 7.6 mentioned here: https://github.com/golang/go/issues/53391
 	golang.org/x/crypto => github.com/gravitational/crypto v0.6.0-1
 )
