@@ -2,7 +2,6 @@ import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from 'design/Dialog';
 
 import { ButtonPrimary, ButtonSecondary } from 'design';
@@ -10,6 +9,10 @@ import React, { useState } from 'react';
 import { useStripe } from '@stripe/react-stripe-js';
 
 import { Danger } from 'design/Alert';
+
+import Text from 'design/Text';
+
+import { useTheme } from 'styled-components';
 
 import { NetworkState } from 'e-teleport/Banner/UsageBasedUpgrade/types';
 import { ExistingPaymentProps } from 'e-teleport/Billing/types';
@@ -21,6 +24,7 @@ export const PaymentDeleteDialog = ({
   card: { brand, last4, id },
   reload,
 }: ExistingPaymentProps) => {
+  const theme = useTheme();
   const ctx = useTeleport();
   const stripe = useStripe();
   const [networkState, setNetworkState] = useState<NetworkState>({});
@@ -42,9 +46,9 @@ export const PaymentDeleteDialog = ({
   return (
     <Dialog open={open}>
       <DialogHeader>
-        <DialogTitle>
+        <Text typography="h3" color={theme.colors.text.main}>
           Are you sure you want to delete this payment method?
-        </DialogTitle>
+        </Text>
       </DialogHeader>
       <DialogContent>
         <p>

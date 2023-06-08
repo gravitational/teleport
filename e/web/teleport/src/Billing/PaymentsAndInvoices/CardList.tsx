@@ -191,7 +191,7 @@ export const CardList = ({
             open={openAdd}
             setOpen={setOpenAdd}
             reload={reload}
-            title={`Add Payment Method`}
+            title={`Add a New Payment Method`}
             showDefaultOption={true}
             stripeMissingPaymentMethod={stripeMissingPaymentMethod}
           />

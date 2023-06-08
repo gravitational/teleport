@@ -1,7 +1,9 @@
 import React from 'react';
 
-import { screen } from 'design/utils/testing';
+import { screen, waitFor } from 'design/utils/testing';
 import { within } from '@testing-library/react';
+
+import userEvent from '@testing-library/user-event';
 
 import { CycleProps } from 'e-teleport/Billing/types';
 import { renderWithElementsAndContext } from 'e-teleport/Billing/StripeLoader/testhelper/renderWithElementsAndContext';
@@ -29,6 +31,7 @@ describe('cycle', () => {
 
   test('renders cycle overview', () => {
     renderWithElementsAndContext(<Cycle {...props} />);
+
     expect(screen.getByText(/Current Cycle:/i)).toBeInTheDocument();
     expect(
       screen.getByText(/Jan 06, 2023 - May 02, 2023/i)
@@ -48,6 +51,46 @@ describe('cycle', () => {
     expect(
       screen.getByRole('link', { name: /Contact Sales/i })
     ).toBeInTheDocument();
+  });
+
+  test('info icon popovers', async () => {
+    renderWithElementsAndContext(<Cycle {...props} />);
+
+    const mau = screen.getByTestId(/Active Users/i);
+    const mauIcon = within(mau).getByRole(/icon/i);
+    await userEvent.hover(mauIcon);
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Any unique human or machine user, local or SSO username or email with recorded activity during a month.'
+        )
+      ).toBeVisible();
+    });
+    await userEvent.unhover;
+
+    const tia = screen.getByTestId(/Teleport Identity Authorizations/i);
+    const tiaIcon = within(tia).getByRole(/icon/i);
+    await userEvent.hover(tiaIcon);
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'The authentication or authorization by Teleport of a client connection, API request, SSH session or any other activity related to a human user or service interaction.'
+        )
+      ).toBeVisible();
+    });
+    await userEvent.unhover;
+
+    const tpr = screen.getByTestId(/Teleport Protected Resources/i);
+    const tprIcon = within(tpr).getByRole(/icon/i);
+    await userEvent.hover(tprIcon);
+    await waitFor(() => {
+      expect(
+        screen.getByText(
+          'Any unique resource such as a Kubernetes cluster, SSH server, database instance or serverless endpoint, that has registered itself with the Teleport cluster and is protected by Teleport.'
+        )
+      ).toBeVisible();
+    });
+    await userEvent.unhover;
   });
 
   test('renders usage', () => {

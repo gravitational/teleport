@@ -10,6 +10,8 @@ import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
 import { CtaEvent } from 'teleport/services/userEvent';
 
+import { ToolTipInfo } from 'shared/components/ToolTip';
+
 import { CycleProps, CycleUsage } from 'e-teleport/Billing/types';
 
 // todo (michellescripts) pull usage max/included values from the subscription as part of https://github.com/gravitational/cloud/issues/3536
@@ -44,6 +46,7 @@ export const Cycle = ({
       percentageMax: maxMAU,
       hardMax: maxMAU,
       hasFreeTier: false,
+      info: 'Any unique human or machine user, local or SSO username or email with recorded activity during a month.',
     },
     {
       name: 'Teleport Identity Authorizations',
@@ -52,6 +55,7 @@ export const Cycle = ({
       percentageMax: incTIA,
       hardMax: maxTIA,
       hasFreeTier: true,
+      info: 'The authentication or authorization by Teleport of a client connection, API request, SSH session or any other activity related to a human user or service interaction.',
     },
     {
       name: 'Teleport Protected Resources',
@@ -60,6 +64,7 @@ export const Cycle = ({
       percentageMax: incTPR,
       hardMax: maxTPR,
       hasFreeTier: true,
+      info: 'Any unique resource such as a Kubernetes cluster, SSH server, database instance or serverless endpoint, that has registered itself with the Teleport cluster and is protected by Teleport.',
     },
   ];
 
@@ -100,7 +105,10 @@ export const Cycle = ({
         {usage.map(u => (
           // todo (michellescripts) add info/hover for description  https://github.com/gravitational/cloud/issues/3536
           <Box key={u.name} width="30%" data-testid={u.name}>
-            <h3>{u.name}</h3>
+            <Flex flexDirection="row" alignItems="center" gap={2}>
+              <h3>{u.name}</h3>
+              <ToolTipInfo children={<Text>{u.info}</Text>} />
+            </Flex>
             {u.total} of {u.percentageMax}
             {u.hasFreeTier && ' Included'} ({u.percentage}%)
             <StyledBar

@@ -2,7 +2,6 @@ import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from 'design/Dialog';
 
 import { ButtonPrimary, ButtonSecondary, Input, Text } from 'design';
@@ -70,7 +69,9 @@ export const CancelAccountDialog = ({
   return (
     <Dialog open={open}>
       <DialogHeader>
-        <DialogTitle>Close Teleport Account</DialogTitle>
+        <Text typography="h3" color={theme.colors.text.main}>
+          Close Teleport Account
+        </Text>
       </DialogHeader>
       <DialogContent maxWidth="636px">
         {dialogText}

@@ -2,7 +2,6 @@ import Dialog, {
   DialogContent,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
 } from 'design/Dialog';
 
 import { ButtonPrimary, ButtonSecondary, Text } from 'design';
@@ -120,7 +119,9 @@ export const PaymentAddDialog = ({
   return (
     <Dialog open={open}>
       <DialogHeader>
-        <DialogTitle>{title}</DialogTitle>
+        <Text typography="h3" color={theme.colors.text.main}>
+          {title}
+        </Text>
       </DialogHeader>
       <DialogContent width="400px">
         <Text

@@ -98,6 +98,7 @@ export type CycleUsage = {
   hardMax: number;
   percentage: number;
   hasFreeTier: boolean;
+  info: string;
 };
 
 export interface ExistingPaymentProps {
