@@ -456,7 +456,7 @@ define RELEASE_RECIPE
 			-v "/tmp:/tmp" \
 			-v "$(WORKSPACE):/go/teleport" \
 			-w /go/teleport \
-			-u 1000:1000 \
+			-u $(UID):$(GID) \
 			$(BUILDBOX) \
 		make $(1) ARCH=$(ARCH) ADDFLAGS="$(ADDFLAGS)" OS=$(OS) RUNTIME=$(GOLANG_VERSION) FIDO2=$(FIDO2) PIV=$(PIV) REPRODUCIBLE=no
 endef
