@@ -86,8 +86,10 @@ jobs:
         env:
           DEBIAN_FRONTEND: noninteractive
         run: |
-          sudo apt update
-          sudo apt install -y make
+          if [ "$CI_SYSTEM" = "ARC" ]; then
+            sudo apt update
+            sudo apt install -y make
+          fi
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v2
