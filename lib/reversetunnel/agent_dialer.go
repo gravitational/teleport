@@ -57,8 +57,9 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
 			GetHostCheckers: d.hostCheckerFunc(ctx),
-			OnCheckCert: func(c *ssh.Certificate) {
+			OnCheckCert: func(c *ssh.Certificate) error {
 				principals = c.ValidPrincipals
+				return nil
 			},
 			FIPS: d.fips,
 		})
