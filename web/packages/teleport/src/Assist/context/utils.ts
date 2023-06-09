@@ -72,16 +72,14 @@ export function convertServerMessages(
     const { nextIndex, consecutiveMessagesFromSameAuthor } =
       findConsecutiveMessagesFromSameAuthor(messages, i, author);
 
-    const entries: ResolvedServerMessage[] = [];
-    for (const message of consecutiveMessagesFromSameAuthor) {
-      entries.push(message);
-    }
-
-    const timestamp = entries[entries.length - 1].created;
+    const timestamp =
+      consecutiveMessagesFromSameAuthor[
+        consecutiveMessagesFromSameAuthor.length - 1
+      ].created;
 
     const conversationMessage: ConversationMessage = {
       streaming: false,
-      entries,
+      entries: consecutiveMessagesFromSameAuthor,
       author,
       timestamp,
     };

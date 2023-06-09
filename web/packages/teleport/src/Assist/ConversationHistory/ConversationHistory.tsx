@@ -63,10 +63,10 @@ const NewConversationButton = styled.li`
   }
 `;
 
-function isNotExpanded(viewMode: AssistViewMode) {
+function isExpanded(viewMode: AssistViewMode) {
   return (
-    viewMode !== AssistViewMode.Expanded &&
-    viewMode !== AssistViewMode.ExpandedSidebarVisible
+    viewMode === AssistViewMode.Expanded ||
+    viewMode === AssistViewMode.ExpandedSidebarVisible
   );
 }
 
@@ -121,7 +121,7 @@ export function ConversationHistory(props: ConversationHistoryProps) {
       conversation={conversation}
       active={
         conversations.selectedId === conversation.id &&
-        !isNotExpanded(props.viewMode) // avoid showing a background color when the sidebar is a separate view (collapsed & docked)
+        isExpanded(props.viewMode) // avoid showing a background color when the sidebar is a separate view (collapsed & docked)
       }
       onSelect={() => handleSelectConversation(conversation.id)}
       onDelete={() => setConversationIdToDelete(conversation.id)}

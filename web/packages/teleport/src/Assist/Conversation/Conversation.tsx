@@ -56,8 +56,6 @@ export function Conversation() {
 
   const [mfaErrorMessage, setMfaErrorMessage] = useState<string | null>(null);
 
-  console.log(messages.loading);
-
   if (messages.loading) {
     return (
       <Loading>

@@ -44,8 +44,7 @@ const StyledInput = styled.input<{ hasError: boolean }>`
         : p.theme.colors.spotBackground[0]};
   padding: 12px 15px;
   border-radius: 5px;
-  font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
-    monospace;
+  font-family: ${p => p.theme.fonts.mono};
   background: ${p => p.theme.colors.levels.surface};
 
   &:disabled {

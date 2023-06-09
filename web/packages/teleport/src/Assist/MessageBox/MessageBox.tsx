@@ -132,7 +132,6 @@ export function MessageBox(props: MessageBoxProps) {
       event.stopPropagation();
 
       if (!messages.streaming && value) {
-        console.log('hey!');
         sendMessage(value);
         setValue('');
       }
@@ -156,7 +155,7 @@ export function MessageBox(props: MessageBoxProps) {
         value={value}
         onChange={handleChange}
         onKeyDown={handleKeyDown}
-        placeholder="Start a conversation..."
+        placeholder="Reply to Teleport"
         autoFocus
       />
     </Container>

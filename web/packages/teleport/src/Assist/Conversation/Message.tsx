@@ -190,10 +190,7 @@ export function Message(props: MessageProps) {
 
       <Footer
         style={{
-          justifyContent:
-            props.message.author === Author.Teleport
-              ? 'flex-start'
-              : 'flex-end',
+          justifyContent: authorIsTeleport ? 'flex-start' : 'flex-end',
         }}
       >
         {authorIsTeleport ? (

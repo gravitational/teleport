@@ -19,9 +19,6 @@ const Container = styled.div<EntryContainerProps>`
     p.author === Author.Teleport ? 'flex-start' : 'flex-end'};
   justify-content: ${p => (p.author === Author.Teleport ? '' : 'flex-end')};
   position: relative;
-  // animation:  0.6s linear forwards;
-  // transform: ${p => (p.isNew ? 'translate3d(0, 30px, 0)' : 'none')};
-  //opacity: ${p => (p.isNew ? 0 : 1)};
   font-size: 14px;
   margin-bottom: 5px;
 

@@ -42,8 +42,7 @@ const Output = styled.pre.attrs({ 'data-scrollbar': 'default' })`
   padding: 10px 15px;
   margin: 0;
   overflow-x: auto;
-  font-family: SFMono-Regular, Consolas, Liberation Mono, Menlo, Courier,
-    monospace;
+  font-family: ${p => p.theme.fonts.mono};
   font-size: 13px;
 `;
 
