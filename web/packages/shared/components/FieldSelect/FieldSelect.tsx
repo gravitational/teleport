@@ -27,6 +27,7 @@ export default function FieldSelect({
   labelTip,
   value,
   options,
+  name,
   onChange,
   placeholder,
   maxMenuHeight,
@@ -54,6 +55,7 @@ export default function FieldSelect({
       )}
       <Select
         inputId="select"
+        name={name}
         menuPosition={menuPosition}
         hasError={hasError}
         isSimpleValue={isSimpleValue}
