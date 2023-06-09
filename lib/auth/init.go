@@ -618,6 +618,8 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
+		services.NewPresetReviewerRole(),
+		services.NewPresetRequesterRole(),
 	}
 	for _, role := range roles {
 		err := rm.CreateRole(ctx, role)

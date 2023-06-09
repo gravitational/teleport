@@ -37,8 +37,8 @@ func TestAddRoleDefaults(t *testing.T) {
 		name                   string
 		role                   types.Role
 		enterprise             bool
-		reviewRequestsNotEmpty bool
-		accessReviewNotEmpty   bool
+		reviewNotEmpty         bool
+		accessRequestsNotEmpty bool
 
 		expectedErr require.ErrorAssertionFunc
 		expected    types.Role
@@ -63,101 +63,10 @@ func TestAddRoleDefaults(t *testing.T) {
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						Rules:          defaultAllowRules()[teleport.PresetEditorRoleName],
-						ReviewRequests: defaultAllowAccessReviewConditions(false)[teleport.PresetEditorRoleName],
-					},
-				},
-			},
-		},
-		{
-			name: "editor (existing rules)",
-			role: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetEditorRoleName,
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Rules: []types.Rule{
-							{
-								Resources: []string{"test"},
-								Verbs:     []string{"test"},
-							},
-						},
-					},
-				},
-			},
-			expectedErr: require.NoError,
-			expected: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetEditorRoleName,
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Rules: append([]types.Rule{
-							{
-								Resources: []string{"test"},
-								Verbs:     []string{"test"},
-							},
-						}, defaultAllowRules()[teleport.PresetEditorRoleName]...),
-						ReviewRequests: defaultAllowAccessReviewConditions(false)[teleport.PresetEditorRoleName],
-					},
-				},
-			},
-		},
-		{
-			name: "editor (existing rules, enterprise)",
-			role: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetEditorRoleName,
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Rules: []types.Rule{
-							{
-								Resources: []string{"test"},
-								Verbs:     []string{"test"},
-							},
-						},
-					},
-				},
-			},
-			enterprise:           true,
-			accessReviewNotEmpty: true,
-			expectedErr:          require.NoError,
-			expected: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetEditorRoleName,
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
-						Rules: append([]types.Rule{
-							{
-								Resources: []string{"test"},
-								Verbs:     []string{"test"},
-							},
-						}, defaultAllowRules()[teleport.PresetEditorRoleName]...),
-						ReviewRequests: defaultAllowAccessReviewConditions(true)[teleport.PresetEditorRoleName],
-					},
-				},
-			},
-		},
-		{
-			name: "editor (existing review requests, identical rules)",
-			role: &types.RoleV6{
-				Metadata: types.Metadata{
-					Name: teleport.PresetEditorRoleName,
-				},
-				Spec: types.RoleSpecV6{
-					Allow: types.RoleConditions{
 						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
-						ReviewRequests: &types.AccessReviewConditions{
-							Where: "test",
-						},
 					},
 				},
 			},
-			expectedErr: noChange,
-			expected:    nil,
 		},
 		{
 			name: "access (access review, db labels, identical rules)",
@@ -181,39 +90,105 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-						Request:               defaultAllowAccessRequestConditions(false)[teleport.PresetAccessRoleName],
 					},
 				},
 			},
 		},
 		{
-			name: "access (access review, db labels, identical rules, enterprise)",
+			name: "reviewer (not enterprise)",
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
-					Name: teleport.PresetAccessRoleName,
+					Name: teleport.PresetReviewerRoleName,
+				},
+			},
+			expectedErr: noChange,
+			expected:    nil,
+		},
+		{
+			name: "reviewer (enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
+				},
+			},
+			enterprise:     true,
+			expectedErr:    require.NoError,
+			reviewNotEmpty: true,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						Rules: defaultAllowRules()[teleport.PresetAccessRoleName],
+						ReviewRequests: defaultAllowAccessReviewConditions(true)[teleport.PresetReviewerRoleName],
 					},
+				},
+			},
+		},
+		{
+			name: "reviewer (enterprise, existing review requests)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						ReviewRequests: &types.AccessReviewConditions{
+							Roles: []string{"some-role"},
+						},
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: noChange,
+		},
+		{
+			name: "requester (not enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
+				},
+			},
+			expectedErr: noChange,
+			expected:    nil,
+		},
+		{
+			name: "requester (enterprise)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
 				},
 			},
 			enterprise:             true,
-			reviewRequestsNotEmpty: true,
 			expectedErr:            require.NoError,
+			accessRequestsNotEmpty: true,
 			expected: &types.RoleV6{
 				Metadata: types.Metadata{
-					Name: teleport.PresetAccessRoleName,
+					Name: teleport.PresetRequesterRoleName,
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
-						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
-						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
-						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
-						Request:               defaultAllowAccessRequestConditions(true)[teleport.PresetAccessRoleName],
+						Request: defaultAllowAccessRequestConditions(true)[teleport.PresetRequesterRoleName],
 					},
 				},
 			},
+		},
+		{
+			name: "requester (enterprise, existing requests)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Request: &types.AccessRequestConditions{
+							Roles: []string{"some-role"},
+						},
+					},
+				},
+			},
+			enterprise:  true,
+			expectedErr: noChange,
 		},
 	}
 
@@ -231,8 +206,8 @@ func TestAddRoleDefaults(t *testing.T) {
 			require.Empty(t, cmp.Diff(role, test.expected))
 
 			if test.expected != nil {
-				require.Equal(t, test.reviewRequestsNotEmpty, !role.GetAccessRequestConditions(types.Allow).IsEmpty())
-				require.Equal(t, test.accessReviewNotEmpty, !role.GetAccessReviewConditions(types.Allow).IsEmpty())
+				require.Equal(t, test.reviewNotEmpty, !role.GetAccessReviewConditions(types.Allow).IsEmpty())
+				require.Equal(t, test.accessRequestsNotEmpty, !role.GetAccessRequestConditions(types.Allow).IsEmpty())
 			}
 		})
 	}

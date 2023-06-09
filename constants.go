@@ -613,6 +613,14 @@ const (
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
 
+	// PresetReviewerRoleName is a name of a preset role that allows
+	// for reviewing application and user group requests.
+	PresetReviewerRoleName = "reviewer"
+
+	// PresetRequesterRoleName is a name of a preset role that allows
+	// for requesting applications and user groups.
+	PresetRequesterRoleName = "requester"
+
 	// PresetGroupAccessRoleName is a name of a preset role that allows
 	// access to all user groups.
 	PresetGroupAccessRoleName = "group-access"

@@ -32,7 +32,6 @@ import (
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -93,8 +92,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterAlert, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
-				// By default, allow editors to approve any user group access requests.
-				ReviewRequests: defaultAllowAccessReviewConditions(enterprise)[teleport.PresetEditorRoleName],
 			},
 		},
 	}
@@ -104,7 +101,6 @@ func NewPresetEditorRole() types.Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -151,8 +147,6 @@ func NewPresetAccessRole() types.Role {
 					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					// Please see defaultAllowRules when adding a new rule.
 				},
-				// By default, allow users with the access role to request any user group.
-				Request: defaultAllowAccessRequestConditions(enterprise)[teleport.PresetAccessRoleName],
 			},
 		},
 	}
@@ -195,6 +189,66 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindClusterAlert, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
+			},
+		},
+	}
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
+	return role
+}
+
+// NewPresetReviewerRole returns a new pre-defined role for reviewer. The
+// reviewer will be able to review all application and user group access requests.
+func NewPresetReviewerRole() types.Role {
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetReviewerRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Review application and user group requests",
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				PortForwarding:    types.NewBoolOption(true),
+				ForwardAgent:      types.NewBool(true),
+				BPF:               apidefaults.EnhancedEvents(),
+				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
+			},
+			Allow: types.RoleConditions{
+				ReviewRequests: defaultAllowAccessReviewConditions(enterprise)[teleport.PresetReviewerRoleName],
+			},
+		},
+	}
+	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
+	return role
+}
+
+// NewPresetRequesterRole returns a new pre-defined role for requester. The
+// requester will be able to request all application and user groups.
+func NewPresetRequesterRole() types.Role {
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetRequesterRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Request applications and user groups",
+		},
+		Spec: types.RoleSpecV6{
+			Options: types.RoleOptions{
+				CertificateFormat: constants.CertificateFormatStandard,
+				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+				PortForwarding:    types.NewBoolOption(true),
+				ForwardAgent:      types.NewBool(true),
+				BPF:               apidefaults.EnhancedEvents(),
+				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
+			},
+			Allow: types.RoleConditions{
+				Request: defaultAllowAccessRequestConditions(enterprise)[teleport.PresetRequesterRoleName],
 			},
 		},
 	}
@@ -281,8 +335,9 @@ func defaultAllowLabels() map[string]types.RoleConditions {
 func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.AccessRequestConditions {
 	if enterprise {
 		return map[string]*types.AccessRequestConditions{
-			teleport.PresetAccessRoleName: {
+			teleport.PresetRequesterRoleName: {
 				SearchAsRoles: []string{
+					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
 				},
 			},
@@ -297,11 +352,13 @@ func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.Acce
 func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.AccessReviewConditions {
 	if enterprise {
 		return map[string]*types.AccessReviewConditions{
-			teleport.PresetEditorRoleName: {
+			teleport.PresetReviewerRoleName: {
 				PreviewAsRoles: []string{
+					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
 				},
 				Roles: []string{
+					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
 				},
 			},
