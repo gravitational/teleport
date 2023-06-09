@@ -49,7 +49,7 @@ import (
 
 func TestExecuteCommand(t *testing.T) {
 	t.Parallel()
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 
 	ws, _, err := s.makeCommand(t, s.authPack(t, "foo"), uuid.New())
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestExecuteCommandHistory(t *testing.T) {
 	t.Parallel()
 
 	// Given
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 	authPack := s.authPack(t, "foo")
 
 	ctx := context.Background()
