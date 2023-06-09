@@ -15,6 +15,7 @@
 package types
 
 import (
+	"crypto"
 	"testing"
 	"time"
 
@@ -142,6 +143,25 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 				ReportedAssetTag:        assetTag + "-reported",
 				SystemSerialNumber:      assetTag + "-system",
 				BaseBoardSerialNumber:   assetTag + "-board",
+				TpmPlatformAttestation: &devicepb.TPMPlatformAttestation{
+					Nonce: "foo-bar-bizz",
+					PlatformParameters: &devicepb.TPMPlatformParameters{
+						EventLog: []byte("dummy-event-log"),
+						Quotes: []*devicepb.TPMQuote{
+							{
+								Quote:     []byte("a-quote"),
+								Signature: []byte("a-signature"),
+							},
+						},
+						Pcrs: []*devicepb.TPMPCR{
+							{
+								Index:     1,
+								Digest:    []byte("a-digest"),
+								DigestAlg: uint64(crypto.SHA1),
+							},
+						},
+					},
+				},
 			},
 		},
 		Source: &devicepb.DeviceSource{
