@@ -87,6 +87,9 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 		return nil, trace.Wrap(err)
 	}
 
+	// ssh.NewClient will loop over the global requests channel in a goroutine,
+	// rejecting all requests; we want to handle the global requests ourselves,
+	// so we feed it a closed channel to have the goroutine exit immediately.
 	emptyRequests := make(chan *ssh.Request)
 	close(emptyRequests)
 
