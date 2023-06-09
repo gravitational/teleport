@@ -786,10 +786,7 @@ func mustGetOpenSSHConfigFile(t *testing.T) string {
 	var buff bytes.Buffer
 	err := Run(context.Background(), []string{
 		"config",
-	}, func(cf *CLIConf) error {
-		cf.overrideStdout = &buff
-		return nil
-	})
+	}, setCopyStdout(&buff))
 	require.NoError(t, err)
 
 	tmpDir := t.TempDir()

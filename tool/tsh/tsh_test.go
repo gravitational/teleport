@@ -60,6 +60,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/mocku2f"
+	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/backend"
@@ -118,6 +119,7 @@ func init() {
 
 func TestMain(m *testing.M) {
 	utils.InitLoggerForTests()
+	native.PrecomputeTestKeys(m)
 	os.Exit(m.Run())
 }
 
@@ -2486,6 +2488,73 @@ func TestEnvFlags(t *testing.T) {
 			},
 		}))
 	})
+
+	t.Run("tsh ssh session env", func(t *testing.T) {
+		t.Run("ignore ssh session env without headless", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: false,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: false,
+			},
+		}))
+		t.Run("use ssh session env with headless cli flag", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: true,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+		}))
+		t.Run("use ssh session env with headless auth connector cli flag", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				AuthConnector: constants.HeadlessConnector,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				AuthConnector: constants.HeadlessConnector,
+				Proxy:         "proxy.example.com",
+				Username:      "alice",
+				SiteName:      "root-cluster",
+			},
+		}))
+		t.Run("does not overwrite cli flags", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebproxyAddr: "other.example.com",
+				teleport.SSHTeleportUser:        "bob",
+				teleport.SSHTeleportClusterName: "leaf-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+		}))
+	})
 }
 
 func TestKubeConfigUpdate(t *testing.T) {
@@ -3194,6 +3263,10 @@ func setOverrideStdout(stdout io.Writer) cliOption {
 	}
 }
 
+func setCopyStdout(stdout io.Writer) cliOption {
+	return setOverrideStdout(io.MultiWriter(os.Stdout, stdout))
+}
+
 func setHomePath(path string) cliOption {
 	return func(cf *CLIConf) error {
 		cf.HomePath = path
@@ -3375,7 +3448,8 @@ func TestSerializeDatabases(t *testing.T) {
       "ad": {
         "domain": "",
         "spn": ""
-      }
+      },
+      "mongo_atlas": {}
     },
     "status": {
       "mysql": {},

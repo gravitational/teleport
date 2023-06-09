@@ -10,24 +10,9 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 | Version | Date                |
 |---------|---------------------|
-| 13.1.0  | June 5th, 2023      |
 | 13.2.0  | July 3rd, 2023      |
 | 13.3.0  | July 31st, 2023     |
 | 14.0.0  | September 4th, 2023 |
-
-### 13.1.0
-
-#### (Preview) Automatic user provisioning for Postgres
-
-Teleport will be able to automatically create database users for self-hosted Postgres and RDS Postgres.
-
-#### (Preview) CLI autocompletion
-
-Teleport command line tools will get the ability to autocomplete commands for bash/zsh users.
-
-#### (Preview) Device Trust for Windows
-
-Teleport Device Trust will extend support to Windows devices using a TPM module.
 
 ### 13.2.0
 
@@ -37,21 +22,61 @@ Teleport will be able to automatically enroll GCP VMs for server access.
 
 #### (Preview) Device Trust Jamf integration
 
-Teleport will add a new service for integrating with the Jamf MDM, allowing users
-to sync device inventory and automatically enroll trusted devices.
+Teleport will add a new service for integrating with the Jamf MDM, allowing
+users to sync device inventory and automatically enroll trusted devices.
 
-#### (Preview) OpsGenie Access Request Plugin for Cloud
+#### (Preview) Hosted Plugins for Cloud
 
-Teleport Cloud will include OpsGenie access plugin.
+Teleport will add hosted plugins for OpsGenie, Okta, PagerDuty, and Jamf on
+Cloud.
 
 *Delayed from Teleport 13.0.0.*
+
+#### (Preview) Hardened AMIs
+
+Teleport will ship hardened AMIs using the STIG framework.
+
+#### (Preview) Label expressions
+
+Teleport roles will support advanced configuration via label expressions.
+Cluster administrators will be able to use label expressions to:
+
+- implement negative matches
+- perform matching on label keys
+- combine logic with OR and AND operators
 
 ### 13.3.0
 
 #### (Preview) Device Trust Intune integration
 
-Teleport will add a new service for integrating with Microsoft Intune, allowing users
-to sync device inventory and automatically enroll trusted devices.
+Teleport will add a new service for integrating with Microsoft Intune, allowing
+users to sync device inventory and automatically enroll trusted devices.
+
+### 14.0.0
+
+#### (Preview) Native Azure support
+
+Teleport will add native support for Azure for Auth and Audit backends.
+
+#### (Preview) ClickHouse support for database access
+
+Teleport will add support for ClickHouse to database access.
+
+#### (Preview) Automatic discovery of web applications
+
+Teleport will be able to automatically find and enroll web applications running
+in a Kubernetes cluster.
+
+#### Limited Passwordless access for local users in OSS Teleport
+
+OSS Teleport will add limited support for Passwordless access for local users.
+
+#### Additional features
+
+In addition, Teleport 14 will include:
+
+- SAML configuration wizard
+- Performance improvements
 
 ## Teleport Cloud
 
@@ -59,8 +84,7 @@ The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of          | Description                                           |
 |------------------|-------------------------------------------------------|
-| June 5th, 2023   | Teleport 13.1 begins to roll out for Cloud customers  |
-| June 5th, 2023   | Advanced Audit Log rollout begins                     |
+| June 12th, 2023  | Advanced Audit Log rollout begins                     |
 
 ## Production readiness
 
