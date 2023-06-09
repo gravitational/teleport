@@ -106,7 +106,7 @@ func RunSubmitter(ctx context.Context, cfg SubmitterConfig) {
 	})
 	defer iv.Stop()
 
-	for {
+	for ctx.Err() == nil {
 		select {
 		case <-ctx.Done():
 			return
