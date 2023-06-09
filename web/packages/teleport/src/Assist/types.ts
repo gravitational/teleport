@@ -18,6 +18,7 @@ import { EventType } from 'teleport/lib/term/enums';
 export enum ServerMessageType {
   Assist = 'CHAT_MESSAGE_ASSISTANT',
   User = 'CHAT_MESSAGE_USER',
+  Error = 'CHAT_MESSAGE_ERROR',
   Command = 'COMMAND',
   CommandResult = 'COMMAND_RESULT',
   CommandResultStream = 'COMMAND_RESULT_STREAM',
@@ -85,6 +86,12 @@ export interface ResolvedUserServerMessage {
   created: Date;
 }
 
+export interface ResolvedErrorServerMessage {
+  type: ServerMessageType.Error;
+  message: string;
+  created: Date;
+}
+
 export interface ResolvedCommandResultStreamServerMessage {
   type: ServerMessageType.CommandResultStream;
   id: number;
@@ -99,6 +106,7 @@ export type ResolvedServerMessage =
   | ResolvedCommandServerMessage
   | ResolvedAssistServerMessage
   | ResolvedUserServerMessage
+  | ResolvedErrorServerMessage
   | ResolvedCommandResultServerMessage
   | ResolvedAssistThoughtServerMessage
   | ResolvedCommandResultStreamServerMessage;

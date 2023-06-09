@@ -105,7 +105,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     });
   }
 
-  function setupWebSocket(conversationId: string) {
+  function setupWebSocket(conversationId: string, initialMessage?: string) {
     activeWebSocket.current = new WebSocket(
       cfg.getAssistConversationWebSocketUrl(
         getHostName(),
@@ -122,6 +122,16 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       () => setupWebSocket(conversationId),
       TEN_MINUTES * 0.8
     );
+
+    activeWebSocket.current.onopen = () => {
+      if (initialMessage) {
+        activeWebSocket.current.send(initialMessage);
+      }
+    };
+
+    activeWebSocket.current.onclose = () => {
+      dispatch({ type: AssistStateActionType.SetStreaming, streaming: false });
+    };
 
     activeWebSocket.current.onmessage = async event => {
       const data = JSON.parse(event.data) as ServerMessage;
@@ -178,6 +188,21 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
           break;
         }
+
+        case ServerMessageType.Error:
+          dispatch({
+            type: AssistStateActionType.AddMessage,
+            messageType: ServerMessageType.Error,
+            message: data.payload,
+            conversationId,
+          });
+
+          dispatch({
+            type: AssistStateActionType.SetStreaming,
+            streaming: false,
+          });
+
+          break;
       }
     };
   }
@@ -273,7 +298,16 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     dispatch({ type: AssistStateActionType.SetStreaming, streaming: true });
 
-    activeWebSocket.current.send(JSON.stringify({ payload: message }));
+    const data = JSON.stringify({ payload: message });
+
+    if (
+      !activeWebSocket.current ||
+      activeWebSocket.current.readyState === WebSocket.CLOSED
+    ) {
+      setupWebSocket(state.conversations.selectedId, data);
+    } else {
+      activeWebSocket.current.send(data);
+    }
 
     dispatch({
       type: AssistStateActionType.AddMessage,
