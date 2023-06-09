@@ -27,7 +27,10 @@
     "path:build.assets/flake#yarn"
   ],
   "shell": {
-    "init_hook": "export TELEPORT_DEVBOX=1\nexport GOROOT=\"$(go env GOROOT)\""
+    "init_hook": [
+      "export TELEPORT_DEVBOX=1",
+      "unset GOROOT"
+    ]
   },
   "nixpkgs": {
     "commit": "f91ee3065de91a3531329a674a45ddcb3467a650"
