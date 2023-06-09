@@ -563,6 +563,11 @@ const (
 	// that the discovered resource is owned by. It is used to differentiate resources
 	// that belong to different discovery services that operate on different sets of resources.
 	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
+
+	// TeleportDowngradedLabel identifies resources that have been automatically
+	// downgraded before being returned to clients on older versions that do not
+	// support one or more features enabled in that resource.
+	TeleportDowngradedLabel = TeleportInternalLabelPrefix + "downgraded"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
