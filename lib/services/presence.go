@@ -83,7 +83,7 @@ type Presence interface {
 	ProxyGetter
 
 	// DeleteProxy deletes proxy by name
-	DeleteProxy(name string) error
+	DeleteProxy(ctx context.Context, name string) error
 
 	// DeleteAllProxies deletes all proxies
 	DeleteAllProxies() error

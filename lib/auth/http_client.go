@@ -710,11 +710,11 @@ func (c *HTTPClient) DeleteAllProxies() error {
 }
 
 // DeleteProxy deletes proxy by name
-func (c *HTTPClient) DeleteProxy(name string) error {
+func (c *HTTPClient) DeleteProxy(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("proxies", name))
+	_, err := c.Delete(ctx, c.Endpoint("proxies", name))
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -165,7 +165,7 @@ func TestProxyWatcher(t *testing.T) {
 	}
 
 	// Delete the first proxy.
-	require.NoError(t, presence.DeleteProxy(proxy.GetName()))
+	require.NoError(t, presence.DeleteProxy(ctx, proxy.GetName()))
 
 	// Watcher should detect the proxy list change.
 	select {
@@ -179,7 +179,7 @@ func TestProxyWatcher(t *testing.T) {
 	}
 
 	// Delete the second proxy.
-	require.NoError(t, presence.DeleteProxy(proxy2.GetName()))
+	require.NoError(t, presence.DeleteProxy(ctx, proxy2.GetName()))
 
 	// Watcher should detect the proxy list change.
 	select {

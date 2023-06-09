@@ -304,7 +304,7 @@ func (s *APIServer) deleteProxy(auth ClientI, w http.ResponseWriter, r *http.Req
 	if name == "" {
 		return nil, trace.BadParameter("missing proxy name")
 	}
-	err := auth.DeleteProxy(name)
+	err := auth.DeleteProxy(r.Context(), name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

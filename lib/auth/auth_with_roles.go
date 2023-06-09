@@ -1936,11 +1936,11 @@ func (a *ServerWithRoles) DeleteAllProxies() error {
 }
 
 // DeleteProxy deletes proxy by name
-func (a *ServerWithRoles) DeleteProxy(name string) error {
+func (a *ServerWithRoles) DeleteProxy(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindProxy, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteProxy(name)
+	return a.authServer.DeleteProxy(ctx, name)
 }
 
 func (a *ServerWithRoles) UpsertReverseTunnel(r types.ReverseTunnel) error {
