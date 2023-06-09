@@ -71,9 +71,17 @@ ifeq ("$(DRONE)","true")
 CI := true
 endif
 ifeq ("$(CI)","true")
+# The UID/GID of the runner user on ARC runners is 1001, not 1000
+# This var is currently only set for ARC runners via https://github.com/gravitational/cloud-terraform/pull/2473
+ifeq ("$(CI_SYSTEM)","ARC")
+UID := 1001
+GID := 1001
+NOROOT := -u 1001:1001
+else
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
+endif
 # if running in CI and the GOCACHE environment variable is not set, set it to a sensible default
 ifeq ("$(GOCACHE)",)
 GOCACHE := /go/cache
