@@ -412,7 +412,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	proxy.SetResourceID(out[0].GetResourceID())
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}))
 
-	err = s.PresenceS.DeleteProxy(proxy.GetName())
+	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
 	require.NoError(t, err)
 
 	out, err = s.PresenceS.GetProxies()
