@@ -53,6 +53,7 @@
           nodeProtocTsVersion = "5.0.1";
           grpcToolsVersion = "1.12.4";
           libpcscliteVersion = "1.9.9-teleport";
+          yarnVersion = "1.22.19";
 
           # Package aliases to make reusing these packages easier.
           # The individual package names here have been determined by using
@@ -190,6 +191,28 @@
             '';
           };
 
+          # Yarn binary.
+          yarn = pkgs.stdenv.mkDerivation {
+            name = "yarn";
+            dontUnpack = true;
+            buildInputs = [
+              pkgs.cacert
+              pkgs.curl
+              pkgs.nodejs-16_x
+            ];
+            buildPhase = ''
+              mkdir "$out"
+              export HOME="$out"
+              export PROFILE="$HOME/.bashrc"
+              touch "$PROFILE"
+              curl -o- -L https://yarnpkg.com/install.sh | bash -s -- --version ${yarnVersion}
+              cd "$out/.yarn"
+              mv * ..
+              cd "$out"
+              rm -rf .yarn
+            '';
+          };
+
           conditional = if pkgs.stdenv.isLinux then pkgs.stdenv.mkDerivation {
             name = "conditional";
             dontUnpack = true;
@@ -209,6 +232,7 @@
             libpcsclite = libpcsclite;
             protoc-gen-gogo = protoc-gen-gogo;
             rust = rust;
+            yarn = yarn;
           };
       });
 }
