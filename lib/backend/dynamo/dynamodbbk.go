@@ -92,6 +92,9 @@ type Config struct {
 	// WriteTargetValue is the ratio of consumed write capacity to provisioned
 	// capacity. Required to be set if auto scaling is enabled.
 	WriteTargetValue float64 `json:"write_target_value,omitempty"`
+
+	// OnDemand sets on-demand capacity to the DynamoDB tables
+	OnDemand bool `json:"on_demand,omitempty"`
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -270,7 +273,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	case tableStatusOK:
 		break
 	case tableStatusMissing:
-		err = b.createTable(ctx, b.TableName, fullPathKey)
+		err = b.createTable(ctx, b.TableName, fullPathKey, cfg.OnDemand)
 	case tableStatusNeedsMigration:
 		return nil, trace.BadParameter("unsupported schema")
 	}
@@ -654,10 +657,17 @@ func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableSt
 // documentation in case users want to set up DynamoDB tables manually. Edit the
 // following docs partial:
 // docs/pages/includes/dynamodb-iam-policy.mdx
-func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey string) error {
-	pThroughput := dynamodb.ProvisionedThroughput{
-		ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
-		WriteCapacityUnits: aws.Int64(b.WriteCapacityUnits),
+func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey string, onDemand bool) error {
+	var pThroughput *dynamodb.ProvisionedThroughput
+	var billingMode *string
+	if onDemand {
+		billingMode = aws.String(dynamodb.BillingModePayPerRequest)
+	} else {
+		pThroughput = &dynamodb.ProvisionedThroughput{
+			ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
+			WriteCapacityUnits: aws.Int64(b.WriteCapacityUnits),
+		}
+		billingMode = aws.String(dynamodb.BillingModeProvisioned)
 	}
 	def := []*dynamodb.AttributeDefinition{
 		{
@@ -683,7 +693,8 @@ func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey st
 		TableName:             aws.String(tableName),
 		AttributeDefinitions:  def,
 		KeySchema:             elems,
-		ProvisionedThroughput: &pThroughput,
+		ProvisionedThroughput: pThroughput,
+		BillingMode:           billingMode,
 	}
 	_, err := b.svc.CreateTableWithContext(ctx, &c)
 	if err != nil {
