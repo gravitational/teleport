@@ -105,10 +105,18 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("DynamoDB: table_name is not specified")
 	}
 
-	if cfg.ReadCapacityUnits == 0 {
+	if cfg.OnDemand && cfg.EnableAutoScaling {
+		return trace.BadParameter("DynamoDB: both auto_scaling and on_demand can not both be enabled")
+	}
+
+	if cfg.OnDemand && (cfg.ReadCapacityUnits != 0 || cfg.WriteCapacityUnits != 0) {
+		return trace.BadParameter("DynamoDB: read_capacity_units and write_capacity_units must both be 0 when on_demand=true")
+	}
+
+	if cfg.ReadCapacityUnits == 0 && !cfg.OnDemand {
 		cfg.ReadCapacityUnits = DefaultReadCapacityUnits
 	}
-	if cfg.WriteCapacityUnits == 0 {
+	if cfg.WriteCapacityUnits == 0 && !cfg.OnDemand {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
 	if cfg.BufferSize == 0 {
@@ -273,7 +281,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	case tableStatusOK:
 		break
 	case tableStatusMissing:
-		err = b.createTable(ctx, b.TableName, fullPathKey, cfg.OnDemand)
+		err = b.createTable(ctx, b.TableName, fullPathKey)
 	case tableStatusNeedsMigration:
 		return nil, trace.BadParameter("unsupported schema")
 	}
@@ -657,10 +665,10 @@ func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableSt
 // documentation in case users want to set up DynamoDB tables manually. Edit the
 // following docs partial:
 // docs/pages/includes/dynamodb-iam-policy.mdx
-func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey string, onDemand bool) error {
+func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey string) error {
 	var pThroughput *dynamodb.ProvisionedThroughput
 	var billingMode *string
-	if onDemand {
+	if b.OnDemand {
 		billingMode = aws.String(dynamodb.BillingModePayPerRequest)
 	} else {
 		pThroughput = &dynamodb.ProvisionedThroughput{
