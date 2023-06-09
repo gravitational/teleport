@@ -71,6 +71,13 @@ type Role interface {
 	// SetNamespaces sets a list of namespaces this role is allowed or denied access to.
 	SetNamespaces(RoleConditionType, []string)
 
+	// GetLabelMatchers gets the LabelMatchers that match labels of resources of
+	// type [kind] this role is allowed or denied access to.
+	GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error)
+	// SetLabelMatchers sets the LabelMatchers that match labels of resources of
+	// type [kind] this role is allowed or denied access to.
+	SetLabelMatchers(rct RoleConditionType, kind string, labelMatchers LabelMatchers) error
+
 	// GetNodeLabels gets the map of node labels this role is allowed or denied access to.
 	GetNodeLabels(RoleConditionType) Labels
 	// SetNodeLabels sets the map of node labels this role is allowed or denied access to.
@@ -1538,4 +1545,131 @@ func validateKubeResources(kubeResources []KubernetesResource) error {
 // <namespace>/<name>.
 func (k *KubernetesResource) ClusterResource() string {
 	return k.Namespace + "/" + k.Name
+}
+
+// IsEmpty will return true if the condition is empty.
+func (a AccessRequestConditions) IsEmpty() bool {
+	return len(a.Annotations) == 0 &&
+		len(a.ClaimsToRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.SearchAsRoles) == 0 &&
+		len(a.SuggestedReviewers) == 0 &&
+		len(a.Thresholds) == 0
+}
+
+// IsEmpty will return true if the condition is empty.
+func (a AccessReviewConditions) IsEmpty() bool {
+	return len(a.ClaimsToRoles) == 0 &&
+		len(a.PreviewAsRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.Where) == 0
+}
+
+// LabelMatchers holds the role label matchers and label expression that are
+// used to match resource labels of a specific resource kind and condition
+// (allow/deny).
+type LabelMatchers struct {
+	Labels     Labels
+	Expression string
+}
+
+// Empty returns true if all elements of the LabelMatchers are empty/unset.
+func (l LabelMatchers) Empty() bool {
+	return len(l.Labels) == 0 && len(l.Expression) == 0
+}
+
+// GetLabelMatchers gets the LabelMatchers that match labels of resources of
+// type [kind] this role is allowed or denied access to.
+func (r *RoleV6) GetLabelMatchers(rct RoleConditionType, kind string) (LabelMatchers, error) {
+	var cond *RoleConditions
+	if rct == Allow {
+		cond = &r.Spec.Allow
+	} else {
+		cond = &r.Spec.Deny
+	}
+	switch kind {
+	case KindRemoteCluster:
+		return LabelMatchers{cond.ClusterLabels, cond.ClusterLabelsExpression}, nil
+	case KindNode:
+		return LabelMatchers{cond.NodeLabels, cond.NodeLabelsExpression}, nil
+	case KindKubernetesCluster:
+		return LabelMatchers{cond.KubernetesLabels, cond.KubernetesLabelsExpression}, nil
+	case KindApp:
+		return LabelMatchers{cond.AppLabels, cond.AppLabelsExpression}, nil
+	case KindDatabase:
+		return LabelMatchers{cond.DatabaseLabels, cond.DatabaseLabelsExpression}, nil
+	case KindDatabaseService:
+		return LabelMatchers{cond.DatabaseServiceLabels, cond.DatabaseServiceLabelsExpression}, nil
+	case KindWindowsDesktop:
+		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
+	case KindWindowsDesktopService:
+		return LabelMatchers{cond.WindowsDesktopLabels, cond.WindowsDesktopLabelsExpression}, nil
+	case KindUserGroup:
+		return LabelMatchers{cond.GroupLabels, cond.GroupLabelsExpression}, nil
+	}
+	return LabelMatchers{}, trace.BadParameter("can't get label matchers for resource kind %q", kind)
+}
+
+// SetLabelMatchers sets the LabelMatchers that match labels of resources of
+// type [kind] this role is allowed or denied access to.
+func (r *RoleV6) SetLabelMatchers(rct RoleConditionType, kind string, labelMatchers LabelMatchers) error {
+	var cond *RoleConditions
+	if rct == Allow {
+		cond = &r.Spec.Allow
+	} else {
+		cond = &r.Spec.Deny
+	}
+	switch kind {
+	case KindRemoteCluster:
+		cond.ClusterLabels = labelMatchers.Labels
+		cond.ClusterLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindNode:
+		cond.NodeLabels = labelMatchers.Labels
+		cond.NodeLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindKubernetesCluster:
+		cond.KubernetesLabels = labelMatchers.Labels
+		cond.KubernetesLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindApp:
+		cond.AppLabels = labelMatchers.Labels
+		cond.AppLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindDatabase:
+		cond.DatabaseLabels = labelMatchers.Labels
+		cond.DatabaseLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindDatabaseService:
+		cond.DatabaseServiceLabels = labelMatchers.Labels
+		cond.DatabaseServiceLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindWindowsDesktop:
+		cond.WindowsDesktopLabels = labelMatchers.Labels
+		cond.WindowsDesktopLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindWindowsDesktopService:
+		cond.WindowsDesktopLabels = labelMatchers.Labels
+		cond.WindowsDesktopLabelsExpression = labelMatchers.Expression
+		return nil
+	case KindUserGroup:
+		cond.GroupLabels = labelMatchers.Labels
+		cond.GroupLabelsExpression = labelMatchers.Expression
+		return nil
+	}
+	return trace.BadParameter("can't set label matchers for resource kind %q", kind)
+}
+
+// LabelMatcherKinds is the complete list of resource kinds that support label
+// matchers.
+var LabelMatcherKinds = []string{
+	KindRemoteCluster,
+	KindNode,
+	KindKubernetesCluster,
+	KindApp,
+	KindDatabase,
+	KindDatabaseService,
+	KindWindowsDesktop,
+	KindWindowsDesktopService,
+	KindUserGroup,
 }

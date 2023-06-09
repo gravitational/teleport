@@ -29,7 +29,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud"
-	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
@@ -83,7 +82,7 @@ func ToEC2Instances(insts []*ec2.Instance) []EC2Instance {
 }
 
 // NewEC2Watcher creates a new EC2 watcher instance.
-func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients cloud.Clients, missedRotation <-chan []types.Server) (*Watcher, error) {
+func NewEC2Watcher(ctx context.Context, matchers []types.AWSMatcher, clients cloud.Clients, missedRotation <-chan []types.Server) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
 		fetchers:       []Fetcher{},
@@ -119,7 +118,7 @@ func NewEC2Watcher(ctx context.Context, matchers []services.AWSMatcher, clients 
 }
 
 type ec2FetcherConfig struct {
-	Matcher   services.AWSMatcher
+	Matcher   types.AWSMatcher
 	Region    string
 	Document  string
 	EC2Client ec2iface.EC2API
@@ -197,6 +196,9 @@ func newEC2InstanceFetcher(cfg ec2FetcherConfig) *ec2InstanceFetcher {
 		log.Debug("Not setting any tag filters as there is a '*:...' tag present and AWS doesnt allow globbing on keys")
 	}
 	var parameters map[string]string
+	if cfg.Matcher.Params == nil {
+		cfg.Matcher.Params = &types.InstallerParams{}
+	}
 	if cfg.Matcher.Params.InstallTeleport {
 		parameters = map[string]string{
 			ParamToken:      cfg.Matcher.Params.JoinToken,

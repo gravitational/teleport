@@ -188,78 +188,106 @@ func (h *Handler) executeCommand(
 	h.log.Debugf("Found %d hosts to run Assist command %q on.", len(hosts), req.Command)
 
 	mfaCacheFn := getMFACacheFn()
+	interactiveCommand := strings.Split(req.Command, " ")
 
-	for _, host := range hosts {
-		err := func() error {
-			sessionData, err := h.generateCommandSession(&host, req.Login, clusterName, sessionCtx.cfg.User)
-			if err != nil {
-				h.log.WithError(err).Debug("Unable to generate new ssh session.")
-				return trace.Wrap(err)
-			}
-
-			h.log.Debugf("New command request for server=%s, id=%v, login=%s, sid=%s, websid=%s.",
-				host.hostName, host.id, req.Login, sessionData.ID, sessionCtx.GetSessionID())
-
-			commandHandlerConfig := CommandHandlerConfig{
-				SessionCtx:         sessionCtx,
-				AuthProvider:       clt,
-				SessionData:        sessionData,
-				KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
-				ProxyHostPort:      h.ProxyHostPort(),
-				InteractiveCommand: strings.Split(req.Command, " "),
-				Router:             h.cfg.Router,
-				TracerProvider:     h.cfg.TracerProvider,
-				LocalAuthProvider:  h.auth.accessPoint,
-				mfaFuncCache:       mfaCacheFn,
-			}
-
-			handler, err := newCommandHandler(ctx, commandHandlerConfig)
-			if err != nil {
-				h.log.WithError(err).Error("Unable to create terminal.")
-				return trace.Wrap(err)
-			}
-			handler.ws = &noopCloserWS{ws}
-
-			h.userConns.Add(1)
-			defer h.userConns.Add(-1)
-
-			h.log.Infof("Executing command: %#v.", req)
-			httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
-
-			msgPayload, err := json.Marshal(struct {
-				NodeID      string `json:"node_id"`
-				ExecutionID string `json:"execution_id"`
-				SessionID   string `json:"session_id"`
-			}{
-				NodeID:      host.id,
-				ExecutionID: req.ExecutionID,
-				SessionID:   string(sessionData.ID),
-			})
-
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			err = clt.CreateAssistantMessage(ctx, &assist.CreateAssistantMessageRequest{
-				ConversationId: req.ConversationID,
-				Username:       identity.TeleportUser,
-				Message: &assist.AssistantMessage{
-					Type:        string(assistlib.MessageKindCommandResult),
-					CreatedTime: timestamppb.New(time.Now().UTC()),
-					Payload:     string(msgPayload),
-				},
-			})
-
+	runCmd := func(host *hostInfo) error {
+		sessionData, err := h.generateCommandSession(host, req.Login, clusterName, sessionCtx.cfg.User)
+		if err != nil {
+			h.log.WithError(err).Debug("Unable to generate new ssh session.")
 			return trace.Wrap(err)
-		}()
+		}
+
+		h.log.Debugf("New command request for server=%s, id=%v, login=%s, sid=%s, websid=%s.",
+			host.hostName, host.id, req.Login, sessionData.ID, sessionCtx.GetSessionID())
+
+		commandHandlerConfig := CommandHandlerConfig{
+			SessionCtx:         sessionCtx,
+			AuthProvider:       clt,
+			SessionData:        sessionData,
+			KeepAliveInterval:  keepAliveInterval,
+			ProxyHostPort:      h.ProxyHostPort(),
+			InteractiveCommand: interactiveCommand,
+			Router:             h.cfg.Router,
+			TracerProvider:     h.cfg.TracerProvider,
+			LocalAuthProvider:  h.auth.accessPoint,
+			mfaFuncCache:       mfaCacheFn,
+		}
+
+		handler, err := newCommandHandler(ctx, commandHandlerConfig)
+		if err != nil {
+			h.log.WithError(err).Error("Unable to create terminal.")
+			return trace.Wrap(err)
+		}
+		handler.ws = &noopCloserWS{ws}
+
+		h.userConns.Add(1)
+		defer h.userConns.Add(-1)
+
+		h.log.Infof("Executing command: %#v.", req)
+		httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
+
+		msgPayload, err := json.Marshal(struct {
+			NodeID      string `json:"node_id"`
+			ExecutionID string `json:"execution_id"`
+			SessionID   string `json:"session_id"`
+		}{
+			NodeID:      host.id,
+			ExecutionID: req.ExecutionID,
+			SessionID:   string(sessionData.ID),
+		})
 
 		if err != nil {
-			h.log.WithError(err).Warnf("Failed to start session: %v", host.hostName)
-			continue
+			return trace.Wrap(err)
 		}
+
+		err = clt.CreateAssistantMessage(ctx, &assist.CreateAssistantMessageRequest{
+			ConversationId: req.ConversationID,
+			Username:       identity.TeleportUser,
+			Message: &assist.AssistantMessage{
+				Type:        string(assistlib.MessageKindCommandResult),
+				CreatedTime: timestamppb.New(time.Now().UTC()),
+				Payload:     string(msgPayload),
+			},
+		})
+
+		return trace.Wrap(err)
 	}
 
+	runCommands(hosts, runCmd, h.log)
+
 	return nil, nil
+}
+
+// runCommands runs the given command on the given hosts.
+func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, log logrus.FieldLogger) {
+	// Create a synchronization channel to limit the number of concurrent commands.
+	// The maximum number of concurrent commands is 30 - it is arbitrary.
+	syncChan := make(chan struct{}, 30)
+	// WaiteGroup to wait for all commands to finish.
+	wg := sync.WaitGroup{}
+
+	for _, host := range hosts {
+		host := host
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			// Limit the number of concurrent commands.
+			syncChan <- struct{}{}
+			defer func() {
+				// Release the command slot.
+				<-syncChan
+			}()
+
+			if err := runCmd(&host); err != nil {
+				log.WithError(err).Warnf("Failed to start session: %v", host.hostName)
+			}
+		}()
+	}
+
+	// Wait for all commands to finish.
+	wg.Wait()
 }
 
 // getMFACacheFn returns a function that caches the result of the given
@@ -277,8 +305,7 @@ func getMFACacheFn() mfaFuncCache {
 			return authMethods, nil
 		}
 
-		var err error
-		authMethods, err = issueMfaAuthFn()
+		authMethods, err := issueMfaAuthFn()
 		return authMethods, trace.Wrap(err)
 	}
 }
@@ -457,7 +484,7 @@ func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 }
 
 func (t *commandHandler) handler(r *http.Request) {
-	t.stream = NewWStream(t.ws)
+	t.stream = NewWStream(r.Context(), t.ws, t.log, nil)
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -472,8 +499,7 @@ func (t *commandHandler) handler(r *http.Request) {
 
 	// Update the read deadline upon receiving a pong message.
 	t.ws.SetPongHandler(func(_ string) error {
-		t.ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
-		return nil
+		return trace.Wrap(t.ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval)))
 	})
 
 	// Start sending ping frames through websocket to the client.

@@ -11,8 +11,6 @@ updates:
       - dependency-name: github.com/gravitational/ttlmap
       # Breaks backwards compatibility
       - dependency-name: github.com/go-webauthn/webauthn
-      # TODO(greedy52): Update mongo-driver and fix API changes.
-      - dependency-name: go.mongodb.org/mongo-driver
       # Must be kept in-sync with libbpf
       - dependency-name: github.com/aquasecurity/libbpfgo
       # Forked/replaced dependencies
@@ -52,11 +50,15 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
+    ignore:
+      # Forked/replaced dependencies
+      - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
       - jentfoo
       - rosstimothy
+      - tcsc
       - zmb3
 
   - package-ecosystem: gomod
@@ -78,9 +80,13 @@ updates:
       interval: weekly
       day: "sunday"
       time: "09:00" # 9am UTC
+    ignore:
+      # Forked/replaced dependencies
+      - dependency-name: github.com/alecthomas/kingpin/v2
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - fheinecke
       - jentfoo
       - rosstimothy
       - zmb3
@@ -94,6 +100,7 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - hugoShaka
       - jentfoo
       - rosstimothy
       - zmb3
@@ -107,6 +114,7 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - ibeckermayer
       - jentfoo
       - rosstimothy
       - zmb3
@@ -120,6 +128,7 @@ updates:
     open-pull-requests-limit: 10
     reviewers:
       - codingllama
+      - ibeckermayer
       - jentfoo
       - rosstimothy
       - zmb3

@@ -612,6 +612,10 @@ const (
 	// PresetAuditorRoleName is a name of a preset role that allows
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
+
+	// PresetGroupAccessRoleName is a name of a preset role that allows
+	// access to all user groups.
+	PresetGroupAccessRoleName = "group-access"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

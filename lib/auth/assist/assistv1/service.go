@@ -75,6 +75,11 @@ func (a *Service) GetAssistantConversations(ctx context.Context, req *assist.Get
 	return resp, trace.Wrap(err)
 }
 
+// DeleteAssistantConversation deletes a conversation entry and associated messages from the backend.
+func (a *Service) DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, trace.Wrap(a.backend.DeleteAssistantConversation(ctx, req))
+}
+
 // GetAssistantMessages returns all messages with given conversation ID.
 func (a *Service) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
 	resp, err := a.backend.GetAssistantMessages(ctx, req)

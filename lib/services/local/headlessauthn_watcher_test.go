@@ -49,6 +49,10 @@ func newHeadlessAuthenticationWatcherTestEnv(t *testing.T, clock clockwork.Clock
 	})
 	require.NoError(t, err)
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, w.WaitInit(ctx))
+
 	return &headlessAuthenticationWatcherTestEnv{
 		watcher:       w,
 		watcherCancel: watcherCancel,

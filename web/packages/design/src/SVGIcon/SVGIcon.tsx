@@ -24,7 +24,8 @@ export function SVGIcon({
   height,
   width,
   fill,
-}: Props) {
+  ...svgProps
+}: Props & React.SVGProps<SVGSVGElement>) {
   const theme = useTheme();
 
   return (
@@ -35,6 +36,7 @@ export function SVGIcon({
       width={width || size}
       height={height || size}
       fill={fill || theme.colors.text.main}
+      {...svgProps}
     >
       {children}
     </svg>

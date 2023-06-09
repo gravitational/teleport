@@ -23,21 +23,19 @@ import (
 	"fmt"
 	"io"
 	"sync"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client/terminal"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/utils"
 )
-
-const mfaChallengeInterval = time.Second * 30
 
 // KubeSession a joined kubernetes session from the client side.
 type KubeSession struct {
@@ -197,7 +195,12 @@ func (s *KubeSession) handleMFA(ctx context.Context, tc *TeleportClient, mode ty
 			return trace.Wrap(err)
 		}
 
-		go runPresenceTask(ctx, stdout, auth, tc, s.meta.GetSessionID())
+		go RunPresenceTask(ctx, stdout, auth, s.meta.GetSessionID(), func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+			resp, err := tc.PromptMFAChallenge(ctx, proxyAddr, c, func(opts *PromptMFAChallengeOpts) {
+				opts.Quiet = true
+			})
+			return resp, trace.Wrap(err)
+		})
 	}
 
 	return nil

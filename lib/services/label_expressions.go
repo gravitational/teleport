@@ -15,13 +15,9 @@
 package services
 
 import (
-	"os"
-	"strconv"
 	"strings"
 
 	"github.com/gravitational/trace"
-	lru "github.com/hashicorp/golang-lru/v2"
-	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/lib/utils"
@@ -36,53 +32,18 @@ type labelExpressionEnv struct {
 	userTraits          map[string][]string
 }
 
+var labelExpressionParser = mustNewLabelExpressionParser()
+
 func parseLabelExpression(expr string) (labelExpression, error) {
-	if parsedExpr, ok := labelExpressionCache.Get(expr); ok {
-		return parsedExpr, nil
-	}
 	parsedExpr, err := labelExpressionParser.Parse(expr)
 	if err != nil {
 		return nil, trace.Wrap(err, "parsing label expression")
-	}
-	if evicted := labelExpressionCache.Add(expr, parsedExpr); evicted {
-		log.Info("Evicting entry from label expression cache")
 	}
 	return parsedExpr, nil
 
 }
 
-var (
-	labelExpressionCache  = mustNewLabelExpressionCache()
-	labelExpressionParser = mustNewLabelExpressionParser()
-)
-
-const (
-	cacheSizeEnvVar  = "TELEPORT_EXPRESSION_CACHE_SIZE"
-	defaultCacheSize = 1000
-)
-
-func mustNewLabelExpressionCache() *lru.Cache[string, labelExpression] {
-	cache, err := newLabelExpressionCache()
-	if err != nil {
-		panic(trace.Wrap(err, "initializing label expression cache"))
-	}
-	return cache
-}
-
-func newLabelExpressionCache() (*lru.Cache[string, labelExpression], error) {
-	cacheSize := defaultCacheSize
-	if env := os.Getenv(cacheSizeEnvVar); env != "" {
-		if envCacheSize, err := strconv.ParseUint(env, 10, 31); err != nil {
-			log.WithError(err).Warn("Parsing " + cacheSizeEnvVar)
-		} else {
-			cacheSize = int(envCacheSize)
-		}
-	}
-	cache, err := lru.New[string, labelExpression](cacheSize)
-	return cache, trace.Wrap(err)
-}
-
-func mustNewLabelExpressionParser() *typical.Parser[labelExpressionEnv, bool] {
+func mustNewLabelExpressionParser() *typical.CachedParser[labelExpressionEnv, bool] {
 	parser, err := newLabelExpressionParser()
 	if err != nil {
 		panic(trace.Wrap(err, "failed to create label expression parser (this is a bug)"))
@@ -90,8 +51,8 @@ func mustNewLabelExpressionParser() *typical.Parser[labelExpressionEnv, bool] {
 	return parser
 }
 
-func newLabelExpressionParser() (*typical.Parser[labelExpressionEnv, bool], error) {
-	parser, err := typical.NewParser[labelExpressionEnv, bool](typical.ParserSpec{
+func newLabelExpressionParser() (*typical.CachedParser[labelExpressionEnv, bool], error) {
+	parser, err := typical.NewCachedParser[labelExpressionEnv, bool](typical.ParserSpec{
 		Variables: map[string]typical.Variable{
 			"user.spec.traits": typical.DynamicVariable(
 				func(env labelExpressionEnv) (map[string][]string, error) {
@@ -104,10 +65,13 @@ func newLabelExpressionParser() (*typical.Parser[labelExpressionEnv, bool], erro
 				}),
 		},
 		Functions: map[string]typical.Function{
+			"labels_matching": typical.UnaryFunctionWithEnv(labelsMatching),
 			"contains": typical.BinaryFunction[labelExpressionEnv](
 				func(list []string, item string) (bool, error) {
 					return slices.Contains(list, item), nil
 				}),
+			"contains_any": typical.BinaryFunction[labelExpressionEnv](containsAny),
+			"contains_all": typical.BinaryFunction[labelExpressionEnv](containsAll),
 			"regexp.match": typical.BinaryFunction[labelExpressionEnv](
 				func(list []string, re string) (bool, error) {
 					match, err := utils.RegexMatchesAny(list, re)
@@ -116,9 +80,10 @@ func newLabelExpressionParser() (*typical.Parser[labelExpressionEnv, bool], erro
 					}
 					return match, nil
 				}),
-			// Use regexp.replace from lib/utils/parse to get behavior identical
+			// Use regexp.replace and email.local from lib/utils/parse to get behavior identical
 			// to role templates.
 			"regexp.replace": typical.TernaryFunction[labelExpressionEnv](parse.RegexpReplace),
+			"email.local":    typical.UnaryFunction[labelExpressionEnv](parse.EmailLocal),
 			"strings.upper": typical.UnaryFunction[labelExpressionEnv](
 				func(list []string) ([]string, error) {
 					out := make([]string, len(list))
@@ -138,4 +103,57 @@ func newLabelExpressionParser() (*typical.Parser[labelExpressionEnv, bool], erro
 		},
 	})
 	return parser, trace.Wrap(err)
+}
+
+// labelsMatching returns the aggregate of all label values for all keys that
+// match keyExpr. It supports globs or full regular expressions and must find
+// a complete match for the key.
+func labelsMatching(env labelExpressionEnv, keyExpr string) ([]string, error) {
+	allLabels := env.resourceLabelGetter.GetAllLabels()
+	var matchingLabelValues []string
+	for key, value := range allLabels {
+		match, err := utils.MatchString(key, keyExpr)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if match {
+			matchingLabelValues = append(matchingLabelValues, value)
+		}
+	}
+	return matchingLabelValues, nil
+}
+
+// containsAny returns true if [list] contains any element of [items].
+func containsAny(list []string, items []string) (bool, error) {
+	s := set(list)
+	for _, item := range items {
+		if _, ok := s[item]; ok {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// containsAny returns true if [list] contains every element of [items]. If
+// [items] is empty, it returns false, to avoid matching resources that
+// otherwise appear unrelated to the expression.
+func containsAll(list []string, items []string) (bool, error) {
+	if len(items) == 0 {
+		return false, nil
+	}
+	s := set(list)
+	for _, item := range items {
+		if _, ok := s[item]; !ok {
+			return false, nil
+		}
+	}
+	return true, nil
+}
+
+func set(list []string) map[string]struct{} {
+	m := make(map[string]struct{}, len(list))
+	for _, l := range list {
+		m[l] = struct{}{}
+	}
+	return m
 }

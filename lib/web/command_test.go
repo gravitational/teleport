@@ -17,6 +17,7 @@
 package web
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -25,6 +26,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -33,10 +35,12 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestExecuteCommand(t *testing.T) {
@@ -47,7 +51,7 @@ func TestExecuteCommand(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	stream := NewWStream(ws)
+	stream := NewWStream(context.Background(), ws, utils.NewLoggerForTests(), nil)
 
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 }
@@ -153,4 +157,30 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 			return trace.Wrap(err)
 		}
 	}
+}
+
+// Test_runCommands tests that runCommands runs the given command on all hosts.
+// The commands should run in parallel, but we don't have a deterministic way to
+// test that (sleep with checking the execution time in not deterministic).
+func Test_runCommands(t *testing.T) {
+	counter := atomic.Int32{}
+
+	runCmd := func(host *hostInfo) error {
+		counter.Add(1)
+		return nil
+	}
+
+	hosts := make([]hostInfo, 0, 100)
+	for i := 0; i < 100; i++ {
+		hosts = append(hosts, hostInfo{
+			hostName: fmt.Sprintf("localhost%d", i),
+		})
+	}
+
+	logger := logrus.New()
+	logger.Out = io.Discard
+
+	runCommands(hosts, runCmd, logger)
+
+	require.Equal(t, int32(100), counter.Load())
 }

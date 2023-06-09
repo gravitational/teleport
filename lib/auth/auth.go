@@ -1322,13 +1322,31 @@ func (a *Server) generateHostCert(
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if p.Role == types.RoleNode {
-		if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
-			[]types.LockTarget{{Node: p.HostID}, {Node: HostFQDN(p.HostID, p.ClusterName)}},
-		); lockErr != nil {
-			return nil, trace.Wrap(lockErr)
-		}
+
+	var locks []types.LockTarget
+	switch p.Role {
+	case types.RoleNode:
+		// Node role is a special case because it was previously suported as a
+		// lock target that only locked the `ssh_service`. If the same Teleport server
+		// had multiple roles, Node lock would only lock the `ssh_service` while
+		// other roles would be able to generate certificates without a problem.
+		// To remove the ambiguity, we now lock the entire Teleport server for
+		// all roles using the LockTarget.ServerID field and `Node` field is
+		// deprecated.
+		// In order to support legacy behavior, we need fill in both `ServerID`
+		// and `Node` fields if the role is `Node` so that the previous behavior
+		// is preserved.
+		// This is a legacy behavior that we need to support for backwards compatibility.
+		locks = []types.LockTarget{{ServerID: p.HostID, Node: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName), Node: HostFQDN(p.HostID, p.ClusterName)}}
+	default:
+		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName)}}
 	}
+	if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
+		locks,
+	); lockErr != nil {
+		return nil, trace.Wrap(lockErr)
+	}
+
 	return a.Authority.GenerateHostCert(p)
 }
 
@@ -1494,7 +1512,11 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	accessInfo := services.AccessInfoFromUser(req.User)
 	roles := make([]types.Role, len(req.Roles))
 	for i := range req.Roles {
-		roles[i] = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		var err error
+		roles[i], err = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	roleSet := services.NewRoleSet(roles...)
 
@@ -3571,6 +3593,16 @@ func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingReque
 	}, nil
 }
 
+// UpdateLabels updates the labels on an instance over the inventory control
+// stream.
+func (a *Server) UpdateLabels(ctx context.Context, req proto.InventoryUpdateLabelsRequest) error {
+	stream, ok := a.inventory.GetControlStream(req.ServerID)
+	if !ok {
+		return trace.NotFound("no control stream found for server %q", req.ServerID)
+	}
+	return trace.Wrap(stream.UpdateLabels(ctx, req.Kind, req.Labels))
+}
+
 // TokenExpiredOrNotFound is a special message returned by the auth server when provisioning
 // tokens are either past their TTL, or could not be found.
 const TokenExpiredOrNotFound = "token expired or not found"
@@ -5266,6 +5298,11 @@ func (a *Server) CreateAssistantConversation(ctx context.Context, req *assist.Cr
 func (a *Server) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
 	resp, err := a.Services.GetAssistantConversations(ctx, request)
 	return resp, trace.Wrap(err)
+}
+
+// DeleteAssistantConversation deletes a conversation from the backend.
+func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assist.DeleteAssistantConversationRequest) error {
+	return trace.Wrap(a.Services.DeleteAssistantConversation(ctx, request))
 }
 
 // CompareAndSwapHeadlessAuthentication performs a compare
