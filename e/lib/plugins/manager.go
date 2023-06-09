@@ -63,8 +63,9 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 
 	if cfg.Factories == nil {
 		cfg.Factories = map[types.PluginType]instanceFactory{
-			types.PluginTypeSlack: slackInstanceFactory,
-			types.PluginTypeOkta:  oktaInstanceFactory,
+			types.PluginTypeOkta:     oktaInstanceFactory,
+			types.PluginTypeSlack:    slackInstanceFactory,
+			types.PluginTypeOpsgenie: opsgenieInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {
@@ -360,6 +361,8 @@ func (m *Manager) getStaticCredentials(ctx context.Context, plugin types.Plugin)
 // NeedsOAuth returns true if the plugin needs OAuth.
 func NeedsOAuth(plugin types.Plugin) bool {
 	switch plugin.GetType() {
+	case types.PluginTypeOpsgenie:
+		return false
 	case types.PluginTypeOkta:
 		return false
 	}

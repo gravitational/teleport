@@ -3,16 +3,18 @@ package plugins
 import (
 	"context"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
-	"github.com/gravitational/teleport/integrations/access/slack"
 )
 
 // pluginConfiguration is an implementation of common.PluginConfiguration
 type pluginConfiguration struct {
-	client       teleport.Client
-	slackConfig  slack.Config
+	client teleport.Client
+
+	pluginConfig pluginConfig
 	defaultRoute string
 	pluginType   types.PluginType
 }
@@ -28,9 +30,17 @@ func (p *pluginConfiguration) GetTeleportClient(ctx context.Context) (teleport.C
 }
 
 func (p *pluginConfiguration) NewBot(clusterName string, webProxyAddr string) (common.MessagingBot, error) {
-	return p.slackConfig.NewBot(clusterName, webProxyAddr)
+	if p.pluginConfig != nil {
+		return p.pluginConfig.NewBot(clusterName, webProxyAddr)
+	}
+	return nil, trace.BadParameter("plugin config must be provided")
 }
 
+// GetPluginType returns the type of plugin this config is for.
 func (p *pluginConfiguration) GetPluginType() types.PluginType {
 	return p.pluginType
+}
+
+type pluginConfig interface {
+	NewBot(clusterName, webProxyUrl string) (common.MessagingBot, error)
 }
