@@ -41,6 +41,7 @@ type agentDialer struct {
 	fips        bool
 	options     []proxy.DialerOptionFunc
 	log         logrus.FieldLogger
+	isClaimed   func(principals ...string) bool
 }
 
 // DialContext creates an ssh connection to the given address.
@@ -58,6 +59,11 @@ func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHC
 		apisshutils.HostKeyCallbackConfig{
 			GetHostCheckers: d.hostCheckerFunc(ctx),
 			OnCheckCert: func(c *ssh.Certificate) error {
+				if d.isClaimed != nil && d.isClaimed(c.ValidPrincipals...) {
+					d.log.Debugf("Aborting SSH handshake because the proxy %q is already claimed by some other agent.", c.ValidPrincipals[0])
+					return trace.Errorf("proxy already claimed")
+				}
+
 				principals = c.ValidPrincipals
 				return nil
 			},
