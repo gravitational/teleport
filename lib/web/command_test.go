@@ -108,14 +108,7 @@ func TestExecuteCommandHistory(t *testing.T) {
 	require.Equal(t, string(assistlib.MessageKindCommandResult), msg.Type)
 	require.NotZero(t, msg.CreatedTime)
 
-	type exectionResult struct {
-		NodeID      string `json:"node_id"`
-		NodeName    string `json:"node_name"`
-		ExecutionID string `json:"execution_id"`
-		SessionID   string `json:"session_id"`
-	}
-
-	var result exectionResult
+	var result commandExecResult
 	err = json.Unmarshal([]byte(msg.GetPayload()), &result)
 	require.NoError(t, err)
 
