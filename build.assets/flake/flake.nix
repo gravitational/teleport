@@ -52,6 +52,7 @@
           helmUnittestVersion = "v1.0.16";
           nodeProtocTsVersion = "5.0.1";
           grpcToolsVersion = "1.12.4";
+          libpcscliteVersion = "1.9.9-teleport";
 
           # Package aliases to make reusing these packages easier.
           # The individual package names here have been determined by using
@@ -98,6 +99,40 @@
             dontUnpack = true;
             buildPhase = ''
               curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $out/bin ${golangciLintVersion}
+            '';
+          };
+
+          libpcscliteAdditionalNativeBuildInputs = if pkgs.stdenv.isDarwin then
+            [pkgs.darwin.IOKit] else [];
+          libpcscliteAdditionalBuildInputs = if pkgs.stdenv.isLinux then
+            [pkgs.libusb1] else [];
+
+          # Compile libpcsclite.
+          libpcsclite = pkgs.stdenv.mkDerivation {
+            name = "libpcsclite";
+            src = pkgs.fetchFromGitHub {
+              owner = "gravitational";
+              repo = "PCSC";
+              rev = libpcscliteVersion;
+              sha256 = "sha256-Eig30fj7YlDHe6A/ceJ+KLhzT/ctxb9d4nFnsxk+WsA=";
+            };
+            nativeBuildInputs = [
+              pkgs.autoreconfHook
+            ] ++ libpcscliteAdditionalNativeBuildInputs;
+            buildInputs = [
+              pkgs.autoconf-archive
+              pkgs.flex
+              pkgs.gcc
+              pkgs.pkg-config
+            ] ++ libpcscliteAdditionalBuildInputs;
+            autoreconfPhase = ''
+              ./bootstrap
+            '';
+            configurePhase = ''
+              ./configure --enable-static --with-pic --disable-libsystemd --prefix="$out"
+            '';
+            shellHook = ''
+              export CFLAGS="-std=gnu99"
             '';
           };
 
@@ -171,6 +206,7 @@
             golangci-lint = golangci-lint;
             grpc-tools = grpc-tools;
             helm = helm;
+            libpcsclite = libpcsclite;
             protoc-gen-gogo = protoc-gen-gogo;
             rust = rust;
           };
