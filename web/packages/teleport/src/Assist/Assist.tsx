@@ -191,6 +191,7 @@ const AssistContainer = styled.div`
   box-shadow: var(--assist-box-shadow);
   position: absolute;
   width: var(--assist-width);
+  max-height: calc(100vh - var(--assist-gutter) * 2);
   height: var(--assist-height);
   top: var(--assist-gutter);
   right: var(--assist-right);
