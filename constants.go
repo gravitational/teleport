@@ -618,7 +618,7 @@ const (
 	PresetReviewerRoleName = "reviewer"
 
 	// PresetRequesterRoleName is a name of a preset role that allows
-	// for requesting resources.
+	// for requesting access to resources.
 	PresetRequesterRoleName = "requester"
 
 	// PresetGroupAccessRoleName is a name of a preset role that allows
