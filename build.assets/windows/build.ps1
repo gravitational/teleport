@@ -89,9 +89,12 @@ function Install-Go {
         [string] $GoVersion
     )
     begin {
+        Write-Host "GoVersion: $GoVersion"
         New-Item -Path "$ToolchainDir" -ItemType Directory -Force | Out-Null
         $GoDownloadUrl = "https://go.dev/dl/go$GoVersion.windows-amd64.zip"
+        Write-Host "GoDownloadUrl: $GoDownloadUrl"
         $GoInstallZip = "$ToolchainDir/go$GoVersion.windows-amd64.zip"
+        Write-Host "GoInstallZip: $GoInstallZip"
         Invoke-WebRequest -Uri $GoDownloadUrl -OutFile $GoInstallZip
         Expand-Archive -Path $GoInstallZip -DestinationPath $ToolchainDir
         Enable-Go -ToolchainDir $ToolchainDir
