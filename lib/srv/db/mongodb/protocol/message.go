@@ -129,7 +129,7 @@ func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
 // defaultMaxMessageSizeBytes is the default max size of mongoDB message.
 // It can be obtained by following command:
 // db.isMaster().maxMessageSizeBytes    48000000 (default)
-// TODO: get the max limit from Mongo handshake
+// TODO(jent): get the max limit from Mongo handshake
 // https://github.com/gravitational/teleport/issues/21286
 // For now allow 2x default mongoDB limit.
 const defaultMaxMessageSizeBytes = int64(48000000) * 2
