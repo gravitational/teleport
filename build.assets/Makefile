@@ -96,10 +96,6 @@ else
 	DEVTOOLSET ?= devtoolset-11
 endif
 
-.PHONY:testthis
-testthis:
-	echo "$(UID):$(GID)"
-
 #
 # Build 'teleport' release inside a docker container
 #
