@@ -28,12 +28,12 @@ Here are the steps we'll walkthrough:
   Read [API authorization](./architecture.mdx#authorization) to learn more about defining custom roles for your API client.
 </Admonition>
 
-Create a user `api-admin` with the built-in role `editor`:
+Create a user `api-admin` with the built-in roles `editor` and `reviewer`:
 
 ```code
 # Run this directly on your Auth Server unless you are using Teleport Cloud
 # Add a user and login via the Proxy Service
-$ sudo tctl users add api-admin --roles=editor
+$ sudo tctl users add api-admin --roles=editor,reviewer
 ```
 
 ## Step 2/3. Generate client credentials

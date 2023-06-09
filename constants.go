@@ -614,11 +614,11 @@ const (
 	PresetAuditorRoleName = "auditor"
 
 	// PresetReviewerRoleName is a name of a preset role that allows
-	// for reviewing application and user group requests.
+	// for reviewing access requests.
 	PresetReviewerRoleName = "reviewer"
 
 	// PresetRequesterRoleName is a name of a preset role that allows
-	// for requesting applications and user groups.
+	// for requesting resources.
 	PresetRequesterRoleName = "requester"
 
 	// PresetGroupAccessRoleName is a name of a preset role that allows

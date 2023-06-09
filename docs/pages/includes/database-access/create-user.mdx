@@ -4,11 +4,11 @@ To modify an existing user to provide access to the Database Service, see [Datab
 
 </Admonition>
 
-Create a local Teleport user with the built-in `access` role:
+Create a local Teleport user with the built-in `access` and `requester` roles:
 
 ```code
 $ tctl users add \
-  --roles=access \
+  --roles=access,requester \
   --db-users=\* \
   --db-names=\* \
   alice

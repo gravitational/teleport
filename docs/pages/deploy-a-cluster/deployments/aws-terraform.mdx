@@ -489,7 +489,7 @@ $ ssh -i ${TF_VAR_key_name}.pem -o ProxyCommand="ssh -i ${TF_VAR_key_name}.pem -
 
 ```code
 # From EC2 host
-$ sudo tctl users add teleport-admin --roles=editor,access --logins=root
+$ sudo tctl users add teleport-admin --roles=editor,access,reviewer --logins=root
 # Signup token has been created and is valid for 1 hours. Share this URL with the user:
 # https://teleport.example.com:443/web/newuser/6489ae886babf4232826076279bcb2fb
 
@@ -519,7 +519,7 @@ $ tsh login --proxy=${TF_VAR_route53_domain} --user=teleport-admin
 # > Profile URL:  https://teleport.example.com:443
 #  Logged in as: teleport-admin
 #  Cluster:      example-cluster
-#  Roles:        editor,access
+#  Roles:        editor,access,reviewer
 #  Logins:       root
 #  Valid until:  2020-03-06 22:07:11 -0400 AST [valid for 12h0m0s]
 #  Extensions:   permit-agent-forwarding, permit-port-forwarding, permit-pty

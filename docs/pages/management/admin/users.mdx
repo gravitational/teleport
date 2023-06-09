@@ -38,7 +38,7 @@ Let's look at this table:
 Let's add a new user to Teleport using the `tctl` tool:
 
 ```code
-$ tctl users add joe --logins=joe,root --roles=access,editor
+$ tctl users add joe --logins=joe,root --roles=access,editor,reviewer
 ```
 
 Teleport generates an auto-expiring token (with a TTL of one hour) and prints

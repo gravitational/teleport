@@ -197,7 +197,7 @@ func NewPresetAuditorRole() types.Role {
 }
 
 // NewPresetReviewerRole returns a new pre-defined role for reviewer. The
-// reviewer will be able to review all application and user group access requests.
+// reviewer will be able to review all access requests.
 func NewPresetReviewerRole() types.Role {
 	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
@@ -206,7 +206,7 @@ func NewPresetReviewerRole() types.Role {
 		Metadata: types.Metadata{
 			Name:        teleport.PresetReviewerRoleName,
 			Namespace:   apidefaults.Namespace,
-			Description: "Review application and user group requests",
+			Description: "Review access requests",
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
@@ -227,7 +227,7 @@ func NewPresetReviewerRole() types.Role {
 }
 
 // NewPresetRequesterRole returns a new pre-defined role for requester. The
-// requester will be able to request all application and user groups.
+// requester will be able to request all resources.
 func NewPresetRequesterRole() types.Role {
 	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
@@ -236,7 +236,7 @@ func NewPresetRequesterRole() types.Role {
 		Metadata: types.Metadata{
 			Name:        teleport.PresetRequesterRoleName,
 			Namespace:   apidefaults.Namespace,
-			Description: "Request applications and user groups",
+			Description: "Request all resources",
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{

@@ -49,10 +49,11 @@ $ tctl tokens add --type=app
 ```
 
 Next, create a Teleport user with the `access` role that will allow it to
-connect to cluster applications:
+connect to cluster applications along with the `requester` role that will
+allow it to request cluster applications:
 
 ```code
-$ tctl users add --roles=access alice
+$ tctl users add --roles=access,requester alice
 ```
 </ScopedBlock>
 
