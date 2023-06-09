@@ -25,7 +25,7 @@ import {
   SidebarIcon,
 } from 'design/SVGIcon';
 
-import { AssistViewMode } from 'teleport/Assist/MiniAssist';
+import { AssistViewMode } from 'teleport/Assist/Assist';
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 
 interface HeaderProps {

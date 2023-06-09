@@ -21,7 +21,7 @@ import { ButtonPrimary } from 'design';
 
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { ConversationHistoryItem } from 'teleport/Assist/ConversationHistory/ConversationHistoryItem';
-import { AssistViewMode } from 'teleport/Assist/MiniAssist';
+import { AssistViewMode } from 'teleport/Assist/Assist';
 import { DeleteConversationDialog } from 'teleport/Assist/ConversationHistory/DeleteConversationDialog';
 
 interface ConversationHistoryProps {

@@ -19,7 +19,7 @@ import styled from 'styled-components';
 
 import { Conversation } from 'teleport/Assist/Conversation';
 import { useAssist } from 'teleport/Assist/context/AssistContext';
-import { AssistViewMode } from 'teleport/Assist/MiniAssist';
+import { AssistViewMode } from 'teleport/Assist/Assist';
 import { MessageBox } from 'teleport/Assist/MessageBox';
 import { LandingPage } from 'teleport/Assist/LandingPage';
 

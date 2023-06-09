@@ -26,7 +26,7 @@ import { ConversationList } from 'teleport/Assist/ConversationList';
 import { KeysEnum } from 'teleport/services/localStorage';
 import { useLayout } from 'teleport/Main/LayoutContext';
 
-interface MiniAssistProps {
+interface AssistProps {
   onClose: () => void;
 }
 
@@ -174,7 +174,7 @@ const Container = styled.div<{ docked: boolean }>`
   justify-content: flex-end;
 `;
 
-const Assist = styled.div`
+const AssistContainer = styled.div`
   ${variables};
   ${sidebarVariables};
 
@@ -246,7 +246,7 @@ function isSidebarVisible(viewMode: AssistViewMode) {
   );
 }
 
-export function MiniAssist(props: MiniAssistProps) {
+export function Assist(props: AssistProps) {
   const [viewMode, setViewMode] = useLocalStorage(
     KeysEnum.ASSIST_VIEW_MODE,
     AssistViewMode.Collapsed
@@ -337,7 +337,7 @@ export function MiniAssist(props: MiniAssistProps) {
   return (
     <AssistContextProvider>
       <Container onClick={handleClose} docked={isDocked(viewMode)}>
-        <Assist onClick={handleClick} viewMode={viewMode}>
+        <AssistContainer onClick={handleClick} viewMode={viewMode}>
           <Header
             onClose={handleClose}
             onExpand={handleExpand}
@@ -356,7 +356,7 @@ export function MiniAssist(props: MiniAssistProps) {
               <ConversationList viewMode={viewMode} />
             </AssistConversation>
           </AssistContent>
-        </Assist>
+        </AssistContainer>
       </Container>
     </AssistContextProvider>
   );
