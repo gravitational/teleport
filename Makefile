@@ -648,6 +648,10 @@ DIFF_TEST := $(TOOLINGDIR)/bin/difftest
 $(DIFF_TEST): $(wildcard $(TOOLINGDIR)/cmd/difftest/*.go)
 	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/difftest
 
+RERUN := $(TOOLINGDIR)/bin/rerun
+$(RERUN): $(wildcard $(TOOLINGDIR)/cmd/rerun/*.go)
+	cd $(TOOLINGDIR) && go build -o "$@" ./cmd/rerun
+
 .PHONY: tooling
 tooling: $(RENDER_TESTS) $(DIFF_TEST)
 
@@ -807,6 +811,24 @@ test-teleport-usage:
 	cd examples/teleport-usage && $(CGOFLAG) go test -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG)" $(PACKAGES) $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
 		| tee $(TEST_LOG_DIR)/teleport-usage.json \
 		| ${RENDER_TESTS}
+
+#
+# Flaky test detection. Usually run from CI nightly, overriding these default parameters
+# This runs the same tests as test-go-unit but repeatedly to try to detect flaky tests.
+#
+.PHONY: test-go-flaky
+FLAKY_RUNS ?= 3
+FLAKY_TIMEOUT ?= 1h
+FLAKY_TOP_N ?= 20
+FLAKY_SUMMARY_FILE ?= /tmp/flaky-report.txt
+test-go-flaky: FLAGS ?= -race -shuffle on
+test-go-flaky: SUBJECT ?= $(shell go list ./... | grep -v -e integration -e tool/tsh -e integrations/operator -e integrations/access -e integrations/lib )
+test-go-flaky: GO_BUILD_TAGS ?= $(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)
+test-go-flaky: RENDER_FLAGS ?= -report-by flakiness -summary-file $(FLAKY_SUMMARY_FILE) -top $(FLAKY_TOP_N)
+test-go-flaky: test-go-prepare $(RERUN)
+	$(CGOFLAG) $(RERUN) -n $(FLAKY_RUNS) -t $(FLAKY_TIMEOUT) \
+		go test -count=1 -cover -json -tags "$(GO_BUILD_TAGS)" $(SUBJECT) $(FLAGS) $(ADDFLAGS) \
+		| $(RENDER_TESTS) $(RENDER_FLAGS)
 
 #
 # Runs cargo test on our Rust modules.
