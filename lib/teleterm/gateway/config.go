@@ -18,6 +18,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/tls"
 	"runtime"
 
 	"github.com/google/uuid"
@@ -52,10 +53,8 @@ type Config struct {
 	LocalAddress string
 	// Protocol is the gateway protocol
 	Protocol string
-	// CertPath
-	CertPath string
-	// KeyPath
-	KeyPath string
+	// Cert is the initial client certificate used to connect to the remote Teleport Proxy.
+	Cert tls.Certificate
 	// Insecure
 	Insecure bool
 	// WebProxyAddr
@@ -69,11 +68,11 @@ type Config struct {
 	TCPPortAllocator TCPPortAllocator
 	// Clock is used by Gateway.localProxy to check cert expiration.
 	Clock clockwork.Clock
-	// OnExpiredCert is called when a new downstream connection is accepted by the
+	// ReissueCert is called when a new downstream connection is accepted by the
 	// gateway but cannot be proxied because the cert used by the gateway has expired.
 	//
-	// Handling of the connection is blocked until OnExpiredCert returns.
-	OnExpiredCert OnExpiredCertFunc
+	// Handling of the connection is blocked until ReissueCert returns.
+	ReissueCert ReissueCertFunc
 	// TLSRoutingConnUpgradeRequired indicates that ALPN connection upgrades
 	// are required for making TLS routing requests.
 	TLSRoutingConnUpgradeRequired bool
@@ -82,11 +81,11 @@ type Config struct {
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
 }
 
-// OnExpiredCertFunc is the type of a function that is called when a new downstream connection is
+// ReissueCertFunc is the type of a function that is called when a new downstream connection is
 // accepted by the gateway but cannot be proxied because the cert used by the gateway has expired.
 //
 // Handling of the connection is blocked until the function returns.
-type OnExpiredCertFunc func(context.Context, *Gateway) error
+type ReissueCertFunc func(context.Context, *Gateway) (tls.Certificate, error)
 
 // CheckAndSetDefaults checks and sets the defaults
 func (c *Config) CheckAndSetDefaults() error {

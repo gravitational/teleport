@@ -27,27 +27,18 @@ import (
 // DbcmdCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
 // fresh profile state from the disk.
 type DbcmdCLICommandProvider struct {
-	storage StorageByResourceURI
+	cluster *Cluster
 	execer  dbcmd.Execer
 }
 
-type StorageByResourceURI interface {
-	GetByResourceURI(string) (*Cluster, error)
-}
-
-func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Execer) DbcmdCLICommandProvider {
+func NewDbcmdCLICommandProvider(cluster *Cluster, execer dbcmd.Execer) DbcmdCLICommandProvider {
 	return DbcmdCLICommandProvider{
-		storage: storage,
+		cluster: cluster,
 		execer:  execer,
 	}
 }
 
 func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd, error) {
-	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI())
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	routeToDb := tlsca.RouteToDatabase{
 		ServiceName: gateway.TargetName(),
 		Protocol:    gateway.Protocol(),
@@ -55,14 +46,14 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd
 		Database:    gateway.TargetSubresourceName(),
 	}
 
-	cmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, routeToDb,
+	cmd, err := dbcmd.NewCmdBuilder(d.cluster.clusterClient, &d.cluster.status, routeToDb,
 		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
 		// clusters.
 		//
 		// At this point it doesn't matter though because this argument is used only for
 		// generating correct CA paths. We use dbcmd.WithNoTLS here which means that the CA paths aren't
 		// included in the returned CLI command.
-		cluster.Name,
+		d.cluster.Name,
 		dbcmd.WithLogger(gateway.Log()),
 		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),

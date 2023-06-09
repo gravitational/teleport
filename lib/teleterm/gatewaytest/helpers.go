@@ -23,7 +23,6 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
-	"os"
 	"testing"
 	"time"
 
@@ -140,15 +139,8 @@ func (m *MockListener) RealAddr() net.Addr {
 	return m.realListener.Addr()
 }
 
-type KeyPairPaths struct {
-	CertPath string
-	KeyPath  string
-}
-
-func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
+func MustGenDBCert(t *testing.T, identity tlsca.Identity) tls.Certificate {
 	t.Helper()
-
-	dir := t.TempDir()
 
 	ca := mustGenCACert(t)
 
@@ -157,32 +149,12 @@ func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
 	privateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
 	require.True(t, ok, "Failed to cast tlsCert.PrivateKey")
 
-	// Save the cert.
-
-	certFile, err := os.CreateTemp(dir, "cert")
-	require.NoError(t, err)
-
 	pemCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tlsCert.Certificate[0]})
-
-	_, err = certFile.Write(pemCert)
-	require.NoError(t, err)
-	require.NoError(t, certFile.Close())
-
-	// Save the private key.
-
-	keyFile, err := os.CreateTemp(dir, "key")
-	require.NoError(t, err)
-
 	pemPrivateKey := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
 
-	_, err = keyFile.Write(pemPrivateKey)
+	tlsCert, err := tls.X509KeyPair(pemCert, pemPrivateKey)
 	require.NoError(t, err)
-	require.NoError(t, keyFile.Close())
-
-	return KeyPairPaths{
-		CertPath: certFile.Name(),
-		KeyPath:  keyFile.Name(),
-	}
+	return tlsCert
 }
 
 func mustGenCACert(t *testing.T) *tlsca.CertAuthority {

@@ -22,7 +22,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
-	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
 // Config is the cluster service config
@@ -30,9 +29,8 @@ type Config struct {
 	// Storage is a storage service that reads/writes to tsh profiles
 	Storage *clusters.Storage
 	// Log is a component logger
-	Log              *logrus.Entry
-	GatewayCreator   GatewayCreator
-	TCPPortAllocator gateway.TCPPortAllocator
+	Log            *logrus.Entry
+	GatewayCreator GatewayCreator
 	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
 	// Electron app. This is to ensure that the server public key is written to the disk under the
 	// expected location by the time we get around to creating the client.
@@ -52,10 +50,6 @@ func (c *Config) CheckAndSetDefaults() error {
 
 	if c.GatewayCreator == nil {
 		c.GatewayCreator = clusters.NewGatewayCreator(c.Storage)
-	}
-
-	if c.TCPPortAllocator == nil {
-		c.TCPPortAllocator = gateway.NetTCPPortAllocator{}
 	}
 
 	if c.Log == nil {

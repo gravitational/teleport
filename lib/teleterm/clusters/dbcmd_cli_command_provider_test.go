@@ -17,10 +17,8 @@ package clusters
 import (
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"testing"
 
-	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/client"
@@ -45,20 +43,6 @@ func (f fakeExec) Command(name string, arg ...string) *exec.Cmd {
 	cmd := exec.Command(name, arg...)
 	cmd.Path = filepath.Base(cmd.Path)
 	return cmd
-}
-
-type fakeStorage struct {
-	clusters []*Cluster
-}
-
-func (f fakeStorage) GetByResourceURI(resourceURI string) (*Cluster, error) {
-	for _, cluster := range f.clusters {
-		if strings.HasPrefix(resourceURI, cluster.URI.String()) {
-			return cluster, nil
-		}
-	}
-
-	return nil, trace.NotFound("not found")
 }
 
 func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
@@ -87,12 +71,9 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 					},
 				},
 			}
-			fakeStorage := fakeStorage{
-				clusters: []*Cluster{&cluster},
-			}
-			dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
+			dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(&cluster, fakeExec{})
 
-			keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
+			tlsCert := gatewaytest.MustGenDBCert(t, tlsca.Identity{
 				Username: "alice",
 				Groups:   []string{"test-group"},
 				RouteToDatabase: tlsca.RouteToDatabase{
@@ -112,8 +93,7 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 					LocalAddress:          "localhost",
 					WebProxyAddr:          "localhost:1337",
 					Insecure:              true,
-					CertPath:              keyPairPaths.CertPath,
-					KeyPath:               keyPairPaths.KeyPath,
+					Cert:                  tlsCert,
 					CLICommandProvider:    dbcmdCLICommandProvider,
 					TCPPortAllocator:      gateway.NetTCPPortAllocator{},
 				},
@@ -129,44 +109,4 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 			require.Contains(t, command.Args[1], gateway.LocalPort())
 		})
 	}
-}
-
-func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *testing.T) {
-	fakeStorage := fakeStorage{
-		clusters: []*Cluster{},
-	}
-	dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
-
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
-		Username: "alice",
-		Groups:   []string{"test-group"},
-		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: "foo",
-			Protocol:    defaults.ProtocolPostgres,
-			Username:    "alice",
-		},
-	})
-
-	gateway, err := gateway.New(
-		gateway.Config{
-			TargetURI:             uri.NewClusterURI("quux").AppendDB("foo").String(),
-			TargetName:            "foo",
-			TargetUser:            "alice",
-			TargetSubresourceName: "",
-			Protocol:              defaults.ProtocolPostgres,
-			LocalAddress:          "localhost",
-			WebProxyAddr:          "localhost:1337",
-			Insecure:              true,
-			CertPath:              keyPairPaths.CertPath,
-			KeyPath:               keyPairPaths.KeyPath,
-			CLICommandProvider:    dbcmdCLICommandProvider,
-			TCPPortAllocator:      gateway.NetTCPPortAllocator{},
-		},
-	)
-	require.NoError(t, err)
-	t.Cleanup(func() { gateway.Close() })
-
-	_, err = dbcmdCLICommandProvider.GetCommand(gateway)
-	require.Error(t, err)
-	require.True(t, trace.IsNotFound(err), "err is not trace.NotFound")
 }

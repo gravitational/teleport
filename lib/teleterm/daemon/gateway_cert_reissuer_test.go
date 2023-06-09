@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 var log = logrus.WithField(trace.Component, "reissuer")
@@ -138,7 +137,7 @@ func TestReissueCert(t *testing.T) {
 			if tt.reissuerOpt != nil {
 				tt.reissuerOpt(t, reissuer)
 			}
-			err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer)
+			err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer.ReissueDBCerts)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				require.ErrorContains(t, err, tt.wantAddedMessage)
@@ -173,7 +172,7 @@ type mockDBCertReissuer struct {
 	returnValuesForSubsequentCalls []error
 }
 
-func (r *mockDBCertReissuer) ReissueDBCerts(context.Context, tlsca.RouteToDatabase) error {
+func (r *mockDBCertReissuer) ReissueDBCerts(context.Context) error {
 	var err error
 	if r.callCount < len(r.returnValuesForSubsequentCalls) {
 		err = r.returnValuesForSubsequentCalls[r.callCount]

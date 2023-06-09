@@ -27,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-type localProxyMiddleware struct {
+type dbMiddleware struct {
 	onExpiredCert func(context.Context) error
 	log           *logrus.Entry
 	dbRoute       tlsca.RouteToDatabase
@@ -39,7 +39,7 @@ type localProxyMiddleware struct {
 //
 // In the future, DBCertChecker is going to be extended so that it's used by both tsh and Connect
 // and this middleware will be removed.
-func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy, conn net.Conn) error {
+func (m *dbMiddleware) OnNewConnection(ctx context.Context, lp *alpn.LocalProxy, conn net.Conn) error {
 	err := lp.CheckDBCerts(m.dbRoute)
 	if err == nil {
 		return nil
@@ -58,6 +58,6 @@ func (m *localProxyMiddleware) OnNewConnection(ctx context.Context, lp *alpn.Loc
 // OnStart is a noop. client.DBCertChecker.OnStart checks cert validity too. However in Connect
 // there's no flow which would allow the user to create a local proxy without valid
 // certs.
-func (m *localProxyMiddleware) OnStart(context.Context, *alpn.LocalProxy) error {
+func (m *dbMiddleware) OnStart(context.Context, *alpn.LocalProxy) error {
 	return nil
 }

@@ -35,8 +35,9 @@ import (
 )
 
 type mockGatewayCreator struct {
-	t         *testing.T
-	callCount int
+	t                *testing.T
+	tcpPortAllocator gateway.TCPPortAllocator
+	callCount        int
 }
 
 func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.CreateGatewayParams) (*gateway.Gateway, error) {
@@ -49,7 +50,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 
 	resourceURI := uri.New(params.TargetURI)
 
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
+	tlsCert := gatewaytest.MustGenDBCert(m.t, tlsca.Identity{
 		Username: params.TargetUser,
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -66,12 +67,11 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		TargetName:            params.TargetURI,
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
-		CertPath:              keyPairPaths.CertPath,
-		KeyPath:               keyPairPaths.KeyPath,
+		Cert:                  tlsCert,
 		Insecure:              true,
 		WebProxyAddr:          hs.Listener.Addr().String(),
-		CLICommandProvider:    params.CLICommandProvider,
-		TCPPortAllocator:      params.TCPPortAllocator,
+		CLICommandProvider:    mockCLICommandProvider{},
+		TCPPortAllocator:      m.tcpPortAllocator,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -214,7 +214,10 @@ func TestGatewayCRUD(t *testing.T) {
 			}
 
 			homeDir := t.TempDir()
-			mockGatewayCreator := &mockGatewayCreator{t: t}
+			mockGatewayCreator := &mockGatewayCreator{
+				t:                t,
+				tcpPortAllocator: tt.tcpPortAllocator,
+			}
 
 			storage, err := clusters.NewStorage(clusters.Config{
 				Dir:                homeDir,
@@ -223,9 +226,8 @@ func TestGatewayCRUD(t *testing.T) {
 			require.NoError(t, err)
 
 			daemon, err := New(Config{
-				Storage:          storage,
-				GatewayCreator:   mockGatewayCreator,
-				TCPPortAllocator: tt.tcpPortAllocator,
+				Storage:        storage,
+				GatewayCreator: mockGatewayCreator,
 			})
 			require.NoError(t, err)
 

@@ -28,8 +28,8 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
-	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // GatewayCertReissuer is responsible for managing the process of reissuing a db cert for a gateway
@@ -41,14 +41,6 @@ type GatewayCertReissuer struct {
 	// app can show only one login modal at a time, we need to submit only one request at a time.
 	reloginMu sync.Mutex
 	Log       *logrus.Entry
-}
-
-// DBCertReissuer lets us pass a mock in tests and clusters.Cluster (which makes calls to the
-// cluster) in production code.
-type DBCertReissuer interface {
-	// ReissueDBCerts reaches out to the cluster to get a cert for the specific tlsca.RouteToDatabase
-	// and saves it to disk.
-	ReissueDBCerts(context.Context, tlsca.RouteToDatabase) error
 }
 
 // TSHDEventsClient takes only those methods from api.TshdEventsServiceClient that
@@ -78,8 +70,8 @@ type TSHDEventsClient interface {
 // Any error ReissueCert returns is also forwarded to the Electron app so that it can show an error
 // notification. GatewayCertReissuer is typically called from within a goroutine that handles the
 // gateway, so without forwarding the error to the app, it would be visible only in the logs.
-func (r *GatewayCertReissuer) ReissueCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer) error {
-	if err := r.reissueCert(ctx, gateway, dbCertReissuer); err != nil {
+func (r *GatewayCertReissuer) ReissueCert(ctx context.Context, gateway *gateway.Gateway, doReissueCert clusters.ReissueCertFunc) error {
+	if err := r.reissueCert(ctx, gateway, doReissueCert); err != nil {
 		r.notifyAppAboutError(ctx, err, gateway)
 
 		// Return the error to the alpn.LocalProxy's middleware.
@@ -89,7 +81,7 @@ func (r *GatewayCertReissuer) ReissueCert(ctx context.Context, gateway *gateway.
 	return nil
 }
 
-func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer) error {
+func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.Gateway, doReissueCert clusters.ReissueCertFunc) error {
 	// Make the first attempt at reissuing the db cert.
 	//
 	// It might happen that the db cert has expired but the user cert is still active, allowing us to
@@ -98,7 +90,7 @@ func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	err := r.reissueAndReloadGatewayCert(ctx, gateway, dbCertReissuer)
+	err := doReissueCert(ctx)
 
 	if err == nil {
 		return nil
@@ -129,21 +121,12 @@ func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.
 		return trace.Wrap(err)
 	}
 
-	err = r.reissueAndReloadGatewayCert(ctx, gateway, dbCertReissuer)
+	err = doReissueCert(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
-}
-
-func (r *GatewayCertReissuer) reissueAndReloadGatewayCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer) error {
-	err := dbCertReissuer.ReissueDBCerts(ctx, gateway.RouteToDatabase())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(gateway.ReloadCert())
 }
 
 func (r *GatewayCertReissuer) requestReloginFromElectronApp(ctx context.Context, req *api.ReloginRequest) error {

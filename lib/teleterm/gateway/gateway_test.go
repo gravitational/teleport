@@ -60,7 +60,7 @@ func TestGatewayStart(t *testing.T) {
 		hs.Close()
 	})
 
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
+	tlsCert := gatewaytest.MustGenDBCert(t, tlsca.Identity{
 		Username: "alice",
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -76,8 +76,7 @@ func TestGatewayStart(t *testing.T) {
 			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo").String(),
 			TargetUser:         "alice",
 			Protocol:           defaults.ProtocolPostgres,
-			CertPath:           keyPairPaths.CertPath,
-			KeyPath:            keyPairPaths.KeyPath,
+			Cert:               tlsCert,
 			Insecure:           true,
 			WebProxyAddr:       hs.Listener.Addr().String(),
 			CLICommandProvider: mockCLICommandProvider{},
@@ -180,7 +179,7 @@ func createGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
 		hs.Close()
 	})
 
-	keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
+	tlsCert := gatewaytest.MustGenDBCert(t, tlsca.Identity{
 		Username: "alice",
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
@@ -196,8 +195,7 @@ func createGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
 			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo").String(),
 			TargetUser:         "alice",
 			Protocol:           defaults.ProtocolPostgres,
-			CertPath:           keyPairPaths.CertPath,
-			KeyPath:            keyPairPaths.KeyPath,
+			Cert:               tlsCert,
 			Insecure:           true,
 			WebProxyAddr:       hs.Listener.Addr().String(),
 			CLICommandProvider: mockCLICommandProvider{},

@@ -249,6 +249,24 @@ func (r RouteToDatabase) String() string {
 		r.ServiceName, r.Protocol, r.Username, r.Database)
 }
 
+// CheckCertSubject checks if the route to the database from the cert matches
+// the provided route in terms of username and database (if present).
+func (r RouteToDatabase) CheckCertSubject(cert *x509.Certificate) error {
+	identity, err := FromSubject(cert.Subject, cert.NotAfter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if r.Username != "" && r.Username != identity.RouteToDatabase.Username {
+		return trace.Errorf("certificate subject is for user %s, but need %s",
+			identity.RouteToDatabase.Username, r.Username)
+	}
+	if r.Database != "" && r.Database != identity.RouteToDatabase.Database {
+		return trace.Errorf("certificate subject is for database name %s, but need %s",
+			identity.RouteToDatabase.Database, r.Database)
+	}
+	return nil
+}
+
 // DeviceExtensions holds device-aware extensions for the identity.
 type DeviceExtensions struct {
 	// DeviceID is the trusted device identifier.

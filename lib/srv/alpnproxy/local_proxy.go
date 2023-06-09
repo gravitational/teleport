@@ -369,26 +369,7 @@ func (l *LocalProxy) CheckDBCerts(dbRoute tlsca.RouteToDatabase) error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(CheckCertSubject(cert, dbRoute))
-}
-
-// CheckCertSubject checks if the route to the database from the cert matches the provided route in
-// terms of username and database (if present).
-func CheckCertSubject(cert *x509.Certificate, dbRoute tlsca.RouteToDatabase) error {
-	identity, err := tlsca.FromSubject(cert.Subject, cert.NotAfter)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if dbRoute.Username != "" && dbRoute.Username != identity.RouteToDatabase.Username {
-		return trace.Errorf("certificate subject is for user %s, but need %s",
-			identity.RouteToDatabase.Username, dbRoute.Username)
-	}
-	if dbRoute.Database != "" && dbRoute.Database != identity.RouteToDatabase.Database {
-		return trace.Errorf("certificate subject is for database name %s, but need %s",
-			identity.RouteToDatabase.Database, dbRoute.Database)
-	}
-
-	return nil
+	return trace.Wrap(dbRoute.CheckCertSubject(cert))
 }
 
 // SetCerts sets the local proxy's configured TLS certificates.

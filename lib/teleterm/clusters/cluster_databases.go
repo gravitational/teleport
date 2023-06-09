@@ -18,6 +18,7 @@ package clusters
 
 import (
 	"context"
+	"crypto/tls"
 
 	"github.com/gravitational/trace"
 
@@ -25,6 +26,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -33,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Database describes database
@@ -150,8 +153,8 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 	return response, nil
 }
 
-// ReissueDBCerts issues new certificates for specific DB access and saves them to disk.
-func (c *Cluster) ReissueDBCerts(ctx context.Context, routeToDatabase tlsca.RouteToDatabase) error {
+// reissueDBCerts issues new certificates for specific DB access and saves them to disk.
+func (c *Cluster) reissueDBCerts(ctx context.Context, routeToDatabase tlsca.RouteToDatabase) error {
 	// When generating certificate for MongoDB access, database username must
 	// be encoded into it. This is required to be able to tell which database
 	// user to authenticate the connection as.
@@ -196,6 +199,34 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, routeToDatabase tlsca.Rout
 	}
 
 	return nil
+}
+func (c *Cluster) loadDBCert(routeToDatabase tlsca.RouteToDatabase) (tls.Certificate, error) {
+	tlsCert, err := keys.LoadX509KeyPair(
+		c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, routeToDatabase.ServiceName),
+		c.status.KeyPath(),
+	)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	cert, err := utils.TLSCertLeaf(tlsCert)
+	if err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+
+	if err := routeToDatabase.CheckCertSubject(cert); err != nil {
+		return tls.Certificate{}, trace.Wrap(err, "database certificate check failed, try restarting the database connection")
+	}
+
+	return tlsCert, nil
+}
+
+func (c *Cluster) reissueAndLoadDBCert(ctx context.Context, routeToDatabase tlsca.RouteToDatabase) (tls.Certificate, error) {
+	if err := c.reissueDBCerts(ctx, routeToDatabase); err != nil {
+		return tls.Certificate{}, trace.Wrap(err)
+	}
+	tlsCert, err := c.loadDBCert(routeToDatabase)
+	return tlsCert, trace.Wrap(err)
 }
 
 // GetAllowedDatabaseUsers returns allowed users for the given database based on the role set.

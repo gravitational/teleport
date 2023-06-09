@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/daemon"
+	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 // testTeletermGatewaysCertRenewal is run from within TestALPNSNIProxyDatabaseAccess to amortize the
@@ -120,17 +121,23 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr 
 	})
 
 	// Here the test setup ends and actual test code starts.
-
 	gateway, err := daemonService.CreateGateway(context.Background(), daemon.CreateGatewayParams{
 		TargetURI:  databaseURI.String(),
 		TargetUser: "root",
 	})
 	require.NoError(t, err, trace.DebugReport(err))
 
+	routeToDatabase := tlsca.RouteToDatabase{
+		ServiceName: databaseURI.GetDbName(),
+		Protocol:    "mysql",
+		Username:    "root",
+	}
+
 	// Open a new connection.
 	client, err := mysql.MakeTestClientWithoutTLS(
 		net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort()),
-		gateway.RouteToDatabase())
+		routeToDatabase)
+
 	require.NoError(t, err)
 
 	// Execute a query.
@@ -160,7 +167,7 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr 
 	// will let the connection through.
 	client, err = mysql.MakeTestClientWithoutTLS(
 		net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort()),
-		gateway.RouteToDatabase())
+		routeToDatabase)
 	require.NoError(t, err)
 
 	// Execute a query.

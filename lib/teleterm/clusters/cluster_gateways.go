@@ -18,12 +18,24 @@ package clusters
 
 import (
 	"context"
+	"crypto/tls"
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
+
+// ReissueCertFunc is a callback function for Cluster to actually do the issue
+// of user certificates with TeleportClient.
+type ReissueCertFunc func(context.Context) error
+
+// GatewayCertReissuer defines an interface of a helper that manages the
+// process of reissuing certificates.
+type GatewayCertReissuer interface {
+	ReissueCert(ctx context.Context, gateway *gateway.Gateway, doReissueCert ReissueCertFunc) error
+}
 
 type CreateGatewayParams struct {
 	// TargetURI is the cluster resource URI
@@ -36,12 +48,15 @@ type CreateGatewayParams struct {
 	// LocalPort is the gateway local port
 	LocalPort          string
 	CLICommandProvider gateway.CLICommandProvider
-	TCPPortAllocator   gateway.TCPPortAllocator
-	OnExpiredCert      gateway.OnExpiredCertFunc
+	CertReissuer       GatewayCertReissuer
 }
 
 // CreateGateway creates a gateway
 func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+	if params.CLICommandProvider == nil {
+		params.CLICommandProvider = NewDbcmdCLICommandProvider(c, dbcmd.SystemExecer{})
+	}
+
 	db, err := c.GetDatabase(ctx, params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -53,7 +68,8 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		Username:    params.TargetUser,
 	}
 
-	if err := c.ReissueDBCerts(ctx, routeToDatabase); err != nil {
+	tlsCert, err := c.reissueAndLoadDBCert(ctx, routeToDatabase)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -63,15 +79,14 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 		TargetUser:                    params.TargetUser,
 		TargetName:                    db.GetName(),
 		TargetSubresourceName:         params.TargetSubresourceName,
+		Cert:                          tlsCert,
 		Protocol:                      db.GetProtocol(),
-		KeyPath:                       c.status.KeyPath(),
-		CertPath:                      c.status.DatabaseCertPathForCluster(c.clusterClient.SiteName, db.GetName()),
 		Insecure:                      c.clusterClient.InsecureSkipVerify,
 		WebProxyAddr:                  c.clusterClient.WebProxyAddr,
 		Log:                           c.Log,
 		CLICommandProvider:            params.CLICommandProvider,
-		TCPPortAllocator:              params.TCPPortAllocator,
-		OnExpiredCert:                 params.OnExpiredCert,
+		TCPPortAllocator:              gateway.NetTCPPortAllocator{},
+		ReissueCert:                   c.makeGatewayReissueDBCertFunc(params.CertReissuer, routeToDatabase),
 		Clock:                         c.clock,
 		TLSRoutingConnUpgradeRequired: c.clusterClient.TLSRoutingConnUpgradeRequired,
 		RootClusterCACertPoolFunc:     c.clusterClient.RootClusterCACertPool,
@@ -81,4 +96,21 @@ func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams)
 	}
 
 	return gw, nil
+}
+
+// makeGatewayReissueDBCertFunc creates a gateway.ReissueCertFunc that reissues
+// the database certificate using provided GatewayCertReissuer, then loads the
+// certificate.
+func (c *Cluster) makeGatewayReissueDBCertFunc(certReissuer GatewayCertReissuer, routeToDatabase tlsca.RouteToDatabase) gateway.ReissueCertFunc {
+	return func(ctx context.Context, gateway *gateway.Gateway) (tls.Certificate, error) {
+		err := certReissuer.ReissueCert(ctx, gateway, func(ctx context.Context) error {
+			return trace.Wrap(c.reissueDBCerts(ctx, routeToDatabase))
+		})
+		if err != nil {
+			return tls.Certificate{}, trace.Wrap(err)
+		}
+
+		tlsCert, err := c.loadDBCert(routeToDatabase)
+		return tlsCert, trace.Wrap(err)
+	}
 }

@@ -24,7 +24,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
-	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -185,15 +184,12 @@ type GatewayCreator interface {
 
 // createGateway assumes that mu is already held by a public method.
 func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
-	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
-		CLICommandProvider:    cliCommandProvider,
-		TCPPortAllocator:      s.cfg.TCPPortAllocator,
-		OnExpiredCert:         s.onExpiredGatewayCert,
+		CertReissuer:          s.cfg.GatewayCertReissuer,
 	}
 
 	gateway, err := s.cfg.GatewayCreator.CreateGateway(ctx, clusterCreateGatewayParams)
@@ -210,15 +206,6 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 	s.gateways[gateway.URI().String()] = gateway
 
 	return gateway, nil
-}
-
-func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gateway) error {
-	cluster, err := s.ResolveCluster(gateway.TargetURI())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster))
 }
 
 // RemoveGateway removes cluster gateway
