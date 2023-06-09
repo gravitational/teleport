@@ -401,7 +401,7 @@ replace (
 	// replace module github.com/moby/spdystream until https://github.com/moby/spdystream/pull/91 merges and deps are updated
 	// otherwise tests fail with a data race detection.
 	github.com/moby/spdystream => github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf
-	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
 	// Use our internal crypto fork, to work around the issue with OpenSSH <= 7.6 mentioned here: https://github.com/golang/go/issues/53391
 	golang.org/x/crypto => github.com/gravitational/crypto v0.6.0-1
 )
