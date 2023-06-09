@@ -1477,7 +1477,7 @@
     },
     {
       "source": "/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -1512,7 +1512,7 @@
     },
     {
       "source": "/preview/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
