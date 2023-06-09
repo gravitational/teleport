@@ -19,9 +19,9 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
-GOLANG_VERSION ?= go1.20.4 # Sync with devbox.json.
+GOLANG_VERSION ?= go1.20.4
 
-NODE_VERSION ?= 16.18.1 # Sync with devbox.json.
+NODE_VERSION ?= 16.18.1
 
 # Sync any version changes below with devbox.json.
 # run lint-rust check locally before merging code after you bump this
