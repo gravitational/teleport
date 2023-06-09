@@ -209,14 +209,6 @@ func NewPresetReviewerRole() types.Role {
 			Description: "Review access requests",
 		},
 		Spec: types.RoleSpecV6{
-			Options: types.RoleOptions{
-				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
-				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
-			},
 			Allow: types.RoleConditions{
 				ReviewRequests: defaultAllowAccessReviewConditions(enterprise)[teleport.PresetReviewerRoleName],
 			},
@@ -239,14 +231,6 @@ func NewPresetRequesterRole() types.Role {
 			Description: "Request all resources",
 		},
 		Spec: types.RoleSpecV6{
-			Options: types.RoleOptions{
-				CertificateFormat: constants.CertificateFormatStandard,
-				MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
-				PortForwarding:    types.NewBoolOption(true),
-				ForwardAgent:      types.NewBool(true),
-				BPF:               apidefaults.EnhancedEvents(),
-				RecordSession:     &types.RecordSession{Desktop: types.NewBoolOption(true)},
-			},
 			Allow: types.RoleConditions{
 				Request: defaultAllowAccessRequestConditions(enterprise)[teleport.PresetRequesterRoleName],
 			},
