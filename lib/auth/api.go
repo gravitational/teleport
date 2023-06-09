@@ -84,6 +84,9 @@ type accessPoint interface {
 	// GenerateCertAuthorityCRL returns an empty CRL for a CA.
 	GenerateCertAuthorityCRL(ctx context.Context, caType types.CertAuthType) ([]byte, error)
 
+	// DeleteProxy deletes proxy by name.
+	DeleteProxy(ctx context.Context, name string) error
+
 	// ConnectionDiagnosticTraceAppender adds a method to append traces into ConnectionDiagnostics.
 	services.ConnectionDiagnosticTraceAppender
 }
