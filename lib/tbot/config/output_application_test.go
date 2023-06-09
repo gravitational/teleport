@@ -16,7 +16,9 @@ limitations under the License.
 
 package config
 
-import "testing"
+import (
+	"testing"
+)
 
 func TestApplicationOutput_YAML(t *testing.T) {
 	dest := &DestinationMemory{}

@@ -17,8 +17,9 @@ limitations under the License.
 package config
 
 import (
-	"github.com/stretchr/testify/require"
 	"testing"
+
+	"github.com/stretchr/testify/require"
 )
 
 type testCheckAndSetDefaultsCase[T Output] struct {
