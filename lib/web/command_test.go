@@ -83,12 +83,15 @@ func TestExecuteCommandHistory(t *testing.T) {
 
 	ws, _, err := s.makeCommand(t, authPack, conversationID)
 	require.NoError(t, err)
-	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
-	stream := NewWStream(ws)
+	stream := NewWStream(ctx, ws, utils.NewLoggerForTests(), nil)
 
 	// When command executes
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
+
+	// Explecitly close the stream
+	err = stream.Close()
+	require.NoError(t, err)
 
 	// Then command execution history is saved
 	var messages *assist.GetAssistantMessagesResponse
@@ -101,7 +104,7 @@ func TestExecuteCommandHistory(t *testing.T) {
 		require.NoError(t, err)
 
 		return len(messages.GetMessages()) == 1
-	}, 3*time.Second, 100*time.Millisecond)
+	}, 5*time.Second, 100*time.Millisecond)
 
 	// Assert the returned message
 	msg := messages.GetMessages()[0]
