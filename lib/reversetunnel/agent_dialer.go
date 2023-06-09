@@ -45,57 +45,52 @@ type agentDialer struct {
 
 // DialContext creates an ssh connection to the given address.
 func (d *agentDialer) DialContext(ctx context.Context, addr utils.NetAddr) (SSHClient, error) {
-
-	for _, authMethod := range d.authMethods {
-		// Create a dialer (that respects HTTP proxies) and connect to remote host.
-		dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
-		pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultIOTimeout)
-		if err != nil {
-			d.log.WithError(err).Debugf("Failed to dial %s.", addr.Addr)
-			continue
-		}
-
-		principals := make([]string, 0)
-		callback, err := apisshutils.NewHostKeyCallback(
-			apisshutils.HostKeyCallbackConfig{
-				GetHostCheckers: d.hostCheckerFunc(ctx),
-				OnCheckCert: func(c *ssh.Certificate) {
-					principals = c.ValidPrincipals
-				},
-				FIPS: d.fips,
-			})
-		if err != nil {
-			d.log.Debugf("Failed to create host key callback for %v: %v.", addr.Addr, err)
-			continue
-		}
-
-		// Build a new client connection. This is done to get access to incoming
-		// global requests which dialer.Dial would not provide.
-		conn, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr.Addr, &ssh.ClientConfig{
-			User:            d.username,
-			Auth:            []ssh.AuthMethod{authMethod},
-			HostKeyCallback: callback,
-			Timeout:         apidefaults.DefaultIOTimeout,
-		})
-		if err != nil {
-			d.log.WithError(err).Debugf("Failed to create client to %v.", addr.Addr)
-			continue
-		}
-
-		emptyRequests := make(chan *ssh.Request)
-		close(emptyRequests)
-
-		client := tracessh.NewClient(conn, chans, emptyRequests)
-
-		return &sshClient{
-			Client:      client,
-			requests:    reqs,
-			newChannels: chans,
-			principals:  principals,
-		}, nil
+	// Create a dialer (that respects HTTP proxies) and connect to remote host.
+	dialer := proxy.DialerFromEnvironment(addr.Addr, d.options...)
+	pconn, err := dialer.DialTimeout(ctx, addr.AddrNetwork, addr.Addr, apidefaults.DefaultIOTimeout)
+	if err != nil {
+		d.log.WithError(err).Debugf("Failed to dial %s.", addr.Addr)
+		return nil, trace.Wrap(err)
 	}
 
-	return nil, trace.BadParameter("failed to dial: all auth methods failed")
+	var principals []string
+	callback, err := apisshutils.NewHostKeyCallback(
+		apisshutils.HostKeyCallbackConfig{
+			GetHostCheckers: d.hostCheckerFunc(ctx),
+			OnCheckCert: func(c *ssh.Certificate) {
+				principals = c.ValidPrincipals
+			},
+			FIPS: d.fips,
+		})
+	if err != nil {
+		d.log.Debugf("Failed to create host key callback for %v: %v.", addr.Addr, err)
+		return nil, trace.Wrap(err)
+	}
+
+	// Build a new client connection. This is done to get access to incoming
+	// global requests which dialer.Dial would not provide.
+	conn, chans, reqs, err := tracessh.NewClientConn(ctx, pconn, addr.Addr, &ssh.ClientConfig{
+		User:            d.username,
+		Auth:            d.authMethods,
+		HostKeyCallback: callback,
+		Timeout:         apidefaults.DefaultIOTimeout,
+	})
+	if err != nil {
+		d.log.WithError(err).Debugf("Failed to create client to %v.", addr.Addr)
+		return nil, trace.Wrap(err)
+	}
+
+	emptyRequests := make(chan *ssh.Request)
+	close(emptyRequests)
+
+	client := tracessh.NewClient(conn, chans, emptyRequests)
+
+	return &sshClient{
+		Client:      client,
+		requests:    reqs,
+		newChannels: chans,
+		principals:  principals,
+	}, nil
 }
 
 // hostCheckerFunc wraps a apisshutils.CheckersGetter function with a context.
