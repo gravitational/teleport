@@ -245,18 +245,6 @@ DEBUG=1 ./build/teleport start -d
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
 For instructions about how to update the Web UI, read [the `web` README](web#readme).
 
-#### Updating Web UI assets
-
-After you commit a change to [the `webapps`
-repo](https://github.com/gravitational/webapps), you need to update the Web UI
-assets in the `webassets/` git submodule.
-
-Run `make update-webassets` to update the `webassets` repo and create a PR for
-`teleport` to update its git submodule.
-
-You will need to have the `gh` utility installed on your system for the script
-to work. For installation instructions, read the [GitHub CLI installation](https://github.com/cli/cli/releases/latest) documentation.
-
 ### Managing dependencies
 
 All dependencies are managed using [Go modules](https://blog.golang.org/using-go-modules). Here are the instructions for some common tasks:
