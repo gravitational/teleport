@@ -81,6 +81,7 @@ func AddHostToHostList(hostList []string, hostname string) []string {
 	hostList = append(hostList, hostname)
 
 	hostMap := make(map[string][]string)
+	var extraHosts []string
 	// iterate over the full hostList
 	// if the element is a wildcard, add it to the list of wildcards
 	// if the element is not a wildcard, convert it to a wildcard and add any hostnames it matches to a map
@@ -92,30 +93,27 @@ func AddHostToHostList(hostList []string, hostname string) []string {
 				hostMap[wildcard] = append(hostMap[wildcard], element)
 			}
 		} else {
-			// any non-wildcard hosts go into the "extra" key and will be processed separately at the end
-			hostMap["extra"] = append(hostMap["extra"], element)
+			// any non-wildcard hosts go into the extraHosts list and will be processed separately
+			extraHosts = append(extraHosts, element)
 		}
 	}
 
+	var outputHostList []string
+	// first, add all non-wildcard matches separately
+	for _, hostname := range extraHosts {
+		if !slices.Contains(outputHostList, hostname) {
+			outputHostList = append(outputHostList, hostname)
+		}
+	}
 	// iterate over the map, look for all wildcard keys with more than one hostname matching.
 	// for each match, add the wildcard to the hostList.
-	var outputHostList []string
 	for key, matchingHostnames := range hostMap {
-		// add all non-wildcard matches separately
-		if key == "extra" {
-			for _, hostname := range matchingHostnames {
-				if !slices.Contains(outputHostList, hostname) {
-					outputHostList = append(outputHostList, hostname)
-				}
-			}
+		// add all wildcards with more than one hostname matching
+		if len(matchingHostnames) > 1 {
+			outputHostList = append(outputHostList, key)
 		} else {
-			// add all wildcards with more than one hostname matching
-			if len(matchingHostnames) > 1 {
-				outputHostList = append(outputHostList, key)
-			} else {
-				// add the single hostname which is matched by the given wildcard
-				outputHostList = append(outputHostList, matchingHostnames[0])
-			}
+			// add the single hostname which is matched by the given wildcard
+			outputHostList = append(outputHostList, matchingHostnames[0])
 		}
 	}
 

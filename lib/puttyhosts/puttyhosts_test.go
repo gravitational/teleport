@@ -131,6 +131,24 @@ func TestAddHostToHostList(t *testing.T) {
 				"apple.dessert",
 			},
 		},
+		{
+			id: "test case 9",
+			hostList: []string{
+				"one",
+				"two",
+				"three.example.com",
+				"four.example.com",
+				"five.test.com",
+			},
+			hostname: "six",
+			expected: []string{
+				"one",
+				"two",
+				"*.example.com",
+				"five.test.com",
+				"six",
+			},
+		},
 	}
 
 	for _, tt := range tests {
