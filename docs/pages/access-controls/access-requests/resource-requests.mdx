@@ -41,10 +41,11 @@ upgraded to version 10.
 
 ## Step 1/6. Grant the review and requester roles to users
 
-Grant the built-in `requester` and `reviewer` roles to existing users, or create new
-users to test this feature.
-Make sure the requester has a valid `login` so that they can view and access SSH
-nodes.
+Teleport comes with the built-in role `requester`, which allows users to request access
+to all resources within Teleport, and `reviewer`, which allows users to review all access
+requests within Teleport. To test this feature, grant the built-in `requester` and `reviewer`
+roles to existing users, or create new users.  Make sure the requester has a valid `login`
+so that they can view and access SSH nodes.
 
 ```code
 $ tctl users add alice --roles requester --logins alice
