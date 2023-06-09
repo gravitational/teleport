@@ -98,6 +98,28 @@ func PlatformParametersFromProto(in *devicepb.TPMPlatformParameters) attest.Plat
 	}
 }
 
+// PlatformAttestationToProto converts an *attest.PlatformParameters and nonce
+// to a PlatformAttestation proto message.
+func PlatformAttestationToProto(in *attest.PlatformParameters, nonce string) *devicepb.TPMPlatformAttestation {
+	if in == nil {
+		return nil
+	}
+	platParams := PlatformParametersToProto(in)
+	return &devicepb.TPMPlatformAttestation{
+		PlatformParameters: platParams,
+		Nonce:              nonce,
+	}
+}
+
+// PlatformAttestationFromProto extracts a attest.PlatformParameters and nonce
+// from a PlatformAttestation proto message.
+func PlatformAttestationFromProto(in *devicepb.TPMPlatformAttestation) (platParams attest.PlatformParameters, nonce string) {
+	if in == nil {
+		return attest.PlatformParameters{}, ""
+	}
+	return PlatformParametersFromProto(in.PlatformParameters), in.Nonce
+}
+
 func quotesToProto(in []attest.Quote) []*devicepb.TPMQuote {
 	out := make([]*devicepb.TPMQuote, len(in))
 	for i, q := range in {

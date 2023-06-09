@@ -88,3 +88,40 @@ func TestPlatformParametersProto(t *testing.T) {
 	want.Public = nil
 	require.Equal(t, want, got)
 }
+
+func TestPlatformAttestationProto(t *testing.T) {
+	want := attest.PlatformParameters{
+		TPMVersion: attest.TPMVersion20,
+		EventLog:   []byte("event_log"),
+		Quotes: []attest.Quote{
+			{
+				Version:   attest.TPMVersion20,
+				Quote:     []byte("quote_0"),
+				Signature: []byte("signature_0"),
+			},
+			{
+				Version:   attest.TPMVersion20,
+				Quote:     []byte("quote_1"),
+				Signature: []byte("signature_1"),
+			},
+		},
+		PCRs: []attest.PCR{
+			{
+				Index:     0,
+				Digest:    []byte("digest_sha256_0"),
+				DigestAlg: crypto.SHA256,
+			},
+			{
+				Index:     0,
+				Digest:    []byte("digest_sha1_0"),
+				DigestAlg: crypto.SHA1,
+			},
+		},
+	}
+	wantNonce := "foo-bar-bizz-boo"
+	pb := devicetrust.PlatformAttestationToProto(&want, wantNonce)
+	clonedPb := utils.CloneProtoMsg(pb)
+	got, gotNonce := devicetrust.PlatformAttestationFromProto(clonedPb)
+	require.Equal(t, want, got)
+	require.Equal(t, wantNonce, gotNonce)
+}
