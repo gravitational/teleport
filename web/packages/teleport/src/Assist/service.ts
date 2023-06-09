@@ -148,7 +148,7 @@ export async function resolveServerCommandResultMessage(
       const events = await getSessionEvents(sessionUrl);
       const execEvent = events.events?.find(isExecEvent);
 
-      output = execEvent?.exitError || '';
+      output = execEvent?.exitError || 'Empty output';
     }
 
     return {

@@ -318,7 +318,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     dispatch({
       type: AssistStateActionType.AddThought,
       conversationId: state.conversations.selectedId,
-      message: 'Connecting to nodes...',
+      message: 'Connecting to nodes',
     });
 
     const nodes = await service.getNodesFromQuery(query, clusterId);
