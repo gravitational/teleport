@@ -1455,7 +1455,7 @@ func TestTerminalPing(t *testing.T) {
 
 	select {
 	case <-done:
-	case <-time.After(time.Minute):
+	case <-time.After(6 * time.Second):
 		t.Fatal("timeout waiting for ping")
 	}
 }
