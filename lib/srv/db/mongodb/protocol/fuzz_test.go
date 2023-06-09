@@ -28,14 +28,15 @@ import (
 // prefixLength adds the length to the bytes, used in the header for valid full message parsing
 func prefixLength(bytes []byte) []byte {
 	length := uint32(len(bytes)) + 4 // add 4 for the 32bit length itself
-	prefix := make([]byte, 4)
-	binary.LittleEndian.PutUint32(prefix, length)
-	return append(prefix, bytes...)
+	resultBytes := make([]byte, length)
+	binary.LittleEndian.PutUint32(resultBytes, length)
+	copy(resultBytes[4:], bytes)
+	return resultBytes
 }
 
-// prefixId will add a random 4 byte id.  This is typically used for building the header which needs a request
+// prefixID will add a random 4 byte id.  This is typically used for building the header which needs a request
 // followed by response id.
-func prefixId(bytes []byte) []byte {
+func prefixID(bytes []byte) []byte {
 	prefix := make([]byte, 4)
 	_, err := rand.Read(prefix)
 	if err != nil {
@@ -46,13 +47,13 @@ func prefixId(bytes []byte) []byte {
 
 func FuzzMongoRead(f *testing.F) {
 	// normal op msg single document
-	f.Add(prefixLength(prefixId(prefixId([]byte{0xdd, 0x7, 0x0, 0x0, // (end header) op code
+	f.Add(prefixLength(prefixID(prefixID([]byte{0xdd, 0x7, 0x0, 0x0, // (end header) op code
 		0x30, 0x30, 0x30, 0x30, // msg flags
 		0x0,                // section type
 		0x5, 0x0, 0x0, 0x0, // msg size
 		0x20})))) // msg
 	// normal op query
-	f.Add(prefixLength(prefixId(prefixId([]byte{0xd4, 0x7, 0x0, 0x0, // (end header) op code
+	f.Add(prefixLength(prefixID(prefixID([]byte{0xd4, 0x7, 0x0, 0x0, // (end header) op code
 		0x30, 0x30, 0x30, 0x30, // read flags
 		0x0,                // collection name
 		0x0, 0x0, 0x0, 0x0, // skip number
@@ -60,13 +61,13 @@ func FuzzMongoRead(f *testing.F) {
 		0x5, 0x0, 0x0, 0x0, // msg size
 		0x20})))) // msg
 	// normal op get more
-	f.Add(prefixLength(prefixId(prefixId([]byte{0xd5, 0x7, 0x0, 0x0, // (end header) op code
+	f.Add(prefixLength(prefixID(prefixID([]byte{0xd5, 0x7, 0x0, 0x0, // (end header) op code
 		0x30, 0x30, 0x30, 0x30, // zero
 		0x0,                // collection name
 		0x1, 0x0, 0x0, 0x0, // return number
 		0x5, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0, 0x0})))) // cursor id
 	// normal op insert
-	f.Add(prefixLength(prefixId(prefixId([]byte{0xd2, 0x7, 0x0, 0x0, // (end header) op code
+	f.Add(prefixLength(prefixID(prefixID([]byte{0xd2, 0x7, 0x0, 0x0, // (end header) op code
 		0x30, 0x30, 0x30, 0x30, // insert flags
 		0x0,                // collection name
 		0x5, 0x0, 0x0, 0x0, // document size
@@ -74,7 +75,7 @@ func FuzzMongoRead(f *testing.F) {
 		0x6, 0x0, 0x0, 0x0, // document size
 		0x20, 0x20})))) // document
 	// normal op update
-	f.Add(prefixLength(prefixId(prefixId([]byte{0xd1, 0x7, 0x0, 0x0, // (end header) op code
+	f.Add(prefixLength(prefixID(prefixID([]byte{0xd1, 0x7, 0x0, 0x0, // (end header) op code
 		0x30, 0x30, 0x30, 0x30, // zero
 		0x0,                    // collection name
 		0x30, 0x30, 0x30, 0x30, // flags
@@ -83,7 +84,7 @@ func FuzzMongoRead(f *testing.F) {
 		0x6, 0x0, 0x0, 0x0, // update document size
 		0x20, 0x20})))) // update document
 	// normal op delete
-	f.Add(prefixLength(prefixId(prefixId([]byte{0xd6, 0x7, 0x0, 0x0, // (end header) op code
+	f.Add(prefixLength(prefixID(prefixID([]byte{0xd6, 0x7, 0x0, 0x0, // (end header) op code
 		0x30, 0x30, 0x30, 0x30, // zero
 		0x0,                    // collection name
 		0x30, 0x30, 0x30, 0x30, // flags
@@ -98,7 +99,7 @@ func FuzzMongoRead(f *testing.F) {
 		0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x1, 0x0, 0x0, 0x0, 0x0, 0x30,
 		0x30, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30})
 	// normal op kill cursor
-	f.Add(prefixLength(prefixId(prefixId([]byte{0xd7, 0x7, 0x0, 0x0, // (end header) op code
+	f.Add(prefixLength(prefixID(prefixID([]byte{0xd7, 0x7, 0x0, 0x0, // (end header) op code
 		0x30, 0x30, 0x30, 0x30, // zero
 		0x2, 0x0, 0x0, 0x0, // cursor id count
 		0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, // cursor id
