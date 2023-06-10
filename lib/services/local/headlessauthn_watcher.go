@@ -82,10 +82,10 @@ type HeadlessAuthenticationWatcher struct {
 	HeadlessAuthenticationWatcherConfig
 	identityService *IdentityService
 	retry           retryutils.Retry
-	mux             sync.Mutex
-	subscribers     [maxSubscribers]*headlessAuthenticationSubscriber
-	closed          chan struct{}
-	running         chan struct{}
+	sync.Mutex
+	subscribers [maxSubscribers]*headlessAuthenticationSubscriber
+	closed      chan struct{}
+	running     chan struct{}
 }
 
 // NewHeadlessAuthenticationWatcher creates a new headless authentication resource watcher.
@@ -134,8 +134,8 @@ func (h *HeadlessAuthenticationWatcher) Done() <-chan struct{} {
 }
 
 func (h *HeadlessAuthenticationWatcher) close() {
-	h.mux.Lock()
-	defer h.mux.Unlock()
+	h.Lock()
+	defer h.Unlock()
 	close(h.closed)
 }
 
@@ -220,8 +220,8 @@ func (h *HeadlessAuthenticationWatcher) newWatcher(ctx context.Context) (backend
 }
 
 func (h *HeadlessAuthenticationWatcher) notify(headlessAuthns ...*types.HeadlessAuthentication) {
-	h.mux.Lock()
-	defer h.mux.Unlock()
+	h.Lock()
+	defer h.Unlock()
 
 	for _, ha := range headlessAuthns {
 		for _, s := range h.subscribers {
@@ -273,8 +273,8 @@ func (h *HeadlessAuthenticationWatcher) Subscribe(ctx context.Context, name stri
 }
 
 func (h *HeadlessAuthenticationWatcher) assignSubscriber(name string) (int, error) {
-	h.mux.Lock()
-	defer h.mux.Unlock()
+	h.Lock()
+	defer h.Unlock()
 
 	select {
 	case <-h.closed:
@@ -298,8 +298,8 @@ func (h *HeadlessAuthenticationWatcher) assignSubscriber(name string) (int, erro
 }
 
 func (h *HeadlessAuthenticationWatcher) unassignSubscriber(i int) {
-	h.mux.Lock()
-	defer h.mux.Unlock()
+	h.Lock()
+	defer h.Unlock()
 	h.subscribers[i] = nil
 }
 
@@ -309,8 +309,8 @@ type headlessAuthenticationSubscriber struct {
 	name string
 	// updates is a channel used by the watcher to send resource updates. This channel
 	// will either be empty or have the latest update in its buffer.
-	updates    chan *types.HeadlessAuthentication
-	updatesMux sync.Mutex
+	updates   chan *types.HeadlessAuthentication
+	updatesMu sync.Mutex
 	// closed is a channel used to determine if the subscriber is closed.
 	closed chan struct{}
 }
@@ -324,8 +324,8 @@ func (s *headlessAuthenticationSubscriber) Updates() <-chan *types.HeadlessAuthe
 }
 
 func (s *headlessAuthenticationSubscriber) update(ha *types.HeadlessAuthentication) {
-	s.updatesMux.Lock()
-	defer s.updatesMux.Unlock()
+	s.updatesMu.Lock()
+	defer s.updatesMu.Unlock()
 
 	// Drain stale update if there is one.
 	select {
