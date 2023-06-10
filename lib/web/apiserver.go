@@ -2673,8 +2673,8 @@ func (h *Handler) siteNodeConnect(
 
 	keepAliveInterval := req.KeepAliveInterval
 	// Try to use the keep alive interval from the request.
-	// When it is not set, use the cluster's keep alive interval.
-	if keepAliveInterval == 0 {
+	// When it's not set or below a second, use the cluster's keep alive interval.
+	if keepAliveInterval < time.Second {
 		authAccessPoint, err := site.CachingAccessPoint()
 		if err != nil {
 			h.log.WithError(err).Debug("Unable to get auth access point.")
