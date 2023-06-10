@@ -1512,7 +1512,7 @@ func isResizeEventEnvelope(e *Envelope) bool {
 func TestTerminalPing(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(time.Second))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
