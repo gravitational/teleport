@@ -493,6 +493,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 		options:     options,
 		username:    p.HostUUID,
 		log:         p.log,
+		isClaimed:   p.tracker.IsClaimed,
 	}
 
 	agent, err := newAgent(agentConfig{

@@ -31,6 +31,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"k8s.io/client-go/tools/remotecommand"
 
 	"github.com/gravitational/teleport"
@@ -840,7 +841,7 @@ func (s *session) join(p *party) error {
 		}
 
 		modes := s.accessEvaluator.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, p.Mode) {
+		if !slices.Contains(modes, p.Mode) {
 			return trace.AccessDenied("insufficient permissions to join session")
 		}
 	}
