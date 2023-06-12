@@ -3,61 +3,61 @@ title: "AWS Multi-Region Active-Passive Architecture Deployment"
 description: "Deploying a high-availability Teleport cluster in two AWS regions."
 ---
 
-For mission-critical Teleport use cases, it is recommended to use the architecture described in this 
-section, which is highly available across multiple regions. This architecture keeps Teleport 
-accessible with minimal disruption during the event of  an entire cloud provider region outage. 
-While this example is for AWS, the general architecture can apply to various cloud providers and 
-self-hosted examples as well.
+For mission-critical Teleport use cases, you may use the architecture described in this 
+guide to achieve an automatic failover across multiple AWS regions.
+This architecture keeps Teleport accessible with minimal disruption during the event of an
+entire cloud provider region outage. While this example is for AWS, the general architecture
+can apply to various cloud providers and self-hosted examples as well.
 
 In this architecture, the Auth and Proxy components and their networking components run 
-parallelly in two different cloud regions. These separate Teleport clusters share a shared storage 
-backends for the cluster state, audit logs, and shared storage for session recordings. The DNS failover
-is the control point to switch between the active and passive clusters during the event of a regional outage.
+parallelly in two different cloud regions. These components utilize a global DynamoDB storage 
+backend for the cluster state and audit logs, while a copied S3 bucket is used for session recordings.
+The Route53 DNS failoveris the control point to switch between the active and passive clusters during
+the event of a regional outage.
 
-
-## Key components of an Active-Passive Multi-region deployment:
-
-- Two teleport clusters deployed in separate regions. For ex: us-west-1 and us-east-1.
-- All teleport cluster components deploued as autoscaling groups in both regions.
-- For this example, the us-west-1 region Teleport cluster is the Active cluster, and the us-west-1 region Teleport 
-  cluster is the Passive cluster.
-- DynamoDB for cluster state and audit log storage, and S3 buckets for session recording storage.
-  - Enable the us-west-1 DynamoDB table with global replication in the us-east-1 passive region to ensure cluster 
-    state and audit logs are maintained in both regions.
-  - Enable cross-region replication on the S3 bucket to ensure objects are replicated between both the active and 
-    passive regions.
-- configure the Teleport cluster Route53 records to use the [failover routing policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive) 
-  with the active cluster end point as Primary Record and Passive cluster endpoint as the secondary record.
-  - Using health checks to determine Teleport cluster availability, Route53 will automatically send the traffic to the 
-    passive cluster during the event of a regional outage and it will automatically routes the traffic back to the active 
-    cluster once the Active cluster when health checks report a normal state.
-- [DynamoDB Global Replication](https://aws.amazon.com/blogs/aws/new-convert-your-single-region-amazon-dynamodb-tables-to-global-tables/) 
-- [S3 Replication](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html).
-- Make sure proper IAM permissions are in place for the successful replication of 
-  [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/setting-repl-config-perm-overview.html).
-
-## Advantages of this deployment architecture
-
-- Multi-region deploument helps to reduce the latency even if the resources are far away from the user location.
-- Having a cluster in multi-regions makes the clusters highly available even during regional outages
-- VPC peering or a Transit Gateway is not required since the cluster to cluster communication happens through
-  reverse proxy tunnel.
-- Using a user/Resource cluster topology allows for users to have a single Teleport cluster login point to 
-  access all resources.
-- All required Teleport components can be provisioned within the AWS ecosystem.
-
-
-## Disadvantages of this deployment architecture
-
-- Long-term cost may be a prohibitive factor for some organizations and can increase total cost of ownership
-  (TCO) throughout the system's lifetime cycle.
-- Deploying and maintaining the added layer of clusters takes more engineering effort.
-- More technically complex to deploy than a single region Teleport cluster.
+## Overview
 
 ![Diagram showing this Teleport
 architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-deployment.png)
 
-## Prerequisites
+### Key Features
+- Two sets of Teleport Auth and Proxy components are deployed in separate regions. For this example, the us-west-1
+  region Teleport cluster is the Active cluster, and the us-west-1 region Teleport cluster is the Passive cluster.
+- All teleport cluster components are deployed as autoscaling groups in both regions.
+- DynamoDB is used for cluster state and audit log storage.
+  - Enable the us-west-1 DynamoDB table with global replication in the us-east-1 passive region to ensure cluster 
+    state and audit logs are maintained in both regions.
+  - [DynamoDB Global Replication](https://aws.amazon.com/blogs/aws/new-convert-your-single-region-amazon-dynamodb-tables-to-global-tables/)
+-  S3 buckets are for session recording storage.
+  - Enable cross-region replication on the S3 bucket to ensure objects are replicated between both the active and 
+    passive regions.
+  - [S3 Replication](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html).
+  - Make sure proper IAM permissions are in place for the successful replication of 
+  [S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/setting-repl-config-perm-overview.html).
+- configure the Teleport cluster Route53 records to use the 
+  [failover routing policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive) 
+  with the active cluster loadbalancer as the primary record and the passive cluster loadbalancer as the secondary record.
+  - Use health checks to determine Teleport cluster availability. Route53 will automatically send the traffic to the 
+    passive cluster during the event of a regional outage and it will automatically routes the traffic back to the active 
+    cluster once the Active cluster when health checks report a normal state.
+
+### Advantages of this deployment architecture
+
+- Having a cluster in multi-regions makes the clusters quickly available even during regional outages.
+- Downtime came be minimized vs traditional disaster recovery from a backup.
+- All required Teleport components can be provisioned within the AWS ecosystem.
+
+
+### Disadvantages of this deployment architecture
+
+- Long-term cost may be a prohibitive factor for some organizations and can increase total cost of ownership
+  (TCO) throughout the system's lifetime cycle.
+- Deploying and maintaining the added layer of regional components takes more engineering effort.
+- More technically complex to deploy than a single region Teleport cluster or simple disaster recovery.
+
+### Configuration
+
+##Prerequisites
 
 Our code requires Terraform 0.13+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have
 `terraform` installed and available on your path.
