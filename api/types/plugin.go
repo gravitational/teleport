@@ -147,8 +147,8 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.BadParameter("Token must be specified")
 		}
 	case *PluginSpecV1_Jamf:
-		if settings.Jamf.JamfSpec.ApiEndpoint == "" {
-			return trace.BadParameter("api endpoint must be set")
+		if err := settings.Jamf.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
 		}
 		if p.Credentials == nil {
 			return trace.BadParameter("credentials must be set")
@@ -156,6 +156,9 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		staticCreds := p.Credentials.GetStaticCredentialsRef()
 		if staticCreds == nil {
 			return trace.BadParameter("jamf plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
 		}
 	case *PluginSpecV1_Okta:
 		// Check settings.
@@ -340,6 +343,15 @@ func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
 	if s.ApiEndpoint == "" {
 		return trace.BadParameter("opsgenie api endpoint url must be set")
 	}
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values.
+func (s *PluginJamfSettings) CheckAndSetDefaults() error {
+	if s.JamfSpec.ApiEndpoint == "" {
+		return trace.BadParameter("api endpoint must be set")
+	}
+
 	return nil
 }
 
