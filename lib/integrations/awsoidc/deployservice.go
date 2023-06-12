@@ -20,15 +20,17 @@ import (
 	"context"
 	"encoding/base64"
 	"fmt"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
-	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 )
@@ -36,18 +38,17 @@ import (
 var (
 	// launcTypeFargateString is the FARGATE LaunchType converted into a string.
 	launcTypeFargateString = string(ecsTypes.LaunchTypeFargate)
-	// requiredCapacityProviders contains the FARGATE type which is required to deploy a DatabaseService.
+	// requiredCapacityProviders contains the FARGATE type which is required to deploy a Teleport Service.
 	requiredCapacityProviders = []string{launcTypeFargateString}
 
 	// Ensure Cpu and Memory use one of the allowed combinations:
 	// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html
-	taskCPU = "256"
-	taskMem = "512"
+	taskCPU = "512"
+	taskMem = "1024"
 
 	// taskAgentContainerName is the name of the container to run within the Task.
 	// Each task supports multiple containers, but, currently, there's only one being used.
-	// This is also going to be the NodeName of the teleport instance.
-	taskAgentContainerName = "ecs-discovery-dbservice"
+	taskAgentContainerName = "teleport-service"
 
 	// oneAgent is used to define the desired agent count when creating a service.
 	oneAgent = int32(1)
@@ -64,6 +65,12 @@ const (
 	clusterStatusActive = "ACTIVE"
 	// clusterStatusInactive is the string representing an INACTIVE ECS Cluster.
 	clusterStatusInactive = "INACTIVE"
+	// clusterStatusProvisioning is the string representing an PROVISIONING ECS Cluster.
+	clusterStatusProvisioning = "PROVISIONING"
+	// clusterStatusProvisioningWaitTime defines for how long should the client wait for the Cluster to become available.
+	clusterStatusProvisioningWaitTime = 30 * time.Second
+	// clusterStatusProvisioningWaitTimeTick defines the interval between checks on Cluster status while it is Provisioning.
+	clusterStatusProvisioningWaitTimeTick = 1 * time.Second
 
 	// serviceStatusActive is the string representing an ACTIVE ECS Service.
 	serviceStatusActive = "ACTIVE"
@@ -71,8 +78,19 @@ const (
 	serviceStatusDraining = "DRAINING"
 )
 
-// DeployDBServiceRequest contains the required fields to deploy a Database and a Discovery Service.
-type DeployDBServiceRequest struct {
+var (
+	// DatabaseServiceDeploymentMode is a deployment configuration for Deploying a Database Service.
+	// This mode starts a Database with the specificied Resource Matchers.
+	DatabaseServiceDeploymentMode = "database-service"
+
+	// DeploymentModes has all the available deployment modes.
+	DeploymentModes = []string{
+		DatabaseServiceDeploymentMode,
+	}
+)
+
+// DeployServiceRequest contains the required fields to deploy a Teleport Service.
+type DeployServiceRequest struct {
 	// Region is the AWS Region
 	Region string
 
@@ -96,22 +114,11 @@ type DeployDBServiceRequest struct {
 	// Ensure the AWS Client has `iam:PassRole` for this Role's ARN.
 	TaskRoleARN string
 
-	// ProxyServerHostPort is the Teleport Proxy address as used for `teleport.yaml`
-	// Eg proxy.example.com:443
-	ProxyServerHostPort string
-
-	// TeleportVersion is the Teleport version to be used by the container.
-	// Eg 13.0.3
-	TeleportVersion string
-
-	// DiscoveryGroupName is the DiscoveryGroup to be used by the `discovery_service`.
-	DiscoveryGroupName *string
-
 	// TeleportClusterName is the Teleport Cluster Name, used to create default names for Cluster, Service and Task.
 	TeleportClusterName string
 
-	// AgentMatcherLabels are the labels to be used by the Database Service for matching on resources.
-	AgentMatcherLabels types.Labels
+	// ProxyServerHostPort is the Teleport Proxy's Public.
+	ProxyServerHostPort string
 
 	// IntegrationName is the integration name.
 	// Used for resource tagging when creating resources in AWS.
@@ -119,10 +126,17 @@ type DeployDBServiceRequest struct {
 
 	// ResourceCreationTags is used to add tags when creating resources in AWS.
 	ResourceCreationTags awsTags
+
+	// DeploymentMode is the identifier of a deployment mode - which Teleport Services to enable and their configuration.
+	DeploymentMode string
+
+	// DatabaseResourceMatcherLabels contains the set of labels to be used by the DatabaseService.
+	// This is used when the deployment mode creates a Database Service.
+	DatabaseResourceMatcherLabels types.Labels
 }
 
 // CheckAndSetDefaults checks if the required fields are present.
-func (r *DeployDBServiceRequest) CheckAndSetDefaults() error {
+func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	if r.TeleportClusterName == "" {
 		return trace.BadParameter("teleport cluster name is required")
 	}
@@ -145,30 +159,17 @@ func (r *DeployDBServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ServiceName == nil || *r.ServiceName == "" {
-		serviceName := fmt.Sprintf("%s-teleport-database-service", r.TeleportClusterName)
+		serviceName := fmt.Sprintf("%s-teleport-service", r.TeleportClusterName)
 		r.ServiceName = &serviceName
 	}
 
 	if r.TaskName == nil || *r.TaskName == "" {
-		taskName := fmt.Sprintf("%s-teleport-database-service", r.TeleportClusterName)
+		taskName := fmt.Sprintf("%s-teleport-service", r.TeleportClusterName)
 		r.TaskName = &taskName
 	}
 
-	if r.DiscoveryGroupName == nil || *r.DiscoveryGroupName == "" {
-		discoveryGroupName := uuid.NewString()
-		r.DiscoveryGroupName = &discoveryGroupName
-	}
-
 	if r.ProxyServerHostPort == "" {
-		return trace.BadParameter("proxy server is required (format host:port)")
-	}
-
-	if r.TeleportVersion == "" {
-		return trace.BadParameter("teleport version is required (eg, 13.0.2)")
-	}
-
-	if len(r.AgentMatcherLabels) == 0 {
-		return trace.BadParameter("at least one agent matcher label is required")
+		return trace.BadParameter("proxy address is required")
 	}
 
 	if r.IntegrationName == "" {
@@ -179,23 +180,35 @@ func (r *DeployDBServiceRequest) CheckAndSetDefaults() error {
 		r.ResourceCreationTags = DefaultResourceCreationTags(*r.ClusterName, r.IntegrationName)
 	}
 
+	if r.DeploymentMode == "" {
+		return trace.BadParameter("deployment mode is required, please use one of the following: %v", DeploymentModes)
+	}
+
+	if !slices.Contains(DeploymentModes, r.DeploymentMode) {
+		return trace.BadParameter("invalid deployment mode, please use one of the following: %v", DeploymentModes)
+	}
+
+	if len(r.DatabaseResourceMatcherLabels) == 0 {
+		return trace.BadParameter("at least one agent matcher label is required")
+	}
+
 	return nil
 }
 
-// DeployDBServiceResponse contains the ARNs of the Amazon resources used to deploy the Database and Discovery Services.
-type DeployDBServiceResponse struct {
+// DeployServiceResponse contains the ARNs of the Amazon resources used to deploy the Teleport Service.
+type DeployServiceResponse struct {
 	// ClusterARN is the Amazon ECS Cluster ARN where the task was started.
 	ClusterARN string
 
 	// ServiceARN is the Amazon ECS Cluster Service ARN created to run the task.
 	ServiceARN string
 
-	// TaskDefinitionARN is the Amazon ECS Task Definition ARN created to run the Database and Discovery services.
+	// TaskDefinitionARN is the Amazon ECS Task Definition ARN created to run the  Teleport Service.
 	TaskDefinitionARN string
 }
 
-// DeployDBServiceClient describes the required methods to Deploy a Database and Discovery Services.
-type DeployDBServiceClient interface {
+// DeployServiceClient describes the required methods to Deploy a  Teleport Service.
+type DeployServiceClient interface {
 	// DescribeClusters lists ECS Clusters.
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DescribeClusters
 	DescribeClusters(ctx context.Context, params *ecs.DescribeClustersInput, optFns ...func(*ecs.Options)) (*ecs.DescribeClustersOutput, error)
@@ -229,18 +242,16 @@ type DeployDBServiceClient interface {
 	RegisterTaskDefinition(ctx context.Context, params *ecs.RegisterTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error)
 }
 
-// NewDeployDBServiceClient creates a new ListDatabasesClient using a AWSClientRequest.
-func NewDeployDBServiceClient(ctx context.Context, clientReq *AWSClientRequest) (DeployDBServiceClient, error) {
+// NewDeployServiceClient creates a new DeployServiceClient using a AWSClientRequest.
+func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (DeployServiceClient, error) {
 	return newECSClient(ctx, clientReq)
 }
 
-// DeployDBService calls Amazon ECS APIs to deploy two services:
-// - Database Service
-// - Discovery Service
+// DeployService calls Amazon ECS APIs to deploy a Teleport Service.
 //
 // # Pre-requirement: Set up iam-token for auto join
 //
-// Both services connect via `iam-token`, so ensure your cluster has the following token:
+// The Teleport Service connects via `iam-token`, so ensure your cluster has the following token:
 //
 //	kind: token
 //	metadata:
@@ -259,7 +270,8 @@ func NewDeployDBServiceClient(ctx context.Context, clientReq *AWSClientRequest) 
 //
 // # Pre-requirement: TaskRole creation
 //
-// The req.TaskRoleARN Role must have the following policy:
+// The req.TaskRoleARN Role must have permissions according to the Teleport Services being deployed.
+// Example for a DatabaseService:
 //
 //		{
 //		    "Version": "2012-10-17",
@@ -335,9 +347,6 @@ func NewDeployDBServiceClient(ctx context.Context, clientReq *AWSClientRequest) 
 //	    ]
 //	}
 //
-// # Discovery and Database Service
-//
-// The Database Service will match on the suggested labels received in the request.
 // # Resource tagging
 //
 // Created resources have the following set of tags:
@@ -346,7 +355,7 @@ func NewDeployDBServiceClient(ctx context.Context, clientReq *AWSClientRequest) 
 // - teleport.dev/integration: <integrationName>
 //
 // If resources already exist, only resources with those tags will be updated.
-func DeployDBService(ctx context.Context, clt DeployDBServiceClient, req DeployDBServiceRequest) (*DeployDBServiceResponse, error) {
+func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest) (*DeployServiceResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -372,7 +381,7 @@ func DeployDBService(ctx context.Context, clt DeployDBServiceClient, req DeployD
 		return nil, trace.Wrap(err)
 	}
 
-	return &DeployDBServiceResponse{
+	return &DeployServiceResponse{
 		ClusterARN:        *cluster.ClusterArn,
 		ServiceARN:        *service.ServiceArn,
 		TaskDefinitionARN: taskDefinitionARN,
@@ -380,18 +389,21 @@ func DeployDBService(ctx context.Context, clt DeployDBServiceClient, req DeployD
 }
 
 // generateTeleportConfigString creates a teleport.yaml configuration
-func generateTeleportConfigString(req DeployDBServiceRequest) (string, error) {
-	serviceConfig, err := config.MakeSampleFileConfig(config.SampleFlags{
+func generateTeleportConfigString(req DeployServiceRequest) (string, error) {
+	teleportConfig, err := config.MakeSampleFileConfig(config.SampleFlags{
 		Version:      defaults.TeleportConfigVersionV3,
 		ProxyAddress: req.ProxyServerHostPort,
 	})
 	if err != nil {
-		return "", err
+		return "", trace.Wrap(err)
 	}
 
-	// The implicit value is the current host (Proxy Host).
-	// Setting this to the agent name adds some correlation between host name and service name.
-	serviceConfig.NodeName = taskAgentContainerName
+	teleportConfig.NodeName = "ecs-service"
+
+	// Disable default services
+	teleportConfig.Auth.EnabledFlag = "no"
+	teleportConfig.Proxy.EnabledFlag = "no"
+	teleportConfig.SSH.EnabledFlag = "no"
 
 	// Use IAM Token join method to enroll into the Cluster.
 	// iam-token must have the following TokenRule:
@@ -401,28 +413,23 @@ func generateTeleportConfigString(req DeployDBServiceRequest) (string, error) {
 			AWSARN:     "arn:aws:sts::<account-id>:assumed-role/<taskRoleARN>/*",
 		}
 	*/
-	serviceConfig.JoinParams = config.JoinParams{
+	teleportConfig.JoinParams = config.JoinParams{
 		TokenName: string(types.JoinMethodIAM) + "-token",
 		Method:    types.JoinMethodIAM,
 	}
 
-	// Disable default services
-	serviceConfig.Auth.EnabledFlag = "no"
-	serviceConfig.Proxy.EnabledFlag = "no"
-	serviceConfig.SSH.EnabledFlag = "no"
+	switch req.DeploymentMode {
+	case DatabaseServiceDeploymentMode:
+		teleportConfig.Databases.Service.EnabledFlag = "yes"
+		teleportConfig.Databases.ResourceMatchers = []config.ResourceMatcher{{
+			Labels: req.DatabaseResourceMatcherLabels,
+		}}
 
-	// Enable Discovery Service with a specific Discovery Group.
-	serviceConfig.Discovery.EnabledFlag = "yes"
-	serviceConfig.Discovery.DiscoveryGroup = *req.DiscoveryGroupName
-	// TODO(marco): DiscoveryConfig won't start because it has no matchers.
-	// This should be changed when RFD125 adds the DiscoveryConfig resource.
+	default:
+		return "", trace.Errorf("invalid deployment mode, supported modes: %v", DeploymentModes)
+	}
 
-	serviceConfig.Databases.Service.EnabledFlag = "yes"
-	serviceConfig.Databases.ResourceMatchers = []config.ResourceMatcher{{
-		Labels: req.AgentMatcherLabels,
-	}}
-
-	teleportConfigYAMLBytes, err := yaml.Marshal(serviceConfig)
+	teleportConfigYAMLBytes, err := yaml.Marshal(teleportConfig)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -435,8 +442,8 @@ func generateTeleportConfigString(req DeployDBServiceRequest) (string, error) {
 }
 
 // upsertTask ensures a TaskDefinition with TaskName exists
-func upsertTask(ctx context.Context, clt DeployDBServiceClient, req DeployDBServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
-	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, req.TeleportVersion)
+func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
+	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, teleport.Version)
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,
@@ -481,7 +488,7 @@ func upsertTask(ctx context.Context, clt DeployDBServiceClient, req DeployDBServ
 // It will re-create if its status is INACTIVE.
 // If the cluster status is not ACTIVE, an error is returned.
 // The cluster is returned.
-func upsertCluster(ctx context.Context, clt DeployDBServiceClient, req DeployDBServiceRequest) (*ecsTypes.Cluster, error) {
+func upsertCluster(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest) (*ecsTypes.Cluster, error) {
 	describeClustersResponse, err := clt.DescribeClusters(ctx, &ecs.DescribeClustersInput{
 		Clusters: []string{*req.ClusterName},
 		Include: []ecsTypes.ClusterField{
@@ -502,24 +509,20 @@ func upsertCluster(ctx context.Context, clt DeployDBServiceClient, req DeployDBS
 			return nil, trace.Wrap(err)
 		}
 
-		if err := clusterHasValidStatus(createClusterResp.Cluster); err != nil {
+		if err := waitForActiveCluster(ctx, clt, req, createClusterResp.Cluster); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
 		return createClusterResp.Cluster, nil
 	}
 
-	// There's a cluster and it is ACTIVE.
+	// There's a cluster and it is not INACTIVE.
 	cluster := &describeClustersResponse.Clusters[0]
 
 	ownershipTags := req.ResourceCreationTags
 	if !ownershipTags.MatchesECSTags(cluster.Tags) {
 		return nil, trace.Errorf("ECS Cluster %q already exists but is not managed by Teleport. "+
 			"Add the following tags to allow Teleport to manage this cluster: %s", *req.ClusterName, req.ResourceCreationTags)
-	}
-
-	if err := clusterHasValidStatus(cluster); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	if slices.Contains(cluster.CapacityProviders, launcTypeFargateString) {
@@ -538,6 +541,10 @@ func upsertCluster(ctx context.Context, clt DeployDBServiceClient, req DeployDBS
 		return nil, trace.Wrap(err)
 	}
 
+	if err := waitForActiveCluster(ctx, clt, req, cluster); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return putClusterCPResp.Cluster, nil
 }
 
@@ -552,20 +559,54 @@ func clusterMustBeCreated(clusters []ecsTypes.Cluster) bool {
 	return *cluster.Status == clusterStatusInactive
 }
 
-// clusterHasValidStatus returns whether the cluster has a valid status to provision resources
-func clusterHasValidStatus(cluster *ecsTypes.Cluster) error {
-	// Anything other than ACTIVE, should throw an error (usually retryable)
-	// Possible status: INACTIVE, PROVISIONING, DEPROVISIONING, FAILED
-	if cluster.Status != nil && *cluster.Status != clusterStatusActive {
-		return trace.Errorf("cluster %q has an invalid status (%s), try again", *cluster.ClusterName, *cluster.Status)
+// waitForActiveCluster waits until the Cluster is Active.
+// If the Cluster is Provisioning, then it waits at most clusterStatusProvisioningWaitTime (30 seconds) for it to become ready.
+func waitForActiveCluster(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, cluster *ecsTypes.Cluster) error {
+	if cluster.Status != nil && *cluster.Status == clusterStatusActive {
+		return nil
 	}
 
-	return nil
+	retry, err := retryutils.NewConstant(clusterStatusProvisioningWaitTimeTick)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	retryCtx, cancel := context.WithTimeout(ctx, clusterStatusProvisioningWaitTime)
+	defer cancel()
+
+	err = retry.For(retryCtx, func() error {
+		describeClustersResponse, err := clt.DescribeClusters(ctx, &ecs.DescribeClustersInput{
+			Clusters: []string{*req.ClusterName},
+		})
+		if err != nil {
+			return retryutils.PermanentRetryError(trace.Wrap(err))
+		}
+
+		if len(describeClustersResponse.Clusters) == 0 {
+			return retryutils.PermanentRetryError(trace.NotFound("cluster %q does not exist", *cluster.ClusterName))
+		}
+
+		cluster := describeClustersResponse.Clusters[0]
+		if cluster.Status == nil {
+			return retryutils.PermanentRetryError(trace.Errorf("cluster %q has an unknown (nil) status", *cluster.ClusterName))
+		}
+
+		if *cluster.Status == clusterStatusActive {
+			return nil
+		}
+
+		if *cluster.Status == clusterStatusProvisioning {
+			return trace.Errorf("cluster %q is provisioning...", *cluster.ClusterName)
+		}
+
+		return retryutils.PermanentRetryError(trace.Errorf("unexpected status %s for ECS Cluster %q", *cluster.ClusterName, *cluster.Status))
+	})
+
+	return trace.Wrap(err)
 }
 
 // upsertService creates or updates the service.
 // If the service exists but its LaunchType is not Fargate, then it gets re-created.
-func upsertService(ctx context.Context, clt DeployDBServiceClient, req DeployDBServiceRequest, taskARN string) (*ecsTypes.Service, error) {
+func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, taskARN string) (*ecsTypes.Service, error) {
 	describeServiceOut, err := clt.DescribeServices(ctx, &ecs.DescribeServicesInput{
 		Services: []string{*req.ServiceName},
 		Cluster:  req.ClusterName,

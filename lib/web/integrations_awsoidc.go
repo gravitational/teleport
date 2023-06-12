@@ -20,7 +20,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -113,11 +112,11 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 	}, nil
 }
 
-// awsOIDCDeployDBService deploys a Discovery Service and a Database Service in Amazon ECS.
-func (h *Handler) awsOIDCDeployDBService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+// awsOIDCDeployService deploys a Discovery Service and a Database Service in Amazon ECS.
+func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
 	ctx := r.Context()
 
-	var req ui.AWSOIDCDeployDBServiceRequest
+	var req ui.AWSOIDCDeployServiceRequest
 	if err := httplib.ReadJSON(r, &req); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -127,37 +126,36 @@ func (h *Handler) awsOIDCDeployDBService(w http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	deployDBServiceClient, err := awsoidc.NewDeployDBServiceClient(ctx, awsClientReq)
+	deployDBServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	agentMatcherLabels := make(types.Labels, len(req.AgentMatcherLabels))
-	for _, label := range req.AgentMatcherLabels {
-		agentMatcherLabels[label.Name] = utils.Strings{label.Value}
+	databaseAgentMatcherLabels := make(types.Labels, len(req.DatabaseAgentMatcherLabels))
+	for _, label := range req.DatabaseAgentMatcherLabels {
+		databaseAgentMatcherLabels[label.Name] = utils.Strings{label.Value}
 	}
 
-	deployDBServiceResp, err := awsoidc.DeployDBService(ctx, deployDBServiceClient, awsoidc.DeployDBServiceRequest{
-		Region:              req.Region,
-		SubnetIDs:           req.SubnetIDs,
-		ClusterName:         req.ClusterName,
-		ServiceName:         req.ServiceName,
-		TaskName:            req.TaskName,
-		TaskRoleARN:         req.TaskRoleARN,
-		DiscoveryGroupName:  req.DiscoveryGroupName,
-		ProxyServerHostPort: h.PublicProxyAddr(),
-		TeleportVersion:     teleport.Version,
-		TeleportClusterName: h.auth.clusterName,
-		AgentMatcherLabels:  agentMatcherLabels,
-		IntegrationName:     awsClientReq.IntegrationName,
+	deployServiceResp, err := awsoidc.DeployService(ctx, deployDBServiceClient, awsoidc.DeployServiceRequest{
+		Region:                        req.Region,
+		SubnetIDs:                     req.SubnetIDs,
+		ClusterName:                   req.ClusterName,
+		ServiceName:                   req.ServiceName,
+		TaskName:                      req.TaskName,
+		TaskRoleARN:                   req.TaskRoleARN,
+		ProxyServerHostPort:           h.PublicProxyAddr(),
+		TeleportClusterName:           h.auth.clusterName,
+		DeploymentMode:                req.DeploymentMode,
+		IntegrationName:               awsClientReq.IntegrationName,
+		DatabaseResourceMatcherLabels: databaseAgentMatcherLabels,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return ui.AWSOIDCDeployDBServiceResponse{
-		ClusterARN:        deployDBServiceResp.ClusterARN,
-		ServiceARN:        deployDBServiceResp.ServiceARN,
-		TaskDefinitionARN: deployDBServiceResp.TaskDefinitionARN,
+	return ui.AWSOIDCDeployServiceResponse{
+		ClusterARN:        deployServiceResp.ClusterARN,
+		ServiceARN:        deployServiceResp.ServiceARN,
+		TaskDefinitionARN: deployServiceResp.TaskDefinitionARN,
 	}, nil
 }

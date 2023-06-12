@@ -50,14 +50,16 @@ func (d awsTags) String() string {
 
 // DefaultResourceCreationTags returns the default tags that should be applied when creating new AWS resources.
 // The following tags are returned:
+// - teleport.dev/creator_type: teleport
+// - teleport.dev/creator: <cluster-name>
 // - teleport.dev/origin: aws-oidc-integration
-// - teleport.dev/cluster: <clusterName>
 // - teleport.dev/integration: <integrationName>
 func DefaultResourceCreationTags(clusterName, integrationName string) awsTags {
 	return awsTags{
-		types.OriginLabel: OriginIntegration,
-		ClusterTagKey:     clusterName,
-		IntegrationTagKey: integrationName,
+		types.CreatorTypeLabel: "teleport",
+		types.CreatorLabel:     clusterName,
+		types.OriginLabel:      types.OriginIntegrationAWSOIDC,
+		types.IntegrationLabel: integrationName,
 	}
 }
 

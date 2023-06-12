@@ -24,47 +24,42 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/utils"
 )
 
-func TestDeployDBServiceRequest(t *testing.T) {
+func TestDeployServiceRequest(t *testing.T) {
 	isBadParamErrFn := func(tt require.TestingT, err error, i ...interface{}) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
-	baseReqFn := func() DeployDBServiceRequest {
-		return DeployDBServiceRequest{
-			TeleportClusterName: "mycluster",
-			Region:              "r",
-			SubnetIDs:           []string{"1"},
-			TaskRoleARN:         "arn",
-			DiscoveryGroupName:  stringPointer("discovery-group"),
-			ProxyServerHostPort: "host:1234",
-			TeleportVersion:     "13.0.3",
-			AgentMatcherLabels: types.Labels{
-				"env": utils.Strings{"prod"},
-				"app": utils.Strings{"xyz"},
-			},
-			IntegrationName: "teleportdev",
+	baseReqFn := func() DeployServiceRequest {
+		return DeployServiceRequest{
+			TeleportClusterName:           "mycluster",
+			Region:                        "r",
+			SubnetIDs:                     []string{"1"},
+			TaskRoleARN:                   "arn",
+			ProxyServerHostPort:           "proxy.example.com:3080",
+			IntegrationName:               "teleportdev",
+			DeploymentMode:                DatabaseServiceDeploymentMode,
+			DatabaseResourceMatcherLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 		}
 	}
 
 	for _, tt := range []struct {
 		name            string
-		req             func() DeployDBServiceRequest
+		req             func() DeployServiceRequest
 		errCheck        require.ErrorAssertionFunc
-		reqWithDefaults DeployDBServiceRequest
+		reqWithDefaults DeployServiceRequest
 	}{
 		{
 			name: "no fields",
-			req: func() DeployDBServiceRequest {
-				return DeployDBServiceRequest{}
+			req: func() DeployServiceRequest {
+				return DeployServiceRequest{}
 			},
 			errCheck: isBadParamErrFn,
 		},
 		{
 			name: "missing teleport cluster name",
-			req: func() DeployDBServiceRequest {
+			req: func() DeployServiceRequest {
 				r := baseReqFn()
 				r.TeleportClusterName = ""
 				return r
@@ -73,7 +68,7 @@ func TestDeployDBServiceRequest(t *testing.T) {
 		},
 		{
 			name: "missing region",
-			req: func() DeployDBServiceRequest {
+			req: func() DeployServiceRequest {
 				r := baseReqFn()
 				r.Region = ""
 				return r
@@ -82,7 +77,7 @@ func TestDeployDBServiceRequest(t *testing.T) {
 		},
 		{
 			name: "empty list of subnets",
-			req: func() DeployDBServiceRequest {
+			req: func() DeployServiceRequest {
 				r := baseReqFn()
 				r.SubnetIDs = []string{}
 				return r
@@ -91,7 +86,7 @@ func TestDeployDBServiceRequest(t *testing.T) {
 		},
 		{
 			name: "missing task role arn",
-			req: func() DeployDBServiceRequest {
+			req: func() DeployServiceRequest {
 				r := baseReqFn()
 				r.TaskRoleARN = ""
 				return r
@@ -99,37 +94,37 @@ func TestDeployDBServiceRequest(t *testing.T) {
 			errCheck: isBadParamErrFn,
 		},
 		{
-			name: "missing proxy server host port",
-			req: func() DeployDBServiceRequest {
-				r := baseReqFn()
-				r.ProxyServerHostPort = ""
-				return r
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing teleport version",
-			req: func() DeployDBServiceRequest {
-				r := baseReqFn()
-				r.ProxyServerHostPort = ""
-				return r
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
-			name: "missing agent matcher labels",
-			req: func() DeployDBServiceRequest {
-				r := baseReqFn()
-				r.AgentMatcherLabels = types.Labels{}
-				return r
-			},
-			errCheck: isBadParamErrFn,
-		},
-		{
 			name: "missing integration name",
-			req: func() DeployDBServiceRequest {
+			req: func() DeployServiceRequest {
 				r := baseReqFn()
 				r.IntegrationName = ""
+				return r
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "invalid deployment mode",
+			req: func() DeployServiceRequest {
+				r := baseReqFn()
+				r.DeploymentMode = "invalid"
+				return r
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "no deployment mode",
+			req: func() DeployServiceRequest {
+				r := baseReqFn()
+				r.DeploymentMode = ""
+				return r
+			},
+			errCheck: isBadParamErrFn,
+		},
+		{
+			name: "no label matchers",
+			req: func() DeployServiceRequest {
+				r := baseReqFn()
+				r.DatabaseResourceMatcherLabels = types.Labels{}
 				return r
 			},
 			errCheck: isBadParamErrFn,
@@ -138,27 +133,24 @@ func TestDeployDBServiceRequest(t *testing.T) {
 			name:     "fill defaults",
 			req:      baseReqFn,
 			errCheck: require.NoError,
-			reqWithDefaults: DeployDBServiceRequest{
+			reqWithDefaults: DeployServiceRequest{
 				TeleportClusterName: "mycluster",
 				Region:              "r",
 				SubnetIDs:           []string{"1"},
 				TaskRoleARN:         "arn",
-				DiscoveryGroupName:  stringPointer("discovery-group"),
-				ProxyServerHostPort: "host:1234",
-				TeleportVersion:     "13.0.3",
 				ClusterName:         stringPointer("mycluster-teleport"),
-				ServiceName:         stringPointer("mycluster-teleport-database-service"),
-				TaskName:            stringPointer("mycluster-teleport-database-service"),
-				AgentMatcherLabels: types.Labels{
-					"env": utils.Strings{"prod"},
-					"app": utils.Strings{"xyz"},
-				},
-				IntegrationName: "teleportdev",
+				ServiceName:         stringPointer("mycluster-teleport-service"),
+				TaskName:            stringPointer("mycluster-teleport-service"),
+				IntegrationName:     "teleportdev",
+				ProxyServerHostPort: "proxy.example.com:3080",
 				ResourceCreationTags: awsTags{
-					"teleport.dev/origin":      "aws-oidc-integration",
-					"teleport.dev/cluster":     "mycluster-teleport",
-					"teleport.dev/integration": "teleportdev",
+					"teleport.dev/origin":       "integration_awsoidc",
+					"teleport.dev/creator":      "mycluster-teleport",
+					"teleport.dev/creator_type": "teleport",
+					"teleport.dev/integration":  "teleportdev",
 				},
+				DeploymentMode:                DatabaseServiceDeploymentMode,
+				DatabaseResourceMatcherLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			},
 		},
 	} {
@@ -170,7 +162,8 @@ func TestDeployDBServiceRequest(t *testing.T) {
 			if err != nil {
 				return
 			}
-			require.True(t, cmp.Equal(tt.reqWithDefaults, r), cmp.Diff(tt.reqWithDefaults, r))
+
+			require.Empty(t, cmp.Diff(tt.reqWithDefaults, r))
 		})
 	}
 }
