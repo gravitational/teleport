@@ -49,6 +49,9 @@ type RemoteCluster interface {
 	// GetLabel retrieves the label with the provided key. If not found value
 	// will be empty and ok will be false.
 	GetLabel(key string) (value string, ok bool)
+
+	// GetAllLabels returns all labels for the remote cluster
+	GetAllLabels() map[string]string
 }
 
 // NewRemoteCluster is a convenience way to create a RemoteCluster resource.
@@ -174,4 +177,10 @@ func (c *RemoteClusterV3) String() string {
 func (c *RemoteClusterV3) GetLabel(key string) (value string, ok bool) {
 	value, ok = c.Metadata.Labels[key]
 	return value, ok
+}
+
+// GetAllLabels returns all labels for the remote cluster. Remote clusters only
+// have static labels.
+func (c *RemoteClusterV3) GetAllLabels() map[string]string {
+	return c.Metadata.Labels
 }

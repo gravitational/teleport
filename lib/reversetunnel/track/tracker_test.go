@@ -273,7 +273,6 @@ func TestUUIDHandling(t *testing.T) {
 
 		t.Logf("Successfully claimed proxy")
 		<-ctx.Done()
-
 	}()
 	// Wait for proxy to be claimed
 Wait:
@@ -310,4 +309,30 @@ Wait:
 			t.Errorf("timeout")
 		}
 	}
+}
+
+func TestIsClaimed(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	tracker, err := New(ctx, Config{ClusterName: "test-cluster"})
+	require.NoError(t, err)
+
+	tracker.Start()
+	t.Cleanup(tracker.StopAll)
+
+	tracker.TrackExpected("proxy1", "proxy2")
+	require.False(t, tracker.IsClaimed("proxy1.test-cluster"))
+
+	unclaim, ok := tracker.Claim("proxy1.test-cluster")
+	require.True(t, ok)
+
+	require.True(t, tracker.IsClaimed("proxy1"))
+	require.True(t, tracker.IsClaimed("proxy1.test-cluster"))
+	require.False(t, tracker.IsClaimed("proxy2"))
+
+	unclaim()
+
+	require.False(t, tracker.IsClaimed("proxy1"))
+	require.False(t, tracker.IsClaimed("proxy2"))
 }
