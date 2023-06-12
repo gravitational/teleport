@@ -453,11 +453,11 @@ func makeAndStartKubeLocalProxy(cf *CLIConf, config *clientcmdapi.Config, cluste
 }
 
 // shouldUseKubeLocalProxy checks if a local proxy is required for kube
-// access.
+// access for `tsh kubectl` or `tsh kube exec`.
 //
 // The local proxy is required when all of these conditions are met:
 // - profile is loadable
-// - kube access is enabled
+// - kube access is enabled, and is accessed through web proxy address
 // - ALPN connection upgrade is required (e.g. Proxy behind ALB)
 // - not `kubectl config` commands
 // - original/default kubeconfig is loadable
@@ -470,9 +470,7 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 		return nil, nil, false
 	}
 
-	// Only use local proxy when Kube is enabled and ALPN connection upgrade is
-	// required.
-	if !profile.TLSRoutingConnUpgradeRequired || profile.KubeProxyAddr == "" {
+	if !profile.RequireKubeLocalProxy() {
 		return nil, nil, false
 	}
 

@@ -674,7 +674,15 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		return nil
 	}
 
-	p := &profile.Profile{
+	if err := c.ClientStore.SaveProfile(c.Profile(), makeCurrent); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// Profile converts Config to *profile.Profile.
+func (c *Config) Profile() *profile.Profile {
+	return &profile.Profile{
 		Username:                      c.Username,
 		WebProxyAddr:                  c.WebProxyAddr,
 		SSHProxyAddr:                  c.SSHProxyAddr,
@@ -690,11 +698,6 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		LoadAllCAs:                    c.LoadAllCAs,
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 	}
-
-	if err := c.ClientStore.SaveProfile(p, makeCurrent); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // ParsedProxyHost holds the hostname and Web & SSH proxy addresses
