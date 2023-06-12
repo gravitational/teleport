@@ -452,12 +452,6 @@ func makeAndStartKubeLocalProxy(cf *CLIConf, config *clientcmdapi.Config, cluste
 	return closeFn, localProxy.KubeConfigPath(), nil
 }
 
-// profileRequireKubeLocalProxy returns true if provided profile indicates a
-// local proxy is required for kube access.
-func profileRequireKubeLocalProxy(profile *profile.Profile) bool {
-	return profile.KubeProxyAddr == profile.WebProxyAddr && profile.TLSRoutingConnUpgradeRequired
-}
-
 // shouldUseKubeLocalProxy checks if a local proxy is required for kube
 // access for `tsh kubectl` or `tsh kube exec`.
 //
@@ -476,7 +470,7 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 		return nil, nil, false
 	}
 
-	if !profileRequireKubeLocalProxy(profile) {
+	if !profile.RequireKubeLocalProxy() {
 		return nil, nil, false
 	}
 
