@@ -22,6 +22,7 @@ interface CommandResultEntryProps {
   nodeName: string;
   output: string;
   finished: boolean;
+  errorMessage?: string;
 }
 
 const Container = styled.div`
@@ -47,8 +48,9 @@ const Output = styled.pre.attrs({ 'data-scrollbar': 'default' })`
 `;
 
 const Header = styled.div`
-  position: relative;
-  padding-right: 30px;
+  display: flex;
+  justify-content: space-between;
+  padding-right: 20px;
 `;
 
 const spin = keyframes`
@@ -76,9 +78,8 @@ const Spinner = styled.div`
 `;
 
 const SpinnerContainer = styled.div`
-  position: absolute;
-  top: 6px;
-  right: 20px;
+  position: relative;
+  top: 4px;
 `;
 
 export function CommandResultEntry(props: CommandResultEntryProps) {
@@ -93,7 +94,9 @@ export function CommandResultEntry(props: CommandResultEntryProps) {
         )}
       </Header>
 
-      <Output>{props.output}</Output>
+      <Output>
+        {props.errorMessage ? props.errorMessage : props.output}
+      </Output>
     </Container>
   );
 }

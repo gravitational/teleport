@@ -135,6 +135,7 @@ function createComponentForEntry(
           nodeName={entry.nodeName}
           output={entry.output}
           finished={true}
+          errorMessage={entry.errorMessage}
         />
       );
   }
