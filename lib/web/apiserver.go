@@ -559,7 +559,9 @@ func (h *Handler) bindMinimalEndpoints() {
 	// find is like ping, but is faster because it is optimized for servers
 	// and does not fetch the data that servers don't need, e.g.
 	// OIDC connectors and auth preferences
-	h.GET("/webapi/find", h.WithUnauthenticatedHighLimiter(h.find))
+	// Note that find is a unique endpoint that requires high request rates
+	// sometimes through NAT's and thus should not be rate limited by IP.
+	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 	// Issue host credentials.
 	h.POST("/webapi/host/credentials", h.WithUnauthenticatedHighLimiter(h.hostCredentials))
 }
