@@ -149,15 +149,24 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 						EventLog: []byte("dummy-event-log"),
 						Quotes: []*devicepb.TPMQuote{
 							{
-								Quote:     []byte("a-quote"),
-								Signature: []byte("a-signature"),
+								Quote:     []byte("fake-quote-1"),
+								Signature: []byte("fake-signature-1"),
+							},
+							{
+								Quote:     []byte("fake-quote-2"),
+								Signature: []byte("fake-signature-2"),
 							},
 						},
 						Pcrs: []*devicepb.TPMPCR{
 							{
-								Index:     1,
-								Digest:    []byte("a-digest"),
+								Index:     0,
+								Digest:    []byte("fake-sha1-digest"),
 								DigestAlg: uint64(crypto.SHA1),
+							},
+							{
+								Index:     1,
+								Digest:    []byte("fake-sha256-digest"),
+								DigestAlg: uint64(crypto.SHA256),
 							},
 						},
 					},

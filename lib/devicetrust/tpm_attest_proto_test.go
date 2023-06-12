@@ -112,7 +112,7 @@ func TestPlatformAttestationProto(t *testing.T) {
 				DigestAlg: crypto.SHA256,
 			},
 			{
-				Index:     0,
+				Index:     1,
 				Digest:    []byte("digest_sha1_0"),
 				DigestAlg: crypto.SHA1,
 			},
