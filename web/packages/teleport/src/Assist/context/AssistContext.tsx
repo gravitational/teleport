@@ -421,6 +421,19 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           console.error(msg.payload);
 
           break;
+
+        case MessageTypeEnum.SESSION_END:
+          for (const nodeId of nodeIdToResultId.keys()) {
+            dispatch({
+              type: AssistStateActionType.FinishCommandResult,
+              conversationId: state.conversations.selectedId,
+              commandResultId: nodeIdToResultId.get(nodeId),
+            });
+          }
+
+          nodeIdToResultId.clear();
+
+          break;
       }
     };
   }

@@ -38,11 +38,8 @@ const Loading = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  height: calc(100% - 10px);
+  width: inherit;
 `;
 
 export function Conversation() {

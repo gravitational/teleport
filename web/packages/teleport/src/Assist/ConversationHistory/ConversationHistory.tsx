@@ -39,9 +39,11 @@ const Container = styled.ul.attrs({ 'data-scrollbar': 'default' })`
   padding: 0;
   width: var(--conversation-list-width);
   margin: 0;
-  position: absolute;
+  position: var(--conversation-list-position);
   top: var(--assist-header-height);
-  bottom: 0; ;
+  bottom: 0;
+  background: ${p => p.theme.colors.levels.popout};
+  z-index: 999;
 `;
 
 const List = styled.ul.attrs({ 'data-scrollbar': 'default' })`
@@ -95,9 +97,9 @@ export function ConversationHistory(props: ConversationHistoryProps) {
 
   async function handleSelectConversation(id: string) {
     try {
-      await setSelectedConversationId(id);
-
       props.onConversationSelect(id);
+
+      await setSelectedConversationId(id);
     } catch (err) {
       setErrorMessage(err.message);
     }

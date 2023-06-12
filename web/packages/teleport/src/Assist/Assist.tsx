@@ -109,6 +109,7 @@ function sidebarVariables(props: { viewMode: AssistViewMode }) {
           'calc((var(--conversation-list-width) * -1) - 4px)',
         '--command-input-width': '400px',
         '--conversation-list-display': 'none',
+        '--conversation-list-position': 'absolute',
       };
 
     case AssistViewMode.CollapsedSidebarVisible:
@@ -118,6 +119,7 @@ function sidebarVariables(props: { viewMode: AssistViewMode }) {
         '--conversation-list-margin': '0',
         '--command-input-width': '400px',
         '--conversation-list-display': 'flex',
+        '--conversation-list-position': 'absolute',
       };
 
     case AssistViewMode.Expanded:
@@ -128,6 +130,7 @@ function sidebarVariables(props: { viewMode: AssistViewMode }) {
           'calc((var(--conversation-list-width) * -1))',
         '--command-input-width': '700px',
         '--conversation-list-display': 'none',
+        '--conversation-list-position': 'absolute',
       };
 
     case AssistViewMode.ExpandedSidebarVisible:
@@ -137,6 +140,7 @@ function sidebarVariables(props: { viewMode: AssistViewMode }) {
         '--conversation-list-width': '250px',
         '--command-input-width': '600px',
         '--conversation-list-display': 'flex',
+        '--conversation-list-position': 'static',
       };
 
     case AssistViewMode.Docked:
@@ -147,6 +151,7 @@ function sidebarVariables(props: { viewMode: AssistViewMode }) {
           'calc((var(--conversation-list-width) * -1) - 1px)',
         '--command-input-width': '380px',
         '--conversation-list-display': 'none',
+        '--conversation-list-position': 'absolute',
       };
 
     case AssistViewMode.DockedSidebarVisible:
@@ -156,6 +161,7 @@ function sidebarVariables(props: { viewMode: AssistViewMode }) {
         '--conversation-list-margin': '0',
         '--command-input-width': '380px',
         '--conversation-list-display': 'flex',
+        '--conversation-list-position': 'absolute',
       };
   }
 }
@@ -205,22 +211,17 @@ const AssistContainer = styled.div`
 
 const AssistConversation = styled.div`
   display: flex;
-  position: absolute;
-  top: var(--assist-header-height);
-  bottom: 0;
-  left: var(--conversation-list-width);
-  overflow: hidden;
   flex-direction: column;
   width: var(--conversation-width);
   overflow-y: auto;
+  height: 100%;
 `;
 
 const AssistContent = styled.div`
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  height: 100%;
-  transform: translate3d(var(--conversation-list-margin), 0, 0);
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
 `;
 
 export enum AssistViewMode {

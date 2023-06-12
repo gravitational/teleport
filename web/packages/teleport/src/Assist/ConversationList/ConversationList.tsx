@@ -42,28 +42,35 @@ const Container = styled.div.attrs({ 'data-scrollbar': 'default' })`
 export function ConversationList(props: ConversationListProps) {
   const ref = useRef<HTMLDivElement>();
 
+  const scrolling = useRef<boolean>(false);
+
   const { conversations, selectedConversationMessages } = useAssist();
 
+  function scroll() {
+    scrolling.current = true;
+
+    ref.current.scrollIntoView({ behavior: 'smooth' });
+
+    window.setTimeout(() => (scrolling.current = false), 1000);
+  }
+
   useEffect(() => {
-    if (!ref.current) {
+    if (!ref.current || scrolling.current) {
       return;
     }
 
-    ref.current.scrollTop = ref.current.scrollHeight;
-  }, [selectedConversationMessages]);
+    scroll();
+  }, [selectedConversationMessages, scrolling.current]);
 
   useLayoutEffect(() => {
-    if (!ref.current) {
+    if (!ref.current || scrolling.current) {
       return;
     }
 
-    const id = window.setTimeout(
-      () => (ref.current.scrollTop = ref.current.scrollHeight),
-      500
-    );
+    const id = window.setTimeout(scroll, 500);
 
     return () => window.clearTimeout(id);
-  }, [props.viewMode]);
+  }, [props.viewMode, scrolling.current]);
 
   if (!conversations.selectedId) {
     return <LandingPage />;
@@ -71,8 +78,10 @@ export function ConversationList(props: ConversationListProps) {
 
   return (
     <>
-      <Container ref={ref}>
+      <Container>
         <Conversation />
+
+        <div ref={ref} />
       </Container>
       <MessageBox errorMessage={null} />
     </>
