@@ -45,6 +45,8 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -53,6 +55,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	"github.com/gravitational/teleport/lib/auth/assist/assistv1"
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
@@ -103,6 +106,7 @@ var (
 
 // GRPCServer is GPRC Auth Server API
 type GRPCServer struct {
+	auditlogpb.UnimplementedAuditLogServiceServer
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
@@ -382,6 +386,13 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return watcher.Error()
 		case event := <-watcher.Events():
+			if role, ok := event.Resource.(*types.RoleV6); ok {
+				downgraded, err := maybeDowngradeRole(stream.Context(), role)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				event.Resource = downgraded
+			}
 			out, err := client.EventToGRPC(event)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1970,6 +1981,71 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *proto.
 	return &emptypb.Empty{}, nil
 }
 
+// maybeDowngradeRole tests the client version passed through the GRPC metadata,
+// and if the client version is unknown or less than the minimum supported
+// version for some features of the role returns a shallow copy of the given
+// role downgraded for compatibility with the older version.
+func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6, error) {
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		// This client is not reporting its version via gRPC metadata. Teleport
+		// clients have been reporting their version for long enough that older
+		// clients won't even support v6 roles at all, so this is likely a
+		// third-party client, and we shouldn't assume that downgrading the role
+		// will do more good than harm.
+		return role, nil
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+	}
+
+	role, err = maybeDowngradeRoleLabelExpressions(ctx, role, clientVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return role, nil
+}
+
+var minSupportedLabelExpressionVersion = semver.Version{Major: 13, Minor: 1, Patch: 1}
+
+func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) (*types.RoleV6, error) {
+	if !clientVersion.LessThan(minSupportedLabelExpressionVersion) {
+		return role, nil
+	}
+	hasLabelExpression := false
+	for _, kind := range types.LabelMatcherKinds {
+		allowLabelMatchers, err := role.GetLabelMatchers(types.Allow, kind)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		denyLabelMatchers, err := role.GetLabelMatchers(types.Deny, kind)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(allowLabelMatchers.Expression) == 0 && len(denyLabelMatchers.Expression) == 0 {
+			continue
+		}
+		hasLabelExpression = true
+		denyLabelMatchers.Labels = types.Labels{types.Wildcard: {types.Wildcard}}
+		role.SetLabelMatchers(types.Deny, kind, denyLabelMatchers)
+	}
+	if hasLabelExpression {
+		reason := fmt.Sprintf(
+			"client version %q does not support label expressions, wildcard deny labels have been added for all resource kinds with configured label expressions",
+			clientVersion)
+		if role.Metadata.Labels == nil {
+			role.Metadata.Labels = make(map[string]string, 1)
+		}
+		role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+		log.Debugf(`Downgrading role %q before returning it to the client: %s`,
+			role.GetName(), reason)
+	}
+	return role, nil
+}
+
 // GetRole retrieves a role by name.
 func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
@@ -1985,7 +2061,12 @@ func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*t
 		return nil, trace.Errorf("encountered unexpected role type: %T", role)
 	}
 
-	return roleV6, nil
+	downgraded, err := maybeDowngradeRole(ctx, roleV6)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return downgraded, nil
 }
 
 // GetRoles retrieves all roles.
@@ -2004,7 +2085,11 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*proto.Get
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", r)
 		}
-		rolesV6 = append(rolesV6, role)
+		downgraded, err := maybeDowngradeRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		rolesV6 = append(rolesV6, downgraded)
 	}
 	return &proto.GetRolesResponse{
 		Roles: rolesV6,
@@ -3482,7 +3567,14 @@ func (g *GRPCServer) GetEvents(ctx context.Context, req *proto.GetEventsRequest)
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(req.StartDate, req.EndDate, req.Namespace, req.EventTypes, int(req.Limit), types.EventOrder(req.Order), req.StartKey)
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       req.StartDate,
+		To:         req.EndDate,
+		EventTypes: req.EventTypes,
+		Limit:      int(req.Limit),
+		Order:      types.EventOrder(req.Order),
+		StartKey:   req.StartKey,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3511,7 +3603,13 @@ func (g *GRPCServer) GetSessionEvents(ctx context.Context, req *proto.GetSession
 		return nil, trace.Wrap(err)
 	}
 
-	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(req.StartDate, req.EndDate, int(req.Limit), types.EventOrder(req.Order), req.StartKey, nil, "")
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchSessionEvents(ctx, events.SearchSessionEventsRequest{
+		From:     req.StartDate,
+		To:       req.EndDate,
+		Limit:    int(req.Limit),
+		Order:    types.EventOrder(req.Order),
+		StartKey: req.StartKey,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -5086,6 +5184,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	proto.RegisterAuthServiceServer(server, authServer)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
+	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5096,6 +5195,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	trustpb.RegisterTrustServiceServer(server, trust)
+
+	// Initialize and register the assist service.
+	assistSrv, err := assistv1.NewService(&assistv1.ServiceConfig{
+		Backend: cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	assist.RegisterAssistServiceServer(server, assistSrv)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
@@ -5174,4 +5282,67 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			alog:       g.AuthServer,
 		},
 	}, nil
+}
+
+// GetUnstructuredEvents searches for events on the backend and sends them back in an unstructured format.
+func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.GetUnstructuredEventsRequest) (*auditlogpb.EventsUnstructured, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       req.StartDate.AsTime(),
+		To:         req.EndDate.AsTime(),
+		EventTypes: req.EventTypes,
+		Limit:      int(req.Limit),
+		Order:      types.EventOrder(req.Order),
+		StartKey:   req.StartKey,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	unstructuredEvents := make([]*auditlogpb.EventUnstructured, 0, len(rawEvents))
+	for _, event := range rawEvents {
+		unstructuredEvent, err := apievents.ToUnstructured(event)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		unstructuredEvents = append(unstructuredEvents, unstructuredEvent)
+	}
+
+	return &auditlogpb.EventsUnstructured{
+		Items:   unstructuredEvents,
+		LastKey: lastkey,
+	}, nil
+}
+
+// StreamUnstructuredSessionEventsServer streams all events from a given session recording as an unstructured format.
+func (g *GRPCServer) StreamUnstructuredSessionEventsServer(req *auditlogpb.StreamUnstructuredSessionEventsRequest, stream auditlogpb.AuditLogService_StreamUnstructuredSessionEventsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c, e := auth.ServerWithRoles.StreamSessionEvents(stream.Context(), session.ID(req.SessionId), int64(req.StartIndex))
+
+	for {
+		select {
+		case event, more := <-c:
+			if !more {
+				return nil
+			}
+			// convert event to JSON
+			eventJson, err := apievents.ToUnstructured(event)
+			if err != nil {
+				return trail.ToGRPC(trace.Wrap(err))
+			}
+			if err := stream.Send(eventJson); err != nil {
+				return trail.ToGRPC(trace.Wrap(err))
+			}
+		case err := <-e:
+			return trail.ToGRPC(trace.Wrap(err))
+		}
+	}
 }

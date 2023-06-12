@@ -322,6 +322,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 
 	router.GET("/api/:ver/pods", fwd.withAuth(fwd.listPods))
 	router.GET("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(fwd.listPods))
+	router.POST("/apis/authorization.k8s.io/:ver/selfsubjectaccessreviews", fwd.withAuth(fwd.selfSubjectAccessReviews))
 	router.DELETE("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(fwd.deletePodsCollection))
 	router.POST("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(
 		func(ctx *authContext, w http.ResponseWriter, r *http.Request, _ httprouter.Params) (any, error) {
@@ -1038,7 +1039,7 @@ type kubeAccessDetails struct {
 // getKubeAccessDetails returns the allowed kube groups/users names and the cluster labels for a local kube cluster.
 func (f *Forwarder) getKubeAccessDetails(
 	kubeServers []types.KubeServer,
-	roles services.AccessChecker,
+	accessChecker services.AccessChecker,
 	kubeClusterName string,
 	sessionTTL time.Duration,
 	kubeResource *types.KubernetesResource,
@@ -1057,7 +1058,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// Creates a matcher that matches the cluster labels against `kubernetes_labels`
 		// defined for each user's role.
 		matchers = append(matchers,
-			services.NewKubernetesClusterLabelMatcher(labels),
+			services.NewKubernetesClusterLabelMatcher(labels, accessChecker.Traits()),
 		)
 
 		// If the kubeResource is available, append an extra matcher that validates
@@ -1076,13 +1077,13 @@ func (f *Forwarder) getKubeAccessDetails(
 				services.NewKubernetesResourceMatcher(*kubeResource),
 			)
 		}
-		// roles.CheckKubeGroupsAndUsers returns the accumulated kubernetes_groups
+		// accessChecker.CheckKubeGroupsAndUsers returns the accumulated kubernetes_groups
 		// and kubernetes_users that satisfy te provided matchers.
 		// When a KubernetesResourceMatcher, it will gather the Kubernetes principals
 		// whose role satisfy the the desired Kubernetes Resource.
 		// The users/groups will be forwarded to Kubernetes Cluster as Impersonation
 		// headers.
-		groups, users, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false /* overrideTTL */, matchers...)
+		groups, users, err := accessChecker.CheckKubeGroupsAndUsers(sessionTTL, false /* overrideTTL */, matchers...)
 		if err != nil {
 			return kubeAccessDetails{}, trace.Wrap(err)
 		}
@@ -1406,6 +1407,10 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 
 	wsTarget, respTarget, err := dialer.Dial(url, nil)
 	if err != nil {
+		if respTarget == nil {
+			return nil, trace.Wrap(err)
+		}
+		defer respTarget.Body.Close()
 		msg, err := io.ReadAll(respTarget.Body)
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -1415,7 +1420,6 @@ func (f *Forwarder) remoteJoin(ctx *authContext, w http.ResponseWriter, req *htt
 		if err := json.Unmarshal(msg, &obj); err != nil {
 			return nil, trace.Wrap(err)
 		}
-
 		return obj, trace.Wrap(err)
 	}
 	defer wsTarget.Close()
@@ -2834,7 +2838,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 
 	const internalErrStatus = http.StatusInternalServerError
 	// get content-type value
-	contentType := responsewriters.GetContentHeader(memWriter.Header())
+	contentType := responsewriters.GetContentTypeHeader(memWriter.Header())
 	encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, newClientNegotiator())
 	if err != nil {
 		return internalErrStatus, trace.Wrap(err)
@@ -2875,7 +2879,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 			allowedKubeGroups, allowedKubeUsers, err := authCtx.Checker.CheckKubeGroupsAndUsers(
 				authCtx.sessionTTL,
 				false,
-				services.NewKubernetesClusterLabelMatcher(authCtx.kubeClusterLabels),
+				services.NewKubernetesClusterLabelMatcher(authCtx.kubeClusterLabels, authCtx.Checker.Traits()),
 				services.NewKubernetesResourceMatcher(
 					types.KubernetesResource{
 						Kind:      types.KindKubePod,
@@ -2970,13 +2974,20 @@ func kubeResourceDeniedAccessMsg(user, method string, kubeResource *types.Kubern
 	apiGroup := ""
 	// <resource> "<pod_name>" is forbidden: User "<user>" cannot create resource "<resource>" in API group "" in the namespace "<namespace>"
 	return fmt.Sprintf(
-		"%s %q is forbidden: User %q cannot %s resource %q in API group %q in the namespace %q",
+		"%s %q is forbidden: User %q cannot %s resource %q in API group %q in the namespace %q\n"+
+			"Ask your Teleport admin to ensure that your Teleport role includes access to the pod in %q field.\n"+
+			"Check by running: kubectl auth can-i %s %s/%s --namespace %s ",
 		resource,
 		kubeResource.Name,
 		user,
 		getRequestVerb(method),
 		resource,
 		apiGroup,
+		kubeResource.Namespace,
+		kubernetesResourcesKey,
+		getRequestVerb(method),
+		resource,
+		kubeResource.Name,
 		kubeResource.Namespace,
 	)
 }

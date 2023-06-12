@@ -21,12 +21,12 @@ import {
   CreateAccessRequestDocumentOpts,
   CreateClusterDocumentOpts,
   CreateGatewayDocumentOpts,
-  CreateNewTerminalOpts,
   CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
   DocumentCluster,
   DocumentGateway,
+  DocumentGatewayCliClient,
   DocumentOrigin,
   DocumentTshKube,
   DocumentTshNode,
@@ -153,11 +153,40 @@ export class DocumentsService {
     };
   }
 
-  openNewTerminal(opts: CreateNewTerminalOpts) {
+  createGatewayCliDocument({
+    title,
+    targetUri,
+    targetUser,
+    targetName,
+    targetProtocol,
+  }: Pick<
+    DocumentGatewayCliClient,
+    'title' | 'targetUri' | 'targetUser' | 'targetName' | 'targetProtocol'
+  >): DocumentGatewayCliClient {
+    const clusterUri = routing.ensureClusterUri(targetUri);
+    const { rootClusterId, leafClusterId } =
+      routing.parseClusterUri(clusterUri).params;
+
+    return {
+      kind: 'doc.gateway_cli_client',
+      uri: routing.getDocUri({ docId: unique() }),
+      title,
+      status: 'connecting',
+      rootClusterId,
+      leafClusterId,
+      targetUri,
+      targetUser,
+      targetName,
+      targetProtocol,
+    };
+  }
+
+  openNewTerminal(opts: { rootClusterId: string; leafClusterId?: string }) {
     const doc = ((): Document => {
       const activeDocument = this.getActive();
 
       if (activeDocument && activeDocument.kind == 'doc.terminal_shell') {
+        // Copy activeDocument to use the same cwd in the new doc.
         return {
           ...activeDocument,
           uri: routing.getDocUri({ docId: unique() }),

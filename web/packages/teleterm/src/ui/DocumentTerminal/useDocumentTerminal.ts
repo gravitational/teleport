@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAsync } from 'shared/hooks/useAsync';
 import { runOnce } from 'shared/utils/highbar';
 
@@ -31,6 +31,8 @@ import { PtyCommand, PtyProcessCreationStatus } from 'teleterm/services/pty';
 import { AmbiguousHostnameError } from 'teleterm/ui/services/resources';
 import { retryWithRelogin } from 'teleterm/ui/utils';
 import Logger from 'teleterm/logger';
+import { ClustersService } from 'teleterm/ui/services/clusters';
+import * as tshdGateway from 'teleterm/services/tshd/gateway';
 
 import type * as types from 'teleterm/ui/services/workspacesService';
 import type * as uri from 'teleterm/ui/uri';
@@ -40,9 +42,13 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
   const logger = useRef(new Logger('useDocumentTerminal'));
   const ctx = useAppContext();
   const { documentsService } = useWorkspaceContext();
-  const [attempt, startTerminal] = useAsync(async () => {
+  const [attempt, runAttempt] = useAsync(async () => {
+    if ('status' in doc) {
+      documentsService.update(doc.uri, { status: 'connecting' });
+    }
+
     try {
-      return await startTerminalSession(
+      return await initializePtyProcess(
         ctx,
         logger.current,
         documentsService,
@@ -59,7 +65,7 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
 
   useEffect(() => {
     if (attempt.status === '') {
-      startTerminal();
+      runAttempt();
     }
 
     return () => {
@@ -67,19 +73,15 @@ export function useDocumentTerminal(doc: types.DocumentTerminal) {
         attempt.data.ptyProcess.dispose();
       }
     };
+    // This cannot be run only mount. If the user has initialized a new PTY process by clicking the
+    // Reconnect button (which happens post mount), we want to dispose this process when
+    // DocumentTerminal gets unmounted. To do this, we need to have a fresh reference to ptyProcess.
   }, [attempt]);
 
-  const reconnect = useCallback(() => {
-    if ('status' in doc) {
-      documentsService.update(doc.uri, { status: 'connecting' });
-    }
-    startTerminal();
-  }, [documentsService, doc.uri, startTerminal]);
-
-  return { attempt, reconnect };
+  return { attempt, initializePtyProcess: runAttempt };
 }
 
-async function startTerminalSession(
+async function initializePtyProcess(
   ctx: IAppContext,
   logger: Logger,
   documentsService: DocumentsService,
@@ -219,7 +221,13 @@ async function setUpPtyProcess(
     leafClusterId: doc.leafClusterId,
   });
   const rootCluster = ctx.clustersService.findRootClusterByResource(clusterUri);
-  const cmd = createCmd(doc, rootCluster.proxyHost, getClusterName());
+  const cmd = createCmd(
+    ctx.clustersService,
+    doc,
+    rootCluster.proxyHost,
+    getClusterName()
+  );
+
   const ptyProcess = await createPtyProcess(ctx, cmd);
 
   if (doc.kind === 'doc.terminal_tsh_node') {
@@ -243,22 +251,10 @@ async function setUpPtyProcess(
     });
   };
 
-  const removeInitCommand = () => {
-    if (doc.kind !== 'doc.terminal_shell') {
-      return;
-    }
-    // The initCommand has to be launched only once, not every time we recreate the document from
-    // the state.
-    //
-    // Imagine that someone creates a new terminal document with `rm -rf /tmp` as initCommand.
-    // We'd execute the command each time the document gets recreated from the state, which is not
-    // what the user would expect.
-    documentsService.update(doc.uri, { initCommand: undefined });
-  };
-
+  // We don't need to clean up the listeners added on ptyProcess in this function. The effect which
+  // calls setUpPtyProcess automatically disposes of the process on cleanup, removing all listeners.
   ptyProcess.onOpen(() => {
     refreshTitle();
-    removeInitCommand();
   });
 
   // TODO(ravicious): Refactor runOnce to not use the `n` variable. Otherwise runOnce subtracts 1
@@ -272,6 +268,12 @@ async function setUpPtyProcess(
 
   // mark document as connected when first data arrives
   ptyProcess.onData(() => markDocumentAsConnectedOnce());
+
+  ptyProcess.onStartError(() => {
+    if ('status' in doc) {
+      documentsService.update(doc.uri, { status: 'error' });
+    }
+  });
 
   ptyProcess.onExit(event => {
     // Not closing the tab on non-zero exit code lets us show the error to the user if, for example,
@@ -314,7 +316,15 @@ async function createPtyProcess(
   return process;
 }
 
+// TODO(ravicious): Instead of creating cmd within useDocumentTerminal, make useDocumentTerminal
+// accept it as an argument. This will allow components such as DocumentGatewayCliClient contain
+// the logic related to their specific use case.
+//
+// useDocumentTerminal used to assume that the doc contains everything that's needed to create the
+// cmd. In case of the gateway CLI client that's not true – the state of ClustersService needs to be
+// inspected to get the correct command for the gateway CLI client.
 function createCmd(
+  clustersService: ClustersService,
   doc: types.DocumentTerminal,
   proxyHost: string,
   clusterName: string
@@ -346,17 +356,44 @@ function createCmd(
     };
   }
 
+  if (doc.kind === 'doc.gateway_cli_client') {
+    const gateway = clustersService.findGatewayByConnectionParams(
+      doc.targetUri,
+      doc.targetUser
+    );
+    if (!gateway) {
+      // This shouldn't happen as DocumentGatewayCliClient doesn't render DocumentTerminal before
+      // the gateway is found. In any case, if it does happen for some reason, the user will see
+      // this message and will be able to retry starting the terminal.
+      throw new Error(
+        `No gateway found for ${doc.targetUser} on ${doc.targetUri}`
+      );
+    }
+
+    // Below we convert cliCommand fields from Go conventions to Node.js conventions.
+    const args = tshdGateway.getCliCommandArgs(gateway.gatewayCliCommand);
+    const env = tshdGateway.getCliCommandEnv(gateway.gatewayCliCommand);
+    // We must not use argsList[0] as the path. Windows expects the executable to end with `.exe`,
+    // so if we passed just `psql` here, we wouldn't be able to start the process.
+    //
+    // Instead, let's use the absolute path resolved by Go.
+    const path = gateway.gatewayCliCommand.path;
+
+    return {
+      kind: 'pty.gateway-cli-client',
+      path,
+      args,
+      env,
+      proxyHost,
+      clusterName,
+    };
+  }
+
   return {
     ...doc,
     kind: 'pty.shell',
     proxyHost,
     clusterName,
     cwd: doc.cwd,
-    initCommand: doc.initCommand,
   };
 }
-
-export type Props = {
-  doc: types.DocumentTerminal;
-  visible: boolean;
-};

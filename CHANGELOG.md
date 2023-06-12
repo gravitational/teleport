@@ -1,5 +1,92 @@
 # Changelog
 
+## 13.1.0 (06/05/23)
+
+* SAML IdP
+  * Fixed issue with SAML IdP advertising incorrect public address in some cases. [#27376](https://github.com/gravitational/teleport/pull/27376)
+  * Fixed issue with SAML IdP authentication failing on subsequent attempts. [#27314](https://github.com/gravitational/teleport/pull/27314)
+* Kubernetes Access
+  * Fixed issue with simultaneous Kubernetes relogins opening multiple browser tabs. [#27366](https://github.com/gravitational/teleport/pull/27366)
+* Teleport Assist
+  * Added Teleport Assist for Teleport Cloud users on Team plan. [#27243](https://github.com/gravitational/teleport/pull/27243)
+  * Fixed issue with intermittent connection reset and multiple UX tweaks. [#27356](https://github.com/gravitational/teleport/pull/27356)
+* Stability
+  * Fixed issue with stalled auth server initialization when the backend is unavailable. [#27298](https://github.com/gravitational/teleport/pull/27298)
+* Web UI
+  * Fixed issue with immediate web UI logout after successful login. [#27296](https://github.com/gravitational/teleport/pull/27296)
+  * Fixed issue with resource names sometimes now showing up in access requests. [#27430](https://github.com/gravitational/teleport/pull/27430)
+* CLI
+  * Added support for creating Windows desktops via `tctl`. [#27250](https://github.com/gravitational/teleport/pull/27250)
+  * Fixed issue with `tctl get all` not returning locks. [#27294](https://github.com/gravitational/teleport/pull/27294)
+* Server Access
+  * Fixed issue with access requests in headless mode. [#27241](https://github.com/gravitational/teleport/pull/27241)
+  * Fixed issue with port forwarding configuration being cached in `tsh` profile. [#27208](https://github.com/gravitational/teleport/pull/27208)
+* Database Access
+  * Added support for automatic database user provisioning for PostgreSQL. [#26555](https://github.com/gravitational/teleport/pull/26555)
+  * Updated Elasticache support to automatically include IAM connect permissions. [#27188](https://github.com/gravitational/teleport/pull/27188)
+* Desktop Access
+  * Fixed issue with automatic user creation failing in some cases. [teleport.e#1579](https://github.com/gravitational/teleport.e/pull/1579)
+
+## 13.0.4 (05/31/23)
+
+* Application Access
+  * Updated `tsh proxy app` to not require explicit `tsh app login`. [#26820](https://github.com/gravitational/teleport/pull/26820)
+* Auth
+  * Fixed issue with headless authentication not working when leaf cluster is selected. [#26878](https://github.com/gravitational/teleport/pull/26878)
+  * Fixed issue with GitHub Enterprise connector API endpoint URL path getting ignored. [#26863](https://github.com/gravitational/teleport/pull/26863)
+* CLI
+  * Added `tsh kubectl` support for tracer exporter. [#27130](https://github.com/gravitational/teleport/pull/27130)
+  * Added support for bash and zsh autocompletion. [#26999](https://github.com/gravitational/teleport/pull/26999)
+  * Added support for calling `tctl alert` commands remotely. [#26789](https://github.com/gravitational/teleport/pull/26789)
+* Database Access
+  * Added support for ElastiCache Redis IAM authentication. [#26990](https://github.com/gravitational/teleport/pull/26990)
+* Desktop Access
+  * Increased LDAP dial timeout from 5 to 15 seconds. [#27045](https://github.com/gravitational/teleport/pull/27045)
+  * Improved LDAP error reporting. [#26984](https://github.com/gravitational/teleport/pull/26984)
+* Helm Charts
+  * Improved `clusterName` validation in `teleport-cluster` Helm chart. [#26973](https://github.com/gravitational/teleport/pull/26973)
+* Kubernetes Operator
+  * Fixed access denied issue when creating token resources. [#27001](https://github.com/gravitational/teleport/pull/27001)
+* Okta
+  * Updated Okta import rules regex to support glob matching. [#27126](https://github.com/gravitational/teleport/pull/27126)
+  * Updated Okta import rules to support filtering user groups by description. [#27021](https://github.com/gravitational/teleport/pull/27021)
+* Performance & Scalability
+  * Improved `tsh login` latency by making sure cluster alerts are fetched once. [#27110](https://github.com/gravitational/teleport/pull/27110)
+* Server Access
+  * Added CA rotation support to EC2 OpenSSH discovery. [#26888](https://github.com/gravitational/teleport/pull/26888)
+  * Extended Proxy Templates support to `tsh ssh`. [#26852](https://github.com/gravitational/teleport/pull/26852)
+  * Fixed issue where system agent is not forwarded when using `--add-keys-to-agent=no`. [#26929](https://github.com/gravitational/teleport/pull/26929)
+* Tooling
+  * Upgraded OpenSSL to `3.0.9`. [#27123](https://github.com/gravitational/teleport/pull/27123)
+* TLS Routing
+  * Added multiple UX improvements for `tsh kube` commands in TLS Routing mode behind ALB. [#27155](https://github.com/gravitational/teleport/pull/27155)
+* Web UI
+  * Added back buttons to Access Management and Integrations flows where possible. [#26727](https://github.com/gravitational/teleport/pull/26727)
+  * Fixed issue with pagination buttons sometimes being invisible on the Nodes page. [#26906](https://github.com/gravitational/teleport/pull/26906)
+
+## 13.0.3 (05/24/23)
+
+* Access Management
+  * Added macOS arm64 support to the node install script. [#26504](https://github.com/gravitational/teleport/pull/26504), [#26698](https://github.com/gravitational/teleport/pull/26698)
+  * Restored the "Add application" dialog. [#26457](https://github.com/gravitational/teleport/pull/26457)
+  * Updated node install script to respect cluster version. [#26322](https://github.com/gravitational/teleport/pull/26322)
+* Audit Log
+  * Updated Okta events to include app and group names. [#26370](https://github.com/gravitational/teleport/pull/26370)
+  * Updated user login event to add list of applied login rules. [#26474](https://github.com/gravitational/teleport/pull/26474)
+* Desktop Access
+  * Improved internal logging and user lookup efficiency. [#26413](https://github.com/gravitational/teleport/pull/26413)
+* Okta Access
+  * Updated Okta import rules to support regex group and app name matching. [#26799](https://github.com/gravitational/teleport/pull/26799)
+* Server Access
+  * Fixed issue with SSH sessions sometimes failing to start when enhanced session recording is enabled. [#26728](https://github.com/gravitational/teleport/pull/26728)
+  * Fixed issue with port forwarding silently failing when using a label based target. [#26701](https://github.com/gravitational/teleport/pull/26701)
+  * Added certificate rotation support to `teleport join openssh` command. [#26674](https://github.com/gravitational/teleport/pull/26674)
+  * Added support for using hostnames in OpenSSH node resources in addition to IPs. [#26549](https://github.com/gravitational/teleport/pull/26549)
+* Kubernetes Access
+  * Extended `kubectl auth can-i` support to consider `kubernetes_resources` RBAC rules. [#26584](https://github.com/gravitational/teleport/pull/26584)
+* Kubernetes Operator
+  * Added `ProvisionToken` support. [#26618](https://github.com/gravitational/teleport/pull/26618)
+
 ## 13.0.2 (05/17/23)
 
 * Auth
@@ -203,6 +290,23 @@ The Helm chart parameter `secretName` was deprecated in Teleport 13 in favor of
 chart should create and manage the join token secret. If `create` is set to
 `false`, the chart assumes that the secret with the configured name already
 exists at the installation namespace.
+
+#### Helm chart uses `distroless`-based container image by default
+
+Starting with Teleport 13, the Helm charts `teleport-cluster` and `teleport-kube-agent`
+are deploying distroless Teleport images by default. Those images are slimmer
+and more secure but contain less tooling (e.g. neither `bash` nor
+`apt` are available).
+
+The Debian-based images are deprecated and will be removed in Teleport 14.
+The chart image can be reverted back to the Debian-based images by setting:
+```yaml
+image: "public.ecr.aws/gravitational/teleport"
+```
+
+For debugging purposes, a "debug" image is available and contains BusyBox,
+which includes a shell and most common POSIX executables:
+`public.ecr.aws/gravitational/teleport-distroless`.
 
 ## 12.3.0 (05/01/23)
 

@@ -2050,6 +2050,8 @@ type agentParams struct {
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
 	GCPSQL *mocks.GCPSQLAdminClientMock
+	// ElastiCache defines the AWS ElastiCache mock to use for ElastiCache API calls.
+	ElastiCache *mocks.ElastiCacheMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
 	// CADownloader defines the CA downloader.
@@ -2077,6 +2079,9 @@ func (p *agentParams) setDefaults(c *testContext) {
 			},
 		}
 	}
+	if p.ElastiCache == nil {
+		p.ElastiCache = &mocks.ElastiCacheMock{}
+	}
 	if p.CADownloader == nil {
 		p.CADownloader = &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
@@ -2089,7 +2094,7 @@ func (p *agentParams) setDefaults(c *testContext) {
 			RDS:                &mocks.RDSMock{},
 			Redshift:           &mocks.RedshiftMock{},
 			RedshiftServerless: &mocks.RedshiftServerlessMock{},
-			ElastiCache:        &mocks.ElastiCacheMock{},
+			ElastiCache:        p.ElastiCache,
 			MemoryDB:           &mocks.MemoryDBMock{},
 			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
 			IAM:                &mocks.IAMMock{},
@@ -2192,7 +2197,9 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 
 type withDatabaseOption func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database
 
-func withSelfHostedPostgres(name string) withDatabaseOption {
+type databaseOption func(*types.DatabaseV3)
+
+func withSelfHostedPostgres(name string, dbOpts ...databaseOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
 			Name:       name,
@@ -2210,6 +2217,9 @@ func withSelfHostedPostgres(name string) withDatabaseOption {
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)
+		for _, dbOpt := range dbOpts {
+			dbOpt(database)
+		}
 		testCtx.postgres[name] = testPostgres{
 			db:       postgresServer,
 			resource: database,
@@ -2523,6 +2533,40 @@ func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
 	}
 }
 
+func withAtlasMongo(name, authUser, authSession string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthUser:   authUser,
+			AuthToken:  authSession,
+		})
+		require.NoError(t, err)
+		go mongoServer.Serve()
+		t.Cleanup(func() { mongoServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolMongoDB,
+			URI:           net.JoinHostPort("localhost", mongoServer.Port()),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				AccountID: "000000000000",
+			},
+			MongoAtlas: types.MongoAtlas{
+				Name: "test",
+			},
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.mongo[name] = testMongoDB{
+			db:       mongoServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
 func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
@@ -2592,6 +2636,43 @@ func withSQLServer(name string) withDatabaseOption {
 		require.NoError(t, err)
 		testCtx.sqlServer[name] = testSQLServer{
 			db:       sqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withElastiCacheRedis(name string, token, engineVersion string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, redis.TestServerPassword(token))
+		require.NoError(t, err)
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				"engine-version": engineVersion,
+			},
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolRedis,
+			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				Region: "us-west-1",
+				ElastiCache: types.ElastiCache{
+					ReplicationGroupID: "example-cluster",
+				},
+			},
+			// Set CA cert to pass cert validation.
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
+		})
+		require.NoError(t, err)
+		testCtx.redis[name] = testRedis{
+			db:       redisServer,
 			resource: database,
 		}
 		return database

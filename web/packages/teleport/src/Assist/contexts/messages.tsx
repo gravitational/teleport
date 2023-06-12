@@ -20,13 +20,11 @@ import React, {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from 'react';
-import useWebSocket from 'react-use-websocket';
 
-import { useParams } from 'react-router';
-
-import logger from 'shared/libs/logger';
+import Logger from 'shared/libs/logger';
 
 import api, { getAccessToken, getHostName } from 'teleport/services/api';
 
@@ -36,6 +34,8 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 
 import { ApiError } from 'teleport/services/api/parseError';
+
+import { EventType } from 'teleport/lib/term/enums';
 
 import {
   Author,
@@ -62,7 +62,7 @@ interface ServerMessage {
 }
 
 interface ConversationHistoryResponse {
-  Messages: ServerMessage[];
+  messages: ServerMessage[];
 }
 
 const MessagesContext = createContext<MessageContextValue>({
@@ -84,6 +84,13 @@ interface PartialMessagePayload {
   idx: number;
 }
 
+interface ExecEvent {
+  event: EventType.EXEC;
+  exitError?: string;
+}
+
+type SessionEvent = ExecEvent | { event: string };
+
 const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
   let query = '';
 
@@ -103,6 +110,22 @@ const convertToQuery = (cmd: ExecuteRemoteCommandPayload): string => {
 
   return query;
 };
+
+const ROOT_LOGINS = ['root', 'ec2-user', 'ubuntu', 'admin', 'centos'];
+
+export function sortLoginsWithRootLoginsLast(logins: string[]): string[] {
+  return logins.sort((a, b) => {
+    if (ROOT_LOGINS.includes(a) && !ROOT_LOGINS.includes(b)) {
+      return 1;
+    }
+
+    if (!ROOT_LOGINS.includes(a) && ROOT_LOGINS.includes(b)) {
+      return -1;
+    }
+
+    return a.localeCompare(b);
+  });
+}
 
 export const remoteCommandToMessage = async (
   execCmd: ExecuteRemoteCommandContent,
@@ -134,9 +157,26 @@ export const remoteCommandToMessage = async (
       errorMsg = 'no users found';
     }
 
+    // If the login has been selected, use it.
+    let avLogin = execCmd.selectedLogin;
+    if (!avLogin) {
+      // If the login has not been selected, use the first one.
+      avLogin = availableLogins
+        ? sortLoginsWithRootLoginsLast(availableLogins)[0]
+        : '';
+    } else {
+      // If the login has been selected, check if it is available.
+      // Updated query could have changed the available logins.
+      if (!availableLogins.includes(avLogin)) {
+        avLogin = availableLogins
+          ? sortLoginsWithRootLoginsLast(availableLogins)[0]
+          : '';
+      }
+    }
+
     return {
       ...execCmd,
-      selectedLogin: availableLogins ? availableLogins[0] : '',
+      selectedLogin: avLogin,
       availableLogins: availableLogins,
       errorMsg: errorMsg,
     };
@@ -148,11 +188,18 @@ export const remoteCommandToMessage = async (
   }
 };
 
+function isExecEvent(e: SessionEvent): e is ExecEvent {
+  return e.event == EventType.EXEC;
+}
+
 async function convertServerMessage(
   message: ServerMessage,
   clusterId: string
 ): Promise<MessagesAction> {
-  if (message.type === 'CHAT_MESSAGE_ASSISTANT') {
+  if (
+    message.type === 'CHAT_MESSAGE_ASSISTANT' ||
+    message.type === 'CHAT_MESSAGE_ERROR'
+  ) {
     const newMessage: Message = {
       author: Author.Teleport,
       timestamp: message.created_time,
@@ -205,13 +252,34 @@ async function convertServerMessage(
       sid: payload.session_id,
     });
 
-    // The offset here is set base on A/B test that was run between me, myself and I.
-    const resp = await api
-      .fetch(sessionUrl + '/stream?offset=0&bytes=4096', {
-        Accept: 'text/plain',
-        'Content-Type': 'text/plain; charset=utf-8',
-      })
-      .then(response => response.text());
+    const eventsResp = await api.fetch(sessionUrl + '/events');
+    const sessionExists = eventsResp.status === 200;
+
+    let msg;
+    let errorMsg;
+    if (sessionExists) {
+      // Get events only if the session exists. Otherwise, eventsData.events can be empty
+      // if the command execution failed.
+      const eventsData = (await eventsResp.json()) as {
+        events: SessionEvent[];
+      };
+      const execEvent = eventsData.events?.find(isExecEvent);
+      // The offset here is set base on A/B test that was run between me, myself and I.
+      const stream = await api.fetch(
+        sessionUrl + '/stream?offset=0&bytes=4096',
+        {
+          Accept: 'text/plain',
+          'Content-Type': 'text/plain; charset=utf-8',
+        }
+      );
+      if (stream.status === 200) {
+        msg = await stream.text();
+      } else {
+        msg = execEvent?.exitError || ''; // empty output handled in <Output>
+      }
+    } else {
+      errorMsg = 'No session recording. The command execution failed.';
+    }
 
     const newMessage: Message = {
       author: Author.Teleport,
@@ -220,7 +288,8 @@ async function convertServerMessage(
         type: Type.ExecuteCommandOutput,
         nodeId: payload.node_id,
         executionId: payload.execution_id,
-        payload: resp,
+        payload: msg,
+        errorMsg,
       },
     };
 
@@ -263,6 +332,8 @@ async function convertServerMessage(
 
     return (messages: Message[]) => messages.push(newMessage);
   }
+
+  throw new Error('unrecognized message type');
 }
 
 function findIntersection<T>(elems: T[][]): T[] {
@@ -301,10 +372,13 @@ export async function setConversationTitle(
   });
 }
 
+const TEN_MINUTES = 10 * 60 * 1000;
+
+const logger = Logger.create('assist');
+
 export function MessagesContextProvider(
   props: PropsWithChildren<MessagesContextProviderProps>
 ) {
-  const { conversationId } = useParams<{ conversationId: string }>();
   const { clusterId } = useStickyClusterId();
 
   const [error, setError] = useState<string>(null);
@@ -312,17 +386,60 @@ export function MessagesContextProvider(
   const [responding, setResponding] = useState(false);
   const [messages, setMessages] = useState<Message[]>([]);
 
-  const socketUrl = cfg.getAssistConversationWebSocketUrl(
-    getHostName(),
-    clusterId,
-    getAccessToken(),
-    props.conversationId
-  );
+  const webSocketRef = useRef<WebSocket>(null);
 
-  const { sendMessage, lastMessage } = useWebSocket(socketUrl, {
-    share: true, // when share is false the websocket tends to disconnect
-    retryOnError: true,
-  });
+  const setupWebSocket = useCallback(() => {
+    if (webSocketRef.current) {
+      webSocketRef.current.close();
+    }
+
+    const socketUrl = cfg.getAssistConversationWebSocketUrl(
+      getHostName(),
+      clusterId,
+      getAccessToken(),
+      props.conversationId
+    );
+
+    webSocketRef.current = new WebSocket(socketUrl);
+
+    webSocketRef.current.onmessage = async (event: MessageEvent) => {
+      const value = JSON.parse(event.data) as ServerMessage;
+
+      // When a streaming message ends, or a non-streaming message arrives
+      if (
+        value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE' ||
+        value.type === 'COMMAND' ||
+        value.type === 'CHAT_MESSAGE_ASSISTANT' ||
+        value.type === 'CHAT_MESSAGE_ERROR'
+      ) {
+        setResponding(false);
+      }
+
+      convertServerMessage(value, clusterId).then(res => {
+        setMessages(prev => {
+          const curr = [...prev];
+          res(curr);
+          return curr;
+        });
+      });
+    };
+  }, []);
+
+  useEffect(() => {
+    setupWebSocket();
+
+    // refresh the websocket connection every 10 minutes to avoid
+    // session timeouts
+    const id = window.setInterval(setupWebSocket, TEN_MINUTES * 0.8);
+
+    return () => {
+      window.clearInterval(id);
+
+      if (webSocketRef.current) {
+        webSocketRef.current.close();
+      }
+    };
+  }, []);
 
   const load = useCallback(async () => {
     setMessages([]);
@@ -331,12 +448,12 @@ export function MessagesContextProvider(
       cfg.getAssistConversationHistoryUrl(props.conversationId)
     );
 
-    if (!res.Messages) {
+    if (!res.messages) {
       return;
     }
 
     let messages: Message[] = [];
-    for (const m of res.Messages) {
+    for (const m of res.messages) {
       const action = await convertServerMessage(m, clusterId);
       action(messages);
     }
@@ -360,27 +477,6 @@ export function MessagesContextProvider(
     })();
   }, [props.conversationId]);
 
-  useEffect(() => {
-    if (lastMessage !== null) {
-      const value = JSON.parse(lastMessage.data) as ServerMessage;
-
-      if (
-        value.type === 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE' ||
-        value.type === 'COMMAND'
-      ) {
-        setResponding(false);
-      }
-
-      convertServerMessage(value, clusterId).then(res => {
-        setMessages(prev => {
-          const curr = [...prev];
-          res(curr);
-          return curr;
-        });
-      });
-    }
-  }, [lastMessage, setMessages, conversationId]);
-
   const send = useCallback(
     async (message: string) => {
       setResponding(true);
@@ -398,7 +494,8 @@ export function MessagesContextProvider(
       setMessages(newMessages);
 
       const data = JSON.stringify({ payload: message });
-      sendMessage(data);
+
+      webSocketRef.current.send(data);
     },
     [messages]
   );

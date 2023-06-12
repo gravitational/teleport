@@ -71,7 +71,7 @@ func main() {
 	flag.DurationVar(&syncPeriod, "sync-period", 10*time.Hour, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
 	flag.BoolVar(&insecureNoVerify, "insecure-no-verify-image", false, "Disable image signature verification.")
 	flag.BoolVar(&disableLeaderElection, "disable-leader-election", false, "Disable leader election, used when running the kube-agent-updater outside of Kubernetes.")
-	flag.StringVar(&versionServer, "version-server", "https://update.gravitational.io/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
+	flag.StringVar(&versionServer, "version-server", "https://updates.releases.teleport.dev/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
 	flag.StringVar(&versionChannel, "version-channel", "cloud/stable", "Version channel to get updates from.")
 	flag.StringVar(&baseImageName, "base-image", "public.ecr.aws/gravitational/teleport", "Image reference containing registry and repository.")
 

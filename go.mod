@@ -25,6 +25,7 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/Microsoft/go-winio v0.6.0
 	github.com/ThalesIgnite/crypto11 v1.2.5
+	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced
 	github.com/alicebob/miniredis/v2 v2.30.1
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
@@ -80,7 +81,6 @@ require (
 	github.com/gorilla/websocket v1.5.0
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
-	github.com/gravitational/kingpin v2.1.11-0.20220901134012-2a1956e29525+incompatible
 	github.com/gravitational/license v0.0.0-20210218173955-6d8fb49b117a
 	github.com/gravitational/oxy v0.0.0-20221029012416-9fbf4c444680
 	github.com/gravitational/roundtrip v1.0.2
@@ -94,6 +94,7 @@ require (
 	github.com/jackc/pgconn v1.14.0
 	github.com/jackc/pgerrcode v0.0.0-20220416144525-469b46aa5efa
 	github.com/jackc/pgproto3/v2 v2.3.2
+	github.com/jackc/pgtype v1.14.0
 	github.com/jackc/pgx/v4 v4.18.1
 	github.com/jcmturner/gokrb5/v8 v8.4.4
 	github.com/johannesboyne/gofakes3 v0.0.0-20210217223559-02ffa763be97
@@ -102,6 +103,7 @@ require (
 	github.com/json-iterator/go v1.1.12
 	github.com/julienschmidt/httprouter v1.3.0 // replaced
 	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // replaced
+	github.com/kyroy/kdtree v0.0.0-20200419114247-70830f883f1d
 	github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
@@ -126,6 +128,7 @@ require (
 	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sirupsen/logrus v1.9.0
 	github.com/snowflakedb/gosnowflake v1.6.19
+	github.com/spf13/cobra v1.6.1
 	github.com/stretchr/testify v1.8.2
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
@@ -135,6 +138,7 @@ require (
 	go.etcd.io/etcd/client/v3 v3.5.7
 	go.mongodb.org/mongo-driver v1.10.6
 	go.mozilla.org/pkcs7 v0.0.0-20210826202110-33d05740a352
+	go.opentelemetry.io/contrib/instrumentation/github.com/aws/aws-sdk-go-v2/otelaws v0.40.0
 	go.opentelemetry.io/contrib/instrumentation/google.golang.org/grpc/otelgrpc v0.40.0
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.40.0
 	go.opentelemetry.io/otel v1.14.0
@@ -201,8 +205,6 @@ require (
 	github.com/AzureAD/microsoft-authentication-library-for-go v0.9.0 // indirect
 	github.com/BurntSushi/toml v1.1.0 // indirect
 	github.com/MakeNowJust/heredoc v1.0.0 // indirect
-	github.com/alecthomas/assert v1.0.0 // indirect
-	github.com/alecthomas/template v0.0.0-20190718012654-fb15b899a751 // indirect
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
@@ -214,8 +216,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.26 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.33 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.24 // indirect
+	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.18.5 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.9.11 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.1.27 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/endpoint-discovery v1.7.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.9.26 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.14.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.8 // indirect
@@ -234,7 +238,8 @@ require (
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/daviddengcn/go-colortext v1.0.0 // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
-	github.com/docker/distribution v2.8.1+incompatible // indirect
+	github.com/dlclark/regexp2 v1.9.0 // indirect
+	github.com/docker/distribution v2.8.2+incompatible // indirect
 	github.com/dvsekhvalnov/jose2go v1.5.0 // indirect
 	github.com/elastic/elastic-transport-go/v8 v8.2.0 // indirect
 	github.com/emicklei/go-restful/v3 v3.9.0 // indirect
@@ -285,7 +290,6 @@ require (
 	github.com/jackc/pgio v1.0.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20221227161230-091c0ba34f0a // indirect
-	github.com/jackc/pgtype v1.14.0 // indirect
 	github.com/jcmturner/aescts/v2 v2.0.0 // indirect
 	github.com/jcmturner/dnsutils/v2 v2.0.0 // indirect
 	github.com/jcmturner/gofork v1.7.6 // indirect
@@ -303,6 +307,7 @@ require (
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
+	github.com/kyroy/priority-queue v0.0.0-20180327160706-6e21825e7e0c // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/lithammer/dedent v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -341,17 +346,19 @@ require (
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
+	github.com/sashabaranov/go-openai v1.9.3
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect
-	github.com/spf13/cobra v1.6.1 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
 	github.com/thales-e-security/pool v0.0.2 // indirect
 	github.com/tidwall/pretty v1.2.1 // indirect
+	github.com/tiktoken-go/tokenizer v0.1.0
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xdg-go/pbkdf2 v1.0.0 // indirect
 	github.com/xdg-go/scram v1.1.1 // indirect
 	github.com/xdg-go/stringprep v1.0.3 // indirect
+	github.com/xhit/go-str2duration/v2 v2.1.0 // indirect
 	github.com/xlab/treeprint v1.1.0 // indirect
 	github.com/youmark/pkcs8 v0.0.0-20181117223130-1be2e3e5546d // indirect
 	github.com/yuin/gopher-lua v1.1.0 // indirect
@@ -382,6 +389,7 @@ require (
 
 // Update also `ignore` in .github/dependabot.yml.
 replace (
+	github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
 	github.com/coreos/go-oidc => github.com/gravitational/go-oidc v0.1.0
 	github.com/datastax/go-cassandra-native-protocol => github.com/gravitational/go-cassandra-native-protocol v0.0.0-20221005103706-b9e66c056e90
 	github.com/go-mysql-org/go-mysql => github.com/gravitational/go-mysql v1.5.0-teleport.1
@@ -394,7 +402,7 @@ replace (
 	// replace module github.com/moby/spdystream until https://github.com/moby/spdystream/pull/91 merges and deps are updated
 	// otherwise tests fail with a data race detection.
 	github.com/moby/spdystream => github.com/gravitational/spdystream v0.0.0-20230512133543-4e46862ca9bf
-	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.0
+	github.com/vulcand/predicate => github.com/gravitational/predicate v1.3.1
 	// Use our internal crypto fork, to work around the issue with OpenSSH <= 7.6 mentioned here: https://github.com/golang/go/issues/53391
 	golang.org/x/crypto => github.com/gravitational/crypto v0.6.0-1
 )

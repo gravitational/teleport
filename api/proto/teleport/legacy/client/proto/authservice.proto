@@ -590,6 +590,8 @@ message Features {
   bool AutomaticUpgrades = 16 [(gogoproto.jsontag) = "automatic_upgrades"];
   // IsUsageBased enables some usage-based billing features
   bool IsUsageBased = 17 [(gogoproto.jsontag) = "is_usage_based"];
+  // Assist enables the Assistant feature
+  bool Assist = 18 [(gogoproto.jsontag) = "assist"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -2099,6 +2101,9 @@ message UpstreamInventoryHello {
   // instance can claim its hostname to be). This value exists only to assist users in correlating
   // instance resources with hosts.
   string Hostname = 4;
+  // ExternalUpgrader identifies the external upgrader that the instance is configured to
+  // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
+  string ExternalUpgrader = 5;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing

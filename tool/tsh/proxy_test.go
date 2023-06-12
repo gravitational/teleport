@@ -36,7 +36,6 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport"
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
@@ -787,10 +786,7 @@ func mustGetOpenSSHConfigFile(t *testing.T) string {
 	var buff bytes.Buffer
 	err := Run(context.Background(), []string{
 		"config",
-	}, func(cf *CLIConf) error {
-		cf.overrideStdout = &buff
-		return nil
-	})
+	}, setCopyStdout(&buff))
 	require.NoError(t, err)
 
 	tmpDir := t.TempDir()
@@ -842,14 +838,12 @@ func mustFailToRunOpenSSHCommand(t *testing.T, configFile string, sshConnString 
 
 func mustSearchEvents(t *testing.T, auth *auth.Server) []apievents.AuditEvent {
 	now := time.Now()
-	events, _, err := auth.SearchEvents(
-		now.Add(-time.Hour),
-		now.Add(time.Hour),
-		apidefaults.Namespace,
-		nil,
-		0,
-		types.EventOrderDescending,
-		"")
+	ctx := context.Background()
+	events, _, err := auth.SearchEvents(ctx, events.SearchEventsRequest{
+		From:  now.Add(-time.Hour),
+		To:    now.Add(time.Hour),
+		Order: types.EventOrderDescending,
+	})
 
 	require.NoError(t, err)
 	return events
@@ -1053,6 +1047,7 @@ type fakeAWSAppInfo struct {
 func (f fakeAWSAppInfo) GetAppName() string {
 	return "fake-aws-app"
 }
+
 func (f fakeAWSAppInfo) GetEnvVars() (map[string]string, error) {
 	envVars := map[string]string{
 		"AWS_ACCESS_KEY_ID":     "FAKE_ID",
@@ -1064,9 +1059,11 @@ func (f fakeAWSAppInfo) GetEnvVars() (map[string]string, error) {
 	}
 	return envVars, nil
 }
+
 func (f fakeAWSAppInfo) GetEndpointURL() string {
 	return "https://127.0.0.1:12345"
 }
+
 func (f fakeAWSAppInfo) GetForwardProxyAddr() string {
 	return f.forwardProxyAddr
 }

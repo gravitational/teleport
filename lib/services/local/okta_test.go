@@ -200,6 +200,102 @@ func TestOktaImportRuleCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
+func TestValidateOktaImportRuleRegexes(t *testing.T) {
+	t.Parallel()
+
+	createRegexMatch := func(appNameRegex, groupNameRegex string) *types.OktaImportRuleMatchV1 {
+		return &types.OktaImportRuleMatchV1{
+			AppNameRegexes:   []string{appNameRegex},
+			GroupNameRegexes: []string{groupNameRegex},
+		}
+	}
+
+	tests := []struct {
+		name    string
+		spec    types.OktaImportRuleSpecV1
+		wantErr require.ErrorAssertionFunc
+	}{
+		{
+			name: "no regex validation issues",
+			spec: types.OktaImportRuleSpecV1{
+				Mappings: []*types.OktaImportRuleMappingV1{
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", ".*")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", ".*")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "no regex present",
+			spec: types.OktaImportRuleSpecV1{
+				Mappings: []*types.OktaImportRuleMappingV1{
+					{
+						Match:     []*types.OktaImportRuleMatchV1{{AppIDs: []string{"1"}}},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+					{
+						Match:     []*types.OktaImportRuleMatchV1{{GroupIDs: []string{"1"}}},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+				},
+			},
+			wantErr: require.NoError,
+		},
+		{
+			name: "app regex validation issues",
+			spec: types.OktaImportRuleSpecV1{
+				Mappings: []*types.OktaImportRuleMappingV1{
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch("^(bad$", ".*")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", ".*")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+				},
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "error parsing regexp")
+			},
+		},
+		{
+			name: "group regex validation issues",
+			spec: types.OktaImportRuleSpecV1{
+				Mappings: []*types.OktaImportRuleMappingV1{
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", ".*")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+					{
+						Match:     []*types.OktaImportRuleMatchV1{createRegexMatch(".*", "^(bad$")},
+						AddLabels: map[string]string{"label1": "value1"},
+					},
+				},
+			},
+			wantErr: func(t require.TestingT, err error, i ...interface{}) {
+				require.ErrorContains(t, err, "error parsing regexp")
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			importRule, err := types.NewOktaImportRule(types.Metadata{
+				Name: "test",
+			}, test.spec)
+			require.NoError(t, err)
+			test.wantErr(t, validateOktaImportRuleRegexes(importRule))
+		})
+	}
+}
+
 // TestOktaAssignmentCRUD tests backend operations with Okta assignment resources.
 func TestOktaAssignmentCRUD(t *testing.T) {
 	ctx := context.Background()

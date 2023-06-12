@@ -84,9 +84,11 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindPlugin, RW()),
 					types.NewRule(types.KindOktaImportRule, RW()),
 					types.NewRule(types.KindOktaAssignment, RW()),
+					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindLock, RW()),
 					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 					types.NewRule(types.KindBilling, RW()),
+					types.NewRule(types.KindClusterAlert, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -125,6 +127,7 @@ func NewPresetAccessRole() types.Role {
 				DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 				DatabaseNames:         []string{teleport.TraitInternalDBNamesVariable},
 				DatabaseUsers:         []string{teleport.TraitInternalDBUsersVariable},
+				DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
 						Kind:      types.KindKubePod,
@@ -140,6 +143,7 @@ func NewPresetAccessRole() types.Role {
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
 					types.NewRule(types.KindInstance, RO()),
+					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -181,6 +185,7 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindEvent, RO()),
 					types.NewRule(types.KindSessionTracker, RO()),
+					types.NewRule(types.KindClusterAlert, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -213,6 +218,12 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindLock, RW()),
 			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 			types.NewRule(types.KindBilling, RW()),
+			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+		},
+		teleport.PresetAccessRoleName: {
+			// Allow assist access to access role. This role only allow access
+			// to the assist console, not any other cluster resources.
+			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 		},
 	}
 }
@@ -225,6 +236,7 @@ func defaultAllowLabels() map[string]types.RoleConditions {
 	return map[string]types.RoleConditions{
 		teleport.PresetAccessRoleName: {
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 		},
 	}
 }
@@ -255,8 +267,16 @@ func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
 	// Labels
 	defaultLabels, ok := defaultAllowLabels()[role.GetName()]
 	if ok {
-		if len(defaultLabels.DatabaseServiceLabels) > 0 && len(role.GetDatabaseServiceLabels(types.Allow)) == 0 && len(role.GetDatabaseServiceLabels(types.Deny)) == 0 {
-			role.SetDatabaseServiceLabels(types.Allow, defaultLabels.DatabaseServiceLabels)
+		if unset, err := labelMatchersUnset(role, types.KindDatabaseService); err != nil {
+			return nil, trace.Wrap(err)
+		} else if unset && len(defaultLabels.DatabaseServiceLabels) > 0 {
+			role.SetLabelMatchers(types.Allow, types.KindDatabaseService, types.LabelMatchers{
+				Labels: defaultLabels.DatabaseServiceLabels,
+			})
+			changed = true
+		}
+		if len(defaultLabels.DatabaseRoles) > 0 && len(role.GetDatabaseRoles(types.Allow)) == 0 {
+			role.SetDatabaseRoles(types.Allow, defaultLabels.DatabaseRoles)
 			changed = true
 		}
 	}
@@ -266,6 +286,19 @@ func AddDefaultAllowConditions(role types.Role) (types.Role, error) {
 	}
 
 	return role, nil
+}
+
+func labelMatchersUnset(role types.Role, kind string) (bool, error) {
+	for _, cond := range []types.RoleConditionType{types.Allow, types.Deny} {
+		labelMatchers, err := role.GetLabelMatchers(cond, kind)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !labelMatchers.Empty() {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func resourceBelongsToRules(rules []types.Rule, resources []string) bool {

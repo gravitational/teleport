@@ -37,6 +37,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/xitongsys/parquet-go-source/local"
 	"github.com/xitongsys/parquet-go/source"
@@ -206,6 +207,7 @@ func validCollectCfgForTests(t *testing.T) sqsCollectConfig {
 				t.Fail()
 			}
 		},
+		metricConsumerBatchProcessingDuration: prometheus.NewHistogram(prometheus.HistogramOpts{Name: "for_tests"}),
 	}
 }
 
@@ -589,7 +591,7 @@ func TestErrHandlingFnFromSQS(t *testing.T) {
 	})
 }
 
-// TestConsumerWriteToS3 is writing parquet files per date works.
+// TestConsumerWriteToS3 checks if writing parquet files per date works.
 // It receives events from different dates and make sure that multiple
 // files are created and compare it against file in testdata.
 // Testdata files should be verified with "parquet tools" cli after changing.
@@ -771,4 +773,76 @@ func (m *mockSQSDeleter) DeleteMessageBatch(ctx context.Context, params *sqs.Del
 	m.calls++
 	m.noOfEntries += len(params.Entries)
 	return m.respFn(ctx, params)
+}
+
+func TestCollectedEventsMetadataMerge(t *testing.T) {
+	now := time.Now()
+	tests := []struct {
+		name     string
+		a        collectedEventsMetadata
+		b        collectedEventsMetadata
+		expected collectedEventsMetadata
+	}{
+		{
+			name: "Merge with empty a",
+			a: collectedEventsMetadata{
+				Size:            0,
+				Count:           0,
+				OldestTimestamp: time.Time{},
+			},
+			b: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+			},
+			expected: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+			},
+		},
+		{
+			name: "Merge with empty b",
+			a: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+			},
+			b: collectedEventsMetadata{
+				Size:            0,
+				Count:           0,
+				OldestTimestamp: time.Time{},
+			},
+			expected: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now,
+			},
+		},
+		{
+			name: "Merge with non-empty metadata",
+			a: collectedEventsMetadata{
+				Size:            10,
+				Count:           5,
+				OldestTimestamp: now.Add(-time.Hour),
+			},
+			b: collectedEventsMetadata{
+				Size:            15,
+				Count:           7,
+				OldestTimestamp: now,
+			},
+			expected: collectedEventsMetadata{
+				Size:            25,
+				Count:           12,
+				OldestTimestamp: now.Add(-time.Hour),
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tt.a.Merge(tt.b)
+			require.Empty(t, cmp.Diff(tt.a, tt.expected))
+		})
+	}
 }

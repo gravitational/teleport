@@ -47,15 +47,7 @@ This guide will explain how to:
 - Two running Teleport clusters. For details on how to set up your clusters, see
   one of our [Getting Started](/docs/getting-started) guides.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 
   See [Installation](/docs/installation.mdx) for details.
 
@@ -72,16 +64,7 @@ This guide will explain how to:
 - Two running Teleport clusters. For details on how to set up your clusters, see
   our Enterprise [Getting Started](/docs/enterprise/getting-started) guide.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting your [Teleport account](https://teleport.sh).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
+- (!docs/pages/includes/enterprise/tctl-tsh-prerequisite.mdx!)
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
@@ -102,16 +85,7 @@ how to set up this cluster, see one of our
 
   As an alternative, you can set up a second Teleport Cloud account.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-  To download these tools, visit the [Downloads](../../choose-an-edition/teleport-cloud/downloads.mdx) page.
-
-  ```code
-  $ tctl version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-  ```
+- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
@@ -302,9 +276,9 @@ Execute the following command on your development machine:
 
 ```code
 # Generates a Trusted Cluster token to allow an inbound connection from a leaf cluster:
-$ tctl tokens add --type=trusted_cluster --ttl=15m
+$ tctl tokens add --type=trusted_cluster --ttl=5m
 The cluster invite token: (=presets.tokens.first=)
-This token will expire in 15 minutes
+This token will expire in 5 minutes
 
 Use this token when defining a trusted cluster resource on a remote cluster.
 ```
