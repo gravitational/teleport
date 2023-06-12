@@ -81,6 +81,11 @@ func main() {
 	}
 }
 
+var certificateFilter = zenity.FileFilter{
+	Name:     "Certificate files",
+	Patterns: []string{"*.cer"},
+}
+
 func ui() {
 	if _, err := os.Stat(dllPath); err == nil {
 		err := zenity.Question("Teleport Authentication Package is already installed.\n\nWhat would you like to do?",
@@ -103,7 +108,7 @@ func ui() {
 		} else if err == nil {
 			if file, err := zenity.SelectFile(
 				zenity.Filename(""),
-				zenity.FileFilters{{"Certificate files", []string{"*.cer"}}},
+				zenity.FileFilters{certificateFilter},
 				zenity.Title("Select Teleport CA Certificate, or cancel to use the existing certificate")); err == nil {
 				if err := importCert(file); err != nil {
 					zenity.Error(fmt.Sprintf("Can't import certificate: %s", err), title, width, height)
@@ -135,7 +140,7 @@ func ui() {
 	}
 	file, err := zenity.SelectFile(
 		zenity.Filename(""),
-		zenity.FileFilters{{"Certificate files", []string{"*.cer"}}},
+		zenity.FileFilters{certificateFilter},
 		zenity.Title("Select Teleport CA certificate"))
 	if err != nil {
 		return
