@@ -1557,10 +1557,11 @@ $ tctl tokens add --type=TYPE [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
+| <nobr>`--format`</nobr> | none | `text`, `json`, `yaml` | Output format |
+| `--labels` | none | `text` | Sets token labels |
+| `--ttl` | 1h | Duration like 5s, 2m, or 3h | Sets how long the token is valid for. |
 | `--type` | none | `proxy`, `auth`, `trusted_cluster`, `node`,  `db`, `kube`, `app`, `windowsdesktop` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
-| `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
-| `--format` | none | `text`, `json`, `yaml` | Output format |
 
 #### Global flags
 
@@ -1573,7 +1574,7 @@ These flags are available for all commands `--debug, --config` . Run
 # Generate an invite token for a trusted_cluster
 $ tctl tokens add --type=trusted_cluster --ttl=5m
 # Generate an invite token for a trusted_cluster with labels
-$ tctl tokens add --type=trusted_cluster --labels=env=prod
+$ tctl tokens add --type=trusted_cluster --labels=env=prod,region=us-west
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 $ tctl tokens add --type=node
