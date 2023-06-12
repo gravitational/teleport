@@ -153,7 +153,7 @@ func (f *azureInstanceFetcher) GetInstances(ctx context.Context, _ bool) ([]Inst
 	var instances []Instances
 	for region, vms := range instancesByRegion {
 		if len(vms) > 0 {
-			instances = append(instances, Instances{AzureInstances: &AzureInstances{
+			instances = append(instances, Instances{Azure: &AzureInstances{
 				SubscriptionID:  f.Subscription,
 				Region:          region,
 				ResourceGroup:   f.ResourceGroup,

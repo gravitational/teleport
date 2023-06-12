@@ -14,6 +14,11 @@ on_azure() {
   [ "$AZURE_STATUS" = "200" ]
 }
 
+on_gcp() {
+  GCP_STATUS=$(curl -o /dev/null -w "%{http_code}" -m5 -sS "metadata.google.internal")
+  [ "$GCP_STATUS" = "200" ]
+}
+
 (
   flock -n 9 || exit 1
   if test -f /usr/local/bin/teleport; then
@@ -75,6 +80,15 @@ on_azure() {
 
     JOIN_METHOD=iam
     LABELS="teleport.dev/instance-id=${INSTANCE_ID},teleport.dev/account-id=${ACCOUNT_ID}"
+  elif on_gcp; then
+    INSTANCE_INFO=$(curl -m5 -sS -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/instance/?recursive=true")
+
+    NAME="$(echo "$INSTANCE_INFO" | jq -r .name)"
+    ZONE="$(echo "$INSTANCE_INFO" | jq -r .zone | awk -F "/" '{print $9}')"
+    PROJECT_ID=$(curl -m5 -sS -H "Metadata-Flavor: Google" "http://metadata.google.internal/computeMetadata/v1/project/project-id")
+
+    JOIN_METHOD=gcp
+    LABELS="teleport.internal/name=${NAME},teleport.internal/zone=${ZONE},teleport.internal/project-id=${PROJECT_ID}"
   else
     echo "Could not determine cloud provider"
     exit 1
