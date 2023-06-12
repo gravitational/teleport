@@ -73,27 +73,17 @@ func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(sub.Close)
 
-		// Make an update. Make sure we are servicing the updates channel first.
-		readyForUpdate := make(chan struct{})
-		stubC := make(chan *types.HeadlessAuthentication, 1)
-		go func() {
-			<-readyForUpdate
-			stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
-			assert.NoError(t, err)
-			stubC <- stub
-		}()
+		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
+		assert.NoError(t, err)
 
 		for {
 			select {
 			case update := <-sub.Updates():
 				// We should receive the update.
-				require.Equal(t, <-stubC, update)
+				require.Equal(t, stub, update)
 				return
-			case <-sub.Stale():
-				t.Fatal("Expected subscriber to not be marked as stale")
 			case <-time.After(time.Second):
 				t.Fatal("Expected subscriber to receive an update")
-			case readyForUpdate <- struct{}{}:
 			}
 		}
 	})
@@ -106,21 +96,44 @@ func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 		require.NoError(t, err)
 		t.Cleanup(sub.Close)
 
-		// Make an 2 updates without servicing the subscriber's Updates channel.
-		// The second update will be dropped and result in the subscriber being
-		// marked as stale.
+		// Create a second subscriber to wait for the update below. Since this
+		// subscriber was created second, it should receive the update second.
+		drain, err := s.watcher.Subscribe(ctx, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(drain.Close)
+
+		// Create 2 updates without servicing the subscriber's Updates channel.
+		// The backend update should be dropped in favor of the second update.
 		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
 		require.NoError(t, err)
+
 		replace := *stub
 		replace.User = "user"
 		replace.PublicKey = []byte(sshPubKey)
-		_, err = s.identity.CompareAndSwapHeadlessAuthentication(ctx, stub, &replace)
+		swapped, err := s.identity.CompareAndSwapHeadlessAuthentication(ctx, stub, &replace)
 		require.NoError(t, err)
 
+		// Drain updates and wait for the second update. Depending on the speed
+		// of the watcher above, we may see one or both updates.
+	DRAIN:
+		for {
+			select {
+			case update := <-drain.Updates():
+				if assert.ObjectsAreEqual(swapped, update) {
+					break DRAIN
+				}
+			case <-time.After(time.Second):
+				t.Fatal("Expected subscriber to receive an update")
+			}
+		}
+
 		select {
-		case <-sub.Stale():
-		case <-time.After(time.Second):
-			t.Fatal("Expected subscriber to be marked as stale")
+		case update := <-sub.Updates():
+			// The first update should be replaced by the second.
+			require.Equal(t, swapped, update)
+			return
+		default:
+			t.Fatal("Expected subscriber to receive an update")
 		}
 	})
 
@@ -153,8 +166,6 @@ func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 			// We should receive an update of the current backend state on watcher reset.
 			require.Equal(t, stub, update)
 			return
-		case <-sub.Stale():
-			t.Fatal("Expected subscriber to not be marked as stale")
 		case <-time.After(time.Second):
 			t.Fatal("Expected subscriber to receive an update")
 		}
@@ -224,25 +235,25 @@ func TestHeadlessAuthenticationWatcher_WaitForUpdate(t *testing.T) {
 		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
 		require.NoError(t, err)
 
-		ctx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		timeoutCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
 		t.Cleanup(cancel)
 
-		_, err = s.watcher.WaitForUpdate(ctx, sub, conditionFunc)
+		_, err = s.watcher.WaitForUpdate(timeoutCtx, sub, conditionFunc)
 		require.Error(t, err)
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 
 		// Make an update that causes the condition to error (user "unknown").
-		// The waiter should return the condition error during the initial backend check.
+		// The waiter should return the condition error.
 		replace := *stub
 		replace.User = "unknown"
 		replace.PublicKey = []byte(sshPubKey)
 		_, err = s.identity.CompareAndSwapHeadlessAuthentication(ctx, stub, &replace)
 		require.NoError(t, err)
 
-		ctx, cancel = context.WithTimeout(ctx, 100*time.Millisecond)
+		waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
 		t.Cleanup(cancel)
 
-		_, err = s.watcher.WaitForUpdate(ctx, sub, conditionFunc)
+		_, err = s.watcher.WaitForUpdate(waitCtx, sub, conditionFunc)
 		require.Error(t, err)
 		require.ErrorIs(t, err, unknownUserErr)
 	})
