@@ -94,9 +94,7 @@ export function CommandResultEntry(props: CommandResultEntryProps) {
         )}
       </Header>
 
-      <Output>
-        {props.errorMessage ? props.errorMessage : props.output}
-      </Output>
+      <Output>{props.errorMessage ? props.errorMessage : props.output}</Output>
     </Container>
   );
 }
