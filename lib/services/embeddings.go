@@ -344,6 +344,8 @@ func (n *nodeEmbeddingCollector) notifyStale() {
 // need embedding.
 func (n *nodeEmbeddingCollector) NodeCount(needsEmbedding bool) int {
 	count := 0
+	n.mutex.Lock()
+	defer n.mutex.Unlock()
 	for _, node := range n.currentNodes {
 		if node.needsEmbedding == needsEmbedding {
 			count += 1
