@@ -1702,7 +1702,7 @@ func (process *TeleportProcess) initAuthService() error {
 	authServer.SetLockWatcher(lockWatcher)
 
 	if authServer.Embeddings != nil {
-		log.Infof("Starting embedding watcher")
+		log.Debugf("Starting embedding watcher")
 		nodeEmbeddingWatcher, err := services.NewNodeEmbeddingWatcher(process.ExitContext(), services.NodeEmbeddingWatcherConfig{
 			NodeWatcherConfig: services.NodeWatcherConfig{
 				ResourceWatcherConfig: services.ResourceWatcherConfig{
