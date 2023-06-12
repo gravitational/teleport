@@ -107,7 +107,7 @@ export function OnlineDocumentGateway(props: OnlineDocumentGatewayProps) {
         </Validation>
       </Flex>
       <CliCommand
-        cliCommand={props.gateway.cliCommand}
+        cliCommand={props.gateway.gatewayCliCommand.preview}
         isLoading={isPortOrDbNameProcessing}
         onRun={props.runCliCommand}
       />

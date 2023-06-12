@@ -245,19 +245,22 @@ RUN helm plugin install https://github.com/vbehar/helm3-unittest && \
     HELM_PLUGINS=/home/ci/.local/share/helm/plugins helm plugin list
 
 # Install JS gRPC tools.
-RUN (npm install --global grpc_tools_node_protoc_ts@5.0.1 grpc-tools@1.12.4)
+ARG NODE_GRPC_TOOLS_VERSION # eg, "1.12.4"
+ARG NODE_PROTOC_TS_VERSION  # eg, "5.0.1"
+RUN npm install --global "grpc-tools@$NODE_GRPC_TOOLS_VERSION" "grpc_tools_node_protoc_ts@$NODE_PROTOC_TS_VERSION"
 
-# Install protobuf and grpc build tools.
-ARG PROTOC_VER
-ARG GOGO_PROTO_TAG
+# Install protoc.
+ARG PROTOC_VER # eg, "3.20.2"
+RUN VERSION="$PROTOC_VER" && \
+  PB_REL='https://github.com/protocolbuffers/protobuf/releases' && \
+  PB_FILE="$(mktemp protoc-XXXXXX.zip)" && \
+  curl -fsSL -o "$PB_FILE" "$PB_REL/download/v$VERSION/protoc-$VERSION-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip"  && \
+  unzip "$PB_FILE" -d /usr/local && \
+  rm -f "$PB_FILE"
 
-RUN (export PROTOC_TARBALL=protoc-${PROTOC_VER}-linux-$(if [ "$BUILDARCH" = "amd64" ]; then echo "x86_64"; else echo "aarch_64"; fi).zip && \
-     curl -fsSL -o /tmp/${PROTOC_TARBALL} https://github.com/protocolbuffers/protobuf/releases/download/v${PROTOC_VER}/${PROTOC_TARBALL} && \
-     cd /tmp && unzip /tmp/${PROTOC_TARBALL} -d /usr/local && \
-     chmod -R a+r /usr/local/include/google/protobuf && \
-     chmod -R a+xr /usr/local/bin/protoc && \
-     rm /tmp/${PROTOC_TARBALL})
-RUN go install github.com/gogo/protobuf/protoc-gen-gogofast@${GOGO_PROTO_TAG}
+# Install protoc-gen-gogofast.
+ARG GOGO_PROTO_TAG # eg, "v1.3.2"
+RUN go install "github.com/gogo/protobuf/protoc-gen-gogofast@$GOGO_PROTO_TAG"
 
 # Install addlicense.
 RUN go install github.com/google/addlicense@v1.0.0
@@ -266,15 +269,16 @@ RUN go install github.com/google/addlicense@v1.0.0
 RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
-RUN go install github.com/golangci/golangci-lint/cmd/golangci-lint@v1.51.2
+RUN TAG='v1.53.2' && \
+    curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
+    sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 
 # Install Buf.
-RUN BIN="/usr/local/bin" && \
-    VERSION="1.18.0" && \
-      curl -fsSL \
-        "https://github.com/bufbuild/buf/releases/download/v${VERSION}/buf-$(uname -s)-$(uname -m)" \
-        -o "${BIN}/buf" && \
-      chmod +x "${BIN}/buf"
+ARG BUF_VERSION # eg, "1.19.0"
+RUN BIN='/usr/local/bin' && \
+  VERSION="$BUF_VERSION" && \
+  curl -fsSL "https://github.com/bufbuild/buf/releases/download/v$VERSION/buf-$(uname -s)-$(uname -m)" -o "${BIN}/buf" && \
+  chmod +x "$BIN/buf"
 
 # Copy BPF libraries.
 COPY --from=libbpf /usr/include/bpf /usr/include/bpf

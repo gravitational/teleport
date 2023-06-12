@@ -40,8 +40,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -602,7 +602,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		BoolVar(&cf.clientOnlyVersionCheck)
 	// ssh
 	// Use Interspersed(false) to forward all flags to ssh.
-	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node").Interspersed(false)
+	ssh := app.Command("ssh", "Run shell or execute a command on a remote SSH node.").Interspersed(false)
 	ssh.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	ssh.Arg("command", "Command to execute on a remote host").StringsVar(&cf.RemoteCommand)
 	app.Flag("jumphost", "SSH jumphost").Short('J').StringVar(&cf.ProxyJump)
@@ -623,8 +623,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ssh.Flag("disable-access-request", "Disable automatic resource access requests").BoolVar(&cf.disableAccessRequest)
 
 	// Daemon service for teleterm client
-	daemon := app.Command("daemon", "Daemon is the tsh daemon service").Hidden()
-	daemonStart := daemon.Command("start", "Starts tsh daemon service").Hidden()
+	daemon := app.Command("daemon", "Daemon is the tsh daemon service.").Hidden()
+	daemonStart := daemon.Command("start", "Starts tsh daemon service.").Hidden()
 	daemonStart.Flag("addr", "Addr is the daemon listening address.").StringVar(&cf.DaemonAddr)
 	daemonStart.Flag("certs-dir", "Directory containing certs used to create secure gRPC connection with daemon service").StringVar(&cf.DaemonCertsDir)
 
@@ -667,11 +667,11 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	lsRecordings.Flag("last", "Duration into the past from which session recordings should be listed. Format 5h30m40s").StringVar(&cf.recordingsSince)
 
 	// Local TLS proxy.
-	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode")
-	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode")
+	proxy := app.Command("proxy", "Run local TLS proxy allowing connecting to Teleport in single-port mode.")
+	proxySSH := proxy.Command("ssh", "Start local TLS proxy for ssh connections when using Teleport in single-port mode.")
 	proxySSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	proxySSH.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
-	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode")
+	proxyDB := proxy.Command("db", "Start local TLS proxy for database connections when using Teleport in single-port mode.")
 	proxyDB.Arg("db", "The name of the database to start local proxy for").Required().StringVar(&cf.DatabaseService)
 	proxyDB.Flag("port", "Specifies the source port used by proxy db listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyDB.Flag("cert-file", "Certificate file for proxy client TLS configuration").StringVar(&cf.LocalProxyCertFile)
@@ -681,7 +681,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	proxyDB.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 	proxyDB.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 
-	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode")
+	proxyApp := proxy.Command("app", "Start local TLS proxy for app connection when using Teleport in single-port mode.")
 	proxyApp.Arg("app", "The name of the application to start local proxy for").Required().StringVar(&cf.AppName)
 	proxyApp.Flag("port", "Specifies the source port used by by the proxy app listener").Short('p').StringVar(&cf.LocalProxyPort)
 	proxyAWS := proxy.Command("aws", "Start local proxy for AWS access.")
@@ -723,14 +723,14 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	dbConnect.Flag("db-name", "Optional database name to log in to.").StringVar(&cf.DatabaseName)
 
 	// join
-	join := app.Command("join", "Join the active SSH or Kubernetes session")
+	join := app.Command("join", "Join the active SSH or Kubernetes session.")
 	join.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	join.Flag("mode", "Mode of joining the session, valid modes are observer and moderator").Short('m').Default("peer").StringVar(&cf.JoinMode)
 	join.Flag("reason", "The purpose of the session.").StringVar(&cf.Reason)
 	join.Flag("invite", "A comma separated list of people to mark as invited for the session.").StringsVar(&cf.Invited)
 	join.Arg("session-id", "ID of the session to join").Required().StringVar(&cf.SessionID)
 	// play
-	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App)")
+	play := app.Command("play", "Replay the recorded session (SSH, Kubernetes, App, DB).")
 	play.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	play.Flag("format", defaults.FormatFlagDescription(
 		teleport.PTY, teleport.JSON, teleport.YAML,
@@ -738,7 +738,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 
 	// scp
-	scp := app.Command("scp", "Transfer files to a remote Node")
+	scp := app.Command("scp", "Transfer files to a remote Node.")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
@@ -746,7 +746,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	scp.Flag("preserve", "Preserves access and modification times from the original file").Short('p').BoolVar(&cf.PreserveAttrs)
 	scp.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 	// ls
-	ls := app.Command("ls", "List remote SSH nodes")
+	ls := app.Command("ls", "List remote SSH nodes.")
 	ls.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	ls.Flag("verbose", "One-line output (for text format), including node UUIDs").Short('v').BoolVar(&cf.Verbose)
 	ls.Flag("format", defaults.FormatFlagDescription(
@@ -757,13 +757,13 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	ls.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	ls.Flag("all", "List nodes from all clusters and proxies.").Short('R').BoolVar(&cf.ListAll)
 	// clusters
-	clusters := app.Command("clusters", "List available Teleport clusters")
+	clusters := app.Command("clusters", "List available Teleport clusters.")
 	clusters.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	clusters.Flag("quiet", "Quiet mode").Short('q').BoolVar(&cf.Quiet)
 
 	// login logs in with remote proxy and obtains a "session certificate" which gets
 	// stored in ~/.tsh directory
-	login := app.Command("login", "Log in to a cluster and retrieve the session certificate")
+	login := app.Command("login", "Log in to a cluster and retrieve the session certificate.")
 	login.Flag("out", "Identity output").Short('o').AllowDuplicate().StringVar(&cf.IdentityFileOut)
 	login.Flag("format", fmt.Sprintf("Identity format: %s, %s (for OpenSSH compatibility) or %s (for kubeconfig)",
 		identityfile.DefaultFormat,
@@ -783,10 +783,10 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	login.Alias(loginUsageFooter)
 
 	// logout deletes obtained session certificates in ~/.tsh
-	logout := app.Command("logout", "Delete a cluster certificate")
+	logout := app.Command("logout", "Delete a cluster certificate.")
 
 	// bench
-	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node").Hidden()
+	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node.").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	bench.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	bench.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
@@ -800,38 +800,38 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 
 	// show key
-	show := app.Command("show", "Read an identity from file and print to stdout").Hidden()
+	show := app.Command("show", "Read an identity from file and print to stdout.").Hidden()
 	show.Arg("identity_file", "The file containing a public key or a certificate").Required().StringVar(&cf.IdentityFileIn)
 
 	// The status command shows which proxy the user is logged into and metadata
 	// about the certificate.
-	status := app.Command("status", "Display the list of proxy servers and retrieved certificates")
+	status := app.Command("status", "Display the list of proxy servers and retrieved certificates.")
 	status.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	status.Flag("verbose", "Show extra status information after successful login").Short('v').BoolVar(&cf.Verbose)
 
 	// The environment command prints out environment variables for the configured
 	// proxy and cluster. Can be used to create sessions "sticky" to a terminal
 	// even if the user runs "tsh login" again in another window.
-	environment := app.Command("env", "Print commands to set Teleport session environment variables")
+	environment := app.Command("env", "Print commands to set Teleport session environment variables.")
 	environment.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	environment.Flag("unset", "Print commands to clear Teleport session environment variables").BoolVar(&cf.unsetEnvironment)
 
-	req := app.Command("request", "Manage access requests").Alias("requests")
+	req := app.Command("request", "Manage access requests.").Alias("requests")
 
-	reqList := req.Command("ls", "List access requests").Alias("list")
+	reqList := req.Command("ls", "List access requests.").Alias("list")
 	reqList.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqList.Flag("reviewable", "Only show requests reviewable by current user").BoolVar(&cf.ReviewableRequests)
 	reqList.Flag("suggested", "Only show requests that suggest current user as reviewer").BoolVar(&cf.SuggestedRequests)
 	reqList.Flag("my-requests", "Only show requests created by current user").BoolVar(&cf.MyRequests)
 
-	reqShow := req.Command("show", "Show request details").Alias("details")
+	reqShow := req.Command("show", "Show request details.").Alias("details")
 	reqShow.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&cf.Format, defaults.DefaultFormats...)
 	reqShow.Arg("request-id", "ID of the target request").Required().StringVar(&cf.RequestID)
 
 	// Note: The "tsh request new" subcommand should not be used anymore. It
 	// will be kept around for users that built automation around it, but all
 	// public facing documentation should now refer to "tsh request create".
-	reqCreate := req.Command("create", "Create a new access request").Alias("new")
+	reqCreate := req.Command("create", "Create a new access request.").Alias("new")
 	reqCreate.Flag("roles", "Roles to be requested").StringVar(&cf.DesiredRoles)
 	reqCreate.Flag("reason", "Reason for requesting").StringVar(&cf.RequestReason)
 	reqCreate.Flag("reviewers", "Suggested reviewers").StringVar(&cf.SuggestedReviewers)
@@ -840,13 +840,13 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
 
-	reqReview := req.Command("review", "Review an access request")
+	reqReview := req.Command("review", "Review an access request.")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
 	reqReview.Flag("approve", "Review proposes approval").BoolVar(&cf.Approve)
 	reqReview.Flag("deny", "Review proposes denial").BoolVar(&cf.Deny)
 	reqReview.Flag("reason", "Review reason message").StringVar(&cf.ReviewReason)
 
-	reqSearch := req.Command("search", "Search for resources to request access to")
+	reqSearch := req.Command("search", "Search for resources to request access to.")
 	reqSearch.Flag("kind",
 		fmt.Sprintf("Resource kind to search for (%s)",
 			strings.Join(types.RequestableResourceKinds, ", ")),
@@ -855,7 +855,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	reqSearch.Flag("query", queryHelp).StringVar(&cf.PredicateExpression)
 	reqSearch.Flag("labels", labelHelp).StringVar(&cf.UserHost)
 
-	reqDrop := req.Command("drop", "Drop one more access requests from current identity")
+	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
 
 	// Kubernetes subcommands.
@@ -863,7 +863,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	// MFA subcommands.
 	mfa := newMFACommand(app)
 
-	config := app.Command("config", "Print OpenSSH configuration details")
+	config := app.Command("config", "Print OpenSSH configuration details.")
 
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := newFIDO2Command(app)
@@ -1193,7 +1193,7 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 
 	// create a TeleportClient and generate a provider that forwards
 	// spans to Auth
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1276,7 +1276,7 @@ func fetchProxyVersion(cf *CLIConf) (string, string, error) {
 		return "", "", nil
 	}
 
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return "", "", trace.Wrap(err)
 	}
@@ -1345,7 +1345,7 @@ func exportSession(cf *CLIConf) error {
 		return trace.Wrap(exportFile(cf.Context, cf.SessionID, format))
 	}
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1389,7 +1389,7 @@ func playSession(cf *CLIConf) error {
 		}
 		return nil
 	}
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1453,7 +1453,7 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	// make the teleport client and retrieve the certificate from the proxy:
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1476,11 +1476,8 @@ func onLogin(cf *CLIConf) error {
 			if err := updateKubeConfig(cf, tc, ""); err != nil {
 				return trace.Wrap(err)
 			}
-			env := getTshEnv()
-			active, others := makeAllProfileInfo(profile, profiles, env)
-			printProfiles(cf.Debug, active, others, env, cf.Verbose)
 
-			return nil
+			return trace.Wrap(printProfiles(cf, profile, profiles))
 
 		// if the proxy names match but nothing else is specified; show motd and update active profile and kube configs
 		case host(cf.Proxy) == host(profile.ProxyURL.Host) &&
@@ -1683,8 +1680,13 @@ func onLogin(cf *CLIConf) error {
 	webProxyHost, _ := tc.WebProxyHostPort()
 	cf.Proxy = webProxyHost
 
+	profile, profiles, err = client.Status(cf.HomePath, cf.Proxy)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Print status to show information of the logged in user.
-	if err := onStatus(cf); err != nil {
+	if err := printProfiles(cf, profile, profiles); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1821,7 +1823,7 @@ func onLogout(cf *CLIConf) error {
 	switch {
 	// Proxy and username for key to remove.
 	case proxyHost != "" && cf.Username != "":
-		tc, err := makeClient(cf, true)
+		tc, err := makeClient(cf)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1874,7 +1876,7 @@ func onLogout(cf *CLIConf) error {
 		// because the user will be logged out from all proxies. Pass a dummy value
 		// to allow creation of the TeleportClient.
 		cf.Proxy = "dummy:1234"
-		tc, err := makeClient(cf, true)
+		tc, err := makeClient(cf)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1920,7 +1922,7 @@ func onListNodes(cf *CLIConf) error {
 		return trace.Wrap(listNodesAllClusters(cf))
 	}
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2747,7 +2749,7 @@ func formatActiveDB(active tlsca.RouteToDatabase) string {
 
 // onListClusters executes 'tsh clusters' command
 func onListClusters(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2997,7 +2999,7 @@ func retryWithAccessRequest(cf *CLIConf, tc *client.TeleportClient, fn func() er
 
 // onSSH executes 'tsh ssh' command
 func onSSH(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3046,7 +3048,7 @@ func onSSH(cf *CLIConf) error {
 
 // onBenchmark executes benchmark
 func onBenchmark(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3096,7 +3098,7 @@ func onJoin(cf *CLIConf) error {
 	}
 
 	cf.NodeLogin = teleport.SSHSessionJoinPrincipal
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3115,7 +3117,7 @@ func onJoin(cf *CLIConf) error {
 
 // onSCP executes 'tsh scp' command
 func onSCP(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -3142,14 +3144,14 @@ func onSCP(cf *CLIConf) error {
 
 // makeClient takes the command-line configuration and constructs & returns
 // a fully configured TeleportClient object
-func makeClient(cf *CLIConf, useProfileLogin bool) (*client.TeleportClient, error) {
-	tc, err := makeClientForProxy(cf, cf.Proxy, useProfileLogin)
+func makeClient(cf *CLIConf) (*client.TeleportClient, error) {
+	tc, err := makeClientForProxy(cf, cf.Proxy)
 	return tc, trace.Wrap(err)
 }
 
 // makeClient takes the command-line configuration and a proxy address and constructs & returns
 // a fully configured TeleportClient object
-func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*client.TeleportClient, error) {
+func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, error) {
 	// Parse OpenSSH style options.
 	options, err := parseOptions(cf.Options)
 	if err != nil {
@@ -3360,10 +3362,6 @@ func makeClientForProxy(cf *CLIConf, proxy string, useProfileLogin bool) (*clien
 	}
 	if cf.DatabaseService != "" {
 		c.DatabaseService = cf.DatabaseService
-	}
-	// if host logins stored in profiles must be ignored...
-	if !useProfileLogin {
-		c.HostLogin = ""
 	}
 	if hostLogin != "" {
 		c.HostLogin = hostLogin
@@ -3763,6 +3761,49 @@ func printStatus(debug bool, p *profileInfo, env map[string]string, isActive boo
 	fmt.Printf("\n")
 }
 
+// printProfiles displays the provided profile information
+// to the user.
+func printProfiles(cf *CLIConf, profile *client.ProfileStatus, profiles []*client.ProfileStatus) error {
+	env := getTshEnv()
+	active, others := makeAllProfileInfo(profile, profiles, env)
+
+	format := strings.ToLower(cf.Format)
+	switch format {
+	case teleport.JSON, teleport.YAML:
+		out, err := serializeProfiles(active, others, env, format)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Println(out)
+	default:
+		if profile == nil && len(profiles) == 0 {
+			return nil
+		}
+
+		// Print the active profile.
+		if profile != nil {
+			printStatus(cf.Debug, active, env, true)
+		}
+
+		// Print all other profiles.
+		for _, p := range others {
+			printStatus(cf.Debug, p, env, false)
+		}
+
+		// Print relevant active env vars, if they are set.
+		if cf.Verbose {
+			if len(env) > 0 {
+				fmt.Println("Active Environment:")
+			}
+			for k, v := range env {
+				fmt.Printf("\t%s=%s\n", k, v)
+			}
+		}
+	}
+
+	return nil
+}
+
 // onStatus command shows which proxy the user is logged into and metadata
 // about the certificate.
 func onStatus(cf *CLIConf) error {
@@ -3778,19 +3819,8 @@ func onStatus(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	env := getTshEnv()
-	active, others := makeAllProfileInfo(profile, profiles, env)
-
-	format := strings.ToLower(cf.Format)
-	switch format {
-	case teleport.JSON, teleport.YAML:
-		out, err := serializeProfiles(active, others, env, format)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Println(out)
-	default:
-		printProfiles(cf.Debug, active, others, env, cf.Verbose)
+	if err := printProfiles(cf, profile, profiles); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if profile == nil {
@@ -3802,7 +3832,7 @@ func onStatus(cf *CLIConf) error {
 		return trace.NotFound("Active profile expired.")
 	}
 
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		log.WithError(err).Warn("Failed to make client for retrieving cluster alerts.")
 		return nil
@@ -3971,32 +4001,6 @@ func getTshEnv() map[string]string {
 		}
 	}
 	return env
-}
-
-func printProfiles(debug bool, profile *profileInfo, profiles []*profileInfo, env map[string]string, verbose bool) {
-	if profile == nil && len(profiles) == 0 {
-		return
-	}
-
-	// Print the active profile.
-	if profile != nil {
-		printStatus(debug, profile, env, true)
-	}
-
-	// Print all other profiles.
-	for _, p := range profiles {
-		printStatus(debug, p, env, false)
-	}
-
-	// Print relevant active env vars, if they are set.
-	if verbose {
-		if len(env) > 0 {
-			fmt.Println("Active Environment:")
-		}
-		for k, v := range env {
-			fmt.Printf("\t%s=%s\n", k, v)
-		}
-	}
 }
 
 // host is a utility function that extracts
@@ -4191,7 +4195,7 @@ func onApps(cf *CLIConf) error {
 	if cf.ListAll {
 		return trace.Wrap(listAppsAllClusters(cf))
 	}
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4329,7 +4333,7 @@ func onRecordings(cf *CLIConf) error {
 	if err != nil {
 		return trace.Errorf("cannot request recordings: %v", err)
 	}
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4469,7 +4473,7 @@ func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error
 		errMsgFormat         = "This server does not implement this feature yet. Likely the client version you are using is newer than the server. The server version: %v, the client version: %v. Please upgrade the server."
 		unknownServerVersion = "unknown"
 	)
-	tc, err := makeClient(&cf, false)
+	tc, err := makeClient(&cf)
 	if err != nil {
 		log.WithError(err).Warning("Failed to create client.")
 		return trace.WrapWithMessage(perr, errMsgFormat, unknownServerVersion, teleport.Version)
@@ -4506,7 +4510,7 @@ func forEachProfile(cf *CLIConf, fn func(tc *client.TeleportClient, profile *cli
 			fmt.Fprintf(os.Stderr, "Credentials expired for proxy %q, skipping...\n", proxyAddr)
 			continue
 		}
-		tc, err := makeClientForProxy(cf, proxyAddr, true)
+		tc, err := makeClientForProxy(cf, proxyAddr)
 		if err != nil {
 			errors = append(errors, err)
 			continue
@@ -4540,7 +4544,7 @@ func forEachProfileParallel(cf *CLIConf, fn func(ctx context.Context, tc *client
 		}
 
 		group.Go(func() error {
-			tc, err := makeClientForProxy(cf, proxyAddr, true)
+			tc, err := makeClientForProxy(cf, proxyAddr)
 			if err != nil {
 				return trace.Wrap(err)
 			}

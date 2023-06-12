@@ -274,10 +274,24 @@ export default class MainProcess {
   private _setAppMenu() {
     const isMac = this.settings.platform === 'darwin';
 
+    // Enable actions like reload or toggle dev tools only in dev mode.
+    const viewMenuTemplate: MenuItemConstructorOptions = this.settings.dev
+      ? { role: 'viewMenu' }
+      : {
+          label: 'View',
+          submenu: [
+            { role: 'resetZoom' },
+            { role: 'zoomIn' },
+            { role: 'zoomOut' },
+            { type: 'separator' },
+            { role: 'togglefullscreen' },
+          ],
+        };
+
     const macTemplate: MenuItemConstructorOptions[] = [
       { role: 'appMenu' },
       { role: 'editMenu' },
-      { role: 'viewMenu' },
+      viewMenuTemplate,
       {
         label: 'Window',
         submenu: [{ role: 'minimize' }, { role: 'zoom' }],
@@ -291,7 +305,7 @@ export default class MainProcess {
     const otherTemplate: MenuItemConstructorOptions[] = [
       { role: 'fileMenu' },
       { role: 'editMenu' },
-      { role: 'viewMenu' },
+      viewMenuTemplate,
       { role: 'windowMenu' },
       {
         role: 'help',
