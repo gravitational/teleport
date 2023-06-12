@@ -927,7 +927,6 @@ func newElastiCacheDatabase(cluster *elasticache.ReplicationGroup, endpoint *ela
 
 // NewDatabaseFromOpenSearchDomain creates a database resource from an OpenSearch domain.
 func NewDatabaseFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tags []*opensearchservice.Tag) (types.Databases, error) {
-
 	var databases types.Databases
 
 	if aws.StringValue(domain.Endpoint) != "" {
@@ -937,7 +936,7 @@ func NewDatabaseFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tag
 		}
 
 		meta := types.Metadata{
-			Description: fmt.Sprintf("OpenSearch domain in %v, default endpoint", metadata.Region),
+			Description: fmt.Sprintf("OpenSearch domain in %v (default endpoint)", metadata.Region),
 			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchDefaultEndpoint, tags),
 		}
 
@@ -958,9 +957,12 @@ func NewDatabaseFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tag
 
 	if domain.DomainEndpointOptions != nil && aws.StringValue(domain.DomainEndpointOptions.CustomEndpoint) != "" {
 		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchCustomEndpoint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		meta := types.Metadata{
-			Description: fmt.Sprintf("OpenSearch domain in %v, custom endpoint", metadata.Region),
+			Description: fmt.Sprintf("OpenSearch domain in %v (custom endpoint)", metadata.Region),
 			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchCustomEndpoint, tags),
 		}
 
@@ -981,9 +983,12 @@ func NewDatabaseFromOpenSearchDomain(domain *opensearchservice.DomainStatus, tag
 
 	for name, url := range domain.Endpoints {
 		metadata, err := MetadataFromOpenSearchDomain(domain, apiawsutils.OpenSearchVPCEndpoint)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 
 		meta := types.Metadata{
-			Description: fmt.Sprintf("OpenSearch domain in %v, endpoint %q", metadata.Region, name),
+			Description: fmt.Sprintf("OpenSearch domain in %v (endpoint %q)", metadata.Region, name),
 			Labels:      labelsFromOpenSearchDomain(domain, metadata, apiawsutils.OpenSearchVPCEndpoint, tags),
 		}
 
