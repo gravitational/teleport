@@ -61,11 +61,11 @@ func EncryptedCredentialToProto(in *attest.EncryptedCredential) *devicepb.TPMEnc
 
 // EncryptedCredentialFromProto extracts an attest.EncryptedCredential from
 // its protobuf representation.
-func EncryptedCredentialFromProto(in *devicepb.TPMEncryptedCredential) attest.EncryptedCredential {
+func EncryptedCredentialFromProto(in *devicepb.TPMEncryptedCredential) *attest.EncryptedCredential {
 	if in == nil {
-		return attest.EncryptedCredential{}
+		return nil
 	}
-	return attest.EncryptedCredential{
+	return &attest.EncryptedCredential{
 		Credential: in.CredentialBlob,
 		Secret:     in.Secret,
 	}
@@ -86,11 +86,11 @@ func PlatformParametersToProto(in *attest.PlatformParameters) *devicepb.TPMPlatf
 
 // PlatformParametersFromProto extracts an attest.PlatformParameters from
 // its protobuf representation.
-func PlatformParametersFromProto(in *devicepb.TPMPlatformParameters) attest.PlatformParameters {
+func PlatformParametersFromProto(in *devicepb.TPMPlatformParameters) *attest.PlatformParameters {
 	if in == nil {
-		return attest.PlatformParameters{}
+		return nil
 	}
-	return attest.PlatformParameters{
+	return &attest.PlatformParameters{
 		TPMVersion: attest.TPMVersion20,
 		Quotes:     quotesFromProto(in.Quotes),
 		PCRs:       pcrsFromProto(in.Pcrs),
@@ -113,9 +113,9 @@ func PlatformAttestationToProto(in *attest.PlatformParameters, nonce []byte) *de
 
 // PlatformAttestationFromProto extracts a attest.PlatformParameters and nonce
 // from a PlatformAttestation proto message.
-func PlatformAttestationFromProto(in *devicepb.TPMPlatformAttestation) (platParams attest.PlatformParameters, nonce []byte) {
+func PlatformAttestationFromProto(in *devicepb.TPMPlatformAttestation) (platParams *attest.PlatformParameters, nonce []byte) {
 	if in == nil {
-		return attest.PlatformParameters{}, nil
+		return nil, nil
 	}
 	return PlatformParametersFromProto(in.PlatformParameters), in.Nonce
 }
