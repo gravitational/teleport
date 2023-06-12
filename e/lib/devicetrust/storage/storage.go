@@ -216,7 +216,7 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 
 		// Profiles have no required fields, but there's no point saving an empty
 		// profile so let's avoid that.
-		if d.Profile != nil && !proto.Equal(&devicepb.DeviceProfile{}, d.Profile) {
+		if (createAsResource && d.Profile != nil) || !isDeviceProfileEmpty(d.Profile) {
 			storedProfile = &storedDeviceProfile{
 				UpdateTime:        now,
 				ModelIdentifier:   d.Profile.ModelIdentifier,
@@ -283,6 +283,14 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 	}
 
 	return deviceID, storedDev
+}
+
+// isDeviceProfileEmpty returns true if the [devicepb.DeviceProfile] is
+// considered empty.
+// A profile that lacks any data other than the UpdateTime, which is a
+// system-managed field, is considered empty.
+func isDeviceProfileEmpty(p *devicepb.DeviceProfile) bool {
+	return p == nil || proto.Equal(p, &devicepb.DeviceProfile{UpdateTime: p.UpdateTime})
 }
 
 func (s *S) updateAssetTagIndex(ctx context.Context, assetTag string, ref *deviceRef) error {
@@ -412,8 +420,11 @@ func (s *S) UpdateDevice(
 	updated.EnrollToken = nil   // Safe to nil, saved to deviceTokenKey.
 	updated.CollectedData = nil // Safe to nil, saved to collectedDataKey.
 
-	// Ignore Profile.UpdateTime.
-	if updated.Profile != nil {
+	if isDeviceProfileEmpty(updated.Profile) {
+		// Null "empty" profiles.
+		updated.Profile = nil
+	} else if updated.Profile != nil {
+		// Ignore Profile.UpdateTime.
 		updated.Profile.UpdateTime = stored.GetProfile().GetUpdateTime()
 	}
 

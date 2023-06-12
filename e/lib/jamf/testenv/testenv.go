@@ -6,13 +6,18 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"testing"
 	"time"
 
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 
+	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/e/lib/devicetrust"
+	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
+	"github.com/gravitational/teleport/lib/modules"
 )
 
 // DefaultUsers are the users added by default to the fake Jamf API.
@@ -23,18 +28,22 @@ var DefaultUsers = []*jamffake.User{
 
 // E is an integrated test environment for Jamf.
 type E struct {
+	Clock  clockwork.Clock
+	Logger log.FieldLogger
+
 	// APIEndpoint for the fake Jamf API.
 	// Example: "http://localhost:12345/api".
 	APIEndpoint string
-	API         *jamffake.API
-	Client      *jamf.Client
 
-	Clock      clockwork.Clock
+	API        *jamffake.API
+	Client     *jamf.Client
 	HTTPClient *http.Client
-	Logger     log.FieldLogger
 
-	lis    net.Listener
-	server *http.Server
+	DevicesClient devicepb.DeviceTrustServiceClient
+
+	deviceEnv *dtenv.E
+	lis       net.Listener
+	server    *http.Server
 }
 
 // Close tears down the test environment.
@@ -45,12 +54,19 @@ func (e *E) Close() error {
 	} else if e.lis != nil {
 		_ = e.lis.Close()
 	}
+	if e.deviceEnv != nil {
+		e.deviceEnv.Close()
+	}
 	return nil
 }
 
 // Opts are the creation options for [E].
 type Opts struct {
 	Clock clockwork.Clock
+
+	// DeviceTrustEnv enables configuration of its namesake testenv.
+	DeviceTrustEnv bool
+	DeviceOpts     []dtenv.Opt
 }
 
 // MustNew creates a new [E] or panics.
@@ -59,6 +75,34 @@ func MustNew(opts *Opts) *E {
 	if err != nil {
 		panic(err)
 	}
+	return env
+}
+
+// NewUsingT creates a new [E], automatically fails on errors and automatically
+// registers [E.Close] on cleanup.
+// If opts.DeviceTrustEnv is set, [NewUsingT] also sets the build type and the
+// MDM feature flag (with a cleanup).
+func NewUsingT(t *testing.T, opts *Opts) *E {
+	// Configure device trust settings?
+	if opts != nil && opts.DeviceTrustEnv {
+		// Enable MDM.
+		prev := devicetrust.MDMFeatureActive
+		t.Cleanup(func() {
+			devicetrust.MDMFeatureActive = prev
+		})
+		devicetrust.MDMFeatureActive = true
+
+		// Set build type.
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+		})
+	}
+
+	env, err := New(opts)
+	if err != nil {
+		t.Fatalf("Failed to create Jamf testenv.E: %v", err)
+	}
+	t.Cleanup(func() { _ = env.Close() })
 	return env
 }
 
@@ -81,6 +125,16 @@ func New(opts *Opts) (*E, error) {
 	logger := log.New()
 	logger.SetLevel(log.PanicLevel) // Mostly silent
 	e.Logger = logger
+
+	// TODO(codingllama): Pass clock down to deviceEnv?
+	if opts.DeviceTrustEnv {
+		var err error
+		e.deviceEnv, err = dtenv.New(opts.DeviceOpts...)
+		if err != nil {
+			return nil, err
+		}
+		e.DevicesClient = e.deviceEnv.DevicesClient
+	}
 
 	ok := false
 	defer func() {

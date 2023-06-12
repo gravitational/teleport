@@ -280,7 +280,7 @@ func (e *tpmSimulator) handleEnrollStream(
 		solution = []byte("incorrect-solution")
 	} else {
 		solution, err = e.ak.ActivateCredential(
-			e.tpm, dtoss.EncryptedCredentialFromProto(c.EncryptedCredential),
+			e.tpm, *dtoss.EncryptedCredentialFromProto(c.EncryptedCredential),
 		)
 		if err != nil {
 			return nil, fmt.Errorf("activating credential: %w", err)

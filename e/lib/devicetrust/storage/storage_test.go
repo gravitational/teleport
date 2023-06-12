@@ -1138,11 +1138,23 @@ func TestS_UpdateDevice(t *testing.T) {
 				stored.Profile.UpdateTime = nil
 				return stored
 			},
-			assertUpdate: func(t *testing.T, base *devicepb.Device, updated *devicepb.Device) {
-				if diff := cmp.Diff(base, updated, protocmp.Transform()); diff != "" {
-					t.Errorf("UpdateDevice mismatch (-want +got)\n%s", diff)
-				}
+			assertUpdate: assertNoop,
+		},
+		{
+			name:             "Added empty profile ignored",
+			mdmFeatureActive: true,
+			baseDev: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "mdmfields3",
 			},
+			update: func(stored *devicepb.Device) *devicepb.Device {
+				stored.Profile = &devicepb.DeviceProfile{
+					// UpdateTime, by itself, doesn't qualify the profile as non-empty.
+					UpdateTime: timestamppb.Now(),
+				}
+				return stored
+			},
+			assertUpdate: assertNoop,
 		},
 	}
 	for _, test := range tests {

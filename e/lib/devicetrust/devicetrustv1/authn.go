@@ -246,7 +246,7 @@ func (c *authnCeremony) authenticateDeviceTPM(
 		return trace.BadParameter("platform parameters required")
 	}
 	if err := finishPlatformAttestation(
-		dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
+		*dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
 	); err != nil {
 		c.logger.WithError(err).Debug("TPM platform attestation failed verification")
 		return trace.BadParameter("platform attestation verification failed")

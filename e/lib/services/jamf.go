@@ -2,6 +2,8 @@ package services
 
 import (
 	"context"
+	"net/http"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -66,10 +68,14 @@ func JamfInit(process *service.TeleportProcess) error {
 			return trace.BadParameter("failed to acquire MDM credentials from Auth")
 		}
 
-		s, err := jamfservice.New(jamfservice.Opts{
-			Config:        &process.Config.Jamf,
+		s, err := jamfservice.New(ctx, jamfservice.Opts{
+			Clock:         process.Clock,
 			Logger:        logger,
+			Config:        &process.Config.Jamf,
 			DevicesClient: conn.Client.DevicesClient(),
+			HTTPClient: &http.Client{
+				Timeout: 5 * time.Minute,
+			},
 		})
 		if err != nil {
 			return trace.Wrap(err)

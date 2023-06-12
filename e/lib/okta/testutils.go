@@ -211,7 +211,7 @@ func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaC
 
 	proxyServer, err := types.NewServer("proxy", types.KindProxy, types.ServerSpecV2{})
 	require.NoError(t, err)
-	require.NoError(t, ap.UpsertProxy(proxyServer))
+	require.NoError(t, ap.UpsertProxy(ctx, proxyServer))
 
 	return svc, client, emitter
 }

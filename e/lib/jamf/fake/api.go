@@ -376,6 +376,13 @@ func (a *API) getComputersInventory(w http.ResponseWriter, req *http.Request) {
 	// Copy and apply sections.
 	resp := make([]*jamf.ComputerInventory, 0, pageSize)
 	for _, c := range inv {
+		// It's strange for a computer to be entirely new, but we let it happen so
+		// we can harden our production implementation.
+		if c == nil {
+			resp = append(resp, nil)
+			continue
+		}
+
 		// err safe to swallow, sections are validated above.
 		cp, _ := copySections(c, sections)
 		resp = append(resp, cp)
@@ -424,7 +431,14 @@ func byGeneralName(a []*jamf.ComputerInventory) sort.Interface {
 	return computerInventorySorter{
 		elems: a,
 		less: func(c1, c2 *jamf.ComputerInventory) bool {
-			return c1.General.Name < c2.General.Name
+			var n1, n2 string
+			if c1 != nil && c1.General != nil {
+				n1 = c1.General.Name
+			}
+			if c2 != nil && c2.General != nil {
+				n2 = c2.General.Name
+			}
+			return n1 < n2
 		},
 	}
 }
@@ -433,7 +447,14 @@ func byGeneralLastContactTime(a []*jamf.ComputerInventory) sort.Interface {
 	return computerInventorySorter{
 		elems: a,
 		less: func(c1, c2 *jamf.ComputerInventory) bool {
-			return c1.General.LastContactTime.Before(c2.General.LastContactTime)
+			var t1, t2 time.Time
+			if c1 != nil && c1.General != nil {
+				t1 = c1.General.LastContactTime
+			}
+			if c2 != nil && c2.General != nil {
+				t2 = c2.General.LastContactTime
+			}
+			return t1.Before(t2)
 		},
 	}
 }

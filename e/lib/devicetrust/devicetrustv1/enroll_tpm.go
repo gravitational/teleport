@@ -122,7 +122,7 @@ func (c *enrollCeremony) enrollDeviceTPM(
 		return nil, trace.BadParameter("credential activation verification failed")
 	}
 	if err := finishPlatformAttestation(
-		dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
+		*dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
 	); err != nil {
 		logger.WithError(err).Debug("TPM platform attestation failed verification")
 		return nil, trace.BadParameter("platform attestation verification failed")
