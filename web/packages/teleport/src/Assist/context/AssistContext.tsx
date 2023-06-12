@@ -58,7 +58,7 @@ interface AssistContextValue {
   sendMessage: (message: string) => void;
   sendMfaChallenge: (data: WebauthnAssertionResponse) => void;
   selectedConversationMessages: ConversationMessage[];
-  setSelectedConversationId: (conversationId: string) => void;
+  setSelectedConversationId: (conversationId: string) => Promise<void>;
 }
 
 const AssistContext = createContext<AssistState & AssistContextValue>(null);

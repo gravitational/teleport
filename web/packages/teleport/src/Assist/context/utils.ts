@@ -95,12 +95,12 @@ export function convertServerMessages(
 export function convertPayloadToQuery(payload: ExecuteRemoteCommandPayload) {
   let query = '';
 
-  if (payload.nodes) {
+  if (payload.nodes?.length) {
     query += payload.nodes.map(node => `name == "${node}"`).join(' || ');
   }
 
   if (payload.labels) {
-    if (payload.nodes) {
+    if (payload.nodes?.length) {
       query += ' || ';
     }
 

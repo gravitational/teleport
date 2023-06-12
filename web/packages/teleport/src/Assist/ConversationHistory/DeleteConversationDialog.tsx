@@ -45,6 +45,7 @@ export function DeleteConversationDialog(props: DeleteConversationDialogProps) {
       <DialogHeader>
         <DialogTitle>Are you sure?</DialogTitle>
       </DialogHeader>
+      {props.error && <Danger>{props.error}</Danger>}
       <DialogContent width="400px">
         <p style={{ margin: 0 }}>
           You are about to delete the conversation{' '}
@@ -54,7 +55,6 @@ export function DeleteConversationDialog(props: DeleteConversationDialogProps) {
           You will not be able to access the conversation afterwards.
         </p>
       </DialogContent>
-      {props.error && <Danger>{props.error}</Danger>}
       <DialogFooter>
         <ButtonPrimary
           disabled={props.disabled}

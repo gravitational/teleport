@@ -79,7 +79,7 @@ export async function resolveServerMessage(
 }
 
 export async function getSessionEvents(sessionUrl: string): Promise<{
-  events: SessionEvent[];
+  events: SessionEvent[] | null;
 }> {
   const response = await api.fetch(sessionUrl + '/events');
 

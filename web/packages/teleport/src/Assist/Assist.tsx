@@ -265,9 +265,17 @@ export function Assist(props: AssistProps) {
     }
   }, [hasDockedElement, viewMode]);
 
-  function handleClick(e: React.MouseEvent) {
-    e.preventDefault();
-    e.stopPropagation();
+  function handleClick(e: React.MouseEvent<HTMLElement>) {
+    // React's typings for e.target aren't HTMLElement here, but EventTarget, for some reason
+    if (e.target instanceof Element) {
+      if (e.target.tagName === 'A') {
+        // allow links to still be clicked
+        return;
+      }
+
+      e.preventDefault();
+      e.stopPropagation();
+    }
   }
 
   function handleConversationSelect() {

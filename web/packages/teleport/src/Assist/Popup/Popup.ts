@@ -45,8 +45,8 @@ export const PopupFooter = styled.div`
 export const Popup = styled.div`
   position: absolute;
   z-index: 100;
-  top: 70px;
-  right: 169px;
+  top: 50px;
+  right: -4px;
   background: ${({ theme }) => theme.colors.levels.popout};
   border-radius: 5px;
   width: 270px;
@@ -87,6 +87,11 @@ export const PopupButton = styled.div`
   cursor: pointer;
   display: inline-flex;
   border: 1px solid ${({ theme }) => theme.colors.text.slightlyMuted};
+  color: ${({ theme }) => theme.colors.buttons.text};
   border-radius: 5px;
   padding: 8px 15px;
+
+  &:hover {
+    background: ${({ theme }) => theme.colors.buttons.border.hover};
+  }
 `;

@@ -65,6 +65,10 @@ const AssistButton = styled.div`
   }
 `;
 
+const AssistButtonContainer = styled.div`
+  position: relative;
+`;
+
 const Background = styled.div`
   position: fixed;
   top: 0;
@@ -145,36 +149,38 @@ export function TopBar() {
       />
       <Flex ml="auto" height="100%" alignItems="center">
         {!hasDockedElement && assistEnabled && (
-          <AssistButton onClick={() => setShowAssist(true)}>
-            <BrainIcon />
-          </AssistButton>
+          <AssistButtonContainer>
+            <AssistButton onClick={() => setShowAssist(true)}>
+              <BrainIcon />
+            </AssistButton>
+
+            {showAssistPopup && (
+              <>
+                <Background />
+                <Popup>
+                  <PopupTitle>
+                    <PopupTitleBackground>New!</PopupTitleBackground>
+                  </PopupTitle>{' '}
+                  Try out Teleport Assist, a GPT-4-powered AI assistant that
+                  leverages your infrastructure
+                  <PopupFooter>
+                    <PopupLogos>
+                      <OpenAIIcon size={30} />
+                      <PopupLogosSpacer>+</PopupLogosSpacer>
+                      <TeleportIcon light={theme.name === 'light'} />
+                    </PopupLogos>
+
+                    <PopupButton onClick={() => setShowAssistPopup(false)}>
+                      Close
+                    </PopupButton>
+                  </PopupFooter>
+                </Popup>
+              </>
+            )}
+          </AssistButtonContainer>
         )}
         <UserMenuNav username={ctx.storeUser.state.username} />
       </Flex>
-
-      {showAssistPopup && (
-        <>
-          <Background />
-          <Popup>
-            <PopupTitle>
-              <PopupTitleBackground>New!</PopupTitleBackground>
-            </PopupTitle>{' '}
-            Try out Teleport Assist, a GPT-4-powered AI assistant that leverages
-            your infrastructure
-            <PopupFooter>
-              <PopupLogos>
-                <OpenAIIcon size={30} />
-                <PopupLogosSpacer>+</PopupLogosSpacer>
-                <TeleportIcon light={theme.name === 'light'} />
-              </PopupLogos>
-
-              <PopupButton onClick={() => setShowAssistPopup(false)}>
-                Close
-              </PopupButton>
-            </PopupFooter>
-          </Popup>
-        </>
-      )}
 
       {showAssist && (
         <Suspense fallback={null}>

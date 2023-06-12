@@ -63,6 +63,14 @@ const NewConversationButton = styled.li`
   }
 `;
 
+const ErrorMessage = styled.div`
+  background: ${props => props.theme.colors.error.main};
+  color: white;
+  border-radius: 5px;
+  margin-bottom: 10px;
+  padding: 5px 10px;
+`;
+
 function isExpanded(viewMode: AssistViewMode) {
   return (
     viewMode === AssistViewMode.Expanded ||
@@ -78,16 +86,21 @@ export function ConversationHistory(props: ConversationHistoryProps) {
     setSelectedConversationId,
   } = useAssist();
 
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteErrorMessage, setDeleteErrorMessage] =
     useState<string | null>(null);
   const [conversationIdToDelete, setConversationIdToDelete] =
     useState<string | null>(null);
 
-  function handleSelectConversation(id: string) {
-    setSelectedConversationId(id);
+  async function handleSelectConversation(id: string) {
+    try {
+      await setSelectedConversationId(id);
 
-    props.onConversationSelect(id);
+      props.onConversationSelect(id);
+    } catch (err) {
+      setErrorMessage(err.message);
+    }
   }
 
   async function handleDelete() {
@@ -106,9 +119,13 @@ export function ConversationHistory(props: ConversationHistoryProps) {
   }
 
   async function handleCreateNewConversation() {
-    const id = await createConversation();
+    try {
+      const id = await createConversation();
 
-    props.onConversationSelect(id);
+      props.onConversationSelect(id);
+    } catch (err) {
+      setErrorMessage(err.message);
+    }
   }
 
   const conversationToDelete = conversations.data.find(
@@ -141,6 +158,8 @@ export function ConversationHistory(props: ConversationHistoryProps) {
       )}
 
       <NewConversationButton>
+        {errorMessage && <ErrorMessage>{errorMessage}</ErrorMessage>}
+
         <ButtonPrimary onClick={() => handleCreateNewConversation()}>
           New conversation
         </ButtonPrimary>
