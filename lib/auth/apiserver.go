@@ -254,7 +254,7 @@ func (s *APIServer) upsertServer(auth services.Presence, role types.SystemRole, 
 			return nil, trace.Wrap(err)
 		}
 	case types.RoleProxy:
-		if err := auth.UpsertProxy(server); err != nil {
+		if err := auth.UpsertProxy(r.Context(), server); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	default:

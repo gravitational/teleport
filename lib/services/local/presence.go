@@ -296,8 +296,8 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 
 // UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertProxy(server types.Server) error {
-	return s.upsertServer(context.TODO(), proxiesPrefix, server)
+func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) error {
+	return s.upsertServer(ctx, proxiesPrefix, server)
 }
 
 // GetProxies returns a list of registered proxies

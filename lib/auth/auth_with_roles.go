@@ -1904,11 +1904,11 @@ func (a *ServerWithRoles) DeleteAuthServer(name string) error {
 	return a.authServer.DeleteAuthServer(name)
 }
 
-func (a *ServerWithRoles) UpsertProxy(s types.Server) error {
+func (a *ServerWithRoles) UpsertProxy(ctx context.Context, s types.Server) error {
 	if err := a.action(apidefaults.Namespace, types.KindProxy, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertProxy(s)
+	return a.authServer.UpsertProxy(ctx, s)
 }
 
 func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {

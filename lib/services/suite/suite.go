@@ -404,7 +404,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Equal(t, len(out), 0)
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
-	require.NoError(t, s.PresenceS.UpsertProxy(proxy))
+	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
 
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
@@ -1509,7 +1509,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			crud: func(context.Context) types.Resource {
 				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
-				err := s.PresenceS.UpsertProxy(srv)
+				err := s.PresenceS.UpsertProxy(ctx, srv)
 				require.NoError(t, err)
 
 				out, err := s.PresenceS.GetProxies()

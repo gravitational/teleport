@@ -643,7 +643,7 @@ func TestHostUniqueCheck(t *testing.T) {
 						Namespace: defaults.Namespace,
 					},
 				}
-				err := a.UpsertProxy(proxy)
+				err := a.UpsertProxy(context.Background(), proxy)
 				require.NoError(t, err)
 			},
 		},
