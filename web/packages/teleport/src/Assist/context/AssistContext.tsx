@@ -65,9 +65,12 @@ const AssistContext = createContext<AssistState & AssistContextValue>(null);
 
 let lastCommandExecutionResultId = 0;
 
+const TEN_MINUTES = 10 * 60 * 1000;
+
 export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   const activeWebSocket = useRef<WebSocket>(null);
   const executeCommandWebSocket = useRef<WebSocket>(null);
+  const refreshWebSocketTimeout = useRef<number | null>(null);
 
   const { clusterId } = useStickyClusterId();
 
@@ -110,6 +113,14 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
         getAccessToken(),
         conversationId
       )
+    );
+
+    window.clearTimeout(refreshWebSocketTimeout.current);
+
+    // refresh the websocket connection just before the ten-minute timeout of the session
+    refreshWebSocketTimeout.current = window.setTimeout(
+      () => setupWebSocket(conversationId),
+      TEN_MINUTES * 0.8
     );
 
     activeWebSocket.current.onmessage = async event => {
