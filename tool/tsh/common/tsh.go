@@ -219,6 +219,8 @@ type CLIConf struct {
 	BenchExport bool
 	// BenchExportPath saves the latency profile in provided path
 	BenchExportPath string
+	// BenchMaxSessions is the maximum number of sessions to open
+	BenchMaxSessions int
 	// BenchTicks ticks per half distance
 	BenchTicks int32
 	// BenchValueScale value at which to scale the values recorded
@@ -909,6 +911,11 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchWebSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchWebSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
 
+	benchWebSessions := benchWeb.Command("sessions", "Run session benchmark tests").Hidden()
+	benchWebSessions.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	benchWebSessions.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	benchWebSessions.Flag("max", "SSH port on a remote host").Short('p').IntVar(&cf.BenchMaxSessions)
+
 	var benchKubeOpts benchKubeOptions
 	benchKube := bench.Command("kube", "Run Kube benchmark tests").Hidden()
 	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
@@ -1195,6 +1202,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			&benchmark.WebSSHBenchmark{
 				Command:  cf.RemoteCommand,
 				Random:   cf.BenchRandom,
+				Duration: cf.BenchDuration,
+			},
+		)
+	case benchWebSessions.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.WebSessionBenchmark{
+				Command:  cf.RemoteCommand,
+				Max:      cf.BenchMaxSessions,
 				Duration: cf.BenchDuration,
 			},
 		)
@@ -3180,7 +3196,7 @@ func onSSH(cf *CLIConf) error {
 }
 
 // onBenchmark executes benchmark
-func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
+func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
@@ -3189,6 +3205,17 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 		MinimumWindow: cf.BenchDuration,
 		Rate:          cf.BenchRate,
 	}
+
+	type configer interface {
+		Config(ctx context.Context, tc *client.TeleportClient, cfg *benchmark.Config) error
+	}
+
+	if c, ok := suite.(configer); ok {
+		if err := c.Config(cf.Context, tc, &cnf); err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
 	result, err := cnf.Benchmark(cf.Context, tc, suite)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))

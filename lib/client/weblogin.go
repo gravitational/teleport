@@ -794,6 +794,60 @@ func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebCli
 		return nil, nil, trace.Wrap(err)
 	}
 
+	if login.PreferOTP {
+		type CreateSessionReq struct {
+			// User is the Teleport username.
+			User string `json:"user"`
+			// Pass is the password.
+			Pass string `json:"pass"`
+			// SecondFactorToken is the OTP.
+			SecondFactorToken string `json:"second_factor_token"`
+		}
+
+		challengeResp := CreateSessionReq{
+			User:              login.User,
+			Pass:              login.Password,
+			SecondFactorToken: respPB.GetTOTP().Code,
+		}
+
+		resp, err := clt.RoundTrip(func() (*http.Response, error) {
+			token, err := csrf.GenerateToken()
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			data, err := json.Marshal(challengeResp)
+			req, err := http.NewRequestWithContext(ctx, http.MethodPost, clt.Endpoint("webapi", "sessions", "web"), bytes.NewBuffer(data))
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set(csrf.HeaderName, token)
+			req.URL.RawQuery = url.Values{
+				csrf.FormFieldName: []string{token},
+			}.Encode()
+
+			clt.HTTPClient().Jar.SetCookies(req.URL, []*http.Cookie{
+				{
+					Name:  csrf.CookieName,
+					Value: token,
+				},
+			})
+
+			return clt.HTTPClient().Do(req)
+		})
+
+		loginRespJSON, err := httplib.ConvertResponse(resp, err)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+
+		session, err := GetSessionFromResponse(loginRespJSON)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return clt, session, nil
+	}
+
 	challengeResp := AuthenticateWebUserRequest{
 		User: login.User,
 	}
