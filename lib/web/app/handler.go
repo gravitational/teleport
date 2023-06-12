@@ -22,12 +22,12 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"io"
 	"net"
 	"net/http"
 	"net/url"
 	"strconv"
 
-	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/julienschmidt/httprouter"
@@ -38,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -283,6 +284,24 @@ func (h *Handler) HealthCheckAppServer(ctx context.Context, publicAddr string, c
 
 // handleForward forwards the request to the application service.
 func (h *Handler) handleForward(w http.ResponseWriter, r *http.Request, session *session) error {
+	if r.Body != nil {
+		// We replace the request body with a NopCloser so that the request body can
+		// be closed multiple times. This is needed because Go's HTTP RoundTripper
+		// will close the request body once called, even if the request
+		// fails. This is a problem because fwd can retry the request if no app servers
+		// are available. This retry process happens in `handleForwardError`.
+		// If the request body is closed, the retry will fail.
+		// Because the request body is closed after the first request, we need to
+		// replace the request body with a NopCloser so that the closed body can be
+		// used again and finally closed when the request handling finishes.
+		// Teleport only retries requests if DialContext returns a trace.ConnectionProblem.
+		// Because of this,  we can safely assume that the request body is never read
+		// under those conditions so the retry attempt will start reading from the beginning
+		// of the request body.
+		originalBody := r.Body
+		defer originalBody.Close()
+		r.Body = io.NopCloser(originalBody)
+	}
 	session.fwd.ServeHTTP(w, r)
 	return nil
 }
@@ -295,7 +314,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 	// if it is not an agent connection problem, return without creating a new
 	// session.
 	if !trace.IsConnectionProblem(err) {
-		oxyutils.DefaultHandler.ServeHTTP(w, req, err)
+		reverseproxy.DefaultHandler.ServeHTTP(w, req, err)
 		return
 	}
 
@@ -312,7 +331,19 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 		w.Write([]byte(http.StatusText(http.StatusInternalServerError)))
 		return
 	}
-
+	// NOTE: This handler is called by the forwarder when it encounters an error
+	// during the `ServeHTTP` call. This means that the request forwarding was not successful.
+	// Since the request was not forwarded, and above we ignore all errors that are not
+	// connection problems, we can safely assume that the request body was not read.
+	// This happens because the connection problem is returned by the DialContext
+	// function, which is the HTTP transport requires before reading the request body.
+	// Although the request body is not read, the request body is closed by the
+	// HTTP Transport but we replace the request body in (*Handler).handleForward
+	// with a NopCloser so that the request body can be closed multiple times without
+	// impacting the request forwarding.
+	// If in the future we decide to retry requests that fail for other reasons,
+	// we need to support body rewinding with `req.GetBody` together with a
+	// `io.TeeReader` to read the request body and then rewind it.
 	session.fwd.ServeHTTP(w, req)
 }
 

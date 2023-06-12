@@ -135,6 +135,12 @@ func newTransport(c *transportConfig) (*transport, error) {
 // RoundTrip will rewrite the request, forward the request to the target
 // application, emit an event to the audit log, then rewrite the response.
 func (t *transport) RoundTrip(r *http.Request) (*http.Response, error) {
+	// Clone the request so we can modify it without affecting the original.
+	// This is necessary because the request cookies are deleted when the web
+	// handler forward the request to the app proxy. When this happens, the
+	// cookies are lost and the error handler will not be able to find the
+	// session based on cookies.
+	r = r.Clone(r.Context())
 	// Perform any request rewriting needed before forwarding the request.
 	if err := t.rewriteRequest(r); err != nil {
 		return nil, trace.Wrap(err)
