@@ -54,7 +54,6 @@
     },
     "python@3.11.2": {
       "last_modified": "2023-03-31T22:52:29Z",
-      "plugin_version": "0.0.1",
       "resolved": "github:NixOS/nixpkgs/242246ee1e58f54d2322227fc5eef53b4a616a31#python311",
       "version": "3.11.2"
     },
