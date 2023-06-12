@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"io"
+	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -16,6 +17,7 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/jamf"
+	"github.com/gravitational/teleport/e/lib/mdm"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -36,10 +38,11 @@ var defaultInventory = []*types.JamfInventoryEntry{
 // The Jamf service is an MDM service specialization that syncs device inventory
 // from Jamf to the Auth Server/DeviceTrustService.
 type S struct {
-	logger  log.FieldLogger
-	config  *servicecfg.JamfConfig
-	devices devicepb.DeviceTrustServiceClient
-	jamf    *jamf.Client
+	logger    log.FieldLogger
+	config    *servicecfg.JamfConfig
+	devices   devicepb.DeviceTrustServiceClient
+	jamf      *jamf.Client
+	scheduler *mdm.SyncScheduler[*scheduleEntry]
 }
 
 // Opts are creation options from [S].
@@ -63,6 +66,8 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 		return nil, trace.BadParameter("parameter Logger required")
 	case opts.Config == nil:
 		return nil, trace.BadParameter("parameter Config required")
+	case opts.Config.Spec == nil:
+		return nil, trace.BadParameter("jamf configuration required")
 	case opts.DevicesClient == nil:
 		return nil, trace.BadParameter("parameter DevicesClient required")
 	case opts.HTTPClient == nil:
@@ -79,6 +84,16 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 
 	// Make sure the (possibly modified) config is valid.
 	if err := types.ValidateJamfSpecV1(cfg.Spec); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Create scheduler (and early detect empty schedules).
+	logger := opts.Logger
+	scheduler, err := newJamfScheduler(cfg.Spec)
+	if errors.Is(err, mdm.ErrScheduleEmpty) {
+		logger.Error("Jamf service has an empty sync schedule, aborting")
+		return nil, trace.Wrap(err)
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -100,15 +115,61 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 	}
 
 	s := &S{
-		config:  &cfg,
-		logger:  opts.Logger,
-		devices: opts.DevicesClient,
-		jamf:    jamfClient,
+		config:    &cfg,
+		logger:    logger,
+		devices:   opts.DevicesClient,
+		jamf:      jamfClient,
+		scheduler: scheduler,
 	}
 	if err := s.verifyInventoryFilters(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return s, nil
+}
+
+type scheduleEntry struct {
+	*types.JamfInventoryEntry
+
+	OnMissingAction devicepb.SyncInventoryDeviceAction
+	CutTime         time.Time
+}
+
+func newJamfScheduler(spec *types.JamfSpecV1) (*mdm.SyncScheduler[*scheduleEntry], error) {
+	parsedInv := make([]*scheduleEntry, len(spec.Inventory))
+	for i, e := range spec.Inventory {
+		onMissing := devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_NOOP
+		if e.OnMissing == types.JamfOnMissingDelete {
+			onMissing = devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE
+		}
+		parsedInv[i] = &scheduleEntry{
+			JamfInventoryEntry: e,
+			OnMissingAction:    onMissing,
+		}
+	}
+
+	var delayFn func() time.Duration
+	switch {
+	case spec.SyncDelay < 0: // immediate
+		delayFn = func() time.Duration { return 0 }
+	case spec.SyncDelay > 0: // as specified
+		delayFn = func() time.Duration { return time.Duration(spec.SyncDelay) }
+	default: // random
+		delayFn = func() time.Duration {
+			n := rand.Intn(int(2 * time.Minute))
+			return time.Duration(n)
+		}
+	}
+
+	return mdm.NewSyncScheduler(
+		parsedInv, delayFn, func(e *scheduleEntry) mdm.ScheduleEntryInfo {
+			if e == nil || e.JamfInventoryEntry == nil {
+				return mdm.ScheduleEntryInfo{}
+			}
+			return mdm.ScheduleEntryInfo{
+				SyncPeriodPartial: time.Duration(e.SyncPeriodPartial),
+				SyncPeriodFull:    time.Duration(e.SyncPeriodFull),
+			}
+		})
 }
 
 // verifyInventoryFilters verifies, during service startup, that the Jamf
@@ -135,37 +196,50 @@ func (s *S) verifyInventoryFilters(ctx context.Context) error {
 func (s *S) Run(ctx context.Context) error {
 	s.logger.Info("Jamf service successfully started")
 
-	// The service logs all known devices (for easy debugging) and blocks until
-	// Teleport is stopped.
-	// It'll be made to be more useful in future iterations.
-	if err := s.listAndExecOnDevices(ctx, func(d *devicepb.Device) {
-		s.logger.Debugf("Found device %v = %s/%v", d.Id, d.OsType, d.AssetTag)
-	}); err != nil {
-		s.logger.WithError(err).Warn("Failed to list devices")
+	exitOnSync := s.config.ExitOnSync
+	if exitOnSync {
+		s.config.Spec.SyncDelay = -1
 	}
 
-	<-ctx.Done()
+	// Create the timer and immediately stop/drain it, we'll reset it at the start
+	// of every loop below.
+	timer := time.NewTimer(999 * time.Hour)
+	if !timer.Stop() {
+		<-timer.C // Drain
+	}
 
-	s.logger.Info("Exited")
-	return ctx.Err()
-}
-
-func (s *S) listAndExecOnDevices(ctx context.Context, f func(d *devicepb.Device)) error {
-	var pageToken string
 	for {
-		resp, err := s.devices.ListDevices(ctx, &devicepb.ListDevicesRequest{
-			PageToken: pageToken,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		for _, dev := range resp.Devices {
-			f(dev)
-		}
-		if resp.NextPageToken == "" {
+		offset := s.scheduler.NextOffset()
+		if exitOnSync && offset > 0 {
+			s.logger.Debug("All immediate syncs are done, exiting [exit_on_sync=true]")
 			return nil
 		}
-		pageToken = resp.NextPageToken
+		// timer is always drained when we get here.
+		timer.Reset(offset)
+
+		select {
+		case <-timer.C:
+			e := s.scheduler.Next()
+			nextCutTime, err := s.RunOnce(ctx, RunSpec{
+				Mode:            e.Mode,
+				OnMissingAction: e.Entry.OnMissingAction,
+				FilterRSQL:      e.Entry.FilterRsql,
+				CutTime:         e.Entry.CutTime,
+			})
+			if err != nil {
+				s.logger.WithError(err).Warn("Jamf inventory sync attempt failed")
+				continue
+			}
+			// Update cut time.
+			if nextCutTime.After(e.Entry.CutTime) {
+				e.Entry.CutTime = nextCutTime
+			}
+
+		case <-ctx.Done():
+			timer.Stop()
+			s.logger.Info("Exited")
+			return ctx.Err()
+		}
 	}
 }
 
