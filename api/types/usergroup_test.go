@@ -14,6 +14,27 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import service from './ping';
-export * from './types';
-export default service;
+package types
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+)
+
+func TestUserGroupMatchSearch(t *testing.T) {
+	ug, err := NewUserGroup(Metadata{
+		Name:        "test",
+		Description: "description",
+	})
+	require.NoError(t, err)
+
+	// Match against the name
+	require.True(t, ug.MatchSearch([]string{"test"}))
+
+	// Match against the description
+	require.True(t, ug.MatchSearch([]string{"description"}))
+
+	// No match
+	require.False(t, ug.MatchSearch([]string{"nothing"}))
+}

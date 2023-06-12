@@ -277,6 +277,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	fwd.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", fwd.withAuth(fwd.portForward))
 
+	fwd.router.POST("/apis/authorization.k8s.io/:ver/selfsubjectaccessreviews", fwd.withAuth(fwd.selfSubjectAccessReviews))
 	fwd.router.GET("/api/:ver/pods", fwd.withAuth(fwd.listPods))
 	fwd.router.GET("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(fwd.listPods))
 	fwd.router.DELETE("/api/:ver/namespaces/:podNamespace/pods", fwd.withAuth(fwd.deletePodsCollection))
@@ -2628,7 +2629,7 @@ func (f *Forwarder) deletePodsCollection(ctx *authContext, w http.ResponseWriter
 func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authContext, memWriter *responsewriters.MemoryResponseWriter, w http.ResponseWriter) (int, error) {
 	const internalErrStatus = http.StatusInternalServerError
 	// get content-type value
-	contentType := responsewriters.GetContentHeader(memWriter.Header())
+	contentType := responsewriters.GetContentTypeHeader(memWriter.Header())
 	encoder, decoder, err := newEncoderAndDecoderForContentType(contentType, newClientNegotiator())
 	if err != nil {
 		return internalErrStatus, trace.Wrap(err)
@@ -2764,13 +2765,20 @@ func kubeResourceDeniedAccessMsg(user, method string, kubeResource *types.Kubern
 	apiGroup := ""
 	// <resource> "<pod_name>" is forbidden: User "<user>" cannot create resource "<resource>" in API group "" in the namespace "<namespace>"
 	return fmt.Sprintf(
-		"%s %q is forbidden: User %q cannot %s resource %q in API group %q in the namespace %q",
+		"%s %q is forbidden: User %q cannot %s resource %q in API group %q in the namespace %q\n"+
+			"Ask your Teleport admin to ensure that your Teleport role includes access to the pod in %q field.\n"+
+			"Check by running: kubectl auth can-i %s %s/%s --namespace %s ",
 		resource,
 		kubeResource.Name,
 		user,
 		getRequestVerb(method),
 		resource,
 		apiGroup,
+		kubeResource.Namespace,
+		kubernetesResourcesKey,
+		getRequestVerb(method),
+		resource,
+		kubeResource.Name,
 		kubeResource.Namespace,
 	)
 }

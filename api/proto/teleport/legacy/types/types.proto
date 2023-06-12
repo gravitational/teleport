@@ -4326,7 +4326,11 @@ message LockTarget {
 
   // Node specifies the UUID of a Teleport node.
   // A matching node is also prevented from heartbeating to the auth server.
-  string Node = 4 [(gogoproto.jsontag) = "node,omitempty"];
+  // DEPRECATED: use ServerID instead.
+  string Node = 4 [
+    deprecated = true,
+    (gogoproto.jsontag) = "node,omitempty"
+  ];
 
   // MFADevice specifies the UUID of a user MFA device.
   string MFADevice = 5 [(gogoproto.jsontag) = "mfa_device,omitempty"];
@@ -4340,6 +4344,9 @@ message LockTarget {
   // Device is the device ID of a trusted device.
   // Requires Teleport Enterprise.
   string Device = 8 [(gogoproto.jsontag) = "device,omitempty"];
+
+  // ServerID is the host id of the Teleport instance.
+  string ServerID = 9 [(gogoproto.jsontag) = "server_id,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specified
@@ -4918,6 +4925,9 @@ message GetClusterAlertsRequest {
   bool WithSuperseded = 4;
   // WithAcknowledged includes acknowledged alerts in the output of the request.
   bool WithAcknowledged = 5;
+  // WithUntargeted requests that alerts be included even if they are not specifically
+  // targeted toward the caller. This has no effect unless the caller has `cluster_alert:list`.
+  bool WithUntargeted = 6;
 }
 
 // AlertAcknowledgement marks a cluster alert as having been "acknowledged".
@@ -5097,13 +5107,8 @@ message PluginBearerTokenCredentials {
   // Token is the literal bearer token to be submitted to the 3rd-party API provider.
   string token = 1;
 
-  // TokenFile is a path to the local file containing a bearer token.
-  // This takes precedence over Token, and is currently only used by
-  // OpenAI plugin in Cloud, where by default a Teleport-owned key is used.
-  // This avoids exposing the token itself to the cluster.
-  // The file must exist and be readable on whatever runs the plugin
-  // (in the OpenAI case, it is the Proxy).
-  string token_file = 2;
+  reserved 2; // token_file
+  reserved "token_file";
 }
 
 // PluginList represents a list of plugin resources
@@ -5389,4 +5394,23 @@ enum HeadlessAuthenticationState {
 
   // authentication approved.
   HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
+}
+
+// WatchKind specifies resource kind to watch
+message WatchKind {
+  // Kind is a resource kind to watch
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // LoadSecrets specifies whether to load secrets
+  bool LoadSecrets = 2 [(gogoproto.jsontag) = "load_secrets"];
+  // Name is an optional specific resource type to watch,
+  // if specified only the events with a specific resource
+  // name will be sent
+  string Name = 3 [(gogoproto.jsontag) = "name"];
+  // Filter is an optional mapping of custom filter parameters.
+  // Valid values vary by resource kind.
+  map<string, string> Filter = 4 [(gogoproto.jsontag) = "filter,omitempty"];
+  // SubKind is a resource subkind to watch
+  string SubKind = 5 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version optionally specifies the resource version to watch.
+  string Version = 6 [(gogoproto.jsontag) = "version,omitempty"];
 }

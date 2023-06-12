@@ -43,12 +43,12 @@ comm -13 <(
 */
 
 import (
+	_ "github.com/alecthomas/kingpin/v2"
 	_ "github.com/beevik/etree"
 	_ "github.com/coreos/go-oidc/oidc"
 	_ "github.com/go-piv/piv-go/piv"
 	_ "github.com/google/go-attestation/attest"
 	_ "github.com/gravitational/form"
-	_ "github.com/gravitational/kingpin"
 	_ "github.com/gravitational/license"
 	_ "github.com/gravitational/roundtrip"
 	_ "github.com/gravitational/trace"

@@ -42,14 +42,14 @@ func writeSSHConfig(sb *strings.Builder, params *openssh.SSHConfigParameters, ge
 
 // onConfig handles the `tsh config` command
 func onConfig(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	// Note: TeleportClient.connectToProxy() overrides the proxy address when
 	// JumpHosts are in use, which this does not currently implement.
-	proxyHost, _, err := net.SplitHostPort(tc.Config.SSHProxyAddr)
+	proxyHost, proxyPort, err := net.SplitHostPort(tc.Config.WebProxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -89,6 +89,7 @@ func onConfig(cf *CLIConf) error {
 		CertificateFilePath: keypaths.SSHCertPath(keysDir, proxyHost,
 			tc.Config.Username, rootClusterName),
 		ProxyHost:      proxyHost,
+		ProxyPort:      proxyPort,
 		ExecutablePath: cf.executablePath,
 	}, nil); err != nil {
 		return trace.Wrap(err)

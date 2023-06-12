@@ -30,8 +30,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
@@ -330,7 +330,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 	// "teleport discovery" bootstrap command and subcommands.
 	discoveryCmd := app.Command("discovery", "Teleport discovery service commands")
-	discoveryBootstrapCmd := discoveryCmd.Command("bootstrap", "Bootstrap the necessary configuration for the database agent. It reads the provided agent configuration to determine what will be bootstrapped.")
+	discoveryBootstrapCmd := discoveryCmd.Command("bootstrap", "Bootstrap the necessary configuration for the discovery agent. It reads the provided agent configuration to determine what will be bootstrapped.")
 	discoveryBootstrapCmd.Flag("config", fmt.Sprintf("Path to a configuration file [%v].", defaults.ConfigFilePath)).Short('c').Default(defaults.ConfigFilePath).ExistingFileVar(&configureDiscoveryBootstrapFlags.config.ConfigPath)
 	discoveryBootstrapCmd.Flag("confirm", "Do not prompt user and auto-confirm all actions.").BoolVar(&configureDiscoveryBootstrapFlags.confirm)
 	discoveryBootstrapCmd.Flag("attach-to-role", "Role name to attach policy to. Mutually exclusive with --attach-to-user. If none of the attach-to flags is provided, the command will try to attach the policy to the current user/role based on the credentials.").StringVar(&configureDiscoveryBootstrapFlags.config.AttachToRole)
@@ -1052,7 +1052,7 @@ func dumpConfigFile(outputURI, contents, comment string) (string, error) {
 			return "", trace.BadParameter("please use absolute path for file %v", uri.Path)
 		}
 
-		configDir := path.Dir(outputURI)
+		configDir := path.Dir(uri.Path)
 		err := os.MkdirAll(configDir, 0o755)
 		err = trace.ConvertSystemError(err)
 		if err != nil {

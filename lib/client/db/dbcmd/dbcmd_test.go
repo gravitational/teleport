@@ -573,7 +573,7 @@ func TestCLICommandBuilderGetConnectCommand(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			database := &tlsca.RouteToDatabase{
+			database := tlsca.RouteToDatabase{
 				Protocol:    tt.dbProtocol,
 				Database:    tt.databaseName,
 				Username:    "myUser",
@@ -684,7 +684,7 @@ func TestCLICommandBuilderGetConnectCommandAlternatives(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			database := &tlsca.RouteToDatabase{
+			database := tlsca.RouteToDatabase{
 				Protocol:    tt.dbProtocol,
 				Database:    tt.databaseName,
 				Username:    "myUser",
@@ -771,7 +771,7 @@ func TestConvertCommandError(t *testing.T) {
 		t.Run(tt.desc, func(t *testing.T) {
 			t.Parallel()
 
-			database := &tlsca.RouteToDatabase{
+			database := tlsca.RouteToDatabase{
 				Protocol:    tt.dbProtocol,
 				Database:    "DBName",
 				Username:    "myUser",

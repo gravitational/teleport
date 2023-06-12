@@ -14,14 +14,10 @@
  * limitations under the License.
  */
 
-import { PingResponse } from './types';
+const crypt = require('crypto');
 
-export function makePing(json: any): PingResponse {
-  json = json || {};
-  const { proxy, automatic_upgrades } = json;
-
-  return {
-    automaticUpgrades: automatic_upgrades,
-    assistEnabled: proxy?.assist_enabled,
-  };
-}
+Object.defineProperty(globalThis, 'crypto', {
+  value: {
+    randomUUID: () => crypt.randomUUID(),
+  },
+});

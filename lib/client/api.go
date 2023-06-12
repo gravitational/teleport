@@ -582,25 +582,35 @@ func IsErrorResolvableWithRelogin(err error) bool {
 		trace.IsBadParameter(err) || trace.IsTrustError(err) || keys.IsPrivateKeyPolicyError(err) || trace.IsNotFound(err)
 }
 
-// LoadProfile populates Config with the values stored in the given
-// profiles directory. If profileDir is an empty string, the default profile
-// directory ~/.tsh is used.
-func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
+// GetProfile gets the profile for the specified proxy address, or
+// the current profile if no proxy is specified.
+func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile, error) {
 	var proxyHost string
 	var err error
 	if proxyAddr == "" {
 		proxyHost, err = ps.CurrentProfile()
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	} else {
 		proxyHost, err = utils.Host(proxyAddr)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
 	profile, err := ps.GetProfile(proxyHost)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return profile, nil
+}
+
+// LoadProfile populates Config with the values stored in the given
+// profiles directory. If profileDir is an empty string, the default profile
+// directory ~/.tsh is used.
+func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
+	profile, err := c.GetProfile(ps, proxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -622,11 +632,6 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 	c.AuthenticatorAttachment, err = parseMFAMode(profile.MFAMode)
 	if err != nil {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
-	}
-
-	c.LocalForwardPorts, err = ParsePortForwardSpec(profile.ForwardedPorts)
-	if err != nil {
-		log.Warnf("Unable to parse port forwarding in user profile: %v.", err)
 	}
 
 	c.DynamicForwardedPorts, err = ParseDynamicPortForwardSpec(profile.DynamicForwardedPorts)
@@ -656,7 +661,6 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		PostgresProxyAddr:             c.PostgresProxyAddr,
 		MySQLProxyAddr:                c.MySQLProxyAddr,
 		MongoProxyAddr:                c.MongoProxyAddr,
-		ForwardedPorts:                c.LocalForwardPorts.String(),
 		SiteName:                      c.SiteName,
 		TLSRoutingEnabled:             c.TLSRoutingEnabled,
 		TLSRoutingConnUpgradeRequired: c.TLSRoutingConnUpgradeRequired,
@@ -945,7 +949,7 @@ type TeleportClient struct {
 
 	// dtAuthnRunCeremony allows tests to override the default device
 	// authentication function.
-	// Defaults to [dtauthn.RunCeremony].
+	// Defaults to [dtauthn.NewCeremony().Run].
 	dtAuthnRunCeremony dtAuthnRunCeremonyFunc
 }
 
@@ -1733,18 +1737,7 @@ func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, 
 
 	// Issue "shell" request to the first matching node.
 	fmt.Printf("\x1b[1mWARNING\x1b[0m: Multiple nodes match the label selector, picking first: %q\n", nodeAddrs[0])
-	nodeClient, err := tc.ConnectToNode(
-		ctx,
-		proxyClient,
-		NodeDetails{Addr: nodeAddrs[0], Namespace: tc.Namespace, Cluster: tc.SiteName},
-		tc.Config.HostLogin,
-	)
-	if err != nil {
-		tc.ExitStatus = 1
-		return trace.Wrap(err)
-	}
-	defer nodeClient.Close()
-	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+	return tc.runShellOrCommandOnSingleNode(ctx, nodeAddrs[0], proxyClient, nil, false)
 }
 
 func (tc *TeleportClient) startPortForwarding(ctx context.Context, nodeClient *NodeClient) error {
@@ -2768,21 +2761,26 @@ func (tc *TeleportClient) ConnectToProxy(ctx context.Context) (*ProxyClient, err
 	)
 	defer span.End()
 
-	var err error
-	var proxyClient *ProxyClient
+	type result struct {
+		proxyClient *ProxyClient
+		err         error
+	}
+	done := make(chan result)
 
 	// Use connectContext and the cancel function to signal when a response is
 	// returned from connectToProxy.
 	connectContext, cancel := context.WithCancel(ctx)
+	defer cancel()
+
 	go func() {
-		defer cancel()
-		proxyClient, err = tc.connectToProxy(ctx)
+		proxyClient, err := tc.connectToProxy(connectContext)
+		done <- result{proxyClient, err}
 	}()
 
 	select {
-	// ConnectToProxy returned a result, return that back to the caller.
-	case <-connectContext.Done():
-		return proxyClient, trace.Wrap(formatConnectToProxyErr(err))
+	// connectToProxy returned a result, return that back to the caller.
+	case r := <-done:
+		return r.proxyClient, trace.Wrap(formatConnectToProxyErr(r.err))
 	// The passed in context timed out. This is often due to the network being
 	// down and the user hitting Ctrl-C.
 	case <-ctx.Done():
@@ -3256,15 +3254,18 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer proxyClient.Close()
+
 	authClient, err := proxyClient.ConnectToRootCluster(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer authClient.Close()
 
 	// Allow tests to override the default authn function.
 	runCeremony := tc.dtAuthnRunCeremony
 	if runCeremony == nil {
-		runCeremony = dtauthn.RunCeremony
+		runCeremony = dtauthn.NewCeremony().Run
 	}
 
 	newCerts, err := runCeremony(ctx, authClient.DevicesClient(), certs)
@@ -3798,6 +3799,7 @@ func (tc *TeleportClient) GetTrustedCA(ctx context.Context, clusterName string) 
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer clt.Close()
 
 	// Get the list of host certificates that this cluster knows about.
 	return clt.GetCertAuthorities(ctx, types.HostCA, false)
@@ -4615,13 +4617,20 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	if !tc.Config.ProxySpecified() {
 		return trace.BadParameter("proxy server is not specified")
 	}
+
 	proxyClient, err := tc.ConnectToProxy(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer proxyClient.Close()
 
-	headlessAuthn, err := proxyClient.currentCluster.GetHeadlessAuthentication(ctx, headlessAuthenticationID)
+	rootClient, err := proxyClient.ConnectToRootCluster(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer rootClient.Close()
+
+	headlessAuthn, err := rootClient.GetHeadlessAuthentication(ctx, headlessAuthenticationID)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4637,11 +4646,11 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 	}
 
 	if !ok {
-		err = proxyClient.currentCluster.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
+		err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
 		return trace.Wrap(err)
 	}
 
-	chall, err := proxyClient.currentCluster.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
+	chall, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
 		Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
 			ContextUser: &proto.ContextUser{},
 		},
@@ -4655,6 +4664,6 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	err = proxyClient.currentCluster.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
+	err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
 	return trace.Wrap(err)
 }

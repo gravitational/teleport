@@ -20,6 +20,7 @@ import { addDecorator, addParameters } from '@storybook/react';
 import theme from './../packages/design/src/theme';
 import DefaultThemeProvider from './../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
+import '../packages/teleport/src/lib/polyfillRandomUuid';
 import { ThemeProvider as TeletermThemeProvider } from './../packages/teleterm/src/ui/ThemeProvider';
 import { handlersTeleport } from './../packages/teleport/src/mocks/handlers';
 

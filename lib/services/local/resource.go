@@ -101,6 +101,8 @@ func itemsFromResource(resource types.Resource) ([]backend.Item, error) {
 		item, err = itemFromSAMLConnector(r)
 	case types.ProvisionToken:
 		item, err = itemFromProvisionToken(r)
+	case types.Lock:
+		item, err = itemFromLock(r)
 	default:
 		return nil, trace.NotImplemented("cannot itemFrom resource of type %T", resource)
 	}
@@ -348,6 +350,24 @@ func itemsFromLocalAuthSecrets(user string, auth types.LocalAuthSecrets) ([]back
 		})
 	}
 	return items, nil
+}
+
+// itemFromLock attempts to encode the supplied lock as an
+// instance of `backend.Item` suitable for storage.
+func itemFromLock(l types.Lock) (*backend.Item, error) {
+	if err := l.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	value, err := services.MarshalLock(l)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &backend.Item{
+		Key:     backend.Key(locksPrefix, l.GetName()),
+		Value:   value,
+		Expires: l.Expiry(),
+		ID:      l.GetResourceID(),
+	}, nil
 }
 
 // TODO: convert username/suffix ops to work on bytes by default; string/byte conversion

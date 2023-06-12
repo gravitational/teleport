@@ -21,8 +21,8 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/google/uuid"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -47,7 +47,13 @@ func (c *LockCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.mainCmd.Flag("user", "Name of a Teleport user to disable.").StringVar(&c.spec.Target.User)
 	c.mainCmd.Flag("role", "Name of a Teleport role to disable.").StringVar(&c.spec.Target.Role)
 	c.mainCmd.Flag("login", "Name of a local UNIX user to disable.").StringVar(&c.spec.Target.Login)
-	c.mainCmd.Flag("node", "UUID of a Teleport node to disable.").StringVar(&c.spec.Target.Node)
+	// Locking a node is now deprecated, but we still support it for backwards compatibility.
+	// Previously, locking a node would lock only the `ssh_service` from that node to
+	// access Teleport but didn't prevent any other roles that the same instance could run.
+	// Now, `tctl lock --server-id` should be used instead to lock the entire server
+	// and all roles that it runs (including the `ssh_service`) from accessing Teleport.
+	// TODO: DELETE IN 15.0.0
+	c.mainCmd.Flag("node", "UUID of a Teleport node to disable.").Hidden().StringVar(&c.spec.Target.Node)
 	c.mainCmd.Flag("mfa-device", "UUID of a user MFA device to disable.").StringVar(&c.spec.Target.MFADevice)
 	c.mainCmd.Flag("windows-desktop", "Name of a Windows desktop to disable.").StringVar(&c.spec.Target.WindowsDesktop)
 	c.mainCmd.Flag("access-request", "UUID of an access request to disable.").StringVar(&c.spec.Target.AccessRequest)
@@ -55,6 +61,7 @@ func (c *LockCommand) Initialize(app *kingpin.Application, config *service.Confi
 	c.mainCmd.Flag("message", "Message to display to locked-out users.").StringVar(&c.spec.Message)
 	c.mainCmd.Flag("expires", "Time point (RFC3339) when the lock expires.").StringVar(&c.expires)
 	c.mainCmd.Flag("ttl", "Time duration after which the lock expires.").DurationVar(&c.ttl)
+	c.mainCmd.Flag("server-id", "UUID of a Teleport server to disable.").StringVar(&c.spec.Target.ServerID)
 }
 
 // TryRun attempts to run subcommands.
@@ -70,6 +77,15 @@ func (c *LockCommand) TryRun(ctx context.Context, cmd string, client auth.Client
 
 // CreateLock creates a lock for the main `tctl lock` command.
 func (c *LockCommand) CreateLock(ctx context.Context, client auth.ClientI) error {
+	// Locking a node is now deprecated, but we still support it for backwards compatibility.
+	// Previously, locking a node would lock only the `ssh_service` from that node to
+	// access Teleport but didn't prevent any other roles that the same instance could run.
+	// Now, `tctl lock --server-id` should be used instead to lock the entire server.
+	// TODO: DELETE IN 15.0.0
+	if c.spec.Target.Node != "" {
+		c.config.Log.Warnf("`tctl lock --node <id>` is now deprecated. Please use `tctl lock --server-id <id>` instead.")
+	}
+
 	lockExpiry, err := computeLockExpiry(c.expires, c.ttl)
 	if err != nil {
 		return trace.Wrap(err)

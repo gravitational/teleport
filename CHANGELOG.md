@@ -1,5 +1,67 @@
 # Changelog
 
+## 12.4.6 (06/02/23)
+
+* Auth
+  * Fixed issue with headless auth not working when leaf cluster is selected. [#26877](https://github.com/gravitational/teleport/pull/26877)
+* CLI
+  * Added support for registering Windows desktops using `tctl`. [#27251](https://github.com/gravitational/teleport/pull/27251)
+  * Added autocompletion support for bash and zsh. [#26998](https://github.com/gravitational/teleport/pull/26998)
+* Desktop Access
+  * Increased LDAP dial timeout from 5 to 15 seconds. [#27046](https://github.com/gravitational/teleport/pull/27046)
+* Helm Charts
+  * Improved `clusterName` validation in `teleport-cluster` chart. [#26974](https://github.com/gravitational/teleport/pull/26974)
+* Okta
+  * Updated Okta import rules to support filtering user groups by description. [#27020](https://github.com/gravitational/teleport/pull/27020)
+* Performance & Scalability
+  * Improved `tsh login` latency by fetching cluster alerts once. [#27111](https://github.com/gravitational/teleport/pull/27111)
+* Server Access
+  * Fixed issue with port forwarding configuraiton being cached in `tsh` profile. [#27207](https://github.com/gravitational/teleport/pull/27207)
+* Tooling
+  * Updated OpenSSL to `1.1.1u`. [#27113](https://github.com/gravitational/teleport/pull/27113)
+* Web UI
+  * Fixed issue with users being immediately logged out of web UI after completing SSO via OIDC. [#27297](https://github.com/gravitational/teleport/pull/27297)
+
+## 12.4.5 (05/25/23)
+
+* SSO
+  * Fixed issue with Github Enterprise SSO not respecting custom API endpoint path. [#26864](https://github.com/gravitational/teleport/pull/26864)
+* Server Access
+  * Extended Proxy Templates to support `tsh ssh`. [#26853](https://github.com/gravitational/teleport/pull/26853)
+* CLI
+  * Added ability to run `tctl alert` commands remotely. [#26791](https://github.com/gravitational/teleport/pull/26791)
+* Web UI
+  * Added back buttons to integrations and resource adding dialogs. [#26726](https://github.com/gravitational/teleport/pull/26726)
+
+## 12.4.4 (05/24/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Teleport Assist
+  * Fixed React error in when navigating between Assist and web UI other pages. [#26745](https://github.com/gravitational/teleport/pull/26745)
+* Server Access
+  * Fixed issue with SSH sessions sometimes failing to establish in enhanced session recording mode. [#26729](https://github.com/gravitational/teleport/pull/26729)
+  * Fixed issue with port forwarding silently failing when using a label based target. [#26703](https://github.com/gravitational/teleport/pull/26703)
+* Kubernetes Access
+  * Extended `kubectl auth can-i` support to account for `kubernetes_resources` RBAC rules. [#26586](https://github.com/gravitational/teleport/pull/26586)
+* Desktop Access
+  * Improved internal logging and Windows user lookup efficiency. [#26414](https://github.com/gravitational/teleport/pull/26414)
+* Web UI
+  * Restored the "Add application" dialog. [#26459](https://github.com/gravitational/teleport/pull/26459)
+
+## 12.4.3 (05/18/23)
+
+This release of Teleport contains multiple improvements and bug fixes.
+
+* Audit Log
+  * Updated login event to include the list of applied login rules. [#26475](https://github.com/gravitational/teleport/pull/26475)
+  * Updated Okta audit events to include extra apps and groups fields. [#26371](https://github.com/gravitational/teleport/pull/26371)
+* Database Access
+  * Fixed issue with connecting to active Cassandra database. [#26379](https://github.com/gravitational/teleport/pull/26379)
+* Web UI
+  * Improved error reporting in the RDS flow for some scenarios. [#26400](https://github.com/gravitational/teleport/pull/26400)
+  * Fixed issue with install script always installing latest instead of cluster version. [#26323](https://github.com/gravitational/teleport/pull/26323)
+
 ## 12.4.2 (05/16/23)
 
 ### Teleport Assist

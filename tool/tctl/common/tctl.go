@@ -24,7 +24,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -157,7 +157,7 @@ func TryRun(commands []CLICommand, args []string) error {
 		BoolVar(&ccf.Insecure)
 
 	// "version" command is always available:
-	ver := app.Command("version", "Print the version of your tctl binary")
+	ver := app.Command("version", "Print the version of your tctl binary.")
 	app.HelpFlag.Short('h')
 
 	// parse CLI commands+flags:

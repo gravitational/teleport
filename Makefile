@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=12.4.2
+VERSION=12.4.6
 
 DOCKER_IMAGE ?= teleport
 
@@ -88,9 +88,6 @@ CHECK_RUST := $(shell rustc --version 2>/dev/null)
 # TODO: Delete when it becomes default in Rust 1.70.0
 export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
-with_rdpclient := no
-RDPCLIENT_MESSAGE := without-Windows-RDP-client
-
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
 CARGO_TARGET_linux_arm64 := aarch64-unknown-linux-gnu
@@ -98,6 +95,14 @@ CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 
 CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
 
+# If set to 1, Windows RDP client is not built.
+RDPCLIENT_SKIP_BUILD ?= 0
+
+# Enable Windows RDP client build?
+with_rdpclient := no
+RDPCLIENT_MESSAGE := without-Windows-RDP-client
+
+ifeq ($(RDPCLIENT_SKIP_BUILD),0)
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 
@@ -110,6 +115,7 @@ RDPCLIENT_TAG := desktop_access_rdp
 endif
 endif
 
+endif
 endif
 endif
 
@@ -973,6 +979,9 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
+.PHONY:enter/grpcbox
+enter/grpcbox:
+	make -C build.assets enter/grpcbox
 
 BUF := buf
 
@@ -994,8 +1003,17 @@ protos/lint: buf/installed
 	$(BUF) lint
 	$(BUF) lint --config=api/proto/buf-legacy.yaml api/proto
 
+.PHONY: protos/breaking
+protos/breaking: BASE=origin/master
+protos/breaking: buf/installed
+	@echo Checking compatibility against BASE=$(BASE)
+	buf breaking . --against '.git#branch=$(BASE)'
+
 .PHONY: lint-protos
 lint-protos: protos/lint
+
+.PHONY: lint-breaking
+lint-breaking: protos/breaking
 
 .PHONY: buf/installed
 buf/installed:
