@@ -93,5 +93,7 @@ message DeviceCollectedData {
   // client including this field should be rejected. The server should inject
   // this field once verifying that the submitted platform attestation during
   // the enrollment or authentication.
+  //
+  // System managed.
   TPMPlatformAttestation tpm_platform_attestation = 14;
 }
