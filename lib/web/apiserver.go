@@ -559,7 +559,9 @@ func (h *Handler) bindMinimalEndpoints() {
 	// find is like ping, but is faster because it is optimized for servers
 	// and does not fetch the data that servers don't need, e.g.
 	// OIDC connectors and auth preferences
-	h.GET("/webapi/find", h.WithUnauthenticatedHighLimiter(h.find))
+	// Note that find is a unique endpoint that requires high request rates
+	// sometimes through NATs and thus should not be rate limited by IP.
+	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 	// Issue host credentials.
 	h.POST("/webapi/host/credentials", h.WithUnauthenticatedHighLimiter(h.hostCredentials))
 }
@@ -1218,6 +1220,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	// TODO(jent,espadolini): add a time-based cache to further reduce load on this endpoint
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
