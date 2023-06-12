@@ -167,8 +167,8 @@ certificates:
 > tbot start \
    --destination-dir=./tbot-user \
    --token={{.token}} \
-   --auth-server={{.addr}}{{if .join_method}} \
-   --join-method={{.join_method}}{{end}}
+   --auth-server={{.addr}} \
+   --join-method={{if .join_method}}{{.join_method}}{{else}}token{{end}}
 
 Please note:
 
