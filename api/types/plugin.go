@@ -38,6 +38,8 @@ const (
 	PluginTypeOkta = "okta"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
+	// PluginTypeOpsgenie is the Opsgenie access request plugin
+	PluginTypeOpsgenie = "opsgenie"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -67,6 +69,7 @@ type Plugin interface {
 // PluginCredentials are the credentials embedded in Plugin
 type PluginCredentials interface {
 	GetOauth2AccessToken() *PluginOAuth2AccessTokenCredentials
+	GetStaticCredentialsRef() *PluginStaticCredentialsRef
 }
 
 // PluginStatus is the plugin status
@@ -120,12 +123,28 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if p.Credentials == nil {
 			return trace.BadParameter("credentials must be set")
 		}
+
 		bearer := p.Credentials.GetBearerToken()
 		if bearer == nil {
 			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
 		}
-		if (bearer.Token == "") == (bearer.TokenFile == "") {
-			return trace.BadParameter("exactly one of Token and TokenFile must be specified")
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
+		}
+	case *PluginSpecV1_Opsgenie:
+		if settings.Opsgenie == nil {
+			return trace.BadParameter("missing opsgenie settings")
+		}
+		if err := settings.Opsgenie.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("opsgenie plugin must be used with the static credentials ref type")
+		}
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
 		}
 	case *PluginSpecV1_Jamf:
 		if settings.Jamf.JamfSpec.ApiEndpoint == "" {
@@ -149,12 +168,12 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if p.Credentials == nil {
 			return trace.BadParameter("credentials must be set")
 		}
-		bearer := p.Credentials.GetBearerToken()
-		if bearer == nil {
-			return trace.BadParameter("okta plugin must be used with the bearer token credential type")
+		staticCreds := p.Credentials.GetStaticCredentialsRef()
+		if staticCreds == nil {
+			return trace.BadParameter("okta plugin must be used with the static credentials ref type")
 		}
-		if (bearer.Token == "") == (bearer.TokenFile == "") {
-			return trace.BadParameter("exactly one of Token and TokenFile must be specified")
+		if len(staticCreds.Labels) == 0 {
+			return trace.BadParameter("labels must be specified")
 		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
@@ -292,6 +311,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeOkta
 	case *PluginSpecV1_Jamf:
 		return PluginTypeJamf
+	case *PluginSpecV1_Opsgenie:
+		return PluginTypeOpsgenie
 	default:
 		return PluginTypeUnknown
 	}
@@ -312,6 +333,14 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("org_url must be set")
 	}
 
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values
+func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
+	if s.ApiEndpoint == "" {
+		return trace.BadParameter("opsgenie api endpoint url must be set")
+	}
 	return nil
 }
 

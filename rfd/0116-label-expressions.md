@@ -1,6 +1,6 @@
 ---
 authors: Nic Klaassen (nic@goteleport.com)
-state: draft
+state: implemented (v13.2.0)
 ---
 
 # RFD 116 - RBAC Label Expressions
@@ -138,10 +138,10 @@ Label expressions can appear in `allow` or `deny` role conditions.
 
 Label expressions will have access to the following context:
 
-| Syntax | Alias | Type | Description | 
-|--------|-------|------|-------------|
-| `resource.metadata.labels` | `labels` | `map[string]string` | Labels of the resource (node, app, db, etc.) being accessed |
-| `user.spec.traits` | | `map[string][]string` | `external` or `internal` traits of the user accessing the resource |
+| Syntax             | Type                    | Description |
+|--------------------|-------------------------|-------------|
+| `user.spec.traits` | `map[string][]string`   | `external` or `internal` traits of the user accessing the resource |
+| `labels`           | `map[string]string`     | Combined static and dynamic labels of the resource (node, app, db, etc.) being accessed |
 
 #### Helper functions
 
@@ -155,10 +155,14 @@ resource label or a string literal).
 | Syntax | Return type | Description | Example |
 |--------|-------------|-------------|---------|
 | `contains(list, item)` | Boolean | Returns true if `list` contains an exact match for `item` | `contains(user.spec.traits[teams], labels["team"])` |
+| `contains_any(list, items)` | Boolean | Returns true if `list` contains an exact match for any element of `items` | `contains_any(user.spec.traits["projects"], labels_matching("project-*"))` |
+| `contains_all(list, items)` | Boolean | Returns true if `list` contains an exact match for all elements of `items` | `contains_all(user.spec.traits["projects"], labels_matching("project-*"))` |
 | `regexp.match(list, re)` | Boolean | Returns true if `list` contains a match for `re` | `regexp.match(labels["team"], "dev-team-\d+$")` |
 | `regexp.replace(list, re, replacement)` | `[]string` | Replaces all matches of `re` with replacement for all items in `list` | `contains(regexp.replace(user.spec.traits["allowed-env"], "^env-(.*)$", "$1"), labels["env"])`
+| `email.local(list)` | `[]string` | Returns the local part of each email in `list`, or an error if any email fails to parse | `contains(email.local(user.spec.traits["email"]), labels["owner"])`
 | `strings.upper(list)` | `[]string` | Converts all items of the list to uppercase | `contains(strings.upper(user.spec.traits["username"]), labels["owner"])`
 | `strings.lower(list)` | `[]string` | Converts all items of the list to lowercase | `contains(strings.lower(user.spec.traits["username"]), labels["owner"])`
+| `labels_matching(re)` | `[]string` | Returns the aggregate of all label values with keys matching `re`, which can be a glob or a regular expression. | `contains(labels_matching("^project-(team|label)$"), "skunkworks")`
 
 #### Operators
 
@@ -231,10 +235,33 @@ Ultimately, performance will be benchmarked for multiple scenarios with the goal
 of staying within 10% of the performance of the existing implementation.
 Benchmarks will be written comparing similar RBAC constraints written with both
 the existing label matchers and the new label expressions.
-Benchmarks will run `ListResources` with 50k unique (simulated) nodes, 64 unique
-roles, and 2k unique users.
+Benchmarks will run `ListResources` with 50k unique (simulated) nodes and 32
+unique roles.
 
-Benchmark results: TBD
+Benchmark results:
+
+```
+$ go test ./lib/auth -bench=. -run=^$ -v -benchtime 1x
+goos: darwin
+goarch: amd64
+pkg: github.com/gravitational/teleport/lib/auth
+cpu: Intel(R) Core(TM) i9-9880H CPU @ 2.30GHz
+BenchmarkListNodes
+BenchmarkListNodes/simple_labels
+BenchmarkListNodes/simple_labels-16                    1        1079886286 ns/op        525128104 B/op   8831939 allocs/op
+BenchmarkListNodes/simple_expression
+BenchmarkListNodes/simple_expression-16                1         770118479 ns/op        432667432 B/op   6514790 allocs/op
+BenchmarkListNodes/labels
+BenchmarkListNodes/labels-16                           1        1931843502 ns/op        741444360 B/op  15159333 allocs/op
+BenchmarkListNodes/expression
+BenchmarkListNodes/expression-16                       1        1040855282 ns/op        509643128 B/op   8120970 allocs/op
+BenchmarkListNodes/complex_labels
+BenchmarkListNodes/complex_labels-16                   1        2274376396 ns/op        792948904 B/op  17084107 allocs/op
+BenchmarkListNodes/complex_expression
+BenchmarkListNodes/complex_expression-16               1        1518800599 ns/op        738532920 B/op  12483748 allocs/op
+PASS
+ok      github.com/gravitational/teleport/lib/auth      11.679s
+```
 
 #### Caching
 

@@ -353,14 +353,19 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 		return nil, trace.Wrap(err)
 	}
 	h.auth = sessionCache
+	sshPortValue := strconv.Itoa(defaults.SSHProxyListenPort)
+	if cfg.ProxySSHAddr.String() != "" {
+		_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
+		if err != nil {
+			h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
+				cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
 
-	_, sshPort, err := net.SplitHostPort(cfg.ProxySSHAddr.String())
-	if err != nil {
-		h.log.WithError(err).Warnf("Invalid SSH proxy address %q, will use default port %v.",
-			cfg.ProxySSHAddr.String(), defaults.SSHProxyListenPort)
-		sshPort = strconv.Itoa(defaults.SSHProxyListenPort)
+		} else {
+			sshPortValue = sshPort
+		}
 	}
-	h.sshPort = sshPort
+
+	h.sshPort = sshPortValue
 
 	// rateLimiter is used to limit unauthenticated challenge generation for
 	// passwordless and for unauthenticated metrics.
@@ -554,7 +559,9 @@ func (h *Handler) bindMinimalEndpoints() {
 	// find is like ping, but is faster because it is optimized for servers
 	// and does not fetch the data that servers don't need, e.g.
 	// OIDC connectors and auth preferences
-	h.GET("/webapi/find", h.WithUnauthenticatedHighLimiter(h.find))
+	// Note that find is a unique endpoint that requires high request rates
+	// sometimes through NATs and thus should not be rate limited by IP.
+	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 	// Issue host credentials.
 	h.POST("/webapi/host/credentials", h.WithUnauthenticatedHighLimiter(h.hostCredentials))
 }
@@ -783,6 +790,9 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Creates a new conversation - the conversation ID is returned in the response.
 	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))
+
+	// Deletes the given conversation.
+	h.DELETE("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.deleteAssistantConversation))
 
 	// Returns all conversations for the given user.
 	h.GET("/webapi/assistant/conversations", h.WithAuth(h.getAssistantConversations))
@@ -1183,21 +1193,15 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 		return nil, trace.Wrap(err)
 	}
 
-	// TODO: This part should be removed once the plugin support is added to OSS.
+	// TODO(jakule): This part should be removed once the plugin support is added to OSS.
 	if proxyConfig.AssistEnabled {
-		// TODO(jakule): Currently assist is disabled when per-session MFA is enabled as this part is not implemented.
-		authPreference, err := h.cfg.ProxyClient.GetAuthPreference(r.Context())
-		if err != nil {
-			return webclient.AuthenticationSettings{}, trace.Wrap(err)
-		}
-		mfaRequired := authPreference.GetRequireMFAType() != types.RequireMFAType_OFF
 		enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
 		if err != nil {
 			return webclient.AuthenticationSettings{}, trace.Wrap(err)
 		}
 
-		// disable if per-session MFA is enabled and it's ok by the auth
-		proxyConfig.AssistEnabled = enabled.Enabled && !mfaRequired
+		// disable if auth doesn't support assist
+		proxyConfig.AssistEnabled = enabled.Enabled
 	}
 
 	pr, err := h.cfg.ProxyClient.Ping(r.Context())
@@ -1216,6 +1220,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	// TODO(jent,espadolini): add a time-based cache to further reduce load on this endpoint
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1395,14 +1400,34 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 		}
 	}
 
+	clusterFeatures := h.ClusterFeatures
+	// ping server to get cluster features since h.ClusterFeatures may be stale
+	pingResponse, err := h.GetProxyClient().Ping(r.Context())
+	if err != nil {
+		h.log.WithError(err).Warn("Cannot retrieve cluster features, client may receive stale features")
+	} else {
+		clusterFeatures = *pingResponse.ServerFeatures
+	}
+
 	// get tunnel address to display on cloud instances
 	tunnelPublicAddr := ""
-	if h.ClusterFeatures.GetCloud() {
-		proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
-		if err != nil {
-			h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
-		} else {
+	assistEnabled := false // TODO(jakule) remove when plugins are implemented
+	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
+	if err != nil {
+		h.log.WithError(err).Warn("Cannot retrieve ProxySettings, tunnel address won't be set in Web UI.")
+	} else {
+		if clusterFeatures.GetCloud() {
 			tunnelPublicAddr = proxyConfig.SSH.TunnelPublicAddr
+		}
+		// TODO(jakule): This part should be removed once the plugin support is added to OSS.
+		if proxyConfig.AssistEnabled {
+			enabled, err := h.cfg.ProxyClient.IsAssistEnabled(r.Context())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			// disable if auth doesn't support assist
+			assistEnabled = enabled.Enabled
 		}
 	}
 
@@ -1418,12 +1443,14 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 	webCfg := webclient.WebConfig{
 		Auth:                 authSettings,
 		CanJoinSessions:      canJoinSessions,
-		IsCloud:              h.ClusterFeatures.GetCloud(),
+		IsCloud:              clusterFeatures.GetCloud(),
 		TunnelPublicAddress:  tunnelPublicAddr,
-		RecoveryCodesEnabled: h.ClusterFeatures.GetRecoveryCodes(),
+		RecoveryCodesEnabled: clusterFeatures.GetRecoveryCodes(),
 		UI:                   h.getUIConfig(r.Context()),
-		IsDashboard:          isDashboard(h.ClusterFeatures),
-		IsUsageBasedBilling:  h.ClusterFeatures.GetIsUsageBased(),
+		IsDashboard:          isDashboard(clusterFeatures),
+		IsUsageBasedBilling:  clusterFeatures.GetIsUsageBased(),
+		AutomaticUpgrades:    clusterFeatures.GetAutomaticUpgrades(),
+		AssistEnabled:        assistEnabled,
 	}
 
 	resource, err := h.cfg.ProxyClient.GetClusterName()
@@ -2421,7 +2448,7 @@ func (h *Handler) clusterNodesGet(w http.ResponseWriter, r *http.Request, p http
 		return nil, trace.Wrap(err)
 	}
 
-	uiServers, err := ui.MakeServers(site.GetName(), page.Resources, accessChecker.Roles())
+	uiServers, err := ui.MakeServers(site.GetName(), page.Resources, accessChecker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2632,11 +2659,13 @@ func (h *Handler) siteNodeConnect(
 		return nil, trace.Wrap(err)
 	}
 
-	var sessionData session.Session
-	var displayLogin string
+	var (
+		sessionData  session.Session
+		displayLogin string
+		tracker      types.SessionTracker
+	)
 
 	clusterName := site.GetName()
-
 	if req.SessionID.IsZero() {
 		// An existing session ID was not provided so we need to create a new one.
 		sessionData, err = h.generateSession(ctx, clt, req, clusterName, sessionCtx)
@@ -2645,10 +2674,11 @@ func (h *Handler) siteNodeConnect(
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		sessionData, displayLogin, err = h.fetchExistingSession(ctx, clt, req, clusterName)
+		sessionData, tracker, err = h.fetchExistingSession(ctx, clt, req, clusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		displayLogin = tracker.GetLogin()
 	}
 
 	// If the participantMode is not specified, and the user is the one who created the session,
@@ -2685,11 +2715,14 @@ func (h *Handler) siteNodeConnect(
 		SessionData:        sessionData,
 		KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
 		ProxyHostPort:      h.ProxyHostPort(),
+		ProxyPublicAddr:    h.PublicProxyAddr(),
 		InteractiveCommand: req.InteractiveCommand,
 		Router:             h.cfg.Router,
 		TracerProvider:     h.cfg.TracerProvider,
 		ParticipantMode:    req.ParticipantMode,
 		PROXYSigner:        h.cfg.PROXYSigner,
+		Tracker:            tracker,
+		Clock:              h.clock,
 	}
 
 	term, err := NewTerminal(ctx, terminalConfig)
@@ -2877,20 +2910,20 @@ func findByHost(ctx context.Context, clt auth.ClientI, serverName string) (*host
 }
 
 // fetchExistingSession fetches an active or pending SSH session by the SessionID passed in the TerminalRequest.
-func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, string, error) {
+func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, req *TerminalRequest, siteName string) (session.Session, types.SessionTracker, error) {
 	sessionID, err := session.ParseID(req.SessionID.String())
 	if err != nil {
-		return session.Session{}, "", trace.Wrap(err)
+		return session.Session{}, nil, trace.Wrap(err)
 	}
 	h.log.Infof("Attempting to join existing session: %s\n", sessionID)
 
 	tracker, err := clt.GetSessionTracker(ctx, string(*sessionID))
 	if err != nil {
-		return session.Session{}, "", trace.Wrap(err)
+		return session.Session{}, nil, trace.Wrap(err)
 	}
 
 	if tracker.GetSessionKind() != types.SSHSessionKind || tracker.GetState() == types.SessionState_SessionStateTerminated {
-		return session.Session{}, "", trace.NotFound("SSH session %v not found", sessionID)
+		return session.Session{}, nil, trace.NotFound("SSH session %v not found", sessionID)
 	}
 
 	sessionData := trackerToLegacySession(tracker, siteName)
@@ -2900,12 +2933,8 @@ func (h *Handler) fetchExistingSession(ctx context.Context, clt auth.ClientI, re
 	// new ones themselves for auditing purposes. Otherwise, the user would
 	// fail the SSH lib username validation step.
 	sessionData.Login = teleport.SSHSessionJoinPrincipal
-	// Using the Login above will then display `-teleport-internal-join` as the
-	// username that the user is logging in as, so we need to instead show the
-	// session username in the UI.
-	displayLogin := tracker.GetLogin()
 
-	return sessionData, displayLogin, nil
+	return sessionData, tracker, nil
 }
 
 type siteSessionGenerateResponse struct {

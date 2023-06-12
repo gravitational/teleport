@@ -172,6 +172,7 @@
     "TOUCHID",
     "Tele",
     "Templating",
+    "TESTDEVICE",
     "Tmkx",
     "Toboth",
     "Traefik",
@@ -296,6 +297,7 @@
     "cqlsh",
     "createkey",
     "createnongalleryapp",
+    "createrole",
     "creds",
     "crond",
     "customizability",
@@ -491,6 +493,7 @@
     "mycommand",
     "myelastic",
     "myendpoint",
+    "mygroup",
     "myhost",
     "myinstance",
     "mynode",
@@ -559,6 +562,7 @@
     "pagerdutyapikey",
     "pagerdutyapikeyfromsecret",
     "pastable",
+    "parquetlog",
     "pasteable",
     "pgaadauth",
     "pidof",
@@ -636,6 +640,7 @@
     "serviceaccountname",
     "serviceaccounts",
     "serviceacct",
+    "servicecfg",
     "serviceid",
     "session",
     "setspn",
@@ -749,5 +754,7 @@
     "znmqk",
     "zxvf"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

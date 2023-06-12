@@ -83,6 +83,7 @@ import (
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
@@ -909,7 +910,7 @@ type kubeAccessDetails struct {
 // getKubeAccessDetails returns the allowed kube groups/users names and the cluster labels for a local kube cluster.
 func (f *Forwarder) getKubeAccessDetails(
 	kubeServers []types.KubeServer,
-	roles services.AccessChecker,
+	accessChecker services.AccessChecker,
 	kubeClusterName string,
 	sessionTTL time.Duration,
 	kubeResource *types.KubernetesResource,
@@ -928,7 +929,7 @@ func (f *Forwarder) getKubeAccessDetails(
 		// Creates a matcher that matches the cluster labels against `kubernetes_labels`
 		// defined for each user's role.
 		matchers = append(matchers,
-			services.NewKubernetesClusterLabelMatcher(labels),
+			services.NewKubernetesClusterLabelMatcher(labels, accessChecker.Traits()),
 		)
 
 		// If the kubeResource is available, append an extra matcher that validates
@@ -947,13 +948,13 @@ func (f *Forwarder) getKubeAccessDetails(
 				services.NewKubernetesResourceMatcher(*kubeResource),
 			)
 		}
-		// roles.CheckKubeGroupsAndUsers returns the accumulated kubernetes_groups
+		// accessChecker.CheckKubeGroupsAndUsers returns the accumulated kubernetes_groups
 		// and kubernetes_users that satisfy te provided matchers.
 		// When a KubernetesResourceMatcher, it will gather the Kubernetes principals
 		// whose role satisfy the the desired Kubernetes Resource.
 		// The users/groups will be forwarded to Kubernetes Cluster as Impersonation
 		// headers.
-		groups, users, err := roles.CheckKubeGroupsAndUsers(sessionTTL, false /* overrideTTL */, matchers...)
+		groups, users, err := accessChecker.CheckKubeGroupsAndUsers(sessionTTL, false /* overrideTTL */, matchers...)
 		if err != nil {
 			return kubeAccessDetails{}, trace.Wrap(err)
 		}
@@ -2230,7 +2231,7 @@ func (f *Forwarder) newClusterSessionRemoteCluster(ctx context.Context, authCtx 
 		// and the targetKubernetes cluster endpoint is determined from the identity
 		// encoded in the TLS certificate. We're setting the dial endpoint to a hardcoded
 		// `kube.teleport.cluster.local` value to indicate this is a Kubernetes proxy request
-		targetAddr:     reversetunnel.LocalKubernetes,
+		targetAddr:     reversetunnelclient.LocalKubernetes,
 		requestContext: ctx,
 	}, nil
 }
@@ -2751,7 +2752,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 			allowedKubeGroups, allowedKubeUsers, err := authCtx.Checker.CheckKubeGroupsAndUsers(
 				authCtx.sessionTTL,
 				false,
-				services.NewKubernetesClusterLabelMatcher(authCtx.kubeClusterLabels),
+				services.NewKubernetesClusterLabelMatcher(authCtx.kubeClusterLabels, authCtx.Checker.Traits()),
 				services.NewKubernetesResourceMatcher(
 					types.KubernetesResource{
 						Kind:      types.KindKubePod,

@@ -15,6 +15,7 @@
 package native
 
 import (
+	"bytes"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
@@ -23,8 +24,7 @@ import (
 	"os"
 	"os/exec"
 	"os/user"
-	"path"
-	"strings"
+	"path/filepath"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -42,15 +42,15 @@ const (
 
 // setupDeviceStateDir ensures that device state directory exists.
 // It returns the absolute path to where the attestation key can be found:
-// ~/teleport-device/attestation.key
-func setupDeviceStateDir(getHomeDir func() (string, error)) (akPath string, err error) {
-	home, err := getHomeDir()
+// $CONFIG_DIR/teleport-device/attestation.key
+func setupDeviceStateDir(getBaseDir func() (string, error)) (akPath string, err error) {
+	base, err := getBaseDir()
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
 
-	deviceStateDirPath := path.Join(home, deviceStateFolderName)
-	keyPath := path.Join(deviceStateDirPath, attestationKeyFileName)
+	deviceStateDirPath := filepath.Join(base, deviceStateFolderName)
+	keyPath := filepath.Join(deviceStateDirPath, attestationKeyFileName)
 
 	if _, err := os.Stat(deviceStateDirPath); err != nil {
 		if os.IsNotExist(err) {
@@ -68,26 +68,31 @@ func setupDeviceStateDir(getHomeDir func() (string, error)) (akPath string, err 
 }
 
 // getMarshaledEK returns the EK public key in PKIX, ASN.1 DER format.
-func getMarshaledEK(tpm *attest.TPM) ([]byte, error) {
+func getMarshaledEK(tpm *attest.TPM) (ekKey []byte, ekCert []byte, err error) {
 	eks, err := tpm.EKs()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 	if len(eks) == 0 {
 		// This is a pretty unusual case, `go-attestation` will attempt to
 		// create an EK if no EK Certs are present in the NVRAM of the TPM.
 		// Either way, it lets us catch this early in case `go-attestation`
 		// misbehaves.
-		return nil, trace.BadParameter("no endorsement keys found in tpm")
+		return nil, nil, trace.BadParameter("no endorsement keys found in tpm")
 	}
 	// The first EK returned by `go-attestation` will be an RSA based EK key or
 	// EK cert. On Windows, ECC certs may also be returned following this. At
 	// this time, we are only interested in RSA certs, so we just consider the
 	// first thing returned.
-	// TODO(noah): Marshal EK Certificate instead of key if present:
-	// https://github.com/gravitational/teleport.e/issues/1393
-	encodedEK, err := x509.MarshalPKIXPublicKey(eks[0].Public)
-	return encodedEK, trace.Wrap(err)
+	encodedEKKey, err := x509.MarshalPKIXPublicKey(eks[0].Public)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	if eks[0].Certificate == nil {
+		return encodedEKKey, nil, nil
+	}
+	return encodedEKKey, eks[0].Certificate.Raw, nil
 }
 
 // loadAK attempts to load an AK from disk. A NotFound error will be
@@ -132,7 +137,7 @@ func createAndSaveAK(
 }
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	akPath, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -143,7 +148,11 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
-	defer tpm.Close()
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
+		}
+	}()
 
 	// Try to load an existing AK in the case of re-enrollment, but, if the
 	// AK does not exist, create one and persist it.
@@ -167,7 +176,7 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		return nil, trace.Wrap(err, "collecting device data")
 	}
 
-	marshaledEK, err := getMarshaledEK(tpm)
+	ekKey, ekCert, err := getMarshaledEK(tpm)
 	if err != nil {
 		return nil, trace.Wrap(err, "marshalling ek")
 	}
@@ -177,17 +186,29 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 		return nil, trace.Wrap(err, "determining credential id")
 	}
 
+	enrollPayload := &devicepb.TPMEnrollPayload{
+		AttestationParameters: devicetrust.AttestationParametersToProto(
+			ak.AttestationParameters(),
+		),
+	}
+	switch {
+	// Prefer ekCert over ekPub
+	case ekCert != nil:
+		enrollPayload.Ek = &devicepb.TPMEnrollPayload_EkCert{
+			EkCert: ekCert,
+		}
+	case ekKey != nil:
+		enrollPayload.Ek = &devicepb.TPMEnrollPayload_EkKey{
+			EkKey: ekKey,
+		}
+	default:
+		return nil, trace.BadParameter("tpm has neither ek_key or ek_cert")
+	}
+
 	return &devicepb.EnrollDeviceInit{
 		CredentialId: credentialID,
 		DeviceData:   deviceData,
-		Tpm: &devicepb.TPMEnrollPayload{
-			Ek: &devicepb.TPMEnrollPayload_EkKey{
-				EkKey: marshaledEK,
-			},
-			AttestationParameters: devicetrust.AttestationParametersToProto(
-				ak.AttestationParameters(),
-			),
-		},
+		Tpm:          enrollPayload,
 	}, nil
 }
 
@@ -241,7 +262,7 @@ func getDeviceSerial() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return string(bytes.TrimSpace(out)), nil
 }
 
 func getReportedAssetTag() (string, error) {
@@ -257,7 +278,7 @@ func getReportedAssetTag() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return string(bytes.TrimSpace(out)), nil
 }
 
 func getDeviceModel() (string, error) {
@@ -273,7 +294,7 @@ func getDeviceModel() (string, error) {
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
-	return strings.TrimSpace(string(out)), nil
+	return string(bytes.TrimSpace(out)), nil
 }
 
 func getDeviceBaseBoardSerial() (string, error) {
@@ -290,7 +311,7 @@ func getDeviceBaseBoardSerial() (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	return strings.TrimSpace(string(out)), nil
+	return string(bytes.TrimSpace(out)), nil
 }
 
 func getOSVersion() (string, error) {
@@ -307,7 +328,7 @@ func getOSVersion() (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	return strings.TrimSpace(string(out)), nil
+	return string(bytes.TrimSpace(out)), nil
 }
 
 func getOSBuildNumber() (string, error) {
@@ -324,7 +345,7 @@ func getOSBuildNumber() (string, error) {
 		return "", trace.Wrap(err)
 	}
 
-	return strings.TrimSpace(string(out)), nil
+	return string(bytes.TrimSpace(out)), nil
 }
 
 func firstOf(strings ...string) string {
@@ -393,7 +414,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 // getDeviceCredential will only return the credential ID on windows. The
 // other information is determined server-side.
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	akPath, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -403,7 +424,11 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
-	defer tpm.Close()
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
+		}
+	}()
 
 	// Attempt to load the AK from well-known location.
 	ak, err := loadAK(tpm, akPath)
@@ -425,7 +450,7 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 func solveTPMEnrollChallenge(
 	challenge *devicepb.TPMEnrollChallenge,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
-	akPath, err := setupDeviceStateDir(os.UserHomeDir)
+	akPath, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -436,7 +461,11 @@ func solveTPMEnrollChallenge(
 	if err != nil {
 		return nil, trace.Wrap(err, "opening tpm")
 	}
-	defer tpm.Close()
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
+		}
+	}()
 
 	// Attempt to load the AK from well-known location.
 	ak, err := loadAK(tpm, akPath)
@@ -450,11 +479,7 @@ func solveTPMEnrollChallenge(
 	platformsParams, err := tpm.AttestPlatform(
 		ak,
 		challenge.AttestationNonce,
-		&attest.PlatformAttestConfig{
-			// EventLog == nil indicates that the `attest` package is
-			// responsible for providing the eventlog.
-			EventLog: nil,
-		},
+		&attest.PlatformAttestConfig{},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "attesting platform")
@@ -463,9 +488,15 @@ func solveTPMEnrollChallenge(
 	// First perform the credential activation challenge provided by the
 	// auth server.
 	log.Debug("TPM: Activating credential.")
+	encryptedCredential := devicetrust.EncryptedCredentialFromProto(
+		challenge.EncryptedCredential,
+	)
+	if encryptedCredential == nil {
+		return nil, trace.BadParameter("missing encrypted credential in challenge from server")
+	}
 	activationSolution, err := ak.ActivateCredential(
 		tpm,
-		devicetrust.EncryptedCredentialFromProto(challenge.EncryptedCredential),
+		*encryptedCredential,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "activating credential with challenge")
@@ -474,6 +505,52 @@ func solveTPMEnrollChallenge(
 	log.Debug("TPM: Enrollment challenge completed.")
 	return &devicepb.TPMEnrollChallengeResponse{
 		Solution: activationSolution,
+		PlatformParameters: devicetrust.PlatformParametersToProto(
+			platformsParams,
+		),
+	}, nil
+}
+
+func solveTPMAuthnDeviceChallenge(
+	challenge *devicepb.TPMAuthenticateDeviceChallenge,
+) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	akPath, err := setupDeviceStateDir(os.UserConfigDir)
+	if err != nil {
+		return nil, trace.Wrap(err, "setting up device state directory")
+	}
+
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err, "opening tpm")
+	}
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM")
+		}
+	}()
+
+	// Attempt to load the AK from well-known location.
+	ak, err := loadAK(tpm, akPath)
+	if err != nil {
+		return nil, trace.Wrap(err, "loading ak")
+	}
+	defer ak.Close(tpm)
+
+	// Next perform a platform attestation using the AK.
+	log.Debug("TPM: Performing platform attestation.")
+	platformsParams, err := tpm.AttestPlatform(
+		ak,
+		challenge.AttestationNonce,
+		&attest.PlatformAttestConfig{},
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "attesting platform")
+	}
+
+	log.Debug("TPM: Authenticate device challenge completed.")
+	return &devicepb.TPMAuthenticateDeviceChallengeResponse{
 		PlatformParameters: devicetrust.PlatformParametersToProto(
 			platformsParams,
 		),

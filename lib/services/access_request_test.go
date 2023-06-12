@@ -1095,6 +1095,7 @@ func TestPruneRequestRoles(t *testing.T) {
 					SearchAsRoles: []string{
 						"node-admins",
 						"node-access",
+						"node-team",
 						"kube-admins",
 						"db-admins",
 						"app-admins",
@@ -1120,6 +1121,14 @@ func TestPruneRequestRoles(t *testing.T) {
 					"owner": {"node-admins"},
 				},
 				Logins: []string{"{{internal.logins}}", "root"},
+			},
+		},
+		"node-team": {
+			// Grants root access to nodes owned by user's team via label
+			// expression.
+			Allow: types.RoleConditions{
+				NodeLabelsExpression: `contains(user.spec.traits["team"], labels["owner"])`,
+				Logins:               []string{"{{internal.logins}}", "root"},
 			},
 		},
 		"kube-admins": {
@@ -1163,6 +1172,7 @@ func TestPruneRequestRoles(t *testing.T) {
 	user := g.user(t, "response-team")
 	g.users[user].SetTraits(map[string][]string{
 		"logins": {"responder"},
+		"team":   {"response-team"},
 	})
 
 	nodeDesc := []struct {
@@ -1179,6 +1189,12 @@ func TestPruneRequestRoles(t *testing.T) {
 			name: "admins-node-2",
 			labels: map[string]string{
 				"owner": "node-admins",
+			},
+		},
+		{
+			name: "responders-node",
+			labels: map[string]string{
+				"owner": "response-team",
 			},
 		},
 		{
@@ -1239,7 +1255,6 @@ func TestPruneRequestRoles(t *testing.T) {
 		desc               string
 		requestResourceIDs []types.ResourceID
 		loginHint          string
-		userTraits         map[string][]string
 		expectRoles        []string
 		expectError        bool
 	}{
@@ -1255,6 +1270,17 @@ func TestPruneRequestRoles(t *testing.T) {
 			// Without the login hint, all roles granting access will be
 			// requested.
 			expectRoles: []string{"node-admins", "node-access"},
+		},
+		{
+			desc: "label expression role",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "responders-node",
+				},
+			},
+			expectRoles: []string{"node-team", "node-access"},
 		},
 		{
 			desc: "user login hint",
@@ -1404,7 +1430,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			},
 			// Request for foreign resource should request all available roles,
 			// we don't know which one is necessary
-			expectRoles: []string{"node-access", "node-admins", "kube-admins", "db-admins", "app-admins", "windows-admins", "empty"},
+			expectRoles: []string{"node-access", "node-admins", "node-team", "kube-admins", "db-admins", "app-admins", "windows-admins", "empty"},
 		},
 	}
 	for _, tc := range testCases {
@@ -1606,6 +1632,116 @@ func TestSessionTTL(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAutoRequest(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	empty, err := types.NewRole("empty", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	promptRole, err := types.NewRole("prompt", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestPrompt: "test prompt",
+		},
+	})
+	require.NoError(t, err)
+
+	optionalRole, err := types.NewRole("optional", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestAccess: types.RequestStrategyOptional,
+		},
+	})
+	require.NoError(t, err)
+
+	reasonRole, err := types.NewRole("reason", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestAccess: types.RequestStrategyReason,
+		},
+	})
+	require.NoError(t, err)
+
+	alwaysRole, err := types.NewRole("always", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestAccess: types.RequestStrategyAlways,
+		},
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		name      string
+		roles     []types.Role
+		assertion func(t *testing.T, validator *RequestValidator)
+	}{
+		{
+			name: "no roles",
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.False(t, validator.autoRequest)
+				require.Empty(t, validator.prompt)
+			},
+		},
+		{
+			name:  "with prompt",
+			roles: []types.Role{empty, optionalRole, promptRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.False(t, validator.autoRequest)
+				require.Equal(t, "test prompt", validator.prompt)
+			},
+		},
+		{
+			name:  "with auto request",
+			roles: []types.Role{alwaysRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.True(t, validator.autoRequest)
+				require.Empty(t, validator.prompt)
+			},
+		},
+		{
+			name:  "with prompt and auto request",
+			roles: []types.Role{promptRole, alwaysRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.True(t, validator.autoRequest)
+				require.Equal(t, "test prompt", validator.prompt)
+			},
+		},
+		{
+			name:  "with reason and auto prompt",
+			roles: []types.Role{reasonRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.True(t, validator.requireReason)
+				require.True(t, validator.autoRequest)
+				require.Empty(t, validator.prompt)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		user, err := types.NewUser("foo")
+		require.NoError(t, err)
+
+		getter := &mockGetter{
+			users: make(map[string]types.User),
+			roles: make(map[string]types.Role),
+		}
+
+		for _, r := range test.roles {
+			getter.roles[r.GetName()] = r
+			user.AddRole(r.GetName())
+		}
+
+		getter.users[user.GetName()] = user
+
+		validator, err := NewRequestValidator(context.Background(), clock, getter, user.GetName(), ExpandVars(true))
+		require.NoError(t, err)
+		test.assertion(t, &validator)
+	}
+
 }
 
 type mockClusterGetter struct {

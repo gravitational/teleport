@@ -29,6 +29,9 @@ Use the appropriate commands for your environment to install your package.
   $ source /etc/os-release
   # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
   # file for each major release of Teleport.
+  # First, get the major version from $VERSION_ID so this fetches the correct
+  # package version.
+  $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")"
   $ sudo yum install teleport
   #
@@ -107,6 +110,9 @@ Use the appropriate commands for your environment to install your package.
   $ source /etc/os-release
   # Add the Teleport YUM repository for v(=teleport.major_version=). You'll need to update this
   # file for each major release of Teleport.
+  # First, get the major version from $VERSION_ID so this fetches the correct
+  # package version.
+  $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/v(=teleport.major_version=)/teleport.repo")"
   $ sudo yum install teleport-ent
   #
@@ -207,6 +213,9 @@ Use the appropriate commands for your environment to install your package.
   # Source variables about OS version
   $ source /etc/os-release
   # Add the Teleport yum repository for cloud.
+  # First, get the major version from $VERSION_ID so this fetches the correct
+  # package version.
+  $ VERSION_ID=$(echo $VERSION_ID | grep -Eo "^[0-9]+")
   $ sudo yum-config-manager --add-repo "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/stable/cloud/teleport.repo")"
   $ sudo yum install teleport-ent
   #

@@ -89,16 +89,32 @@ This parameter is not mandatory to preserve backwards compatibility with older c
   ```yaml
   roles: kube,app,db
   ```
+  
+## `enterprise`
 
-If you specify a role here, you may also need to specify some other settings which are detailed in this reference.
+| Type     | Default value |
+|----------|---------------|
+| `bool`   | `false`       |
 
+When `enterprise` is set to `true`, the container image used for Teleport agent
+pods run by the `teleport-kube-agent` chart will be the enterprise version.
+This should be set to `true` for connecting to Teleport Cloud and self-hosted
+Teleport Enterprise clusters to use enterprise features within the Kube Agent. 
+
+`values.yaml` example:
+
+  ```yaml
+  enterprise: true
+  ```  
+  
 ## `updater`
 
 `updater` controls whether the Kube Agent Updater should be deployed alongside
 the `teleport-kube-agent`. The updater fetches the target version, validates the
-image signature, and updates the teleport deployment.
+image signature, and updates the teleport deployment. The `enterprise` value should 
+have been set to `true`.
 
-All kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
 ... default to the agent values. However, they can be overridden from the
 `updater` object. For example:
 
@@ -146,9 +162,9 @@ You must not enable this if:
 
 ### `updater.versionServer`
 
-| Type     | Default value                         | Required?                       |
-|----------|---------------------------------------|---------------------------------|
-| `string` | "https://update.gravitational.io/v1/" | Yes if not using Teleport Cloud |
+| Type     | Default value                               | Required?                       |
+|----------|---------------------------------------------|---------------------------------|
+| `string` | "https://updates.releases.teleport.dev/v1/" | Yes if not using Teleport Cloud |
 
 `updater.versionServer` is the URL of the version server the agent fetches the
 target version from. The complete version endpoint is built by concatenating

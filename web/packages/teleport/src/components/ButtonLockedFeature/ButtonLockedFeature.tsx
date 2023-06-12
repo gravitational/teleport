@@ -55,10 +55,11 @@ export function ButtonLockedFeature({
       py="12px"
       width="100%"
       style={{ textTransform: 'none' }}
+      rel="noreferrer"
       {...rest}
     >
       <Flex alignItems="center">
-        {!noIcon && <UnlockIcon />}
+        {!noIcon && <UnlockIcon data-testid="locked-icon" />}
         {children}
       </Flex>
     </ButtonPrimary>
@@ -70,7 +71,9 @@ function getParams(
   isEnterprise: boolean,
   event: CtaEvent
 ): string {
-  return `${isEnterprise ? 'e_' : ''}${version}&campaign=${CtaEvent[event]}`;
+  return `${isEnterprise ? 'e_' : ''}${version}&utm_campaign=${
+    CtaEvent[event]
+  }`;
 }
 
 const UnlockIcon = styled(Unlock)`

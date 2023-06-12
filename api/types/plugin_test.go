@@ -99,12 +99,89 @@ func TestPluginOpenAIValidation(t *testing.T) {
 				require.NoError(t, err)
 			},
 		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			plugin := NewPluginV1(Metadata{Name: "foobar"}, spec, tc.creds)
+			tc.assertErr(t, plugin.CheckAndSetDefaults())
+		})
+	}
+}
+
+func TestPluginOpsgenieValidation(t *testing.T) {
+	testCases := []struct {
+		name      string
+		settings  *PluginSpecV1_Opsgenie
+		creds     *PluginCredentialsV1
+		assertErr require.ErrorAssertionFunc
+	}{
 		{
-			name: "valid credentials (token file)",
+			name: "no settings",
+			settings: &PluginSpecV1_Opsgenie{
+				Opsgenie: nil,
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "missing opsgenie settings")
+			},
+		},
+		{
+			name: "no api endpint",
+			settings: &PluginSpecV1_Opsgenie{
+				Opsgenie: &PluginOpsgenieAccessSettings{},
+			},
+			creds: nil,
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "api endpoint url must be set")
+			},
+		},
+		{
+			name: "no static credentials",
+			settings: &PluginSpecV1_Opsgenie{
+				Opsgenie: &PluginOpsgenieAccessSettings{
+					ApiEndpoint: "https://test.opsgenie.com",
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
+			},
+		},
+		{
+			name: "static credentials labels not defined",
+			settings: &PluginSpecV1_Opsgenie{
+				Opsgenie: &PluginOpsgenieAccessSettings{
+					ApiEndpoint: "https://test.opsgenie.com",
+				},
+			},
 			creds: &PluginCredentialsV1{
-				Credentials: &PluginCredentialsV1_BearerToken{
-					BearerToken: &PluginBearerTokenCredentials{
-						TokenFile: "/var/lib/secrets/openai_token",
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{},
+					},
+				},
+			},
+			assertErr: func(t require.TestingT, err error, args ...any) {
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "labels must be specified")
+			},
+		},
+		{
+			name: "valid credentials (static credentials)",
+			settings: &PluginSpecV1_Opsgenie{
+				Opsgenie: &PluginOpsgenieAccessSettings{
+					ApiEndpoint: "https://test.opsgenie.com",
+				},
+			},
+			creds: &PluginCredentialsV1{
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
 					},
 				},
 			},
@@ -116,7 +193,9 @@ func TestPluginOpenAIValidation(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			plugin := NewPluginV1(Metadata{Name: "foobar"}, spec, tc.creds)
+			plugin := NewPluginV1(Metadata{Name: "foobar"}, PluginSpecV1{
+				Settings: tc.settings,
+			}, tc.creds)
 			tc.assertErr(t, plugin.CheckAndSetDefaults())
 		})
 	}
@@ -136,7 +215,6 @@ func TestPluginOktaValidation(t *testing.T) {
 			},
 			creds: nil,
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.Contains(t, err.Error(), "missing Okta settings")
 			},
@@ -148,7 +226,6 @@ func TestPluginOktaValidation(t *testing.T) {
 			},
 			creds: nil,
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.Contains(t, err.Error(), "org_url must be set")
 			},
@@ -162,9 +239,8 @@ func TestPluginOktaValidation(t *testing.T) {
 			},
 			creds: &PluginCredentialsV1{},
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "must be used with the bearer token credential type")
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
 			},
 		},
 		{
@@ -178,40 +254,42 @@ func TestPluginOktaValidation(t *testing.T) {
 				Credentials: &PluginCredentialsV1_Oauth2AccessToken{},
 			},
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
-				require.Contains(t, err.Error(), "must be used with the bearer token credential type")
+				require.Contains(t, err.Error(), "must be used with the static credentials ref type")
 			},
 		},
 		{
-			name: "valid credentials (token)",
+			name: "invalid credentials (static credentials)",
 			settings: &PluginSpecV1_Okta{
 				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
 			creds: &PluginCredentialsV1{
-				Credentials: &PluginCredentialsV1_BearerToken{
-					BearerToken: &PluginBearerTokenCredentials{
-						Token: "xxx-abc",
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{},
 					},
 				},
 			},
 			assertErr: func(t require.TestingT, err error, args ...any) {
-				require.NoError(t, err)
+				require.True(t, trace.IsBadParameter(err))
+				require.Contains(t, err.Error(), "labels must be specified")
 			},
 		},
 		{
-			name: "valid credentials (token file)",
+			name: "valid credentials (static credentials)",
 			settings: &PluginSpecV1_Okta{
 				Okta: &PluginOktaSettings{
 					OrgUrl: "https://test.okta.com",
 				},
 			},
 			creds: &PluginCredentialsV1{
-				Credentials: &PluginCredentialsV1_BearerToken{
-					BearerToken: &PluginBearerTokenCredentials{
-						TokenFile: "/var/lib/secrets/okta_token",
+				Credentials: &PluginCredentialsV1_StaticCredentialsRef{
+					&PluginStaticCredentialsRef{
+						Labels: map[string]string{
+							"label1": "value1",
+						},
 					},
 				},
 			},

@@ -614,7 +614,7 @@ func TestPresets(t *testing.T) {
 	})
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		presetRoleCount := 3
+		presetRoleCount := 4
 
 		roleManager := &mockRoleManager{
 			roles: make(map[string]types.Role, presetRoleCount),
@@ -634,7 +634,7 @@ func TestPresets(t *testing.T) {
 		err = createPresets(ctx, roleManager)
 		require.NoError(t, err)
 
-		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
+		require.Zero(t, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
 		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
 		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
 

@@ -251,24 +251,10 @@ async function setUpPtyProcess(
     });
   };
 
-  const removeInitCommand = () => {
-    if (doc.kind !== 'doc.terminal_shell') {
-      return;
-    }
-    // The initCommand has to be launched only once, not every time we recreate the document from
-    // the state.
-    //
-    // Imagine that someone creates a new terminal document with `rm -rf /tmp` as initCommand.
-    // We'd execute the command each time the document gets recreated from the state, which is not
-    // what the user would expect.
-    documentsService.update(doc.uri, { initCommand: undefined });
-  };
-
   // We don't need to clean up the listeners added on ptyProcess in this function. The effect which
   // calls setUpPtyProcess automatically disposes of the process on cleanup, removing all listeners.
   ptyProcess.onOpen(() => {
     refreshTitle();
-    removeInitCommand();
   });
 
   // TODO(ravicious): Refactor runOnce to not use the `n` variable. Otherwise runOnce subtracts 1
@@ -409,6 +395,5 @@ function createCmd(
     proxyHost,
     clusterName,
     cwd: doc.cwd,
-    initCommand: doc.initCommand,
   };
 }

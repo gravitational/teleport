@@ -211,6 +211,7 @@ enum CTA {
   CTA_PREMIUM_SUPPORT = 4;
   CTA_TRUSTED_DEVICES = 5;
   CTA_UPGRADE_BANNER = 6;
+  CTA_BILLING_SUMMARY = 7;
 }
 
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
@@ -316,6 +317,47 @@ message AssistCompletionEvent {
   int64 completion_tokens = 4;
 }
 
+// IntegrationEnrollKind represents the types of integration that
+// can be enrolled.
+enum IntegrationEnrollKind {
+  INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0;
+  INTEGRATION_ENROLL_KIND_SLACK = 1;
+  INTEGRATION_ENROLL_KIND_AWS_OIDC = 2;
+  INTEGRATION_ENROLL_KIND_PAGERDUTY = 3;
+  INTEGRATION_ENROLL_KIND_EMAIL = 4;
+  INTEGRATION_ENROLL_KIND_JIRA = 5;
+  INTEGRATION_ENROLL_KIND_DISCORD = 6;
+  INTEGRATION_ENROLL_KIND_MATTERMOST = 7;
+  INTEGRATION_ENROLL_KIND_MS_TEAMS = 8;
+  INTEGRATION_ENROLL_KIND_OPSGENIE = 9;
+  INTEGRATION_ENROLL_KIND_OKTA = 10;
+  INTEGRATION_ENROLL_KIND_JAMF = 11;
+}
+
+// IntegrationEnrollMetadata contains common metadata
+// for Integration Enroll related events.
+message IntegrationEnrollMetadata {
+  // id is used as a unique identifier to correlate events within the
+  // same enroll wizard run.
+  string id = 1;
+  // kind identifies what type of integration the user clicked on to enroll.
+  IntegrationEnrollKind kind = 2;
+  // user_name is anonymized.
+  string user_name = 3;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// clicks on a integration to enroll.
+message UIIntegrationEnrollStartEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// completed enrolling an integration.
+message UIIntegrationEnrollCompleteEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -349,6 +391,8 @@ message UsageEventOneOf {
     UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 28;
     UICallToActionClickEvent ui_call_to_action_click_event = 29;
     AssistCompletionEvent assist_completion = 30;
+    UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 31;
+    UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 32;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

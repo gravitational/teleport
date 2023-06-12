@@ -43,10 +43,6 @@ export function createPtyHostClient(
         request.setCwd(ptyOptions.cwd);
       }
 
-      if (ptyOptions.initCommand) {
-        request.setInitCommand(ptyOptions.initCommand);
-      }
-
       return new Promise<string>((resolve, reject) => {
         client.createPtyProcess(request, (error, response) => {
           if (error) {

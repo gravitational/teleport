@@ -14,18 +14,25 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import styled, { useTheme } from 'styled-components';
 
 import { NavLink } from 'react-router-dom';
 
 import { useHistory } from 'react-router';
 
-import { ChatIcon, PlusIcon } from 'design/SVGIcon';
+import { ChatIcon, CloseIcon, PlusIcon } from 'design/SVGIcon';
 
-import { useConversations } from 'teleport/Assist/contexts/conversations';
+import useAttempt from 'shared/hooks/useAttemptNext';
+
+import {
+  Conversation,
+  useConversations,
+} from 'teleport/Assist/contexts/conversations';
 
 import cfg from 'teleport/config';
+import api from 'teleport/services/api';
+import { DeleteConversationDialog } from 'teleport/Assist/Sidebar/DeleteConversationDialog';
 
 const Container = styled.div`
   display: flex;
@@ -43,34 +50,80 @@ const ChatHistoryTitle = styled.div`
   margin-bottom: 13px;
 `;
 
+const ChatHistoryItemButtons = styled.div`
+  position: absolute;
+  right: 5px;
+  top: 0;
+  bottom: 0;
+  display: none;
+  align-items: center;
+  justify-content: center;
+`;
+
+const ChatHistoryItemDeleteButton = styled.div`
+  cursor: pointer;
+  padding: 5px 5px 0;
+  background: ${p => p.theme.colors.spotBackground[0]};
+  border-radius: 7px;
+
+  &:hover {
+    background: ${p => p.theme.colors.error.main};
+
+    svg path {
+      stroke: white;
+    }
+  }
+`;
+
+const ChatHistoryItemTitle = styled.div`
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  padding-right: 20px;
+  opacity: 0.7;
+`;
+
+const ChatHistoryItemIcon = styled.div`
+  flex: 0 0 14px;
+  margin-right: 10px;
+  padding-top: 4px;
+  opacity: 0.7;
+`;
+
 const ChatHistoryItem = styled(NavLink)`
   display: flex;
   color: ${props => props.theme.colors.text.main};
   padding: 7px 0px 7px 30px;
+  font-weight: 300;
   line-height: 1.4;
   align-items: center;
   cursor: pointer;
   text-decoration: none;
   border-left: 4px solid transparent;
-  opacity: 0.7;
+  position: relative;
+  font-size: 14px;
+
+  &.active {
+    background: ${props => props.theme.colors.spotBackground[0]};
+    border-left-color: ${props => props.theme.colors.brand};
+    font-weight: 700;
+
+    ${ChatHistoryItemTitle}, ${ChatHistoryItemIcon} {
+      opacity: 1;
+    }
+  }
 
   &:hover {
     background: ${props => props.theme.colors.spotBackground[0]};
-  }
 
-  &.active {
-    opacity: 1;
-    background: ${props => props.theme.colors.spotBackground[0]};
-    border-left-color: ${props => props.theme.colors.brand};
-  }
-`;
+    ${ChatHistoryItemTitle} {
+      padding-right: 40px;
+    }
 
-const ChatHistoryItemTitle = styled.div`
-  font-size: 15px;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  padding-right: 20px;
+    ${ChatHistoryItemButtons} {
+      display: flex;
+    }
+  }
 `;
 
 const NewChatButton = styled.div`
@@ -95,12 +148,6 @@ const NewChatButton = styled.div`
   }
 `;
 
-const ChatHistoryItemIcon = styled.div`
-  flex: 0 0 14px;
-  margin-right: 10px;
-  padding-top: 4px;
-`;
-
 const ChatHistoryList = styled.div.attrs({ 'data-scrollbar': 'default' })`
   overflow-y: auto;
   flex: 1;
@@ -118,13 +165,38 @@ export function Sidebar() {
 
   const history = useHistory();
 
-  const { create, conversations, error } = useConversations();
+  const { attempt, run } = useAttempt();
+
+  const { create, remove, conversations, error } = useConversations();
+
+  const [conversationToDelete, setConversationToDelete] =
+    useState<Conversation>(null);
 
   const handleNewChat = useCallback(() => {
     create().then(conversationId =>
       history.push(cfg.getAssistConversationUrl(conversationId))
     );
   }, []);
+
+  const handleDeleteChat = useCallback(async (conversationId: string) => {
+    const ok = await run(async () => {
+      await api.delete(cfg.getAssistConversationHistoryUrl(conversationId));
+      await remove(conversationId);
+      history.push(cfg.routes.assistBase);
+    });
+
+    ok && setConversationToDelete(null);
+  }, []);
+
+  const handleDeleteButtonClick = useCallback(
+    (event: React.MouseEvent, conversation: Conversation) => {
+      event.preventDefault();
+      event.stopPropagation();
+
+      setConversationToDelete(conversation);
+    },
+    []
+  );
 
   const chatHistory = conversations.map(conversation => (
     <ChatHistoryItem
@@ -135,11 +207,28 @@ export function Sidebar() {
         <ChatIcon size={14} />
       </ChatHistoryItemIcon>
       <ChatHistoryItemTitle>{conversation.title}</ChatHistoryItemTitle>
+      <ChatHistoryItemButtons>
+        <ChatHistoryItemDeleteButton
+          onClick={event => handleDeleteButtonClick(event, conversation)}
+        >
+          <CloseIcon size={16} />
+        </ChatHistoryItemDeleteButton>
+      </ChatHistoryItemButtons>
     </ChatHistoryItem>
   ));
 
   return (
     <Container>
+      {conversationToDelete && (
+        <DeleteConversationDialog
+          conversationTitle={conversationToDelete.title}
+          onDelete={() => handleDeleteChat(conversationToDelete.id)}
+          onClose={() => setConversationToDelete(null)}
+          disabled={attempt.status === 'processing'}
+          error={attempt.status === 'failed' ? attempt.statusText : null}
+        />
+      )}
+
       {error && <ErrorMessage>{error}</ErrorMessage>}
 
       <ChatHistoryTitle>Chat History</ChatHistoryTitle>
