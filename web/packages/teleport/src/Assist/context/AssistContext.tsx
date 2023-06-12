@@ -135,6 +135,11 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
             conversationId,
           });
 
+          dispatch({
+            type: AssistStateActionType.SetStreaming,
+            streaming: false,
+          });
+
           break;
 
         case ServerMessageType.AssistPartialMessageEnd:
