@@ -1,7 +1,6 @@
 package cloud
 
 import (
-	"context"
 	"os"
 	"time"
 
@@ -185,13 +184,6 @@ func NewTeleport(cfg Config) (*Process, error) {
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
-		}
-
-		// Remove OpenAI plugin that was previously auto-provisioned in Cloud.
-		// TODO(justinas): remove after deploying in Cloud once.
-		// Ref: https://github.com/gravitational/teleport.e/issues/1477
-		if err := pluginsService.DeletePlugin(context.Background(), "openai-default"); err != nil && !trace.IsNotFound(err) {
-			logrus.Error(err)
 		}
 
 		process.Supervisor.RegisterFunc(teleport.ComponentPluginManager, func() error {
