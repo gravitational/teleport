@@ -97,6 +97,8 @@ type DeviceCollectedData struct {
 	// client including this field should be rejected. The server should inject
 	// this field once verifying that the submitted platform attestation during
 	// the enrollment or authentication.
+	//
+	// System managed.
 	TpmPlatformAttestation *TPMPlatformAttestation `protobuf:"bytes,14,opt,name=tpm_platform_attestation,json=tpmPlatformAttestation,proto3" json:"tpm_platform_attestation,omitempty"`
 }
 

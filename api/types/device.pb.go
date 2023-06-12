@@ -228,7 +228,7 @@ func (m *DeviceCollectedData) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_DeviceCollectedData proto.InternalMessageInfo
 
-// TPMPCR is the resource representation of TPMPCR
+// TPMPCR is the resource representation of teleport.devicetrust.v1.TPMPCR.
 type TPMPCR struct {
 	Index                int32    `protobuf:"varint,1,opt,name=index,proto3" json:"index"`
 	Digest               []byte   `protobuf:"bytes,2,opt,name=digest,proto3" json:"digest"`
@@ -271,7 +271,7 @@ func (m *TPMPCR) XXX_DiscardUnknown() {
 
 var xxx_messageInfo_TPMPCR proto.InternalMessageInfo
 
-// TPMQuote is the resource representation of teleport.devicetrust.v1.TPMQuote
+// TPMQuote is the resource representation of teleport.devicetrust.v1.TPMQuote.
 type TPMQuote struct {
 	Quote                []byte   `protobuf:"bytes,1,opt,name=quote,proto3" json:"quote"`
 	Signature            []byte   `protobuf:"bytes,2,opt,name=signature,proto3" json:"signature"`
@@ -314,7 +314,7 @@ func (m *TPMQuote) XXX_DiscardUnknown() {
 var xxx_messageInfo_TPMQuote proto.InternalMessageInfo
 
 // TPMPlatformParameters is the resource representation of
-// teleport.devicetrust.v1.TPMPlatformParameters
+// teleport.devicetrust.v1.TPMPlatformParameters.
 type TPMPlatformParameters struct {
 	Quotes               []*TPMQuote `protobuf:"bytes,1,rep,name=quotes,proto3" json:"quotes"`
 	Pcrs                 []*TPMPCR   `protobuf:"bytes,2,rep,name=pcrs,proto3" json:"pcrs"`
@@ -358,7 +358,7 @@ func (m *TPMPlatformParameters) XXX_DiscardUnknown() {
 var xxx_messageInfo_TPMPlatformParameters proto.InternalMessageInfo
 
 // TPMPlatformAttestation is the resource representation of
-// teleport.devicetrust.v1.TPMPlatformAttestation
+// teleport.devicetrust.v1.TPMPlatformAttestation.
 type TPMPlatformAttestation struct {
 	Nonce                []byte                 `protobuf:"bytes,1,opt,name=nonce,proto3" json:"nonce,omitempty"`
 	PlatformParameters   *TPMPlatformParameters `protobuf:"bytes,2,opt,name=platform_parameters,json=platformParameters,proto3" json:"platform_parameters,omitempty"`
@@ -401,7 +401,7 @@ func (m *TPMPlatformAttestation) XXX_DiscardUnknown() {
 var xxx_messageInfo_TPMPlatformAttestation proto.InternalMessageInfo
 
 // DeviceSource is the resource representation of
-// teleport.devicetrust.v1.DeviceSource.
+// teleport.devicetrust.v1.DeviceSource..
 type DeviceSource struct {
 	Name                 string   `protobuf:"bytes,1,opt,name=name,proto3" json:"name"`
 	Origin               string   `protobuf:"bytes,2,opt,name=origin,proto3" json:"origin"`

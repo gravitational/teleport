@@ -98,21 +98,21 @@ message DeviceCollectedData {
   TPMPlatformAttestation tpm_platform_attestation = 14 [(gogoproto.jsontag) = "tpm_platform_attestation,omitempty"];
 }
 
-// TPMPCR is the resource representation of TPMPCR
+// TPMPCR is the resource representation of teleport.devicetrust.v1.TPMPCR.
 message TPMPCR {
   int32 index = 1 [(gogoproto.jsontag) = "index"];
   bytes digest = 2 [(gogoproto.jsontag) = "digest"];
   uint64 digest_alg = 3 [(gogoproto.jsontag) = "digest_alg"];
 }
 
-// TPMQuote is the resource representation of teleport.devicetrust.v1.TPMQuote
+// TPMQuote is the resource representation of teleport.devicetrust.v1.TPMQuote.
 message TPMQuote {
   bytes quote = 1 [(gogoproto.jsontag) = "quote"];
   bytes signature = 2 [(gogoproto.jsontag) = "signature"];
 }
 
 // TPMPlatformParameters is the resource representation of
-// teleport.devicetrust.v1.TPMPlatformParameters
+// teleport.devicetrust.v1.TPMPlatformParameters.
 message TPMPlatformParameters {
   repeated TPMQuote quotes = 1 [(gogoproto.jsontag) = "quotes"];
   repeated TPMPCR pcrs = 2 [(gogoproto.jsontag) = "pcrs"];
@@ -120,14 +120,14 @@ message TPMPlatformParameters {
 }
 
 // TPMPlatformAttestation is the resource representation of
-// teleport.devicetrust.v1.TPMPlatformAttestation
+// teleport.devicetrust.v1.TPMPlatformAttestation.
 message TPMPlatformAttestation {
   bytes nonce = 1 [(gogoproto.jsontag) = "nonce,omitempty"];
   TPMPlatformParameters platform_parameters = 2 [(gogoproto.jsontag) = "platform_parameters,omitempty"];
 }
 
 // DeviceSource is the resource representation of
-// teleport.devicetrust.v1.DeviceSource.
+// teleport.devicetrust.v1.DeviceSource..
 message DeviceSource {
   string name = 1 [(gogoproto.jsontag) = "name"];
   string origin = 2 [(gogoproto.jsontag) = "origin"];
