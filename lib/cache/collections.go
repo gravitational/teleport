@@ -780,7 +780,7 @@ func (proxyExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bool)
 }
 
 func (proxyExecutor) upsert(ctx context.Context, cache *Cache, resource types.Server) error {
-	return cache.presenceCache.UpsertProxy(resource)
+	return cache.presenceCache.UpsertProxy(ctx, resource)
 }
 
 func (proxyExecutor) deleteAll(ctx context.Context, cache *Cache) error {

@@ -667,7 +667,7 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 
 // UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of heartbeat expiring after ttl period.
-func (c *HTTPClient) UpsertProxy(s types.Server) error {
+func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 	data, err := services.MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
@@ -675,7 +675,7 @@ func (c *HTTPClient) UpsertProxy(s types.Server) error {
 	args := &upsertServerRawReq{
 		Server: data,
 	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("proxies"), args)
+	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
 }
 
