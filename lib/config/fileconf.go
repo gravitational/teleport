@@ -1695,7 +1695,7 @@ type Databases struct {
 	// Databases is a list of databases proxied by the service.
 	Databases []*Database `yaml:"databases"`
 	// ResourceMatchers match cluster database resources.
-	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
+	ResourceMatchers []DatabaseResourceMatcher `yaml:"resources,omitempty"`
 	// AWSMatchers match AWS-hosted databases.
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 	// AzureMatchers match Azure hosted databases.
@@ -1706,6 +1706,24 @@ type Databases struct {
 type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+}
+
+// DatabaseResourceMatcher matches database resources.
+type DatabaseResourceMatcher struct {
+	// Labels match resource labels.
+	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+	// AWS contains AWS specific settings.
+	AWS ResourceMatcherAWS `yaml:"aws"`
+}
+
+// ResourceMatcherAWS contains AWS specific settings for resource matcher.
+type ResourceMatcherAWS struct {
+	// AssumeRoleARN is the AWS role to assume to before accessing the
+	// database.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS
+	// role across accounts.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // AWSMatcher matches AWS EC2 instances and AWS Databases

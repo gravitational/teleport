@@ -94,6 +94,8 @@ func (s *Server) startResourceWatcher(ctx context.Context) (*services.DatabaseWa
 		for {
 			select {
 			case databases := <-watcher.DatabasesC:
+				// Overwrite database specs like AssumeRoleARN before reconcile.
+				applyResourceMatchersToDatabases(databases, s.cfg.ResourceMatchers)
 				s.monitoredDatabases.setResources(databases)
 				select {
 				case s.reconcileCh <- struct{}{}:
@@ -347,4 +349,24 @@ func (c *cloudCredentialsChecker) isWildcardMatcher() bool {
 
 	wildcardLabels := c.resourceMatchers[0].Labels[types.Wildcard]
 	return len(wildcardLabels) == 1 && wildcardLabels[0] == types.Wildcard
+}
+
+func applyResourceMatchersToDatabases(databases types.Databases, resourceMatchers []services.ResourceMatcher) {
+	for _, database := range databases {
+		applyResourceMatcherToDatabase(database, resourceMatchers)
+	}
+}
+
+func applyResourceMatcherToDatabase(database types.Database, resourceMatchers []services.ResourceMatcher) {
+	for _, matcher := range resourceMatchers {
+		if len(matcher.Labels) == 0 || matcher.AWS.AssumeRoleARN == "" {
+			continue
+		}
+		if match, _, _ := services.MatchLabels(matcher.Labels, database.GetAllLabels()); !match {
+			continue
+		}
+
+		database.SetAWSAssumeRole(matcher.AWS.AssumeRoleARN)
+		database.SetAWSExternalID(matcher.AWS.ExternalID)
+	}
 }

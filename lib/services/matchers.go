@@ -30,6 +30,17 @@ import (
 type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels types.Labels
+	// AWS contains AWS specific settings.
+	AWS ResourceMatcherAWS
+}
+
+// ResourceMatcherAWS contains AWS specific settings.
+type ResourceMatcherAWS struct {
+	// AssumeRoleARN is the AWS role to assume for accessing the resource.
+	AssumeRoleARN string
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS
+	// role across accounts.
+	ExternalID string
 }
 
 // ResourceMatchersToTypes converts []]services.ResourceMatchers into []*types.ResourceMatcher
@@ -39,6 +50,10 @@ func ResourceMatchersToTypes(in []ResourceMatcher) []*types.DatabaseResourceMatc
 		resMatcher := resMatcher
 		out[i] = &types.DatabaseResourceMatcher{
 			Labels: &resMatcher.Labels,
+			AWS: types.ResourceMatcherAWS{
+				AssumeRoleARN: resMatcher.AWS.AssumeRoleARN,
+				ExternalID:    resMatcher.AWS.ExternalID,
+			},
 		}
 	}
 	return out
