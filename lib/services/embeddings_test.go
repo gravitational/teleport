@@ -31,21 +31,19 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
-var testEmbedding = ai.Vector32{0.1, 0.2, 0.3}
-
 // MockEmbedder returns embeddings based on the sha256 hash function. Those
 // embeddings have no semantic meaning but ensure different embedded content
 // provides different embeddings.
 type MockEmbedder struct {
 }
 
-func (m MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]ai.Vector32, error) {
-	result := make([]ai.Vector32, len(input))
+func (m MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]ai.Vector64, error) {
+	result := make([]ai.Vector64, len(input))
 	for i, text := range input {
 		hash := sha256.Sum256([]byte(text))
-		vector := make(ai.Vector32, len(hash))
+		vector := make(ai.Vector64, len(hash))
 		for j, x := range hash {
-			vector[j] = 1 / float32(int(x)+1)
+			vector[j] = 1 / float64(int(x)+1)
 		}
 		result[i] = vector
 	}
@@ -335,13 +333,13 @@ func TestNodeEmbeddingWatcherUpdate(t *testing.T) {
 
 func TestMarshallUnmarshallEmbedding(t *testing.T) {
 	// We test that float precision is above six digits
-	initial := ai.NewEmbedding(types.KindNode, "foo", ai.Vector32{0.1234567, 1, 1}, sha256.Sum256([]byte("test")))
+	initial := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0.1234567, 1, 1}, sha256.Sum256([]byte("test")))
 
-	marshalled, err := services.MarshalEmbedding(&initial)
+	marshalled, err := services.MarshalEmbedding(initial)
 	require.NoError(t, err)
 
 	final, err := services.UnmarshalEmbedding(marshalled)
 	require.NoError(t, err)
 
-	require.Equal(t, &initial, final)
+	require.Equal(t, initial, final)
 }

@@ -21,16 +21,6 @@ import (
 	"github.com/kyroy/kdtree"
 )
 
-// Embedding is a vector embedding of a resource
-type Embedding struct {
-	// Vector is the embedded vector.
-	Vector []float64
-	// Name is the name of the embedded resource, ex. node ID
-	Name string
-	// Content is the raw data of the embedded resource.
-	Content string
-}
-
 // Document is a embedding enriched with similarity score
 type Document struct {
 	Embedding
@@ -46,7 +36,7 @@ func (e *Embedding) Dimensions() int {
 // Dimension returns the value of the i-th dimension
 // Implements kdtree.Point interface
 func (e *Embedding) Dimension(i int) float64 {
-	return e.Vector[i]
+	return float64(e.Vector[i])
 }
 
 // KNNRetriever is a retriever that uses KNN to find relevant documents.
@@ -73,7 +63,7 @@ func NewKNNRetriever(points []*Embedding) (*KNNRetriever, error) {
 			return nil, trace.BadParameter("all points must have the same dimension")
 		}
 		kpoints[i] = point
-		mapping[point.Name] = point
+		mapping[point.GetName()] = point
 	}
 
 	return &KNNRetriever{
@@ -106,7 +96,7 @@ func (r *KNNRetriever) Insert(point *Embedding) error {
 		return trace.BadParameter("point has wrong dimension")
 	}
 	r.tree.Insert(point)
-	r.mapping[point.Name] = point
+	r.mapping[point.GetName()] = point
 
 	return nil
 }

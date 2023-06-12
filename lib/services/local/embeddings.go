@@ -53,13 +53,13 @@ func (e EmbeddingsService) GetEmbedding(ctx context.Context, kind, resourceID st
 }
 
 // GetEmbeddings returns all embeddings for a given kind.
-func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) ([]ai.Embedding, error) {
+func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) ([]*ai.Embedding, error) {
 	startKey := backend.Key(embeddingsPrefix, kind)
 	result, err := e.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	embeddings := make([]ai.Embedding, len(result.Items))
+	embeddings := make([]*ai.Embedding, len(result.Items))
 	var embedding *ai.Embedding
 	if len(result.Items) == 0 {
 		return nil, nil
@@ -69,7 +69,7 @@ func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) ([]ai
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		embeddings[i] = *embedding
+		embeddings[i] = embedding
 	}
 	return embeddings, nil
 }
@@ -95,11 +95,11 @@ func (e EmbeddingsService) UpsertEmbedding(ctx context.Context, embedding *ai.Em
 // already has an up-to-date embedding stored in the backend, and computes
 // a new embedding otherwise. The newly computed embedding is stored in
 // the backend.
-func (e EmbeddingsService) Embed(ctx context.Context, kind string, resources map[string][]byte) ([]ai.Embedding, error) {
+func (e EmbeddingsService) Embed(ctx context.Context, kind string, resources map[string][]byte) ([]*ai.Embedding, error) {
 
 	// Lookup if there are embeddings in the backend for this node
 	// and the hash matches
-	embeddingsFromCache := make([]ai.Embedding, 0)
+	embeddingsFromCache := make([]*ai.Embedding, 0)
 	toEmbed := make(map[string][]byte)
 	for name, data := range resources {
 		existingEmbedding, err := e.GetEmbedding(ctx, kind, name)
@@ -108,7 +108,7 @@ func (e EmbeddingsService) Embed(ctx context.Context, kind string, resources map
 		}
 		if err == nil {
 			if embeddingHashMatches(existingEmbedding, e.hash(data)) {
-				embeddingsFromCache = append(embeddingsFromCache, *existingEmbedding)
+				embeddingsFromCache = append(embeddingsFromCache, existingEmbedding)
 				continue
 			}
 		}
@@ -120,7 +120,7 @@ func (e EmbeddingsService) Embed(ctx context.Context, kind string, resources map
 	keys := make([]string, 0, len(toEmbed))
 	input := make([]string, len(toEmbed))
 
-	for key, _ := range toEmbed {
+	for key := range toEmbed {
 		keys = append(keys, key)
 	}
 
@@ -133,14 +133,14 @@ func (e EmbeddingsService) Embed(ctx context.Context, kind string, resources map
 		return nil, trace.Wrap(err)
 	}
 
-	newEmbeddings := make([]ai.Embedding, 0, len(response))
+	newEmbeddings := make([]*ai.Embedding, 0, len(response))
 	for i, vector := range response {
 		newEmbeddings = append(newEmbeddings, ai.NewEmbedding(kind, keys[i], vector, e.hash(resources[keys[i]])))
 	}
 
 	// Store the new embeddings into the backend
 	for _, embedding := range newEmbeddings {
-		_, err := e.UpsertEmbedding(ctx, &embedding)
+		_, err := e.UpsertEmbedding(ctx, embedding)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

@@ -36,5 +36,5 @@ message Embedding {
   bytes embedded_hash = 3;
 
   // Vector is the embedding itself, as provided by the model.
-  repeated float vector = 4;
+  repeated double vector = 4;
 }

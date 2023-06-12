@@ -83,8 +83,8 @@ func (e Embedding) GetEmbeddedID() string {
 }
 
 // NewEmbedding is an Embedding constructor.
-func NewEmbedding(kind, id string, vector Vector32, hash Sha256Hash) Embedding {
-	return Embedding{
+func NewEmbedding(kind, id string, vector Vector64, hash Sha256Hash) *Embedding {
+	return &Embedding{
 		Embedding: &embeddingpb.Embedding{
 			Metadata: &types.Metadata{
 				Name: kind + "/" + id,
@@ -103,22 +103,24 @@ type Embedder interface {
 	// ComputeEmbeddings computes the embeddings of multiple strings.
 	// The embedding list follows the input order (e.g. result[i] is the
 	// embedding of input[i]).
-	ComputeEmbeddings(ctx context.Context, input []string) ([]Vector32, error)
+	ComputeEmbeddings(ctx context.Context, input []string) ([]Vector64, error)
 }
 
 // ComputeEmbeddings taxes a map of nodes and calls openAI to generate
 // embeddings for those nodes. ComputeEmbeddings is responsible for
 // implementing a retry mechanism if the embedding computation is flaky.
-func (client *Client) ComputeEmbeddings(ctx context.Context, input []string) ([]Vector32, error) {
+func (client *Client) ComputeEmbeddings(ctx context.Context, input []string) ([]Vector64, error) {
 	var errors []error
-	var results []Vector32
+	var results []Vector64
 	for i := 0; maxOpenAIEmbeddingsPerRequest*i < len(input); i++ {
 		result, err := client.computeEmbeddings(ctx, paginateInput(input, i, maxOpenAIEmbeddingsPerRequest))
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 		}
 		if result != nil {
-			results = append(results, result...)
+			for _, vector := range result {
+				results = append(results, vector32to64(vector))
+			}
 		}
 	}
 	return results, trace.NewAggregate(errors...)
@@ -133,6 +135,14 @@ func paginateInput(input []string, page, pageSize int) []string {
 		end = (page + 1) * pageSize
 	}
 	return input[begin:end]
+}
+
+func vector32to64(vector32 Vector32) Vector64 {
+	vector64 := make(Vector64, len(vector32))
+	for i, dimension := range vector32 {
+		vector64[i] = float64(dimension)
+	}
+	return vector64
 }
 
 // computeEmbeddings calls the openAI embedding model with the provided input.

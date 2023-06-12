@@ -38,14 +38,14 @@ type Embeddings interface {
 	// GetEmbedding looks up a single embedding by its name in the backend.
 	GetEmbedding(ctx context.Context, kind, resourceID string) (*ai.Embedding, error)
 	// GetEmbeddings returns all embeddings for a given kind.
-	GetEmbeddings(ctx context.Context, kind string) ([]ai.Embedding, error)
+	GetEmbeddings(ctx context.Context, kind string) ([]*ai.Embedding, error)
 	// UpsertEmbedding creates or update a single ai.Embedding in the backend.
 	UpsertEmbedding(ctx context.Context, embedding *ai.Embedding) (*ai.Embedding, error)
 	// Embed takes a resource textual representation, checks if the resource
 	// already has an up-to-date embedding stored in the backend, and computes
 	// a new embedding otherwise. The newly computed embedding is stored in
 	// the backend.
-	Embed(ctx context.Context, kind string, resources map[string][]byte) ([]ai.Embedding, error)
+	Embed(ctx context.Context, kind string, resources map[string][]byte) ([]*ai.Embedding, error)
 }
 
 // PreciseJSONConfig is the fast JSON marshall/unmarshall configuration

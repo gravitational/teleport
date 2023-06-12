@@ -29,9 +29,9 @@ import (
 )
 
 var (
-	embedding1 = ai.NewEmbedding(types.KindNode, "foo", ai.Vector32{0, 0}, sha256.Sum256([]byte("test1")))
-	embedding2 = ai.NewEmbedding(types.KindNode, "bar", ai.Vector32{1, 1, 1}, sha256.Sum256([]byte("test2")))
-	embedding3 = ai.NewEmbedding(types.KindDatabase, "bar", ai.Vector32{2}, sha256.Sum256([]byte("test3")))
+	embedding1 = ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0, 0}, sha256.Sum256([]byte("test1")))
+	embedding2 = ai.NewEmbedding(types.KindNode, "bar", ai.Vector64{1, 1, 1}, sha256.Sum256([]byte("test2")))
+	embedding3 = ai.NewEmbedding(types.KindDatabase, "bar", ai.Vector64{2}, sha256.Sum256([]byte("test3")))
 )
 
 func errorIsNotFound(t require.TestingT, err error, msgAndArgs ...interface{}) {
@@ -43,7 +43,7 @@ func TestGetEmbedding(t *testing.T) {
 	// Test setup: create the backend, the service, and load all fixtures
 	ctx := context.Background()
 
-	fixtures := []ai.Embedding{embedding1, embedding2, embedding3}
+	fixtures := []*ai.Embedding{embedding1, embedding2, embedding3}
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -54,7 +54,7 @@ func TestGetEmbedding(t *testing.T) {
 	service := NewEmbeddingsService(backend, nil)
 
 	for _, fixture := range fixtures {
-		_, err := service.UpsertEmbedding(ctx, &fixture)
+		_, err := service.UpsertEmbedding(ctx, fixture)
 		require.NoError(t, err)
 	}
 
@@ -71,14 +71,14 @@ func TestGetEmbedding(t *testing.T) {
 			kind:      types.KindNode,
 			id:        "foo",
 			assertErr: require.NoError,
-			expected:  &embedding1,
+			expected:  embedding1,
 		},
 		{
 			name:      "Kind conflict",
 			kind:      types.KindDatabase,
 			id:        "bar",
 			assertErr: require.NoError,
-			expected:  &embedding3,
+			expected:  embedding3,
 		},
 		{
 			name:      "Non-existing",
@@ -105,7 +105,7 @@ func TestGetEmbeddings(t *testing.T) {
 	// Test setup: create the backend, the service, and load all fixtures
 	ctx := context.Background()
 
-	fixtures := []ai.Embedding{embedding1, embedding2, embedding3}
+	fixtures := []*ai.Embedding{embedding1, embedding2, embedding3}
 
 	backend, err := memory.New(memory.Config{
 		Context: ctx,
@@ -116,7 +116,7 @@ func TestGetEmbeddings(t *testing.T) {
 	service := NewEmbeddingsService(backend, nil)
 
 	for _, fixture := range fixtures {
-		_, err := service.UpsertEmbedding(ctx, &fixture)
+		_, err := service.UpsertEmbedding(ctx, fixture)
 		require.NoError(t, err)
 	}
 
@@ -125,19 +125,19 @@ func TestGetEmbeddings(t *testing.T) {
 		name      string
 		kind      string
 		assertErr require.ErrorAssertionFunc
-		expected  []ai.Embedding
+		expected  []*ai.Embedding
 	}{
 		{
 			name:      "Get multiple embeddings",
 			kind:      types.KindNode,
 			assertErr: require.NoError,
-			expected:  []ai.Embedding{embedding1, embedding2},
+			expected:  []*ai.Embedding{embedding1, embedding2},
 		},
 		{
 			name:      "Get single embedding",
 			kind:      types.KindDatabase,
 			assertErr: require.NoError,
-			expected:  []ai.Embedding{embedding3},
+			expected:  []*ai.Embedding{embedding3},
 		},
 		{
 			name:      "Get no embeddings",
@@ -175,18 +175,18 @@ func TestUpsertEmbedding(t *testing.T) {
 	errorIsNotFound(t, err)
 
 	// Test: add an element in the backend and check if we can retrieve it
-	embedding := ai.NewEmbedding(types.KindNode, "foo", ai.Vector32{0, 0}, sha256.Sum256([]byte("test")))
-	_, err = service.UpsertEmbedding(ctx, &embedding)
+	embedding := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0, 0}, sha256.Sum256([]byte("test")))
+	_, err = service.UpsertEmbedding(ctx, embedding)
 	require.NoError(t, err)
 	result, err := service.GetEmbedding(ctx, types.KindNode, "foo")
 	require.NoError(t, err)
-	require.Equal(t, &embedding, result)
+	require.Equal(t, embedding, result)
 
 	// Test: update the embedding and check we now retrieve the new version
-	embedding = ai.NewEmbedding(types.KindNode, "foo", ai.Vector32{1, 1, 1, 1, 1}, sha256.Sum256([]byte("test2")))
-	_, err = service.UpsertEmbedding(ctx, &embedding)
+	embedding = ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{1, 1, 1, 1, 1}, sha256.Sum256([]byte("test2")))
+	_, err = service.UpsertEmbedding(ctx, embedding)
 	require.NoError(t, err)
 	result, err = service.GetEmbedding(ctx, types.KindNode, "foo")
 	require.NoError(t, err)
-	require.Equal(t, &embedding, result)
+	require.Equal(t, embedding, result)
 }
