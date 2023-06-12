@@ -211,6 +211,7 @@ func TestNodeEmbeddingWatcherIdempotency(t *testing.T) {
 	// have been updated
 	require.Zero(t, watcher.NodeCount(true))
 	newItems, err := embeddings.GetEmbeddings(ctx, types.KindNode)
+	require.NoError(t, err)
 	require.Equal(t, len(items), len(newItems))
 
 	for _, oldEmbedding := range items {
@@ -322,6 +323,7 @@ func TestNodeEmbeddingWatcherUpdate(t *testing.T) {
 	// have been updated
 	require.Zero(t, watcher.NodeCount(true))
 	newItems, err := embeddings.GetEmbeddings(ctx, types.KindNode)
+	require.NoError(t, err)
 	require.Equal(t, len(items), len(newItems))
 
 	for _, oldEmbedding := range items {
@@ -335,10 +337,10 @@ func TestMarshallUnmarshallEmbedding(t *testing.T) {
 	// We test that float precision is above six digits
 	initial := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0.1234567, 1, 1}, sha256.Sum256([]byte("test")))
 
-	marshalled, err := services.MarshalEmbedding(initial)
+	marshaled, err := services.MarshalEmbedding(initial)
 	require.NoError(t, err)
 
-	final, err := services.UnmarshalEmbedding(marshalled)
+	final, err := services.UnmarshalEmbedding(marshaled)
 	require.NoError(t, err)
 
 	require.Equal(t, initial, final)

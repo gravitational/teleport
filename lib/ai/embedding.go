@@ -117,10 +117,8 @@ func (client *Client) ComputeEmbeddings(ctx context.Context, input []string) ([]
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
 		}
-		if result != nil {
-			for _, vector := range result {
-				results = append(results, vector32to64(vector))
-			}
+		for _, vector := range result {
+			results = append(results, vector32to64(vector))
 		}
 	}
 	return results, trace.NewAggregate(errors...)

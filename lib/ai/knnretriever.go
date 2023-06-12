@@ -36,7 +36,7 @@ func (e *Embedding) Dimensions() int {
 // Dimension returns the value of the i-th dimension
 // Implements kdtree.Point interface
 func (e *Embedding) Dimension(i int) float64 {
-	return float64(e.Vector[i])
+	return e.Vector[i]
 }
 
 // KNNRetriever is a retriever that uses KNN to find relevant documents.
