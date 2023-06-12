@@ -2520,7 +2520,7 @@ func (h *Handler) siteNodeConnect(
 	if keepAliveInterval < time.Second {
 		authAccessPoint, err := site.CachingAccessPoint()
 		if err != nil {
-			h.log.WithError(err).Debug("Unable to get auth access point.")
+			h.log.Debugf("Unable to get auth access point: %v", err)
 			return nil, trace.Wrap(err)
 		}
 
