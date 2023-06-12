@@ -170,7 +170,7 @@ class assistClient extends EventEmitterWebAuthnSender {
       return;
     }
 
-    const msg = this.proto.encodeRawMessage(data);
+    const msg = this.proto.encodeChallengeResponse(data);
     const bytearray = new Uint8Array(msg);
     this.ws.send(bytearray.buffer);
   }
