@@ -54,6 +54,6 @@ message TPMPlatformParameters {
 // the incoming state of a device (e.g during authentication) against the
 // historical state in order to detect potentially malicious actions.
 message TPMPlatformAttestation {
-  string nonce = 1;
+  bytes nonce = 1;
   TPMPlatformParameters platform_parameters = 2;
 }

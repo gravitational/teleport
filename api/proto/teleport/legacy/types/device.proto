@@ -122,7 +122,7 @@ message TPMPlatformParameters {
 // TPMPlatformAttestation is the resource representation of
 // teleport.devicetrust.v1.TPMPlatformAttestation
 message TPMPlatformAttestation {
-  string nonce = 1 [(gogoproto.jsontag) = "nonce,omitempty"];
+  bytes nonce = 1 [(gogoproto.jsontag) = "nonce,omitempty"];
   TPMPlatformParameters platform_parameters = 2 [(gogoproto.jsontag) = "platform_parameters,omitempty"];
 }
 

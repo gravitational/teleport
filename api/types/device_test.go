@@ -144,7 +144,7 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 				SystemSerialNumber:      assetTag + "-system",
 				BaseBoardSerialNumber:   assetTag + "-board",
 				TpmPlatformAttestation: &devicepb.TPMPlatformAttestation{
-					Nonce: "foo-bar-bizz",
+					Nonce: []byte("foo-bar-bizz"),
 					PlatformParameters: &devicepb.TPMPlatformParameters{
 						EventLog: []byte("dummy-event-log"),
 						Quotes: []*devicepb.TPMQuote{

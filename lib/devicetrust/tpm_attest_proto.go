@@ -100,7 +100,7 @@ func PlatformParametersFromProto(in *devicepb.TPMPlatformParameters) attest.Plat
 
 // PlatformAttestationToProto converts an *attest.PlatformParameters and nonce
 // to a PlatformAttestation proto message.
-func PlatformAttestationToProto(in *attest.PlatformParameters, nonce string) *devicepb.TPMPlatformAttestation {
+func PlatformAttestationToProto(in *attest.PlatformParameters, nonce []byte) *devicepb.TPMPlatformAttestation {
 	if in == nil {
 		return nil
 	}
@@ -113,9 +113,9 @@ func PlatformAttestationToProto(in *attest.PlatformParameters, nonce string) *de
 
 // PlatformAttestationFromProto extracts a attest.PlatformParameters and nonce
 // from a PlatformAttestation proto message.
-func PlatformAttestationFromProto(in *devicepb.TPMPlatformAttestation) (platParams attest.PlatformParameters, nonce string) {
+func PlatformAttestationFromProto(in *devicepb.TPMPlatformAttestation) (platParams attest.PlatformParameters, nonce []byte) {
 	if in == nil {
-		return attest.PlatformParameters{}, ""
+		return attest.PlatformParameters{}, nil
 	}
 	return PlatformParametersFromProto(in.PlatformParameters), in.Nonce
 }
