@@ -165,7 +165,7 @@ export function ExecuteRemoteCommandEntry(
 
       <Flex justifyContent="space-between" alignItems="center">
         <QueryInput
-          hasError={!errorMessage}
+          hasError={errorMessage !== null}
           value={query}
           onChange={handleQueryChange}
           onBlur={updateAvailableLogins}
