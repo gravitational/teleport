@@ -106,6 +106,10 @@ export const createAppConfigSchema = (platform: Platform) => {
       .max(256)
       .default(15)
       .describe('Font size for the terminal.'),
+    theme: z
+      .enum(['light', 'dark', 'system'])
+      .default('system')
+      .describe('Color theme for the app.'),
   });
 };
 
