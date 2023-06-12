@@ -37,7 +37,7 @@ func main() {
 		},
 	}
 	cmd.Flags().BoolP("debug", "d", true, "Enables debug logging.")
-	cmd.Flags().StringP("listen", "l", "0.0.0.0:80", "Listen address.")
+	cmd.Flags().StringP("listen", "l", "127.0.0.1:8080", "Listen address.")
 	cmd.Flags().StringArrayP("route", "r", nil, "Route requests with host to a specific addr. Example: example.com:443=10.0.0.20:443.")
 	if err := cmd.Execute(); err != nil {
 		logrus.Fatal(err)

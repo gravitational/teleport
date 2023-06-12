@@ -49,7 +49,7 @@ type dialConfig struct {
 	// Used by proxy's web server to make calls on behalf of connected clients.
 	proxyHeaderGetter PROXYHeaderGetter
 	// proxyURLFunc is a function used to get ProxyURL. Defaults to
-	// utils.GetProxyURL if not specified.
+	// utils.GetProxyURL if not specified. only used in testing.
 	proxyURLFunc func(dialAddr string) *url.URL
 }
 
@@ -81,6 +81,14 @@ func WithALPNConnUpgrade(alpnConnUpgradeRequired bool) DialOption {
 func WithALPNConnUpgradePing(alpnConnUpgradeWithPing bool) DialOption {
 	return func(cfg *dialProxyConfig) {
 		cfg.alpnConnUpgradeWithPing = alpnConnUpgradeWithPing
+	}
+}
+
+func withProxyURL(proxyURL *url.URL) DialProxyOption {
+	return func(cfg *dialProxyConfig) {
+		cfg.proxyURLFunc = func(_ string) *url.URL {
+			return proxyURL
+		}
 	}
 }
 
