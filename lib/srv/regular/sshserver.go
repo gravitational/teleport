@@ -344,6 +344,8 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	// Stop heart beating immediately to prevent active connections
 	// from making the server appear alive and well.
 	if s.heartbeat != nil {
+		// TODO(espadolini): figure out if it's worth making HeartbeatI.Close
+		// block until all operations have ceased
 		if err := s.heartbeat.Close(); err != nil {
 			s.Warningf("Failed to close heartbeat: %v", err)
 		}
@@ -357,7 +359,11 @@ func (s *Server) Shutdown(ctx context.Context) error {
 		// on the TTL there.
 		if s.proxyMode && services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
 			if err := s.authService.DeleteProxy(ctx, s.uuid); err != nil {
-				s.WithError(err).Warn("Failed to delete proxy heartbeat.")
+				if !trace.IsNotFound(err) {
+					s.WithError(err).Warn("Failed to delete proxy heartbeat.")
+				} else {
+					s.WithError(err).Debug("Failed to delete proxy heartbeat.")
+				}
 			}
 		}
 	}
