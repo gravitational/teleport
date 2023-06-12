@@ -59,7 +59,7 @@ Teleport CA was rotated since the last import, you will have to fetch the
 new CA using the following command, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service:
 
 ```code
-$ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=windows' > user-ca.cer
+$ curl -o user-ca.cer https://<Var name="proxy"/>/webapi/auth/export?type=windows
 ```
 
 If that doesn't help, log into the target host directly, open PowerShell and
