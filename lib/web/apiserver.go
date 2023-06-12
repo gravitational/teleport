@@ -560,7 +560,7 @@ func (h *Handler) bindMinimalEndpoints() {
 	// and does not fetch the data that servers don't need, e.g.
 	// OIDC connectors and auth preferences
 	// Note that find is a unique endpoint that requires high request rates
-	// sometimes through NAT's and thus should not be rate limited by IP.
+	// sometimes through NATs and thus should not be rate limited by IP.
 	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 	// Issue host credentials.
 	h.POST("/webapi/host/credentials", h.WithUnauthenticatedHighLimiter(h.hostCredentials))
