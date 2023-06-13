@@ -1697,8 +1697,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.4.5",
-      "major_version": "12",
+      "version": "13.1.0",
+      "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -1877,7 +1877,7 @@
     },
     {
       "source": "/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -1912,7 +1912,7 @@
     },
     {
       "source": "/preview/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -2282,7 +2282,7 @@
     },
     {
       "source": "/cloud/introduction/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -2552,7 +2552,7 @@
     },
     {
       "source": "/deploy-a-cluster/teleport-cloud/introduction/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {

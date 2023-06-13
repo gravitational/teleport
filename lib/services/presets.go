@@ -35,7 +35,7 @@ func NewPresetEditorRole() types.Role {
 	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -107,7 +107,7 @@ func NewPresetAccessRole() types.Role {
 	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -135,7 +135,7 @@ func NewPresetAccessRole() types.Role {
 				DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 					},
@@ -172,7 +172,7 @@ func NewPresetAccessRole() types.Role {
 func NewPresetAuditorRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -337,8 +337,12 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	// Labels
 	defaultLabels, ok := defaultAllowLabels()[role.GetName()]
 	if ok {
-		if len(defaultLabels.DatabaseServiceLabels) > 0 && len(role.GetDatabaseServiceLabels(types.Allow)) == 0 && len(role.GetDatabaseServiceLabels(types.Deny)) == 0 {
-			role.SetDatabaseServiceLabels(types.Allow, defaultLabels.DatabaseServiceLabels)
+		if unset, err := labelMatchersUnset(role, types.KindDatabaseService); err != nil {
+			return nil, trace.Wrap(err)
+		} else if unset && len(defaultLabels.DatabaseServiceLabels) > 0 {
+			role.SetLabelMatchers(types.Allow, types.KindDatabaseService, types.LabelMatchers{
+				Labels: defaultLabels.DatabaseServiceLabels,
+			})
 			changed = true
 		}
 		if len(defaultLabels.DatabaseRoles) > 0 && len(role.GetDatabaseRoles(types.Allow)) == 0 {
@@ -370,6 +374,19 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	}
 
 	return role, nil
+}
+
+func labelMatchersUnset(role types.Role, kind string) (bool, error) {
+	for _, cond := range []types.RoleConditionType{types.Allow, types.Deny} {
+		labelMatchers, err := role.GetLabelMatchers(cond, kind)
+		if err != nil {
+			return false, trace.Wrap(err)
+		}
+		if !labelMatchers.Empty() {
+			return false, nil
+		}
+	}
+	return true, nil
 }
 
 func resourceBelongsToRules(rules []types.Rule, resources []string) bool {
