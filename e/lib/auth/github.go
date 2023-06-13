@@ -114,7 +114,7 @@ func UnmarshalGithubConnectorE(bytes []byte) (types.GithubConnector, error) {
 		return c, nil
 	}
 	return nil, trace.BadParameter(
-		"Github connector resource version %q is not supported", h.Version)
+		"GitHub connector resource version %q is not supported", h.Version)
 }
 
 // MarshalGithubConnectorE marshals the GithubConnectorE resource to JSON.

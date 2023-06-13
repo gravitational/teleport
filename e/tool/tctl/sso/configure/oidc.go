@@ -78,8 +78,8 @@ var oidcPresets = oidcPresetList([]oidcPreset{
 
 	{
 		name:        "gitlab",
-		description: "Gitlab",
-		display:     "Gitlab",
+		description: "GitLab",
+		display:     "GitLab",
 		issuerURL:   "https://gitlab.com",
 		modifySpec: func(logger *logrus.Entry, spec *types.OIDCConnectorSpecV3) error {
 			switch spec.Prompt {
@@ -88,7 +88,7 @@ var oidcPresets = oidcPresetList([]oidcPreset{
 			case "":
 				spec.Prompt = "none"
 			default:
-				logger.Warnf("Gitlab requires the 'prompt' parameter to be set to 'none', but %q found", spec.Prompt)
+				logger.Warnf("GitLab requires the 'prompt' parameter to be set to 'none', but %q found", spec.Prompt)
 			}
 
 			return nil
