@@ -245,7 +245,25 @@ After logging in successfully, you will see the following:
 
 You will receive the details of your user session within the CLI:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["oss"]}>
+
+```code
+> Profile URL:        https://tele.example.com:443
+  Logged in as:       jeff
+  Cluster:            tele.example.com
+  Roles:              access
+  Logins:             jeff, ubuntu, debian, -teleport-internal-join
+  Kubernetes:         enabled
+  Kubernetes users:   dev
+  Kubernetes groups:  developer
+  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
+  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</ScopedBlock>
+
+
+<ScopedBlock scope={["enterprise"]}>
 
 ```code
 > Profile URL:        https://tele.example.com:443
