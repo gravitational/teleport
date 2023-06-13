@@ -2135,8 +2135,7 @@ pub struct DeviceIoRequest {
 }
 
 impl DeviceIoRequest {
-    // Used in tests
-    #[allow(dead_code)]
+    #[cfg(test)]
     fn new(
         device_id: u32,
         file_id: u32,
@@ -2216,8 +2215,7 @@ struct DeviceControlRequest {
 }
 
 impl DeviceControlRequest {
-    // Used in tests
-    #[allow(dead_code)]
+    #[cfg(test)]
     fn new(
         header: DeviceIoRequest,
         output_buffer_length: u32,
