@@ -182,6 +182,10 @@
           
             installPhase = ''
               install -Dm755 -t $out/bin grpc_node_plugin
+
+              cp grpc_node_plugin grpc_tools_node_protoc_plugin
+              install -Dm755 -t $out/bin grpc_tools_node_protoc_plugin
+              
               install -Dm755 -t $out/bin deps/protobuf/protoc
             '';
           };
