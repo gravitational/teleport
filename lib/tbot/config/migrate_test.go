@@ -794,6 +794,79 @@ destinations:
 				},
 			},
 		},
+		{
+			name: "real world 2",
+			input: `
+storage:
+    directory:
+        path: /var/tmp/teleport/bot
+        symlinks: insecure
+
+destinations:
+    - directory:
+          path: /var/tmp/machine-id
+          symlinks: insecure
+`,
+			wantOutput: &BotConfig{
+				Version: V2,
+				Storage: &StorageConfig{
+					Destination: &DestinationDirectory{
+						Path:     "/var/tmp/teleport/bot",
+						Symlinks: botfs.SymlinksInsecure,
+					},
+				},
+				Outputs: Outputs{
+					&IdentityOutput{
+						Destination: &DestinationDirectory{
+							Path:     "/var/tmp/machine-id",
+							Symlinks: botfs.SymlinksInsecure,
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "real world 3",
+			input: `
+Machine ID config created at /etc/tbot.yaml:
+auth_server: teleportvm.example.com:443
+onboarding:
+  token: redacted
+storage:
+  directory: /var/lib/teleport/bot
+
+destinations:
+  - directory: /opt/machine-id
+    roles: [access]
+    database:
+      service: self-hosted
+      username: alice
+      database: Payroll
+`,
+			wantOutput: &BotConfig{
+				Version:    V2,
+				AuthServer: "teleportvm.example.com:443",
+				Onboarding: OnboardingConfig{
+					TokenValue: "redacted",
+				},
+				Storage: &StorageConfig{
+					Destination: &DestinationDirectory{
+						Path: "/var/lib/teleport/bot",
+					},
+				},
+				Outputs: Outputs{
+					&DatabaseOutput{
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
+						},
+						Roles:    []string{"access"},
+						Service:  "self-hosted",
+						Username: "alice",
+						Database: "Payroll",
+					},
+				},
+			},
+		},
 		// Error cases
 		{
 			name:      "storage config with no destination",
