@@ -410,7 +410,7 @@ func (s *Service) Shutdown() error {
 	}
 
 	s.stopChCloser.Do(func() { close(s.stopCh) })
-	s.syncStoppedChCloser.Do(func() { close(s.stopCh) })
+	s.syncStoppedChCloser.Do(func() { close(s.syncStoppedCh) })
 
 	s.heartbeatsMu.Lock()
 	defer s.heartbeatsMu.Unlock()
