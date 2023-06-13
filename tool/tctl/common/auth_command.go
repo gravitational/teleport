@@ -350,6 +350,7 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 	}
 	switch {
 	case a.genUser != "" && a.genHost == "":
+		log.Info("Generating credentials to allow a machine access to Teleport? We recommend Teleport's Machine ID for this. Find out more at https://goteleport.com/r/machineid-tip")
 		return a.generateUserKeys(ctx, clusterAPI)
 	case a.genUser == "" && a.genHost != "":
 		return a.generateHostKeys(ctx, clusterAPI)
