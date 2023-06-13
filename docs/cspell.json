@@ -643,6 +643,7 @@
     "serviceaccountname",
     "serviceaccounts",
     "serviceacct",
+    "servicecfg",
     "serviceid",
     "setspn",
     "sharded",
