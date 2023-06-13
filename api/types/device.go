@@ -441,7 +441,8 @@ func ResourceDeviceAttestationTypeToString(
 ) string {
 	switch attestationType {
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED:
-		return "unspecified"
+		// Default to empty, so it doesn't show in non-TPM devices.
+		return ""
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB:
 		return "tpm_ekpub"
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT:
