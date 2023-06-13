@@ -59,12 +59,11 @@ impl Client {
     }
 
     // ioctl handles messages coming from the RDP server over the RDPDR channel.
-    // TODO(isaiah): do we ever return None here? If not, we should change the return type.
     pub(super) fn ioctl(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         debug!("got IoctlCode {:?}", &ioctl.io_control_code);
         // Note: this is an incomplete implementation of the scard API.
         // It's the bare minimum needed to make RDP authentication using a smartcard work.
@@ -111,57 +110,57 @@ impl Client {
         &self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = ScardAccessStartedEvent_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_establish_context(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = EstablishContext_Call::decode(input)?;
         debug!("got {:?}", req);
         let ctx = self.contexts.establish();
         let resp = EstablishContext_Return::new(ReturnCode::SCARD_S_SUCCESS, ctx);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_release_context(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         self.contexts.release(req.context.value);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_cancel(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let mut responses = vec![];
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
@@ -186,47 +185,47 @@ impl Client {
             Box::new(Long_Return::new(ReturnCode::SCARD_S_SUCCESS)),
         ));
         debug!("sending {:?}", responses);
-        Ok(Some(responses))
+        Ok(responses)
     }
 
     fn handle_is_valid_context(
         &self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = Context_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_list_readers(
         &self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = ListReaders_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp =
             ListReaders_Return::new(ReturnCode::SCARD_S_SUCCESS, vec!["Teleport".to_string()]);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_get_status_change(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = GetStatusChange_Call::decode(input)?;
         let timeout = req.timeout;
         let context_value = req.context.value;
@@ -264,14 +263,14 @@ impl Client {
                     Box::new(resp),
                 ))?;
             debug!("blocking GetStatusChange call indefinitely (since our status never changes) until we receive an SCARD_IOCTL_CANCEL");
-            Ok(None)
+            Ok(vec![])
         } else {
             debug!("sending {:?}", resp);
-            Ok(Some(vec![DeviceControlResponse::new(
+            Ok(vec![DeviceControlResponse::new(
                 ioctl,
                 NTSTATUS::STATUS_SUCCESS,
                 Box::new(resp),
-            )]))
+            )])
         }
     }
 
@@ -279,7 +278,7 @@ impl Client {
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -297,18 +296,18 @@ impl Client {
 
         let resp = Connect_Return::new(ReturnCode::SCARD_S_SUCCESS, handle);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_disconnect(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -319,43 +318,43 @@ impl Client {
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_begin_transaction(
         &self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_end_transaction(
         &self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = HCardAndDisposition_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_status(
@@ -363,7 +362,7 @@ impl Client {
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
         enc: StringEncoding,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = Status_Call::decode(input)?;
         debug!("got {:?}", req);
         let resp = Status_Return::new(
@@ -372,18 +371,18 @@ impl Client {
             enc,
         );
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_transmit(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = Transmit_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -408,18 +407,18 @@ impl Client {
 
         let resp = Transmit_Return::new(ReturnCode::SCARD_S_SUCCESS, resp.encode());
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_get_device_type_id(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = GetDeviceTypeId_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -430,18 +429,18 @@ impl Client {
 
         let resp = GetDeviceTypeId_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_read_cache(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = ReadCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -453,18 +452,18 @@ impl Client {
 
         let resp = ReadCache_Return::new(val);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_write_cache(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = WriteCache_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -475,18 +474,18 @@ impl Client {
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_get_reader_icon(
         &mut self,
         ioctl: &DeviceControlRequest,
         input: &mut Payload,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         let req = GetReaderIcon_Call::decode(input)?;
         debug!("got {:?}", req);
 
@@ -497,26 +496,26 @@ impl Client {
 
         let resp = GetReaderIcon_Return::new(ReturnCode::SCARD_E_UNSUPPORTED_FEATURE);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 
     fn handle_unimplemented_ioctl(
         &self,
         ioctl: &DeviceControlRequest,
         code: IoctlCode,
-    ) -> RdpResult<Option<Vec<DeviceControlResponse>>> {
+    ) -> RdpResult<Vec<DeviceControlResponse>> {
         warn!("unimplemented IOCTL: {:?}", code);
         let resp = Long_Return::new(ReturnCode::SCARD_F_INTERNAL_ERROR);
         debug!("sending {:?}", resp);
-        Ok(Some(vec![DeviceControlResponse::new(
+        Ok(vec![DeviceControlResponse::new(
             ioctl,
             NTSTATUS::STATUS_SUCCESS,
             Box::new(resp),
-        )]))
+        )])
     }
 }
 
@@ -2634,7 +2633,6 @@ mod tests {
                 ),
                 &mut to_payload(payload),
             )
-            .unwrap()
             .unwrap();
         assert_eq!(
             expected.encode().unwrap(),
