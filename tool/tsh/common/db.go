@@ -82,7 +82,7 @@ func onListDatabases(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	roleSet, err := fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
+	accessChecker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
 	if err != nil {
 		log.Debugf("Failed to fetch user roles: %v.", err)
 	}
@@ -93,28 +93,25 @@ func onListDatabases(cf *CLIConf) error {
 	}
 
 	sort.Sort(types.Databases(databases))
-	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, roleSet, cf.Format, cf.Verbose))
+	return trace.Wrap(showDatabases(cf.Stdout(), cf.SiteName, databases, activeDatabases, accessChecker, cf.Format, cf.Verbose))
 }
 
-func fetchRoleSetForCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.RoleSet, error) {
+func accessCheckerForRemoteCluster(ctx context.Context, profile *client.ProfileStatus, proxy *client.ProxyClient, clusterName string) (services.AccessChecker, error) {
 	cluster, err := proxy.ConnectToCluster(ctx, clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer cluster.Close()
 
-	roleSet, err := services.FetchAllClusterRoles(ctx, cluster, profile.Roles, profile.Traits)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return roleSet, nil
+	accessChecker, err := services.NewAccessCheckerForRemoteCluster(ctx, profile.AccessInfo(), clusterName, cluster)
+	return accessChecker, trace.Wrap(err)
 }
 
 type databaseListing struct {
-	Proxy    string           `json:"proxy"`
-	Cluster  string           `json:"cluster"`
-	roleSet  services.RoleSet `json:"-"`
-	Database types.Database   `json:"database"`
+	Proxy         string                 `json:"proxy"`
+	Cluster       string                 `json:"cluster"`
+	accessChecker services.AccessChecker `json:"-"`
+	Database      types.Database         `json:"database"`
 }
 
 type databaseListings []databaseListing
@@ -188,7 +185,7 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 				return nil
 			}
 
-			roleSet, err := fetchRoleSetForCluster(ctx, cluster.profile, cluster.proxy, cluster.name)
+			accessChecker, err := accessCheckerForRemoteCluster(ctx, cluster.profile, cluster.proxy, cluster.name)
 			if err != nil {
 				log.Debugf("Failed to fetch user roles: %v.", err)
 			}
@@ -196,10 +193,10 @@ func listDatabasesAllClusters(cf *CLIConf) error {
 			localDBListings := make(databaseListings, 0, len(databases))
 			for _, database := range databases {
 				localDBListings = append(localDBListings, databaseListing{
-					Proxy:    cluster.profile.ProxyURL.Host,
-					Cluster:  cluster.name,
-					roleSet:  roleSet,
-					Database: database,
+					Proxy:         cluster.profile.ProxyURL.Host,
+					Cluster:       cluster.name,
+					accessChecker: accessChecker,
+					Database:      database,
 				})
 			}
 			mu.Lock()
@@ -895,13 +892,13 @@ func newDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteTo
 	}
 	defer proxy.Close()
 
-	roleSet, err := fetchRoleSetForCluster(cf.Context, profile, proxy, tc.SiteName)
+	checker, err := accessCheckerForRemoteCluster(cf.Context, profile, proxy, tc.SiteName)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	if needDBUser {
-		dbUser, err := getDefaultDBUser(db, roleSet)
+		dbUser, err := getDefaultDBUser(db, checker)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -909,7 +906,7 @@ func newDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteTo
 		dbInfo.Username = dbUser
 	}
 	if needDBName {
-		dbName, err := getDefaultDBName(db, roleSet)
+		dbName, err := getDefaultDBName(db, checker)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -923,7 +920,7 @@ func newDatabaseInfo(cf *CLIConf, tc *client.TeleportClient, route tlsca.RouteTo
 // getDefaultDBUser enumerates the allowed database users for a given database
 // and selects one if it is the only non-wildcard database user allowed.
 // Returns an error if there are no allowed database users or more than one.
-func getDefaultDBUser(db types.Database, roleSet services.RoleSet) (string, error) {
+func getDefaultDBUser(db types.Database, checker services.AccessChecker) (string, error) {
 	var extraUsers []string
 	if db.GetProtocol() == defaults.ProtocolRedis {
 		// Check for the Redis default username "default" in the same way as
@@ -932,7 +929,7 @@ func getDefaultDBUser(db types.Database, roleSet services.RoleSet) (string, erro
 		// ref: https://redis.io/commands/auth
 		extraUsers = append(extraUsers, defaults.DefaultRedisUsername)
 	}
-	dbUsers := roleSet.EnumerateDatabaseUsers(db, extraUsers...)
+	dbUsers := checker.EnumerateDatabaseUsers(db, extraUsers...)
 	allowed := dbUsers.Allowed()
 	if len(allowed) == 1 {
 		return allowed[0], nil
@@ -960,8 +957,8 @@ func getDefaultDBUser(db types.Database, roleSet services.RoleSet) (string, erro
 // getDefaultDBName enumerates the allowed database names for a given database
 // and selects one if it is the only non-wildcard database name allowed.
 // Returns an error if there are no allowed database names or more than one.
-func getDefaultDBName(db types.Database, roleSet services.RoleSet) (string, error) {
-	dbNames := roleSet.EnumerateDatabaseNames(db)
+func getDefaultDBName(db types.Database, checker services.AccessChecker) (string, error) {
+	dbNames := checker.EnumerateDatabaseNames(db)
 	allowed := dbNames.Allowed()
 	if len(allowed) == 1 {
 		return allowed[0], nil

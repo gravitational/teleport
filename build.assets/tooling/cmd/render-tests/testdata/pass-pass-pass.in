@@ -1,0 +1,29 @@
+{"Time":"2023-05-24T17:58:42.948659276+10:00","Action":"start","Package":"example.com/package"}
+{"Time":"2023-05-24T17:58:42.948757054+10:00","Action":"run","Package":"example.com/package","Test":"TestParseHostPort"}
+{"Time":"2023-05-24T17:58:42.948764178+10:00","Action":"output","Package":"example.com/package","Test":"TestParseHostPort","Output":"=== RUN   TestParseHostPort\n"}
+{"Time":"2023-05-24T17:58:42.948771791+10:00","Action":"output","Package":"example.com/package","Test":"TestParseHostPort","Output":"=== PAUSE TestParseHostPort\n"}
+{"Time":"2023-05-24T17:58:42.948778565+10:00","Action":"pause","Package":"example.com/package","Test":"TestParseHostPort"}
+{"Time":"2023-05-24T17:58:42.9487852+10:00","Action":"run","Package":"example.com/package","Test":"TestEmpty"}
+{"Time":"2023-05-24T17:58:42.948791416+10:00","Action":"output","Package":"example.com/package","Test":"TestEmpty","Output":"=== RUN   TestEmpty\n"}
+{"Time":"2023-05-24T17:58:42.948796654+10:00","Action":"output","Package":"example.com/package","Test":"TestEmpty","Output":"=== PAUSE TestEmpty\n"}
+{"Time":"2023-05-24T17:58:42.948801334+10:00","Action":"pause","Package":"example.com/package","Test":"TestEmpty"}
+{"Time":"2023-05-24T17:58:42.948806641+10:00","Action":"run","Package":"example.com/package","Test":"TestParse"}
+{"Time":"2023-05-24T17:58:42.94881153+10:00","Action":"output","Package":"example.com/package","Test":"TestParse","Output":"=== RUN   TestParse\n"}
+{"Time":"2023-05-24T17:58:42.948816699+10:00","Action":"output","Package":"example.com/package","Test":"TestParse","Output":"=== PAUSE TestParse\n"}
+{"Time":"2023-05-24T17:58:42.948821448+10:00","Action":"pause","Package":"example.com/package","Test":"TestParse"}
+{"Time":"2023-05-24T17:58:42.948826197+10:00","Action":"cont","Package":"example.com/package","Test":"TestParseHostPort"}
+{"Time":"2023-05-24T17:58:42.948831365+10:00","Action":"output","Package":"example.com/package","Test":"TestParseHostPort","Output":"=== CONT  TestParseHostPort\n"}
+{"Time":"2023-05-24T17:58:42.948836184+10:00","Action":"cont","Package":"example.com/package","Test":"TestParse"}
+{"Time":"2023-05-24T17:58:42.948841003+10:00","Action":"output","Package":"example.com/package","Test":"TestParse","Output":"=== CONT  TestParse\n"}
+{"Time":"2023-05-24T17:58:42.948845822+10:00","Action":"cont","Package":"example.com/package","Test":"TestEmpty"}
+{"Time":"2023-05-24T17:58:42.948850083+10:00","Action":"output","Package":"example.com/package","Test":"TestEmpty","Output":"=== CONT  TestEmpty\n"}
+{"Time":"2023-05-24T17:58:42.948857695+10:00","Action":"output","Package":"example.com/package","Test":"TestParseHostPort","Output":"--- PASS: TestParseHostPort (0.00s)\n"}
+{"Time":"2023-05-24T17:58:42.948866705+10:00","Action":"pass","Package":"example.com/package","Test":"TestParseHostPort","Elapsed":0}
+{"Time":"2023-05-24T17:58:42.948874457+10:00","Action":"output","Package":"example.com/package","Test":"TestParse","Output":"--- PASS: TestParse (0.00s)\n"}
+{"Time":"2023-05-24T17:58:42.948880184+10:00","Action":"pass","Package":"example.com/package","Test":"TestParse","Elapsed":0}
+{"Time":"2023-05-24T17:58:42.948885283+10:00","Action":"output","Package":"example.com/package","Test":"TestEmpty","Output":"--- PASS: TestEmpty (0.00s)\n"}
+{"Time":"2023-05-24T17:58:42.948890032+10:00","Action":"pass","Package":"example.com/package","Test":"TestEmpty","Elapsed":0}
+{"Time":"2023-05-24T17:58:42.948894851+10:00","Action":"output","Package":"example.com/package","Output":"PASS\n"}
+{"Time":"2023-05-24T17:58:42.948904+10:00","Action":"output","Package":"example.com/package","Output":"\texample.com/package\tcoverage: 3.3% of statements\n"}
+{"Time":"2023-05-24T17:58:42.948909797+10:00","Action":"output","Package":"example.com/package","Output":"ok  \texample.com/package\t\tcoverage: 3.3% of statements\n"}
+{"Time":"2023-05-24T17:58:42.948917759+10:00","Action":"pass","Package":"example.com/package","Elapsed":0}

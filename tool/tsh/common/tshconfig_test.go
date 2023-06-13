@@ -439,7 +439,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			}},
 		},
 		{
-			name: "match does not overwrite user specified cluster or proxy jump",
+			name: "match does not overwrite user specified proxy jump",
 			InConf: newCLIConf(func(conf *CLIConf) {
 				conf.UserHost = "node-1.us.example.com:3022"
 				conf.SiteName = "specified.cluster"
@@ -447,7 +447,7 @@ func TestProxyTemplatesMakeClient(t *testing.T) {
 			}),
 			outHost:    "node-1",
 			outPort:    4022,
-			outCluster: "specified.cluster",
+			outCluster: "us.example.com",
 			outJumpHosts: []utils.JumpHost{{
 				Addr: utils.NetAddr{
 					Addr:        "specified.proxy.com:443",

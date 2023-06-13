@@ -19,15 +19,19 @@ TEST_KUBE ?=
 OS ?= linux
 ARCH ?= amd64
 
+# Sync with devbox.json.
 GOLANG_VERSION ?= go1.20.4
 
+# Sync with devbox.json.
 NODE_VERSION ?= 16.18.1
 
+# Sync any version changes below with devbox.json.
 # run lint-rust check locally before merging code after you bump this
 RUST_VERSION ?= 1.68.0
 LIBBPF_VERSION ?= 1.0.1
 LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
+# Sync any version changes below with devbox.json.
 # Protogen related versions.
 BUF_VERSION ?= 1.20.0
 # Keep in sync with api/proto/buf.yaml (and buf.lock)
@@ -67,9 +71,17 @@ ifeq ("$(DRONE)","true")
 CI := true
 endif
 ifeq ("$(CI)","true")
+# The UID/GID of the runner user on ARC runners is 1001, not 1000
+# This var is currently only set for ARC runners via https://github.com/gravitational/cloud-terraform/pull/2473
+ifeq ("$(CI_SYSTEM)","ARC")
+UID := 1001
+GID := 1001
+NOROOT := -u 1001:1001
+else
 UID := 1000
 GID := 1000
 NOROOT := -u 1000:1000
+endif
 # if running in CI and the GOCACHE environment variable is not set, set it to a sensible default
 ifeq ("$(GOCACHE)",)
 GOCACHE := /go/cache
