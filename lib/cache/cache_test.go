@@ -1730,11 +1730,13 @@ func TestNodes(t *testing.T) {
 func TestProxies(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
 	server := suite.NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
-	err := p.presenceS.UpsertProxy(server)
+	err := p.presenceS.UpsertProxy(ctx, server)
 	require.NoError(t, err)
 
 	out, err := p.presenceS.GetProxies()
@@ -1759,7 +1761,7 @@ func TestProxies(t *testing.T) {
 	// update srv parameters
 	srv.SetAddr("127.0.0.2:2033")
 
-	err = p.presenceS.UpsertProxy(srv)
+	err = p.presenceS.UpsertProxy(ctx, srv)
 	require.NoError(t, err)
 
 	out, err = p.presenceS.GetProxies()
