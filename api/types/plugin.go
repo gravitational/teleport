@@ -147,6 +147,10 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 			return trace.BadParameter("labels must be specified")
 		}
 	case *PluginSpecV1_Jamf:
+		// Check Jamf settings.
+		if settings.Jamf != nil {
+			return trace.BadParameter("missing Jamf settings")
+		}
 		if err := settings.Jamf.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
