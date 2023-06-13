@@ -19,7 +19,7 @@ jobs:
         - self-hosted
         - X64
         - linux # Not strictly required but probably a good idea to set
-      group: dev
+      # group: dev
 
     permissions:
       contents: read
