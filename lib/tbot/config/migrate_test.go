@@ -735,6 +735,65 @@ onboarding:
 				Outputs: nil,
 			},
 		},
+		// Real-world cases
+		{
+			name: "real world 1",
+			input: `
+auth_server: "teleport.example.com:443"
+onboarding:
+  join_method: "iam"
+  token: "iam-token-kube"
+storage:
+  directory:
+    path: /var/lib/teleport/bot
+    symlinks: insecure
+    acls: off
+debug: true
+destinations:
+  - directory:
+      path: /opt/machine-id
+      symlinks: insecure
+      acls: off
+  - directory:
+      path: /opt/machine-id/tools
+      symlinks: insecure
+      acls: off
+    kubernetes_cluster: "tools"
+`,
+			wantOutput: &BotConfig{
+				Version:    V2,
+				AuthServer: "teleport.example.com:443",
+				Onboarding: OnboardingConfig{
+					JoinMethod: types.JoinMethodIAM,
+					TokenValue: "iam-token-kube",
+				},
+				Storage: &StorageConfig{
+					Destination: &DestinationDirectory{
+						Path:     "/var/lib/teleport/bot",
+						Symlinks: botfs.SymlinksInsecure,
+						ACLs:     botfs.ACLOff,
+					},
+				},
+				Debug: true,
+				Outputs: Outputs{
+					&IdentityOutput{
+						Destination: &DestinationDirectory{
+							Path:     "/opt/machine-id",
+							Symlinks: botfs.SymlinksInsecure,
+							ACLs:     botfs.ACLOff,
+						},
+					},
+					&KubernetesOutput{
+						Destination: &DestinationDirectory{
+							Path:     "/opt/machine-id/tools",
+							Symlinks: botfs.SymlinksInsecure,
+							ACLs:     botfs.ACLOff,
+						},
+						KubernetesCluster: "tools",
+					},
+				},
+			},
+		},
 		// Error cases
 		{
 			name:      "storage config with no destination",
