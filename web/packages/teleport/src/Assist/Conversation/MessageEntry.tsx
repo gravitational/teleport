@@ -14,4 +14,28 @@
  * limitations under the License.
  */
 
-export { Assist as default } from './Assist';
+import React from 'react';
+import styled from 'styled-components';
+
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+import { markdownCSS } from 'teleport/Assist/markdown';
+
+interface MessageEntryProps {
+  content: string;
+}
+
+const Container = styled.div`
+  padding: 10px 15px 0 17px;
+
+  ${markdownCSS}
+`;
+
+export function MessageEntry(props: MessageEntryProps) {
+  return (
+    <Container>
+      <ReactMarkdown remarkPlugins={[remarkGfm]}>{props.content}</ReactMarkdown>
+    </Container>
+  );
+}

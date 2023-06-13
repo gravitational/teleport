@@ -109,7 +109,6 @@ const IntegrationEnroll = React.lazy(
       /* webpackChunkName: "integration-enroll" */ '@gravitational/teleport/src/Integrations/Enroll'
     )
 );
-const Assist = React.lazy(() => import('./Assist'));
 
 // ****************************
 // Resource Features
@@ -614,21 +613,6 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   };
 }
 
-export class FeatureAssist implements TeleportFeature {
-  category = NavigationCategory.Assist;
-
-  route = {
-    title: 'Assist',
-    path: cfg.routes.assist,
-    exact: false,
-    component: Assist,
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.assist;
-  }
-}
-
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -662,6 +646,5 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
-    new FeatureAssist(),
   ];
 }
