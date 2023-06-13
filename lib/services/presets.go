@@ -199,7 +199,10 @@ func NewPresetAuditorRole() types.Role {
 // NewPresetReviewerRole returns a new pre-defined role for reviewer. The
 // reviewer will be able to review all access requests.
 func NewPresetReviewerRole() types.Role {
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -210,7 +213,7 @@ func NewPresetReviewerRole() types.Role {
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				ReviewRequests: defaultAllowAccessReviewConditions(enterprise)[teleport.PresetReviewerRoleName],
+				ReviewRequests: defaultAllowAccessReviewConditions(true)[teleport.PresetReviewerRoleName],
 			},
 		},
 	}
@@ -221,7 +224,10 @@ func NewPresetReviewerRole() types.Role {
 // NewPresetRequesterRole returns a new pre-defined role for requester. The
 // requester will be able to request all resources.
 func NewPresetRequesterRole() types.Role {
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -232,7 +238,7 @@ func NewPresetRequesterRole() types.Role {
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
-				Request: defaultAllowAccessRequestConditions(enterprise)[teleport.PresetRequesterRoleName],
+				Request: defaultAllowAccessRequestConditions(true)[teleport.PresetRequesterRoleName],
 			},
 		},
 	}
@@ -243,6 +249,10 @@ func NewPresetRequesterRole() types.Role {
 // NewPresetGroupAccessRole returns a new pre-defined role for group access -
 // a role used for requesting and reviewing user group access.
 func NewPresetGroupAccessRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,

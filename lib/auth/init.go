@@ -622,6 +622,11 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 		services.NewPresetRequesterRole(),
 	}
 	for _, role := range roles {
+		// If the role is nil, skip because it doesn't apply to this Teleport installation.
+		if role == nil {
+			continue
+		}
+
 		err := rm.CreateRole(ctx, role)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
