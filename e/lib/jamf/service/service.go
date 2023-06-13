@@ -155,7 +155,7 @@ func newJamfScheduler(spec *types.JamfSpecV1) (*mdm.SyncScheduler[*scheduleEntry
 		delayFn = func() time.Duration { return time.Duration(spec.SyncDelay) }
 	default: // random
 		delayFn = func() time.Duration {
-			n := rand.Intn(int(2 * time.Minute))
+			n := rand.Int63n(int64(2 * time.Minute))
 			return time.Duration(n)
 		}
 	}
