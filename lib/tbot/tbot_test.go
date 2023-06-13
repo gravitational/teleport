@@ -203,7 +203,7 @@ func TestBot(t *testing.T) {
 		Destination: &config.DestinationDirectory{
 			Path: t.TempDir(),
 		},
-		ClusterName: kubeClusterName,
+		KubernetesCluster: kubeClusterName,
 	}
 	sshHostOutput := &config.SSHHostOutput{
 		Destination: &config.DestinationMemory{},

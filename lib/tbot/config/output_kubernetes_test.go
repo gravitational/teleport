@@ -24,16 +24,16 @@ func TestKubernetesOutput_YAML(t *testing.T) {
 		{
 			name: "full",
 			in: KubernetesOutput{
-				Destination: dest,
-				Roles:       []string{"access"},
-				ClusterName: "k8s.example.com",
+				Destination:       dest,
+				Roles:             []string{"access"},
+				KubernetesCluster: "k8s.example.com",
 			},
 		},
 		{
 			name: "minimal",
 			in: KubernetesOutput{
-				Destination: dest,
-				ClusterName: "k8s.example.com",
+				Destination:       dest,
+				KubernetesCluster: "k8s.example.com",
 			},
 		},
 	}
