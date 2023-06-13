@@ -1,4 +1,4 @@
-.version: &version "14.0.0.walt.fips.5"
+.version: &version "14.0.0.walt.fips.6"
 
 name: teleport-kube-agent
 apiVersion: v2
