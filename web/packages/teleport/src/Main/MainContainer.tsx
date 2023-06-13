@@ -21,8 +21,8 @@ import styled from 'styled-components';
 // or included in the Main.tsx file there is a circular dependency that causes
 // odd issues around the MainContainer component being available at certain
 // times.
-export const MainContainer = styled.div`
-  width: 100%;
+export const MainContainer = styled.div<{ hasDockedElement: boolean }>`
+  width: ${p => (p.hasDockedElement ? 'calc(100vw - 500px)' : '100vw')};
   display: flex;
   flex: 1;
   min-height: 0;
