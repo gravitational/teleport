@@ -67,10 +67,10 @@ message DeviceSpec {
 // teleport.devicetrust.v1.DeviceCredential.
 message DeviceCredential {
   string id = 1 [(gogoproto.jsontag) = "id"];
-  bytes public_key_der = 2 [(gogoproto.jsontag) = "public_key_der"];
-  string device_attestation_type = 3 [(gogoproto.jsontag) = "device_attestation_type"];
-  string tpm_ekcert_serial = 4 [(gogoproto.jsontag) = "tpm_ekcert_serial"];
-  bytes tpm_ak_public = 5 [(gogoproto.jsontag) = "tpm_ak_public"];
+  bytes public_key_der = 2 [(gogoproto.jsontag) = "public_key_der,omitempty"];
+  string device_attestation_type = 3 [(gogoproto.jsontag) = "device_attestation_type,omitempty"];
+  string tpm_ekcert_serial = 4 [(gogoproto.jsontag) = "tpm_ekcert_serial,omitempty"];
+  bytes tpm_ak_public = 5 [(gogoproto.jsontag) = "tpm_ak_public,omitempty"];
 }
 
 // DeviceCollectedData is the resource representation of
