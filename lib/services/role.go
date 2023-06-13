@@ -3109,6 +3109,8 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	}
 
 	switch h.Version {
+	case types.V7:
+		fallthrough
 	case types.V6:
 		fallthrough
 	case types.V5:
