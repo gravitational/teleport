@@ -329,11 +329,7 @@ impl Client {
 
         let device_control_responses = if is_smart_card_op {
             // Smart card control
-            if let Some(res) = self.scard.ioctl(&ioctl, payload)? {
-                res
-            } else {
-                return Ok(vec![]);
-            }
+            self.scard.ioctl(&ioctl, payload)?
         } else {
             // Drive redirection, mimic FreeRDP's "no-op"
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684
