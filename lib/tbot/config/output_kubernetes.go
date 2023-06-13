@@ -38,8 +38,10 @@ type KubernetesOutput struct {
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
 
-	// ClusterName is the name of the Kubernetes cluster in Teleport.
-	ClusterName string `yaml:"cluster_name"`
+	// KubernetesCluster is the name of the Kubernetes cluster in Teleport.
+	// This is named a little more verbosely to avoid conflicting with the
+	// name of the Teleport cluster to use.
+	KubernetesCluster string `yaml:"kubernetes_cluster"`
 }
 
 func (o *KubernetesOutput) templates() []template {
@@ -47,7 +49,7 @@ func (o *KubernetesOutput) templates() []template {
 		&templateTLSCAs{},
 		&templateIdentity{},
 		&templateKubernetes{
-			clusterName: o.ClusterName,
+			clusterName: o.KubernetesCluster,
 		},
 	}
 }
@@ -80,8 +82,8 @@ func (o *KubernetesOutput) CheckAndSetDefaults() error {
 	if err := validateOutputDestination(o.Destination); err != nil {
 		return trace.Wrap(err)
 	}
-	if o.ClusterName == "" {
-		return trace.BadParameter("cluster_name must not be empty")
+	if o.KubernetesCluster == "" {
+		return trace.BadParameter("kubernetes_cluster must not be empty")
 	}
 	return nil
 }

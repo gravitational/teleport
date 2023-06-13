@@ -142,8 +142,8 @@ destinations:
 						AppName:     "my-app",
 					},
 					&KubernetesOutput{
-						Destination: &DestinationMemory{},
-						ClusterName: "my-kubernetes-cluster",
+						Destination:       &DestinationMemory{},
+						KubernetesCluster: "my-kubernetes-cluster",
 					},
 					&DatabaseOutput{
 						Destination: &DestinationMemory{},
@@ -252,8 +252,8 @@ destinations:
 							Path:     "/path/example",
 							Symlinks: "try-secure",
 						},
-						Roles:       []string{},
-						ClusterName: "my-cluster",
+						Roles:             []string{},
+						KubernetesCluster: "my-cluster",
 					},
 				},
 			},
@@ -710,7 +710,7 @@ destinations:
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
 						},
-						ClusterName: "example-k8s-cluster",
+						KubernetesCluster: "example-k8s-cluster",
 					},
 				},
 			},

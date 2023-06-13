@@ -316,9 +316,9 @@ func (c *configV1Destination) migrate() (Output, error) {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
 		return &KubernetesOutput{
-			Destination: dest,
-			Roles:       c.Roles,
-			ClusterName: c.KubernetesCluster,
+			Destination:       dest,
+			Roles:             c.Roles,
+			KubernetesCluster: c.KubernetesCluster,
 		}, nil
 	case hostCertConfigured:
 		if err := validateTemplates(
