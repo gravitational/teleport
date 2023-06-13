@@ -7,6 +7,7 @@ import (
 	"crypto/elliptic"
 	"crypto/rand"
 	"crypto/x509"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"sort"
@@ -2616,6 +2617,76 @@ MDM server: https://example.com/mdm/ServerURL`,
 	}
 }
 
+func TestS_RecordDeviceAuthnData_TPM(t *testing.T) {
+	env := mustNewEnv()
+	defer env.Close()
+
+	s := env.S
+	clock := env.Clock
+	ctx := context.Background()
+
+	dev, _, err := createAndEnroll(ctx, s, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+		AssetTag: "llama",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	cd := &devicepb.DeviceCollectedData{
+		CollectTime:  timestamppb.New(clock.Now()),
+		OsType:       dev.OsType,
+		SerialNumber: dev.AssetTag,
+		TpmPlatformAttestation: &devicepb.TPMPlatformAttestation{
+			Nonce: []byte("fake-nonce"),
+			PlatformParameters: &devicepb.TPMPlatformParameters{
+				EventLog: []byte("fake-event-log"),
+				Quotes: []*devicepb.TPMQuote{
+					{
+						Quote:     []byte("fake-quote-0"),
+						Signature: []byte("fake-signature-0"),
+					},
+					{
+						Quote:     []byte("fake-quote-1"),
+						Signature: []byte("fake-signature-1"),
+					},
+				},
+				Pcrs: []*devicepb.TPMPCR{
+					{
+						Index:     0,
+						Digest:    []byte("fake-sha1-digest"),
+						DigestAlg: uint64(crypto.SHA1),
+					},
+					{
+						Index:     1,
+						Digest:    []byte("fake-sha256-digest"),
+						DigestAlg: uint64(crypto.SHA256),
+					},
+				},
+			},
+		},
+	}
+	if err := s.RecordDeviceAuthnData(ctx, dev.Id, cd); err != nil {
+		t.Fatalf("RecordDeviceAuthnData failed: %v", err)
+	}
+
+	// Verify stored collected data.
+	stored, err := s.GetDeviceByID(ctx, dev.Id)
+	if err != nil {
+		t.Fatalf("GetDeviceByID failed: %v", err)
+	}
+	if got, want := len(stored.CollectedData), 1; got < want {
+		t.Fatalf("GetDeviceByID: got %v collected data instances, want>=%v", got, want)
+	}
+
+	// Last recorded entry must be the one above
+	got := stored.CollectedData[len(stored.CollectedData)-1]
+	cd.RecordTime = got.RecordTime // System-managed
+	if diff := cmp.Diff(cd, got, protocmp.Transform()); diff != "" {
+		t.Errorf("Collected data mismatch (-want +got)\n%s", diff)
+	}
+}
+
 func TestS_RecordDeviceAuthnData_validateDataDrift(t *testing.T) {
 	setMDMFeatureActive(t, true)
 
@@ -2790,20 +2861,38 @@ func createAndEnroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*
 }
 
 func enroll(ctx context.Context, s *storage.S, dev *devicepb.Device) (*devicepb.Device, crypto.PrivateKey, error) {
-	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
-	if err != nil {
-		return nil, nil, fmt.Errorf("calling GenerateKey: %v", err)
-	}
-	pubKeyDER, err := x509.MarshalPKIXPublicKey(key.Public())
-	if err != nil {
-		return nil, nil, fmt.Errorf("calling MarshalPKIXPublicKey: %v", err)
-	}
-	cred := &devicepb.DeviceCredential{
-		Id:           uuid.NewString(),
-		PublicKeyDer: pubKeyDER,
+	var cred *devicepb.DeviceCredential
+	var key crypto.PublicKey
+	switch dev.OsType {
+	case devicepb.OSType_OS_TYPE_MACOS:
+		ecdsaKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+		if err != nil {
+			return nil, nil, fmt.Errorf("calling GenerateKey: %v", err)
+		}
+		pubKeyDER, err := x509.MarshalPKIXPublicKey(ecdsaKey.Public())
+		if err != nil {
+			return nil, nil, fmt.Errorf("calling MarshalPKIXPublicKey: %v", err)
+		}
+		cred = &devicepb.DeviceCredential{
+			Id:           uuid.NewString(),
+			PublicKeyDer: pubKeyDER,
+		}
+		key = ecdsaKey
+	case devicepb.OSType_OS_TYPE_WINDOWS:
+		validAKPublic, err := base64.StdEncoding.DecodeString(validAKPublic)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parsing valid ak public: %w", err)
+		}
+		cred = &devicepb.DeviceCredential{
+			Id:                    "fake-credential-id",
+			DeviceAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB,
+			TpmAkPublic:           validAKPublic,
+		}
+	default:
+		return nil, nil, fmt.Errorf("unhandled OS Type: %s", dev.OsType)
 	}
 
-	dev, err = s.EnrollDevice(ctx, dev.Id, cred, collectedDataForDevice(dev))
+	dev, err := s.EnrollDevice(ctx, dev.Id, cred, collectedDataForDevice(dev))
 	if err != nil {
 		return nil, nil, fmt.Errorf("calling EnrollDevice: %v", err)
 	}

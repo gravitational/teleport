@@ -92,8 +92,12 @@ func (c *enrollCeremony) enrollDevice(stream devicepb.DeviceTrustService_EnrollD
 	if initReq.CredentialId == "" {
 		return dev, trace.BadParameter("credential ID required")
 	}
+
 	// Run a few storage validations manually, so we catch errors and mismatches
 	// before continuing the ceremony.
+	if err := protectReadOnlyDeviceDataFields(initReq.DeviceData); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := storage.ValidateCollectedData(initReq.DeviceData); err != nil {
 		return dev, trace.Wrap(err)
 	}

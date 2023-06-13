@@ -62,11 +62,12 @@ func TestService_AuthenticateDevice(t *testing.T) {
 	ctx := context.Background()
 
 	tests := []struct {
-		name           string
-		shouldSkip     string
-		deviceTemplate *devicepb.Device
-		simulator      simulator
-		wantErr        string
+		name                          string
+		shouldSkip                    string
+		deviceTemplate                *devicepb.Device
+		simulator                     simulator
+		wantErr                       string
+		wantDCDTPMPlatformAttestation bool
 	}{
 		{
 			name: "macOS: success",
@@ -83,7 +84,8 @@ func TestService_AuthenticateDevice(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "windows-success",
 			},
-			simulator: newTPMSimulator(tpmBehavior{}),
+			simulator:                     newTPMSimulator(tpmBehavior{}),
+			wantDCDTPMPlatformAttestation: true,
 		},
 	}
 	for _, test := range tests {
@@ -182,6 +184,13 @@ func TestService_AuthenticateDevice(t *testing.T) {
 			if gotCD, wantCD := len(devAfter.CollectedData), len(devBefore.CollectedData)+1; gotCD != wantCD {
 				t.Errorf("Got %v collected data instances, want %v", gotCD, wantCD)
 			}
+			// TODO(noah): Assert collected data more thoroughly in tests.
+			authnCollectedData := devAfter.CollectedData[len(devAfter.CollectedData)-1]
+			if test.wantDCDTPMPlatformAttestation && authnCollectedData.TpmPlatformAttestation == nil {
+				t.Errorf("authnCollectedData.TpmPlatformAttestation=nil, want non-nil (authnCollectedData=%+v", authnCollectedData)
+			} else if !test.wantDCDTPMPlatformAttestation && authnCollectedData.TpmPlatformAttestation != nil {
+				t.Errorf("authnCollectedData.TpmPlatformAttestation=%v, want nil", authnCollectedData.TpmPlatformAttestation)
+			}
 
 			// Verify audit log.
 			assertEvents(t, emitter.Events(), []wantEvent{
@@ -274,6 +283,22 @@ func TestService_AuthenticateDevice_errors(t *testing.T) {
 			},
 			assertErr: trace.IsNotFound,
 			wantErr:   "not registered",
+		},
+		{
+			name: "init: device sends platform attestation in dcd",
+			simulator: newMacOSSimulator(macOSBehavior{
+				modifyAuthenticateDeviceInit: func(r *devicepb.AuthenticateDeviceInit) {
+					r.DeviceData.TpmPlatformAttestation = &devicepb.TPMPlatformAttestation{
+						Nonce: []byte("a-nonce"),
+					}
+				},
+			}),
+			deviceTemplate: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "device-data-sends-platform-attestation",
+			},
+			assertErr: trace.IsBadParameter,
+			wantErr:   "tpm_platform_attestation is a read only field and cannot be submitted in device collected data",
 		},
 
 		{

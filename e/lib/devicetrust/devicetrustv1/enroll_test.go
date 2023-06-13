@@ -125,13 +125,14 @@ func TestService_EnrollDevice(t *testing.T) {
 		// deviceTemplate is the device to create prior to enrollment.
 		// If the device has an Id the test will refresh its enrollment token,
 		// otherwise a new device is created.
-		deviceTemplate      *devicepb.Device
-		deviceTrustConfig   *types.DeviceTrust
-		simulator           simulator
-		assertInitErr       func(err error) bool
-		assertHandleErr     func(err error) bool
-		wantAuditEvents     []wantEvent
-		wantAttestationType devicepb.DeviceAttestationType
+		deviceTemplate                *devicepb.Device
+		deviceTrustConfig             *types.DeviceTrust
+		simulator                     simulator
+		assertInitErr                 func(err error) bool
+		assertHandleErr               func(err error) bool
+		wantAuditEvents               []wantEvent
+		wantAttestationType           devicepb.DeviceAttestationType
+		wantDCDTPMPlatformAttestation bool
 	}{
 		// General "Init" step validation errors.
 		// These are failures regardless of the OsType.
@@ -223,6 +224,19 @@ func TestService_EnrollDevice(t *testing.T) {
 			assertInitErr:   trace.IsNotFound,
 			wantAuditEvents: wantEnrollFailure,
 		},
+		{
+			name:           "init: device sends platform attestation in dcd",
+			deviceTemplate: macOSFailDev,
+			simulator: newMacOSSimulator(macOSBehavior{
+				modifyEnrollDeviceInit: func(r *devicepb.EnrollDeviceInit) {
+					r.DeviceData.TpmPlatformAttestation = &devicepb.TPMPlatformAttestation{
+						Nonce: []byte("a-nonce"),
+					}
+				},
+			}),
+			assertInitErr:   trace.IsBadParameter,
+			wantAuditEvents: wantEnrollFailure,
+		},
 		// Windows
 		{
 			name:       "windows: success with EKPub",
@@ -231,9 +245,10 @@ func TestService_EnrollDevice(t *testing.T) {
 				OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
 				AssetTag: "llama",
 			},
-			simulator:           newTPMSimulator(tpmBehavior{}),
-			wantAuditEvents:     wantEnrollSuccess,
-			wantAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB,
+			simulator:                     newTPMSimulator(tpmBehavior{}),
+			wantAuditEvents:               wantEnrollSuccess,
+			wantDCDTPMPlatformAttestation: true,
+			wantAttestationType:           devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB,
 		},
 		{
 			name:       "windows: success with EKCert",
@@ -245,8 +260,9 @@ func TestService_EnrollDevice(t *testing.T) {
 			simulator: newTPMSimulator(tpmBehavior{
 				ekCertGenerator: ekCertCA,
 			}),
-			wantAuditEvents:     wantEnrollSuccess,
-			wantAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT,
+			wantAuditEvents:               wantEnrollSuccess,
+			wantDCDTPMPlatformAttestation: true,
+			wantAttestationType:           devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT,
 		},
 		{
 			name:       "windows: success with EKCert trusted",
@@ -263,8 +279,9 @@ func TestService_EnrollDevice(t *testing.T) {
 			simulator: newTPMSimulator(tpmBehavior{
 				ekCertGenerator: ekCertCA,
 			}),
-			wantAuditEvents:     wantEnrollSuccess,
-			wantAttestationType: devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED,
+			wantAuditEvents:               wantEnrollSuccess,
+			wantDCDTPMPlatformAttestation: true,
+			wantAttestationType:           devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED,
 		},
 		// General TPM failure cases
 		{
@@ -624,7 +641,16 @@ func TestService_EnrollDevice(t *testing.T) {
 			if err != nil {
 				t.Fatalf("GetDevice failed: %v", err)
 			}
-			// TODO(codingllama): Assert collected data in tests.
+			// TODO(noah): Assert collected data more thoroughly in tests.
+			if collectedDataLen := len(storedDev.CollectedData); collectedDataLen != 1 {
+				t.Errorf("len(storedDev.CollectedData)=%d, want %d", collectedDataLen, 1)
+			}
+			storedCollectedData := storedDev.CollectedData[0]
+			if test.wantDCDTPMPlatformAttestation && storedCollectedData.TpmPlatformAttestation == nil {
+				t.Error("storedDev.CollectedData.TpmPlatformAttestation=nil, want non-nil")
+			} else if !test.wantDCDTPMPlatformAttestation && storedCollectedData.TpmPlatformAttestation != nil {
+				t.Errorf("storedDev.CollectedData.TpmPlatformAttestation=%v, want nil", storedCollectedData.TpmPlatformAttestation)
+			}
 			storedDev.CollectedData = nil
 			if diff := cmp.Diff(gotDev, storedDev, protocmp.Transform()); diff != "" {
 				t.Errorf("GetDevice mismatch (-want +got):\n%s", diff)

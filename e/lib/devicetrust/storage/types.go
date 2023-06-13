@@ -55,20 +55,21 @@ const (
 
 // storedCollectedData represents a devicepb.DeviceCollectedData in storage.
 type storedCollectedData struct {
-	Origin                  collectedDataOrigin `json:"origin"`                              // Required.
-	CollectTime             time.Time           `json:"collect_time"`                        // Required.
-	RecordTime              time.Time           `json:"record_time"`                         // Required.
-	OSType                  int                 `json:"os_type"`                             // Required. Same as devicepb.OSType.
-	SerialNumber            string              `json:"serial_number"`                       // Required.
-	ModelIdentifier         string              `json:"model_identifier,omitempty"`          // Optional.
-	OSVersion               string              `json:"os_version,omitempty"`                // Optional.
-	OSBuild                 string              `json:"os_build,omitempty"`                  // Optional.
-	OSUsername              string              `json:"os_username,omitempty"`               // Optional.
-	JamfBinaryVersion       string              `json:"jamf_binary_version,omitempty"`       // Optional.
-	MacOSEnrollmentProfiles string              `json:"macos_enrollment_profiles,omitempty"` // Optional.
-	ReportedAssetTag        string              `json:"reported_asset_tag,omitempty"`        // Optional.
-	SystemSerialNumber      string              `json:"system_serial_number,omitempty"`      // Optional.
-	BaseBoardSerialNumber   string              `json:"base_board_serial_number,omitempty"`  // Optional.
+	Origin                  collectedDataOrigin     `json:"origin"`                              // Required.
+	CollectTime             time.Time               `json:"collect_time"`                        // Required.
+	RecordTime              time.Time               `json:"record_time"`                         // Required.
+	OSType                  int                     `json:"os_type"`                             // Required. Same as devicepb.OSType.
+	SerialNumber            string                  `json:"serial_number"`                       // Required.
+	ModelIdentifier         string                  `json:"model_identifier,omitempty"`          // Optional.
+	OSVersion               string                  `json:"os_version,omitempty"`                // Optional.
+	OSBuild                 string                  `json:"os_build,omitempty"`                  // Optional.
+	OSUsername              string                  `json:"os_username,omitempty"`               // Optional.
+	JamfBinaryVersion       string                  `json:"jamf_binary_version,omitempty"`       // Optional.
+	MacOSEnrollmentProfiles string                  `json:"macos_enrollment_profiles,omitempty"` // Optional.
+	ReportedAssetTag        string                  `json:"reported_asset_tag,omitempty"`        // Optional.
+	SystemSerialNumber      string                  `json:"system_serial_number,omitempty"`      // Optional.
+	BaseBoardSerialNumber   string                  `json:"base_board_serial_number,omitempty"`  // Optional.
+	TPMPlatformAttestation  *tpmPlatformAttestation `json:"tpm_platform_attestation,omitempty"`  // Optional.
 }
 
 // storedDeviceSource represents a devicepb.DeviceSource in storage.
@@ -85,4 +86,26 @@ type storedDeviceProfile struct {
 	OSBuild           string    `json:"os_build,omitempty"`            // Optional.
 	OSUsernames       []string  `json:"os_usernames,omitempty"`        // Optional.
 	JamfBinaryVersion string    `json:"jamf_binary_version,omitempty"` // Optional.
+}
+
+type tpmPlatformAttestation struct {
+	Nonce              []byte                 `json:"nonce"`               // Required.
+	PlatformParameters *tpmPlatformParameters `json:"platform_parameters"` // Required.
+}
+
+type tpmPlatformParameters struct {
+	Quotes   []tpmQuote `json:"quotes"`    // Required.
+	PCRs     []tpmPCR   `json:"pcrs"`      // Required.
+	EventLog []byte     `json:"event_log"` // Required.
+}
+
+type tpmQuote struct {
+	Quote     []byte `json:"quote"`     // Required.
+	Signature []byte `json:"signature"` // Required.
+}
+
+type tpmPCR struct {
+	Index     int32  `json:"index"`      // Required.
+	Digest    []byte `json:"digest"`     // Required.
+	DigestAlg uint64 `json:"digest_alg"` // Required.
 }

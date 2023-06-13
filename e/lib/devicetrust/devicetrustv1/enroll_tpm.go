@@ -110,8 +110,6 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	switch {
 	case chalResp == nil:
 		return nil, trace.BadParameter("bad payload, expected TPMEnrollChallengeResponse")
-	case chalResp.PlatformParameters == nil:
-		return nil, trace.BadParameter("platform parameters required")
 	case len(chalResp.Solution) == 0:
 		return nil, trace.BadParameter("credential activation solution required")
 	}
@@ -121,12 +119,15 @@ func (c *enrollCeremony) enrollDeviceTPM(
 		logger.WithError(err).Debug("TPM credential activation failed verification")
 		return nil, trace.BadParameter("credential activation verification failed")
 	}
-	if err := finishPlatformAttestation(
-		*dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
-	); err != nil {
+	platformAttestation, err := finishPlatformAttestation(
+		dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
+	)
+	if err != nil {
 		logger.WithError(err).Debug("TPM platform attestation failed verification")
 		return nil, trace.BadParameter("platform attestation verification failed")
 	}
+	// Persist platform attestation record in collected data.
+	initReq.DeviceData.TpmPlatformAttestation = platformAttestation
 
 	// Create credential storage type
 	cred := &devicepb.DeviceCredential{

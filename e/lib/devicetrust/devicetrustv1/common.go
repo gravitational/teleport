@@ -22,3 +22,14 @@ func findDeviceBySerial(ctx context.Context, s *storage.S, osType devicepb.OSTyp
 	}
 	return nil, trace.NotFound("device %q/%v not registered", serialNumber, dtoss.FriendlyOSType(osType))
 }
+
+func protectReadOnlyDeviceDataFields(dcd *devicepb.DeviceCollectedData) error {
+	// Whilst other system managed fields are simply overwritten or ignored,
+	// this field is especially sensitive as if injected by a hostile client,
+	// it could be used to bypass checks that consider historical TPM PCR state.
+	// Because of this, we take more affirmative action and reject the request.
+	if dcd.TpmPlatformAttestation != nil {
+		return trace.BadParameter("tpm_platform_attestation is a read only field and cannot be submitted in device collected data")
+	}
+	return nil
+}

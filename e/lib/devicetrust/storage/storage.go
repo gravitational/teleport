@@ -1401,14 +1401,15 @@ func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
 
 func collectedDataToStored(cd *devicepb.DeviceCollectedData, origin collectedDataOrigin, recordTime time.Time, createAsResource bool) *storedCollectedData {
 	storedCD := &storedCollectedData{
-		Origin:                origin,
-		CollectTime:           cd.CollectTime.AsTime(),
-		RecordTime:            recordTime,
-		OSType:                int(cd.OsType),
-		SerialNumber:          cd.SerialNumber,
-		ReportedAssetTag:      cd.ReportedAssetTag,
-		SystemSerialNumber:    cd.SystemSerialNumber,
-		BaseBoardSerialNumber: cd.BaseBoardSerialNumber,
+		Origin:                 origin,
+		CollectTime:            cd.CollectTime.AsTime(),
+		RecordTime:             recordTime,
+		OSType:                 int(cd.OsType),
+		SerialNumber:           cd.SerialNumber,
+		ReportedAssetTag:       cd.ReportedAssetTag,
+		SystemSerialNumber:     cd.SystemSerialNumber,
+		BaseBoardSerialNumber:  cd.BaseBoardSerialNumber,
+		TPMPlatformAttestation: tpmPlatformAttestationToStored(cd.TpmPlatformAttestation),
 	}
 
 	if dtent.MDMFeatureActive {
@@ -1446,6 +1447,79 @@ func storedToCollectedData(stored *storedCollectedData) *devicepb.DeviceCollecte
 		ReportedAssetTag:        stored.ReportedAssetTag,
 		SystemSerialNumber:      stored.SystemSerialNumber,
 		BaseBoardSerialNumber:   stored.BaseBoardSerialNumber,
+		TpmPlatformAttestation:  tpmPlatformAttestationFromStored(stored.TPMPlatformAttestation),
+	}
+}
+
+func tpmPlatformAttestationToStored(pa *devicepb.TPMPlatformAttestation) *tpmPlatformAttestation {
+	if pa == nil {
+		return nil
+	}
+
+	var pp *tpmPlatformParameters
+	if pa.PlatformParameters != nil {
+		var quotes []tpmQuote
+		for _, q := range pa.PlatformParameters.Quotes {
+			quotes = append(quotes, tpmQuote{
+				Quote:     q.Quote,
+				Signature: q.Signature,
+			})
+		}
+		var pcrs []tpmPCR
+		for _, pcr := range pa.PlatformParameters.Pcrs {
+			pcrs = append(pcrs, tpmPCR{
+				Index:     pcr.Index,
+				Digest:    pcr.Digest,
+				DigestAlg: pcr.DigestAlg,
+			})
+		}
+
+		pp = &tpmPlatformParameters{
+			Quotes:   quotes,
+			PCRs:     pcrs,
+			EventLog: pa.PlatformParameters.EventLog,
+		}
+	}
+
+	return &tpmPlatformAttestation{
+		Nonce:              pa.Nonce,
+		PlatformParameters: pp,
+	}
+}
+
+func tpmPlatformAttestationFromStored(stored *tpmPlatformAttestation) *devicepb.TPMPlatformAttestation {
+	if stored == nil {
+		return nil
+	}
+
+	var pp *devicepb.TPMPlatformParameters
+	if stored.PlatformParameters != nil {
+		var quotes []*devicepb.TPMQuote
+		for _, q := range stored.PlatformParameters.Quotes {
+			quotes = append(quotes, &devicepb.TPMQuote{
+				Quote:     q.Quote,
+				Signature: q.Signature,
+			})
+		}
+		var pcrs []*devicepb.TPMPCR
+		for _, pcr := range stored.PlatformParameters.PCRs {
+			pcrs = append(pcrs, &devicepb.TPMPCR{
+				Index:     pcr.Index,
+				Digest:    pcr.Digest,
+				DigestAlg: pcr.DigestAlg,
+			})
+		}
+
+		pp = &devicepb.TPMPlatformParameters{
+			Quotes:   quotes,
+			Pcrs:     pcrs,
+			EventLog: stored.PlatformParameters.EventLog,
+		}
+	}
+
+	return &devicepb.TPMPlatformAttestation{
+		Nonce:              stored.Nonce,
+		PlatformParameters: pp,
 	}
 }
 

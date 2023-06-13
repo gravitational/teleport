@@ -100,6 +100,10 @@ func validateCollectedData(cd *devicepb.DeviceCollectedData, createAsResource bo
 		}
 	}
 
+	if err := validateCollectedDataTPMPlatformAttestation(cd.TpmPlatformAttestation); err != nil {
+		return trace.Wrap(err, "validating tpm_platform_attestation")
+	}
+
 	// No further validation required for non-resources.
 	if !createAsResource {
 		return nil
@@ -108,6 +112,55 @@ func validateCollectedData(cd *devicepb.DeviceCollectedData, createAsResource bo
 	// All fields must be set if writing collected data from a device resource.
 	if !cd.RecordTime.IsValid() {
 		return trace.BadParameter("record time missing or invalid")
+	}
+
+	return nil
+}
+
+func validateCollectedDataTPMPlatformAttestation(pa *devicepb.TPMPlatformAttestation) error {
+	// The field as a whole is optional, so we can omit deeper validation if
+	// the field itself is nil.
+	if pa == nil {
+		return nil
+	}
+
+	// Validate top level
+	if len(pa.Nonce) == 0 {
+		return trace.BadParameter("nonce required")
+	}
+	if pa.PlatformParameters == nil {
+		return trace.BadParameter("platform_parameters required")
+	}
+
+	// Validate PlatformParameters level
+	if len(pa.PlatformParameters.EventLog) == 0 {
+		return trace.BadParameter("platform_parameters.event_log required")
+	}
+	if len(pa.PlatformParameters.Quotes) == 0 {
+		return trace.BadParameter("platform_parameters.quotes required")
+	}
+	if len(pa.PlatformParameters.Pcrs) == 0 {
+		return trace.BadParameter("platform_parameters.pcrs required")
+	}
+
+	// Validate PlatformParameters.Quotes
+	for i, q := range pa.PlatformParameters.Quotes {
+		if len(q.Signature) == 0 {
+			return trace.BadParameter("platform_parameters.quotes[%d].signature required", i)
+		}
+		if len(q.Quote) == 0 {
+			return trace.BadParameter("platform_parameters.quotes[%d].quote required", i)
+		}
+	}
+
+	// Validate PlatformParameters.Pcrs
+	for i, p := range pa.PlatformParameters.Pcrs {
+		if len(p.Digest) == 0 {
+			return trace.BadParameter("platform_parameters.pcrs[%d].digest required", i)
+		}
+		if p.DigestAlg == 0 {
+			return trace.BadParameter("platform_parameters.pcrs[%d].digest_alg must be non-zero", i)
+		}
 	}
 
 	return nil

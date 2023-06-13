@@ -88,6 +88,9 @@ func (c *authnCeremony) authenticate(stream devicepb.DeviceTrustService_Authenti
 	// Note that we let auth validate the user certificates.
 	// Additionally, we don't require UserCertificates.SshAuthorizedKey to be
 	// present.
+	if err := protectReadOnlyDeviceDataFields(initReq.DeviceData); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := storage.ValidateCollectedData(initReq.DeviceData); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -111,11 +114,14 @@ func (c *authnCeremony) authenticate(stream devicepb.DeviceTrustService_Authenti
 
 	// Hand off to the platform dependent implementations
 	var err error
+	var platformAttestation *devicepb.TPMPlatformAttestation
 	switch dev.OsType {
 	case devicepb.OSType_OS_TYPE_MACOS:
 		err = c.authenticateDeviceMacOS(dev, stream)
 	case devicepb.OSType_OS_TYPE_WINDOWS:
-		err = c.authenticateDeviceTPM(dev, stream)
+		platformAttestation, err = c.authenticateDeviceTPM(dev, stream)
+		// Persist platform attestation record in collected data.
+		initReq.DeviceData.TpmPlatformAttestation = platformAttestation
 	default:
 		return nil, trace.BadParameter("unsupported OS type: %v", dtoss.FriendlyOSType(dev.OsType))
 	}
@@ -213,13 +219,13 @@ func (c *authnCeremony) authenticateDeviceMacOS(
 func (c *authnCeremony) authenticateDeviceTPM(
 	dev *devicepb.Device,
 	stream devicepb.DeviceTrustService_AuthenticateDeviceServer,
-) error {
+) (*devicepb.TPMPlatformAttestation, error) {
 	// 2. Issue challenge
 	nonce, finishPlatformAttestation, err := platformAttestationChallenge(
 		dev.Credential.TpmAkPublic,
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	c.logger.Debug("AuthenticateDevice : Sending TPM authentication challenge")
 	if err := stream.Send(&devicepb.AuthenticateDeviceResponse{
@@ -229,28 +235,27 @@ func (c *authnCeremony) authenticateDeviceTPM(
 			},
 		},
 	}); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	// 3. Challenge response.
 	c.logger.Debug("AuthenticateDevice: Received TPM authentication challenge response")
 	resp, err := stream.Recv()
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	chalResp := resp.GetTpmChallengeResponse()
 	switch {
 	case chalResp == nil:
-		return trace.BadParameter("bad payload, expected TPMAuthenticateDeviceChallengeResponse")
-	case chalResp.PlatformParameters == nil:
-		return trace.BadParameter("platform parameters required")
+		return nil, trace.BadParameter("bad payload, expected TPMAuthenticateDeviceChallengeResponse")
 	}
-	if err := finishPlatformAttestation(
-		*dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
-	); err != nil {
+	platformAttestation, err := finishPlatformAttestation(
+		dtoss.PlatformParametersFromProto(chalResp.PlatformParameters),
+	)
+	if err != nil {
 		c.logger.WithError(err).Debug("TPM platform attestation failed verification")
-		return trace.BadParameter("platform attestation verification failed")
+		return nil, trace.BadParameter("platform attestation verification failed")
 	}
 
-	return nil
+	return platformAttestation, nil
 }
