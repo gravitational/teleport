@@ -26,6 +26,8 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"strings"
+	"syscall"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -498,6 +500,7 @@ func solveTPMEnrollChallenge(
 
 	var activationSolution []byte
 	if windows.GetCurrentProcessToken().IsElevated() {
+		log.Debug("TPM: Detected current process is elevated. Will run credential activation in current process.")
 		// If we are running with elevated privileges, we can just complete the
 		// credential activation here.
 		activationSolution, err = ak.ActivateCredential(
@@ -508,7 +511,8 @@ func solveTPMEnrollChallenge(
 			return nil, trace.Wrap(err, "activating credential with challenge")
 		}
 	} else {
-		activationSolution, err = activateCredentialInElevatedChild()
+		log.Info("TPM: Detected that the current process is not running with elevated privileges. Triggering a UAC prompt to run the credential activation with elevated privileges.")
+		activationSolution, err = activateCredentialInElevatedChild(*encryptedCredential)
 		if err != nil {
 			return nil, trace.Wrap(err, "activating credential with challenge using elevated child")
 		}
@@ -523,8 +527,66 @@ func solveTPMEnrollChallenge(
 	}, nil
 }
 
-func activateCredentialInElevatedChild() ([]byte, error) {
+// activateCredentialInElevated child uses `runas` to trigger a child process
+// with elevated privileges. This is necessary because the process must have
+// elevated privileges in order to invoke the TPM 2.0 ActivateCredential
+// command.
+func activateCredentialInElevatedChild(
+	encryptedCredential attest.EncryptedCredential,
+) ([]byte, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, trace.Wrap(err, "determining current executable path")
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, trace.Wrap(err, "determining current working directory")
+	}
 
+	// Assemble the parameter list. We encoded any binary data in base64.
+	// The list is then converted to a space delimited string.
+	params := strings.Join([]string{
+		"device",
+		"activate-credential",
+		"--encrypted-credential",
+		base64.StdEncoding.EncodeToString(encryptedCredential.Credential),
+		"--encrypted-credential-secret",
+		base64.StdEncoding.EncodeToString(encryptedCredential.Secret),
+	}, " ")
+
+	operation := "runas"
+	lpOperation, err := syscall.UTF16PtrFromString(operation)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting operation to ptr")
+	}
+	lpFile, err := syscall.UTF16PtrFromString(exe)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting exe to ptr")
+	}
+	lpParameters, err := syscall.UTF16PtrFromString(params)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting params to ptr")
+	}
+	lpDirectory, err := syscall.UTF16PtrFromString(cwd)
+	if err != nil {
+		return nil, trace.Wrap(err, "converting cwd to ptr")
+	}
+
+	// https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew
+	err = windows.ShellExecute(
+		0, // hwnd
+		lpOperation,
+		lpFile,
+		lpParameters,
+		lpDirectory,
+		windows.SW_NORMAL,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "invoking ShellExecuteW")
+	}
+
+	// Wait for process to start and be happy.
+	return nil, nil
 }
 
 func solveTPMAuthnDeviceChallenge(
