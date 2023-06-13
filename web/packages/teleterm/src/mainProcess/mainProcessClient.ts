@@ -53,8 +53,19 @@ export default function createMainProcessClient(): MainProcessClient {
     removeTshSymlinkMacOs() {
       return ipcRenderer.invoke('main-process-remove-tsh-symlink-macos');
     },
-    openConfigFile(): Promise<string> {
+    openConfigFile() {
       return ipcRenderer.invoke('main-process-open-config-file');
+    },
+    getNativeTheme() {
+      return ipcRenderer.sendSync('main-process-get-native-theme');
+    },
+    subscribeToNativeThemeUpdate: listener => {
+      const onThemeChange = (_, value: 'dark' | 'light') => listener(value);
+      const channel = 'main-process-subscribe-to-native-theme-update';
+      ipcRenderer.addListener(channel, onThemeChange);
+      return {
+        cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
+      };
     },
   };
 }

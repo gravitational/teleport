@@ -75,6 +75,13 @@ export type MainProcessClient = {
 
   /** Opens config file and returns a path to it. */
   openConfigFile(): Promise<string>;
+  getNativeTheme(): 'dark' | 'light';
+  /** Subscribes to updates of the native theme. Returns a cleanup function. */
+  subscribeToNativeThemeUpdate: (
+    listener: (theme: 'dark' | 'light') => void
+  ) => {
+    cleanup: () => void;
+  };
 };
 
 export type ChildProcessAddresses = {

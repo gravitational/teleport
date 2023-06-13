@@ -15,19 +15,19 @@ limitations under the License.
 */
 
 import 'xterm/css/xterm.css';
-import { IDisposable, Terminal } from 'xterm';
+import { IDisposable, ITheme, Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { debounce } from 'shared/utils/highbar';
 
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import Logger from 'teleterm/logger';
-import theme from 'teleterm/ui/ThemeProvider/theme';
 
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 
 type Options = {
   el: HTMLElement;
   fontSize: number;
+  theme: ITheme;
 };
 
 export default class TtyTerminal {
@@ -62,29 +62,7 @@ export default class TtyTerminal {
       fontSize: this.options.fontSize,
       scrollback: 5000,
       minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
-      theme: {
-        foreground: theme.colors.terminal.foreground,
-        background: theme.colors.terminal.background,
-        selectionBackground: theme.colors.terminal.selectionBackground,
-        cursor: theme.colors.terminal.cursor,
-        cursorAccent: theme.colors.terminal.cursorAccent,
-        red: theme.colors.terminal.red,
-        green: theme.colors.terminal.green,
-        yellow: theme.colors.terminal.yellow,
-        blue: theme.colors.terminal.blue,
-        magenta: theme.colors.terminal.magenta,
-        cyan: theme.colors.terminal.cyan,
-        brightWhite: theme.colors.terminal.brightWhite,
-        white: theme.colors.terminal.white,
-        brightBlack: theme.colors.terminal.brightBlack,
-        black: theme.colors.terminal.black,
-        brightRed: theme.colors.terminal.brightRed,
-        brightGreen: theme.colors.terminal.brightGreen,
-        brightYellow: theme.colors.terminal.brightYellow,
-        brightBlue: theme.colors.terminal.brightBlue,
-        brightMagenta: theme.colors.terminal.brightMagenta,
-        brightCyan: theme.colors.terminal.brightCyan,
-      },
+      theme: this.options.theme,
       windowOptions: {
         setWinSizeChars: true,
       },

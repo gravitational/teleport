@@ -26,6 +26,7 @@ import {
   ipcMain,
   Menu,
   MenuItemConstructorOptions,
+  nativeTheme,
   shell,
 } from 'electron';
 import { wait } from 'shared/utils/wait';
@@ -191,6 +192,10 @@ export default class MainProcess {
   private _initIpc() {
     ipcMain.on('main-process-get-runtime-settings', event => {
       event.returnValue = this.settings;
+    });
+
+    ipcMain.on('main-process-get-native-theme', event => {
+      event.returnValue = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
     });
 
     ipcMain.handle('main-process-get-resolved-child-process-addresses', () => {

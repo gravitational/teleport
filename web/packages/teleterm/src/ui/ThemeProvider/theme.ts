@@ -23,7 +23,7 @@ import { lighten } from 'design/theme/utils/colorManipulator';
 
 const sansSerif = 'system-ui';
 
-const darkTheme = {
+export const darkTheme = {
   ...designDarkTheme,
   colors: {
     ...designDarkTheme.colors,
@@ -43,8 +43,7 @@ const darkTheme = {
   },
 };
 
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-const lightTheme = {
+export const lightTheme = {
   ...designLightTheme,
   font: sansSerif,
   fonts: {
@@ -52,5 +51,3 @@ const lightTheme = {
     mono: fonts.mono,
   },
 };
-
-export default darkTheme;
