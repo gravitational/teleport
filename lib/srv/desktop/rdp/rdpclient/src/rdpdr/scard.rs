@@ -736,7 +736,7 @@ impl Encode for ScardAccessStartedEvent_Call {
 const TIMEOUT_INFINITE: u32 = 0xffffffff;
 const TIMEOUT_IMMEDIATE: u32 = 0;
 
-#[derive(Debug, FromPrimitive, ToPrimitive, PartialEq)]
+#[derive(Debug, FromPrimitive, ToPrimitive)]
 #[allow(non_camel_case_types)]
 #[repr(u32)]
 enum ReturnCode {
@@ -2373,7 +2373,7 @@ impl Contexts {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 struct ContextInternal {
     handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
     next_id: u32,
