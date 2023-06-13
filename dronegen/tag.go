@@ -264,7 +264,7 @@ func tagPipelines() []pipeline {
 	}))
 
 	// Only amd64 Windows is supported for now.
-	ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
+	// ps = append(ps, tagPipeline(buildType{os: "windows", arch: "amd64"}))
 
 	// Also add CentOS artifacts
 	// CentOS 6 FIPS builds have been removed in Teleport 7.0. See https://github.com/gravitational/teleport/issues/7207
