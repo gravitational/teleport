@@ -22,8 +22,12 @@ import DefaultThemeProvider from '../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
 import '../packages/teleport/src/lib/polyfillRandomUuid';
 import { ThemeProvider as TeletermThemeProvider } from './../packages/teleterm/src/ui/ThemeProvider';
-import { theme as TeletermTheme } from './../packages/teleterm/src/ui/ThemeProvider/theme';
+import {
+  darkTheme as teletermDarkTheme,
+  lightTheme as teletermLightTheme,
+} from './../packages/teleterm/src/ui/ThemeProvider/theme';
 import { handlersTeleport } from './../packages/teleport/src/mocks/handlers';
+import { MockAppContextProvider } from 'teleterm/ui/fixtures/MockAppContextProvider';
 
 // Checks we are running non-node environment (browser)
 if (typeof global.process === 'undefined') {
@@ -36,22 +40,26 @@ if (typeof global.process === 'undefined') {
 
 // wrap each story with theme provider
 const ThemeDecorator = (storyFn, meta) => {
-  let ThemeProvider;
-  let theme;
-
   if (meta.title.startsWith('Teleterm/')) {
-    ThemeProvider = TeletermThemeProvider;
-    theme = TeletermTheme;
+    const theme =
+      meta.globals.theme === 'Dark Theme'
+        ? teletermDarkTheme
+        : teletermLightTheme;
+    return (
+      <MockAppContextProvider>
+        <TeletermThemeProvider theme={theme}>
+          <Box p={3}>{storyFn()}</Box>
+        </TeletermThemeProvider>
+      </MockAppContextProvider>
+    );
   } else {
-    ThemeProvider = DefaultThemeProvider;
-    theme = meta.globals.theme === 'Dark Theme' ? darkTheme : lightTheme;
+    const theme = meta.globals.theme === 'Dark Theme' ? darkTheme : lightTheme;
+    return (
+      <DefaultThemeProvider theme={theme}>
+        <Box p={3}>{storyFn()}</Box>
+      </DefaultThemeProvider>
+    );
   }
-
-  return (
-    <ThemeProvider theme={theme}>
-      <Box p={3}>{storyFn()}</Box>
-    </ThemeProvider>
-  );
 };
 
 addDecorator(ThemeDecorator);
