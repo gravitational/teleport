@@ -43,7 +43,9 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -248,10 +250,8 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := NewTerminalStream(ws)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	codec := tdpMFACodec{}
+
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
@@ -264,7 +264,33 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(&stream.WSStream, tdpMFACodec{}))
+	}, func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+		challenge := &client.MFAAuthenticateChallenge{
+			WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
+		}
+
+		// Send the challenge over the socket.
+		msg, err := codec.encode(challenge, defaults.WebsocketWebauthnChallenge)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ty, buf, err := ws.ReadMessage()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if ty != websocket.BinaryMessage {
+			return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
+		}
+
+		resp, err := codec.decodeResponse(buf, defaults.WebsocketWebauthnChallenge)
+		return resp, trace.Wrap(err)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

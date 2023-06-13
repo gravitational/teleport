@@ -19,22 +19,11 @@
 
 package assist
 
-import "github.com/gravitational/teleport/lib/ai"
+import "github.com/gravitational/teleport/lib/ai/model"
 
 // commandPayload is a payload for a command message.
 type commandPayload struct {
-	Command string     `json:"command,omitempty"`
-	Nodes   []string   `json:"nodes,omitempty"`
-	Labels  []ai.Label `json:"labels,omitempty"`
-}
-
-// partialMessagePayload is a payload for a partial message.
-type partialMessagePayload struct {
-	Content string `json:"content,omitempty"`
-	Idx     int    `json:"idx,omitempty"`
-}
-
-// partialFinalizePayload is a payload for a partial finalize message.
-type partialFinalizePayload struct {
-	Idx int `json:"idx,omitempty"`
+	Command string        `json:"command,omitempty"`
+	Nodes   []string      `json:"nodes,omitempty"`
+	Labels  []model.Label `json:"labels,omitempty"`
 }

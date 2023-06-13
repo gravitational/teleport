@@ -4185,13 +4185,13 @@ func TestRoleVersions(t *testing.T) {
 
 	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
 
-	newRole := func(spec types.RoleSpecV6) types.Role {
-		role, err := types.NewRole("test_rule", spec)
+	newRole := func(version string, spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRoleWithVersion("test_rule", version, spec)
 		require.NoError(t, err)
 		return role
 	}
 
-	role := newRole(types.RoleSpecV6{
+	role := newRole(types.V7, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			NodeLabels:               wildcardLabels,
 			AppLabels:                wildcardLabels,
@@ -4200,12 +4200,27 @@ func TestRoleVersions(t *testing.T) {
 			Rules: []types.Rule{
 				types.NewRule(types.KindRole, services.RW()),
 			},
+			KubernetesLabels: wildcardLabels,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+				},
+			},
 		},
 		Deny: types.RoleConditions{
 			KubernetesLabels:               types.Labels{"env": {"prod"}},
 			ClusterLabels:                  types.Labels{"env": {"prod"}},
 			ClusterLabelsExpression:        `labels["env"] == "prod"`,
 			WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+				},
+			},
 		},
 	})
 
@@ -4225,9 +4240,33 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc: "up to date",
 			clientVersions: []string{
-				minSupportedLabelExpressionVersion.String(), "13.3.0", "14.0.0-alpha.1", "15.1.2", api.Version, "",
+				"14.0.0-alpha.1", "15.1.2", api.Version, "",
 			},
 			expectedRole: role,
+		},
+		{
+			desc: "downgrade role to v6 but supports label expressions",
+			clientVersions: []string{
+				minSupportedLabelExpressionVersion.String(), "13.3.0",
+			},
+			expectedRole: newRole(types.V6, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					NodeLabels:               wildcardLabels,
+					AppLabels:                wildcardLabels,
+					AppLabelsExpression:      `labels["env"] == "staging"`,
+					DatabaseLabelsExpression: `labels["env"] == "staging"`,
+					Rules: []types.Rule{
+						types.NewRule(types.KindRole, services.RW()),
+					},
+				},
+				Deny: types.RoleConditions{
+					KubernetesLabels:               wildcardLabels,
+					ClusterLabels:                  types.Labels{"env": {"prod"}},
+					ClusterLabelsExpression:        `labels["env"] == "prod"`,
+					WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+				},
+			}),
+			expectDowngraded: true,
 		},
 		{
 			desc:           "bad client versions",
@@ -4237,7 +4276,7 @@ func TestRoleVersions(t *testing.T) {
 		{
 			desc:           "label expressions downgraded",
 			clientVersions: []string{"13.0.11", "12.4.3", "6.0.0"},
-			expectedRole: newRole(
+			expectedRole: newRole(types.V6,
 				types.RoleSpecV6{
 					Allow: types.RoleConditions{
 						// None of the allow labels change
@@ -4251,7 +4290,7 @@ func TestRoleVersions(t *testing.T) {
 					},
 					Deny: types.RoleConditions{
 						// These fields don't change
-						KubernetesLabels:               types.Labels{"env": {"prod"}},
+						KubernetesLabels:               wildcardLabels,
 						ClusterLabelsExpression:        `labels["env"] == "prod"`,
 						WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
 						// These all get set to wildcard deny because there is
