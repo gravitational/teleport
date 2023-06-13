@@ -604,6 +604,7 @@ func (oas *OIDCAuthService) validateOIDCAuthCallback(ctx context.Context, diagCt
 			Traits:     user.GetTraits(),
 			SessionTTL: params.SessionTTL,
 			LoginTime:  oas.auth.GetClock().Now().UTC(),
+			LoginIP:    req.ClientLoginIP,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")

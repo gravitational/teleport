@@ -589,6 +589,10 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 		return resp, nil
 	}
 
+	loginIP := ""
+	if request != nil {
+		loginIP = request.ClientLoginIP
+	}
 	// If the request is coming from a browser, create a web session.
 	if request == nil || request.CreateWebSession {
 		session, err := sas.auth.CreateWebSessionFromReq(ctx, types.NewWebSessionRequest{
@@ -597,6 +601,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 			Traits:     user.GetTraits(),
 			SessionTTL: params.SessionTTL,
 			LoginTime:  sas.auth.GetClock().Now().UTC(),
+			LoginIP:    loginIP,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")
@@ -608,7 +613,7 @@ func (sas *SAMLAuthService) validateSAMLResponse(ctx context.Context, diagCtx *a
 	// If a public key was provided, sign it and return a certificate.
 	if request != nil && len(request.PublicKey) != 0 {
 		sshCert, tlsCert, err := sas.auth.CreateSessionCert(user, params.SessionTTL, request.PublicKey, request.Compatibility, request.RouteToCluster,
-			request.KubernetesCluster, request.ClientLoginIP, keys.AttestationStatementFromProto(request.AttestationStatement))
+			request.KubernetesCluster, loginIP, keys.AttestationStatementFromProto(request.AttestationStatement))
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create session certificate.")
 		}
