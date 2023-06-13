@@ -347,7 +347,7 @@ func newTLSRoutingWithConnUpgradeDialer(ssh ssh.ClientConfig, params connectPara
 				InsecureSkipVerify: insecure,
 				ServerName:         host,
 			},
-			ALPNConnUpgradeRequired: IsALPNConnUpgradeRequired(params.addr, insecure),
+			ALPNConnUpgradeRequired: IsALPNConnUpgradeRequired(ctx, params.addr, insecure),
 			GetClusterCAs: func(_ context.Context) (*x509.CertPool, error) {
 				tlsConfig, err := params.cfg.Credentials[0].TLSConfig()
 				if err != nil {

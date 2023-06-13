@@ -71,18 +71,19 @@ func TestIsALPNConnUpgradeRequired(t *testing.T) {
 		},
 	}
 
+	ctx := context.Background()
 	forwardProxy, forwardProxyURL := mustStartForwardProxy(t)
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			server := mustStartMockALPNServer(t, test.serverProtos)
 			t.Run("direct", func(t *testing.T) {
-				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(server.Addr().String(), test.insecure))
+				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(ctx, server.Addr().String(), test.insecure))
 			})
 
 			t.Run("with ProxyURL", func(t *testing.T) {
 				countBeforeTest := forwardProxy.Count()
-				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(server.Addr().String(), test.insecure, withProxyURL(forwardProxyURL)))
+				require.Equal(t, test.expectedResult, IsALPNConnUpgradeRequired(ctx, server.Addr().String(), test.insecure, withProxyURL(forwardProxyURL)))
 				require.Equal(t, countBeforeTest+1, forwardProxy.Count())
 			})
 		})
