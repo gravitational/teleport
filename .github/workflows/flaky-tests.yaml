@@ -14,7 +14,12 @@ permissions:
 jobs:
   test:
     name: Flaky Tests Detector
-    runs-on: ubuntu-22.04-16core
+    runs-on:
+      labels:
+        - self-hosted
+        - X64
+        - linux # Not strictly required but probably a good idea to set
+      group: dev
 
     permissions:
       contents: read
