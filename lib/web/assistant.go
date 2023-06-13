@@ -375,9 +375,10 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		closureReason := websocket.CloseNormalClosure
 		closureMsg := ""
 		if err != nil {
+			h.log.WithError(err).Error("Error in the Assistant loop")
 			_ = ws.WriteJSON(&assistantMessage{
 				Type:        assist.MessageKindError,
-				Payload:     err.Error(),
+				Payload:     "An error has occurred. Please try again later.",
 				CreatedTime: h.clock.Now().UTC().Format(time.RFC3339),
 			})
 			// Set server error code and message: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
