@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -34,13 +35,18 @@ type deviceCommand struct {
 	// collect and keyget are debug commands.
 	collect *deviceCollectCommand
 	keyget  *deviceKeygetCommand
+
+	// activateCredential is a hidden command invoked on an elevated child
+	// process
+	activateCredential *deviceActivateCredentialCommand
 }
 
 func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	root := &deviceCommand{
-		enroll:  &deviceEnrollCommand{},
-		collect: &deviceCollectCommand{},
-		keyget:  &deviceKeygetCommand{},
+		enroll:             &deviceEnrollCommand{},
+		collect:            &deviceCollectCommand{},
+		keyget:             &deviceKeygetCommand{},
+		activateCredential: &deviceActivateCredentialCommand{},
 	}
 
 	// "tsh device" command.
@@ -57,7 +63,13 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	// "tsh device" hidden debug commands.
 	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection").Hidden()
 	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key").Hidden()
-
+	root.activateCredential.CmdClause = parentCmd.Command("activate-credential", "").Hidden()
+	root.activateCredential.Flag("encrypted-credential", "").
+		Required().
+		StringVar(&root.activateCredential.encryptedCredential)
+	root.activateCredential.Flag("encrypted-credential-secret", "").
+		Required().
+		StringVar(&root.activateCredential.encryptedCredentialSecret)
 	return root
 }
 
@@ -145,5 +157,18 @@ func (c *deviceKeygetCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	fmt.Printf("DeviceCredential %s\n", val)
+	return nil
+}
+
+type deviceActivateCredentialCommand struct {
+	*kingpin.CmdClause
+	encryptedCredential       string
+	encryptedCredentialSecret string
+}
+
+func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
+	fmt.Printf("boo!")
+	// TODO: Pass variables to dtnative and return results
+	time.Sleep(10 * time.Second)
 	return nil
 }
