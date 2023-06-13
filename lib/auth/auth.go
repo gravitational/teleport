@@ -3265,7 +3265,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// only observe latencies for non-throttled requests
 	start := a.clock.Now()
-	defer generateRequestsLatencies.Observe(time.Since(start).Seconds())
+	defer func() { generateRequestsLatencies.Observe(time.Since(start).Seconds()) }()
 
 	generateRequestsCount.Inc()
 	generateRequestsCurrent.Inc()

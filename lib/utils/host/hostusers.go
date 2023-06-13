@@ -84,7 +84,7 @@ func AddUserToGroups(username string, groups []string) (exitCode int, err error)
 	return cmd.ProcessState.ExitCode(), trace.Wrap(err)
 }
 
-// UserDel creates a user on a host using `userdel`
+// UserDel deletes a user on a host using `userdel`.
 func UserDel(username string) (exitCode int, err error) {
 	userdelBin, err := exec.LookPath("userdel")
 	if err != nil {

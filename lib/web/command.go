@@ -67,6 +67,18 @@ type CommandRequest struct {
 	ExecutionID string `json:"execution_id"`
 }
 
+// commandExecResult is a result of a command execution.
+type commandExecResult struct {
+	// NodeID is the ID of the node where the command was executed.
+	NodeID string `json:"node_id"`
+	// NodeName is the name of the node where the command was executed.
+	NodeName string `json:"node_name"`
+	// ExecutionID is a unique ID used to identify the command execution.
+	ExecutionID string `json:"execution_id"`
+	// SessionID is the ID of the session where the command was executed.
+	SessionID string `json:"session_id"`
+}
+
 // Check checks if the request is valid.
 func (c *CommandRequest) Check() error {
 	if c.Command == "" {
@@ -226,12 +238,9 @@ func (h *Handler) executeCommand(
 		h.log.Infof("Executing command: %#v.", req)
 		httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
 
-		msgPayload, err := json.Marshal(struct {
-			NodeID      string `json:"node_id"`
-			ExecutionID string `json:"execution_id"`
-			SessionID   string `json:"session_id"`
-		}{
+		msgPayload, err := json.Marshal(&commandExecResult{
 			NodeID:      host.id,
+			NodeName:    host.hostName,
 			ExecutionID: req.ExecutionID,
 			SessionID:   string(sessionData.ID),
 		})
@@ -305,8 +314,7 @@ func getMFACacheFn() mfaFuncCache {
 			return authMethods, nil
 		}
 
-		var err error
-		authMethods, err = issueMfaAuthFn()
+		authMethods, err := issueMfaAuthFn()
 		return authMethods, trace.Wrap(err)
 	}
 }
@@ -485,7 +493,7 @@ func (t *commandHandler) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 }
 
 func (t *commandHandler) handler(r *http.Request) {
-	t.stream = NewWStream(t.ws)
+	t.stream = NewWStream(r.Context(), t.ws, t.log, nil)
 
 	// Create a Teleport client, if not able to, show the reason to the user in
 	// the terminal.
@@ -500,8 +508,7 @@ func (t *commandHandler) handler(r *http.Request) {
 
 	// Update the read deadline upon receiving a pong message.
 	t.ws.SetPongHandler(func(_ string) error {
-		t.ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval))
-		return nil
+		return trace.Wrap(t.ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval)))
 	})
 
 	// Start sending ping frames through websocket to the client.

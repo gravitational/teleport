@@ -381,11 +381,12 @@ func (a *accessChecker) checkAllowedResources(r AccessCheckable) error {
 
 	for _, resourceID := range a.info.AllowedResourceIDs {
 		if resourceID.ClusterName == a.localCluster &&
-			// If the allowed resource has `Kind=types.KindKubePod`, we allow the user to
+			// If the allowed resource has `Kind=types.KindKubePod` or any other
+			// Kubernetes supported kinds - types.KubernetesResourcesKinds-, we allow the user to
 			// access the Kubernetes cluster that it belongs to.
 			// At this point, we do not verify that the accessed resource matches the
 			// allowed resources, but that verification happens in the caller function.
-			(resourceID.Kind == r.GetKind() || (resourceID.Kind == types.KindKubePod && r.GetKind() == types.KindKubernetesCluster)) &&
+			(resourceID.Kind == r.GetKind() || (slices.Contains(types.KubernetesResourcesKinds, resourceID.Kind) && r.GetKind() == types.KindKubernetesCluster)) &&
 			resourceID.Name == r.GetName() {
 			// Allowed to access this resource by resource ID, move on to role checks.
 			if isDebugEnabled {
@@ -515,7 +516,7 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database) (create bool
 	rolesMap := make(map[string]struct{})
 	var matched bool
 	for _, role := range autoCreateRoles {
-		match, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, database)
+		match, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, database, false)
 		if err != nil {
 			return false, nil, trace.Wrap(err)
 		}
@@ -528,7 +529,7 @@ func (a *accessChecker) CheckDatabaseRoles(database types.Database) (create bool
 		matched = true
 	}
 	for _, role := range autoCreateRoles {
-		match, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, database)
+		match, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, database, false)
 		if err != nil {
 			return false, nil, trace.Wrap(err)
 		}
@@ -735,7 +736,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 	// the deny role set prohibits access.
 	var errs []error
 	for _, role := range a.RoleSet {
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, rc)
+		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, rc, isDebugEnabled)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -749,7 +750,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 
 	// Check allow rules: label has to match in any role in the role set to be granted access.
 	for _, role := range a.RoleSet {
-		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, rc)
+		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, rc, isDebugEnabled)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -780,7 +781,7 @@ func (a *accessChecker) CheckAccessToRemoteCluster(rc types.RemoteCluster) error
 func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
 	groups := make(map[string]struct{})
 	for _, role := range a.RoleSet {
-		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s)
+		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -799,7 +800,7 @@ func (a *accessChecker) DesktopGroups(s types.WindowsDesktop) ([]string, error) 
 		}
 	}
 	for _, role := range a.RoleSet {
-		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s)
+		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -828,7 +829,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 
 	seenSudoers := make(map[string]struct{})
 	for _, role := range roleSet {
-		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s)
+		result, _, err := checkRoleLabelsMatch(types.Allow, role, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -856,7 +857,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 
 	var finalSudoers []string
 	for _, role := range roleSet {
-		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s)
+		result, _, err := checkRoleLabelsMatch(types.Deny, role, a.info.Traits, s, false)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
