@@ -59,7 +59,8 @@ type Resource interface {
 
 // ResourceDetails includes details about the resource
 type ResourceDetails struct {
-	Hostname string
+	Hostname     string
+	FriendlyName string
 }
 
 // ResourceWithSecrets includes additional properties which must
