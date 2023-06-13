@@ -6316,6 +6316,15 @@ func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, m
 	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
 }
 
+func (a *ServerWithRoles) GetAssistantEmbeddings(ctx context.Context, in *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error) {
+	panic("AAAAA")
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAssistantEmbeddings(ctx, in)
+}
+
 // CloneHTTPClient creates a new HTTP client with the same configuration.
 func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
 	return nil, trace.NotImplemented("not implemented")

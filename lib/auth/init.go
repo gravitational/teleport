@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -232,6 +233,8 @@ type InitConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
+
+	OpenAIClient *ai.Client
 }
 
 // Init instantiates and configures an instance of AuthServer

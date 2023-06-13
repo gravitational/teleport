@@ -41,6 +41,7 @@ const (
 	AssistService_CreateAssistantMessage_FullMethodName          = "/teleport.assist.v1.AssistService/CreateAssistantMessage"
 	AssistService_UpdateAssistantConversationInfo_FullMethodName = "/teleport.assist.v1.AssistService/UpdateAssistantConversationInfo"
 	AssistService_IsAssistEnabled_FullMethodName                 = "/teleport.assist.v1.AssistService/IsAssistEnabled"
+	AssistService_GetAssistantEmbeddings_FullMethodName          = "/teleport.assist.v1.AssistService/GetAssistantEmbeddings"
 )
 
 // AssistServiceClient is the client API for AssistService service.
@@ -61,6 +62,8 @@ type AssistServiceClient interface {
 	UpdateAssistantConversationInfo(ctx context.Context, in *UpdateAssistantConversationInfoRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 	// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 	IsAssistEnabled(ctx context.Context, in *IsAssistEnabledRequest, opts ...grpc.CallOption) (*IsAssistEnabledResponse, error)
+	// AssistantGetEmbeddings returns the embeddings for the given query.
+	GetAssistantEmbeddings(ctx context.Context, in *GetAssistantEmbeddingsRequest, opts ...grpc.CallOption) (*GetAssistantEmbeddingsResponse, error)
 }
 
 type assistServiceClient struct {
@@ -134,6 +137,15 @@ func (c *assistServiceClient) IsAssistEnabled(ctx context.Context, in *IsAssistE
 	return out, nil
 }
 
+func (c *assistServiceClient) GetAssistantEmbeddings(ctx context.Context, in *GetAssistantEmbeddingsRequest, opts ...grpc.CallOption) (*GetAssistantEmbeddingsResponse, error) {
+	out := new(GetAssistantEmbeddingsResponse)
+	err := c.cc.Invoke(ctx, AssistService_GetAssistantEmbeddings_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // AssistServiceServer is the server API for AssistService service.
 // All implementations must embed UnimplementedAssistServiceServer
 // for forward compatibility
@@ -152,6 +164,8 @@ type AssistServiceServer interface {
 	UpdateAssistantConversationInfo(context.Context, *UpdateAssistantConversationInfoRequest) (*emptypb.Empty, error)
 	// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 	IsAssistEnabled(context.Context, *IsAssistEnabledRequest) (*IsAssistEnabledResponse, error)
+	// AssistantGetEmbeddings returns the embeddings for the given query.
+	GetAssistantEmbeddings(context.Context, *GetAssistantEmbeddingsRequest) (*GetAssistantEmbeddingsResponse, error)
 	mustEmbedUnimplementedAssistServiceServer()
 }
 
@@ -179,6 +193,9 @@ func (UnimplementedAssistServiceServer) UpdateAssistantConversationInfo(context.
 }
 func (UnimplementedAssistServiceServer) IsAssistEnabled(context.Context, *IsAssistEnabledRequest) (*IsAssistEnabledResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method IsAssistEnabled not implemented")
+}
+func (UnimplementedAssistServiceServer) GetAssistantEmbeddings(context.Context, *GetAssistantEmbeddingsRequest) (*GetAssistantEmbeddingsResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method GetAssistantEmbeddings not implemented")
 }
 func (UnimplementedAssistServiceServer) mustEmbedUnimplementedAssistServiceServer() {}
 
@@ -319,6 +336,24 @@ func _AssistService_IsAssistEnabled_Handler(srv interface{}, ctx context.Context
 	return interceptor(ctx, in, info, handler)
 }
 
+func _AssistService_GetAssistantEmbeddings_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetAssistantEmbeddingsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(AssistServiceServer).GetAssistantEmbeddings(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: AssistService_GetAssistantEmbeddings_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(AssistServiceServer).GetAssistantEmbeddings(ctx, req.(*GetAssistantEmbeddingsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // AssistService_ServiceDesc is the grpc.ServiceDesc for AssistService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -353,6 +388,10 @@ var AssistService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "IsAssistEnabled",
 			Handler:    _AssistService_IsAssistEnabled_Handler,
+		},
+		{
+			MethodName: "GetAssistantEmbeddings",
+			Handler:    _AssistService_GetAssistantEmbeddings_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

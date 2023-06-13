@@ -3966,3 +3966,11 @@ func (c *Client) UpdateAssistantConversationInfo(ctx context.Context, in *assist
 	}
 	return nil
 }
+
+func (c *Client) GetAssistantEmbeddings(ctx context.Context, in *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error) {
+	result, err := c.grpc.GetAssistantEmbeddings(ctx, in)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return result, nil
+}

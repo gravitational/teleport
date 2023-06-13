@@ -339,7 +339,7 @@ func TestNodeEmbeddingWatcherUpdate(t *testing.T) {
 
 func TestMarshallUnmarshallEmbedding(t *testing.T) {
 	// We test that float precision is above six digits
-	initial := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0.1234567, 1, 1}, sha256.Sum256([]byte("test")))
+	initial := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0.1234567, 1, 1}, "")
 
 	marshaled, err := services.MarshalEmbedding(initial)
 	require.NoError(t, err)

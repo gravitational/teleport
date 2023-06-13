@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -289,6 +290,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Assistant:               cfg.Assist,
 	}
 
+	embeddingsRetriever := ai.NewSimpleRetriever()
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:                  cfg.Backend,
@@ -310,6 +312,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		fips:                cfg.FIPS,
 		loadAllCAs:          cfg.LoadAllCAs,
 		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
+		EmbeddingsMap:       embeddingsRetriever,
+		embedder:            cfg.OpenAIClient, //TODO(jakule): Fix panic when OpenAPI key is not set
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -626,6 +630,9 @@ type Server struct {
 	// This is used only when Assist is enabled and allows to build an index
 	// to perform semantic node search.
 	nodeEmbeddingWatcher *services.NodeEmbeddingWatcher
+
+	EmbeddingsMap *ai.SimpleRetriever
+	embedder      ai.Embedder
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML

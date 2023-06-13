@@ -280,8 +280,8 @@ func (s *AssistService) CreateAssistantMessage(ctx context.Context, req *assist.
 }
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
-func (a *AssistService) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error) {
-	reporter, ok := a.Backend.(*backend.Reporter)
+func (s *AssistService) IsAssistEnabled(_ context.Context) (*assist.IsAssistEnabledResponse, error) {
+	reporter, ok := s.Backend.(*backend.Reporter)
 	if !ok {
 		return &assist.IsAssistEnabledResponse{Enabled: true}, nil
 	}
@@ -293,4 +293,9 @@ func (a *AssistService) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEn
 
 	_, ok = sanitizer.Inner().(*etcdbk.EtcdBackend)
 	return &assist.IsAssistEnabledResponse{Enabled: !ok}, nil
+}
+
+func (s *AssistService) GetAssistantEmbeddings(_ context.Context, _ *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error) {
+	// This is intentional. This method will never be called.
+	return nil, trace.NotImplemented("not implemented")
 }

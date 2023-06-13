@@ -34,11 +34,17 @@ const (
 	maxElapsedTime    = 5 * time.Minute
 )
 
-// AssistAgent is a global instance of the Assist agent which defines the model responsible for the Assist feature.
-var AssistAgent = &Agent{
-	tools: []Tool{
-		&commandExecutionTool{},
-	},
+// NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
+func NewAgent(assistClient EmbeddingRetriever, username string) *Agent {
+	return &Agent{
+		tools: []Tool{
+			&commandExecutionTool{},
+			&embeddingRetrievalTool{
+				assistClient: assistClient,
+				currentUser:  username,
+			},
+		},
+	}
 }
 
 // Agent is a model storing static state which defines some properties of the chat model.
@@ -208,7 +214,12 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 
-	return stepOutput{}, trace.NotImplemented("assist does not support non command execution tools yet")
+	output, err := tool.Run(ctx, action.input)
+	if err != nil {
+		return stepOutput{}, trace.Wrap(err)
+	}
+
+	return stepOutput{action: action, observation: output}, nil // TODO: probably wrong!
 }
 
 func (a *Agent) plan(ctx context.Context, state *executionState) (*agentAction, *agentFinish, error) {
@@ -305,8 +316,8 @@ func parseJSONFromModel[T any](text string) (T, *invalidOutputError) {
 
 // planOutput describes the expected JSON output after asking it to plan it's next action.
 type planOutput struct {
-	Action       string `json:"action"`
-	Action_input any    `json:"action_input"`
+	Action      string `json:"action"`
+	ActionInput any    `json:"action_input"`
 }
 
 // parsePlanningOutput parses the output of the model after asking it to plan it's next action
@@ -319,18 +330,18 @@ func parsePlanningOutput(text string) (*agentAction, *agentFinish, error) {
 	}
 
 	if response.Action == actionFinalAnswer {
-		outputString, ok := response.Action_input.(string)
+		outputString, ok := response.ActionInput.(string)
 		if !ok {
-			return nil, nil, trace.Errorf("invalid final answer type %T", response.Action_input)
+			return nil, nil, trace.Errorf("invalid final answer type %T", response.ActionInput)
 		}
 
 		return nil, &agentFinish{output: &Message{Content: outputString}}, nil
 	}
 
-	if v, ok := response.Action_input.(string); ok {
+	if v, ok := response.ActionInput.(string); ok {
 		return &agentAction{action: response.Action, input: v}, nil, nil
 	} else {
-		input, err := json.Marshal(response.Action_input)
+		input, err := json.Marshal(response.ActionInput)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}

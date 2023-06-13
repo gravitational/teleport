@@ -19,11 +19,10 @@ import (
 	"crypto/sha256"
 	"time"
 
-	"github.com/gravitational/trace"
-	"github.com/sashabaranov/go-openai"
-
 	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
 	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/trace"
+	"github.com/sashabaranov/go-openai"
 )
 
 const (
@@ -82,12 +81,15 @@ func (e *Embedding) GetVector() Vector64 {
 }
 
 // NewEmbedding is an Embedding constructor.
-func NewEmbedding(kind, id string, vector Vector64, hash Sha256Hash) *Embedding {
+func NewEmbedding(kind, id string, vector Vector64, content string) *Embedding {
+	hash := sha256.Sum256([]byte(id))
+
 	return &Embedding{
 		EmbeddedKind: kind,
 		EmbeddedId:   id,
 		EmbeddedHash: hash[:],
 		Vector:       vector,
+		//Content:      content,
 	}
 }
 
@@ -112,7 +114,7 @@ func (client *Client) ComputeEmbeddings(ctx context.Context, input []string) ([]
 			return nil, trace.Wrap(err)
 		}
 		for _, vector := range result {
-			results = append(results, vector32to64(vector))
+			results = append(results, Vector32to64(vector))
 		}
 	}
 	return results, nil
@@ -129,7 +131,7 @@ func paginateInput(input []string, page, pageSize int) []string {
 	return input[begin:end]
 }
 
-func vector32to64(vector32 Vector32) Vector64 {
+func Vector32to64(vector32 Vector32) Vector64 {
 	vector64 := make(Vector64, len(vector32))
 	for i, dimension := range vector32 {
 		vector64[i] = float64(dimension)

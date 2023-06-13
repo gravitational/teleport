@@ -18,7 +18,6 @@ package ai
 
 import (
 	"fmt"
-	"math"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -28,7 +27,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func TestKNNRetriever_GetRelevant(t *testing.T) {
+func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	t.Parallel()
 
 	// Generate random vector. The seed is fixed, so the results are deterministic.
@@ -56,11 +55,16 @@ func TestKNNRetriever_GetRelevant(t *testing.T) {
 	// Create a query.
 	query := NewEmbedding(types.KindNode, "1", generateVector(), "")
 
-	retriever, err := NewKNNRetriever(points)
-	require.NoError(t, err)
+	retriever := NewSimpleRetriever()
+
+	for _, point := range points {
+		retriever.Insert(point.GetName(), point)
+	}
 
 	// Get the top 10 most similar documents.
-	docs := retriever.GetRelevant(query, 10)
+	docs := retriever.GetRelevant(query, 10, func(id string, embedding *Embedding) bool {
+		return true
+	})
 	require.Len(t, docs, 10)
 
 	expectedResults := []int{57, 92, 95, 49, 33, 56, 30, 99, 90, 47}
@@ -73,69 +77,4 @@ func TestKNNRetriever_GetRelevant(t *testing.T) {
 			result.GetName(), "expected order is wrong")
 		require.InDelta(t, expectedSimilarities[i], result.SimilarityScore, 10e-6, "similarity score is wrong")
 	}
-}
-
-func TestKNNRetriever_Insert(t *testing.T) {
-	t.Parallel()
-
-	points := []*Embedding{
-		NewEmbedding(types.KindNode, "1", Vector64{1, 2, 3}, ""),
-		NewEmbedding(types.KindNode, "2", Vector64{4, 5, 6}, ""),
-	}
-
-	retriever, err := NewKNNRetriever(points)
-	require.NoError(t, err)
-
-	newEmbedding := NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9}, "")
-	docs1 := retriever.GetRelevant(newEmbedding, 10)
-	require.Len(t, docs1, 2)
-
-	err = retriever.Insert(newEmbedding)
-	require.NoError(t, err)
-
-	docs2 := retriever.GetRelevant(newEmbedding, 10)
-	require.Len(t, docs2, 3)
-}
-
-func TestKNNRetriever_Remove(t *testing.T) {
-	t.Parallel()
-
-	points := []*Embedding{
-		NewEmbedding(types.KindNode, "1", Vector64{1, 2, 3}, ""),
-		NewEmbedding(types.KindNode, "2", Vector64{4, 5, 6}, ""),
-		NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9}, ""),
-	}
-
-	retriever, err := NewKNNRetriever(points)
-	require.NoError(t, err)
-
-	query := NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9}, "")
-	docs1 := retriever.GetRelevant(query, 10)
-
-	require.Len(t, docs1, 3)
-
-	err = retriever.Remove("node/2")
-	require.NoError(t, err)
-
-	docs2 := retriever.GetRelevant(query, 10)
-	require.Len(t, docs2, 2)
-}
-
-// Function to calculate L2 norm
-func L2norm(v []float64) float64 {
-	sum := 0.0
-	for _, value := range v {
-		sum += value * value
-	}
-	return math.Sqrt(sum)
-}
-
-// Function to normalize vector using L2 norm
-func normalize(v Vector64) Vector64 {
-	norm := L2norm(v)
-	result := make(Vector64, len(v))
-	for i, value := range v {
-		result[i] = value / norm
-	}
-	return result
 }

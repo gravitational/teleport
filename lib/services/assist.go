@@ -45,4 +45,7 @@ type Assistant interface {
 
 	// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 	IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error)
+
+	// GetAssistantEmbeddings returns embeddings for the given query.
+	GetAssistantEmbeddings(ctx context.Context, in *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error)
 }

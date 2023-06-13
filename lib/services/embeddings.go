@@ -85,6 +85,7 @@ func NewNodeEmbeddingWatcher(ctx context.Context, cfg NodeEmbeddingWatcherConfig
 		NodeEmbeddingWatcherConfig: cfg,
 		initializationC:            make(chan struct{}),
 		currentNodes:               make(map[string]*embeddedNode),
+		embeddings:                 cfg.EmbeddingsRetriever,
 	}
 	// start the collector as staled.
 	collector.stale.Store(true)
@@ -104,7 +105,8 @@ func NewNodeEmbeddingWatcher(ctx context.Context, cfg NodeEmbeddingWatcherConfig
 type NodeEmbeddingWatcherConfig struct {
 	NodeWatcherConfig
 	Embeddings
-	Embedder ai.Embedder
+	Embedder            ai.Embedder
+	EmbeddingsRetriever *ai.SimpleRetriever
 }
 
 func (cfg *NodeEmbeddingWatcherConfig) CheckAndSetDefaults() error {
@@ -147,6 +149,8 @@ type nodeEmbeddingCollector struct {
 	// mutex must be acquired before reading or writing to currentNodes
 	mutex sync.Mutex
 	stale atomic.Bool
+
+	embeddings *ai.SimpleRetriever
 }
 
 type embeddedNode struct {
@@ -272,7 +276,11 @@ func (n *nodeEmbeddingCollector) RunIndexation(ctx context.Context) error {
 
 	n.Log.Debugf("Embedded %d nodes", len(embeddings))
 
-	// TODO(hugoShaka): when vector index is here, delete then insert nodes in it.
+	// Update the index with the new embeddings
+	for _, embedding := range embeddings {
+		n.embeddings.Insert(embedding.GetEmbeddedID(), embedding)
+	}
+
 	return nil
 }
 
@@ -392,7 +400,7 @@ func (n *nodeEmbeddingCollector) embed(ctx context.Context, kind string, resourc
 
 	newEmbeddings := make([]*ai.Embedding, 0, len(response))
 	for i, vector := range response {
-		newEmbeddings = append(newEmbeddings, ai.NewEmbedding(kind, keys[i], vector, ai.EmbeddingHash(resources[keys[i]])))
+		newEmbeddings = append(newEmbeddings, ai.NewEmbedding(kind, keys[i], vector, ""))
 	}
 
 	// Store the new embeddings into the backend
@@ -452,5 +460,4 @@ func (n *NodeEmbeddingWatcher) RunPeriodicEmbedding(ctx context.Context, period 
 			}
 		}
 	}
-
 }
