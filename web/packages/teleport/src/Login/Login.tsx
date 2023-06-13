@@ -14,12 +14,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { useState } from 'react';
 
 import FormLogin from 'teleport/components/FormLogin';
 import Logo from 'teleport/components/LogoHero';
 
 import useLogin, { State } from './useLogin';
+import Motd from './MOTD';
 
 const logoSrc = require('design/assets/images/teleport-medallion.svg');
 
@@ -41,25 +42,35 @@ export function Login({
   isPasswordlessEnabled,
   primaryAuthType,
   privateKeyPolicyEnabled,
+  motd,
 }: State) {
+  const [showMOTD, setShowMOTD] = useState<boolean>(true);
+
+  const acknowledgeMOTD = () => {
+    setShowMOTD(false);
+  };
   return (
     <>
       <Logo src={logoSrc} />
-      <FormLogin
-        title={'Sign in to Teleport'}
-        authProviders={authProviders}
-        auth2faType={auth2faType}
-        preferredMfaType={preferredMfaType}
-        isLocalAuthEnabled={isLocalAuthEnabled}
-        onLoginWithSso={onLoginWithSso}
-        onLoginWithWebauthn={onLoginWithWebauthn}
-        onLogin={onLogin}
-        attempt={attempt}
-        clearAttempt={clearAttempt}
-        isPasswordlessEnabled={isPasswordlessEnabled}
-        primaryAuthType={primaryAuthType}
-        privateKeyPolicyEnabled={privateKeyPolicyEnabled}
-      />
+      {motd && showMOTD ? (
+        <Motd message={motd} onClick={acknowledgeMOTD} />
+      ) : (
+        <FormLogin
+          title={'Sign in to Teleport'}
+          authProviders={authProviders}
+          auth2faType={auth2faType}
+          preferredMfaType={preferredMfaType}
+          isLocalAuthEnabled={isLocalAuthEnabled}
+          onLoginWithSso={onLoginWithSso}
+          onLoginWithWebauthn={onLoginWithWebauthn}
+          onLogin={onLogin}
+          attempt={attempt}
+          clearAttempt={clearAttempt}
+          isPasswordlessEnabled={isPasswordlessEnabled}
+          primaryAuthType={primaryAuthType}
+          privateKeyPolicyEnabled={privateKeyPolicyEnabled}
+        />
+      )}
     </>
   );
 }

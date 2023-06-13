@@ -66,6 +66,8 @@ const cfg = {
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
     privateKeyPolicy: 'none' as PrivateKeyPolicy,
+    // MOTD is message of the day, displayed to users before login.
+    motd: '',
   },
 
   proxyCluster: 'localhost',
@@ -273,6 +275,10 @@ const cfg = {
 
   getPreferredMfaType() {
     return cfg.auth ? cfg.auth.preferredLocalMfa : null;
+  },
+
+  getMOTD() {
+    return cfg.auth ? cfg.auth.motd : null;
   },
 
   getLocalAuthFlag() {
