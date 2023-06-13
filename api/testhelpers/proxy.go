@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// ProxyHandler is a http.Handler that implements a simple HTTP proxy server.
 type ProxyHandler struct {
 	sync.Mutex
 	count int
@@ -45,7 +46,8 @@ func (p *ProxyHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Dial to the target host, this is done before hijacking the connection to
 	// ensure the target host is accessible.
-	dconn, err := net.Dial("tcp", r.Host)
+	dialer := net.Dialer{}
+	dconn, err := dialer.DialContext(r.Context(), "tcp", r.Host)
 	if err != nil {
 		trace.WriteError(w, err)
 		return

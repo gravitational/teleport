@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+// ProxyHandler is a http.Handler that implements a simple HTTP proxy server.
 type ProxyHandler = apitesthelpers.ProxyHandler
 
 type ProxyAuthorizer struct {
