@@ -391,6 +391,5 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
-    new OSS.FeatureAssist(),
   ];
 }
