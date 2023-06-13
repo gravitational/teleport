@@ -20,6 +20,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"golang.org/x/sys/windows"
 	"math/big"
 	"os"
 	"os/exec"
@@ -494,12 +495,23 @@ func solveTPMEnrollChallenge(
 	if encryptedCredential == nil {
 		return nil, trace.BadParameter("missing encrypted credential in challenge from server")
 	}
-	activationSolution, err := ak.ActivateCredential(
-		tpm,
-		*encryptedCredential,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err, "activating credential with challenge")
+
+	var activationSolution []byte
+	if windows.GetCurrentProcessToken().IsElevated() {
+		// If we are running with elevated privileges, we can just complete the
+		// credential activation here.
+		activationSolution, err = ak.ActivateCredential(
+			tpm,
+			*encryptedCredential,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "activating credential with challenge")
+		}
+	} else {
+		activationSolution, err = activateCredentialInElevatedChild()
+		if err != nil {
+			return nil, trace.Wrap(err, "activating credential with challenge using elevated child")
+		}
 	}
 
 	log.Debug("TPM: Enrollment challenge completed.")
@@ -509,6 +521,10 @@ func solveTPMEnrollChallenge(
 			platformsParams,
 		),
 	}, nil
+}
+
+func activateCredentialInElevatedChild() ([]byte, error) {
+
 }
 
 func solveTPMAuthnDeviceChallenge(
