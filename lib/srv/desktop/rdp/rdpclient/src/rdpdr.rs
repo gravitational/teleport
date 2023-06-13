@@ -2270,7 +2270,7 @@ impl Encode for DeviceControlRequest {
 
 /// 2.2.1.5 Device I/O Response (DR_DEVICE_IOCOMPLETION)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/1c412a84-0776-4984-b35c-3f0445fcae65
-#[derive(Debug, PartialEq)]
+#[derive(Debug)]
 struct DeviceIoResponse {
     device_id: u32,
     completion_id: u32,
@@ -2318,13 +2318,6 @@ impl Encode for DeviceControlResponse {
         w.write_u32::<LittleEndian>(output_buffer_enc.len() as u32)?; // output_buffer_length
         w.extend_from_slice(&output_buffer_enc);
         Ok(w)
-    }
-}
-
-impl PartialEq for DeviceControlResponse {
-    fn eq(&self, other: &Self) -> bool {
-        self.header == other.header
-            && self.output_buffer.encode().unwrap() == other.output_buffer.encode().unwrap()
     }
 }
 
