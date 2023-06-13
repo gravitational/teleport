@@ -167,7 +167,7 @@ func (p *Plugin) RegisterProxyWebHandlers(handler interface{}) error {
 	h.PUT("/enterprise/accessrequest", h.WithClusterClientProvider(p.reviewAccessRequestHandle))
 	h.DELETE("/enterprise/accessrequest/:requestId", h.WithAuth(p.deleteAccessRequestHandle))
 	h.GET("/enterprise/accessrequest/:requestId", h.WithClusterClientProvider(p.getAccessRequestHandle))
-	h.GET("/enterprise/accessrequest", h.WithAuth(p.getAccessRequestsHandle))
+	h.GET("/enterprise/accessrequest", h.WithClusterClientProvider(p.getAccessRequestsHandle))
 	h.GET("/enterprise/resourcerequestroles", h.WithAuth(p.getResourceRequestRolesHandle))
 
 	h.GET("/enterprise/releases", h.WithAuth(p.getReleases))

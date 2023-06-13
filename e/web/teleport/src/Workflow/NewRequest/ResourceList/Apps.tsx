@@ -41,7 +41,7 @@ export function Apps(props: ListProps & { apps: App[] }) {
           altKey: 'action-btn',
           render: agent =>
             renderActionCell(Boolean(addedResources.app[agent.name]), () =>
-              addOrRemoveResource('app', agent.name)
+              addOrRemoveResource('app', agent.name, agent.friendlyName)
             ),
         },
       ]}

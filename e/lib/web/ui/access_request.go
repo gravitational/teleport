@@ -64,7 +64,7 @@ type ResourceID struct {
 }
 
 type ResourceDetails struct {
-	Hostname string `json:"hostname"`
+	FriendlyName string `json:"friendlyName"`
 }
 
 type NewAccessRequestConfig struct {

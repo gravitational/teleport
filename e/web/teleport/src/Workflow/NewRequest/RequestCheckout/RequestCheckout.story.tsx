@@ -76,7 +76,7 @@ const props: RequestCheckoutProps = {
   createRequest: () => null,
   data: [
     { kind: 'app', name: 'app-name', id: 'app-name' },
-    { kind: 'db', name: 'db-name', id: 'app-name' },
+    { kind: 'db', name: 'app-name', id: 'app-name' },
     { kind: 'kube_cluster', name: 'kube-name', id: 'app-name' },
     { kind: 'user_group', name: 'user-group-name', id: 'app-name' },
     { kind: 'windows_desktop', name: 'desktop-name', id: 'app-name' },

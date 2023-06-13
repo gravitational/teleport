@@ -34,7 +34,7 @@ export function useRequestCheckout({
   const resourceKeys = Object.keys(addedResources) as ResourceKind[];
   resourceKeys.forEach(kind => {
     Object.keys(addedResources[kind]).forEach(id =>
-      data.push({ kind, id, name: addedResources[kind][id] })
+      data.push({ kind: kind, name: addedResources[kind][id], id: id })
     );
   });
   const [numRequestedResources, setNumRequestedResources] = useState(0);

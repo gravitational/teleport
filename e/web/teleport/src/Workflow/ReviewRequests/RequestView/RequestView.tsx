@@ -346,7 +346,8 @@ function Comment({
             data={resources.map(resource => ({
               ...resource.id,
               ...resource.details,
-              formattedName: formattedName(resource.id),
+              id: formattedName(resource),
+              description: resource.details?.friendlyName,
             }))}
             columns={[
               {
@@ -358,15 +359,15 @@ function Comment({
                 headerText: 'Requested Resource Kind',
               },
               {
-                key: 'formattedName',
+                key: 'id',
                 headerText: 'Requested Resource ID',
               },
               {
-                key: 'hostname',
-                headerText: 'Hostname',
-                // Don't render the hostname column if we have no hostnames.
+                key: 'description',
+                headerText: 'Description',
+                // Don't render the description column if we have no friendly names.
                 isNonRender: !resources.some(
-                  resource => resource.details?.hostname
+                  resource => resource.details?.friendlyName
                 ),
               },
             ]}

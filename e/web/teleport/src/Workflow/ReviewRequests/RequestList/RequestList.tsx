@@ -143,7 +143,8 @@ export function requestdMatcher(
   if (propName === 'resources') {
     return targetValue.some((r: Resource) =>
       Object.values(r.id)
-        .concat(Object.values(r.details || {}))
+        .concat(Object.values(r.details.hostname || {}))
+        .concat(Object.values(r.details.friendlyName || {}))
         .some(v => v.toUpperCase().includes(searchValue))
     );
   }
@@ -256,10 +257,11 @@ export const RequestedCell = ({
           <Label
             mb="0"
             mr="1"
-            key={`${resource.id.kind}${formattedName(resource.id)}${index}`}
+            key={`${resource.id.kind}${formattedName(resource)}${index}`}
             kind="secondary"
           >
-            {resource.id.kind}: {formattedName(resource.id)}
+            {resource.id.kind}:{' '}
+            {resource.details?.friendlyName || formattedName(resource)}
           </Label>
         ))}
       </Cell>

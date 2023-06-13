@@ -59,7 +59,9 @@ export type ResourceId = {
 // ResourceDetails holds optional details for a resource.
 export type ResourceDetails = {
   // hostname is the resource hostname.
+  // TODO(mdwn): Remove hostname as it's no longer used.
   hostname?: string;
+  friendlyName?: string;
 };
 
 export interface CreateAccessRequest {

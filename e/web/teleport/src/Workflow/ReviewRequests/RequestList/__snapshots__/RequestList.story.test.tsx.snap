@@ -712,7 +712,8 @@ exports[`loaded state 1`] = `
               kind="secondary"
             >
               app
-              : 
+              :
+               
               app-name
             </div>
             <div
@@ -720,7 +721,8 @@ exports[`loaded state 1`] = `
               kind="secondary"
             >
               db
-              : 
+              :
+               
               db-name
             </div>
             <div
@@ -728,7 +730,8 @@ exports[`loaded state 1`] = `
               kind="secondary"
             >
               node
-              : 
+              :
+               
               node-name
             </div>
             <div
@@ -736,7 +739,8 @@ exports[`loaded state 1`] = `
               kind="secondary"
             >
               user_group
-              : 
+              :
+               
               user-group-name
             </div>
             <div
@@ -744,7 +748,8 @@ exports[`loaded state 1`] = `
               kind="secondary"
             >
               kube_cluster
-              : 
+              :
+               
               kube-cluster-name
             </div>
             <div
@@ -752,8 +757,18 @@ exports[`loaded state 1`] = `
               kind="secondary"
             >
               windows_desktop
-              : 
+              :
+               
               windows-desktop-name
+            </div>
+            <div
+              class="c21"
+              kind="secondary"
+            >
+              app
+              :
+               
+              Some Friendly Name
             </div>
           </td>
           <td

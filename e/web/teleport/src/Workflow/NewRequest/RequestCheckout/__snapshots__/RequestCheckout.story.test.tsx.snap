@@ -577,7 +577,7 @@ exports[`failed state 1`] = `
               db
             </td>
             <td>
-              db-name
+              app-name
             </td>
             <td
               align="right"
@@ -1381,7 +1381,7 @@ exports[`loaded state 1`] = `
               db
             </td>
             <td>
-              db-name
+              app-name
             </td>
             <td
               align="right"

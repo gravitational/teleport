@@ -100,7 +100,7 @@ func (m *mockClusterClientProvider) UserClientForCluster(ctx context.Context, cl
 
 type mockResource struct {
 	types.ResourceWithLabels
-	kind, name string
+	kind, name, description, origin string
 }
 
 func (m *mockResource) GetKind() string {
@@ -109,6 +109,16 @@ func (m *mockResource) GetKind() string {
 
 func (m *mockResource) GetName() string {
 	return m.name
+}
+
+func (m *mockResource) Origin() string {
+	return m.origin
+}
+
+func (m *mockResource) GetMetadata() types.Metadata {
+	return types.Metadata{
+		Description: m.description,
+	}
 }
 
 type mockResourceWithHostname struct {
@@ -128,6 +138,18 @@ func TestGetAccessRequest(t *testing.T) {
 
 	noRequestID := ""
 	wrongRequestID := "asdf"
+
+	app, err := types.NewAppV3(types.Metadata{
+		Name:        "app",
+		Description: "friendly name",
+		Labels: map[string]string{
+			types.OriginLabel: types.OriginOkta,
+		},
+	}, types.AppSpecV3{
+		URI:        "https://some-uri.com",
+		PublicAddr: "https://some-uri.com",
+	})
+	require.NoError(t, err)
 
 	for _, tc := range []struct {
 		desc               string
@@ -174,7 +196,24 @@ func TestGetAccessRequest(t *testing.T) {
 			},
 			resultAssertion: func(t *testing.T, res *ui.AccessRequest) {
 				require.Len(t, res.Resources, 1)
-				require.Equal(t, "test-hostname", res.Resources[0].Details.Hostname)
+				require.Equal(t, "test-hostname", res.Resources[0].Details.FriendlyName)
+			},
+		},
+		{
+			desc: "with Okta app",
+			requestedResources: []types.ResourceID{{
+				ClusterName: "test-cluster",
+				Kind:        types.KindApp,
+				Name:        "app",
+			}},
+			resourcesByCluster: map[string][]types.ResourceWithLabels{
+				"test-cluster": {
+					app,
+				},
+			},
+			resultAssertion: func(t *testing.T, res *ui.AccessRequest) {
+				require.Len(t, res.Resources, 1)
+				require.Equal(t, "friendly name", res.Resources[0].Details.FriendlyName)
 			},
 		},
 		{
@@ -216,9 +255,9 @@ func TestGetAccessRequest(t *testing.T) {
 			resultAssertion: func(t *testing.T, res *ui.AccessRequest) {
 				require.Len(t, res.Resources, 2)
 				require.Equal(t, "test-node-1", res.Resources[0].ID.Name)
-				require.Equal(t, "test-hostname-1", res.Resources[0].Details.Hostname)
+				require.Equal(t, "test-hostname-1", res.Resources[0].Details.FriendlyName)
 				require.Equal(t, "test-node-2", res.Resources[1].ID.Name)
-				require.Equal(t, "test-hostname-2", res.Resources[1].Details.Hostname)
+				require.Equal(t, "test-hostname-2", res.Resources[1].Details.FriendlyName)
 			},
 		},
 		{
@@ -251,11 +290,11 @@ func TestGetAccessRequest(t *testing.T) {
 			resultAssertion: func(t *testing.T, res *ui.AccessRequest) {
 				require.Len(t, res.Resources, 2)
 				require.Equal(t, "test-node-1", res.Resources[0].ID.Name)
-				require.Equal(t, "test-hostname-1", res.Resources[0].Details.Hostname)
+				require.Equal(t, "test-hostname-1", res.Resources[0].Details.FriendlyName)
 
 				// test-node-2 should be included but the hostname should be missing
 				require.Equal(t, "test-node-2", res.Resources[1].ID.Name)
-				require.Equal(t, "", res.Resources[1].Details.Hostname)
+				require.Equal(t, "", res.Resources[1].Details.FriendlyName)
 			},
 		},
 		{
@@ -302,11 +341,11 @@ func TestGetAccessRequest(t *testing.T) {
 				// Node should have a hostname, others shouldn't
 				require.Len(t, req.Resources, 3)
 				require.Equal(t, "test-node-1", req.Resources[0].ID.Name)
-				require.Equal(t, "test-hostname-1", req.Resources[0].Details.Hostname)
+				require.Equal(t, "test-hostname-1", req.Resources[0].Details.FriendlyName)
 				require.Equal(t, "test-app-1", req.Resources[1].ID.Name)
-				require.Equal(t, "", req.Resources[1].Details.Hostname)
+				require.Equal(t, "", req.Resources[1].Details.FriendlyName)
 				require.Equal(t, "test-kube-1", req.Resources[2].ID.Name)
-				require.Equal(t, "", req.Resources[2].Details.Hostname)
+				require.Equal(t, "", req.Resources[2].Details.FriendlyName)
 			},
 		},
 	} {

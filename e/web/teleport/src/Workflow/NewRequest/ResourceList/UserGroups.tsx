@@ -39,7 +39,12 @@ export function UserGroups(props: ListProps & { userGroups: UserGroup[] }) {
           render: agent =>
             renderActionCell(
               Boolean(addedResources.user_group[agent.name]),
-              () => addOrRemoveResource('user_group', agent.name)
+              () =>
+                addOrRemoveResource(
+                  'user_group',
+                  agent.name,
+                  agent.friendlyName
+                )
             ),
         },
       ]}

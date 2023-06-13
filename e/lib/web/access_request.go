@@ -192,7 +192,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 		return nil, nil
 	}
 
-	resourceIDsByCluster := services.GetNodeResourceIDsByCluster(req)
+	resourceIDsByCluster := services.GetResourceIDsByCluster(req)
 
 	resourceDetails := make(map[string]ui.ResourceDetails)
 	for clusterName, resourceIDs := range resourceIDsByCluster {
@@ -207,7 +207,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 		}
 		for id, d := range details {
 			resourceDetails[id] = ui.ResourceDetails{
-				Hostname: d.Hostname,
+				FriendlyName: d.FriendlyName,
 			}
 		}
 	}
@@ -215,7 +215,7 @@ func getResourceDetails(ctx context.Context, req types.AccessRequest, cfg *getAc
 	return resourceDetails, nil
 }
 
-func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext, clusterClientProvider web.ClusterClientProvider) (interface{}, error) {
 	clt, err := ctx.GetClient()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -226,18 +226,33 @@ func (p *Plugin) getAccessRequestsHandle(w http.ResponseWriter, r *http.Request,
 		User: query.Get("user"),
 	}
 
-	return p.getAccessRequests(r.Context(), clt, filter)
+	return p.getAccessRequests(r.Context(), clt, filter, withClusterClientProvider(clusterClientProvider))
 }
 
-func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestAPIGetter, filter types.AccessRequestFilter) ([]ui.AccessRequest, error) {
+func (p *Plugin) getAccessRequests(ctx context.Context, clt accessRequestAPIGetter, filter types.AccessRequestFilter, opts ...getAccessRequestOption) ([]ui.AccessRequest, error) {
 	reqs, err := clt.GetAccessRequests(ctx, filter)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
+	cfg := defaultGetAccessRequestConfig()
+	for _, opt := range opts {
+		opt(cfg)
+	}
+
 	uiReqs := make([]ui.AccessRequest, 0, len(reqs))
 	for _, req := range reqs {
-		uiReq, err := ui.NewAccessRequest(req)
+		var opts []ui.NewAccessRequestOption
+		resourceDetails, err := getResourceDetails(ctx, req, cfg)
+		if err != nil {
+			// This error is unexpected, but we don't want to break the API filling
+			// in optional details
+			logrus.WithError(err).Info("Unexpected error in getAccessRequest while fetching resource details")
+		} else {
+			opts = append(opts, ui.WithResourceDetails(resourceDetails))
+		}
+
+		uiReq, err := ui.NewAccessRequest(req, opts...)
 		if err != nil {
 			p.Log.Warnf("Failed to process access request: %v", err)
 			continue

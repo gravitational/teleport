@@ -46,6 +46,16 @@ export const requestSearchPending: AccessRequest = {
         clusterName: 'cluster-name',
       },
     },
+    {
+      id: {
+        kind: 'app',
+        name: 'raw-id',
+        clusterName: 'cluster-name',
+      },
+      details: {
+        friendlyName: 'Some Friendly Name',
+      },
+    },
   ],
 };
 

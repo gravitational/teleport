@@ -262,7 +262,9 @@ export function useNewRequest(ctx: Ctx) {
         break;
       case 'app':
         (agents as App[]).forEach(
-          app => (addedResources[selectedResource][app.name] = app.id)
+          app =>
+            (addedResources[selectedResource][app.name] =
+              app.friendlyName || app.name)
         );
         break;
       case 'db':
@@ -278,7 +280,8 @@ export function useNewRequest(ctx: Ctx) {
       case 'user_group':
         (agents as UserGroup[]).forEach(
           userGroup =>
-            (addedResources[selectedResource][userGroup.name] = userGroup.name)
+            (addedResources[selectedResource][userGroup.name] =
+              userGroup.friendlyName || userGroup.name)
         );
         break;
       case 'windows_desktop':

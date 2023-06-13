@@ -231,14 +231,14 @@ const RequestedCell = ({
   if (resources?.length > 0) {
     return (
       <Cell key={id}>
-        {resources.map(({ id }, index) => (
+        {resources.map((resource, index) => (
           <Label
             mb="0"
             mr="1"
-            key={`${id.kind}${formattedName(id)}${index}`}
+            key={`${resource.id.kind}${formattedName(resource)}${index}`}
             kind="secondary"
           >
-            {id.kind}: {formattedName(id)}
+            {resource.id.kind}: {formattedName(resource)}
           </Label>
         ))}
       </Cell>
