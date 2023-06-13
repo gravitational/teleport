@@ -49,7 +49,9 @@ type dialConfig struct {
 	// Used by proxy's web server to make calls on behalf of connected clients.
 	proxyHeaderGetter PROXYHeaderGetter
 	// proxyURLFunc is a function used to get ProxyURL. Defaults to
-	// utils.GetProxyURL if not specified. only used in testing.
+	// utils.GetProxyURL if not specified. Currently only used in tests to
+	// overwrite the ProxyURL as httpproxy.FromEnvironment skips localhost
+	// proxies.
 	proxyURLFunc func(dialAddr string) *url.URL
 }
 
