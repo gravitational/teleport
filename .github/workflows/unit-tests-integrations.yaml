@@ -44,7 +44,6 @@ jobs:
       image: ghcr.io/gravitational/teleport-buildbox:teleport14
       options: --cap-add=SYS_ADMIN --privileged
       env: 
-        TELEPORT_GET_VERSION: v12.1.0
         TELEPORT_ENTERPRISE_LICENSE: ${{ secrets.TELEPORT_ENTERPRISE_LICENSE }}
 
     steps:
@@ -53,6 +52,9 @@ jobs:
 
       - name: Prepare workspace
         uses: ./.github/actions/prepare-workspace
+
+      - name: Build teleport binaries
+        run: make && echo "$PWD/build" >> "$GITHUB_PATH"
 
       - name: Run access plugin tests
         run: make test-access-integrations
