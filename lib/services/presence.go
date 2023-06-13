@@ -83,13 +83,13 @@ type Presence interface {
 
 	// UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(server types.Server) error
+	UpsertProxy(ctx context.Context, server types.Server) error
 
 	// ProxyGetter gets a list of proxies
 	ProxyGetter
 
 	// DeleteProxy deletes proxy by name
-	DeleteProxy(name string) error
+	DeleteProxy(ctx context.Context, name string) error
 
 	// DeleteAllProxies deletes all proxies
 	DeleteAllProxies() error
