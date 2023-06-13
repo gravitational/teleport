@@ -59,6 +59,7 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -5840,8 +5841,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		if trace.IsNotFound(err) {
 			return false
 		}
-		require.NoError(t, err)
-
+		assert.NoError(t, err, "GetNode returned an unexpected error")
 		return true
 	}, 5*time.Second, 250*time.Millisecond)
 
