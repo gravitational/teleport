@@ -77,7 +77,7 @@ See some [examples](cli.mdx#filter-examples) of the different ways you can filte
 Label expressions are available starting in Teleport version `13.1.1`.
 All components of your Teleport cluster must be upgraded to version `13.1.1`
 or newer before you will be able to use label expressions.
-This includes the Auth service and **all** Node services.
+This includes the Auth Service and **all** Teleport agents.
 </Admonition>
 
 Label expressions can be used in Teleport roles to define access to resources
@@ -91,7 +91,7 @@ available:
 
 | Field              | Type                    | Description |
 |--------------------|-------------------------|-------------|
-| `labels`           | `map[string]string`     | Combined static and dynamic labels of the resource (node, app, db, etc.) being accessed |
+| `labels`           | `map[string]string`     | Combined static and dynamic labels of the resource (server, application, etc.) being accessed. |
 | `user.spec.traits` | `map[string][]string`   | All traits of the user accessing the resource (referred to as `external` or `internal` in role template expressions). |
 
 The language supports the following functions:
@@ -104,7 +104,7 @@ The language supports the following functions:
 | `email.local(list)` | `[]string` | Returns the local part of each email in `list`, or an error if any email fails to parse | `contains(email.local(user.spec.traits["email"]),` `labels["owner"])`
 | `strings.upper(list)` | `[]string` | Converts all items of the list to uppercase | `contains(strings.upper(user.spec.traits["username"]),` `labels["owner"])`
 | `strings.lower(list)` | `[]string` | Converts all items of the list to lowercase | `contains(strings.lower(user.spec.traits["username"]),` `labels["owner"])`
-| `labels_matching(re)` | `[]string` | Returns the aggregate of all label values with keys matching `re`, which can be a glob or a regular expression. | `contains(labels_matching("^project-(team\|label)$"),` `"security")`
+| `labels_matching(re)` | `[]string` | Returns the aggregate of all label values with keys matching `re`, which can be a glob or a regular expression | `contains(labels_matching("^project-(team\|label)$"),` `"security")`
 | `contains_any(list, items)` | Boolean | Returns true if `list` contains an exact match for any element of `items` | `contains_any(user.spec.traits["projects"],` `labels_matching("project-*"))` |
 | `contains_all(list, items)` | Boolean | Returns true if `list` contains an exact match for all elements of `items` | `contains_all(user.spec.traits["projects"],` `labels_matching("project-*"))` |
 
