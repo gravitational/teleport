@@ -49,6 +49,7 @@ use std::collections::HashMap;
 use std::convert::{TryFrom, TryInto};
 use std::ffi::CString;
 use std::io::{Read, Seek, SeekFrom};
+use std::vec;
 
 /// Client implements a device redirection (RDPDR) client, as defined in
 /// https://winprotocoldoc.blob.core.windows.net/productionwindowsarchives/MS-RDPEFS/%5bMS-RDPEFS%5d.pdf
@@ -326,9 +327,9 @@ impl Client {
             return Err(Error::TryError("received a drive redirection major function when drive redirection was not allowed".to_string()));
         }
 
-        let output = if is_smart_card_op {
+        let device_control_responses = if is_smart_card_op {
             // Smart card control
-            if let Some(res) = self.scard.ioctl(ioctl.io_control_code, payload)? {
+            if let Some(res) = self.scard.ioctl(&ioctl, payload)? {
                 res
             } else {
                 return Ok(vec![]);
@@ -336,14 +337,23 @@ impl Client {
         } else {
             // Drive redirection, mimic FreeRDP's "no-op"
             // https://github.com/FreeRDP/FreeRDP/blob/511444a65e7aa2f537c5e531fa68157a50c1bd4d/channels/drive/client/drive_main.c#L677-L684
-            Box::new(NoOp::new())
+            vec![DeviceControlResponse::new(
+                &ioctl,
+                NTSTATUS::STATUS_SUCCESS,
+                Box::new(NoOp::new()),
+            )]
         };
-        let resp = DeviceControlResponse::new(&ioctl, NTSTATUS::STATUS_SUCCESS, output);
 
-        debug!("sending RDP: {:?}", resp);
-        let resp = self
-            .add_headers_and_chunkify(PacketId::PAKID_CORE_DEVICE_IOCOMPLETION, resp.encode()?)?;
-        Ok(resp)
+        let mut messages: Messages = vec![];
+        for resp in device_control_responses {
+            debug!("sending RDP: {:?}", resp);
+            messages.extend(self.add_headers_and_chunkify(
+                PacketId::PAKID_CORE_DEVICE_IOCOMPLETION,
+                resp.encode()?,
+            )?);
+        }
+
+        Ok(messages)
     }
 
     fn process_irp_create(
@@ -2129,6 +2139,24 @@ pub struct DeviceIoRequest {
 }
 
 impl DeviceIoRequest {
+    // Used in tests
+    #[allow(dead_code)]
+    fn new(
+        device_id: u32,
+        file_id: u32,
+        completion_id: u32,
+        major_function: MajorFunction,
+        minor_function: MinorFunction,
+    ) -> Self {
+        Self {
+            device_id,
+            file_id,
+            completion_id,
+            major_function,
+            minor_function,
+        }
+    }
+
     fn decode(payload: &mut Payload) -> RdpResult<Self> {
         let device_id = payload.read_u32::<LittleEndian>()?;
         let file_id = payload.read_u32::<LittleEndian>()?;
@@ -2192,6 +2220,22 @@ struct DeviceControlRequest {
 }
 
 impl DeviceControlRequest {
+    // Used in tests
+    #[allow(dead_code)]
+    fn new(
+        header: DeviceIoRequest,
+        output_buffer_length: u32,
+        input_buffer_length: u32,
+        io_control_code: IoctlCode,
+    ) -> Self {
+        Self {
+            header,
+            output_buffer_length,
+            input_buffer_length,
+            io_control_code,
+        }
+    }
+
     fn decode(header: DeviceIoRequest, payload: &mut Payload) -> RdpResult<Self> {
         let output_buffer_length = payload.read_u32::<LittleEndian>()?;
         let input_buffer_length = payload.read_u32::<LittleEndian>()?;
@@ -2226,7 +2270,7 @@ impl Encode for DeviceControlRequest {
 
 /// 2.2.1.5 Device I/O Response (DR_DEVICE_IOCOMPLETION)
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpefs/1c412a84-0776-4984-b35c-3f0445fcae65
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 struct DeviceIoResponse {
     device_id: u32,
     completion_id: u32,
@@ -2274,6 +2318,13 @@ impl Encode for DeviceControlResponse {
         w.write_u32::<LittleEndian>(output_buffer_enc.len() as u32)?; // output_buffer_length
         w.extend_from_slice(&output_buffer_enc);
         Ok(w)
+    }
+}
+
+impl PartialEq for DeviceControlResponse {
+    fn eq(&self, other: &Self) -> bool {
+        self.header == other.header
+            && self.output_buffer.encode().unwrap() == other.output_buffer.encode().unwrap()
     }
 }
 
