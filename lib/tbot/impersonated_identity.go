@@ -449,13 +449,13 @@ func (b *Bot) generateImpersonatedIdentity(
 		// and will fail to generate certs if the cluster doesn't exist or is
 		// offline.
 		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
-			req.KubernetesCluster = output.ClusterName
+			req.KubernetesCluster = output.KubernetesCluster
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		b.log.Infof("Generated identity for Kubernetes cluster %q", output.ClusterName)
+		b.log.Infof("Generated identity for Kubernetes cluster %q", output.KubernetesCluster)
 
 		return routedIdentity, impersonatedClient, nil
 	case *config.ApplicationOutput:
