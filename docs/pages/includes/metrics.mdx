@@ -29,6 +29,8 @@
 | `etcd_backend_tx_seconds`                                | histogram | etcd                | Latency for etcd transaction operations.                                                           |
 | `etcd_backend_write_requests`                            | counter   | etcd                | Number of write requests to the database.                                                          |
 | `etcd_backend_write_seconds`                             | histogram | etcd                | Latency for etcd write operations.                                                                 |
+| `teleport_etcd_events`                                   | counter   | etcd                | Total number of etcd events processed.                                                             |
+| `teleport_etcd_event_backpressure`                       | counter   | etcd                | Total number of times event processing encountered backpressure.                                      |
 | `firestore_events_backend_batch_read_requests`           | counter   | GCP Cloud Firestore | Number of batch read requests to Cloud Firestore events.                                           |
 | `firestore_events_backend_batch_read_seconds`            | histogram | GCP Cloud Firestore | Latency for Cloud Firestore events batch read operations.                                          |
 | `firestore_events_backend_batch_write_requests`          | counter   | GCP Cloud Firestore | Number of batch write requests to Cloud Firestore events.                                          |

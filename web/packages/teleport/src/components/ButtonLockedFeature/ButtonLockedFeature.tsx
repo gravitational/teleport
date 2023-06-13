@@ -70,7 +70,9 @@ function getParams(
   isEnterprise: boolean,
   event: CtaEvent
 ): string {
-  return `${isEnterprise ? 'e_' : ''}${version}&campaign=${CtaEvent[event]}`;
+  return `${isEnterprise ? 'e_' : ''}${version}&utm_campaign=${
+    CtaEvent[event]
+  }`;
 }
 
 const UnlockIcon = styled(Unlock)`

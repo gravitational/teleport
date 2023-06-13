@@ -559,3 +559,12 @@ func ProfileNameFromProxyAddress(store ProfileStore, proxyAddr string) (string, 
 	profileName, err := utils.Host(proxyAddr)
 	return profileName, trace.Wrap(err)
 }
+
+// AccessInfo returns the complete services.AccessInfo for this profile.
+func (p *ProfileStatus) AccessInfo() *services.AccessInfo {
+	return &services.AccessInfo{
+		Roles:              p.Roles,
+		Traits:             p.Traits,
+		AllowedResourceIDs: p.AllowedResourceIDs,
+	}
+}
