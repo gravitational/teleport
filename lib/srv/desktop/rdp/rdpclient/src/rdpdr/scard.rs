@@ -168,8 +168,7 @@ impl Client {
         // Fetch the pending SCARD_IOCTL_GETSTATUSCHANGEW response and add it to the responses.
         if let Some(dcr) = self
             .contexts
-            .get(req.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.context.value)?
             .scard_cancel_response
             .take()
         {
@@ -255,8 +254,7 @@ impl Client {
             // be returned when we get an SCARD_IOCTL_CANCEL call for this Context.
             resp.set_return_code(ReturnCode::SCARD_E_CANCELLED);
             self.contexts
-                .get(context_value)
-                .ok_or_else(|| invalid_data_error("unknown context ID"))?
+                .get(context_value)?
                 .set_scard_cancel_response(DeviceControlResponse::new(
                     ioctl,
                     NTSTATUS::STATUS_SUCCESS,
@@ -282,10 +280,7 @@ impl Client {
         let req = Connect_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let ctx = self
-            .contexts
-            .get(req.common.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+        let ctx = self.contexts.get(req.common.context.value)?;
         let handle = ctx.connect(
             req.common.context,
             self.uuid,
@@ -312,8 +307,7 @@ impl Client {
         debug!("got {:?}", req);
 
         self.contexts
-            .get(req.handle.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.handle.context.value)?
             .disconnect(req.handle.value);
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -398,8 +392,7 @@ impl Client {
 
         let card = self
             .contexts
-            .get(req.handle.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.handle.context.value)?
             .get(req.handle.value)
             .ok_or_else(|| invalid_data_error("unknown handle ID"))?;
 
@@ -422,10 +415,7 @@ impl Client {
         let req = GetDeviceTypeId_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let _ctx = self
-            .contexts
-            .get(req.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+        let _ctx = self.contexts.get(req.context.value)?;
 
         let resp = GetDeviceTypeId_Return::new(ReturnCode::SCARD_S_SUCCESS);
         debug!("sending {:?}", resp);
@@ -446,8 +436,7 @@ impl Client {
 
         let val = self
             .contexts
-            .get(req.common.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.common.context.value)?
             .cache_read(&req.lookup_name);
 
         let resp = ReadCache_Return::new(val);
@@ -468,8 +457,7 @@ impl Client {
         debug!("got {:?}", req);
 
         self.contexts
-            .get(req.common.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?
+            .get(req.common.context.value)?
             .cache_write(req.lookup_name, req.common.data);
 
         let resp = Long_Return::new(ReturnCode::SCARD_S_SUCCESS);
@@ -489,10 +477,7 @@ impl Client {
         let req = GetReaderIcon_Call::decode(input)?;
         debug!("got {:?}", req);
 
-        let _ctx = self
-            .contexts
-            .get(req.context.value)
-            .ok_or_else(|| invalid_data_error("unknown context ID"))?;
+        let _ctx = self.contexts.get(req.context.value)?;
 
         let resp = GetReaderIcon_Return::new(ReturnCode::SCARD_E_UNSUPPORTED_FEATURE);
         debug!("sending {:?}", resp);
@@ -2363,8 +2348,10 @@ impl Contexts {
         ctx
     }
 
-    fn get(&mut self, id: u32) -> Option<&mut ContextInternal> {
-        self.contexts.get_mut(&id)
+    fn get(&mut self, id: u32) -> RdpResult<&mut ContextInternal> {
+        self.contexts
+            .get_mut(&id)
+            .ok_or_else(|| invalid_data_error(&format!("unknown context id: {}", id)))
     }
 
     fn release(&mut self, id: u32) {
