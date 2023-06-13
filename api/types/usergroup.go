@@ -38,11 +38,12 @@ type UserGroup interface {
 var _ ResourceWithLabels = (*UserGroupV1)(nil)
 
 // NewUserGroup returns a new UserGroup.
-func NewUserGroup(metadata Metadata) (UserGroup, error) {
+func NewUserGroup(metadata Metadata, spec UserGroupSpecV1) (UserGroup, error) {
 	g := &UserGroupV1{
 		ResourceHeader: ResourceHeader{
 			Metadata: metadata,
 		},
+		Spec: spec,
 	}
 	if err := g.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
