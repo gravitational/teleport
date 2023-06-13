@@ -311,10 +311,7 @@ export default class MainProcess {
         role: 'help',
         submenu: [
           { label: 'Learn More', click: openDocsUrl },
-          {
-            label: 'About Teleport Connect',
-            click: app.showAboutPanel,
-          },
+          { role: 'about' },
         ],
       },
     ];
@@ -324,8 +321,7 @@ export default class MainProcess {
   }
 
   private updateAboutPanelIfNeeded(): void {
-    // There is no about menu for Linux. See https://github.com/electron/electron/issues/18918
-    // On Windows default menu does not show copyrights.
+    // On Windows and Linux default menu does not show copyrights.
     if (
       this.settings.platform === 'linux' ||
       this.settings.platform === 'win32'
