@@ -30,7 +30,7 @@ A lock can target the following objects or attributes:
 - a Teleport [trusted device](device-trust.mdx#optional-locking-a-device) by the device ID
 - an MFA device by the device's UUID
 - an OS/UNIX login
-- a Teleport agent by the Agent's Server UUID (effectively unregistering it from the
+- a Teleport agent by the agent's server UUID (effectively unregistering it from the
   cluster)
 - a Windows desktop by the desktop's name
 - an [Access Request](../access-requests.mdx) by UUID
@@ -77,7 +77,7 @@ with one of the following options:
   <TabItem label="Agent">
   All connections to the specified agent will be locked and the agent will be excluded from the Teleport cluster.
   ```code
-  $ tctl lock --server-id=363256df-f78a-4d99-803c-bae19da9ede4 --message="The server running Kubernetes Service and Database service is under investigation." --ttl=10h
+  $ tctl lock --server-id=363256df-f78a-4d99-803c-bae19da9ede4 --message="The server running the Kubernetes Service and Database Service is under investigation." --ttl=10h
   # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
   ```
   </TabItem>
