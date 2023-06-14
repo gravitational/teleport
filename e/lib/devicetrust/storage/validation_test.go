@@ -5,7 +5,10 @@ import (
 	"encoding/base64"
 	"testing"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -192,6 +195,124 @@ func TestValidateCollectedData(t *testing.T) {
 				return
 			}
 			require.ErrorContains(t, err, tt.wantErr)
+		})
+	}
+}
+
+// TestValidateCollectedDataAgainstDeviceStrict tests a few corner cases not
+// covered by TestS_CreateDeviceEnrollTokenUsingData or
+// TestS_CreateDeviceEnrollTokenUsingData_errors.
+func TestValidateCollectedDataAgainstDeviceStrict(t *testing.T) {
+	setMDMFeatureActive(t, true)
+
+	nowPB := timestamppb.Now()
+	dev := &devicepb.Device{
+		ApiVersion:   "v1",
+		Id:           uuid.NewString(),
+		OsType:       devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag:     "llama",
+		CreateTime:   nowPB,
+		UpdateTime:   nowPB,
+		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+		Profile: &devicepb.DeviceProfile{
+			UpdateTime:        nowPB,
+			ModelIdentifier:   "MacBookPro9,2",
+			OsVersion:         "13.3",
+			OsBuild:           "22D68",
+			OsUsernames:       []string{"llama"},
+			JamfBinaryVersion: "9.27",
+		},
+	}
+
+	modifyCD := func(fn func(*devicepb.DeviceCollectedData)) *devicepb.DeviceCollectedData {
+		cd := collectedDataForDevice(dev)
+		if fn != nil {
+			fn(cd)
+		}
+		return cd
+	}
+
+	modifyDev := func(fn func(*devicepb.Device)) *devicepb.Device {
+		cp := proto.Clone(dev).(*devicepb.Device)
+		fn(cp)
+		return cp
+	}
+
+	tests := []struct {
+		name    string
+		cd      *devicepb.DeviceCollectedData
+		dev     *devicepb.Device
+		wantErr string
+	}{
+		{
+			name: "ok",
+			cd:   modifyCD(nil),
+			dev:  dev,
+		},
+		{
+			name: "ok - nil device Profile",
+			cd:   modifyCD(nil), // Collected data has profile-like info. This is fine.
+			dev: modifyDev(func(d *devicepb.Device) {
+				d.Profile = nil
+			}),
+		},
+		{
+			name: "Profile.OSVersion equivalent",
+			cd: modifyCD(func(cd *devicepb.DeviceCollectedData) {
+				cd.OsVersion = "13.3.0"
+			}),
+			dev: dev,
+		},
+		{
+			name: "Profile.OSVersion equivalent (device-side)",
+			cd:   modifyCD(nil),
+			dev: modifyDev(func(d *devicepb.Device) {
+				d.Profile.OsVersion = "13.3.0"
+			}),
+		},
+		{
+			name: "Profile.JamfBinaryVersion equivalent",
+			cd: modifyCD(func(cd *devicepb.DeviceCollectedData) {
+				cd.JamfBinaryVersion = "9.27.0"
+			}),
+			dev: dev,
+		},
+		{
+			name: "complex Profile.JamfBinaryVersion",
+			cd: modifyCD(func(cd *devicepb.DeviceCollectedData) {
+				cd.JamfBinaryVersion = "10.46.1-t1683911857"
+			}),
+			dev: modifyDev(func(d *devicepb.Device) {
+				d.Profile.JamfBinaryVersion = "10.46.1-t1683911857"
+			}),
+		},
+		// Similar to TestS_CreateDeviceEnrollTokenUsingData_errors
+		{
+			name: "Profile.OSVersion drift",
+			cd: modifyCD(func(cd *devicepb.DeviceCollectedData) {
+				cd.OsVersion = "13.3.1" // upwards drift not OK in strict mode!
+			}),
+			dev:     dev,
+			wantErr: "OS version drift",
+		},
+		// Similar to TestS_CreateDeviceEnrollTokenUsingData_errors
+		{
+			name: "Profile.JamfBinaryVersion drift",
+			cd: modifyCD(func(cd *devicepb.DeviceCollectedData) {
+				cd.JamfBinaryVersion = "9.27.1" // upwards drift not OK in strict mode!
+			}),
+			dev:     dev,
+			wantErr: "jamf binary version drift",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := storage.ValidateCollectedDataAgainstDeviceStrict(test.cd, test.dev)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "ValidateCollectedDataAgainstDeviceStrict error mismatch")
+			} else if err != nil {
+				t.Errorf("ValidateCollectedDataAgainstDeviceStrict returned err=%v, want nil", err)
+			}
 		})
 	}
 }

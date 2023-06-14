@@ -470,24 +470,6 @@ func validateDataLikeDrift(target, source collectedDataLike) error {
 	//  a legitimate change.
 }
 
-func isBackwardsVersionDrift(v1, v2 string) bool {
-	if v1 == "" {
-		return false
-	}
-	// v2 is required if v1 is known.
-	if v2 == "" {
-		return true
-	}
-
-	v1Prefixed := fmt.Sprintf("v%v", v1)
-	v2Prefixed := fmt.Sprintf("v%v", v2)
-	if !semver.IsValid(v1Prefixed) {
-		return false // can't detect drift
-	}
-
-	return semver.Compare(v1Prefixed, v2Prefixed) > 0
-}
-
 // validateCollectedDataAgainstDeviceStrict is used to gate automatic token
 // issuance. It requires that `cd` match the [DeviceProfile] _exactly_, in
 // addition to the checks performed by [ValidateCollectedDataAgainstDevice].
@@ -500,13 +482,39 @@ func validateCollectedDataAgainstDeviceStrict(cd *devicepb.DeviceCollectedData, 
 	switch p := dev.Profile; {
 	case p == nil:
 		return nil // Nothing to check!
-	case p.OsVersion != "" && p.OsVersion != cd.OsVersion:
+	case p.OsVersion != "" && !isVersionEqual(p.OsVersion, cd.OsVersion):
 		return NewCollectedDataDriftError("device OS version drift")
 	case p.OsBuild != "" && p.OsBuild != cd.OsBuild:
 		return NewCollectedDataDriftError("device OS build drift")
-	case p.JamfBinaryVersion != "" && p.JamfBinaryVersion != cd.JamfBinaryVersion:
+	case p.JamfBinaryVersion != "" && !isVersionEqual(p.JamfBinaryVersion, cd.JamfBinaryVersion):
 		return NewCollectedDataDriftError("jamf binary version drift")
 	}
 
 	return nil
+}
+
+func isBackwardsVersionDrift(v1, v2 string) bool {
+	if v1 == "" {
+		return false
+	}
+	// v2 is required if v1 is known.
+	if v2 == "" {
+		return true
+	}
+
+	v1Prefix := "v" + v1
+	v2Prefix := "v" + v2
+	if !semver.IsValid(v1Prefix) {
+		return false // can't detect drift
+	}
+
+	return semver.Compare(v1Prefix, v2Prefix) > 0
+}
+
+// isVersionEqual verifies if two semantic versions are equal.
+// If `v1` is not a valid semver results may be skewed, see [semver.Compare].
+func isVersionEqual(v1, v2 string) bool {
+	v1Prefix := "v" + v1
+	v2Prefix := "v" + v2
+	return semver.Compare(v1Prefix, v2Prefix) == 0
 }

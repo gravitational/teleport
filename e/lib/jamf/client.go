@@ -116,6 +116,7 @@ func (c *Client) verifyCredentials(ctx context.Context) error {
 		PageSize: 1,
 	})
 	if err == nil {
+		c.logger.Debugf("Jamf API: Authentication against %q successful", c.baseURL)
 		return nil // Success
 	}
 
@@ -128,7 +129,6 @@ func (c *Client) verifyCredentials(ctx context.Context) error {
 		return trace.BadParameter("invalid Jamf API credentials")
 	case apiError.StatusCode == 404 && !strings.HasSuffix(c.baseURL, "/api"):
 		c.baseURL += "/api"
-		c.logger.Debugf("Jamf API: Attempting to connect to API URL %q", c.baseURL)
 		return c.verifyCredentials(ctx)
 	default:
 		return trace.Wrap(err, "connecting to Jamf API")

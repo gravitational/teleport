@@ -21,7 +21,8 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
-const lastContactTimeDesc = "general.lastContactTime:desc"
+const sortByID = "id:asc"
+const sortByReportDateDesc = "general.reportDate:desc"
 
 var defaultInventory = []*types.JamfInventoryEntry{
 	// https://github.com/gravitational/teleport.e/blob/master/rfd/0007e-device-trust-mdm-integration.md#jamf-inventory-sync
@@ -182,7 +183,7 @@ func (s *S) verifyInventoryFilters(ctx context.Context) error {
 		if _, err := s.jamf.GetComputersInventory(ctx, &jamf.GetComputersInventoryRequest{
 			Page:     0,
 			PageSize: 1,
-			Sort:     []string{lastContactTimeDesc}, // might as well check
+			Sort:     []string{sortByReportDateDesc},
 			Filter:   entry.FilterRsql,
 		}); err != nil {
 			return trace.BadParameter("computer inventory query, filter=%q: %v", entry.FilterRsql, err)
@@ -219,7 +220,16 @@ func (s *S) Run(ctx context.Context) error {
 
 		select {
 		case <-timer.C:
+			// TODO(codingllama): "Downgrade" initial FULL sync to PARTIAL depending
+			//  on device counts?
 			e := s.scheduler.Next()
+			s.logger.WithFields(log.Fields{
+				"Mode":       e.Mode,
+				"FilterRSQL": e.Entry.FilterRsql,
+				"OnMissing":  e.Entry.OnMissing,
+				"CutTime":    e.Entry.CutTime,
+			}).Info("Starting sync")
+
 			nextCutTime, err := s.RunOnce(ctx, RunSpec{
 				Mode:            e.Mode,
 				OnMissingAction: e.Entry.OnMissingAction,
@@ -230,6 +240,7 @@ func (s *S) Run(ctx context.Context) error {
 				s.logger.WithError(err).Warn("Jamf inventory sync attempt failed")
 				continue
 			}
+			s.logger.Info("Sync complete")
 			// Update cut time.
 			if nextCutTime.After(e.Entry.CutTime) {
 				e.Entry.CutTime = nextCutTime
@@ -305,12 +316,17 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 			jamf.SectionLocalUserAccounts,
 			jamf.SectionOperatingSystem,
 		},
-		PageSize: 200, // arbitrary
-		// TODO(codingllama): Change filters according to sync type.
-		//  IDs are likely less liable to have gaps in FULL syncs.
-		Sort:   []string{lastContactTimeDesc}, // required for partial syncs
-		Filter: spec.FilterRSQL,
+		PageSize: 200,                // arbitrary
+		Sort:     []string{sortByID}, // expected to be more "stable" than timestamps
+		Filter:   spec.FilterRSQL,
 	}
+
+	// Sort by recent use on PARTIAL syncs.
+	// Alternatively we could use an RSQL filter.
+	if spec.Mode == devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL {
+		getReq.Sort = []string{sortByReportDateDesc}
+	}
+
 	for {
 		// Read inventory from Jamf.
 		inventoryResp, err := s.jamf.GetComputersInventory(ctx, getReq)
@@ -329,7 +345,8 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 			// Stop partial sync?
 			if spec.Mode == devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL &&
 				inv.General != nil &&
-				inv.General.LastContactTime.Before(spec.CutTime) {
+				inv.General.ReportDate.Before(spec.CutTime) {
+				s.logger.Debugf("Stopping partial sync, general.reportDate=%v", inv.General.ReportDate)
 				// Signal stop after this round of upserts.
 				partialStop = true
 				break
@@ -341,6 +358,27 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 				continue
 			}
 			devs = append(devs, dev)
+
+			// Log device information, but redact sensitive data first.
+			if log.IsLevelEnabled(log.DebugLevel) {
+				osUsernames := dev.Profile.OsUsernames
+				dev.Profile.OsUsernames = []string{"<REDACTED>"}
+				s.logger.Debugf(""+
+					"Syncing Jamf device %v/%v, "+
+					"id=%v, "+
+					"general.reportDate=%q, "+
+					"general.lastContactTime=%q, "+
+					"general.lastEnrolledDate=%q, "+
+					"profile={%+v}",
+					inv.General.Platform, inv.Hardware.SerialNumber,
+					inv.ID,
+					inv.General.ReportDate,
+					inv.General.LastContactTime,
+					inv.General.LastEnrolledDate,
+					dev.Profile,
+				)
+				dev.Profile.OsUsernames = osUsernames
+			}
 
 			// Record last contact time of the first device to sync.
 			if nextCutTime.IsZero() && inv.General != nil {
@@ -426,11 +464,6 @@ func computerInventoryToDevice(c *jamf.ComputerInventory) (*devicepb.Device, err
 	switch {
 	case strings.EqualFold("mac", c.General.Platform):
 		osType = devicepb.OSType_OS_TYPE_MACOS
-	// TODO(codingllama): Confirm linux and windows platform string.
-	case strings.EqualFold("linux", c.General.Platform):
-		osType = devicepb.OSType_OS_TYPE_LINUX
-	case strings.EqualFold("windows", c.General.Platform):
-		osType = devicepb.OSType_OS_TYPE_WINDOWS
 	default:
 		return nil, trace.BadParameter("unexpected general.platform=%q", c.General.Platform)
 	}

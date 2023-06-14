@@ -360,9 +360,9 @@ func TestS_Run_syncDefaults(t *testing.T) {
 				JamfBinaryVersion: jamfDevs[0].General.JamfBinaryVersion,
 			},
 		},
-		deviceFromMinimal(jamfDevs[1], devicepb.OSType_OS_TYPE_MACOS, source),
-		deviceFromMinimal(jamfDevs[2], devicepb.OSType_OS_TYPE_MACOS, source),
-		deviceFromMinimal(jamfDevs[3], devicepb.OSType_OS_TYPE_MACOS, source),
+		deviceFromMinimal(jamfDevs[1], source),
+		deviceFromMinimal(jamfDevs[2], source),
+		deviceFromMinimal(jamfDevs[3], source),
 	}
 
 	s := serviceFromEnv(t, env, nil /* modifyOpts */)
@@ -422,7 +422,7 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 			UDID: "2",
 			General: &jamf.ComputerGeneralSection{
 				Name:             "dev2",
-				Platform:         "Windows",
+				Platform:         "Mac",
 				ReportDate:       t0,
 				LastContactTime:  t1,
 				LastEnrolledDate: t0,
@@ -436,7 +436,7 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 			UDID: "3",
 			General: &jamf.ComputerGeneralSection{
 				Name:             "dev3",
-				Platform:         "Linux",
+				Platform:         "Mac",
 				ReportDate:       t0,
 				LastContactTime:  t1,
 				LastEnrolledDate: t0,
@@ -487,8 +487,8 @@ func TestS_Run_fullWithDeletions(t *testing.T) {
 	// Verify deletions.
 	got := listAllDevices(t, devicesClient)
 	want := []*devicepb.Device{
-		deviceFromMinimal(jamfDevs[1], devicepb.OSType_OS_TYPE_WINDOWS, nil /* source */),
-		deviceFromMinimal(jamfDevs[2], devicepb.OSType_OS_TYPE_LINUX, nil /* source */),
+		deviceFromMinimal(jamfDevs[1], nil /* source */),
+		deviceFromMinimal(jamfDevs[2], nil /* source */),
 	}
 	opts := append(devicesCmpOpts, protocmp.IgnoreFields(&devicepb.Device{}, "source"))
 	if diff := cmp.Diff(want, got, opts...); diff != "" {
@@ -569,7 +569,7 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 		return clock.Now()
 	}
 
-	// Create a few devices with varying LastContactTimes.
+	// Create a few devices with varying timestamps.
 	// We'll sync in the reverse order, new-to-old, to demonstrate that partial
 	// cuts work.
 	t0 := clock.Now()
@@ -581,15 +581,15 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 	now := advanceNow()
 
 	currentID := 0
-	newJamfDev := func(lastContactTime time.Time) *jamf.ComputerInventory {
+	newJamfDev := func(reportDate time.Time) *jamf.ComputerInventory {
 		currentID++
 		return &jamf.ComputerInventory{
 			ID:   strconv.Itoa(currentID),
 			UDID: strconv.Itoa(currentID),
 			General: &jamf.ComputerGeneralSection{
 				Platform:         "Mac",
-				ReportDate:       t0,
-				LastContactTime:  lastContactTime,
+				ReportDate:       reportDate,
+				LastContactTime:  t5,
 				LastEnrolledDate: t0,
 			},
 			Hardware: &jamf.ComputerHardwareSection{
@@ -613,7 +613,7 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 	}
 	allDevs := make([]*devicepb.Device, len(jamfDevs))
 	for i, j := range jamfDevs {
-		allDevs[i] = deviceFromMinimal(j, devicepb.OSType_OS_TYPE_MACOS, source)
+		allDevs[i] = deviceFromMinimal(j, source)
 	}
 
 	s := serviceFromEnv(t, env, func(opts *jamfservice.Opts) {
@@ -664,9 +664,9 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 	}
 }
 
-func deviceFromMinimal(c *jamf.ComputerInventory, osType devicepb.OSType, source *devicepb.DeviceSource) *devicepb.Device {
+func deviceFromMinimal(c *jamf.ComputerInventory, source *devicepb.DeviceSource) *devicepb.Device {
 	return &devicepb.Device{
-		OsType:       osType,
+		OsType:       devicepb.OSType_OS_TYPE_MACOS,
 		AssetTag:     c.Hardware.SerialNumber,
 		EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 		Source:       source,

@@ -321,8 +321,14 @@ func (a *API) getComputersInventory(w http.ResponseWriter, req *http.Request) {
 		// verb is tmp[1], defaults to "asc".
 
 		switch field {
+		case "id":
+			sorter = byID
+		case "udid":
+			sorter = byUDID
 		case "general.name":
 			sorter = byGeneralName
+		case "general.reportDate":
+			sorter = byGeneralReportDate
 		case "general.lastContactTime":
 			sorter = byGeneralLastContactTime
 		// Many more fields are supported by the actual API, but not by us.
@@ -427,6 +433,38 @@ func copySections(c *jamf.ComputerInventory, sections []string) (*jamf.ComputerI
 	return cp, nil
 }
 
+func byID(a []*jamf.ComputerInventory) sort.Interface {
+	return computerInventorySorter{
+		elems: a,
+		less: func(c1, c2 *jamf.ComputerInventory) bool {
+			var id1, id2 string
+			if c1 != nil {
+				id1 = c1.ID
+			}
+			if c2 != nil {
+				id2 = c2.ID
+			}
+			return id1 < id2
+		},
+	}
+}
+
+func byUDID(a []*jamf.ComputerInventory) sort.Interface {
+	return computerInventorySorter{
+		elems: a,
+		less: func(c1, c2 *jamf.ComputerInventory) bool {
+			var id1, id2 string
+			if c1 != nil {
+				id1 = c1.UDID
+			}
+			if c2 != nil {
+				id2 = c2.UDID
+			}
+			return id1 < id2
+		},
+	}
+}
+
 func byGeneralName(a []*jamf.ComputerInventory) sort.Interface {
 	return computerInventorySorter{
 		elems: a,
@@ -453,6 +491,22 @@ func byGeneralLastContactTime(a []*jamf.ComputerInventory) sort.Interface {
 			}
 			if c2 != nil && c2.General != nil {
 				t2 = c2.General.LastContactTime
+			}
+			return t1.Before(t2)
+		},
+	}
+}
+
+func byGeneralReportDate(a []*jamf.ComputerInventory) sort.Interface {
+	return computerInventorySorter{
+		elems: a,
+		less: func(c1, c2 *jamf.ComputerInventory) bool {
+			var t1, t2 time.Time
+			if c1 != nil && c1.General != nil {
+				t1 = c1.General.ReportDate
+			}
+			if c2 != nil && c2.General != nil {
+				t2 = c2.General.ReportDate
 			}
 			return t1.Before(t2)
 		},
