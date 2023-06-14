@@ -24,6 +24,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -122,7 +123,7 @@ func TestNodeEmbeddingWatcherCreate(t *testing.T) {
 	// Validate that all nodes were embedded and snapshot the backend content
 	require.Equal(t, watcher.NodeCount(false), len(nodes))
 	require.Zero(t, watcher.NodeCount(true))
-	items, err := embeddings.GetEmbeddings(ctx, types.KindNode)
+	items, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
 	require.NoError(t, err)
 	require.Equal(t, len(items), len(nodes))
 }
@@ -199,7 +200,7 @@ func TestNodeEmbeddingWatcherIdempotency(t *testing.T) {
 	// Validate that all nodes were embedded and snapshot the backend content
 	require.Equal(t, watcher.NodeCount(false), len(nodes))
 	require.Zero(t, watcher.NodeCount(true))
-	items, err := embeddings.GetEmbeddings(ctx, types.KindNode)
+	items, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
 	require.NoError(t, err)
 	require.Equal(t, len(items), len(nodes))
 
@@ -210,7 +211,7 @@ func TestNodeEmbeddingWatcherIdempotency(t *testing.T) {
 	// Validate no nodes are needing embedding and that the items in the backend
 	// have been updated
 	require.Zero(t, watcher.NodeCount(true))
-	newItems, err := embeddings.GetEmbeddings(ctx, types.KindNode)
+	newItems, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
 	require.NoError(t, err)
 	require.Equal(t, len(items), len(newItems))
 
@@ -292,7 +293,7 @@ func TestNodeEmbeddingWatcherUpdate(t *testing.T) {
 	// Validate that all nodes were embedded and snapshot the backend content
 	require.Equal(t, watcher.NodeCount(false), len(nodes))
 	require.Zero(t, watcher.NodeCount(true))
-	items, err := embeddings.GetEmbeddings(ctx, types.KindNode)
+	items, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
 	require.NoError(t, err)
 	require.Equal(t, len(items), len(nodes))
 
@@ -322,7 +323,7 @@ func TestNodeEmbeddingWatcherUpdate(t *testing.T) {
 	// Validate no nodes are needing embedding and that the items in the backend
 	// have been updated
 	require.Zero(t, watcher.NodeCount(true))
-	newItems, err := embeddings.GetEmbeddings(ctx, types.KindNode)
+	newItems, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
 	require.NoError(t, err)
 	require.Equal(t, len(items), len(newItems))
 

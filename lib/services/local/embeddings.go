@@ -23,6 +23,7 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/backend"
@@ -52,26 +53,17 @@ func (e EmbeddingsService) GetEmbedding(ctx context.Context, kind, resourceID st
 	return services.UnmarshalEmbedding(result.Value)
 }
 
-// GetEmbeddings returns all embeddings for a given kind.
-func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) ([]*ai.Embedding, error) {
+// GetEmbeddings returns a stream of embeddings for a given kind.
+func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) stream.Stream[*ai.Embedding] {
 	startKey := backend.Key(embeddingsPrefix, kind)
-	result, err := e.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	embeddings := make([]*ai.Embedding, len(result.Items))
-	var embedding *ai.Embedding
-	if len(result.Items) == 0 {
-		return nil, nil
-	}
-	for i, item := range result.Items {
-		embedding, err = services.UnmarshalEmbedding(item.Value)
+	items := backend.StreamRange(ctx, e, startKey, backend.RangeEnd(startKey), 50)
+	return stream.FilterMap(items, func(item backend.Item) (*ai.Embedding, bool) {
+		embedding, err := services.UnmarshalEmbedding(item.Value)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			e.log.Warnf("Skipping embedding at %s, failed to unmarshal: %v", item.Key, err)
 		}
-		embeddings[i] = embedding
-	}
-	return embeddings, nil
+		return embedding, true
+	})
 }
 
 // UpsertEmbedding creates or update a single ai.Embedding in the backend.

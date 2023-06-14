@@ -17,12 +17,14 @@ package local
 import (
 	"context"
 	"crypto/sha256"
+	"sort"
 	"testing"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -95,7 +97,7 @@ func TestGetEmbedding(t *testing.T) {
 			t.Parallel()
 			embedding, err := service.GetEmbedding(ctx, tc.kind, tc.id)
 			tc.assertErr(t, err)
-			require.Equal(t, tc.expected, embedding)
+			requireEmbeddingsEqual(t, tc.expected, embedding)
 		})
 	}
 }
@@ -125,19 +127,19 @@ func TestGetEmbeddings(t *testing.T) {
 		name      string
 		kind      string
 		assertErr require.ErrorAssertionFunc
-		expected  []*ai.Embedding
+		expected  sortableEmbeddings
 	}{
 		{
 			name:      "Get multiple embeddings",
 			kind:      types.KindNode,
 			assertErr: require.NoError,
-			expected:  []*ai.Embedding{embedding1, embedding2},
+			expected:  sortableEmbeddings{embedding1, embedding2},
 		},
 		{
 			name:      "Get single embedding",
 			kind:      types.KindDatabase,
 			assertErr: require.NoError,
-			expected:  []*ai.Embedding{embedding3},
+			expected:  sortableEmbeddings{embedding3},
 		},
 		{
 			name:      "Get no embeddings",
@@ -150,9 +152,15 @@ func TestGetEmbeddings(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			embeddings, err := service.GetEmbeddings(ctx, tc.kind)
+			var embeddings sortableEmbeddings
+			embeddings, err = stream.Collect(service.GetEmbeddings(ctx, tc.kind))
 			tc.assertErr(t, err)
-			require.ElementsMatch(t, tc.expected, embeddings)
+			sort.Sort(embeddings)
+			sort.Sort(tc.expected)
+			require.Equal(t, len(tc.expected), len(embeddings))
+			for i, expected := range tc.expected {
+				requireEmbeddingsEqual(t, expected, embeddings[i])
+			}
 		})
 	}
 }
@@ -189,4 +197,36 @@ func TestUpsertEmbedding(t *testing.T) {
 	result, err = service.GetEmbedding(ctx, types.KindNode, "foo")
 	require.NoError(t, err)
 	require.Equal(t, embedding, result)
+}
+
+// sortableEmbeddings is an ai.Embedding list that can be sorted. This is used
+// in tests to compare two lists and their content.
+type sortableEmbeddings []*ai.Embedding
+
+func (s sortableEmbeddings) Len() int {
+	return len(s)
+}
+
+func (s sortableEmbeddings) Less(i, j int) bool {
+	return s[i].GetName() < s[j].GetName()
+}
+
+func (s sortableEmbeddings) Swap(i, j int) {
+	s[i], s[j] = s[j], s[i]
+}
+
+// requireEmbeddingsEqual checks if two embeddings are equal or fails the test otherwise.
+// This is required because equivalent ai.Embedding might differ depending on
+// how they have been created (marshalling/unmarshalling protobuf messages set
+// some internal fields that a freshly created ai.Embedding doesn't have).
+func requireEmbeddingsEqual(t require.TestingT, expected, actual *ai.Embedding) {
+	if expected == nil {
+		require.Nil(t, actual)
+		return
+	}
+	require.NotNil(t, actual)
+	require.Equal(t, expected.EmbeddedId, actual.EmbeddedId)
+	require.Equal(t, expected.EmbeddedKind, actual.EmbeddedKind)
+	require.Equal(t, expected.EmbeddedHash, actual.EmbeddedHash)
+	require.Equal(t, expected.Vector, actual.Vector)
 }

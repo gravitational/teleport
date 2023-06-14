@@ -26,6 +26,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
@@ -39,7 +40,7 @@ type Embeddings interface {
 	// GetEmbedding looks up a single embedding by its name in the backend.
 	GetEmbedding(ctx context.Context, kind, resourceID string) (*ai.Embedding, error)
 	// GetEmbeddings returns all embeddings for a given kind.
-	GetEmbeddings(ctx context.Context, kind string) ([]*ai.Embedding, error)
+	GetEmbeddings(ctx context.Context, kind string) stream.Stream[*ai.Embedding]
 	// UpsertEmbedding creates or update a single ai.Embedding in the backend.
 	UpsertEmbedding(ctx context.Context, embedding *ai.Embedding) (*ai.Embedding, error)
 	// Embed takes a resource textual representation, checks if the resource

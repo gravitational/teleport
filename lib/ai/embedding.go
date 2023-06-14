@@ -72,6 +72,7 @@ func (e *Embedding) GetEmbeddedID() string {
 	return e.EmbeddedId
 }
 
+// GetVector returns the embedding vector
 func (e *Embedding) GetVector() Vector64 {
 	return e.Vector
 }
