@@ -275,7 +275,6 @@ func (a *AuthCommand) GenerateAndSignKeys(ctx context.Context, clusterAPI auth.C
 	}
 	switch {
 	case a.genUser != "" && a.genHost == "":
-		log.Info("Generating credentials to allow a machine access to Teleport? We recommend Teleport's Machine ID for this. Find out more at https://goteleport.com/r/machineid-tip")
 		return a.generateUserKeys(ctx, clusterAPI)
 	case a.genUser == "" && a.genHost != "":
 		return a.generateHostKeys(ctx, clusterAPI)
@@ -855,6 +854,12 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	// Print a tip guiding people towards Machine ID. We use stderr here in case
+	// someone is programatically parsing stdout.
+	_, _ = fmt.Fprintln(
+		os.Stderr,
+		"🤔 Generating credentials to allow a machine access to Teleport? We recommend Teleport's Machine ID! Find out more at https://goteleport.com/r/machineid-tip",
+	)
 	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
 
 	return nil
