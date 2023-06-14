@@ -118,9 +118,10 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	b.buf.SetInit()
 	defer b.buf.Reset()
 
-	for {
-		t0 := time.Now()
-		rows, err := conn.Query(ctx,
+	poll := func() (pgx.Rows, error) {
+		pollCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
+		defer cancel()
+		return conn.Query(pollCtx,
 			`SELECT
   data->>'action',
   decode(COALESCE(data->'columns'->0->>'value', data->'identity'->0->>'value'), 'hex'),
@@ -132,6 +133,11 @@ FROM (
     'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')
 ) AS jdata;`,
 			slotName)
+	}
+
+	for {
+		t0 := time.Now()
+		rows, err := poll()
 		if err != nil {
 			return trace.Wrap(err)
 		}
