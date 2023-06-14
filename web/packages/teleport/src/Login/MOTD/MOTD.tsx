@@ -17,18 +17,18 @@ limitations under the License.
 import React from 'react';
 import { Card, Box, Text, ButtonPrimary } from 'design';
 
-export function MOTD({ message, onClick }: Props) {
+export function Motd({ message, onClick }: Props) {
   return (
     <Card bg="levels.surface" my={6} mx="auto" width="464px">
       <Box p={6}>
         <Text typography="h2" mb={3} textAlign="center" color="text.main">
-          Message of the day!
+          Message of the day
         </Text>
         <Text typography="h5" mb={3} textAlign="center">
           {message}
         </Text>
         <ButtonPrimary width="100%" mt={3} size="large" onClick={onClick}>
-          Continue
+          Acknowledge
         </ButtonPrimary>
       </Box>
     </Card>
