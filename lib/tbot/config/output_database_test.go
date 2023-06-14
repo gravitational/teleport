@@ -26,6 +26,7 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 			in: DatabaseOutput{
 				Destination: dest,
 				Roles:       []string{"access"},
+				Format:      TLSDatabaseFormat,
 				Service:     "my-database-service",
 				Database:    "my-database",
 				Username:    "my-username",
