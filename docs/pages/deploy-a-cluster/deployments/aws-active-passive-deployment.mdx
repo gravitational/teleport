@@ -18,7 +18,7 @@ between the active and passive clusters during the event of a regional outage.
 ![Diagram showing this Teleport
 architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-deployment.png)
 
-### Key components
+### Key Components
 - Two sets of Teleport Auth and Proxy components are deployed in separate regions. In this example, the us-west-1 (Primary)
   region Teleport cluster is the Active cluster, and the us-east-1 (Secondary) region Teleport cluster is the Passive cluster.
 - All teleport cluster components are deployed as autoscaling groups in both regions.
@@ -32,8 +32,8 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
   - S3 [Replication Steps](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html).
   - Make sure proper IAM permissions are in place for the successful [Replication of 
   S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/setting-repl-config-perm-overview.html).
-- configure the Teleport cluster Route53 records to use the 
-  [failover routing policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive) 
+- Configure the Teleport cluster Route53 records to use the 
+  [Failover Routing Policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive) 
   with the active cluster loadbalancer as the primary record and the passive cluster loadbalancer as the secondary record.
   - Use health checks to determine Teleport cluster availability. Route53 will automatically send the traffic to the 
     passive cluster during the event of a regional outage and it will automatically routes the traffic back to the active 
@@ -41,8 +41,8 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
 
 ### Advantages of this deployment architecture
 
-- Having a cluster in multi-regions makes the clusters quickly available even during regional outages.
-- Downtime came be minimized vs traditional disaster recovery from a backup.
+- Having a cluster in multi-regions makes the clusters quickly available during the event of regional outages.
+- Downtime can be minimized vs traditional disaster recovery from a backup.
 - All required Teleport components can be provisioned within the AWS ecosystem.
 - High-availability Auto Scaling group of Auth Service pods that must remain in a Primary region
 - High-availability Auto Scaling group of Proxy Service pods deployed across multiple regions
@@ -68,24 +68,24 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-## Step 3/6. Set up Teleport cluster in Primary Region (In this example us-west-1 is the Primary Region):
+## Step 3/6. Set up Teleport Cluster in Primary Region (In this example us-west-1 is the Primary Region):
 - Running an HA Teleport cluster using [AWS, EKS, Helm](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/aws/)
 - Configure [Single Sing-on](https://goteleport.com/docs/access-controls/sso/) and test your access to the Teleport cluster.
 
 ## Step 4/6. Setup DynamoDB & S3 Global replication to Secondary Region (In this example us-east-1 is the Secondary Region):
-- Check the Key components section of this document for DynamoDB Global replication and S3 Replication.
+- Check the Key Components section of this document for DynamoDB Global replication and S3 Replication.
+- Post successful completion of Replication DynamoDB and S3 proceed to Step 5/6.
 
 ## Step 5/6. Set up Teleport cluster in Secondary Region same as Step 3/6:
-- We will use same `aws-values.yaml` & `aws-issuer.yaml` config to install Teleport name space in Secondary Region (us-east-1) by changing the clusterName.
+- We will use  same (Primary Region cluster) `aws-values.yaml` & `aws-issuer.yaml` config files to install Teleport name space in Secondary Region (us-east-1) by changing the clusterName.
   So that it will use same backend as defined in Primary Region (us-west-1) for DynamoDB and S3 buckets. 
   Once the Teleport Cluster in Secondary Region (us-east-1) is ready, you can check the SSO access by logging in via Secondary region (us-east-1) UI/tsh
-  Configuration. SSO login is working from both the Primary (us-west-1) and Secondary (us-east-1) region Teleport clusters.
+  Configuration. SSO login will work fine from both the Primary (us-west-1) and Secondary (us-east-1) region Teleport clusters.
 
 ## Step 6/6. Configure Proxy Peering:
 In this deployment architecture, [Proxy Peering](../../architecture/proxy-peering.mdx) is used to restrict the number of connections made from 
 resources to proxies in the Teleport Cluster.
  
-
 ### Auth Service Proxy Peering configuration 
 
 The Teleport Auth Service must be configured to use the `proxy_peering` tunnel strategy as shown in the example below:
