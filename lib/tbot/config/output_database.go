@@ -31,7 +31,7 @@ import (
 
 const DatabaseOutputType = "database"
 
-// DatabaseFormat specifies if any special behaviour should be invoked when
+// DatabaseFormat specifies if any special behavior should be invoked when
 // producing artifacts. This allows for databases/clients that require unique
 // formats or paths to be used.
 type DatabaseFormat string
@@ -70,7 +70,7 @@ type DatabaseOutput struct {
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
 
-	// Formats specifies if any special behaviour should be invoked when
+	// Formats specifies if any special behavior should be invoked when
 	// producing artifacts. An empty value is supported by most database,
 	// but CockroachDB and MongoDB require this value to be set to
 	// `mongo` and `cockroach` respectively.
