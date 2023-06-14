@@ -153,6 +153,7 @@ func TestGetEmbeddings(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			var embeddings sortableEmbeddings
+			var err error
 			embeddings, err = stream.Collect(service.GetEmbeddings(ctx, tc.kind))
 			tc.assertErr(t, err)
 			sort.Sort(embeddings)
