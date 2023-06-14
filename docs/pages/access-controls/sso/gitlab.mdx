@@ -9,7 +9,7 @@ credentials to specific groups of users. When used in combination with role
 based access control (RBAC), it allows administrators to define policies
 like:
 
-- Only members of "DBA" group can access PostgreSQL databases.
+- Only members of the "DBA" group can access PostgreSQL databases.
 - Only members of "ProductionKubernetes" can access production Kubernetes clusters
 - Developers must never SSH into production servers.
 
@@ -30,7 +30,7 @@ You should have at least one group configured in GitLab to map to Teleport roles
 In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users
 to each of these groups.
 
-1. Create a Application in one of your Groups that will allow using GitLab as a
+1. Create an Application in one of your Groups that will allow using GitLab as a
    OAuth provider to Teleport.
 
    Settings:
@@ -41,13 +41,13 @@ to each of these groups.
    ![Create App](../../../img/sso/gitlab/gitlab-oidc-0.png)
 
 2. Collect the `Application ID` and `Secret` in the Application. These will be
-   used in the Teleport OIDC Auth Connector:
+   used in the Teleport OIDC auth connector:
 
    ![Collection Information](../../../img/sso/gitlab/gitlab-oidc-1.png)
 
-3. Confirm the GitLab Issuer Address.
+3. Confirm the GitLab issuer address.
 
-   For GitLab cloud the issue address is `https://gitlab.com`. This allows
+   For GitLab.com, the issuer address is `https://gitlab.com`. This allows
    Teleport to access the Open-ID configuration at
    `https://gitlab.com/.well-known/openid-configuration`. If you are self
    hosting the issuer address is the path to your GitLab instance.
@@ -56,7 +56,7 @@ to each of these groups.
 
 ### Create a OIDC Connector
 
-Create a OIDC connector resource using `tctl`.
+Create an OIDC connector resource using `tctl`.
 
 <Tabs>
 <TabItem label="GitLab.com">
