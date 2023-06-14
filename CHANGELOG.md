@@ -1,5 +1,23 @@
 # Changelog
 
+## 12.4.7 (06/14/23)
+* CLI
+  * Fix issue with Access Requests in headless mode. [#27136](https://github.com/gravitational/teleport/pull/27240)
+  * `tctl get all` now fetches lock objects [#27295](https://github.com/gravitational/teleport/pull/27295)
+  * `tsh` now only falls back to using `SSH_TELEPORT_*` environment in headless mode. [#27508](https://github.com/gravitational/teleport/pull/27508)
+* MachineID
+  * Adds Prometheus endpoint for better statistics gathering. [#27433](https://github.com/gravitational/teleport/pull/27433)
+* Mongo DB
+  * Hardened MongoDB protocol implementation [#27742](https://github.com/gravitational/teleport/pull/27742)
+* Okta
+  * Fixes "non-positive limit" error. [#27831](https://github.com/gravitational/teleport/pull/27831)
+* SAML IdP
+  * Fixes subsequent login failure issue. [#27212](https://github.com/gravitational/teleport/issues/27212)
+* Teleport Connect
+  * Fixes issue when assuming roles [#27724](https://github.com/gravitational/teleport/pull/27724)
+* Web UI
+  * Refresh features in Web UI [#26785](https://github.com/gravitational/teleport/pull/27361)
+
 ## 12.4.6 (06/02/23)
 
 * Auth
