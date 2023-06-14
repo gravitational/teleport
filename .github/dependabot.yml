@@ -24,6 +24,7 @@ updates:
       - dependency-name: github.com/microsoft/go-mssqldb
       - dependency-name: github.com/vulcand/predicate
       - dependency-name: golang.org/x/crypto
+      - dependency-name: github.com/sashabaranov/go-openai
     open-pull-requests-limit: 10
     reviewers:
       - codingllama

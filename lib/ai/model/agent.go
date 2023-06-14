@@ -217,7 +217,7 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*agentAction, 
 	resp, err := state.llm.CreateChatCompletion(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model:    openai.GPT4,
+			Model:    openai.GPT3Dot5Turbo0613,
 			Messages: prompt,
 		},
 	)
