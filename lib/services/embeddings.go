@@ -16,12 +16,12 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
-	jsoniter "github.com/json-iterator/go"
 	"gopkg.in/yaml.v3"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -48,20 +48,9 @@ type Embeddings interface {
 	Embed(ctx context.Context, kind string, resources map[string][]byte) ([]*ai.Embedding, error)
 }
 
-// PreciseJSONConfig is the fast JSON marshall/unmarshall configuration
-// we use in utils.FastMarshall() but with more precision on floats. This
-// is required to reduce the lost precision when storing embeddings in the
-// backend.
-var PreciseJSONConfig = jsoniter.Config{
-	EscapeHTML:                    false,
-	MarshalFloatWith6Digits:       false, // keep precision
-	ObjectFieldMustBeSimpleString: true,  // do not unescape object field
-	SortMapKeys:                   true,
-}.Froze()
-
 // MarshalEmbedding marshals the ai.Embedding resource to JSON.
 func MarshalEmbedding(embedding *ai.Embedding) ([]byte, error) {
-	data, err := PreciseJSONConfig.Marshal(embedding)
+	data, err := json.Marshal(embedding)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,13 +63,6 @@ func UnmarshalEmbedding(bytes []byte) (*ai.Embedding, error) {
 		return nil, trace.BadParameter("missing embedding data")
 	}
 	var embedding ai.Embedding
-	iter := PreciseJSONConfig.BorrowIterator(bytes)
-	defer PreciseJSONConfig.ReturnIterator(iter)
-
-	iter.ReadVal(&embedding)
-	if iter.Error != nil {
-		return nil, trace.Wrap(iter.Error)
-	}
 
 	return &embedding, nil
 }

@@ -16,25 +16,27 @@ package ai
 
 import (
 	"context"
-	"strings"
+	"crypto/sha256"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 
 	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 const (
 	maxOpenAIEmbeddingsPerRequest = 1000
-	EmbeddingPeriod               = 5 * time.Minute
+	// EmbeddingPeriod is the time between two embedding routines.
+	// A seventh jitter is applied on the period.
+	EmbeddingPeriod = 15 * time.Minute
 )
 
 // Sha256Hash is the hash of the embedded content. This hash allows to detect if
 // the embedding is still up-to-date or if the content changed and the resource
 // must be re-embedded.
-type Sha256Hash = [32]byte
+type Sha256Hash = [sha256.Size]byte
 
 // Vector32 is an array of float64 that contains the result of the
 // embedding process. OpenAI client returns []float32, hence Vector32 is the
@@ -52,47 +54,35 @@ type Vector64 = []float64
 // Teleport Assist embeds resources to perform semantic search.
 // The Embedding is named after the embedded resource id and kind. For example
 // the SSH node "bastion-01" has the embedding "node/bastion-01".
-type Embedding struct {
-	*embeddingpb.Embedding
-}
+type Embedding embeddingpb.Embedding
 
 // GetEmbeddedKind returns the kind of the resource that was embedded.
 func (e Embedding) GetEmbeddedKind() string {
-	nameParts := strings.Split(e.GetName(), "/")
-	// if name is malformed we bail out
-	if len(nameParts) < 2 {
-		return ""
-	}
-	return nameParts[0]
+	return e.EmbeddedKind
 }
 
 // GetName returns the Embedding name, composed of the embedded resource kind
 // and the embedded resource ID.
 func (e Embedding) GetName() string {
-	return e.GetMetadata().GetName()
+	return e.EmbeddedKind + string(backend.Separator) + e.EmbeddedId
 }
 
 // GetEmbeddedID returns the ID of the resource that was embedded.
 func (e Embedding) GetEmbeddedID() string {
-	nameParts := strings.Split(e.GetName(), "/")
-	// if name is malformed we bail out
-	if len(nameParts) < 2 {
-		return ""
-	}
-	return strings.Join(nameParts[1:], "/")
+	return e.EmbeddedId
+}
+
+func (e Embedding) GetVector() Vector64 {
+	return e.Vector
 }
 
 // NewEmbedding is an Embedding constructor.
 func NewEmbedding(kind, id string, vector Vector64, hash Sha256Hash) *Embedding {
 	return &Embedding{
-		Embedding: &embeddingpb.Embedding{
-			Metadata: &types.Metadata{
-				Name: kind + "/" + id,
-			},
-			Version:      types.V1,
-			EmbeddedHash: hash[:],
-			Vector:       vector,
-		},
+		EmbeddedKind: kind,
+		EmbeddedId:   id,
+		EmbeddedHash: hash[:],
+		Vector:       vector,
 	}
 }
 

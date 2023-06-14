@@ -16,8 +16,6 @@ syntax = "proto3";
 
 package teleport.embedding.v1;
 
-import "teleport/legacy/types/types.proto";
-
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1;embeddingv1";
 
 // Embedding contains a Teleport resource embedding. Embeddings are small semantic
@@ -25,11 +23,11 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport
 // the smaller the distance between two vectors, the closer the concepts are.
 // Teleport Assist embeds resources to perform semantic search.
 message Embedding {
-  // Metadata is the embedding metadata.
-  types.Metadata metadata = 1;
+  // EmbeddedKind is the kind of the embedded resource.
+  string embedded_kind = 1;
 
-  // Version is the embedding resource version.
-  string version = 2;
+  // EmbeddedId is the ID of the embedded resource.
+  string embedded_id = 2;
 
   // EmbeddedHash is the hash of the embedded resource after serialization.
   // This helps checking if the resource has changed and needs a new embedding.
