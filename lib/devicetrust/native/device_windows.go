@@ -620,7 +620,8 @@ func activateCredentialInElevatedChild(
 		log.WithError(err).Debug("Error when polling for solution. Waiting to try again.")
 		time.Sleep(time.Millisecond * 500)
 	}
-	return nil, nil
+	// TODO: Return last error that occurred
+	return nil, trace.Errorf("failed to receive credential activation results from elevated process")
 }
 
 // TODO: Make this a good path
