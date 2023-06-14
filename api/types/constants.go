@@ -567,6 +567,13 @@ const (
 	// downgraded before being returned to clients on older versions that do not
 	// support one or more features enabled in that resource.
 	TeleportDowngradedLabel = TeleportInternalLabelPrefix + "downgraded"
+
+	// TeleportManagedLabel identifies resources which are managed by Teleport. These resources can
+	// be freely modified by Teleport if needed.
+	TeleportManagedLabel = TeleportInternalLabelPrefix + "managed"
+
+	// IsManaged is a string that indicates a resource is managed.
+	IsManaged = "true"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.

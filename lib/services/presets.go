@@ -39,6 +39,9 @@ func NewPresetEditorRole() types.Role {
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Edit cluster configuration",
+			Labels: map[string]string{
+				types.TeleportManagedLabel: types.IsManaged,
+			},
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
@@ -108,6 +111,9 @@ func NewPresetAccessRole() types.Role {
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Access cluster resources",
+			Labels: map[string]string{
+				types.TeleportManagedLabel: types.IsManaged,
+			},
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
@@ -171,6 +177,9 @@ func NewPresetAuditorRole() types.Role {
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Review cluster events and replay sessions",
+			Labels: map[string]string{
+				types.TeleportManagedLabel: types.IsManaged,
+			},
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
@@ -210,6 +219,9 @@ func NewPresetReviewerRole() types.Role {
 			Name:        teleport.PresetReviewerRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Review access requests",
+			Labels: map[string]string{
+				types.TeleportManagedLabel: types.IsManaged,
+			},
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
@@ -235,6 +247,9 @@ func NewPresetRequesterRole() types.Role {
 			Name:        teleport.PresetRequesterRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Request all resources",
+			Labels: map[string]string{
+				types.TeleportManagedLabel: types.IsManaged,
+			},
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
@@ -260,6 +275,9 @@ func NewPresetGroupAccessRole() types.Role {
 			Name:        teleport.PresetGroupAccessRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Have access to all user groups",
+			Labels: map[string]string{
+				types.TeleportManagedLabel: types.IsManaged,
+			},
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
@@ -276,6 +294,24 @@ func NewPresetGroupAccessRole() types.Role {
 	}
 	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
+}
+
+// defaultRoleMetadataLabels are metadata labels that should be applied to each
+// role by default.
+func defaultRoleMetadataLabels() map[string]map[string]string {
+	return map[string]map[string]string{
+		teleport.PresetAccessRoleName: {
+			types.TeleportManagedLabel: types.IsManaged,
+		},
+		teleport.PresetEditorRoleName: {
+			types.TeleportManagedLabel: types.IsManaged,
+		},
+		teleport.PresetAuditorRoleName: {
+			types.TeleportManagedLabel: types.IsManaged,
+		},
+		// Group access, reviewer and requester are intentionally not added here as there may be
+		// existing customer defined roles that have these labels.
+	}
 }
 
 // defaultAllowRules has the Allow rules that should be set as default when
@@ -366,6 +402,34 @@ func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.Acces
 // Only attributes whose resources are not already defined (either allowing or denying) are added.
 func AddRoleDefaults(role types.Role) (types.Role, error) {
 	changed := false
+
+	// Role labels
+	defaultRoleLabels, ok := defaultRoleMetadataLabels()[role.GetName()]
+	if ok {
+		metadata := role.GetMetadata()
+
+		if metadata.Labels == nil {
+			metadata.Labels = map[string]string{}
+		}
+		for label, value := range defaultRoleLabels {
+			if metadata.Labels[label] != value {
+				metadata.Labels[label] = value
+				changed = true
+			}
+		}
+
+		if changed {
+			role.SetMetadata(metadata)
+		}
+	}
+
+	// Check if the role has a TeleportManagedLabel attached. We do this after setting the role metadata
+	// labels because we set the role metadata labels for roles that have been well established (access,
+	// editor, auditor) that may not already have this label set, but we don't set it for newer roles
+	// (group-access, reviewer, requester) that may have customer definitions.
+	if role.GetMetadata().Labels[types.TeleportManagedLabel] != types.IsManaged {
+		return nil, trace.AlreadyExists("not modifying user created role")
+	}
 
 	// Resource Rules
 	defaultRules, ok := defaultAllowRules()[role.GetName()]

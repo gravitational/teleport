@@ -32,6 +32,9 @@ func TestAddRoleDefaults(t *testing.T) {
 	noChange := func(t require.TestingT, err error, i ...interface{}) {
 		require.ErrorIs(t, err, trace.AlreadyExists("no change"))
 	}
+	notModifying := func(t require.TestingT, err error, i ...interface{}) {
+		require.ErrorIs(t, err, trace.AlreadyExists("not modifying user created role"))
+	}
 
 	tests := []struct {
 		name                   string
@@ -44,8 +47,14 @@ func TestAddRoleDefaults(t *testing.T) {
 		expected    types.Role
 	}{
 		{
-			name:        "nothing added",
-			role:        &types.RoleV6{},
+			name: "nothing added",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
+				},
+			},
 			expectedErr: noChange,
 			expected:    nil,
 		},
@@ -60,6 +69,9 @@ func TestAddRoleDefaults(t *testing.T) {
 			expected: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetEditorRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
@@ -84,6 +96,9 @@ func TestAddRoleDefaults(t *testing.T) {
 			expected: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
@@ -99,6 +114,9 @@ func TestAddRoleDefaults(t *testing.T) {
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetReviewerRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
 				},
 			},
 			expectedErr: noChange,
@@ -109,6 +127,9 @@ func TestAddRoleDefaults(t *testing.T) {
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetReviewerRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: "true",
+					},
 				},
 			},
 			enterprise:     true,
@@ -117,6 +138,9 @@ func TestAddRoleDefaults(t *testing.T) {
 			expected: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetReviewerRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: "true",
+					},
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
@@ -126,10 +150,24 @@ func TestAddRoleDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "reviewer (enterprise, created by user)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetReviewerRoleName,
+				},
+			},
+			enterprise:  true,
+			expectedErr: notModifying,
+			expected:    nil,
+		},
+		{
 			name: "reviewer (enterprise, existing review requests)",
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetReviewerRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: "true",
+					},
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
@@ -147,6 +185,9 @@ func TestAddRoleDefaults(t *testing.T) {
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
 				},
 			},
 			expectedErr: noChange,
@@ -157,6 +198,9 @@ func TestAddRoleDefaults(t *testing.T) {
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: "true",
+					},
 				},
 			},
 			enterprise:             true,
@@ -165,6 +209,9 @@ func TestAddRoleDefaults(t *testing.T) {
 			expected: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: "true",
+					},
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
@@ -174,10 +221,24 @@ func TestAddRoleDefaults(t *testing.T) {
 			},
 		},
 		{
+			name: "requester (enterprise, created by user)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetRequesterRoleName,
+				},
+			},
+			enterprise:  true,
+			expectedErr: notModifying,
+			expected:    nil,
+		},
+		{
 			name: "requester (enterprise, existing requests)",
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetRequesterRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: "true",
+					},
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
