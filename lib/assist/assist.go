@@ -195,17 +195,19 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 	}
 
 	// write the user message to persistent storage and the chat structure
-	c.chat.Insert(openai.ChatMessageRoleUser, userInput)
-	if err := c.authClient.CreateAssistantMessage(ctx, &assistpb.CreateAssistantMessageRequest{
-		Message: &assistpb.AssistantMessage{
-			Type:        string(MessageKindUserMessage),
-			Payload:     userInput, // TODO(jakule): Sanitize the payload
-			CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
-		},
-		ConversationId: c.ConversationID,
-		Username:       c.Username,
-	}); err != nil {
-		return nil, trace.Wrap(err)
+	if len(c.chat.GetMessages()) > 1 {
+		c.chat.Insert(openai.ChatMessageRoleUser, userInput)
+		if err := c.authClient.CreateAssistantMessage(ctx, &assistpb.CreateAssistantMessageRequest{
+			Message: &assistpb.AssistantMessage{
+				Type:        string(MessageKindUserMessage),
+				Payload:     userInput, // TODO(jakule): Sanitize the payload
+				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+			},
+			ConversationId: c.ConversationID,
+			Username:       c.Username,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	switch message := message.(type) {
