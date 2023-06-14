@@ -2364,12 +2364,12 @@ struct ContextInternal {
     handles: HashMap<u32, piv::Card<TRANSMIT_DATA_LIMIT>>,
     next_id: u32,
     cache: HashMap<String, Vec<u8>>,
-    // If we receive a GetStatusChange_Call with an infinite timeout, we need to
+    // If we receive a SCARD_IOCTL_GETSTATUSCHANGEW with an infinite timeout, we need to
     // return a GetStatusChange_Return (embedded in a DeviceControlResponse) with
     // its return code set to SCARD_E_CANCELLED in the case that we receive a
     // SCARD_IOCTL_CANCEL.
     //
-    // This value will be set during the handling of the GetStatusChange_Call, so that
+    // This value will be set during the handling of the SCARD_IOCTL_GETSTATUSCHANGEW, so that
     // it can be fetched and returned in response to a SCARD_IOCTL_CANCEL.
     scard_cancel_response: Option<DeviceControlResponse>,
 }
