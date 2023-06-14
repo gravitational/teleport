@@ -135,10 +135,12 @@ func TestResourceAttestationType_toAndFrom(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		attestationType string
-		errorContains   string
+		wantEmpty       bool
+		wantErr         string
 	}{
 		{
 			attestationType: "unspecified",
+			wantEmpty:       true,
 		},
 		{
 			attestationType: "tpm_ekpub",
@@ -151,18 +153,23 @@ func TestResourceAttestationType_toAndFrom(t *testing.T) {
 		},
 		{
 			attestationType: "quantum_entanglement",
-			errorContains:   "unknown attestation type",
+			wantErr:         "unknown attestation type",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.attestationType, func(t *testing.T) {
 			asEnum, err := ResourceDeviceAttestationTypeFromString(tt.attestationType)
-			if tt.errorContains != "" {
-				require.ErrorContains(t, err, tt.errorContains)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr, "ResourceDeviceAttestationTypeFromString error mismatch")
 				return
 			}
+
 			got := ResourceDeviceAttestationTypeToString(asEnum)
-			require.Equal(t, tt.attestationType, got)
+			want := tt.attestationType
+			if tt.wantEmpty {
+				want = ""
+			}
+			require.Equal(t, want, got, "ResourceDeviceAttestationTypeToString mismatch")
 		})
 	}
 }
