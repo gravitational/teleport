@@ -105,18 +105,17 @@ type Embedder interface {
 // embeddings for those nodes. ComputeEmbeddings is responsible for
 // implementing a retry mechanism if the embedding computation is flaky.
 func (client *Client) ComputeEmbeddings(ctx context.Context, input []string) ([]Vector64, error) {
-	var errors []error
 	var results []Vector64
 	for i := 0; maxOpenAIEmbeddingsPerRequest*i < len(input); i++ {
 		result, err := client.computeEmbeddings(ctx, paginateInput(input, i, maxOpenAIEmbeddingsPerRequest))
 		if err != nil {
-			errors = append(errors, trace.Wrap(err))
+			return nil, trace.Wrap(err)
 		}
 		for _, vector := range result {
 			results = append(results, vector32to64(vector))
 		}
 	}
-	return results, trace.NewAggregate(errors...)
+	return results, nil
 }
 
 func paginateInput(input []string, page, pageSize int) []string {
