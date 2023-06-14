@@ -68,7 +68,7 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 ## Step 3/6. Set up Teleport cluster in Primary Region (In this example us-west-1 is the Primary Region) region:
 - Running an HA Teleport cluster using [AWS, EKS, Helm](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/aws/)
-- [Configure Single Sing-on](https://goteleport.com/docs/access-controls/sso/) and test your access to cluster.
+- Configure [Single Sing-on](https://goteleport.com/docs/access-controls/sso/) and test your access to the Teleport cluster.
 
 ## Step 4/6. Setup DynamoDB & S3 Global replication to Secondary Region (In this example us-east-1 is the Secondary Region):
 - Check the Key components section of this document for Global replication.
@@ -100,10 +100,13 @@ auth_service:
 Reference the [Auth Server configuration](../../reference/config.mdx#auth-service) reference page 
 for additional settings.
 
+![Diagram showing this Teleport
+architecture](../../../img/deploy-a-cluster/aws-gslb-proxy-peering-ha-deployment.png)
+
 <Notice type="warning">
 
 With DynamoDB, the kube operator supports <=2 pod replicas only per cluster. So, It is not recommended to enable `kube operato` on 
-secondary region.
+secondary region. We will enable `kube operator` in the event of Primary Region failure.
 
 </Notice>
 
