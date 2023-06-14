@@ -306,6 +306,12 @@ func (h *APIHandler) Close() error {
 	return h.handler.Close()
 }
 
+// desktopSessionRe is a regex that matches /web/cluster/:clusterId/desktops/:desktopName/:username
+// which is a route to a desktop session that uses WASM and therefore needs a more permissive CSP
+// compared to other routes. We use this regex to match that path in order to determine which CSP
+// to set.
+var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
+
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
@@ -472,13 +478,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 			httplib.SetNoCacheHeaders(w.Header())
 
-			// /web/cluster/:clusterId/desktops/:desktopName/:username
-			// is a desktop session, which uses WASM and therefore needs a different CSP.
-			// We use a regex here to match that path in order to determine which CSP
-			// to set.
-			pattern := `^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`
-			re := regexp.MustCompile(pattern)
-			isDesktopSession := re.MatchString(r.URL.Path)
+			isDesktopSession := desktopSessionRe.MatchString(r.URL.Path)
 
 			// app access needs to make a CORS fetch request, so we only set the default CSP on that page
 			if strings.HasPrefix(r.URL.Path, "/web/launch/") {

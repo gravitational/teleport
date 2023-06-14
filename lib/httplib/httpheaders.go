@@ -29,6 +29,7 @@ import (
 )
 
 const (
+	// auto-pay plans in Cloud use stripe.com to manage billing information
 	defaultScriptSrc = "'self' https://js.stripe.com"
 )
 
@@ -40,7 +41,6 @@ var defaultContentSecurityPolicy = map[string]string{
 	"frame-ancestors": "'none'",
 	// additional default restrictions
 	"object-src": "'none'",
-	// auto-pay plans in Cloud use stripe.com to manage billing information
 	"script-src": defaultScriptSrc,
 	"frame-src":  "https://js.stripe.com",
 	"img-src":    "'self' data: blob:",
