@@ -50,7 +50,7 @@ type Embeddings interface {
 	Embed(ctx context.Context, kind string, resources map[string][]byte) ([]*ai.Embedding, error)
 }
 
-// MarshalEmbedding marshals the ai.Embedding resource to JSON.
+// MarshalEmbedding marshals the ai.Embedding resource to binary ProtoBuf.
 func MarshalEmbedding(embedding *ai.Embedding) ([]byte, error) {
 	data, err := proto.Marshal((*embeddingpb.Embedding)(embedding))
 	if err != nil {
@@ -59,7 +59,7 @@ func MarshalEmbedding(embedding *ai.Embedding) ([]byte, error) {
 	return data, nil
 }
 
-// UnmarshalEmbedding unmarshals JSON into an ai.Embedding resource.
+// UnmarshalEmbedding unmarshals binary ProtoBuf into an ai.Embedding resource.
 func UnmarshalEmbedding(bytes []byte) (*ai.Embedding, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing embedding data")
