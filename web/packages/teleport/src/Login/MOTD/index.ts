@@ -14,4 +14,4 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export { MOTD as default } from './MOTD';
+export { Motd as default } from './Motd';

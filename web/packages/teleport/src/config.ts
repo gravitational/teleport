@@ -277,8 +277,8 @@ const cfg = {
     return cfg.auth ? cfg.auth.preferredLocalMfa : null;
   },
 
-  getMOTD() {
-    return cfg.auth ? cfg.auth.motd : null;
+  getMotd() {
+    return cfg.auth.motd;
   },
 
   getLocalAuthFlag() {
