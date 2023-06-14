@@ -2633,6 +2633,7 @@ func TestS_RecordDeviceAuthnData_TPM(t *testing.T) {
 		t.Fatalf("createAndEnroll failed: %v", err)
 	}
 
+	clock.Advance(1 * time.Second)
 	cd := &devicepb.DeviceCollectedData{
 		CollectTime:  timestamppb.New(clock.Now()),
 		OsType:       dev.OsType,
@@ -2666,6 +2667,7 @@ func TestS_RecordDeviceAuthnData_TPM(t *testing.T) {
 			},
 		},
 	}
+
 	if err := s.RecordDeviceAuthnData(ctx, dev.Id, cd); err != nil {
 		t.Fatalf("RecordDeviceAuthnData failed: %v", err)
 	}
