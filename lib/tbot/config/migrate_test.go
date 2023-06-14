@@ -867,6 +867,199 @@ destinations:
 				},
 			},
 		},
+		{
+			name: "real world 4",
+			input: `
+auth_server: "redacted.teleport.sh:443"
+onboarding:
+  join_method: "iam"
+  token: "redacted-scanner-token"
+  ca_pins:
+  - "sha256:redacted"
+storage:
+  directory: /var/lib/teleport/bot
+destinations:
+  - directory: /opt/machine-id
+    kubernetes_cluster: devops
+`,
+			wantOutput: &BotConfig{
+				Version:    V2,
+				AuthServer: "redacted.teleport.sh:443",
+				Onboarding: OnboardingConfig{
+					TokenValue: "redacted-scanner-token",
+					JoinMethod: types.JoinMethodIAM,
+					CAPins: []string{
+						"sha256:redacted",
+					},
+				},
+				Storage: &StorageConfig{
+					Destination: &DestinationDirectory{
+						Path: "/var/lib/teleport/bot",
+					},
+				},
+				Outputs: Outputs{
+					&KubernetesOutput{
+						Destination: &DestinationDirectory{
+							Path: "/opt/machine-id",
+						},
+						KubernetesCluster: "devops",
+					},
+				},
+			},
+		},
+		{
+			name: "real world 5",
+			input: `
+auth_server: "redacted.teleport.sh:443"
+onboarding:
+  join_method: "iam"
+  token: "redacted-argocd-token"
+  ca_pins:
+  - "sha256:redacted"
+storage:
+  directory: /var/lib/teleport/bot
+destinations:
+  - directory: 
+      path: /mount/redacted-prod-global
+      acls: off
+    kubernetes_cluster: redacted-prod-global
+  - directory: 
+      path: /mount/redacted-prod-au
+      acls: off
+    kubernetes_cluster: redacted-prod-au
+  - directory: 
+      path: /mount/redacted-prod-eu2
+      acls: off
+    kubernetes_cluster: redacted-prod-eu2
+  - directory: 
+      path: /mount/redacted-prod-ca
+      acls: off
+    kubernetes_cluster: redacted-prod-ca
+  - directory: 
+      path: /mount/redacted-prod-us
+      acls: off
+    kubernetes_cluster: redacted-prod-us
+`,
+			wantOutput: &BotConfig{
+				Version:    V2,
+				AuthServer: "redacted.teleport.sh:443",
+				Onboarding: OnboardingConfig{
+					TokenValue: "redacted-argocd-token",
+					JoinMethod: types.JoinMethodIAM,
+					CAPins: []string{
+						"sha256:redacted",
+					},
+				},
+				Storage: &StorageConfig{
+					Destination: &DestinationDirectory{
+						Path: "/var/lib/teleport/bot",
+					},
+				},
+				Outputs: Outputs{
+					&KubernetesOutput{
+						Destination: &DestinationDirectory{
+							Path: "/mount/redacted-prod-global",
+							ACLs: botfs.ACLOff,
+						},
+						KubernetesCluster: "redacted-prod-global",
+					},
+					&KubernetesOutput{
+						Destination: &DestinationDirectory{
+							Path: "/mount/redacted-prod-au",
+							ACLs: botfs.ACLOff,
+						},
+						KubernetesCluster: "redacted-prod-au",
+					},
+					&KubernetesOutput{
+						Destination: &DestinationDirectory{
+							Path: "/mount/redacted-prod-eu2",
+							ACLs: botfs.ACLOff,
+						},
+						KubernetesCluster: "redacted-prod-eu2",
+					},
+					&KubernetesOutput{
+						Destination: &DestinationDirectory{
+							Path: "/mount/redacted-prod-ca",
+							ACLs: botfs.ACLOff,
+						},
+						KubernetesCluster: "redacted-prod-ca",
+					},
+					&KubernetesOutput{
+						Destination: &DestinationDirectory{
+							Path: "/mount/redacted-prod-us",
+							ACLs: botfs.ACLOff,
+						},
+						KubernetesCluster: "redacted-prod-us",
+					},
+				},
+			},
+		},
+		{
+			name: "real world 6",
+			// up to 10 roles/destinations depending on the environment
+			input: `
+auth_server: "redacted.teleport.sh:443"
+onboarding:
+  join_method: "token"
+  token: "redacted"
+
+storage:
+  directory: "/var/lib/teleport/tbot"
+
+destinations:
+  - directory:
+      acls: required
+      path: /path/to/role1_creds
+    roles:
+    - role1
+  - directory:
+      acls: required
+      path: /path/to/role2_creds
+    roles:
+    - role2
+  - directory:
+      acls: required
+      path: /path/to/roleN_creds
+    roles:
+    - roleN
+`,
+			wantOutput: &BotConfig{
+				Version:    V2,
+				AuthServer: "redacted.teleport.sh:443",
+				Onboarding: OnboardingConfig{
+					TokenValue: "redacted",
+					JoinMethod: types.JoinMethodToken,
+				},
+				Storage: &StorageConfig{
+					Destination: &DestinationDirectory{
+						Path: "/var/lib/teleport/tbot",
+					},
+				},
+				Outputs: Outputs{
+					&IdentityOutput{
+						Destination: &DestinationDirectory{
+							Path: "/path/to/role1_creds",
+							ACLs: botfs.ACLRequired,
+						},
+						Roles: []string{"role1"},
+					},
+					&IdentityOutput{
+						Destination: &DestinationDirectory{
+							Path: "/path/to/role2_creds",
+							ACLs: botfs.ACLRequired,
+						},
+						Roles: []string{"role2"},
+					},
+					&IdentityOutput{
+						Destination: &DestinationDirectory{
+							Path: "/path/to/roleN_creds",
+							ACLs: botfs.ACLRequired,
+						},
+						Roles: []string{"roleN"},
+					},
+				},
+			},
+		},
 		// Error cases
 		{
 			name:      "storage config with no destination",
