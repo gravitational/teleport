@@ -19,7 +19,7 @@
     "tdd": "jest --watch",
     "lint": "yarn prettier-check && yarn eslint",
     "eslint": "eslint --quiet '+(e|web)/**/*.{ts,tsx,js,jsx}'",
-    "type-check": "NODE_OPTIONS='--max-old-space-size=4096' tsc --noEmit",
+    "type-check": "yarn build-wasm && NODE_OPTIONS='--max-old-space-size=4096' tsc --noEmit",
     "prettier-check": "yarn prettier --check '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "prettier-write": "yarn prettier --write --loglevel silent '+(e|web)/**/*.{ts,tsx,js,jsx}'",
     "nop": "exit 0"
