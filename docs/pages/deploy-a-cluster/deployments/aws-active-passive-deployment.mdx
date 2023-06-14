@@ -59,29 +59,29 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
 
 ##Prerequisites
 
-Our code requires Terraform 0.13+. You can [download Terraform here](https://www.terraform.io/downloads.html). We will assume that you have
-`terraform` installed and available on your path.
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
 
-```code
-$ which terraform
-/usr/local/bin/terraform
-$ terraform version
-Terraform v1.2.6
-```
-## Step 1/4. Set up Teleport cluster in Primary Region (In my example us-west-1 is Primary Region) region:
+## Step 1/6. Install Helm
+
+(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
+
+## Step 2/6. Add the Teleport Helm chart repository
+
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+## Step 3/6. Set up Teleport cluster in Primary Region (In my example us-west-1 is Primary Region) region:
 - [Running an HA Teleport cluster using AWS, EKS, Helm](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/aws/)
 - [Configure Single Sing-on] (https://goteleport.com/docs/access-controls/sso/) and test your access to cluster.
 
-## Step 2/4. Setup DynamoDB & S3 Global replication to Secondary Region (In my example us-east-1 is the Secondary Region):
+## Step 4/6. Setup DynamoDB & S3 Global replication to Secondary Region (In my example us-east-1 is the Secondary Region):
 - Check the Key components section of this document for Global replication.
 
-## Step 3/4. Set up Teleport cluster in Secondary Region same as Step 1/7:
+## Step 5/6. Set up Teleport cluster in Secondary Region same as Step 1/7:
 - We will use same `aws-values.yaml` & `aws-issuer.yaml` config to install Teleport name space in Secondary Region (us-east-1) by changing the clusterName.
   So that it will use same backend as defined in Primary Region (us-west-1) for DynamoDB and S3 buckets. 
   Once the Teleport Cluster in Secondary Region (us-east-1) is ready, you can check the SSO access by logging in via Secondary region (us-east-1) UI/tsh
   Configuration. SSO login is working from both the Primary (us-west-1) and Secondary (us-east-1) region Teleport clusters.
 
-## Step 4/4. Configure Proxy Peering:
+## Step 6/6. Configure Proxy Peering:
 In this deployment architecture, [Proxy Peering](../../architecture/proxy-peering.mdx) is used to restrict the number of connections made from 
 resources to proxies in the Teleport Cluster.
 
