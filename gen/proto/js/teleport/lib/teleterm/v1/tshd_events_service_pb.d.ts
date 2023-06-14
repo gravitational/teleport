@@ -165,3 +165,37 @@ export namespace SendNotificationResponse {
     export type AsObject = {
     }
 }
+
+export class PromptWebauthnRequest extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PromptWebauthnRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: PromptWebauthnRequest): PromptWebauthnRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PromptWebauthnRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PromptWebauthnRequest;
+    static deserializeBinaryFromReader(message: PromptWebauthnRequest, reader: jspb.BinaryReader): PromptWebauthnRequest;
+}
+
+export namespace PromptWebauthnRequest {
+    export type AsObject = {
+    }
+}
+
+export class PromptWebauthnResponse extends jspb.Message { 
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): PromptWebauthnResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: PromptWebauthnResponse): PromptWebauthnResponse.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: PromptWebauthnResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): PromptWebauthnResponse;
+    static deserializeBinaryFromReader(message: PromptWebauthnResponse, reader: jspb.BinaryReader): PromptWebauthnResponse;
+}
+
+export namespace PromptWebauthnResponse {
+    export type AsObject = {
+    }
+}

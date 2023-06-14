@@ -5075,13 +5075,15 @@ func (g *GRPCServer) PollHeadlessAuthentications(_ *emptypb.Empty, stream proto.
 		return trace.Wrap(err)
 	}
 
+	g.Logger.Debugf("Starting PollHeadlessAuthentications for user %v", auth.context.User.GetName())
+
 	// Create a headless authentication stub for the user to authorize all headless request attempts
 	// to add the full request details to the backend.
 	if _, err := auth.authServer.CreateHeadlessAuthenticationStub(stream.Context(), auth.context.User.GetName()); err != nil && !trace.IsAlreadyExists(err) {
 		return trace.Wrap(err)
 	}
 	defer func() {
-		if err := auth.authServer.DeleteHeadlessAuthentication(stream.Context(), auth.context.User.GetName()); err != nil {
+		if err := auth.authServer.DeleteHeadlessAuthentication(g.Context, auth.context.User.GetName()); err != nil {
 			g.Logger.WithError(err).Debug("Failed to delete headless authentication stub for user.")
 		}
 	}()

@@ -10,6 +10,7 @@ import * as teleport_lib_teleterm_v1_tshd_events_service_pb from "../../../../te
 interface ITshdEventsServiceService extends grpc.ServiceDefinition<grpc.UntypedServiceImplementation> {
     relogin: ITshdEventsServiceService_IRelogin;
     sendNotification: ITshdEventsServiceService_ISendNotification;
+    promptWebauthn: ITshdEventsServiceService_IPromptWebauthn;
 }
 
 interface ITshdEventsServiceService_IRelogin extends grpc.MethodDefinition<teleport_lib_teleterm_v1_tshd_events_service_pb.ReloginRequest, teleport_lib_teleterm_v1_tshd_events_service_pb.ReloginResponse> {
@@ -30,12 +31,22 @@ interface ITshdEventsServiceService_ISendNotification extends grpc.MethodDefinit
     responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse>;
     responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse>;
 }
+interface ITshdEventsServiceService_IPromptWebauthn extends grpc.MethodDefinition<teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest, teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse> {
+    path: "/teleport.lib.teleterm.v1.TshdEventsService/PromptWebauthn";
+    requestStream: false;
+    responseStream: false;
+    requestSerialize: grpc.serialize<teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest>;
+    requestDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest>;
+    responseSerialize: grpc.serialize<teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse>;
+    responseDeserialize: grpc.deserialize<teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse>;
+}
 
 export const TshdEventsServiceService: ITshdEventsServiceService;
 
 export interface ITshdEventsServiceServer {
     relogin: grpc.handleUnaryCall<teleport_lib_teleterm_v1_tshd_events_service_pb.ReloginRequest, teleport_lib_teleterm_v1_tshd_events_service_pb.ReloginResponse>;
     sendNotification: grpc.handleUnaryCall<teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationRequest, teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse>;
+    promptWebauthn: grpc.handleUnaryCall<teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest, teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse>;
 }
 
 export interface ITshdEventsServiceClient {
@@ -45,6 +56,9 @@ export interface ITshdEventsServiceClient {
     sendNotification(request: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse) => void): grpc.ClientUnaryCall;
     sendNotification(request: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse) => void): grpc.ClientUnaryCall;
     sendNotification(request: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse) => void): grpc.ClientUnaryCall;
+    promptWebauthn(request: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse) => void): grpc.ClientUnaryCall;
+    promptWebauthn(request: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse) => void): grpc.ClientUnaryCall;
+    promptWebauthn(request: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse) => void): grpc.ClientUnaryCall;
 }
 
 export class TshdEventsServiceClient extends grpc.Client implements ITshdEventsServiceClient {
@@ -55,4 +69,7 @@ export class TshdEventsServiceClient extends grpc.Client implements ITshdEventsS
     public sendNotification(request: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse) => void): grpc.ClientUnaryCall;
     public sendNotification(request: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse) => void): grpc.ClientUnaryCall;
     public sendNotification(request: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.SendNotificationResponse) => void): grpc.ClientUnaryCall;
+    public promptWebauthn(request: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse) => void): grpc.ClientUnaryCall;
+    public promptWebauthn(request: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest, metadata: grpc.Metadata, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse) => void): grpc.ClientUnaryCall;
+    public promptWebauthn(request: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest, metadata: grpc.Metadata, options: Partial<grpc.CallOptions>, callback: (error: grpc.ServiceError | null, response: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse) => void): grpc.ClientUnaryCall;
 }

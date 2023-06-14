@@ -28,6 +28,8 @@ service TshdEventsService {
   // accepts a specific message rather than a generic string so that the Electron is in control as
   // to what message is displayed and how exactly it looks.
   rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+  // PromptWebauthn causes the Electron app to prompt for Webauthn.
+  rpc PromptWebauthn(PromptWebauthnRequest) returns (PromptWebauthnResponse);
 }
 
 // Relogin
@@ -71,3 +73,9 @@ message CannotProxyGatewayConnection {
 }
 
 message SendNotificationResponse {}
+
+// PromptWebauthn
+
+message PromptWebauthnRequest {}
+
+message PromptWebauthnResponse {}

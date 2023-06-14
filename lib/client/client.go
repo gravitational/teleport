@@ -1081,6 +1081,37 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 	return resp.Resources, resp.NextKey, nil
 }
 
+func (proxy *ProxyClient) WatchHeadlessAuthentications(ctx context.Context) (proto.AuthService_PollHeadlessAuthenticationsClient, error) {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/PollHeadlessAuthentications",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	site := proxy.CurrentCluster()
+
+	stream, err := site.PollHeadlessAuthentications(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return stream, nil
+}
+
+func (proxy *ProxyClient) UpdateHeadlessAuthenticationState(ctx context.Context, headlessID string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error {
+	ctx, span := proxy.Tracer.Start(
+		ctx,
+		"proxyClient/PollHeadlessAuthentications",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	site := proxy.CurrentCluster()
+
+	err := site.UpdateHeadlessAuthenticationState(ctx, headlessID, state, mfaResponse)
+	return trace.Wrap(err)
+}
+
 // sharedAuthClient is a wrapper around auth.ClientI which
 // prevents the underlying client from being closed.
 type sharedAuthClient struct {

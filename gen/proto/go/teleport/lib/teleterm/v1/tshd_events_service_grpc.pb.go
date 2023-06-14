@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	TshdEventsService_Relogin_FullMethodName          = "/teleport.lib.teleterm.v1.TshdEventsService/Relogin"
 	TshdEventsService_SendNotification_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification"
+	TshdEventsService_PromptWebauthn_FullMethodName   = "/teleport.lib.teleterm.v1.TshdEventsService/PromptWebauthn"
 )
 
 // TshdEventsServiceClient is the client API for TshdEventsService service.
@@ -48,6 +49,8 @@ type TshdEventsServiceClient interface {
 	// accepts a specific message rather than a generic string so that the Electron is in control as
 	// to what message is displayed and how exactly it looks.
 	SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error)
+	// PromptWebauthn causes the Electron app to prompt for Webauthn.
+	PromptWebauthn(ctx context.Context, in *PromptWebauthnRequest, opts ...grpc.CallOption) (*PromptWebauthnResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -76,6 +79,15 @@ func (c *tshdEventsServiceClient) SendNotification(ctx context.Context, in *Send
 	return out, nil
 }
 
+func (c *tshdEventsServiceClient) PromptWebauthn(ctx context.Context, in *PromptWebauthnRequest, opts ...grpc.CallOption) (*PromptWebauthnResponse, error) {
+	out := new(PromptWebauthnResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptWebauthn_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TshdEventsServiceServer is the server API for TshdEventsService service.
 // All implementations must embed UnimplementedTshdEventsServiceServer
 // for forward compatibility
@@ -87,6 +99,8 @@ type TshdEventsServiceServer interface {
 	// accepts a specific message rather than a generic string so that the Electron is in control as
 	// to what message is displayed and how exactly it looks.
 	SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error)
+	// PromptWebauthn causes the Electron app to prompt for Webauthn.
+	PromptWebauthn(context.Context, *PromptWebauthnRequest) (*PromptWebauthnResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
 
@@ -99,6 +113,9 @@ func (UnimplementedTshdEventsServiceServer) Relogin(context.Context, *ReloginReq
 }
 func (UnimplementedTshdEventsServiceServer) SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendNotification not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) PromptWebauthn(context.Context, *PromptWebauthnRequest) (*PromptWebauthnResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromptWebauthn not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) mustEmbedUnimplementedTshdEventsServiceServer() {}
 
@@ -149,6 +166,24 @@ func _TshdEventsService_SendNotification_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TshdEventsService_PromptWebauthn_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromptWebauthnRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).PromptWebauthn(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_PromptWebauthn_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).PromptWebauthn(ctx, req.(*PromptWebauthnRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TshdEventsService_ServiceDesc is the grpc.ServiceDesc for TshdEventsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -163,6 +198,10 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendNotification",
 			Handler:    _TshdEventsService_SendNotification_Handler,
+		},
+		{
+			MethodName: "PromptWebauthn",
+			Handler:    _TshdEventsService_PromptWebauthn_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

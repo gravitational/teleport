@@ -213,3 +213,8 @@ func (c *mockTSHDEventsClient) SendNotification(context.Context, *api.SendNotifi
 	c.callCounts["SendNotification"]++
 	return &api.SendNotificationResponse{}, nil
 }
+
+func (c *mockTSHDEventsClient) PromptWebauthn(context.Context, *api.PromptWebauthnRequest, ...grpc.CallOption) (*api.PromptWebauthnResponse, error) {
+	c.callCounts["PromptWebauthn"]++
+	return &api.PromptWebauthnResponse{}, nil
+}

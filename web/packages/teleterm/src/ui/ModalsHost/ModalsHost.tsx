@@ -29,6 +29,8 @@ import { assertUnreachable } from '../utils';
 import { UsageData } from './modals/UsageData';
 import { UserJobRole } from './modals/UserJobRole';
 
+import { PromptWebauthn } from '../ClusterConnect/ClusterLogin/FormLogin/PromptWebauthn';
+
 export default function ModalsHost() {
   const { modalsService } = useAppContext();
   const { regular: regularDialog, important: importantDialog } =
@@ -127,6 +129,19 @@ function renderDialog(dialog: Dialog, handleClose: () => void) {
           onCancel={() => {
             handleClose();
             dialog.onCancel();
+          }}
+        />
+      );
+    }
+
+
+    case 'prompt-webauthn': {
+      return (
+        <PromptWebauthn
+          prompt="tap"
+          onCancel={() => {
+            handleClose();
+            dialog.onCancel?.();
           }}
         />
       );

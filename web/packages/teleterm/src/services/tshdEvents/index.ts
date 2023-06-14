@@ -31,10 +31,12 @@ export interface GatewayCertExpired extends api.GatewayCertExpired.AsObject {
   gatewayUri: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
 }
-
 export interface SendNotificationRequest
   extends api.SendNotificationRequest.AsObject {
   cannotProxyGatewayConnection?: CannotProxyGatewayConnection;
+}
+export interface PromptWebauthnRequest
+  extends api.PromptWebauthnRequest.AsObject {
 }
 export interface CannotProxyGatewayConnection
   extends api.CannotProxyGatewayConnection.AsObject {
@@ -174,6 +176,24 @@ function createService(logger: Logger): {
       emitter.emit('sendNotification', { request, onCancelled }).then(
         () => {
           callback(null, new api.SendNotificationResponse());
+        },
+        error => {
+          callback(error);
+        }
+      );
+    },
+    promptWebauthn: (call, callback) => {
+      const request = call.request.toObject();
+
+      logger.info('Emitting promptWebauthn', request);
+
+      const onCancelled = (callback: () => void) => {
+        call.on('cancelled', callback);
+      };
+
+      emitter.emit('promptWebauthn', { request, onCancelled }).then(
+        () => {
+          callback(null, new api.PromptWebauthnResponse());
         },
         error => {
           callback(error);

@@ -19,6 +19,28 @@
 var grpc = require('@grpc/grpc-js');
 var teleport_lib_teleterm_v1_tshd_events_service_pb = require('../../../../teleport/lib/teleterm/v1/tshd_events_service_pb.js');
 
+function serialize_teleport_lib_teleterm_v1_PromptWebauthnRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.PromptWebauthnRequest');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_PromptWebauthnRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
+function serialize_teleport_lib_teleterm_v1_PromptWebauthnResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.PromptWebauthnResponse');
+  }
+  return Buffer.from(arg.serializeBinary());
+}
+
+function deserialize_teleport_lib_teleterm_v1_PromptWebauthnResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse.deserializeBinary(new Uint8Array(buffer_arg));
+}
+
 function serialize_teleport_lib_teleterm_v1_ReloginRequest(arg) {
   if (!(arg instanceof teleport_lib_teleterm_v1_tshd_events_service_pb.ReloginRequest)) {
     throw new Error('Expected argument of type teleport.lib.teleterm.v1.ReloginRequest');
@@ -93,6 +115,18 @@ sendNotification: {
     requestDeserialize: deserialize_teleport_lib_teleterm_v1_SendNotificationRequest,
     responseSerialize: serialize_teleport_lib_teleterm_v1_SendNotificationResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_SendNotificationResponse,
+  },
+  // PromptWebauthn causes the Electron app to prompt for Webauthn.
+promptWebauthn: {
+    path: '/teleport.lib.teleterm.v1.TshdEventsService/PromptWebauthn',
+    requestStream: false,
+    responseStream: false,
+    requestType: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnRequest,
+    responseType: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptWebauthnResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_PromptWebauthnRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_PromptWebauthnRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_PromptWebauthnResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_PromptWebauthnResponse,
   },
 };
 

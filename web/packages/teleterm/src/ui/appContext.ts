@@ -22,6 +22,7 @@ import {
 import {
   ReloginRequest,
   SendNotificationRequest,
+  PromptWebauthnRequest,
 } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
@@ -34,6 +35,7 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
 import { ReloginService } from 'teleterm/services/relogin';
 import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
+import { PromptWebauthnService } from 'teleterm/services/promptWebauthn';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConfigService } from 'teleterm/services/config';
@@ -70,6 +72,7 @@ export default class AppContext implements IAppContext {
   subscribeToTshdEvent: SubscribeToTshdEvent;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
+  promptWebauthnService: PromptWebauthnService;
   usageService: UsageService;
   configService: ConfigService;
 
@@ -131,6 +134,10 @@ export default class AppContext implements IAppContext {
       this.notificationsService,
       this.clustersService
     );
+    this.promptWebauthnService = new PromptWebauthnService(
+      mainProcessClient,
+      this.modalsService,
+    );
   }
 
   async init(): Promise<void> {
@@ -151,6 +158,13 @@ export default class AppContext implements IAppContext {
     this.subscribeToTshdEvent('sendNotification', ({ request }) => {
       this.tshdNotificationsService.sendNotification(
         request as SendNotificationRequest
+      );
+    });
+
+    this.subscribeToTshdEvent('promptWebauthn', ({ onCancelled }) => {
+      return this.promptWebauthnService.promptWebauthn(
+        // request as PromptWebauthnRequest,
+        onCancelled
       );
     });
   }

@@ -62,6 +62,9 @@ type TSHDEventsClient interface {
 	// SendNotification causes the Electron app to display a notification. Please refer to
 	// [api.TshdEventsServiceClient.SendNotification] for more details.
 	SendNotification(ctx context.Context, in *api.SendNotificationRequest, opts ...grpc.CallOption) (*api.SendNotificationResponse, error)
+	// PromptWebauthn makes the Electron app display a webauthn prompt modal. Please refer to
+	// [api.TshdEventsServiceClient.PromptWebauthn] for more details.
+	PromptWebauthn(ctx context.Context, in *api.PromptWebauthnRequest, opts ...grpc.CallOption) (*api.PromptWebauthnResponse, error)
 }
 
 // ReissueCert attempts to contact the cluster to reissue the db cert used by the gateway. If that
@@ -189,4 +192,29 @@ func (r *GatewayCertReissuer) notifyAppAboutError(ctx context.Context, err error
 		r.Log.WithError(tshdEventsErr).Error(
 			"Failed to send a notification for an error encountered during OnExpiredCert")
 	}
+}
+
+func (r *GatewayCertReissuer) requestWebauthnFromElectronApp(ctx context.Context, req *api.PromptWebauthnRequest) error {
+	const reloginUserTimeout = time.Minute
+	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
+	defer cancelTshdEventsCtx()
+
+	// The Electron app cannot display two login modals at the same time, so we have to cut short any
+	// concurrent relogin requests.
+	if !r.reloginMu.TryLock() {
+		return trace.AlreadyExists("another relogin request is in progress")
+	}
+	defer r.reloginMu.Unlock()
+
+	_, err := r.TSHDEventsClient.PromptWebauthn(timeoutCtx, req)
+
+	if err != nil {
+		if status.Code(err) == codes.DeadlineExceeded {
+			return trace.Wrap(err, "the user did not refresh the session within %s", reloginUserTimeout.String())
+		}
+
+		return trace.Wrap(err, "could not refresh the session")
+	}
+
+	return nil
 }

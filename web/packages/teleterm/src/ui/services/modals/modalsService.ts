@@ -193,6 +193,12 @@ export interface DialogResourceSearchErrors {
   onCancel: () => void;
 }
 
+export interface DialogPromptWebauthn {
+  kind: 'prompt-webauthn';
+  onSuccess?: () => void;
+  onCancel: () => void;
+}
+
 export type Dialog =
   | DialogClusterConnect
   | DialogClusterLogout
@@ -200,4 +206,5 @@ export type Dialog =
   | DialogUsageData
   | DialogUserJobRole
   | DialogResourceSearchErrors
+  | DialogPromptWebauthn
   | DialogNone;
