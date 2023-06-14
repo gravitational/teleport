@@ -300,6 +300,7 @@ func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChec
 		resp, err = u.accessPoint.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindAppServer,
 			StartKey:     resp.NextKey,
+			Limit:        defaults.DefaultChunkSize,
 		})
 	}
 
