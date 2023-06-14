@@ -2059,9 +2059,9 @@ type agentParams struct {
 	// CloudClients is the cloud API clients for database service.
 	CloudClients clients.Clients
 	// AWSMatchers is a list of AWS databases matchers.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
