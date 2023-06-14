@@ -672,6 +672,11 @@ func createPresetUsers(ctx context.Context, um PresetUserManager) error {
 		services.NewPresetAutomaticAccessBotUser(),
 	}
 	for _, user := range users {
+		// Some users are only valid for enterprise Teleport, and so will be
+		// nil for an OSS build and can be skipped
+		if user != nil {
+			continue
+		}
 		err := um.CreateUser(ctx, user)
 		if err != nil && !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
