@@ -57,22 +57,22 @@ type Vector64 = []float64
 type Embedding embeddingpb.Embedding
 
 // GetEmbeddedKind returns the kind of the resource that was embedded.
-func (e Embedding) GetEmbeddedKind() string {
+func (e *Embedding) GetEmbeddedKind() string {
 	return e.EmbeddedKind
 }
 
 // GetName returns the Embedding name, composed of the embedded resource kind
 // and the embedded resource ID.
-func (e Embedding) GetName() string {
+func (e *Embedding) GetName() string {
 	return e.EmbeddedKind + string(backend.Separator) + e.EmbeddedId
 }
 
 // GetEmbeddedID returns the ID of the resource that was embedded.
-func (e Embedding) GetEmbeddedID() string {
+func (e *Embedding) GetEmbeddedID() string {
 	return e.EmbeddedId
 }
 
-func (e Embedding) GetVector() Vector64 {
+func (e *Embedding) GetVector() Vector64 {
 	return e.Vector
 }
 

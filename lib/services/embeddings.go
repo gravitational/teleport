@@ -16,15 +16,16 @@ package services
 
 import (
 	"context"
-	"encoding/json"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
@@ -50,7 +51,7 @@ type Embeddings interface {
 
 // MarshalEmbedding marshals the ai.Embedding resource to JSON.
 func MarshalEmbedding(embedding *ai.Embedding) ([]byte, error) {
-	data, err := json.Marshal(embedding)
+	data, err := proto.Marshal((*embeddingpb.Embedding)(embedding))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -62,9 +63,13 @@ func UnmarshalEmbedding(bytes []byte) (*ai.Embedding, error) {
 	if len(bytes) == 0 {
 		return nil, trace.BadParameter("missing embedding data")
 	}
-	var embedding ai.Embedding
+	var embedding embeddingpb.Embedding
+	err := proto.Unmarshal(bytes, &embedding)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
 
-	return &embedding, nil
+	return (*ai.Embedding)(&embedding), nil
 }
 
 // NodeEmbeddingWatcher listen for Node events and asynchronously compute

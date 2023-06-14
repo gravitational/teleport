@@ -343,5 +343,8 @@ func TestMarshallUnmarshallEmbedding(t *testing.T) {
 	final, err := services.UnmarshalEmbedding(marshaled)
 	require.NoError(t, err)
 
-	require.Equal(t, initial, final)
+	require.Equal(t, initial.EmbeddedId, final.EmbeddedId)
+	require.Equal(t, initial.EmbeddedKind, final.EmbeddedKind)
+	require.Equal(t, initial.EmbeddedHash, final.EmbeddedHash)
+	require.Equal(t, initial.Vector, final.Vector)
 }
