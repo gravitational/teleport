@@ -75,7 +75,7 @@ func (h *Handler) createUserEventHandle(w http.ResponseWriter, r *http.Request, 
 		return nil, trace.Wrap(err)
 	}
 
-	typedEvent, err := usagereporter.ConvertUserEventRequestToUsageEvent(req)
+	typedEvent, err := usagereporter.ConvertUserEventRequestToUsageEvent(r, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

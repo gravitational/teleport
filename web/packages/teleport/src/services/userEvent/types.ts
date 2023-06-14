@@ -25,6 +25,7 @@ export enum CaptureEvent {
   CreateNewRoleCancelClickEvent = 'tp.ui.createNewRoleCancel.click',
   CreateNewRoleViewDocumentationClickEvent = 'tp.ui.createNewRoleViewDocumentation.click',
   UiCallToActionClickEvent = 'tp.ui.callToAction.click',
+  UiTermsOfServiceClickEvent = 'tp.ui.tos.click',
 
   // PreUserEvent types
   //   these events are unauthenticated,

@@ -358,6 +358,13 @@ message UIIntegrationEnrollCompleteEvent {
   IntegrationEnrollMetadata metadata = 1;
 }
 
+// UITermsOfServiceClickEvent is an event that is emitted when a user
+// clicks a Terms of Service link.
+message UITermsOfServiceClickEvent {
+  // anonymized URL of the page the user is when they click a TOS link
+  string origin = 1;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -393,6 +400,7 @@ message UsageEventOneOf {
     AssistCompletionEvent assist_completion = 30;
     UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 31;
     UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 32;
+    UITermsOfServiceClickEvent ui_terms_of_service_click_event = 33;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

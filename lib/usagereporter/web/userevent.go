@@ -18,6 +18,7 @@ package usagereporter
 
 import (
 	"encoding/json"
+	"net/http"
 
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
@@ -60,7 +61,8 @@ const (
 	uiIntegrationEnrollStartEvent    = "tp.ui.integrationEnroll.start"
 	uiIntegrationEnrollCompleteEvent = "tp.ui.integrationEnroll.complete"
 
-	uiCallToActionClickEvent = "tp.ui.callToAction.click"
+	uiCallToActionClickEvent   = "tp.ui.callToAction.click"
+	uiTermsOfServiceClickEvent = "tp.ui.tos.click"
 )
 
 // Events that require extra metadata.
@@ -209,7 +211,7 @@ func (r *CreateUserEventRequest) CheckAndSetDefaults() error {
 // creates a new *usageeventsv1.UsageEventOneOf. Based on the event's name, it
 // creates the corresponding *usageeventsv1.UsageEventOneOf adding the required
 // fields.
-func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeventsv1.UsageEventOneOf, error) {
+func ConvertUserEventRequestToUsageEvent(r *http.Request, req CreateUserEventRequest) (*usageeventsv1.UsageEventOneOf, error) {
 	switch req.Event {
 	case bannerClickEvent:
 		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiBannerClick{
@@ -326,6 +328,12 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 					Cta: usageeventsv1.CTA(cta),
 				}}},
 			nil
+	case uiTermsOfServiceClickEvent:
+		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiTermsOfServiceClickEvent{
+			UiTermsOfServiceClickEvent: &usageeventsv1.UITermsOfServiceClickEvent{
+				Origin: r.Header.Get("Origin"),
+			},
+		}}, nil
 	}
 
 	return nil, trace.BadParameter("invalid event %s", req.Event)

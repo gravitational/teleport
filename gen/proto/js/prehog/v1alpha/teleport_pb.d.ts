@@ -1351,6 +1351,31 @@ export namespace UIIntegrationEnrollCompleteEvent {
     }
 }
 
+export class UITermsOfServiceClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UITermsOfServiceClickEvent;
+
+    getOrigin(): string;
+    setOrigin(value: string): UITermsOfServiceClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UITermsOfServiceClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UITermsOfServiceClickEvent): UITermsOfServiceClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UITermsOfServiceClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UITermsOfServiceClickEvent;
+    static deserializeBinaryFromReader(message: UITermsOfServiceClickEvent, reader: jspb.BinaryReader): UITermsOfServiceClickEvent;
+}
+
+export namespace UITermsOfServiceClickEvent {
+    export type AsObject = {
+        userName: string,
+        origin: string,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1614,6 +1639,12 @@ export class SubmitEventRequest extends jspb.Message {
     setUiIntegrationEnrollCompleteEvent(value?: UIIntegrationEnrollCompleteEvent): SubmitEventRequest;
 
 
+    hasUiTermsOfServiceClickEvent(): boolean;
+    clearUiTermsOfServiceClickEvent(): void;
+    getUiTermsOfServiceClickEvent(): UITermsOfServiceClickEvent | undefined;
+    setUiTermsOfServiceClickEvent(value?: UITermsOfServiceClickEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1672,6 +1703,7 @@ export namespace SubmitEventRequest {
         assistCompletion?: AssistCompletionEvent.AsObject,
         uiIntegrationEnrollStartEvent?: UIIntegrationEnrollStartEvent.AsObject,
         uiIntegrationEnrollCompleteEvent?: UIIntegrationEnrollCompleteEvent.AsObject,
+        uiTermsOfServiceClickEvent?: UITermsOfServiceClickEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1760,6 +1792,8 @@ export namespace SubmitEventRequest {
     UI_INTEGRATION_ENROLL_START_EVENT = 44,
 
     UI_INTEGRATION_ENROLL_COMPLETE_EVENT = 45,
+
+    UI_TERMS_OF_SERVICE_CLICK_EVENT = 46,
 
     }
 

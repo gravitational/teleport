@@ -30,6 +30,7 @@ import Flex from 'design/Flex';
 import Link from 'design/Link';
 
 import { useAssist } from 'teleport/Assist/context/AssistContext';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 const Container = styled.div`
   display: flex;
@@ -113,6 +114,12 @@ export function LandingPage() {
 
   const { createConversation } = useAssist();
 
+  function registerTosClickEvent() {
+    userEventService.captureUserEvent({
+      event: CaptureEvent.UiTermsOfServiceClickEvent,
+    });
+  }
+
   return (
     <Container>
       <Content>
@@ -127,6 +134,11 @@ export function LandingPage() {
         <Warning>
           Warning: This is an experimental{' '}
           <Link
+            onClick={registerTosClickEvent}
+            onAuxClick={e =>
+              // capture middle mouse click since it opens links in new tabs
+              e.button === 1 ? registerTosClickEvent() : null
+            }
             href="https://goteleport.com/legal/tos#product-previews"
             target="_blank"
             color={theme.colors.text.main}

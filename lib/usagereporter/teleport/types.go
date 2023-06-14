@@ -17,6 +17,8 @@ limitations under the License.
 package usagereporter
 
 import (
+	"net/url"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -447,6 +449,23 @@ func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEvent
 	}
 }
 
+// TermsOfServiceClickEvent is an event emitted after a user clicks a Terms of Service link
+type TermsOfServiceClickEvent prehogv1a.UITermsOfServiceClickEvent
+
+func (e *TermsOfServiceClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	// anonymize origin host
+	originURL, _ := url.Parse(e.Origin)
+	originURL.Host = a.AnonymizeString(originURL.Host)
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiTermsOfServiceClickEvent{
+			UiTermsOfServiceClickEvent: &prehogv1a.UITermsOfServiceClickEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Origin:   originURL.String(),
+			},
+		},
+	}
+}
+
 type ResourceKind = prehogv1a.ResourceKind
 
 const (
@@ -767,6 +786,12 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			TotalTokens:      e.AssistCompletion.TotalTokens,
 			PromptTokens:     e.AssistCompletion.PromptTokens,
 			CompletionTokens: e.AssistCompletion.CompletionTokens,
+		}
+		return ret, nil
+	case *usageeventsv1.UsageEventOneOf_UiTermsOfServiceClickEvent:
+		ret := &TermsOfServiceClickEvent{
+			UserName: userMD.Username,
+			Origin:   e.UiTermsOfServiceClickEvent.Origin,
 		}
 		return ret, nil
 	default:
