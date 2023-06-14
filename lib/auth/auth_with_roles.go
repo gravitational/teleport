@@ -1883,11 +1883,11 @@ func (a *ServerWithRoles) ListWindowsDesktopServices(ctx context.Context, req ty
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-func (a *ServerWithRoles) UpsertAuthServer(s types.Server) error {
+func (a *ServerWithRoles) UpsertAuthServer(ctx context.Context, s types.Server) error {
 	if err := a.action(apidefaults.Namespace, types.KindAuthServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertAuthServer(s)
+	return a.authServer.UpsertAuthServer(ctx, s)
 }
 
 func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
