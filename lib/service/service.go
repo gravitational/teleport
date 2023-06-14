@@ -254,6 +254,9 @@ const (
 
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
+
+	// externalUpgraderEnv is the external upgrader environment variable.
+	externalUpgraderEnv = "TELEPORT_EXT_UPGRADER"
 )
 
 // Connector has all resources process needs to connect to other parts of the
@@ -324,7 +327,8 @@ type TeleportProcess struct {
 	inventorySetupDelay sync.Once
 
 	// inventoryHandle is the downstream inventory control handle for this instance.
-	inventoryHandle inventory.DownstreamHandle
+	inventoryHandleMu sync.Mutex
+	inventoryHandle   inventory.DownstreamHandle
 
 	// instanceClient is the instance-level auth client. this is created asynchronously
 	// and may not exist for some time if cert migrations are necessary.
@@ -334,6 +338,12 @@ type TeleportProcess struct {
 	// and "instance" which aren't true user-facing services). The values in this mapping are
 	// the names of the associated identity events for these roles.
 	instanceRoles map[types.SystemRole]string
+
+	// dynamicInstanceRoles is the collection of dynamic instance roles that are registered after
+	// the process has started. This applies to things like plugins which may register a service
+	// after the fact.
+	dynamicInstanceRolesMu sync.Mutex
+	dynamicInstanceRoles   map[types.SystemRole]int
 
 	// identities of this process (credentials to auth sever, basically)
 	Identities map[types.SystemRole]*auth.Identity
@@ -492,6 +502,50 @@ func (process *TeleportProcess) SetExpectedInstanceRole(role types.SystemRole, e
 	process.Lock()
 	defer process.Unlock()
 	process.instanceRoles[role] = eventName
+}
+
+// RegisterDynamicInstanceRole will set a dynamic instance role for the process. This will set the role
+// and update the inventory.
+func (process *TeleportProcess) RegisterDynamicInstanceRole(role types.SystemRole) {
+	process.dynamicInstanceRolesMu.Lock()
+	defer process.dynamicInstanceRolesMu.Unlock()
+	process.log.Infof("Registering dynamic role: %v", role)
+	process.dynamicInstanceRoles[role]++
+
+	if process.dynamicInstanceRoles[role] == 1 {
+		process.updateDownstreamPingHandler(process.Config)
+	}
+}
+
+// UnregisterDynamicInstanceRole will unregister a dynamic instance role for the process. This will update
+// the inventory if needed.
+func (process *TeleportProcess) UnregisterDynamicInstanceRole(role types.SystemRole) error {
+	process.dynamicInstanceRolesMu.Lock()
+	defer process.dynamicInstanceRolesMu.Unlock()
+
+	// There's no corresponding count for this dynamic instance role, so we'll return an error.
+	if process.dynamicInstanceRoles[role] == 0 {
+		return trace.BadParameter("unregister dynamic instance role called without corresponding register dynamic instance call")
+	}
+
+	process.log.Infof("Unregistering dynamic role: %v", role)
+	process.dynamicInstanceRoles[role]--
+
+	if process.dynamicInstanceRoles[role] == 0 {
+		process.updateDownstreamPingHandler(process.Config)
+	}
+
+	return nil
+}
+
+func (process *TeleportProcess) getDynamicInstanceRoles() []types.SystemRole {
+	out := make([]types.SystemRole, 0, len(process.dynamicInstanceRoles))
+	for role, count := range process.dynamicInstanceRoles {
+		if count > 0 {
+			out = append(out, role)
+		}
+	}
+	return out
 }
 
 func (process *TeleportProcess) instanceRoleExpected(role types.SystemRole) bool {
@@ -913,20 +967,21 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	process := &TeleportProcess{
-		PluginRegistry:      cfg.PluginRegistry,
-		Clock:               cfg.Clock,
-		Supervisor:          supervisor,
-		Config:              cfg,
-		instanceRoles:       make(map[types.SystemRole]string),
-		Identities:          make(map[types.SystemRole]*auth.Identity),
-		connectors:          make(map[types.SystemRole]*Connector),
-		importedDescriptors: cfg.FileDescriptors,
-		storage:             storage,
-		id:                  processID,
-		log:                 cfg.Log,
-		keyPairs:            make(map[keyPairKey]KeyPair),
-		cloudLabels:         cloudLabels,
-		TracingProvider:     tracing.NoopProvider(),
+		PluginRegistry:       cfg.PluginRegistry,
+		Clock:                cfg.Clock,
+		Supervisor:           supervisor,
+		Config:               cfg,
+		instanceRoles:        make(map[types.SystemRole]string),
+		dynamicInstanceRoles: make(map[types.SystemRole]int),
+		Identities:           make(map[types.SystemRole]*auth.Identity),
+		connectors:           make(map[types.SystemRole]*Connector),
+		importedDescriptors:  cfg.FileDescriptors,
+		storage:              storage,
+		id:                   processID,
+		log:                  cfg.Log,
+		keyPairs:             make(map[keyPairKey]KeyPair),
+		cloudLabels:          cloudLabels,
+		TracingProvider:      tracing.NoopProvider(),
 	}
 
 	process.registerExpectedServices(cfg)
@@ -949,27 +1004,11 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		}
 	}
 
-	upgraderKind := os.Getenv("TELEPORT_EXT_UPGRADER")
-
 	// note: we must create the inventory handle *after* registerExpectedServices because that function determines
 	// the list of services (instance roles) to be included in the heartbeat.
-	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
-		ServerID:         cfg.HostUUID,
-		Version:          teleport.Version,
-		Services:         process.getInstanceRoles(),
-		Hostname:         cfg.Hostname,
-		ExternalUpgrader: upgraderKind,
-	})
+	process.updateDownstreamPingHandler(cfg)
 
-	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
-		process.log.Infof("Handling incoming inventory ping (id=%d).", ping.ID)
-		err := sender.Send(process.ExitContext(), proto.UpstreamInventoryPong{
-			ID: ping.ID,
-		})
-		if err != nil {
-			process.log.Warnf("Failed to respond to inventory ping (id=%d): %v", ping.ID, err)
-		}
-	})
+	upgraderKind := os.Getenv(externalUpgraderEnv)
 
 	// if an external upgrader is defined, we need to set up an appropriate upgrade window exporter.
 	if upgraderKind != "" {
@@ -1181,6 +1220,43 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	go process.notifyParent()
 
 	return process, nil
+}
+
+func (process *TeleportProcess) updateDownstreamPingHandler(cfg *servicecfg.Config) {
+	upgraderKind := os.Getenv(externalUpgraderEnv)
+
+	process.inventoryHandleMu.Lock()
+	defer process.inventoryHandleMu.Unlock()
+
+	oldInventoryHandle := process.inventoryHandle
+
+	instanceRoles := append(process.getInstanceRoles(), process.getDynamicInstanceRoles()...)
+
+	process.inventoryHandle = inventory.NewDownstreamHandle(process.makeInventoryControlStreamWhenReady, proto.UpstreamInventoryHello{
+		ServerID:         cfg.HostUUID,
+		Version:          teleport.Version,
+		Services:         instanceRoles,
+		Hostname:         cfg.Hostname,
+		ExternalUpgrader: upgraderKind,
+	})
+
+	process.inventoryHandle.RegisterPingHandler(func(sender inventory.DownstreamSender, ping proto.DownstreamInventoryPing) {
+		process.log.Infof("Handling incoming inventory ping (id=%d).", ping.ID)
+		err := sender.Send(process.ExitContext(), proto.UpstreamInventoryPong{
+			ID: ping.ID,
+		})
+		if err != nil {
+			process.log.Warnf("Failed to respond to inventory ping (id=%d): %v", ping.ID, err)
+		}
+	})
+
+	if oldInventoryHandle != nil {
+		if err := oldInventoryHandle.Close(); err != nil {
+			// With the current implementation of the downstream handler, this will never return error,
+			// but we'll log just in case things change in the future.
+			process.log.Errorf("error closing old inventory handle: %v", err)
+		}
+	}
 }
 
 // enterpriseServicesEnabled will return true of any enterprise services are enabled.

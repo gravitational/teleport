@@ -1425,3 +1425,39 @@ func TestSingleProcessModeResolver(t *testing.T) {
 		})
 	}
 }
+
+func TestRegisterDynamicInstanceRoles(t *testing.T) {
+	process := TeleportProcess{
+		Config: &servicecfg.Config{
+			HostUUID: "host-uuid",
+		},
+		dynamicInstanceRoles: make(map[types.SystemRole]int),
+		log:                  logrus.New().WithField("test", "TestRegisterDynamicInstanceRoles"),
+	}
+	// Make sure there's no setup delay.
+	process.inventorySetupDelay.Do(func() {})
+
+	// Checking to make sure that the downstream handle only changes for updates to the inventory..
+	require.Nil(t, process.inventoryHandle)
+	process.RegisterDynamicInstanceRole(types.RoleOkta)
+	require.NotNil(t, process.inventoryHandle)
+	require.Equal(t, map[types.SystemRole]int{types.RoleOkta: 1}, process.dynamicInstanceRoles)
+
+	// The inventory should not change here.
+	lastInventoryHandle := process.inventoryHandle
+	process.RegisterDynamicInstanceRole(types.RoleOkta)
+	require.True(t, lastInventoryHandle == process.inventoryHandle)
+	require.Equal(t, map[types.SystemRole]int{types.RoleOkta: 2}, process.dynamicInstanceRoles)
+
+	require.NoError(t, process.UnregisterDynamicInstanceRole(types.RoleOkta))
+	require.True(t, lastInventoryHandle == process.inventoryHandle)
+	require.Equal(t, map[types.SystemRole]int{types.RoleOkta: 1}, process.dynamicInstanceRoles)
+
+	// The inventory should change here.
+	require.NoError(t, process.UnregisterDynamicInstanceRole(types.RoleOkta))
+	require.False(t, lastInventoryHandle == process.inventoryHandle)
+	require.Equal(t, map[types.SystemRole]int{types.RoleOkta: 0}, process.dynamicInstanceRoles)
+
+	require.Error(t, process.UnregisterDynamicInstanceRole(types.RoleOkta))
+	require.Equal(t, map[types.SystemRole]int{types.RoleOkta: 0}, process.dynamicInstanceRoles)
+}
