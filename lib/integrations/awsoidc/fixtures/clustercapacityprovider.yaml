@@ -19,12 +19,12 @@ interactions:
             RoleArn:
                 - arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider
             RoleSessionName:
-                - "1686587068933353655"
+                - "1686741948377623560"
             Version:
                 - "2011-06-15"
         headers:
             Amz-Sdk-Invocation-Id:
-                - 1c27e943-ae77-4225-ae51-b91a9005dd19
+                - 61e9ffe8-c11e-42d7-8bb6-54f8b84584fa
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -39,55 +39,55 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 1942
+        content_length: 1930
         uncompressed: false
         body: |
             <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
               <AssumeRoleWithWebIdentityResult>
                 <Audience>discover.teleport</Audience>
                 <AssumedRoleUser>
-                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686587068933353655</AssumedRoleId>
-                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686587068933353655</Arn>
+                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686741948377623560</AssumedRoleId>
+                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686741948377623560</Arn>
                 </AssumedRoleUser>
                 <Provider>arn:aws:iam::278576220453:oidc-provider/marcodinis.teleportdemo.net</Provider>
                 <Credentials>
                   <AccessKeyId>x</AccessKeyId><SecretAccessKey>x</SecretAccessKey><SessionToken>x</SessionToken>
-                  <Expiration>2023-06-12T17:24:29Z</Expiration>
+                  <Expiration>2023-06-14T12:25:49Z</Expiration>
                 </Credentials>
                 <SubjectFromWebIdentityToken>system:proxy</SubjectFromWebIdentityToken>
               </AssumeRoleWithWebIdentityResult>
               <ResponseMetadata>
-                <RequestId>1c521174-57c0-40a8-bf9a-8ca8538a100b</RequestId>
+                <RequestId>fa0599da-5e24-49b9-945f-957c494a4d92</RequestId>
               </ResponseMetadata>
             </AssumeRoleWithWebIdentityResponse>
         headers:
             Content-Length:
-                - "1942"
+                - "1930"
             Content-Type:
                 - text/xml
             Date:
-                - Mon, 12 Jun 2023 16:24:29 GMT
+                - Wed, 14 Jun 2023 11:25:49 GMT
             X-Amzn-Requestid:
-                - 1c521174-57c0-40a8-bf9a-8ca8538a100b
+                - fa0599da-5e24-49b9-945f-957c494a4d92
         status: 200 OK
         code: 200
-        duration: 1.103081332s
+        duration: 1.111295506s
     - id: 1
       request:
         proto: ""
         proto_major: 0
         proto_minor: 0
-        content_length: 1882
+        content_length: 1741
         transfer_encoding: []
         trailer: {}
         host: ""
         remote_addr: ""
         request_uri: ""
-        body: '{"containerDefinitions":[{"command":["start","--config-string","dmVyc2lvbjogdjMKdGVsZXBvcnQ6CiAgICBub2RlbmFtZTogZWNzLXNlcnZpY2UKICAgIGRhdGFfZGlyOiAvdmFyL2xpYi90ZWxlcG9ydAogICAgam9pbl9wYXJhbXM6CiAgICAgICAgdG9rZW5fbmFtZTogaWFtLXRva2VuCiAgICAgICAgbWV0aG9kOiBpYW0KICAgIHByb3h5X3NlcnZlcjogbWFyY29kaW5pcy50ZWxlcG9ydGRlbW8ubmV0CiAgICBsb2c6CiAgICAgICAgb3V0cHV0OiBzdGRlcnIKICAgICAgICBzZXZlcml0eTogSU5GTwogICAgICAgIGZvcm1hdDoKICAgICAgICAgICAgb3V0cHV0OiB0ZXh0CiAgICBjYV9waW46ICIiCiAgICBkaWFnX2FkZHI6ICIiCmF1dGhfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGxpc3Rlbl9hZGRyOiAwLjAuMC4wOjMwMjUKICAgIHByb3h5X2xpc3RlbmVyX21vZGU6IG11bHRpcGxleApzc2hfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGNvbW1hbmRzOgogICAgICAgIC0gbmFtZTogaG9zdG5hbWUKICAgICAgICAgIGNvbW1hbmQ6IFtob3N0bmFtZV0KICAgICAgICAgIHBlcmlvZDogMW0wcwpwcm94eV9zZXJ2aWNlOgogICAgZW5hYmxlZDogIm5vIgogICAgaHR0cHNfa2V5cGFpcnM6IFtdCiAgICBodHRwc19rZXlwYWlyc19yZWxvYWRfaW50ZXJ2YWw6IDBzCiAgICBhY21lOiB7fQpkYl9zZXJ2aWNlOgogICAgZW5hYmxlZDogInllcyIKICAgIGRhdGFiYXNlczogW10KICAgIHJlc291cmNlczoKICAgICAgICAtIGxhYmVsczoKICAgICAgICAgICAgJyonOiAnKicK"],"entryPoint":["teleport"],"image":"public.ecr.aws/gravitational/teleport-distroless:13.1.0","logConfiguration":{"logDriver":"awslogs","options":{"awslogs-stream-prefix":"testcluster001-teleport-service/testcluster001-teleport-service","awslogs-create-group":"true","awslogs-group":"ecs-testcluster001-teleport","awslogs-region":"us-east-1"}},"name":"teleport-service"}],"cpu":"512","executionRoleArn":"MarcoEC2Role","family":"testcluster001-teleport-service","memory":"1024","networkMode":"awsvpc","requiresCompatibilities":["FARGATE"],"tags":[{"key":"teleport.dev/creator","value":"testcluster001-teleport"},{"key":"teleport.dev/integration","value":"teleportdev"},{"key":"teleport.dev/creator_type","value":"teleport"},{"key":"teleport.dev/origin","value":"integration_awsoidc"}],"taskRoleArn":"MarcoEC2Role"}'
+        body: '{"containerDefinitions":[{"command":["start","--config-string","dmVyc2lvbjogdjMKdGVsZXBvcnQ6CiAgbm9kZW5hbWU6IGxlbml4CiAgZGF0YV9kaXI6IC92YXIvbGliL3RlbGVwb3J0CiAgam9pbl9wYXJhbXM6CiAgICB0b2tlbl9uYW1lOiBpYW0tdG9rZW4KICAgIG1ldGhvZDogaWFtCiAgcHJveHlfc2VydmVyOiBtYXJjb2RpbmlzLnRlbGVwb3J0ZGVtby5uZXQKICBsb2c6CiAgICBvdXRwdXQ6IHN0ZGVycgogICAgc2V2ZXJpdHk6IElORk8KICAgIGZvcm1hdDoKICAgICAgb3V0cHV0OiB0ZXh0CiAgY2FfcGluOiAiIgogIGRpYWdfYWRkcjogIiIKYXV0aF9zZXJ2aWNlOgogIGVuYWJsZWQ6ICJubyIKICBsaXN0ZW5fYWRkcjogMC4wLjAuMDozMDI1CiAgcHJveHlfbGlzdGVuZXJfbW9kZTogbXVsdGlwbGV4CnNzaF9zZXJ2aWNlOgogIGVuYWJsZWQ6ICJubyIKICBjb21tYW5kczoKICAtIG5hbWU6IGhvc3RuYW1lCiAgICBjb21tYW5kOiBbaG9zdG5hbWVdCiAgICBwZXJpb2Q6IDFtMHMKcHJveHlfc2VydmljZToKICBlbmFibGVkOiAibm8iCiAgaHR0cHNfa2V5cGFpcnM6IFtdCiAgaHR0cHNfa2V5cGFpcnNfcmVsb2FkX2ludGVydmFsOiAwcwogIGFjbWU6IHt9CmRiX3NlcnZpY2U6CiAgZW5hYmxlZDogInllcyIKICBkYXRhYmFzZXM6IFtdCiAgcmVzb3VyY2VzOgogIC0gbGFiZWxzOgogICAgICAnKic6ICcqJwo="],"entryPoint":["teleport"],"image":"public.ecr.aws/gravitational/teleport-distroless:13.1.0","logConfiguration":{"logDriver":"awslogs","options":{"awslogs-stream-prefix":"testcluster002-teleport-service/testcluster002-teleport-service","awslogs-create-group":"true","awslogs-group":"ecs-testcluster002-teleport","awslogs-region":"us-east-1"}},"name":"teleport-service"}],"cpu":"512","executionRoleArn":"MarcoEC2Role","family":"testcluster002-teleport-service","memory":"1024","networkMode":"awsvpc","requiresCompatibilities":["FARGATE"],"tags":[{"key":"teleport.dev/creator_type","value":"teleport"},{"key":"teleport.dev/origin","value":"integration_awsoidc"},{"key":"teleport.dev/creator","value":"testcluster002"},{"key":"teleport.dev/integration","value":"teleportdev"}],"taskRoleArn":"MarcoEC2Role"}'
         form: {}
         headers:
             Amz-Sdk-Invocation-Id:
-                - 9e0f82db-028e-44a5-a6f2-dc2cf3433bdf
+                - bc31c091-55b8-4921-9d5c-b367f781043f
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -95,7 +95,7 @@ interactions:
             User-Agent:
                 - aws-sdk-go-v2/1.18.0 os/linux lang/go/1.20.4 md/GOOS/linux md/GOARCH/amd64 api/ecs/1.27.1
             X-Amz-Date:
-                - 20230612T162430Z
+                - 20230614T112549Z
             X-Amz-Target:
                 - AmazonEC2ContainerServiceV20141113.RegisterTaskDefinition
         url: https://ecs.us-east-1.amazonaws.com/
@@ -106,21 +106,21 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 2819
+        content_length: 2675
         uncompressed: false
-        body: '{"tags":[{"key":"teleport.dev/creator","value":"testcluster001-teleport"},{"key":"teleport.dev/integration","value":"teleportdev"},{"key":"teleport.dev/creator_type","value":"teleport"},{"key":"teleport.dev/origin","value":"integration_awsoidc"}],"taskDefinition":{"compatibilities":["EC2","FARGATE"],"containerDefinitions":[{"command":["start","--config-string","dmVyc2lvbjogdjMKdGVsZXBvcnQ6CiAgICBub2RlbmFtZTogZWNzLXNlcnZpY2UKICAgIGRhdGFfZGlyOiAvdmFyL2xpYi90ZWxlcG9ydAogICAgam9pbl9wYXJhbXM6CiAgICAgICAgdG9rZW5fbmFtZTogaWFtLXRva2VuCiAgICAgICAgbWV0aG9kOiBpYW0KICAgIHByb3h5X3NlcnZlcjogbWFyY29kaW5pcy50ZWxlcG9ydGRlbW8ubmV0CiAgICBsb2c6CiAgICAgICAgb3V0cHV0OiBzdGRlcnIKICAgICAgICBzZXZlcml0eTogSU5GTwogICAgICAgIGZvcm1hdDoKICAgICAgICAgICAgb3V0cHV0OiB0ZXh0CiAgICBjYV9waW46ICIiCiAgICBkaWFnX2FkZHI6ICIiCmF1dGhfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGxpc3Rlbl9hZGRyOiAwLjAuMC4wOjMwMjUKICAgIHByb3h5X2xpc3RlbmVyX21vZGU6IG11bHRpcGxleApzc2hfc2VydmljZToKICAgIGVuYWJsZWQ6ICJubyIKICAgIGNvbW1hbmRzOgogICAgICAgIC0gbmFtZTogaG9zdG5hbWUKICAgICAgICAgIGNvbW1hbmQ6IFtob3N0bmFtZV0KICAgICAgICAgIHBlcmlvZDogMW0wcwpwcm94eV9zZXJ2aWNlOgogICAgZW5hYmxlZDogIm5vIgogICAgaHR0cHNfa2V5cGFpcnM6IFtdCiAgICBodHRwc19rZXlwYWlyc19yZWxvYWRfaW50ZXJ2YWw6IDBzCiAgICBhY21lOiB7fQpkYl9zZXJ2aWNlOgogICAgZW5hYmxlZDogInllcyIKICAgIGRhdGFiYXNlczogW10KICAgIHJlc291cmNlczoKICAgICAgICAtIGxhYmVsczoKICAgICAgICAgICAgJyonOiAnKicK"],"cpu":0,"entryPoint":["teleport"],"environment":[],"essential":true,"image":"public.ecr.aws/gravitational/teleport-distroless:13.1.0","logConfiguration":{"logDriver":"awslogs","options":{"awslogs-create-group":"true","awslogs-group":"ecs-testcluster001-teleport","awslogs-region":"us-east-1","awslogs-stream-prefix":"testcluster001-teleport-service/testcluster001-teleport-service"}},"mountPoints":[],"name":"teleport-service","portMappings":[],"volumesFrom":[]}],"cpu":"512","executionRoleArn":"arn:aws:iam::278576220453:role/MarcoEC2Role","family":"testcluster001-teleport-service","memory":"1024","networkMode":"awsvpc","placementConstraints":[],"registeredAt":1.686587070684E9,"registeredBy":"arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686587068933353655","requiresAttributes":[{"name":"com.amazonaws.ecs.capability.logging-driver.awslogs"},{"name":"ecs.capability.execution-role-awslogs"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.19"},{"name":"com.amazonaws.ecs.capability.task-iam-role"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.18"},{"name":"ecs.capability.task-eni"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.29"}],"requiresCompatibilities":["FARGATE"],"revision":11,"status":"ACTIVE","taskDefinitionArn":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:11","taskRoleArn":"arn:aws:iam::278576220453:role/MarcoEC2Role","volumes":[]}}'
+        body: '{"tags":[{"key":"teleport.dev/creator_type","value":"teleport"},{"key":"teleport.dev/origin","value":"integration_awsoidc"},{"key":"teleport.dev/creator","value":"testcluster002"},{"key":"teleport.dev/integration","value":"teleportdev"}],"taskDefinition":{"compatibilities":["EC2","FARGATE"],"containerDefinitions":[{"command":["start","--config-string","dmVyc2lvbjogdjMKdGVsZXBvcnQ6CiAgbm9kZW5hbWU6IGxlbml4CiAgZGF0YV9kaXI6IC92YXIvbGliL3RlbGVwb3J0CiAgam9pbl9wYXJhbXM6CiAgICB0b2tlbl9uYW1lOiBpYW0tdG9rZW4KICAgIG1ldGhvZDogaWFtCiAgcHJveHlfc2VydmVyOiBtYXJjb2RpbmlzLnRlbGVwb3J0ZGVtby5uZXQKICBsb2c6CiAgICBvdXRwdXQ6IHN0ZGVycgogICAgc2V2ZXJpdHk6IElORk8KICAgIGZvcm1hdDoKICAgICAgb3V0cHV0OiB0ZXh0CiAgY2FfcGluOiAiIgogIGRpYWdfYWRkcjogIiIKYXV0aF9zZXJ2aWNlOgogIGVuYWJsZWQ6ICJubyIKICBsaXN0ZW5fYWRkcjogMC4wLjAuMDozMDI1CiAgcHJveHlfbGlzdGVuZXJfbW9kZTogbXVsdGlwbGV4CnNzaF9zZXJ2aWNlOgogIGVuYWJsZWQ6ICJubyIKICBjb21tYW5kczoKICAtIG5hbWU6IGhvc3RuYW1lCiAgICBjb21tYW5kOiBbaG9zdG5hbWVdCiAgICBwZXJpb2Q6IDFtMHMKcHJveHlfc2VydmljZToKICBlbmFibGVkOiAibm8iCiAgaHR0cHNfa2V5cGFpcnM6IFtdCiAgaHR0cHNfa2V5cGFpcnNfcmVsb2FkX2ludGVydmFsOiAwcwogIGFjbWU6IHt9CmRiX3NlcnZpY2U6CiAgZW5hYmxlZDogInllcyIKICBkYXRhYmFzZXM6IFtdCiAgcmVzb3VyY2VzOgogIC0gbGFiZWxzOgogICAgICAnKic6ICcqJwo="],"cpu":0,"entryPoint":["teleport"],"environment":[],"essential":true,"image":"public.ecr.aws/gravitational/teleport-distroless:13.1.0","logConfiguration":{"logDriver":"awslogs","options":{"awslogs-create-group":"true","awslogs-group":"ecs-testcluster002-teleport","awslogs-region":"us-east-1","awslogs-stream-prefix":"testcluster002-teleport-service/testcluster002-teleport-service"}},"mountPoints":[],"name":"teleport-service","portMappings":[],"volumesFrom":[]}],"cpu":"512","executionRoleArn":"arn:aws:iam::278576220453:role/MarcoEC2Role","family":"testcluster002-teleport-service","memory":"1024","networkMode":"awsvpc","placementConstraints":[],"registeredAt":1.68674195014E9,"registeredBy":"arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686741948377623560","requiresAttributes":[{"name":"com.amazonaws.ecs.capability.logging-driver.awslogs"},{"name":"ecs.capability.execution-role-awslogs"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.19"},{"name":"com.amazonaws.ecs.capability.task-iam-role"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.18"},{"name":"ecs.capability.task-eni"},{"name":"com.amazonaws.ecs.capability.docker-remote-api.1.29"}],"requiresCompatibilities":["FARGATE"],"revision":6,"status":"ACTIVE","taskDefinitionArn":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:6","taskRoleArn":"arn:aws:iam::278576220453:role/MarcoEC2Role","volumes":[]}}'
         headers:
             Content-Length:
-                - "2819"
+                - "2675"
             Content-Type:
                 - application/x-amz-json-1.1
             Date:
-                - Mon, 12 Jun 2023 16:24:30 GMT
+                - Wed, 14 Jun 2023 11:25:49 GMT
             X-Amzn-Requestid:
-                - bfad04df-55c8-4a4d-950c-43f31a6ebc06
+                - 4e69dc08-861f-4205-a749-ef2effa18f3a
         status: 200 OK
         code: 200
-        duration: 750.381124ms
+        duration: 743.673013ms
     - id: 2
       request:
         proto: ""
@@ -139,12 +139,12 @@ interactions:
             RoleArn:
                 - arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider
             RoleSessionName:
-                - "1686587070788315403"
+                - "1686741950233591281"
             Version:
                 - "2011-06-15"
         headers:
             Amz-Sdk-Invocation-Id:
-                - 4db8706a-d500-4a40-bec4-ad890b385f68
+                - 78da4086-fd19-4959-aa53-f8cbd63e8681
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -159,39 +159,39 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 1942
+        content_length: 1930
         uncompressed: false
         body: |
             <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
               <AssumeRoleWithWebIdentityResult>
                 <Audience>discover.teleport</Audience>
                 <AssumedRoleUser>
-                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686587070788315403</AssumedRoleId>
-                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686587070788315403</Arn>
+                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686741950233591281</AssumedRoleId>
+                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686741950233591281</Arn>
                 </AssumedRoleUser>
                 <Provider>arn:aws:iam::278576220453:oidc-provider/marcodinis.teleportdemo.net</Provider>
                 <Credentials>
                   <AccessKeyId>x</AccessKeyId><SecretAccessKey>x</SecretAccessKey><SessionToken>x</SessionToken>
-                  <Expiration>2023-06-12T17:24:30Z</Expiration>
+                  <Expiration>2023-06-14T12:25:50Z</Expiration>
                 </Credentials>
                 <SubjectFromWebIdentityToken>system:proxy</SubjectFromWebIdentityToken>
               </AssumeRoleWithWebIdentityResult>
               <ResponseMetadata>
-                <RequestId>8645cc86-d4e6-4f45-a065-f12b5bdd7b68</RequestId>
+                <RequestId>5173727a-cd79-4a0e-a96a-3b1f4877d311</RequestId>
               </ResponseMetadata>
             </AssumeRoleWithWebIdentityResponse>
         headers:
             Content-Length:
-                - "1942"
+                - "1930"
             Content-Type:
                 - text/xml
             Date:
-                - Mon, 12 Jun 2023 16:24:30 GMT
+                - Wed, 14 Jun 2023 11:25:49 GMT
             X-Amzn-Requestid:
-                - 8645cc86-d4e6-4f45-a065-f12b5bdd7b68
+                - 5173727a-cd79-4a0e-a96a-3b1f4877d311
         status: 200 OK
         code: 200
-        duration: 142.110832ms
+        duration: 145.242684ms
     - id: 3
       request:
         proto: ""
@@ -203,11 +203,11 @@ interactions:
         host: ""
         remote_addr: ""
         request_uri: ""
-        body: '{"clusters":["testcluster001-teleport"],"include":["TAGS"]}'
+        body: '{"clusters":["testcluster002-teleport"],"include":["TAGS"]}'
         form: {}
         headers:
             Amz-Sdk-Invocation-Id:
-                - 5f4d5f2b-b429-4833-a6fc-bd5a1805079f
+                - e72ebcfe-fee2-4324-913f-be86a97544c0
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -215,7 +215,7 @@ interactions:
             User-Agent:
                 - aws-sdk-go-v2/1.18.0 os/linux lang/go/1.20.4 md/GOOS/linux md/GOARCH/amd64 api/ecs/1.27.1
             X-Amz-Date:
-                - 20230612T162430Z
+                - 20230614T112550Z
             X-Amz-Target:
                 - AmazonEC2ContainerServiceV20141113.DescribeClusters
         url: https://ecs.us-east-1.amazonaws.com/
@@ -226,21 +226,21 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 681
+        content_length: 672
         uncompressed: false
-        body: '{"clusters":[{"activeServicesCount":0,"capacityProviders":["FARGATE_SPOT"],"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/testcluster001-teleport","clusterName":"testcluster001-teleport","defaultCapacityProviderStrategy":[{"base":1,"capacityProvider":"FARGATE_SPOT","weight":1}],"pendingTasksCount":0,"registeredContainerInstancesCount":0,"runningTasksCount":0,"settings":[],"statistics":[],"status":"ACTIVE","tags":[{"key":"teleport.dev/origin","value":"integration_awsoidc"},{"key":"teleport.dev/creator_type","value":"teleport"},{"key":"teleport.dev/integration","value":"teleportdev"},{"key":"teleport.dev/creator","value":"testcluster001-teleport"}]}],"failures":[]}'
+        body: '{"clusters":[{"activeServicesCount":0,"capacityProviders":["FARGATE_SPOT"],"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/testcluster002-teleport","clusterName":"testcluster002-teleport","defaultCapacityProviderStrategy":[{"base":1,"capacityProvider":"FARGATE_SPOT","weight":1}],"pendingTasksCount":0,"registeredContainerInstancesCount":0,"runningTasksCount":0,"settings":[],"statistics":[],"status":"ACTIVE","tags":[{"key":"teleport.dev/origin","value":"integration_awsoidc"},{"key":"teleport.dev/creator_type","value":"teleport"},{"key":"teleport.dev/integration","value":"teleportdev"},{"key":"teleport.dev/creator","value":"testcluster002"}]}],"failures":[]}'
         headers:
             Content-Length:
-                - "681"
+                - "672"
             Content-Type:
                 - application/x-amz-json-1.1
             Date:
-                - Mon, 12 Jun 2023 16:24:30 GMT
+                - Wed, 14 Jun 2023 11:25:50 GMT
             X-Amzn-Requestid:
-                - a3c5d230-a09e-42fa-9ce4-e88f1effbc68
+                - 057096f5-8ad5-4eb0-adc2-11ad099ae811
         status: 200 OK
         code: 200
-        duration: 170.346288ms
+        duration: 174.896717ms
     - id: 4
       request:
         proto: ""
@@ -259,12 +259,12 @@ interactions:
             RoleArn:
                 - arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider
             RoleSessionName:
-                - "1686587071102698672"
+                - "1686741950555343258"
             Version:
                 - "2011-06-15"
         headers:
             Amz-Sdk-Invocation-Id:
-                - 2f28d64f-dccf-46e1-b698-d15ed90f1517
+                - e54ba03c-7e12-4389-9508-835f0c41d3f8
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -279,39 +279,39 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 1942
+        content_length: 1930
         uncompressed: false
         body: |
             <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
               <AssumeRoleWithWebIdentityResult>
                 <Audience>discover.teleport</Audience>
                 <AssumedRoleUser>
-                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686587071102698672</AssumedRoleId>
-                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686587071102698672</Arn>
+                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686741950555343258</AssumedRoleId>
+                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686741950555343258</Arn>
                 </AssumedRoleUser>
                 <Provider>arn:aws:iam::278576220453:oidc-provider/marcodinis.teleportdemo.net</Provider>
                 <Credentials>
                   <AccessKeyId>x</AccessKeyId><SecretAccessKey>x</SecretAccessKey><SessionToken>x</SessionToken>
-                  <Expiration>2023-06-12T17:24:31Z</Expiration>
+                  <Expiration>2023-06-14T12:25:50Z</Expiration>
                 </Credentials>
                 <SubjectFromWebIdentityToken>system:proxy</SubjectFromWebIdentityToken>
               </AssumeRoleWithWebIdentityResult>
               <ResponseMetadata>
-                <RequestId>9f0e2442-654d-4cfd-a334-e22ba3e3ecb1</RequestId>
+                <RequestId>fa131710-3b1d-47dc-a473-1b172cbcc948</RequestId>
               </ResponseMetadata>
             </AssumeRoleWithWebIdentityResponse>
         headers:
             Content-Length:
-                - "1942"
+                - "1930"
             Content-Type:
                 - text/xml
             Date:
-                - Mon, 12 Jun 2023 16:24:30 GMT
+                - Wed, 14 Jun 2023 11:25:50 GMT
             X-Amzn-Requestid:
-                - 9f0e2442-654d-4cfd-a334-e22ba3e3ecb1
+                - fa131710-3b1d-47dc-a473-1b172cbcc948
         status: 200 OK
         code: 200
-        duration: 136.449249ms
+        duration: 155.307927ms
     - id: 5
       request:
         proto: ""
@@ -323,11 +323,11 @@ interactions:
         host: ""
         remote_addr: ""
         request_uri: ""
-        body: '{"capacityProviders":["FARGATE"],"cluster":"testcluster001-teleport","defaultCapacityProviderStrategy":[{"capacityProvider":"FARGATE"}]}'
+        body: '{"capacityProviders":["FARGATE"],"cluster":"testcluster002-teleport","defaultCapacityProviderStrategy":[{"capacityProvider":"FARGATE"}]}'
         form: {}
         headers:
             Amz-Sdk-Invocation-Id:
-                - 9019331f-bd0a-463d-aa0d-b879c0675609
+                - a5fa130e-7a77-4556-95d7-ea34b1701e1d
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -335,7 +335,7 @@ interactions:
             User-Agent:
                 - aws-sdk-go-v2/1.18.0 os/linux lang/go/1.20.4 md/GOOS/linux md/GOARCH/amd64 api/ecs/1.27.1
             X-Amz-Date:
-                - 20230612T162431Z
+                - 20230614T112550Z
             X-Amz-Target:
                 - AmazonEC2ContainerServiceV20141113.PutClusterCapacityProviders
         url: https://ecs.us-east-1.amazonaws.com/
@@ -348,19 +348,19 @@ interactions:
         trailer: {}
         content_length: 523
         uncompressed: false
-        body: '{"cluster":{"activeServicesCount":0,"attachments":[],"attachmentsStatus":"UPDATE_IN_PROGRESS","capacityProviders":["FARGATE"],"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/testcluster001-teleport","clusterName":"testcluster001-teleport","defaultCapacityProviderStrategy":[{"base":0,"capacityProvider":"FARGATE","weight":0}],"pendingTasksCount":0,"registeredContainerInstancesCount":0,"runningTasksCount":0,"settings":[{"name":"containerInsights","value":"disabled"}],"statistics":[],"status":"ACTIVE","tags":[]}}'
+        body: '{"cluster":{"activeServicesCount":0,"attachments":[],"attachmentsStatus":"UPDATE_IN_PROGRESS","capacityProviders":["FARGATE"],"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/testcluster002-teleport","clusterName":"testcluster002-teleport","defaultCapacityProviderStrategy":[{"base":0,"capacityProvider":"FARGATE","weight":0}],"pendingTasksCount":0,"registeredContainerInstancesCount":0,"runningTasksCount":0,"settings":[{"name":"containerInsights","value":"disabled"}],"statistics":[],"status":"ACTIVE","tags":[]}}'
         headers:
             Content-Length:
                 - "523"
             Content-Type:
                 - application/x-amz-json-1.1
             Date:
-                - Mon, 12 Jun 2023 16:24:31 GMT
+                - Wed, 14 Jun 2023 11:25:50 GMT
             X-Amzn-Requestid:
-                - aab3b439-3a13-4e92-a669-38c5ab90ba58
+                - 403be4c4-8bd4-417d-ab7b-4b49b3118ed7
         status: 200 OK
         code: 200
-        duration: 307.493959ms
+        duration: 267.242067ms
     - id: 6
       request:
         proto: ""
@@ -379,12 +379,12 @@ interactions:
             RoleArn:
                 - arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider
             RoleSessionName:
-                - "1686587071548269836"
+                - "1686741950979569028"
             Version:
                 - "2011-06-15"
         headers:
             Amz-Sdk-Invocation-Id:
-                - a0e4abda-a48d-408e-8d3a-bfd58de2b21e
+                - 8ab9c5b1-fdf5-4411-a27c-566f0b59326b
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -399,39 +399,39 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 1942
+        content_length: 1930
         uncompressed: false
         body: |
             <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
               <AssumeRoleWithWebIdentityResult>
                 <Audience>discover.teleport</Audience>
                 <AssumedRoleUser>
-                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686587071548269836</AssumedRoleId>
-                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686587071548269836</Arn>
+                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686741950979569028</AssumedRoleId>
+                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686741950979569028</Arn>
                 </AssumedRoleUser>
                 <Provider>arn:aws:iam::278576220453:oidc-provider/marcodinis.teleportdemo.net</Provider>
                 <Credentials>
                   <AccessKeyId>x</AccessKeyId><SecretAccessKey>x</SecretAccessKey><SessionToken>x</SessionToken>
-                  <Expiration>2023-06-12T17:24:31Z</Expiration>
+                  <Expiration>2023-06-14T12:25:51Z</Expiration>
                 </Credentials>
                 <SubjectFromWebIdentityToken>system:proxy</SubjectFromWebIdentityToken>
               </AssumeRoleWithWebIdentityResult>
               <ResponseMetadata>
-                <RequestId>73adc31f-4a84-4cf7-af5f-3086f0164551</RequestId>
+                <RequestId>e0f694bb-2d16-4469-815d-5158e1e880cc</RequestId>
               </ResponseMetadata>
             </AssumeRoleWithWebIdentityResponse>
         headers:
             Content-Length:
-                - "1942"
+                - "1930"
             Content-Type:
                 - text/xml
             Date:
-                - Mon, 12 Jun 2023 16:24:31 GMT
+                - Wed, 14 Jun 2023 11:25:50 GMT
             X-Amzn-Requestid:
-                - 73adc31f-4a84-4cf7-af5f-3086f0164551
+                - e0f694bb-2d16-4469-815d-5158e1e880cc
         status: 200 OK
         code: 200
-        duration: 142.857996ms
+        duration: 145.097799ms
     - id: 7
       request:
         proto: ""
@@ -443,11 +443,11 @@ interactions:
         host: ""
         remote_addr: ""
         request_uri: ""
-        body: '{"cluster":"testcluster001-teleport","include":["TAGS"],"services":["testcluster001-teleport-service"]}'
+        body: '{"cluster":"testcluster002-teleport","include":["TAGS"],"services":["testcluster002-teleport-service"]}'
         form: {}
         headers:
             Amz-Sdk-Invocation-Id:
-                - 88be91d8-f5ed-4923-a175-8d81327dce37
+                - 4df8c759-acad-4a85-8dc0-9b3342546f68
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -455,7 +455,7 @@ interactions:
             User-Agent:
                 - aws-sdk-go-v2/1.18.0 os/linux lang/go/1.20.4 md/GOOS/linux md/GOARCH/amd64 api/ecs/1.27.1
             X-Amz-Date:
-                - 20230612T162431Z
+                - 20230614T112551Z
             X-Amz-Target:
                 - AmazonEC2ContainerServiceV20141113.DescribeServices
         url: https://ecs.us-east-1.amazonaws.com/
@@ -468,19 +468,19 @@ interactions:
         trailer: {}
         content_length: 2219
         uncompressed: false
-        body: '{"failures":[],"services":[{"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/testcluster001-teleport","createdAt":1.686585739961E9,"createdBy":"arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider","deploymentConfiguration":{"deploymentCircuitBreaker":{"enable":false,"rollback":false},"maximumPercent":200,"minimumHealthyPercent":100},"deploymentController":{"type":"ECS"},"deployments":[{"createdAt":1.686585867451E9,"desiredCount":0,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/6403690364612429698","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"COMPLETED","rolloutStateReason":"ECS deployment ecs-svc/6403690364612429698 completed.","runningCount":0,"status":"PRIMARY","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:3","updatedAt":1.686586877811E9}],"desiredCount":0,"enableECSManagedTags":false,"enableExecuteCommand":false,"events":[],"launchType":"FARGATE","loadBalancers":[],"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"placementConstraints":[],"placementStrategy":[],"platformFamily":"Linux","platformVersion":"LATEST","propagateTags":"SERVICE","roleArn":"arn:aws:iam::278576220453:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS","runStatus":"Inactive","runningCount":0,"schedulingStrategy":"REPLICA","serviceArn":"arn:aws:ecs:us-east-1:278576220453:service/testcluster001-teleport/testcluster001-teleport-service","serviceName":"testcluster001-teleport-service","serviceRegistries":[],"status":"INACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:3","version":0}]}'
+        body: '{"failures":[],"services":[{"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/testcluster002-teleport","createdAt":1.686741507995E9,"createdBy":"arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider","deploymentConfiguration":{"deploymentCircuitBreaker":{"enable":false,"rollback":false},"maximumPercent":200,"minimumHealthyPercent":100},"deploymentController":{"type":"ECS"},"deployments":[{"createdAt":1.686741507995E9,"desiredCount":0,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/2006229868422189000","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"COMPLETED","rolloutStateReason":"ECS deployment ecs-svc/2006229868422189000 completed.","runningCount":0,"status":"PRIMARY","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:4","updatedAt":1.686741609264E9}],"desiredCount":0,"enableECSManagedTags":false,"enableExecuteCommand":false,"events":[],"launchType":"FARGATE","loadBalancers":[],"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"placementConstraints":[],"placementStrategy":[],"platformFamily":"Linux","platformVersion":"LATEST","propagateTags":"SERVICE","roleArn":"arn:aws:iam::278576220453:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS","runStatus":"Inactive","runningCount":0,"schedulingStrategy":"REPLICA","serviceArn":"arn:aws:ecs:us-east-1:278576220453:service/testcluster002-teleport/testcluster002-teleport-service","serviceName":"testcluster002-teleport-service","serviceRegistries":[],"status":"INACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:4","version":0}]}'
         headers:
             Content-Length:
                 - "2219"
             Content-Type:
                 - application/x-amz-json-1.1
             Date:
-                - Mon, 12 Jun 2023 16:24:31 GMT
+                - Wed, 14 Jun 2023 11:25:50 GMT
             X-Amzn-Requestid:
-                - 704564e4-69fa-4fe9-b746-546ea7a4a671
+                - 5d19aa69-91e0-47c3-a2ea-05fac9b48157
         status: 200 OK
         code: 200
-        duration: 175.543055ms
+        duration: 178.867622ms
     - id: 8
       request:
         proto: ""
@@ -499,12 +499,12 @@ interactions:
             RoleArn:
                 - arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider
             RoleSessionName:
-                - "1686587071876163605"
+                - "1686741951304953662"
             Version:
                 - "2011-06-15"
         headers:
             Amz-Sdk-Invocation-Id:
-                - 7bb06054-d178-4dbb-8537-b0f16789106b
+                - b60d93fd-750f-40e0-b904-482b61f165c7
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -519,39 +519,39 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 1942
+        content_length: 1930
         uncompressed: false
         body: |
             <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
               <AssumeRoleWithWebIdentityResult>
                 <Audience>discover.teleport</Audience>
                 <AssumedRoleUser>
-                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686587071876163605</AssumedRoleId>
-                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686587071876163605</Arn>
+                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686741951304953662</AssumedRoleId>
+                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686741951304953662</Arn>
                 </AssumedRoleUser>
                 <Provider>arn:aws:iam::278576220453:oidc-provider/marcodinis.teleportdemo.net</Provider>
                 <Credentials>
                   <AccessKeyId>x</AccessKeyId><SecretAccessKey>x</SecretAccessKey><SessionToken>x</SessionToken>
-                  <Expiration>2023-06-12T17:24:31Z</Expiration>
+                  <Expiration>2023-06-14T12:25:51Z</Expiration>
                 </Credentials>
                 <SubjectFromWebIdentityToken>system:proxy</SubjectFromWebIdentityToken>
               </AssumeRoleWithWebIdentityResult>
               <ResponseMetadata>
-                <RequestId>356e8b70-a323-4e0b-81f4-bbace99507d0</RequestId>
+                <RequestId>7b70dbcf-efc0-4617-ba2e-aec0a58dd0a1</RequestId>
               </ResponseMetadata>
             </AssumeRoleWithWebIdentityResponse>
         headers:
             Content-Length:
-                - "1942"
+                - "1930"
             Content-Type:
                 - text/xml
             Date:
-                - Mon, 12 Jun 2023 16:24:31 GMT
+                - Wed, 14 Jun 2023 11:25:50 GMT
             X-Amzn-Requestid:
-                - 356e8b70-a323-4e0b-81f4-bbace99507d0
+                - 7b70dbcf-efc0-4617-ba2e-aec0a58dd0a1
         status: 200 OK
         code: 200
-        duration: 135.973158ms
+        duration: 146.939307ms
     - id: 9
       request:
         proto: ""
@@ -563,11 +563,11 @@ interactions:
         host: ""
         remote_addr: ""
         request_uri: ""
-        body: '{"cluster":"testcluster001-teleport","force":true,"service":"testcluster001-teleport-service"}'
+        body: '{"cluster":"testcluster002-teleport","force":true,"service":"testcluster002-teleport-service"}'
         form: {}
         headers:
             Amz-Sdk-Invocation-Id:
-                - 64acb900-2017-4c63-a727-91499be24c0e
+                - 7c416945-337b-416b-b449-9133f03d224d
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -575,7 +575,7 @@ interactions:
             User-Agent:
                 - aws-sdk-go-v2/1.18.0 os/linux lang/go/1.20.4 md/GOOS/linux md/GOARCH/amd64 api/ecs/1.27.1
             X-Amz-Date:
-                - 20230612T162432Z
+                - 20230614T112551Z
             X-Amz-Target:
                 - AmazonEC2ContainerServiceV20141113.DeleteService
         url: https://ecs.us-east-1.amazonaws.com/
@@ -588,19 +588,19 @@ interactions:
         trailer: {}
         content_length: 2202
         uncompressed: false
-        body: '{"service":{"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/testcluster001-teleport","createdAt":1.686585739961E9,"createdBy":"arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider","deploymentConfiguration":{"deploymentCircuitBreaker":{"enable":false,"rollback":false},"maximumPercent":200,"minimumHealthyPercent":100},"deploymentController":{"type":"ECS"},"deployments":[{"createdAt":1.686585867451E9,"desiredCount":0,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/6403690364612429698","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"COMPLETED","rolloutStateReason":"ECS deployment ecs-svc/6403690364612429698 completed.","runningCount":0,"status":"PRIMARY","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:3","updatedAt":1.686586877811E9}],"desiredCount":0,"enableECSManagedTags":false,"enableExecuteCommand":false,"events":[],"launchType":"FARGATE","loadBalancers":[],"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"placementConstraints":[],"placementStrategy":[],"platformFamily":"Linux","platformVersion":"LATEST","propagateTags":"SERVICE","roleArn":"arn:aws:iam::278576220453:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS","runStatus":"Inactive","runningCount":0,"schedulingStrategy":"REPLICA","serviceArn":"arn:aws:ecs:us-east-1:278576220453:service/testcluster001-teleport/testcluster001-teleport-service","serviceName":"testcluster001-teleport-service","serviceRegistries":[],"status":"INACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:3","version":0}}'
+        body: '{"service":{"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/testcluster002-teleport","createdAt":1.686741507995E9,"createdBy":"arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider","deploymentConfiguration":{"deploymentCircuitBreaker":{"enable":false,"rollback":false},"maximumPercent":200,"minimumHealthyPercent":100},"deploymentController":{"type":"ECS"},"deployments":[{"createdAt":1.686741507995E9,"desiredCount":0,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/2006229868422189000","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"COMPLETED","rolloutStateReason":"ECS deployment ecs-svc/2006229868422189000 completed.","runningCount":0,"status":"PRIMARY","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:4","updatedAt":1.686741609264E9}],"desiredCount":0,"enableECSManagedTags":false,"enableExecuteCommand":false,"events":[],"launchType":"FARGATE","loadBalancers":[],"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"placementConstraints":[],"placementStrategy":[],"platformFamily":"Linux","platformVersion":"LATEST","propagateTags":"SERVICE","roleArn":"arn:aws:iam::278576220453:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS","runStatus":"Inactive","runningCount":0,"schedulingStrategy":"REPLICA","serviceArn":"arn:aws:ecs:us-east-1:278576220453:service/testcluster002-teleport/testcluster002-teleport-service","serviceName":"testcluster002-teleport-service","serviceRegistries":[],"status":"INACTIVE","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:4","version":0}}'
         headers:
             Content-Length:
                 - "2202"
             Content-Type:
                 - application/x-amz-json-1.1
             Date:
-                - Mon, 12 Jun 2023 16:24:31 GMT
+                - Wed, 14 Jun 2023 11:25:51 GMT
             X-Amzn-Requestid:
-                - a1cb4f39-eca7-45c5-81b8-96d3e42e0e40
+                - 5b00faf7-a03f-456b-a8a1-865afd86bb47
         status: 200 OK
         code: 200
-        duration: 202.997159ms
+        duration: 193.406111ms
     - id: 10
       request:
         proto: ""
@@ -619,12 +619,12 @@ interactions:
             RoleArn:
                 - arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider
             RoleSessionName:
-                - "1686587072217574997"
+                - "1686741951646766354"
             Version:
                 - "2011-06-15"
         headers:
             Amz-Sdk-Invocation-Id:
-                - 02e81eee-c2be-4f69-bb01-9f27bfd6b598
+                - 8eee2a2f-9d65-49fd-a06a-e4cf8f0a75ee
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -639,55 +639,55 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 1942
+        content_length: 1930
         uncompressed: false
         body: |
             <AssumeRoleWithWebIdentityResponse xmlns="https://sts.amazonaws.com/doc/2011-06-15/">
               <AssumeRoleWithWebIdentityResult>
                 <Audience>discover.teleport</Audience>
                 <AssumedRoleUser>
-                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686587072217574997</AssumedRoleId>
-                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686587072217574997</Arn>
+                  <AssumedRoleId>AROAUBXDPZES62GD44VBR:1686741951646766354</AssumedRoleId>
+                  <Arn>arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1686741951646766354</Arn>
                 </AssumedRoleUser>
                 <Provider>arn:aws:iam::278576220453:oidc-provider/marcodinis.teleportdemo.net</Provider>
                 <Credentials>
                   <AccessKeyId>x</AccessKeyId><SecretAccessKey>x</SecretAccessKey><SessionToken>x</SessionToken>
-                  <Expiration>2023-06-12T17:24:32Z</Expiration>
+                  <Expiration>2023-06-14T12:25:51Z</Expiration>
                 </Credentials>
                 <SubjectFromWebIdentityToken>system:proxy</SubjectFromWebIdentityToken>
               </AssumeRoleWithWebIdentityResult>
               <ResponseMetadata>
-                <RequestId>618fbdf8-376f-404b-8114-73ce741e390f</RequestId>
+                <RequestId>532fd43b-760c-408c-a1ef-64dc63b35662</RequestId>
               </ResponseMetadata>
             </AssumeRoleWithWebIdentityResponse>
         headers:
             Content-Length:
-                - "1942"
+                - "1930"
             Content-Type:
                 - text/xml
             Date:
-                - Mon, 12 Jun 2023 16:24:31 GMT
+                - Wed, 14 Jun 2023 11:25:51 GMT
             X-Amzn-Requestid:
-                - 618fbdf8-376f-404b-8114-73ce741e390f
+                - 532fd43b-760c-408c-a1ef-64dc63b35662
         status: 200 OK
         code: 200
-        duration: 134.432605ms
+        duration: 149.098012ms
     - id: 11
       request:
         proto: ""
         proto_major: 0
         proto_minor: 0
-        content_length: 752
+        content_length: 742
         transfer_encoding: []
         trailer: {}
         host: ""
         remote_addr: ""
         request_uri: ""
-        body: '{"cluster":"testcluster001-teleport","desiredCount":1,"launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"propagateTags":"SERVICE","serviceName":"testcluster001-teleport-service","tags":[{"key":"teleport.dev/creator_type","value":"teleport"},{"key":"teleport.dev/origin","value":"integration_awsoidc"},{"key":"teleport.dev/creator","value":"testcluster001-teleport"},{"key":"teleport.dev/integration","value":"teleportdev"}],"taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:11"}'
+        body: '{"cluster":"testcluster002-teleport","desiredCount":1,"launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"propagateTags":"SERVICE","serviceName":"testcluster002-teleport-service","tags":[{"key":"teleport.dev/creator_type","value":"teleport"},{"key":"teleport.dev/origin","value":"integration_awsoidc"},{"key":"teleport.dev/creator","value":"testcluster002"},{"key":"teleport.dev/integration","value":"teleportdev"}],"taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:6"}'
         form: {}
         headers:
             Amz-Sdk-Invocation-Id:
-                - 55b481f8-202c-4518-9650-e847711e6b18
+                - 2a498b51-e119-49aa-9cba-77949875d180
             Amz-Sdk-Request:
                 - attempt=1; max=3
             Content-Type:
@@ -695,7 +695,7 @@ interactions:
             User-Agent:
                 - aws-sdk-go-v2/1.18.0 os/linux lang/go/1.20.4 md/GOOS/linux md/GOARCH/amd64 api/ecs/1.27.1
             X-Amz-Date:
-                - 20230612T162432Z
+                - 20230614T112551Z
             X-Amz-Target:
                 - AmazonEC2ContainerServiceV20141113.CreateService
         url: https://ecs.us-east-1.amazonaws.com/
@@ -706,18 +706,18 @@ interactions:
         proto_minor: 1
         transfer_encoding: []
         trailer: {}
-        content_length: 2448
+        content_length: 2440
         uncompressed: false
-        body: '{"service":{"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/testcluster001-teleport","createdAt":1.68658707291E9,"createdBy":"arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider","deploymentConfiguration":{"deploymentCircuitBreaker":{"enable":false,"rollback":false},"maximumPercent":200,"minimumHealthyPercent":100},"deploymentController":{"type":"ECS"},"deployments":[{"createdAt":1.68658707291E9,"desiredCount":1,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/3439106045143860092","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"IN_PROGRESS","rolloutStateReason":"ECS deployment ecs-svc/3439106045143860092 in progress.","runningCount":0,"status":"PRIMARY","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:11","updatedAt":1.68658707291E9}],"desiredCount":1,"enableECSManagedTags":false,"enableExecuteCommand":false,"events":[],"launchType":"FARGATE","loadBalancers":[],"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"placementConstraints":[],"placementStrategy":[],"platformFamily":"Linux","platformVersion":"LATEST","propagateTags":"SERVICE","roleArn":"arn:aws:iam::278576220453:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS","runStatus":"Unknown","runningCount":0,"schedulingStrategy":"REPLICA","serviceArn":"arn:aws:ecs:us-east-1:278576220453:service/testcluster001-teleport/testcluster001-teleport-service","serviceName":"testcluster001-teleport-service","serviceRegistries":[],"status":"ACTIVE","tags":[{"key":"teleport.dev/origin","value":"integration_awsoidc"},{"key":"teleport.dev/integration","value":"teleportdev"},{"key":"teleport.dev/creator_type","value":"teleport"},{"key":"teleport.dev/creator","value":"testcluster001-teleport"}],"taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:11","version":0}}'
+        body: '{"service":{"clusterArn":"arn:aws:ecs:us-east-1:278576220453:cluster/testcluster002-teleport","createdAt":1.686741952588E9,"createdBy":"arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider","deploymentConfiguration":{"deploymentCircuitBreaker":{"enable":false,"rollback":false},"maximumPercent":200,"minimumHealthyPercent":100},"deploymentController":{"type":"ECS"},"deployments":[{"createdAt":1.686741952588E9,"desiredCount":1,"failedLaunchTaskCount":0,"failedTasks":0,"id":"ecs-svc/9446579515773570943","launchType":"FARGATE","networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"platformFamily":"Linux","platformVersion":"1.4.0","replacedTaskCount":0,"rolloutState":"IN_PROGRESS","rolloutStateReason":"ECS deployment ecs-svc/9446579515773570943 in progress.","runningCount":0,"status":"PRIMARY","taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:6","updatedAt":1.686741952588E9}],"desiredCount":1,"enableECSManagedTags":false,"enableExecuteCommand":false,"events":[],"launchType":"FARGATE","loadBalancers":[],"networkConfiguration":{"awsvpcConfiguration":{"assignPublicIp":"ENABLED","securityGroups":[],"subnets":["subnet-0b7ab67161173748b","subnet-0dda93c8621eb2e99","subnet-034f17b3f7344e375","subnet-04a07d4721a3c96e0","subnet-0ef025345dd791986","subnet-099632749366c2c56"]}},"pendingCount":0,"placementConstraints":[],"placementStrategy":[],"platformFamily":"Linux","platformVersion":"LATEST","propagateTags":"SERVICE","roleArn":"arn:aws:iam::278576220453:role/aws-service-role/ecs.amazonaws.com/AWSServiceRoleForECS","runStatus":"Unknown","runningCount":0,"schedulingStrategy":"REPLICA","serviceArn":"arn:aws:ecs:us-east-1:278576220453:service/testcluster002-teleport/testcluster002-teleport-service","serviceName":"testcluster002-teleport-service","serviceRegistries":[],"status":"ACTIVE","tags":[{"key":"teleport.dev/origin","value":"integration_awsoidc"},{"key":"teleport.dev/integration","value":"teleportdev"},{"key":"teleport.dev/creator_type","value":"teleport"},{"key":"teleport.dev/creator","value":"testcluster002"}],"taskDefinition":"arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:6","version":0}}'
         headers:
             Content-Length:
-                - "2448"
+                - "2440"
             Content-Type:
                 - application/x-amz-json-1.1
             Date:
-                - Mon, 12 Jun 2023 16:24:32 GMT
+                - Wed, 14 Jun 2023 11:25:52 GMT
             X-Amzn-Requestid:
-                - d4aa6b6d-f2e8-4004-a071-dc04a86a9f3e
+                - c09f1469-31d9-4a3a-8ec7-cde2b2c0f20a
         status: 200 OK
         code: 200
-        duration: 664.099005ms
+        duration: 892.418969ms

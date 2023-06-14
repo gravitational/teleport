@@ -35,8 +35,12 @@ func TestDeployDBService(t *testing.T) {
 	// To record new fixtures ensure the following:
 	// - change recordingMode to recorder.ModeRecordOnce
 	recordingMode := recorder.ModeReplayOnly
-	// - get a token by hosting teleport in a public endpoint, configure the AWS OIDC Integration and get a real AWS Token
+	// - get a token by
+	//   - add `fmt.Println(clientReq.Token)` in `NewDeployServiceClient`
+	//   - hosting teleport in a public endpoint and configure the AWS OIDC Integration
+	//   - issue a DeployService call and look for the token in the logs
 	awsOIDCToken := "x.y.z"
+
 	awsRegion := "us-east-1"
 	awsOIDCRoleARN := "arn:aws:iam::278576220453:role/MarcoTestRoleOIDCProvider"
 	integrationName := "teleportdev"
@@ -110,12 +114,12 @@ func TestDeployDBService(t *testing.T) {
 		ecsClient, err := newECSClient(ctx, awsClientRecorder)
 		require.NoError(t, err)
 
-		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster001"))
+		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster002"))
 		require.NoError(t, err)
 
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/testcluster001-teleport", resp.ClusterARN)
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/testcluster001-teleport/testcluster001-teleport-service", resp.ServiceARN)
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:1", resp.TaskDefinitionARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/testcluster002-teleport", resp.ClusterARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/testcluster002-teleport/testcluster002-teleport-service", resp.ServiceARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:1", resp.TaskDefinitionARN)
 	})
 
 	t.Run("recreate everything", func(t *testing.T) {
@@ -126,12 +130,12 @@ func TestDeployDBService(t *testing.T) {
 		ecsClient, err := newECSClient(ctx, awsClientRecorder)
 		require.NoError(t, err)
 
-		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster001"))
+		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster002"))
 		require.NoError(t, err)
 
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/testcluster001-teleport", resp.ClusterARN)
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/testcluster001-teleport/testcluster001-teleport-service", resp.ServiceARN)
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:3", resp.TaskDefinitionARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/testcluster002-teleport", resp.ClusterARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/testcluster002-teleport/testcluster002-teleport-service", resp.ServiceARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:2", resp.TaskDefinitionARN)
 	})
 
 	t.Run("service is being deleted", func(t *testing.T) {
@@ -142,7 +146,7 @@ func TestDeployDBService(t *testing.T) {
 		ecsClient, err := newECSClient(ctx, awsClientRecorder)
 		require.NoError(t, err)
 
-		_, err = DeployService(ctx, ecsClient, deployServiceReqFunc("lenix"))
+		_, err = DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster002"))
 		require.ErrorContains(t, err, "ECS Service is draining, please retry in a couple of minutes")
 	})
 
@@ -154,12 +158,12 @@ func TestDeployDBService(t *testing.T) {
 		ecsClient, err := newECSClient(ctx, awsClientRecorder)
 		require.NoError(t, err)
 
-		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("lenix"))
+		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster002"))
 		require.NoError(t, err)
 
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/lenix-teleport", resp.ClusterARN)
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/lenix-teleport/lenix-teleport-service", resp.ServiceARN)
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/lenix-teleport-service:5", resp.TaskDefinitionARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/testcluster002-teleport", resp.ClusterARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/testcluster002-teleport/testcluster002-teleport-service", resp.ServiceARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:4", resp.TaskDefinitionARN)
 	})
 
 	t.Run("cluster does not have the required capacity provider", func(t *testing.T) {
@@ -170,12 +174,12 @@ func TestDeployDBService(t *testing.T) {
 		ecsClient, err := newECSClient(ctx, awsClientRecorder)
 		require.NoError(t, err)
 
-		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster001"))
+		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster002"))
 		require.NoError(t, err)
 
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/testcluster001-teleport", resp.ClusterARN)
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/testcluster001-teleport/testcluster001-teleport-service", resp.ServiceARN)
-		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster001-teleport-service:11", resp.TaskDefinitionARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/testcluster002-teleport", resp.ClusterARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/testcluster002-teleport/testcluster002-teleport-service", resp.ServiceARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/testcluster002-teleport-service:6", resp.TaskDefinitionARN)
 	})
 
 	t.Run("cluster does not have the ownership tags", func(t *testing.T) {
@@ -186,8 +190,8 @@ func TestDeployDBService(t *testing.T) {
 		ecsClient, err := newECSClient(ctx, awsClientRecorder)
 		require.NoError(t, err)
 
-		_, err = DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster001"))
-		require.ErrorContains(t, err, `ECS Cluster "testcluster001-teleport" already exists but is not managed by Teleport. Add the following tags to allow Teleport to manage this cluster:`)
+		_, err = DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster003"))
+		require.ErrorContains(t, err, `ECS Cluster "testcluster003-teleport" already exists but is not managed by Teleport. Add the following tags to allow Teleport to manage this cluster:`)
 	})
 
 	t.Run("service does not have the ownership tags", func(t *testing.T) {
@@ -198,7 +202,23 @@ func TestDeployDBService(t *testing.T) {
 		ecsClient, err := newECSClient(ctx, awsClientRecorder)
 		require.NoError(t, err)
 
-		_, err = DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster001"))
-		require.ErrorContains(t, err, `ECS Service "testcluster001-teleport-service" already exists but is not managed by Teleport. Add the following tags to allow Teleport to manage this service:`)
+		_, err = DeployService(ctx, ecsClient, deployServiceReqFunc("testcluster003"))
+		require.ErrorContains(t, err, `ECS Service "testcluster003-teleport-service" already exists but is not managed by Teleport. Add the following tags to allow Teleport to manage this service:`)
+	})
+
+	t.Run("cluster name with dots", func(t *testing.T) {
+		r := mustRecordUsing(t, "fixtures/cluster_name_with_dots")
+		defer r.Stop()
+
+		awsClientRecorder := awsClientReqFunc(r.GetDefaultClient())
+		ecsClient, err := newECSClient(ctx, awsClientRecorder)
+		require.NoError(t, err)
+
+		resp, err := DeployService(ctx, ecsClient, deployServiceReqFunc("mytenant.teleport.sh"))
+		require.NoError(t, err)
+
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/mytenant_teleport_sh-teleport", resp.ClusterARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/mytenant_teleport_sh-teleport/mytenant_teleport_sh-teleport-service", resp.ServiceARN)
+		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/mytenant_teleport_sh-teleport-service:1", resp.TaskDefinitionARN)
 	})
 }

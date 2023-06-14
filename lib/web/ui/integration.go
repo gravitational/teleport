@@ -148,7 +148,7 @@ type AWSOIDCDeployServiceRequest struct {
 
 	// TaskName is the ECS Task Definition family name.
 	// Optional.
-	// Defaults to <teleport-cluster-name>-teleport-service, eg acme-teleport-service
+	// Defaults to <teleport-cluster-name>-teleport-<deployment-mode>, eg acme-teleport-database-service
 	TaskName *string `json:"taskName"`
 
 	// TaskRoleARN is the AWS Role's ARN used within the Task execution.

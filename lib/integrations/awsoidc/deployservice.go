@@ -18,28 +18,25 @@ package awsoidc
 
 import (
 	"context"
-	"encoding/base64"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
-	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
-	"github.com/gravitational/teleport/lib/config"
-	"github.com/gravitational/teleport/lib/defaults"
 )
 
 var (
-	// launcTypeFargateString is the FARGATE LaunchType converted into a string.
-	launcTypeFargateString = string(ecsTypes.LaunchTypeFargate)
+	// launchTypeFargateString is the FARGATE LaunchType converted into a string.
+	launchTypeFargateString = string(ecsTypes.LaunchTypeFargate)
 	// requiredCapacityProviders contains the FARGATE type which is required to deploy a Teleport Service.
-	requiredCapacityProviders = []string{launcTypeFargateString}
+	requiredCapacityProviders = []string{launchTypeFargateString}
 
 	// Ensure Cpu and Memory use one of the allowed combinations:
 	// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html
@@ -107,7 +104,7 @@ type DeployServiceRequest struct {
 	// It will be updated if it doesn't match the required properties.
 	ServiceName *string
 
-	// TaskName is the ECS Task Definition's name.
+	// TaskName is the ECS Task Definition's Family Name.
 	TaskName *string
 
 	// TaskRoleARN is the AWS Role's ARN used within the Task execution.
@@ -135,11 +132,35 @@ type DeployServiceRequest struct {
 	DatabaseResourceMatcherLabels types.Labels
 }
 
+// normalizeECSResourceName converts a name into a valid ECS Resource Name.
+// TeleportCluster name must match the following:
+// > regexp.MustCompile(`^[0-9A-Za-z_\-@:./+]+$`)
+//
+// ECS Resources name must match the following:
+// > Up to 255 letters (uppercase and lowercase), numbers, underscores, and hyphens are allowed.
+// > regexp.MustCompile(`^[0-9A-Za-z_\-]+$`)
+// The following resources should be normalized
+// - ECS Cluster Name (r.ClusterName)
+// - ECS Service Name (r.ServiceName)
+// - ECS TaskDefinition Family (r.TaskName)
+func normalizeECSResourceName(name string) string {
+	replacer := strings.NewReplacer(
+		"@", "_",
+		":", "_",
+		".", "_",
+		"/", "_",
+		"+", "_",
+	)
+
+	return replacer.Replace(name)
+}
+
 // CheckAndSetDefaults checks if the required fields are present.
 func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	if r.TeleportClusterName == "" {
 		return trace.BadParameter("teleport cluster name is required")
 	}
+	baseResourceName := normalizeECSResourceName(r.TeleportClusterName)
 
 	if r.Region == "" {
 		return trace.BadParameter("region is required")
@@ -154,17 +175,17 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ClusterName == nil || *r.ClusterName == "" {
-		clusterName := fmt.Sprintf("%s-teleport", r.TeleportClusterName)
+		clusterName := fmt.Sprintf("%s-teleport", baseResourceName)
 		r.ClusterName = &clusterName
 	}
 
 	if r.ServiceName == nil || *r.ServiceName == "" {
-		serviceName := fmt.Sprintf("%s-teleport-service", r.TeleportClusterName)
+		serviceName := fmt.Sprintf("%s-teleport-service", baseResourceName)
 		r.ServiceName = &serviceName
 	}
 
 	if r.TaskName == nil || *r.TaskName == "" {
-		taskName := fmt.Sprintf("%s-teleport-service", r.TeleportClusterName)
+		taskName := fmt.Sprintf("%s-teleport-service", baseResourceName)
 		r.TaskName = &taskName
 	}
 
@@ -177,7 +198,7 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ResourceCreationTags == nil {
-		r.ResourceCreationTags = DefaultResourceCreationTags(*r.ClusterName, r.IntegrationName)
+		r.ResourceCreationTags = DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
 	}
 
 	if r.DeploymentMode == "" {
@@ -388,59 +409,6 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 	}, nil
 }
 
-// generateTeleportConfigString creates a teleport.yaml configuration
-func generateTeleportConfigString(req DeployServiceRequest) (string, error) {
-	teleportConfig, err := config.MakeSampleFileConfig(config.SampleFlags{
-		Version:      defaults.TeleportConfigVersionV3,
-		ProxyAddress: req.ProxyServerHostPort,
-	})
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	teleportConfig.NodeName = "ecs-service"
-
-	// Disable default services
-	teleportConfig.Auth.EnabledFlag = "no"
-	teleportConfig.Proxy.EnabledFlag = "no"
-	teleportConfig.SSH.EnabledFlag = "no"
-
-	// Use IAM Token join method to enroll into the Cluster.
-	// iam-token must have the following TokenRule:
-	/*
-		types.TokenRule{
-			AWSAccount: "<account-id>",
-			AWSARN:     "arn:aws:sts::<account-id>:assumed-role/<taskRoleARN>/*",
-		}
-	*/
-	teleportConfig.JoinParams = config.JoinParams{
-		TokenName: string(types.JoinMethodIAM) + "-token",
-		Method:    types.JoinMethodIAM,
-	}
-
-	switch req.DeploymentMode {
-	case DatabaseServiceDeploymentMode:
-		teleportConfig.Databases.Service.EnabledFlag = "yes"
-		teleportConfig.Databases.ResourceMatchers = []config.ResourceMatcher{{
-			Labels: req.DatabaseResourceMatcherLabels,
-		}}
-
-	default:
-		return "", trace.Errorf("invalid deployment mode, supported modes: %v", DeploymentModes)
-	}
-
-	teleportConfigYAMLBytes, err := yaml.Marshal(teleportConfig)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	// This Config is meant to be passed as argument to `teleport start`
-	// Eg, `teleport start --config-string <X>`
-	teleportConfigString := base64.StdEncoding.EncodeToString(teleportConfigYAMLBytes)
-
-	return teleportConfigString, nil
-}
-
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
 	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, teleport.Version)
@@ -525,7 +493,7 @@ func upsertCluster(ctx context.Context, clt DeployServiceClient, req DeployServi
 			"Add the following tags to allow Teleport to manage this cluster: %s", *req.ClusterName, req.ResourceCreationTags)
 	}
 
-	if slices.Contains(cluster.CapacityProviders, launcTypeFargateString) {
+	if slices.Contains(cluster.CapacityProviders, launchTypeFargateString) {
 		return cluster, nil
 	}
 
@@ -534,7 +502,7 @@ func upsertCluster(ctx context.Context, clt DeployServiceClient, req DeployServi
 		Cluster:           req.ClusterName,
 		CapacityProviders: requiredCapacityProviders,
 		DefaultCapacityProviderStrategy: []ecsTypes.CapacityProviderStrategyItem{{
-			CapacityProvider: &launcTypeFargateString,
+			CapacityProvider: &launchTypeFargateString,
 		}},
 	})
 	if err != nil {
