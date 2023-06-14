@@ -185,10 +185,10 @@ func (h *Handler) executeCommand(
 		return nil, trace.Wrap(err)
 	}
 
-	// Wrap the raw websocket connection in a safeThreadWSConn so that we can
+	// Wrap the raw websocket connection in a syncRWWSConn so that we can
 	// safely read and write to the the single websocket connection from
-	// mutliple goroutines/nodes.
-	ws := &safeThreadWSConn{WSConn: rawWS}
+	// mutliple goroutines/execution nodes.
+	ws := &syncRWWSConn{WSConn: rawWS}
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {

@@ -102,11 +102,15 @@ func (ws *noopCloserWS) Close() error {
 	return nil
 }
 
-// safeThreadWSConn is a wrapper around websocket.Conn, which serializes
+// syncRWWSConn is a wrapper around websocket.Conn, which serializes
 // read and write to a web socket connection. This is needed to prevent
 // a race conditions and panics in gorilla/websocket.
 // Details https://pkg.go.dev/github.com/gorilla/websocket#hdr-Concurrency
-type safeThreadWSConn struct {
+// This struct does not lock SetReadDeadline() as the SetReadDeadline()
+// is called from the pong handler, which is interanlly called on ReadMessage()
+// according to https://pkg.go.dev/github.com/gorilla/websocket#hdr-Control_Messages
+// This would prevent the pong handler from being called.
+type syncRWWSConn struct {
 	// WSConn the underlying websocket connection.
 	WSConn
 	// rmtx is a mutex used to serialize reads.
@@ -115,20 +119,14 @@ type safeThreadWSConn struct {
 	wmtx sync.Mutex
 }
 
-func (s *safeThreadWSConn) WriteMessage(messageType int, data []byte) error {
+func (s *syncRWWSConn) WriteMessage(messageType int, data []byte) error {
 	s.wmtx.Lock()
 	defer s.wmtx.Unlock()
 	return s.WSConn.WriteMessage(messageType, data)
 }
 
-func (s *safeThreadWSConn) ReadMessage() (messageType int, p []byte, err error) {
+func (s *syncRWWSConn) ReadMessage() (messageType int, p []byte, err error) {
 	s.rmtx.Lock()
 	defer s.rmtx.Unlock()
 	return s.WSConn.ReadMessage()
-}
-
-func (s *safeThreadWSConn) SetReadDeadline(t time.Time) error {
-	s.rmtx.Lock()
-	defer s.rmtx.Unlock()
-	return s.WSConn.SetReadDeadline(t)
 }
