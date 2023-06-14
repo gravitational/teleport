@@ -184,7 +184,7 @@ func TestUpsertEmbedding(t *testing.T) {
 
 	// Test: add an element in the backend and check if we can retrieve it
 	embedding := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0, 0}, sha256.Sum256([]byte("test")))
-	_, err = service.UpsertEmbedding(ctx, embedding)
+	embedding, err = service.UpsertEmbedding(ctx, embedding)
 	require.NoError(t, err)
 	result, err := service.GetEmbedding(ctx, types.KindNode, "foo")
 	require.NoError(t, err)
@@ -192,7 +192,7 @@ func TestUpsertEmbedding(t *testing.T) {
 
 	// Test: update the embedding and check we now retrieve the new version
 	embedding = ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{1, 1, 1, 1, 1}, sha256.Sum256([]byte("test2")))
-	_, err = service.UpsertEmbedding(ctx, embedding)
+	embedding, err = service.UpsertEmbedding(ctx, embedding)
 	require.NoError(t, err)
 	result, err = service.GetEmbedding(ctx, types.KindNode, "foo")
 	require.NoError(t, err)
@@ -217,7 +217,7 @@ func (s sortableEmbeddings) Swap(i, j int) {
 
 // requireEmbeddingsEqual checks if two embeddings are equal or fails the test otherwise.
 // This is required because equivalent ai.Embedding might differ depending on
-// how they have been created (marshalling/unmarshalling protobuf messages set
+// how they have been created (marshaling/unmarshalling protobuf messages set
 // some internal fields that a freshly created ai.Embedding doesn't have).
 func requireEmbeddingsEqual(t require.TestingT, expected, actual *ai.Embedding) {
 	if expected == nil {

@@ -23,7 +23,7 @@ import (
 
 // Document is a embedding enriched with similarity score
 type Document struct {
-	Embedding
+	*Embedding
 	SimilarityScore float64
 }
 
@@ -83,7 +83,7 @@ func (r *KNNRetriever) GetRelevant(query *Embedding, k int) []*Document {
 		similarity, _ := calculateSimilarity(query.Vector, embedding.Vector)
 
 		relevant[i] = &Document{
-			Embedding:       *embedding,
+			Embedding:       embedding,
 			SimilarityScore: similarity,
 		}
 	}
