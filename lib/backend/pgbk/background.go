@@ -8,8 +8,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
@@ -108,7 +108,7 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	b.log.WithField("slot_name", slotName).Info("Setting up change feed.")
 	if _, err := conn.Exec(ctx,
 		"SELECT * FROM pg_create_logical_replication_slot($1, 'wal2json', true)",
-		pgx.QuerySimpleProtocol(true),
+		pgx.QueryExecModeExec,
 		slotName,
 	); err != nil {
 		return trace.Wrap(err)

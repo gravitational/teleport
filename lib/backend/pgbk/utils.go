@@ -4,14 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgconn"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/backend"
@@ -53,7 +51,7 @@ func tryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logr
 
 	// the database name is not a string but an identifier, so we can't use query parameters for it
 	createDB := fmt.Sprintf("CREATE DATABASE \"%v\" TEMPLATE template0 ENCODING UTF8 LC_COLLATE 'C' LC_CTYPE 'C'", poolConfig.ConnConfig.Database)
-	if _, err := pgConn.Exec(ctx, createDB, pgx.QuerySimpleProtocol(true)); err != nil && !isCode(err, pgerrcode.DuplicateDatabase) {
+	if _, err := pgConn.Exec(ctx, createDB, pgx.QueryExecModeExec); err != nil && !isCode(err, pgerrcode.DuplicateDatabase) {
 		// CREATE will check permissions first and we may not have CREATEDB
 		// privileges in more hardened setups; the subsequent connection
 		// will fail immediately if we can't connect, anyway, so we can log
@@ -73,13 +71,6 @@ func tryEnsureDatabase(ctx context.Context, poolConfig *pgxpool.Config, log logr
 func isCode(err error, code string) bool {
 	var pgErr *pgconn.PgError
 	return errors.As(err, &pgErr) && pgErr.Code == code
-}
-
-func toPgTime(t time.Time) pgtype.Timestamp {
-	if t.IsZero() {
-		return pgtype.Timestamp{Status: pgtype.Null}
-	}
-	return pgtype.Timestamp{Time: t, Status: pgtype.Present}
 }
 
 func newLease(i backend.Item) *backend.Lease {

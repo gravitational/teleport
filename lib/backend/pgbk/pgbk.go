@@ -9,9 +9,9 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgtype"
-	"github.com/jackc/pgx/v4"
-	"github.com/jackc/pgx/v4/pgxpool"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype/zeronull"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
 
@@ -43,7 +43,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 	}
 
 	poolConfig.AfterConnect = func(ctx context.Context, c *pgx.Conn) error {
-		_, err := c.Exec(ctx, "SET default_transaction_isolation TO serializable", pgx.QuerySimpleProtocol(true))
+		_, err := c.Exec(ctx, "SET default_transaction_isolation TO serializable", pgx.QueryExecModeExec)
 		return trace.Wrap(err)
 	}
 
@@ -51,7 +51,7 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 
 	tryEnsureDatabase(ctx, poolConfig, log)
 
-	pool, err := pgxpool.ConnectConfig(ctx, poolConfig)
+	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -130,56 +130,50 @@ func (b *Backend) retry(ctx context.Context, f func(*pgxpool.Pool) error) error 
 	return trace.LimitExceeded("too many retries, last error: %v", err)
 }
 
-func (b *Backend) beginTxFunc(ctx context.Context, txOptions pgx.TxOptions, f func(pgx.Tx) error) error {
-	return b.retry(ctx, func(p *pgxpool.Pool) error {
-		return p.BeginTxFunc(ctx, txOptions, f)
-	})
-}
-
 func (b *Backend) setupAndMigrate(ctx context.Context) error {
-	const (
-		latestVersion = 2
-	)
+	const latestVersion = 2
 	var version int
 	var migrateErr error
-	if err := b.beginTxFunc(ctx, pgx.TxOptions{}, func(tx pgx.Tx) error {
-		if _, err := tx.Exec(ctx, `
-			CREATE TABLE IF NOT EXISTS migrate (
-				version int PRIMARY KEY,
-				created timestamptz NOT NULL DEFAULT now()
-			)`, pgx.QuerySimpleProtocol(true),
-		); err != nil && !isCode(err, pgerrcode.InsufficientPrivilege) {
-			return trace.Wrap(err)
-		}
-
-		if err := tx.QueryRow(ctx,
-			"SELECT COALESCE(max(version), 0) FROM migrate",
-			pgx.QuerySimpleProtocol(true),
-		).Scan(&version); err != nil {
-			return trace.Wrap(err)
-		}
-
-		switch version {
-		case 0:
+	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
+		return pgx.BeginFunc(ctx, b.pool, func(tx pgx.Tx) error {
 			if _, err := tx.Exec(ctx, `
-				CREATE TABLE kv (
-					key bytea PRIMARY KEY,
-					value bytea NOT NULL,
-					expires timestamp
-				);
-				CREATE INDEX kv_expires ON kv (expires) WHERE expires IS NOT NULL;
-				INSERT INTO migrate (version) VALUES (2);`,
-				pgx.QuerySimpleProtocol(true),
-			); err != nil {
+				CREATE TABLE IF NOT EXISTS migrate (
+					version int PRIMARY KEY,
+					created timestamptz NOT NULL DEFAULT now()
+				)`, pgx.QueryExecModeExec,
+			); err != nil && !isCode(err, pgerrcode.InsufficientPrivilege) {
 				return trace.Wrap(err)
 			}
-		case latestVersion:
-			// nothing to do
-		default:
-			migrateErr = trace.BadParameter("unsupported schema version %v", version)
-		}
 
-		return nil
+			if err := tx.QueryRow(ctx,
+				"SELECT COALESCE(max(version), 0) FROM migrate",
+				pgx.QueryExecModeExec,
+			).Scan(&version); err != nil {
+				return trace.Wrap(err)
+			}
+
+			switch version {
+			case 0:
+				if _, err := tx.Exec(ctx, `
+					CREATE TABLE kv (
+						key bytea PRIMARY KEY,
+						value bytea NOT NULL,
+						expires timestamp
+					);
+					CREATE INDEX kv_expires ON kv (expires) WHERE expires IS NOT NULL;
+					INSERT INTO migrate (version) VALUES (2);`,
+					pgx.QueryExecModeExec,
+				); err != nil {
+					return trace.Wrap(err)
+				}
+			case latestVersion:
+				// nothing to do
+			default:
+				migrateErr = trace.BadParameter("unsupported schema version %v", version)
+			}
+
+			return nil
+		})
 	}); err != nil {
 		return trace.Wrap(err)
 	}
@@ -208,7 +202,7 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 			"INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3) "+
 				"ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires "+
 				"WHERE kv.expires IS NOT NULL AND kv.expires <= now()",
-			i.Key, i.Value, toPgTime(i.Expires))
+			i.Key, i.Value, zeronull.Timestamp(i.Expires))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -230,7 +224,7 @@ func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, erro
 		_, err := p.Exec(ctx,
 			"INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3) "+
 				"ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires",
-			i.Key, i.Value, toPgTime(i.Expires))
+			i.Key, i.Value, zeronull.Timestamp(i.Expires))
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -247,7 +241,7 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		tag, err := p.Exec(ctx,
 			"UPDATE kv SET value = $2, expires = $3 WHERE key = $1 AND value = $4 AND (expires IS NULL OR expires > now())",
-			replaceWith.Key, replaceWith.Value, toPgTime(replaceWith.Expires), expected.Value)
+			replaceWith.Key, replaceWith.Value, zeronull.Timestamp(replaceWith.Expires), expected.Value)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -269,7 +263,7 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		tag, err := p.Exec(ctx,
 			"UPDATE kv SET value = $2, expires = $3 WHERE key = $1 AND (expires IS NULL OR expires > now())",
-			i.Key, i.Value, toPgTime(i.Expires))
+			i.Key, i.Value, zeronull.Timestamp(i.Expires))
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -287,11 +281,10 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 
 // Get implements backend.Backend
 func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
-	found := false
-	var value []byte
-	var expires pgtype.Timestamp
+	var item *backend.Item
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
-		found, value, expires.Time = false, nil, time.Time{}
+		var value []byte
+		var expires zeronull.Timestamp
 		err := p.QueryRow(ctx,
 			"SELECT value, expires FROM kv "+
 				"WHERE key = $1 AND (expires IS NULL OR expires > now())",
@@ -301,21 +294,22 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 		} else if err != nil {
 			return trace.Wrap(err)
 		}
-		found = true
+
+		item = &backend.Item{
+			Key:     key,
+			Value:   value,
+			Expires: time.Time(expires),
+		}
 		return nil
 	}); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	if !found {
+	if item == nil {
 		return nil, trace.NotFound("key %q does not exist", key)
 	}
 
-	return &backend.Item{
-		Key:     key,
-		Value:   value,
-		Expires: expires.Time,
-	}, nil
+	return item, nil
 }
 
 // GetRange implements backend.Backend
@@ -326,22 +320,24 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	r := backend.GetResult{}
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		r.Items = nil
-		var k, v []byte
-		var e pgtype.Timestamp
-		_, err := p.QueryFunc(ctx,
+		rows, _ := p.Query(ctx,
 			"SELECT key, value, expires FROM kv "+
 				"WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > now()) "+
 				"LIMIT $3",
-			[]any{startKey, endKey, limit}, []any{&k, &v, &e},
-			func(pgx.QueryFuncRow) error {
+			startKey, endKey, limit,
+		)
+		var k, v []byte
+		var e zeronull.Timestamp
+		_, err := pgx.ForEachRow(rows, []any{&k, &v, &e},
+			func() error {
 				r.Items = append(r.Items, backend.Item{
 					Key:     k,
 					Value:   v,
-					Expires: e.Time,
+					Expires: time.Time(e),
 				})
-				k, v = nil, nil
 				return nil
-			})
+			},
+		)
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -409,12 +405,12 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		tag, err := p.Exec(ctx,
 			"UPDATE kv SET expires = $2 WHERE key = $1 AND (expires IS NULL OR expires > now())",
-			lease.Key, toPgTime(expires))
+			lease.Key, zeronull.Timestamp(expires))
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		r = tag.RowsAffected()
-		return trace.Wrap(err)
+		return nil
 	}); err != nil {
 		return trace.Wrap(err)
 	}
