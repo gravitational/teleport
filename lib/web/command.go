@@ -184,16 +184,17 @@ func (h *Handler) executeCommand(
 		h.log.WithError(err).Error("Error setting websocket readline")
 		return nil, trace.Wrap(err)
 	}
+	// Update the read deadline upon receiving a pong message.
+	rawWS.SetPongHandler(func(_ string) error {
+		// This is intentonally called without a lock as this callback is
+		// called from the same goroutine as the read loop which is aready locked.
+		return trace.Wrap(rawWS.SetReadDeadline(deadlineForInterval(keepAliveInterval)))
+	})
 
 	// Wrap the raw websocket connection in a syncRWWSConn so that we can
 	// safely read and write to the the single websocket connection from
 	// mutliple goroutines/execution nodes.
 	ws := &syncRWWSConn{WSConn: rawWS}
-
-	// Update the read deadline upon receiving a pong message.
-	ws.SetPongHandler(func(_ string) error {
-		return trace.Wrap(ws.SetReadDeadline(deadlineForInterval(keepAliveInterval)))
-	})
 
 	hosts, err := findByQuery(ctx, clt, req.Query)
 	if err != nil {
