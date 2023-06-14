@@ -1009,32 +1009,33 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	}
 
 	var err error
-
 	cf.executablePath, err = os.Executable()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// configs
+	// parse CLI commands+flags
+	utils.UpdateAppUsageTemplate(app, args)
+	command, parseErr := app.Parse(args)
+
+	// check env variables after parsing CLI commands+flags
 	setEnvFlags(&cf, os.Getenv)
 
+	// Load tsh config options after parsing cli/env flags
 	confOptions, err := loadAllConfigs(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	cf.TshConfig = *confOptions
 
-	// aliases
+	// Load aliases from tsh config options
 	ar := newAliasRunner(cf.TshConfig.Aliases)
 	aliasCommand, runtimeArgs := findAliasCommand(args)
 	if aliasDefinition, ok := ar.getAliasDefinition(aliasCommand); ok {
 		return ar.runAlias(ctx, aliasCommand, aliasDefinition, cf.executablePath, runtimeArgs)
 	}
 
-	// parse CLI commands+flags:
-	utils.UpdateAppUsageTemplate(app, args)
-	command, err := app.Parse(args)
-	if errors.Is(err, kingpin.ErrExpectedCommand) {
+	if errors.Is(parseErr, kingpin.ErrExpectedCommand) {
 		if _, ok := cf.TshConfig.Aliases[aliasCommand]; ok {
 			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
 			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)

@@ -2240,26 +2240,36 @@ func TestSSHHeadless(t *testing.T) {
 	for _, tc := range []struct {
 		name      string
 		args      []string
+		envFlags  map[string]string
 		assertErr require.ErrorAssertionFunc
 	}{
 		{
 			name:      "node access",
-			args:      []string{"--headless", "--user", "alice"},
+			args:      []string{"--headless", "--user", "alice", "--proxy", proxyAddr.String()},
 			assertErr: require.NoError,
 		}, {
 			name:      "resource request",
-			args:      []string{"--headless", "--user", "bob", "--request-reason", "reason here to bypass prompt"},
+			args:      []string{"--headless", "--user", "bob", "--request-reason", "reason here to bypass prompt", "--proxy", proxyAddr.String()},
+			assertErr: require.NoError,
+		}, {
+			name: "ssh env variables",
+			args: []string{"--headless"},
+			envFlags: map[string]string{
+				teleport.SSHSessionWebProxyAddr: proxyAddr.String(),
+				teleport.SSHTeleportUser:        "alice",
+			},
 			assertErr: require.NoError,
 		},
 	} {
-		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			for k, v := range tc.envFlags {
+				t.Setenv(k, v)
+			}
+
 			args := append([]string{
 				"ssh",
 				"-d",
 				"--insecure",
-				"--proxy", proxyAddr.String(),
 			}, tc.args...)
 			args = append(args,
 				fmt.Sprintf("%s@%s", user.Username, sshHostname),
