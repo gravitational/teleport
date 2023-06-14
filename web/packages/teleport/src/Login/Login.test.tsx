@@ -113,3 +113,35 @@ test('login with private key policy enabled through role setting', async () => {
   expect(screen.queryByPlaceholderText(/username/i)).not.toBeInTheDocument();
   expect(screen.getByText(/login disabled/i)).toBeInTheDocument();
 });
+
+test('show motd only if motd is set', async () => {
+  // default login form
+  render(<Login />);
+  expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
+
+  // now set motd
+  jest
+    .spyOn(cfg, 'getMotd')
+    .mockImplementation(
+      () => 'Welcome to cluster, your activity will be recorded.'
+    );
+  render(<Login />);
+  expect(
+    screen.getByText('Welcome to cluster, your activity will be recorded.')
+  ).toBeInTheDocument();
+});
+
+test('show login form after modt acknowledge', async () => {
+  jest
+    .spyOn(cfg, 'getMotd')
+    .mockImplementation(
+      () => 'Welcome to cluster, your activity will be recorded.'
+    );
+  render(<Login />);
+  expect(
+    screen.getByText('Welcome to cluster, your activity will be recorded.')
+  ).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText('Acknowledge'));
+  expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
+});

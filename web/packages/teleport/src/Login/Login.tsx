@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState } from 'react';
+import React from 'react';
 
 import logoSrc from 'design/assets/images/teleport-medallion.svg';
 
@@ -22,7 +22,7 @@ import FormLogin from 'teleport/components/FormLogin';
 import Logo from 'teleport/components/LogoHero';
 
 import useLogin, { State } from './useLogin';
-import Motd from './MOTD';
+import Motd from './Motd';
 
 export default function Container() {
   const state = useLogin();
@@ -43,17 +43,14 @@ export function Login({
   primaryAuthType,
   privateKeyPolicyEnabled,
   motd,
+  showMotd,
+  acknowledgeMotd,
 }: State) {
-  const [showMOTD, setShowMOTD] = useState<boolean>(true);
-
-  const acknowledgeMOTD = () => {
-    setShowMOTD(false);
-  };
   return (
     <>
       <Logo src={logoSrc} />
-      {motd && showMOTD ? (
-        <Motd message={motd} onClick={acknowledgeMOTD} />
+      {showMotd ? (
+        <Motd message={motd} onClick={acknowledgeMotd} />
       ) : (
         <FormLogin
           title={'Sign in to Teleport'}
