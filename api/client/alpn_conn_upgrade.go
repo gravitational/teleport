@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -48,19 +49,28 @@ import (
 // In those cases, the Teleport client should make a HTTP "upgrade" call to the
 // Proxy Service to establish a tunnel for the originally planned traffic to
 // preserve the ALPN and SNI information.
-func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
+func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, opts ...DialOption) bool {
 	if result, ok := OverwriteALPNConnUpgradeRequirementByEnv(addr); ok {
 		return result
 	}
 
-	netDialer := &net.Dialer{
-		Timeout: defaults.DefaultIOTimeout,
-	}
+	// Use NewDialer which takes care of ProxyURL, and use a shorter I/O
+	// timeout to avoid blocking caller.
+	baseDialer := NewDialer(
+		ctx,
+		defaults.DefaultIdleTimeout,
+		5*time.Second,
+		append(opts,
+			WithInsecureSkipVerify(insecure),
+			WithALPNConnUpgrade(false),
+		)...,
+	)
+
 	tlsConfig := &tls.Config{
 		NextProtos:         []string{string(constants.ALPNSNIProtocolReverseTunnel)},
 		InsecureSkipVerify: insecure,
 	}
-	testConn, err := tls.DialWithDialer(netDialer, "tcp", addr, tlsConfig)
+	testConn, err := tlsutils.TLSDial(ctx, baseDialer, "tcp", addr, tlsConfig)
 	if err != nil {
 		if isRemoteNoALPNError(err) {
 			logrus.Debugf("ALPN connection upgrade required for %q: %v. No ALPN protocol is negotiated by the server.", addr, true)
