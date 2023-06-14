@@ -2075,15 +2075,15 @@ func enterInput(ctx context.Context, person *Terminal, command, pattern string) 
 	}
 }
 
-// TestInvalidLogins validates that you can't login with invalid login or
-// with invalid 'site' parameter
+// testEnvironmentVariables validates that session specific environment
+// variables set by Teleport are present.
 func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
 	s := suite.newTeleport(t, nil, true)
-	defer s.StopAll()
+	t.Cleanup(func() { require.NoError(t, s.StopAll()) })
 
 	// make sure sessions set run command
 	tc, err := s.NewClient(helpers.ClientConfig{
@@ -2094,25 +2094,27 @@ func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// if SessionID is provided, it should be set in the session env vars.
 	tc.SessionID = uuid.NewString()
-	cmd := []string{"printenv", sshutils.SessionEnvVar}
+
+	// The SessionID and Web address should be set in the session env vars.
+	cmd := []string{"printenv", sshutils.SessionEnvVar, ";", "printenv", teleport.SSHSessionWebProxyAddr}
 	out := &bytes.Buffer{}
 	tc.Stdout = out
 	tc.Stdin = nil
 	err = tc.SSH(ctx, cmd, false /* runLocally */)
-
 	require.NoError(t, err)
-	require.Equal(t, tc.SessionID, strings.TrimSpace(out.String()))
+	output := out.String()
+	require.Contains(t, output, tc.SessionID)
+	require.Contains(t, output, tc.WebProxyAddr)
 
-	// The proxy url should be set in the session env vars.
-	cmd = []string{"printenv", teleport.SSHSessionWebproxyAddr}
-	out = &bytes.Buffer{}
-	tc.Stdout = out
-	err = tc.SSH(ctx, cmd, false /* runLocally */)
-
+	term := NewTerminal(250)
+	tc.Stdout = term
+	tc.Stdin = strings.NewReader(strings.Join(cmd, " ") + "\r\nexit\r\n")
+	err = tc.SSH(ctx, nil, false /* runLocally */)
 	require.NoError(t, err)
-	require.Equal(t, tc.WebProxyAddr, strings.TrimSpace(out.String()))
+	output = term.AllOutput()
+	require.Contains(t, output, tc.SessionID)
+	require.Contains(t, output, tc.WebProxyAddr)
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or

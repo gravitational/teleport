@@ -452,6 +452,10 @@ type CLIConf struct {
 	// HeadlessAuthenticationID is the ID of a headless authentication.
 	HeadlessAuthenticationID string
 
+	// headlessSkipConfirm determines whether to provide a y/N
+	// confirmation prompt before prompting for MFA.
+	headlessSkipConfirm bool
+
 	// DTAuthnRunCeremony allows tests to override the default device
 	// authentication function.
 	// Defaults to [dtauthn.NewCeremony().Run].
@@ -525,13 +529,14 @@ func Main() {
 }
 
 const (
-	authEnvVar        = "TELEPORT_AUTH"
-	clusterEnvVar     = "TELEPORT_CLUSTER"
-	kubeClusterEnvVar = "TELEPORT_KUBE_CLUSTER"
-	loginEnvVar       = "TELEPORT_LOGIN"
-	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
-	proxyEnvVar       = "TELEPORT_PROXY"
-	headlessEnvVar    = "TELEPORT_HEADLESS"
+	authEnvVar                = "TELEPORT_AUTH"
+	clusterEnvVar             = "TELEPORT_CLUSTER"
+	kubeClusterEnvVar         = "TELEPORT_KUBE_CLUSTER"
+	loginEnvVar               = "TELEPORT_LOGIN"
+	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
+	proxyEnvVar               = "TELEPORT_PROXY"
+	headlessEnvVar            = "TELEPORT_HEADLESS"
+	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar               = "TELEPORT_SITE"
@@ -975,8 +980,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Headless login approval
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
-	approve := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
-	approve.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
+	headlessApprove.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -1331,7 +1337,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])
-	case approve.FullCommand():
+	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
 	default:
 		// Handle commands that might not be available.
@@ -4634,7 +4640,7 @@ func setEnvFlags(cf *CLIConf, getEnv envGetter) {
 	// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
 	if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
 		if cf.Proxy == "" {
-			cf.Proxy = getEnv(teleport.SSHSessionWebproxyAddr)
+			cf.Proxy = getEnv(teleport.SSHSessionWebProxyAddr)
 		}
 		if cf.Username == "" {
 			cf.Username = getEnv(teleport.SSHTeleportUser)
@@ -4826,7 +4832,7 @@ func onHeadlessApprove(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID)
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
 }

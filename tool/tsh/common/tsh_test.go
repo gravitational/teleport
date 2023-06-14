@@ -2495,7 +2495,7 @@ func TestEnvFlags(t *testing.T) {
 				Headless: false,
 			},
 			envMap: map[string]string{
-				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
 				teleport.SSHTeleportUser:        "alice",
 				teleport.SSHTeleportClusterName: "root-cluster",
 			},
@@ -2508,7 +2508,7 @@ func TestEnvFlags(t *testing.T) {
 				Headless: true,
 			},
 			envMap: map[string]string{
-				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
 				teleport.SSHTeleportUser:        "alice",
 				teleport.SSHTeleportClusterName: "root-cluster",
 			},
@@ -2524,7 +2524,7 @@ func TestEnvFlags(t *testing.T) {
 				AuthConnector: constants.HeadlessConnector,
 			},
 			envMap: map[string]string{
-				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
 				teleport.SSHTeleportUser:        "alice",
 				teleport.SSHTeleportClusterName: "root-cluster",
 			},
@@ -2543,7 +2543,7 @@ func TestEnvFlags(t *testing.T) {
 				SiteName: "root-cluster",
 			},
 			envMap: map[string]string{
-				teleport.SSHSessionWebproxyAddr: "other.example.com",
+				teleport.SSHSessionWebProxyAddr: "other.example.com",
 				teleport.SSHTeleportUser:        "bob",
 				teleport.SSHTeleportClusterName: "leaf-cluster",
 			},

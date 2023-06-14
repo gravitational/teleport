@@ -49,6 +49,8 @@ import { getFirstRouteForCategory } from 'teleport/Navigation/Navigation';
 
 import { NavigationCategory } from 'teleport/Navigation/categories';
 
+import { useLayout } from 'teleport/Main/LayoutContext';
+
 import { MainContainer } from './MainContainer';
 import { OnboardDiscover } from './OnboardDiscover';
 
@@ -65,6 +67,8 @@ interface MainProps {
 export function Main(props: MainProps) {
   const ctx = useTeleport();
   const history = useHistory();
+
+  const { hasDockedElement } = useLayout();
 
   const { attempt, setAttempt, run } = useAttempt('processing');
 
@@ -158,7 +162,7 @@ export function Main(props: MainProps) {
         billingBanners={featureFlags.billing && props.billingBanners}
         onBannerDismiss={dismissAlert}
       >
-        <MainContainer>
+        <MainContainer hasDockedElement={hasDockedElement}>
           <Navigation />
           <HorizontalSplit>
             <ContentMinWidth>
