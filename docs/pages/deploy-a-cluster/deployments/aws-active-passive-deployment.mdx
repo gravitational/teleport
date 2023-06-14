@@ -66,11 +66,11 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
 ## Step 2/6. Add the Teleport Helm chart repository
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
-## Step 3/6. Set up Teleport cluster in Primary Region (In my example us-west-1 is Primary Region) region:
+## Step 3/6. Set up Teleport cluster in Primary Region (In this example us-west-1 is the Primary Region) region:
 - [Running an HA Teleport cluster using AWS, EKS, Helm](https://goteleport.com/docs/deploy-a-cluster/helm-deployments/aws/)
-- [Configure Single Sing-on] (https://goteleport.com/docs/access-controls/sso/) and test your access to cluster.
+- [Configure Single Sing-on](https://goteleport.com/docs/access-controls/sso/) and test your access to cluster.
 
-## Step 4/6. Setup DynamoDB & S3 Global replication to Secondary Region (In my example us-east-1 is the Secondary Region):
+## Step 4/6. Setup DynamoDB & S3 Global replication to Secondary Region (In this example us-east-1 is the Secondary Region):
 - Check the Key components section of this document for Global replication.
 
 ## Step 5/6. Set up Teleport cluster in Secondary Region same as Step 1/7:
