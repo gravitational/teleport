@@ -3266,7 +3266,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)
@@ -4715,13 +4715,13 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 // IsALPNConnUpgradeRequiredForWebProxy returns true if connection upgrade is
 // required for provided addr. The provided address must be a web proxy
 // address.
-func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(proxyAddr string) bool {
+func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(ctx context.Context, proxyAddr string) bool {
 	// Use cached value.
 	if proxyAddr == tc.WebProxyAddr {
 		return tc.TLSRoutingConnUpgradeRequired
 	}
 	// Do a test for other proxy addresses.
-	return client.IsALPNConnUpgradeRequired(proxyAddr, tc.InsecureSkipVerify)
+	return client.IsALPNConnUpgradeRequired(ctx, proxyAddr, tc.InsecureSkipVerify)
 }
 
 // RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.

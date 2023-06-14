@@ -63,6 +63,7 @@ message ResourceID {
 
 message ResourceDetails {
   string hostname = 1;
+  string friendly_name = 2;
 }
 
 message Resource {
