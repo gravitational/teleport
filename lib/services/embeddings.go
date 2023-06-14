@@ -328,8 +328,7 @@ func (n *nodeEmbeddingCollector) notifyStale() {
 	n.stale.Store(true)
 }
 
-// NodeCount returns how many nodes are tracked by the collector and if they
-// need embedding.
+// NodeCount returns the number of nodes being tracked by the collector which have not been embedded.
 func (n *nodeEmbeddingCollector) NodeCount(needsEmbedding bool) int {
 	count := 0
 	n.mutex.Lock()
