@@ -14,6 +14,9 @@
 
 // default trait not supported in wasm
 #![allow(clippy::new_without_default)]
+// silence false positives for "dead code" which is actually
+// called in javascript.
+#![allow(dead_code)]
 
 #[macro_use]
 extern crate log;
