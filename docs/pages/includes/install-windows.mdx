@@ -2,7 +2,7 @@ Starting with Teleport v7.2.0, most `tsh` features are supported for Windows 10
 1607+. The `tsh ssh` command can be run under `cmd.exe`, PowerShell, and Windows
 Terminal.
 
-To install `tsh` on Windows, run the following commands in PowerShell:
+To install `tsh` on Windows, run the following commands in **PowerShell** (these commands will not work in `cmd.exe`):
 
   ```code
   # Get the expected checksum for the Windows tsh package
@@ -11,7 +11,7 @@ To install `tsh` on Windows, run the following commands in PowerShell:
   # by default, so you need to convert it to a string
   $ [System.Text.Encoding]::UTF8.getstring($Resp.Content)
   # <checksum> <filename>
-  $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip
+  $ Invoke-WebRequest -OutFile teleport-v(=teleport.version=)-windows-amd64-bin.zip -Uri https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip
   $ certUtil -hashfile teleport-v(=teleport.version=)-windows-amd64-bin.zip SHA256
   # SHA256 hash of teleport-v(=teleport.version=)-windows-amd64-bin.zip:
   # <checksum>
