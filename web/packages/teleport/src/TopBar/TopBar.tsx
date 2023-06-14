@@ -14,11 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import styled from 'styled-components';
-import { Text, Flex, TopNav } from 'design';
+import React, { Suspense, useState } from 'react';
+import styled, { useTheme } from 'styled-components';
+import { Flex, Text, TopNav } from 'design';
 
 import { matchPath, useHistory } from 'react-router';
+
+import { BrainIcon, OpenAIIcon } from 'design/SVGIcon';
+
+import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import useTeleport from 'teleport/useTeleport';
 import useStickyClusterId from 'teleport/useStickyClusterId';
@@ -27,14 +31,73 @@ import { useFeatures } from 'teleport/FeaturesContext';
 
 import cfg from 'teleport/config';
 
+import { useLayout } from 'teleport/Main/LayoutContext';
+
+import { KeysEnum } from 'teleport/services/localStorage';
+import {
+  Popup,
+  PopupButton,
+  PopupFooter,
+  PopupLogos,
+  PopupLogosSpacer,
+  PopupTitle,
+  PopupTitleBackground,
+  TeleportIcon,
+} from 'teleport/Assist/Popup/Popup';
+
 import ClusterSelector from './ClusterSelector';
 
+const Assist = React.lazy(() => import('web/packages/teleport/src/Assist'));
+
+const AssistButton = styled.div`
+  padding: 0 10px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 5px;
+  cursor: pointer;
+  user-select: none;
+  margin-right: 5px;
+
+  &:hover {
+    background: ${props => props.theme.colors.spotBackground[0]};
+  }
+`;
+
+const AssistButtonContainer = styled.div`
+  position: relative;
+`;
+
+const Background = styled.div`
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 98;
+  background: rgba(0, 0, 0, 0.6);
+`;
+
 export function TopBar() {
+  const theme = useTheme();
+
   const ctx = useTeleport();
   const history = useHistory();
   const features = useFeatures();
 
+  const assistEnabled = ctx.getFeatureFlags().assist && ctx.assistEnabled;
+
+  const [showAssistPopup, setShowAssistPopup] = useLocalStorage(
+    KeysEnum.SHOW_ASSIST_POPUP,
+    assistEnabled
+  );
+
+  const [showAssist, setShowAssist] = useState(false);
+
   const { clusterId, hasClusterUrl } = useStickyClusterId();
+
+  const { hasDockedElement } = useLayout();
 
   function loadClusters() {
     return ctx.clusterService.fetchClusters();
@@ -84,9 +147,46 @@ export function TopBar() {
         onLoad={loadClusters}
         style={styles}
       />
-      <Flex ml="auto" height="100%">
+      <Flex ml="auto" height="100%" alignItems="center">
+        {!hasDockedElement && assistEnabled && (
+          <AssistButtonContainer>
+            <AssistButton onClick={() => setShowAssist(true)}>
+              <BrainIcon />
+            </AssistButton>
+
+            {showAssistPopup && (
+              <>
+                <Background />
+                <Popup>
+                  <PopupTitle>
+                    <PopupTitleBackground>New!</PopupTitleBackground>
+                  </PopupTitle>{' '}
+                  Try out Teleport Assist, a GPT-4-powered AI assistant that
+                  leverages your infrastructure
+                  <PopupFooter>
+                    <PopupLogos>
+                      <OpenAIIcon size={30} />
+                      <PopupLogosSpacer>+</PopupLogosSpacer>
+                      <TeleportIcon light={theme.name === 'light'} />
+                    </PopupLogos>
+
+                    <PopupButton onClick={() => setShowAssistPopup(false)}>
+                      Close
+                    </PopupButton>
+                  </PopupFooter>
+                </Popup>
+              </>
+            )}
+          </AssistButtonContainer>
+        )}
         <UserMenuNav username={ctx.storeUser.state.username} />
       </Flex>
+
+      {showAssist && (
+        <Suspense fallback={null}>
+          <Assist onClose={() => setShowAssist(false)} />
+        </Suspense>
+      )}
     </TopBarContainer>
   );
 }
