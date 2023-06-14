@@ -546,10 +546,10 @@ func activateCredentialInElevatedChild(
 
 	// Clear up the results of any previous credential activation
 	if err := os.Remove(todoCredentialActivationPath); err != nil {
-		return nil, trace.Wrap(
-			trace.ConvertSystemError(err),
-			"clearing previous credential activation results",
-		)
+		err := trace.ConvertSystemError(err)
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err, "clearing previous credential activation results")
+		}
 	}
 
 	// Assemble the parameter list. We encoded any binary data in base64.
@@ -565,6 +565,7 @@ func activateCredentialInElevatedChild(
 		base64.StdEncoding.EncodeToString(encryptedCredential.Secret),
 	}, " ")
 
+	// Create pointers to invoke the windows syscall with.
 	operation := "runas"
 	lpOperation, err := syscall.UTF16PtrFromString(operation)
 	if err != nil {
@@ -583,8 +584,8 @@ func activateCredentialInElevatedChild(
 		return nil, trace.Wrap(err, "converting cwd to ptr")
 	}
 
-	// https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew
 	log.Debug("Starting elevated process.")
+	// https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew
 	err = windows.ShellExecute(
 		0, // hwnd
 		lpOperation,
@@ -593,6 +594,9 @@ func activateCredentialInElevatedChild(
 		lpDirectory,
 		windows.SW_NORMAL,
 	)
+	// The windows.ShellExecute blocks until the user answers the UAC dialogue.
+	// If they reject the UAC dialogue, an error is returned:
+	//   syscall.Errno The operation was canceled by the user.
 	if err != nil {
 		return nil, trace.Wrap(err, "invoking ShellExecuteW")
 	}
@@ -607,9 +611,8 @@ func activateCredentialInElevatedChild(
 
 	log.Debug("Waiting for credential activation solution from elevated process.")
 	// Wait for result from child process, polling every half second for up to
-	// 30 seconds - since we need to wait for the user to click OK on the
-	// UAC dialogue.
-	for i := 0; i < 60; i++ {
+	// 10 seconds.
+	for i := 0; i < 20; i++ {
 		// TODO: Context cancellation ?
 		log.Debug("Checking for credential activation solution from elevated process.")
 		solutionBytes, err := os.ReadFile(todoCredentialActivationPath)
