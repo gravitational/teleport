@@ -663,7 +663,7 @@ func TestPresets(t *testing.T) {
 	}
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		upsertRoleTest(t, 3 /* presetRoleCount */)
+		upsertRoleTest(t, 4 /* presetRoleCount */)
 	})
 
 	t.Run("Enterprise", func(t *testing.T) {
