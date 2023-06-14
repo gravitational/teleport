@@ -28,7 +28,7 @@ export default {
 };
 
 const fakeClient = () => {
-  const client = new TdpClient('wss://socketAddr.gov');
+  const client = new TdpClient('wss://socketAddr.gov', 100, 100);
   client.init = () => {}; // Don't actually try to connect to a websocket.
   return client;
 };
@@ -59,6 +59,7 @@ const props: State = {
   setDirectorySharingState: () => {},
   onShareDirectory: () => {},
   onPngFrame: () => {},
+  onBitmapFrame: () => {},
   onTdpError: () => {},
   onTdpWarning: () => {},
   onKeyDown: () => {},

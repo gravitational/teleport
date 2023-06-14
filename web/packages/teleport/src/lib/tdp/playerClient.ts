@@ -34,7 +34,9 @@ export class PlayerClient extends Client {
   textDecoder = new TextDecoder();
 
   constructor(socketAddr: string) {
-    super(socketAddr);
+    // TODO(isaiah): 0, 0, args are to get the linter to pipe down for now,
+    // probably ought to be changed when playback support is added
+    super(socketAddr, 0, 0);
   }
 
   // togglePlayPause toggles the playback system between "playing" and "paused" states.
