@@ -316,6 +316,7 @@ require (
 	github.com/kyroy/priority-queue v0.0.0-20180327160706-6e21825e7e0c // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/lithammer/dedent v1.1.0 // indirect
+	github.com/lox/bintest v2.0.0+incompatible
 	github.com/mailru/easyjson v0.7.7 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect

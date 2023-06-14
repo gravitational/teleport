@@ -588,6 +588,9 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Teleport
 	h.GET("/webapi/scripts/installer/:name", h.WithLimiter(h.installer))
 
+	// Unauthenticated access to retrieve a script that downloads teleport and executes a single teleport command.
+	h.GET("/webapi/scripts/teleport-oneoff", h.WithLimiter(h.teleportOneOffScript))
+
 	// desktop access configuration scripts
 	h.GET("/webapi/scripts/desktop-access/install-ad-ds.ps1", h.WithLimiter(h.desktopAccessScriptInstallADDSHandle))
 	h.GET("/webapi/scripts/desktop-access/install-ad-cs.ps1", h.WithLimiter(h.desktopAccessScriptInstallADCSHandle))
