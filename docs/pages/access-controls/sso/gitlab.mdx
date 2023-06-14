@@ -4,60 +4,91 @@ description: How to configure Teleport access using GitLab for SSO
 h1: Teleport SSO Authentication with GitLab
 ---
 
-## How to use GitLab as a single sign-on (SSO) provider with Teleport
-
 This guide will cover how to configure [GitLab](https://www.gitlab.com/) to issue
-SSH credentials to specific groups of users. When used in combination with role
+credentials to specific groups of users. When used in combination with role
 based access control (RBAC), it allows administrators to define policies
 like:
 
-- Only members of "DBA" group can SSH into machines running PostgreSQL.
+- Only members of "DBA" group can access PostgreSQL databases.
 - Only members of "ProductionKubernetes" can access production Kubernetes clusters
 - Developers must never SSH into production servers.
 
 ## Prerequisites
 
-- At least two groups in GitLab with users assigned.
-- Teleport role with access to maintaining `oidc` resources.  This is available in the default `editor` role.
+- At least two groups in GitLab with users assigned. In our examples below,
+  we'll assume a group named `company` with two subgoups, `admin` and `dev`.
+- Teleport role with access to maintaining `oidc` resources.  This is available
+  in the default `editor` role.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Enable default OIDC authentication
-
-(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
-
 ## Configure GitLab
 
-You should have at least one group configured in GitLab to map to Teleport roles. In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users to each of these groups.
+You should have at least one group configured in GitLab to map to Teleport roles.
+In this example we use the names `gitlab-dev` and `gitlab-admin`.  Assign users
+to each of these groups.
 
-1. Create a Application in one of your Groups that will allow using GitLab as a OAuth provider to Teleport.
+1. Create a Application in one of your Groups that will allow using GitLab as a
+   OAuth provider to Teleport.
 
-Settings
+   Settings:
 
-- Redirect URL `https://<proxy url>/v1/webapi/oidc/callback` such as `https://teleport.example.com:3080/v1/webapi/oidc/callback`
-- Check `Confidential`, `openid`, `profile`, and `email`.
+   - Redirect URL: `https://<proxy url>/v1/webapi/oidc/callback`.
+   - Check `Confidential`, `openid`, `profile`, and `email`.
 
-![Create App](../../../img/sso/gitlab/gitlab-oidc-0.png)
+   ![Create App](../../../img/sso/gitlab/gitlab-oidc-0.png)
 
-2. Collect the `Application ID` and `Secret` in the Application
+2. Collect the `Application ID` and `Secret` in the Application. These will be
+   used in the Teleport OIDC Auth Connector:
 
-These will be used in the Teleport OIDC Auth Connector.
+   ![Collection Information](../../../img/sso/gitlab/gitlab-oidc-1.png)
 
-![Collection Information](../../../img/sso/gitlab/gitlab-oidc-1.png)
+3. Confirm the GitLab Issuer Address.
 
-3. Confirm the GitLab Issuer Address
-
-For GitLab cloud that is `https://gitlab.com`. That allows accessing the Open-ID configuration at `https://gitlab.com/.well-known/openid-configuration`.
-If you are self hosting that is likely another local address.
+   For GitLab cloud the issue address is `https://gitlab.com`. This allows
+   Teleport to access the Open-ID configuration at
+   `https://gitlab.com/.well-known/openid-configuration`. If you are self
+   hosting the issuer address is the path to your GitLab instance.
 
 ## Configure Teleport
 
 ### Create a OIDC Connector
 
-Create a OIDC connector [resource](../../reference/resources.mdx):
-Replace the Application ID and the Secret with the values from GitLab.
+Create a OIDC connector resource using `tctl`.
+
+<Tabs>
+<TabItem label="GitLab.com">
+Replace the application ID and secret with the values from GitLab:
+
+```code
+$ tctl sso configure oidc --preset gitlab \
+--id <APPLICATION-ID> \
+--secret <APPLICATION-SECRET> \
+--claims-to-roles groups,company/admin,admin \
+--claims-to-roles groups,company/dev,dev > oidc.yaml
+```
+
+</TabItem>
+<TabItem label="Self-hosted">
+Replace the application ID and secret with the values from GitLab, and replace
+`https://gitlab.company.com` with the path to your self-hosted GitLab instance:
+
+```code
+$ tctl sso configure oidc --preset gitlab \
+--id <APPLICATION-ID> \
+--issuer-url https://gitlab.company.com \
+--secret <APPLICATION-SECRET> \
+--claims-to-roles groups,company/admin,admin \
+--claims-to-roles groups,company/dev,dev > oidc.yaml
+```
+
+</TabItem>
+</Tabs>
+
+This example maps the two subgroups `admin` and `dev` of the parent group
+`company` to the `admin` and `dev` roles in Teleport, and creates the `oidc.yaml` file:
 
 ```yaml
 kind: oidc
@@ -68,33 +99,35 @@ spec:
   - claim: groups
     roles:
     - admin
-    value: gitlab-admin
+    value: company/admin
   - claim: groups
     roles:
     - dev
-    value: gitlab-dev
-  client_id: Application_ID
-  client_secret: Secret
-  display: GitLab
+    value: company/gitlab-dev
+  client_id: <APPLICATION-ID>
+  client_secret: <APPLICATION-SECRET>
+  display: Gitlab
   issuer_url: https://gitlab.com
-  prompt: "none"
-  redirect_url: https://teleport.example.com:3080/v1/webapi/oidc/callback
-  scope:
-  - email
-version: v2
+  prompt: none
+  redirect_url: https://teleport.example.com:443/v1/webapi/oidc/callback
+version: v3
+
 ```
 
-<Admonition
-  type="note"
-  title="IMPORTANT"
->
-  The `prompt` value must be `none`.  Setting to `none` means Teleport will not send this as a parameter sending the `select_account` parameter will result in an error from GitLab.
-</Admonition>
+Test the connector resource by piping the file to `tctl sso test`:
+
+```code
+$ cat oidc.yaml | tctl sso test
+```
+
+After authorizing the application in GitLab you should get a
+**Login Successful** message in your web browser. Otherwise, consult the output
+of the command to diagnose.
 
 Create the connector using `tctl` tool:
 
 ```code
-$ tctl create oidc-connector.yaml
+$ tctl create -f oidc.yaml.yaml
 ```
 
 ## Create Teleport Roles
@@ -145,11 +178,13 @@ spec:
 Create both roles on the auth server:
 
 ```code
-$ tctl create admin.yaml
-$ tctl create dev.yaml
+$ tctl create -f admin.yaml
+$ tctl create -f dev.yaml
 ```
 
-## Testing
+## Enable default OIDC authentication
+
+(!docs/pages/includes/enterprise/oidcauthentication.mdx!)
 
 The Web UI will now contain a new button: "Login with GitLab". The CLI is
 the same as before:
