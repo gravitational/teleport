@@ -2629,7 +2629,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 
 func (tc *TeleportClient) newSessionEnv() map[string]string {
 	env := map[string]string{
-		teleport.SSHSessionWebproxyAddr: tc.WebProxyAddr,
+		teleport.SSHSessionWebProxyAddr: tc.WebProxyAddr,
 	}
 	if tc.SessionID != "" {
 		env[sshutils.SessionEnvVar] = tc.SessionID
