@@ -282,6 +282,14 @@ Check out our
 [predicate language](../reference/predicate-language.mdx#label-expressions)
 guide for a more in depth explanation of the language.
 
+Typically you will only want to use one of `<kind>_labels` or
+`<kind>_labels_expression` in a single role, but you are allowed to specify
+both.
+If you have both in a deny rule, the matching is greedy, if either one matches
+access will be denied.
+In an allow rule, the matching is not greedy, if both are set they both have to
+match for access to be allowed.
+
 ## Teleport resources
 
 RBAC lets teams limit what resources are available to Teleport users. This can be helpful if, for example,
