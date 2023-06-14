@@ -73,7 +73,7 @@ func TestNodeEmbeddingWatcherCreate(t *testing.T) {
 
 	embedder := MockEmbedder{}
 	presence := local.NewPresenceService(bk)
-	embeddings := local.NewEmbeddingsService(bk, embedder)
+	embeddings := local.NewEmbeddingsService(bk)
 
 	cfg := services.NodeEmbeddingWatcherConfig{
 		NodeWatcherConfig: services.NodeWatcherConfig{
@@ -88,6 +88,7 @@ func TestNodeEmbeddingWatcherCreate(t *testing.T) {
 			},
 		},
 		Embeddings: embeddings,
+		Embedder:   embedder,
 	}
 	watcher, err := services.NewNodeEmbeddingWatcher(ctx, cfg)
 	require.NoError(t, err)
@@ -150,7 +151,7 @@ func TestNodeEmbeddingWatcherIdempotency(t *testing.T) {
 
 	embedder := MockEmbedder{}
 	presence := local.NewPresenceService(bk)
-	embeddings := local.NewEmbeddingsService(bk, embedder)
+	embeddings := local.NewEmbeddingsService(bk)
 
 	cfg := services.NodeEmbeddingWatcherConfig{
 		NodeWatcherConfig: services.NodeWatcherConfig{
@@ -165,6 +166,7 @@ func TestNodeEmbeddingWatcherIdempotency(t *testing.T) {
 			},
 		},
 		Embeddings: embeddings,
+		Embedder:   embedder,
 	}
 	watcher, err := services.NewNodeEmbeddingWatcher(ctx, cfg)
 	require.NoError(t, err)
@@ -244,7 +246,7 @@ func TestNodeEmbeddingWatcherUpdate(t *testing.T) {
 
 	embedder := MockEmbedder{}
 	presence := local.NewPresenceService(bk)
-	embeddings := local.NewEmbeddingsService(bk, embedder)
+	embeddings := local.NewEmbeddingsService(bk)
 
 	cfg := services.NodeEmbeddingWatcherConfig{
 		NodeWatcherConfig: services.NodeWatcherConfig{
@@ -259,6 +261,7 @@ func TestNodeEmbeddingWatcherUpdate(t *testing.T) {
 			},
 		},
 		Embeddings: embeddings,
+		Embedder:   embedder,
 	}
 	watcher, err := services.NewNodeEmbeddingWatcher(ctx, cfg)
 	require.NoError(t, err)

@@ -33,6 +33,10 @@ const (
 	EmbeddingPeriod = 15 * time.Minute
 )
 
+// EmbeddingHash is the hash function that should be used to compute embedding
+// hashes.
+var EmbeddingHash = sha256.Sum256
+
 // Sha256Hash is the hash of the embedded content. This hash allows to detect if
 // the embedding is still up-to-date or if the content changed and the resource
 // must be re-embedded.

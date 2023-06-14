@@ -1602,11 +1602,6 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 
-	var openAIClient *ai.Client
-	if cfg.Auth.AssistAPIKey != "" {
-		openAIClient = ai.NewClient(cfg.Auth.AssistAPIKey)
-	}
-
 	traceClt := tracing.NewNoopClient()
 	if cfg.Tracing.Enabled {
 		traceConf, err := process.Config.Tracing.Config()
@@ -1661,7 +1656,6 @@ func (process *TeleportProcess) initAuthService() error {
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
 		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
-		AIClient:                openAIClient,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1701,8 +1695,9 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetLockWatcher(lockWatcher)
 
-	if authServer.Embeddings != nil {
+	if cfg.Auth.AssistAPIKey != "" {
 		log.Debugf("Starting embedding watcher")
+		openAIClient := ai.NewClient(cfg.Auth.AssistAPIKey)
 		nodeEmbeddingWatcher, err := services.NewNodeEmbeddingWatcher(process.ExitContext(), services.NodeEmbeddingWatcherConfig{
 			NodeWatcherConfig: services.NodeWatcherConfig{
 				ResourceWatcherConfig: services.ResourceWatcherConfig{
@@ -1713,6 +1708,7 @@ func (process *TeleportProcess) initAuthService() error {
 				NodesGetter: authServer.Services,
 			},
 			Embeddings: authServer,
+			Embedder:   openAIClient,
 		})
 		if err != nil {
 			return trace.Wrap(err)

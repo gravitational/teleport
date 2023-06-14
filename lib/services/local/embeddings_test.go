@@ -53,7 +53,7 @@ func TestGetEmbedding(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := NewEmbeddingsService(backend, nil)
+	service := NewEmbeddingsService(backend)
 
 	for _, fixture := range fixtures {
 		_, err := service.UpsertEmbedding(ctx, fixture)
@@ -115,7 +115,7 @@ func TestGetEmbeddings(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := NewEmbeddingsService(backend, nil)
+	service := NewEmbeddingsService(backend)
 
 	for _, fixture := range fixtures {
 		_, err := service.UpsertEmbedding(ctx, fixture)
@@ -176,7 +176,7 @@ func TestUpsertEmbedding(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	service := NewEmbeddingsService(backend, nil)
+	service := NewEmbeddingsService(backend)
 
 	// Test: check there's nothing in the backend first
 	_, err = service.GetEmbedding(ctx, types.KindNode, "foo")

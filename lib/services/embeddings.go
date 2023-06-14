@@ -43,11 +43,6 @@ type Embeddings interface {
 	GetEmbeddings(ctx context.Context, kind string) stream.Stream[*ai.Embedding]
 	// UpsertEmbedding creates or update a single ai.Embedding in the backend.
 	UpsertEmbedding(ctx context.Context, embedding *ai.Embedding) (*ai.Embedding, error)
-	// Embed takes a resource textual representation, checks if the resource
-	// already has an up-to-date embedding stored in the backend, and computes
-	// a new embedding otherwise. The newly computed embedding is stored in
-	// the backend.
-	Embed(ctx context.Context, kind string, resources map[string][]byte) ([]*ai.Embedding, error)
 }
 
 // MarshalEmbedding marshals the ai.Embedding resource to binary ProtoBuf.
@@ -109,6 +104,17 @@ func NewNodeEmbeddingWatcher(ctx context.Context, cfg NodeEmbeddingWatcherConfig
 type NodeEmbeddingWatcherConfig struct {
 	NodeWatcherConfig
 	Embeddings
+	Embedder ai.Embedder
+}
+
+func (cfg *NodeEmbeddingWatcherConfig) CheckAndSetDefaults() error {
+	if err := cfg.NodeWatcherConfig.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+	if cfg.Embedder == nil {
+		return trace.BadParameter("embedder is not set")
+	}
+	return nil
 }
 
 // nodeEmbeddingCollector accompanies resourceWatcher when monitoring currentNodes.
@@ -252,7 +258,7 @@ func (n *nodeEmbeddingCollector) RunIndexation(ctx context.Context) error {
 	}
 	n.mutex.Unlock()
 
-	embeddings, err := n.Embed(ctx, types.KindNode, needsEmbedding)
+	embeddings, err := n.embed(ctx, types.KindNode, needsEmbedding)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -339,6 +345,72 @@ func (n *nodeEmbeddingCollector) NodeCount(needsEmbedding bool) int {
 		}
 	}
 	return count
+}
+
+// embed takes a resource textual representation, checks if the resource
+// already has an up-to-date embedding stored in the backend, and computes
+// a new embedding otherwise. The newly computed embedding is stored in
+// the backend.
+func (n *nodeEmbeddingCollector) embed(ctx context.Context, kind string, resources map[string][]byte) ([]*ai.Embedding, error) {
+
+	// Lookup if there are embeddings in the backend for this node
+	// and the hash matches
+	embeddingsFromCache := make([]*ai.Embedding, 0)
+	toEmbed := make(map[string][]byte)
+	for name, data := range resources {
+		existingEmbedding, err := n.GetEmbedding(ctx, kind, name)
+		if err != nil && !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err)
+		}
+		if err == nil {
+			if embeddingHashMatches(existingEmbedding, ai.EmbeddingHash(data)) {
+				embeddingsFromCache = append(embeddingsFromCache, existingEmbedding)
+				continue
+			}
+		}
+		toEmbed[name] = data
+	}
+
+	// Convert to a list but keep track of the order so that we know which
+	// input maps to which resource.
+	keys := make([]string, 0, len(toEmbed))
+	input := make([]string, len(toEmbed))
+
+	for key := range toEmbed {
+		keys = append(keys, key)
+	}
+
+	for i, key := range keys {
+		input[i] = string(toEmbed[key])
+	}
+
+	response, err := n.Embedder.ComputeEmbeddings(ctx, input)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	newEmbeddings := make([]*ai.Embedding, 0, len(response))
+	for i, vector := range response {
+		newEmbeddings = append(newEmbeddings, ai.NewEmbedding(kind, keys[i], vector, ai.EmbeddingHash(resources[keys[i]])))
+	}
+
+	// Store the new embeddings into the backend
+	for _, embedding := range newEmbeddings {
+		_, err := n.UpsertEmbedding(ctx, embedding)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return append(embeddingsFromCache, newEmbeddings...), nil
+}
+
+func embeddingHashMatches(embedding *ai.Embedding, hash ai.Sha256Hash) bool {
+	if len(embedding.EmbeddedHash) != 32 {
+		return false
+	}
+
+	return *(*ai.Sha256Hash)(embedding.EmbeddedHash) == hash
 }
 
 // serializeNode converts a type.Server into text ready to be fed to an

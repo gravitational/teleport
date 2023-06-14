@@ -230,8 +230,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
-	if cfg.Embeddings == nil && cfg.AIClient != nil {
-		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend, cfg.AIClient)
+	if cfg.Embeddings == nil {
+		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend)
 	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
