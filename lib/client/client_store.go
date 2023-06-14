@@ -14,6 +14,7 @@ limitations under the License.
 package client
 
 import (
+	"errors"
 	"net/url"
 	"os"
 	"time"
@@ -28,6 +29,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 )
+
+var errNoCredentials = trace.NotFound("no credentials")
+
+func isNoCredentialsError(err error) bool {
+	return errors.Is(err, errNoCredentials)
+}
 
 // Store is a storage interface for client data. Store is made up of three
 // partial data stores; KeyStore, TrustedCertsStore, and ProfileStore.
@@ -80,7 +87,9 @@ func (s *Store) AddKey(key *Key) error {
 // trusted certs will be retrieved from the trusted certs store.
 func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	key, err := s.KeyStore.GetKey(idx, opts...)
-	if err != nil {
+	if trace.IsNotFound(err) {
+		return nil, trace.Wrap(errNoCredentials, err.Error())
+	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
