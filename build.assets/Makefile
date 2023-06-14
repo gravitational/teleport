@@ -143,20 +143,7 @@ buildbox:
 # Builds a Docker buildbox for FIPS
 #
 .PHONY:buildbox-fips
-buildbox-fips:
-	if [[ "$(BUILDBOX_FIPS_NAME)" == "$(BUILDBOX_FIPS)" ]]; then \
-		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_FIPS) || true; fi; \
-		docker build \
-			--build-arg UID=$(UID) \
-			--build-arg GID=$(GID) \
-			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg RUST_VERSION=$(RUST_VERSION) \
-			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-			--cache-from $(BUILDBOX_FIPS) \
-			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
-	fi
+buildbox-fips: buildbox-centos7-fips
 
 #
 # Builds a Docker buildbox for CentOS 7 builds
@@ -205,20 +192,6 @@ buildbox-arm: buildbox
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
-
-#
-# Builds a Docker buildbox for ARMv7/ARM64 FIPS builds
-# ARM buildboxes use a regular Teleport buildbox as a base which already has a user
-# with the correct UID and GID created, so those arguments are not needed here.
-#
-.PHONY:buildbox-arm-fips
-buildbox-arm-fips: buildbox-fips
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_FIPS) || true; fi;
-	docker build \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--cache-from $(BUILDBOX_FIPS) \
-		--cache-from $(BUILDBOX_ARM_FIPS) \
-		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
 
 CONNECT_VERSION ?= $(VERSION)
 ifeq ($(CONNECT_VERSION),)
@@ -408,8 +381,7 @@ release-amd64:
 	$(MAKE) release ARCH=amd64 FIDO2=yes
 
 .PHONY: release-amd64-fips
-release-amd64-fips:
-	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
+release-amd64-fips: release-amd64-centos7-fips
 
 .PHONY: release-386
 release-386:
