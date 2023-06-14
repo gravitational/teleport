@@ -85,8 +85,8 @@ const (
 )
 
 // GetState reads rotation state from disk.
-func (p *ProcessStorage) GetState(role types.SystemRole) (*StateV2, error) {
-	item, err := p.stateStorage.Get(context.TODO(), backend.Key(statesPrefix, strings.ToLower(role.String()), stateName))
+func (p *ProcessStorage) GetState(ctx context.Context, role types.SystemRole) (*StateV2, error) {
+	item, err := p.stateStorage.Get(ctx, backend.Key(statesPrefix, strings.ToLower(role.String()), stateName))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
