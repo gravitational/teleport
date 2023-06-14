@@ -173,10 +173,10 @@ func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
 		// On error, wait for user input before executing. This is because this
 		// opens in a second window. If we return the error immediately, then
 		// this window closes before the user can inspect it.
-		log.WithError(err).Info(
-			"An error occurred during credential activation. Press enter to close this window.",
-		)
+		fmt.Printf("An error occurred during credential activation:\n%s\n", err.Error())
+		fmt.Println("Press enter to close this window.")
 		_, _ = fmt.Scanln()
+		return err
 	}
 	return nil
 }

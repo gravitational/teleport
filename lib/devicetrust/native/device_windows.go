@@ -20,7 +20,6 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
-	"fmt"
 	"math/big"
 	"os"
 	"os/exec"
@@ -28,6 +27,7 @@ import (
 	"path/filepath"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
@@ -512,7 +512,7 @@ func solveTPMEnrollChallenge(
 			return nil, trace.Wrap(err, "activating credential with challenge")
 		}
 	} else {
-		log.Info("TPM: Detected that the current process is not running with elevated privileges. Triggering a UAC prompt to run the credential activation with elevated privileges.")
+		log.Info("TPM: Detected that the current process is not running with elevated privileges. Triggering a UAC prompt to run the credential activation in an elevated process.")
 		activationSolution, err = activateCredentialInElevatedChild(*encryptedCredential)
 		if err != nil {
 			return nil, trace.Wrap(err, "activating credential with challenge using elevated child")
@@ -544,10 +544,19 @@ func activateCredentialInElevatedChild(
 		return nil, trace.Wrap(err, "determining current working directory")
 	}
 
+	// Clear up the results of any previous credential activation
+	if err := os.Remove(todoCredentialActivationPath); err != nil {
+		return nil, trace.Wrap(
+			trace.ConvertSystemError(err),
+			"clearing previous credential activation results",
+		)
+	}
+
 	// Assemble the parameter list. We encoded any binary data in base64.
 	// The list is then converted to a space delimited string.
 	// These parameters cause `tsh` to invoke HandleActivateCredential.
 	params := strings.Join([]string{
+		"-d", // enable debug mode so relevant logs appear in the new window
 		"device",
 		"activate-credential",
 		"--encrypted-credential",
@@ -575,6 +584,7 @@ func activateCredentialInElevatedChild(
 	}
 
 	// https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew
+	log.Debug("Starting elevated process.")
 	err = windows.ShellExecute(
 		0, // hwnd
 		lpOperation,
@@ -587,12 +597,39 @@ func activateCredentialInElevatedChild(
 		return nil, trace.Wrap(err, "invoking ShellExecuteW")
 	}
 
-	// Wait for process to start and be happy.
+	// Ensure we clean up the results of the execution once we are done with
+	// it.
+	defer func() {
+		if err := os.Remove(todoCredentialActivationPath); err != nil {
+			log.WithError(err).Debug("Failed to clean up credential activation result")
+		}
+	}()
+
+	log.Debug("Waiting for credential activation solution from elevated process.")
+	// Wait for result from child process, polling every half second for up to
+	// 30 seconds - since we need to wait for the user to click OK on the
+	// UAC dialogue.
+	for i := 0; i < 60; i++ {
+		// TODO: Context cancellation ?
+		log.Debug("Checking for credential activation solution from elevated process.")
+		solutionBytes, err := os.ReadFile(todoCredentialActivationPath)
+		if err == nil {
+			return solutionBytes, nil
+
+		}
+		log.WithError(err).Debug("Error when polling for solution. Waiting to try again.")
+		time.Sleep(time.Millisecond * 500)
+	}
 	return nil, nil
 }
 
-// TODO: Make this compile on multiple platforms lol
+// TODO: Make this a good path
+var todoCredentialActivationPath = "./credential-activation-results"
+
+// TODO: Make this compile on multiple platforms by deferring calls to this
+// through api.go
 func HandleActivateCredential(encryptedCredential string, encryptedCredentialSecret string) error {
+	log.Debug("Performing credential activation.")
 	// The two input parameters are base64 encoded, so decode them.
 	credentialBytes, err := base64.StdEncoding.DecodeString(encryptedCredential)
 	if err != nil {
@@ -638,9 +675,8 @@ func HandleActivateCredential(encryptedCredential string, encryptedCredentialSec
 		return trace.Wrap(err, "activating credential with challenge")
 	}
 
-	// TODO: Write solution to path for invoker to read from.
-
-	return fmt.Errorf("solution: %s", solution)
+	log.Debug("Completed credential activation. Returning result to original process.")
+	return trace.Wrap(os.WriteFile(todoCredentialActivationPath, solution, 0600))
 }
 
 func solveTPMAuthnDeviceChallenge(
