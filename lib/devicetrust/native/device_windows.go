@@ -20,7 +20,7 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
-	"golang.org/x/sys/windows"
+	"fmt"
 	"math/big"
 	"os"
 	"os/exec"
@@ -32,6 +32,7 @@ import (
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/windows"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -545,6 +546,7 @@ func activateCredentialInElevatedChild(
 
 	// Assemble the parameter list. We encoded any binary data in base64.
 	// The list is then converted to a space delimited string.
+	// These parameters cause `tsh` to invoke HandleActivateCredential.
 	params := strings.Join([]string{
 		"device",
 		"activate-credential",
@@ -587,6 +589,58 @@ func activateCredentialInElevatedChild(
 
 	// Wait for process to start and be happy.
 	return nil, nil
+}
+
+// TODO: Make this compile on multiple platforms lol
+func HandleActivateCredential(encryptedCredential string, encryptedCredentialSecret string) error {
+	// The two input parameters are base64 encoded, so decode them.
+	credentialBytes, err := base64.StdEncoding.DecodeString(encryptedCredential)
+	if err != nil {
+		return trace.Wrap(err, "decoding encrypted credential")
+	}
+	secretBytes, err := base64.StdEncoding.DecodeString(encryptedCredentialSecret)
+	if err != nil {
+		return trace.Wrap(err, "decoding encrypted credential secret")
+	}
+
+	akPath, err := setupDeviceStateDir(os.UserConfigDir)
+	if err != nil {
+		return trace.Wrap(err, "setting up device state directory")
+	}
+
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
+	if err != nil {
+		return trace.Wrap(err, "opening tpm")
+	}
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
+		}
+	}()
+
+	// Attempt to load the AK from well-known location.
+	ak, err := loadAK(tpm, akPath)
+	if err != nil {
+		return trace.Wrap(err, "loading ak")
+	}
+	defer ak.Close(tpm)
+
+	solution, err := ak.ActivateCredential(
+		tpm,
+		attest.EncryptedCredential{
+			Credential: credentialBytes,
+			Secret:     secretBytes,
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err, "activating credential with challenge")
+	}
+
+	// TODO: Write solution to path for invoker to read from.
+
+	return fmt.Errorf("solution: %s", solution)
 }
 
 func solveTPMAuthnDeviceChallenge(

@@ -16,7 +16,6 @@ package main
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
@@ -167,8 +166,17 @@ type deviceActivateCredentialCommand struct {
 }
 
 func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
-	fmt.Printf("boo!")
-	// TODO: Pass variables to dtnative and return results
-	time.Sleep(10 * time.Second)
+	err := dtnative.HandleActivateCredential(
+		c.encryptedCredential, c.encryptedCredentialSecret,
+	)
+	if err != nil {
+		// On error, wait for user input before executing. This is because this
+		// opens in a second window. If we return the error immediately, then
+		// this window closes before the user can inspect it.
+		log.WithError(err).Info(
+			"An error occurred during credential activation. Press enter to close this window.",
+		)
+		_, _ = fmt.Scanln()
+	}
 	return nil
 }
