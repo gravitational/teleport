@@ -26,6 +26,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/utils"
+	atlasutils "github.com/gravitational/teleport/api/utils/atlas"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	azureutils "github.com/gravitational/teleport/api/utils/azure"
 )
@@ -97,6 +98,8 @@ type Database interface {
 	GetManagedUsers() []string
 	// SetManagedUsers sets a list of database users that are managed by Teleport.
 	SetManagedUsers(users []string)
+	// GetMongoAtlas returns Mongo Atlas database metadata.
+	GetMongoAtlas() MongoAtlas
 	// IsRDS returns true if this is an RDS/Aurora database.
 	IsRDS() bool
 	// IsRDSProxy returns true if this is an RDS Proxy database.
@@ -118,6 +121,9 @@ type Database interface {
 	// RequireAWSIAMRolesAsUsers returns true for database types that require
 	// AWS IAM roles as database users.
 	RequireAWSIAMRolesAsUsers() bool
+	// SupportAWSIAMRoleARNAsUsers returns true for database types that support
+	// AWS IAM roles as database users.
+	SupportAWSIAMRoleARNAsUsers() bool
 	// Copy returns a copy of this database resource.
 	Copy() *DatabaseV3
 	// GetAdminUser returns database privileged user information.
@@ -508,6 +514,10 @@ func (d *DatabaseV3) getAWSType() (string, bool) {
 
 // GetType returns the database type.
 func (d *DatabaseV3) GetType() string {
+	if d.GetMongoAtlas().Name != "" {
+		return DatabaseTypeMongoAtlas
+	}
+
 	if awsType, ok := d.getAWSType(); ok {
 		return awsType
 	}
@@ -518,6 +528,7 @@ func (d *DatabaseV3) GetType() string {
 	if d.GetAzure().Name != "" {
 		return DatabaseTypeAzure
 	}
+
 	return DatabaseTypeSelfHosted
 }
 
@@ -740,6 +751,12 @@ func (d *DatabaseV3) CheckAndSetDefaults() error {
 			}
 			d.Spec.Azure.Name = name
 		}
+	case atlasutils.IsAtlasEndpoint(d.Spec.URI):
+		name, err := atlasutils.ParseAtlasEndpoint(d.Spec.URI)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		d.Spec.MongoAtlas.Name = name
 	}
 
 	// Validate AWS Specific configuration
@@ -863,6 +880,11 @@ func (d *DatabaseV3) SetManagedUsers(users []string) {
 	d.Status.ManagedUsers = users
 }
 
+// GetMongoAtlas returns Mongo Atlas database metadata.
+func (d *DatabaseV3) GetMongoAtlas() MongoAtlas {
+	return d.Spec.MongoAtlas
+}
+
 // RequireAWSIAMRolesAsUsers returns true for database types that require AWS
 // IAM roles as database users.
 // IMPORTANT: if you add a database that requires AWS IAM Roles as users,
@@ -883,6 +905,12 @@ func (d *DatabaseV3) RequireAWSIAMRolesAsUsers() bool {
 	default:
 		return false
 	}
+}
+
+// SupportAWSIAMRoleARNAsUsers returns true for database types that support AWS
+// IAM roles as database users.
+func (d *DatabaseV3) SupportAWSIAMRoleARNAsUsers() bool {
+	return d.GetType() == DatabaseTypeMongoAtlas
 }
 
 const (
@@ -915,6 +943,8 @@ const (
 	DatabaseTypeDynamoDB = "dynamodb"
 	// DatabaseTypeOpenSearch is AWS-hosted OpenSearch instance.
 	DatabaseTypeOpenSearch = "opensearch"
+	// DatabaseTypeMongoAtlas
+	DatabaseTypeMongoAtlas = "mongo-atlas"
 )
 
 // GetServerName returns the GCP database project and instance as "<project-id>:<instance-id>".

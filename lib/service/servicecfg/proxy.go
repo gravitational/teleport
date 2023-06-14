@@ -141,7 +141,18 @@ type ProxyConfig struct {
 // WebPublicAddr returns the address for the web endpoint on this proxy that
 // can be reached by clients.
 func (c ProxyConfig) WebPublicAddr() (string, error) {
-	return c.getDefaultAddr(c.WebAddr.Port(defaults.HTTPListenPort)), nil
+	// Use the port from the first public address if possible.
+	if len(c.PublicAddrs) > 0 {
+		publicAddr := c.PublicAddrs[0]
+		u := url.URL{
+			Scheme: "https",
+			Host:   net.JoinHostPort(publicAddr.Host(), strconv.Itoa(publicAddr.Port(defaults.HTTPListenPort))),
+		}
+		return u.String(), nil
+	}
+
+	port := c.WebAddr.Port(defaults.HTTPListenPort)
+	return c.getDefaultAddr(port), nil
 }
 
 func (c ProxyConfig) getDefaultAddr(port int) string {

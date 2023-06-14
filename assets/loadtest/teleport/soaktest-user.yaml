@@ -1,6 +1,0 @@
-kind: user
-metadata:
-  name: soaktest-runner
-spec:
-  roles: ['clusteradmin']
-version: v2

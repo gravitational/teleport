@@ -337,8 +337,10 @@ func TestInvalidPayloadSize(t *testing.T) {
 	}
 
 	for _, tt := range tests {
+		payloadSize := tt.payloadSize
+		errMsg := tt.errMsg
 		t.Run(tt.name, func(t *testing.T) {
-			payloadSize := tt.payloadSize
+			t.Parallel()
 
 			src := [4]byte{}
 			src[0] = byte(payloadSize & 0xFF)
@@ -347,7 +349,7 @@ func TestInvalidPayloadSize(t *testing.T) {
 			src[3] = byte((payloadSize >> 24) & 0xFF)
 
 			buf := bytes.NewBuffer(src[:])
-			size := tt.payloadSize
+			size := payloadSize
 			if size < 0 {
 				size = 1024
 			}
@@ -356,9 +358,25 @@ func TestInvalidPayloadSize(t *testing.T) {
 			msg := bytes.NewReader(buf.Bytes())
 
 			_, err := ReadMessage(msg)
-			require.ErrorContains(t, err, tt.errMsg)
+			require.ErrorContains(t, err, errMsg)
 		})
 	}
+}
+
+func TestInvalidDecompressPayloadSize(t *testing.T) {
+	t.Parallel()
+
+	msgBytes := []byte{
+		0x1b, 0x0, 0x0, 0x0, 0x30, 0x30, 0x30, 0x30, 0x7f, 0x30, 0x30, 0x30, // size and id header
+		0xdc, 0x7, 0x0, 0x0, // compressed message op code
+		0x30, 0x30, 0x30, 0x30, // original op code
+		0x30, 0x30, 0x30, 0x30, // excessive large size for test
+		0x3, 0x30, 0x30, // fake data
+	}
+	msg := bytes.NewReader(msgBytes)
+
+	_, err := ReadMessage(msg)
+	require.ErrorContains(t, err, "uncompressed size exceeded max")
 }
 
 func makeTestOpCompressed(t *testing.T, message Message) *MessageOpCompressed {

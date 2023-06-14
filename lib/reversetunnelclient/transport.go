@@ -91,7 +91,7 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 				InsecureSkipVerify: t.InsecureSkipTLSVerify,
 			},
 			DialTimeout:             t.ClientConfig.Timeout,
-			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(addr.Addr, t.InsecureSkipTLSVerify),
+			ALPNConnUpgradeRequired: client.IsALPNConnUpgradeRequired(ctx, addr.Addr, t.InsecureSkipTLSVerify),
 			GetClusterCAs:           client.ClusterCAsFromCertPool(t.ClusterCAs),
 		}))
 	}

@@ -40,7 +40,7 @@ export default function ClusterResources() {
 
   return (
     <StyledMain>
-      <Flex mt={3} pb={5} flexDirection="column">
+      <Flex pb={5} flexDirection="column">
         <SideNav mb={2} />
         <HorizontalSplit>
           {clusterCtx.isLocationActive('/resources/servers') && <Servers />}

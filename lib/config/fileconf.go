@@ -536,7 +536,7 @@ func checkAndSetDefaultsForAWSMatchers(matcherInput []AWSMatcher) error {
 			matcher.Tags = map[string]apiutils.Strings{types.Wildcard: {types.Wildcard}}
 		}
 
-		var installParams services.InstallerParams
+		var installParams types.InstallerParams
 		var err error
 
 		if matcher.InstallParams == nil {
@@ -1747,8 +1747,8 @@ type InstallParams struct {
 	PublicProxyAddr string `yaml:"public_proxy_addr,omitempty"`
 }
 
-func (ip *InstallParams) Parse() (services.InstallerParams, error) {
-	install := services.InstallerParams{
+func (ip *InstallParams) Parse() (types.InstallerParams, error) {
+	install := types.InstallerParams{
 		JoinMethod:      ip.JoinParams.Method,
 		JoinToken:       ip.JoinParams.TokenName,
 		ScriptName:      ip.ScriptName,
@@ -1763,7 +1763,7 @@ func (ip *InstallParams) Parse() (services.InstallerParams, error) {
 	var err error
 	install.InstallTeleport, err = apiutils.ParseBool(ip.InstallTeleport)
 	if err != nil {
-		return services.InstallerParams{}, trace.Wrap(err)
+		return types.InstallerParams{}, trace.Wrap(err)
 	}
 
 	return install, nil

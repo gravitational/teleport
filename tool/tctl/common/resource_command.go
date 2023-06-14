@@ -127,6 +127,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *servicec
 		types.KindDevice:                   rc.createDevice,
 		types.KindOktaImportRule:           rc.createOktaImportRule,
 		types.KindIntegration:              rc.createIntegration,
+		types.KindWindowsDesktop:           rc.createWindowsDesktop,
 	}
 	rc.config = config
 
@@ -601,6 +602,20 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 	return nil
 }
 
+func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	wd, err := services.UnmarshalWindowsDesktop(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.UpsertWindowsDesktop(ctx, wd); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("windows desktop %q has been updated\n", wd.GetName())
+	return nil
+}
+
 func (rc *ResourceCommand) createApp(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
 	app, err := services.UnmarshalApp(raw.Raw)
 	if err != nil {
@@ -831,7 +846,7 @@ func (rc *ResourceCommand) createSAMLIdPServiceProvider(ctx context.Context, cli
 }
 
 func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
-	res, err := types.UnmarshalDevice(raw.Raw)
+	res, err := services.UnmarshalDevice(raw.Raw)
 	if err != nil {
 		return trace.Wrap(err)
 	}

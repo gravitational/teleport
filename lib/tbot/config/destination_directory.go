@@ -78,13 +78,11 @@ func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 
 	switch dd.Symlinks {
 	case "":
-		if secureSupported {
-			// We expect Openat2 to be available, so try to use it by default.
-			dd.Symlinks = botfs.SymlinksSecure
-		} else {
-			// TrySecure will print a warning on fallback.
-			dd.Symlinks = botfs.SymlinksTrySecure
-		}
+		// We default to SymlinksTrySecure. It's become apparent that the
+		// kernel version alone is not usually enough information to know that
+		// secure symlinks is supported by the OS. In future, we should aim to
+		// perform a more definitive test.
+		dd.Symlinks = botfs.SymlinksTrySecure
 	case botfs.SymlinksInsecure, botfs.SymlinksTrySecure:
 		// valid
 	case botfs.SymlinksSecure:

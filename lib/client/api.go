@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -430,6 +429,21 @@ type Config struct {
 
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	PROXYSigner multiplexer.PROXYHeaderSigner
+
+	// DTAuthnRunCeremony allows tests to override the default device
+	// authentication function.
+	// Defaults to [dtauthn.NewCeremony().Run].
+	DTAuthnRunCeremony DTAuthnRunCeremonyFunc
+
+	// dtAttemptLoginIgnorePing and dtAutoEnrollIgnorePing allow Device Trust
+	// tests to ignore Ping responses.
+	// Useful to force flows that only typically happen on Teleport Enterprise.
+	dtAttemptLoginIgnorePing, dtAutoEnrollIgnorePing bool
+
+	// dtAutoEnroll allows tests to override the default device auto-enroll
+	// function.
+	// Defaults to [dtenroll.AutoEnroll].
+	dtAutoEnroll dtAutoEnrollFunc
 }
 
 // CachePolicy defines cache policy for local clients
@@ -589,25 +603,35 @@ func IsErrorResolvableWithRelogin(err error) bool {
 		trace.IsBadParameter(err) || trace.IsTrustError(err) || keys.IsPrivateKeyPolicyError(err) || trace.IsNotFound(err)
 }
 
-// LoadProfile populates Config with the values stored in the given
-// profiles directory. If profileDir is an empty string, the default profile
-// directory ~/.tsh is used.
-func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
+// GetProfile gets the profile for the specified proxy address, or
+// the current profile if no proxy is specified.
+func (c *Config) GetProfile(ps ProfileStore, proxyAddr string) (*profile.Profile, error) {
 	var proxyHost string
 	var err error
 	if proxyAddr == "" {
 		proxyHost, err = ps.CurrentProfile()
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	} else {
 		proxyHost, err = utils.Host(proxyAddr)
 		if err != nil {
-			return trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
 	profile, err := ps.GetProfile(proxyHost)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return profile, nil
+}
+
+// LoadProfile populates Config with the values stored in the given
+// profiles directory. If profileDir is an empty string, the default profile
+// directory ~/.tsh is used.
+func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
+	profile, err := c.GetProfile(ps, proxyAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -631,11 +655,6 @@ func (c *Config) LoadProfile(ps ProfileStore, proxyAddr string) error {
 		return trace.BadParameter("unable to parse mfa mode in user profile: %v.", err)
 	}
 
-	c.LocalForwardPorts, err = ParsePortForwardSpec(profile.ForwardedPorts)
-	if err != nil {
-		log.Warnf("Unable to parse port forwarding in user profile: %v.", err)
-	}
-
 	c.DynamicForwardedPorts, err = ParseDynamicPortForwardSpec(profile.DynamicForwardedPorts)
 	if err != nil {
 		log.Warnf("Unable to parse dynamic port forwarding in user profile: %v.", err)
@@ -655,7 +674,15 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		return nil
 	}
 
-	p := &profile.Profile{
+	if err := c.ClientStore.SaveProfile(c.Profile(), makeCurrent); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// Profile converts Config to *profile.Profile.
+func (c *Config) Profile() *profile.Profile {
+	return &profile.Profile{
 		Username:                      c.Username,
 		WebProxyAddr:                  c.WebProxyAddr,
 		SSHProxyAddr:                  c.SSHProxyAddr,
@@ -663,7 +690,6 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		PostgresProxyAddr:             c.PostgresProxyAddr,
 		MySQLProxyAddr:                c.MySQLProxyAddr,
 		MongoProxyAddr:                c.MongoProxyAddr,
-		ForwardedPorts:                c.LocalForwardPorts.String(),
 		SiteName:                      c.SiteName,
 		TLSRoutingEnabled:             c.TLSRoutingEnabled,
 		TLSRoutingConnUpgradeRequired: c.TLSRoutingConnUpgradeRequired,
@@ -672,11 +698,6 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		LoadAllCAs:                    c.LoadAllCAs,
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 	}
-
-	if err := c.ClientStore.SaveProfile(p, makeCurrent); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // ParsedProxyHost holds the hostname and Web & SSH proxy addresses
@@ -938,8 +959,8 @@ func (c *Config) ResourceFilter(kind string) *proto.ListResourcesRequest {
 	}
 }
 
-// dtAuthnRunCeremonyFunc matches the signature of [dtauthn.RunCeremony].
-type dtAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
+// DTAuthnRunCeremonyFunc matches the signature of [dtauthn.RunCeremony].
+type DTAuthnRunCeremonyFunc func(context.Context, devicepb.DeviceTrustServiceClient, *devicepb.UserCertificates) (*devicepb.UserCertificates, error)
 
 // dtAutoEnrollFunc matches the signature of [dtenroll.AutoEnroll].
 type dtAutoEnrollFunc func(context.Context, devicepb.DeviceTrustServiceClient) (*devicepb.Device, error)
@@ -962,21 +983,6 @@ type TeleportClient struct {
 	// Note: there's no mutex guarding this or localAgent, making
 	// TeleportClient NOT safe for concurrent use.
 	lastPing *webclient.PingResponse
-
-	// dtAttemptLoginIgnorePing and dtAutoEnrollIgnorePing allow Device Trust
-	// tests to ignore Ping responses.
-	// Useful to force flows that only typically happen on Teleport Enterprise.
-	dtAttemptLoginIgnorePing, dtAutoEnrollIgnorePing bool
-
-	// dtAuthnRunCeremony allows tests to override the default device
-	// authentication function.
-	// Defaults to [dtauthn.RunCeremony].
-	dtAuthnRunCeremony dtAuthnRunCeremonyFunc
-
-	// dtAutoEnroll allows tests to override the default device auto-enroll
-	// function.
-	// Defaults to [dtenroll.AutoEnroll].
-	dtAutoEnroll dtAutoEnrollFunc
 }
 
 // ShellCreatedCallback can be supplied for every teleport client. It will
@@ -1775,7 +1781,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodeAddrs []string, command []string) error {
@@ -1898,7 +1904,12 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				runPresenceTask(presenceCtx, out, clt.AuthClient, tc, session.GetSessionID())
+				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+					resp, err := tc.PromptMFAChallenge(ctx, proxyAddr, c, func(opts *PromptMFAChallengeOpts) {
+						opts.Quiet = true
+					})
+					return resp, trace.Wrap(err)
+				})
 			}
 		}
 	}
@@ -1906,7 +1917,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
 	// running shell with a given session means "join" it:
-	err = tc.runShell(ctx, nc, mode, session, beforeStart)
+	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2673,49 +2684,6 @@ func (tc *TeleportClient) newSessionEnv() map[string]string {
 	return env
 }
 
-// runShell starts an interactive SSH session/shell.
-// sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/runShell",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	env := tc.newSessionEnv()
-	env[teleport.EnvSSHJoinMode] = string(mode)
-	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
-	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(tc.Config.DisplayParticipantRequirements)
-
-	encoded, err := json.Marshal(&tc.Config.Invited)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	env[teleport.EnvSSHSessionInvited] = string(encoded)
-
-	nodeSession, err := newSession(ctx, nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err = nodeSession.runShell(ctx, mode, beforeStart, tc.OnShellCreated); err != nil {
-		switch e := trace.Unwrap(err).(type) {
-		case *ssh.ExitError:
-			tc.ExitStatus = e.ExitStatus()
-		case *ssh.ExitMissingError:
-			tc.ExitStatus = 1
-		}
-
-		return trace.Wrap(err)
-	}
-	if nodeSession.ExitMsg == "" {
-		fmt.Fprintln(tc.Stderr, "the connection was closed on the remote side on ", time.Now().Format(time.RFC822))
-	} else {
-		fmt.Fprintln(tc.Stderr, nodeSession.ExitMsg)
-	}
-	return nil
-}
-
 // getProxyLogin determines which SSH principal to use when connecting to proxy.
 func (tc *TeleportClient) getProxySSHPrincipal() string {
 	if tc.ProxySSHPrincipal != "" {
@@ -3175,15 +3143,11 @@ func (g *proxyClusterGuesser) authMethod(ctx context.Context) ssh.AuthMethod {
 // profile.
 func (tc *TeleportClient) WithoutJumpHosts(fn func(tcNoJump *TeleportClient) error) error {
 	tcNoJump := &TeleportClient{
-		Config:                   tc.Config,
-		localAgent:               tc.localAgent,
-		OnShellCreated:           tc.OnShellCreated,
-		eventsCh:                 make(chan events.EventFields, 1024),
-		lastPing:                 tc.lastPing,
-		dtAttemptLoginIgnorePing: tc.dtAttemptLoginIgnorePing,
-		dtAutoEnrollIgnorePing:   tc.dtAutoEnrollIgnorePing,
-		dtAuthnRunCeremony:       tc.dtAuthnRunCeremony,
-		dtAutoEnroll:             tc.dtAutoEnroll,
+		Config:         tc.Config,
+		localAgent:     tc.localAgent,
+		OnShellCreated: tc.OnShellCreated,
+		eventsCh:       make(chan events.EventFields, 1024),
+		lastPing:       tc.lastPing,
 	}
 	tcNoJump.JumpHosts = nil
 
@@ -3302,7 +3266,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)
@@ -3406,9 +3370,9 @@ func (tc *TeleportClient) DeviceLogin(ctx context.Context, certs *devicepb.UserC
 	defer authClient.Close()
 
 	// Allow tests to override the default authn function.
-	runCeremony := tc.dtAuthnRunCeremony
+	runCeremony := tc.DTAuthnRunCeremony
 	if runCeremony == nil {
-		runCeremony = dtauthn.RunCeremony
+		runCeremony = dtauthn.NewCeremony().Run
 	}
 
 	// Login without a previous auto-enroll attempt.
@@ -4751,13 +4715,13 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 // IsALPNConnUpgradeRequiredForWebProxy returns true if connection upgrade is
 // required for provided addr. The provided address must be a web proxy
 // address.
-func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(proxyAddr string) bool {
+func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(ctx context.Context, proxyAddr string) bool {
 	// Use cached value.
 	if proxyAddr == tc.WebProxyAddr {
 		return tc.TLSRoutingConnUpgradeRequired
 	}
 	// Do a test for other proxy addresses.
-	return client.IsALPNConnUpgradeRequired(proxyAddr, tc.InsecureSkipVerify)
+	return client.IsALPNConnUpgradeRequired(ctx, proxyAddr, tc.InsecureSkipVerify)
 }
 
 // RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.

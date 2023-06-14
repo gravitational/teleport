@@ -297,6 +297,7 @@
     "cqlsh",
     "createkey",
     "createnongalleryapp",
+    "createrole",
     "creds",
     "crond",
     "customizability",
@@ -639,6 +640,7 @@
     "serviceaccountname",
     "serviceaccounts",
     "serviceacct",
+    "servicecfg",
     "serviceid",
     "session",
     "setspn",
@@ -752,5 +754,7 @@
     "znmqk",
     "zxvf"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }

@@ -274,7 +274,7 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 
 func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 	_, err := u.backend.LookupGroup(group)
-	if err != nil && err != user.UnknownGroupError(group) {
+	if err != nil && !isUnknownGroupError(err, group) {
 		return trace.Wrap(err)
 	}
 	err = u.backend.CreateGroup(group)
@@ -287,10 +287,13 @@ func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 // isUnknownGroupError returns whether the error from LookupGroup is an unknown group error.
 //
 // LookupGroup is supposed to return an UnknownGroupError, but due to an existing issue
-// may instead return a generic "no such file or directory" error when sssd is installed.
+// may instead return a generic "no such file or directory" error when sssd is installed
+// or "no such process" as Go std library just forwards errors returned by getgrpnam_r.
 // See github issue - https://github.com/golang/go/issues/40334
 func isUnknownGroupError(err error, groupName string) bool {
-	return errors.Is(err, user.UnknownGroupError(groupName)) || strings.HasSuffix(err.Error(), syscall.ENOENT.Error())
+	return errors.Is(err, user.UnknownGroupError(groupName)) ||
+		strings.HasSuffix(err.Error(), syscall.ENOENT.Error()) ||
+		strings.HasSuffix(err.Error(), syscall.ESRCH.Error())
 }
 
 // DeleteAllUsers deletes all host users in the teleport service group.
@@ -331,8 +334,8 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	return trace.NewAggregate(errs...)
 }
 
-// DeleteUser deletes the user only if they are
-// present in the specified group
+// DeleteUser deletes the specified user only if they are
+// present in the specified group.
 func (u *HostUserManagement) DeleteUser(username string, gid string) error {
 	tempUser, err := u.backend.Lookup(username)
 	if err != nil {
@@ -385,7 +388,7 @@ func (u *HostUserManagement) Shutdown() {
 	u.cancel()
 }
 
-// UserExists returns nil should a hostuser exist
+// UserExists looks up an existing host user.
 func (u *HostUserManagement) UserExists(username string) (*user.User, error) {
 	tempUser, err := u.backend.Lookup(username)
 	if err != nil {
