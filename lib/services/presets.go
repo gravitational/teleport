@@ -29,6 +29,60 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
+func NewPresetAutomaticAccessApproverRole() types.Role {
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+	if !enterprise {
+		return nil
+	}
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V7,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetAutomaticAccessApprovalRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Approves any access request",
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				ReviewRequests: &types.AccessReviewConditions{
+					Roles: []string{"*"},
+				},
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetAutomaticAccessBotUser returns a new User that has (via the
+// the `PresetAutomaticAccessApprovalRoleName` role) the right to automatically
+// approve any access requests.
+//
+// This user must not:
+//   - Be allowed to log into the cluster
+//   - Show up in user lists in any UI (including Web, `tsh`, `tctl`, etc)
+//
+// TODO(tcsc): Implement/enforce above restrictions on this user
+func NewPresetAutomaticAccessBotUser() types.User {
+	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
+	if !enterprise {
+		return nil
+	}
+
+	user := &types.UserV2{
+		Kind:    types.KindUser,
+		Version: types.V2,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetAccessApproverUserName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Used internally by Teleport to automatically approve access requests",
+		},
+		Spec: types.UserSpecV2{
+			Roles: []string{teleport.PresetAutomaticAccessApprovalRoleName},
+		},
+	}
+	return user
+}
+
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {

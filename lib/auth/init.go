@@ -480,7 +480,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// Create presets - convenience and example resources.
-	err = createPresets(ctx, asrv)
+	err = createPresetRoles(ctx, asrv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = createPresetUsers(ctx, asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -611,15 +616,22 @@ type PresetRoleManager interface {
 	UpsertRole(ctx context.Context, role types.Role) error
 }
 
-// createPresets creates preset resources (eg, roles).
-func createPresets(ctx context.Context, rm PresetRoleManager) error {
+// createPresetRoles creates preset role resources
+func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 	roles := []types.Role{
 		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
+		services.NewPresetAutomaticAccessApproverRole(),
 	}
 	for _, role := range roles {
+		// Some roles are only valid for enterprise Teleport, and so will be
+		// nil for an OSS build and can be skipped
+		if role == nil {
+			continue
+		}
+
 		err := rm.CreateRole(ctx, role)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
@@ -645,6 +657,27 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 			}
 		}
 	}
+	return nil
+}
+
+// PresetUserManager contains the required User Management methods to
+// create a Preset Role.
+type PresetUserManager interface {
+	// CreateUser creates a role.
+	CreateUser(ctx context.Context, user types.User) error
+}
+
+func createPresetUsers(ctx context.Context, um PresetUserManager) error {
+	users := []types.User{
+		services.NewPresetAutomaticAccessBotUser(),
+	}
+	for _, user := range users {
+		err := um.CreateUser(ctx, user)
+		if err != nil && !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err)
+		}
+	}
+
 	return nil
 }
 

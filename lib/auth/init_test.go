@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -446,7 +447,9 @@ func TestClusterName(t *testing.T) {
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
+
 	roles := []types.Role{
+		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
@@ -457,11 +460,11 @@ func TestPresets(t *testing.T) {
 		clock := clockwork.NewFakeClock()
 		as.SetClock(clock)
 
-		err := createPresets(ctx, as)
+		err := createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Second call should not fail
-		err = createPresets(ctx, as)
+		err = createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -482,7 +485,7 @@ func TestPresets(t *testing.T) {
 		err := as.CreateRole(ctx, access)
 		require.NoError(t, err)
 
-		err = createPresets(ctx, as)
+		err = createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		// Presets were created
@@ -525,7 +528,7 @@ func TestPresets(t *testing.T) {
 		err = as.CreateRole(ctx, accessRole)
 		require.NoError(t, err)
 
-		err = createPresets(ctx, as)
+		err = createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -589,7 +592,7 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		// Apply defaults.
-		err = createPresets(ctx, as)
+		err = createPresetRoles(ctx, as)
 		require.NoError(t, err)
 
 		outEditor, err := as.GetRole(ctx, editorRole.GetName())
@@ -613,14 +616,12 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
-	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		presetRoleCount := 4
-
+	upsertRoleTest := func(t *testing.T, presetRoleCount int) {
 		roleManager := &mockRoleManager{
 			roles: make(map[string]types.Role, presetRoleCount),
 		}
 
-		err := createPresets(ctx, roleManager)
+		err := createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
 
 		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
@@ -631,7 +632,7 @@ func TestPresets(t *testing.T) {
 		// The role was not changed, so it can't call the UpsertRole method.
 		roleManager.ResetCallCounters()
 
-		err = createPresets(ctx, roleManager)
+		err = createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
 
 		require.Zero(t, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
@@ -653,12 +654,63 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		roleManager.ResetCallCounters()
-		err = createPresets(ctx, roleManager)
+		err = createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
 
 		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
 		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
 		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+	}
+
+	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
+		upsertRoleTest(t, 3 /* presetRoleCount */)
+	})
+
+	t.Run("Enterprise", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+		})
+
+		enterpriseRoles := append([]types.Role{
+			services.NewPresetAutomaticAccessApproverRole(),
+		}, roles...)
+
+		enterpriseUsers := []types.User{
+			services.NewPresetAutomaticAccessBotUser(),
+		}
+
+		t.Run("EmptyCluster", func(t *testing.T) {
+			as := newTestAuthServer(ctx, t)
+			clock := clockwork.NewFakeClock()
+			as.SetClock(clock)
+
+			// Run multiple times to simulate starting auth on an
+			// existing cluster and asserting that everything still
+			// returns success
+			for i := 0; i < 2; i++ {
+				err := createPresetRoles(ctx, as)
+				require.NoError(t, err)
+
+				err = createPresetUsers(ctx, as)
+				require.NoError(t, err)
+			}
+
+			// Preset Roles were created
+			for _, role := range enterpriseRoles {
+				_, err := as.GetRole(ctx, role.GetName())
+				require.NoError(t, err)
+			}
+
+			// Preset Users were created
+			for _, user := range enterpriseUsers {
+				_, err := as.GetUser(user.GetName(), false)
+				require.NoError(t, err)
+			}
+		})
+
+		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
+			upsertRoleTest(t, 5 /* presetRoleCount */)
+		})
 	})
 }
 

@@ -616,9 +616,19 @@ const (
 	// PresetGroupAccessRoleName is a name of a preset role that allows
 	// access to all user groups.
 	PresetGroupAccessRoleName = "group-access"
+
+	// PresetAutomaticAccessApprovalRoleName names a preset role that may
+	// automatically approve any Role Access Request
+	PresetAutomaticAccessApprovalRoleName = "@teleport-access-approver"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}
+
+const (
+	// PresetAccessApproverUserName names a Teleport user that acts as
+	// an Access Request approver for access plugins
+	PresetAccessApproverUserName = "@teleport-access-approval-bot"
+)
 
 // MinClientVersion is the minimum client version required by the server.
 var MinClientVersion string
