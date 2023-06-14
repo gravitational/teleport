@@ -1,5 +1,44 @@
 # Changelog
 
+## 13.1.1 (06/14/23)
+
+* Access
+  * Fixed "listing app servers for Okta access calculation" regression issue in `tsh login`. [#27839](https://github.com/gravitational/teleport/pull/27839)
+* Performance & Scalability
+  * Reduced reverse tunnels thundering herd effect on proxy restarts. [#27786](https://github.com/gravitational/teleport/pull/27786), [#27699](https://github.com/gravitational/teleport/pull/27699)
+* Machine ID
+  * Improved secure write support detection on some systems. [#27784](https://github.com/gravitational/teleport/pull/27784)
+* Database Access
+  * Added support for AWS IAM auth for MongoDB Atlas. [#27494](https://github.com/gravitational/teleport/pull/27494)
+  * Hardened MongoDB protocol. [#27741](https://github.com/gravitational/teleport/pull/27741)
+* Kubernetes Access
+  * Fixed issue with `tsh kube login` requiring the use of local proxy in non TLS routing mode. [#27732](https://github.com/gravitational/teleport/pull/27732)
+* Teleport Connect
+  * Fixed issue with role assumption not working correctly. [#27723](https://github.com/gravitational/teleport/pull/27723)
+* RBAC
+  * Added support for RBAC label expressions. [#27641](https://github.com/gravitational/teleport/pull/27641)
+  * Updated locking to support any service types. [#27442](https://github.com/gravitational/teleport/pull/27442)
+* Helm Charts
+  * Added conditional RBAC/ServiceAccount to `teleport-kube-agent` post-delete hook. [#27637](https://github.com/gravitational/teleport/pull/27637)
+* Audit Log
+  * Added login rules to Github login event. [#27607](https://github.com/gravitational/teleport/pull/27607)
+* Web UI
+  * Fixed issue with not being able to "login" with auth type set to SSO but no connectors set yet. [#27589](https://github.com/gravitational/teleport/pull/27589)
+  * Fixed "nonpositive parameter limit" error when adding RDS database in some cases. [#27415](https://github.com/gravitational/teleport/pull/27415)
+* Server Access
+  * Updated proxy templates to prioritize cluster value provided in the template. [#27581](https://github.com/gravitational/teleport/pull/27581)
+  * Fixed issue with incorrect proxy port being used in SSH config in some cases. [#27545](https://github.com/gravitational/teleport/pull/27545)
+  * Fixed issue with using `tsh` from a `tsh ssh` session. [#27507](https://github.com/gravitational/teleport/pull/27507)
+  * Fixed issue with incorrect `SSH_SESSION_WEBPROXY_ADDR` in Web UI SSH sessions. [#27420](https://github.com/gravitational/teleport/pull/27420)
+* Automatic Upgrades
+  * Fixed the default Cloud upgrade server in `teleport-kube-agent` Helm chart. [#27572](https://github.com/gravitational/teleport/pull/27572)
+* AMIs
+  * Added support for hardened AMIs. [#27454](https://github.com/gravitational/teleport/pull/27454)
+* Machine ID
+  * Added Prometheus endpoint to `tbot`. [#27432](https://github.com/gravitational/teleport/pull/27432)
+* Application Access
+  * Added support for `--cluster` flag to `tsh app login`. [#27197](https://github.com/gravitational/teleport/pull/27197)
+
 ## 13.1.0 (06/05/23)
 
 * SAML IdP
