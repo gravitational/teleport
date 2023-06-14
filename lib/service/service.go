@@ -255,7 +255,9 @@ const (
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
 
-	// externalUpgraderEnv is the external upgrader environment variable.
+	// externalUpgraderEnv is the external upgrader environment variable. This specifies the
+	// external program that is responsible for updating Teleport. More details
+	// can be found at https://goteleport.com/docs/architecture/agent-update-management/?scope=enterprise
 	externalUpgraderEnv = "TELEPORT_EXT_UPGRADER"
 )
 
