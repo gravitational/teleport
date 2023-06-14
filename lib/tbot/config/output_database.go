@@ -31,30 +31,33 @@ import (
 
 const DatabaseOutputType = "database"
 
-type DatabaseSubtype string
+// DatabaseFormat specifies if any special behaviour should be invoked when
+// producing artifacts. This allows for databases/clients that require unique
+// formats or paths to be used.
+type DatabaseFormat string
 
 var (
-	// UnspecifiedDatabaseSubtype is the unset value and the default. This
+	// UnspecifiedDatabaseFormat is the unset value and the default. This
 	// should work for most databases.
-	UnspecifiedDatabaseSubtype DatabaseSubtype = ""
-	// TLSDatabaseSubtype is for databases that require specifically named
+	UnspecifiedDatabaseFormat DatabaseFormat = ""
+	// TLSDatabaseFormat is for databases that require specifically named
 	// outputs: tls.key, tls.crt and tls.cas
-	TLSDatabaseSubtype DatabaseSubtype = "tls"
-	// MongoDatabaseSubtype indicates credentials should be generated which
+	TLSDatabaseFormat DatabaseFormat = "tls"
+	// MongoDatabaseFormat indicates credentials should be generated which
 	// are compatible with MongoDB.
 	// This outputs `mongo.crt` and `mongo.cas`.
-	MongoDatabaseSubtype DatabaseSubtype = "mongo"
-	// CockroachDatabaseSubtype indicates credentials should be generated which
+	MongoDatabaseFormat DatabaseFormat = "mongo"
+	// CockroachDatabaseFormat indicates credentials should be generated which
 	// are compatible with CockroachDB.
 	// This outputs `cockroach/node.key`, `cockroach/node.crt` and
 	// `cockroach/ca.crt`.
-	CockroachDatabaseSubtype DatabaseSubtype = "cockroach"
+	CockroachDatabaseFormat DatabaseFormat = "cockroach"
 
-	databaseSubtypes = []DatabaseSubtype{
-		UnspecifiedDatabaseSubtype,
-		TLSDatabaseSubtype,
-		MongoDatabaseSubtype,
-		CockroachDatabaseSubtype,
+	databaseFormats = []DatabaseFormat{
+		UnspecifiedDatabaseFormat,
+		TLSDatabaseFormat,
+		MongoDatabaseFormat,
+		CockroachDatabaseFormat,
 	}
 )
 
@@ -67,11 +70,11 @@ type DatabaseOutput struct {
 	// If empty, it defaults to all the bot's roles.
 	Roles []string `yaml:"roles,omitempty"`
 
-	// Subtype indicates the type of the database you are generating credentials
-	// for. An empty value is supported by most database, but CockroachDB and
-	// MongoDB require this value to be set to `mongo` and `cockroach`
-	// respectively.
-	Subtype DatabaseSubtype `yaml:"subtype,omitempty"`
+	// Formats specifies if any special behaviour should be invoked when
+	// producing artifacts. An empty value is supported by most database,
+	// but CockroachDB and MongoDB require this value to be set to
+	// `mongo` and `cockroach` respectively.
+	Format DatabaseFormat `yaml:"format,omitempty"`
 	// Service is the service name of the Teleport database. Generally this is
 	// the name of the Teleport resource. This field is required for all types
 	// of database.
@@ -87,13 +90,13 @@ func (o *DatabaseOutput) templates() []template {
 		&templateTLSCAs{},
 		&templateIdentity{},
 	}
-	if o.Subtype == MongoDatabaseSubtype {
+	if o.Format == MongoDatabaseFormat {
 		templates = append(templates, &templateMongo{})
 	}
-	if o.Subtype == CockroachDatabaseSubtype {
+	if o.Format == CockroachDatabaseFormat {
 		templates = append(templates, &templateCockroach{})
 	}
-	if o.Subtype == TLSDatabaseSubtype {
+	if o.Format == TLSDatabaseFormat {
 		templates = append(templates, &templateTLS{
 			caCertType: types.HostCA,
 		})
@@ -133,8 +136,8 @@ func (o *DatabaseOutput) CheckAndSetDefaults() error {
 		return trace.BadParameter("service must not be empty")
 	}
 
-	if !slices.Contains(databaseSubtypes, o.Subtype) {
-		return trace.BadParameter("unrecognized subtype (%s)", o.Subtype)
+	if !slices.Contains(databaseFormats, o.Format) {
+		return trace.BadParameter("unrecognized format (%s)", o.Format)
 	}
 
 	return nil
