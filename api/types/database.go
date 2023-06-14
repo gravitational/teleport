@@ -961,6 +961,8 @@ const (
 	DatabaseProtocolClickHouseHTTP = "clickhouse-http"
 	// DatabaseProtocolClickHouse is the ClickHouse database native write protocol.
 	DatabaseProtocolClickHouse = "clickhouse"
+	// DatabaseProtocolMySQL is the MySQL database protocol.
+	DatabaseProtocolMySQL = "mysql"
 
 	// DatabaseTypeSelfHosted is the self-hosted type of database.
 	DatabaseTypeSelfHosted = "self-hosted"

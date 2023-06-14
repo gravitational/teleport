@@ -66,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/benchmark"
+	benchmarkdb "github.com/gravitational/teleport/lib/benchmark/db"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/identityfile"
@@ -968,6 +969,16 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchExecKube.Flag("container", "Selects the container to exec into.").StringVar(&benchKubeOpts.container)
 	benchExecKube.Flag("interactive", "Create interactive Kube session").BoolVar(&cf.BenchInteractive)
 
+	benchPostgres := bench.Command("postgres", "Run PostgreSQL database benchmark tests").Hidden()
+	benchPostgres.Flag("db-user", "Database user used to connect to the target database. The user must have enough permissions on the database to execute all the benchmark queries.").StringVar(&cf.DatabaseUser)
+	benchPostgres.Flag("db-name", "Database name where benchmark queries will be executed.").StringVar(&cf.DatabaseName)
+	benchPostgres.Arg("database", "Teleport target database name or the direct database URI. Available databases can be retrieved by running `tsh db ls`. When using direct connection, the benchmark will issue connections directly to this database, and no Teleport is involved in the testing. It must contain all the connection information, including authentication credentials.").StringVar(&cf.DatabaseService)
+
+	benchMySQL := bench.Command("mysql", "Run MySQL database benchmark tests").Hidden()
+	benchMySQL.Flag("db-user", "Database user used to connect to the target database. The user must have enough permissions on the database to execute all the benchmark queries.").StringVar(&cf.DatabaseUser)
+	benchMySQL.Flag("db-name", "Database name where benchmark queries will be executed.").StringVar(&cf.DatabaseName)
+	benchMySQL.Arg("database", "Teleport target database name or the direct database URI. Available databases can be retrieved by running `tsh db ls`. When using direct connection, the benchmark will issue connections directly to this database, and no Teleport is involved in the testing. It must contain all the connection information, including authentication credentials.").StringVar(&cf.DatabaseService)
+
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout.").Hidden()
 	show.Arg("identity_file", "The file containing a public key or a certificate").Required().StringVar(&cf.IdentityFileIn)
@@ -1272,6 +1283,26 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 				PodName:       benchKubeOpts.pod,
 				ContainerName: benchKubeOpts.container,
 				Interactive:   cf.BenchInteractive,
+			},
+		)
+	case benchPostgres.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmarkdb.PostgresBenchmark{
+				DBService:          cf.DatabaseService,
+				DBUser:             cf.DatabaseUser,
+				DBName:             cf.DatabaseName,
+				InsecureSkipVerify: cf.InsecureSkipVerify,
+			},
+		)
+	case benchMySQL.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmarkdb.MySQLBenchmark{
+				DBService:          cf.DatabaseService,
+				DBUser:             cf.DatabaseUser,
+				DBName:             cf.DatabaseName,
+				InsecureSkipVerify: cf.InsecureSkipVerify,
 			},
 		)
 	case join.FullCommand():
@@ -3299,13 +3330,13 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 		fmt.Fprintln(os.Stderr, utils.UserMessageFromError(err))
 		return trace.Wrap(&common.ExitCodeError{Code: 255})
 	}
-	fmt.Printf("\n")
-	fmt.Printf("* Requests originated: %v\n", result.RequestsOriginated)
-	fmt.Printf("* Requests failed: %v\n", result.RequestsFailed)
+	fmt.Fprintf(cf.Stdout(), "\n")
+	fmt.Fprintf(cf.Stdout(), "* Requests originated: %v\n", result.RequestsOriginated)
+	fmt.Fprintf(cf.Stdout(), "* Requests failed: %v\n", result.RequestsFailed)
 	if result.LastError != nil {
-		fmt.Printf("* Last error: %v\n", result.LastError)
+		fmt.Fprintf(cf.Stdout(), "* Last error: %v\n", result.LastError)
 	}
-	fmt.Printf("\nHistogram\n\n")
+	fmt.Fprintf(cf.Stdout(), "\nHistogram\n\n")
 	t := asciitable.MakeTable([]string{"Percentile", "Response Duration"})
 	for _, quantile := range []float64{25, 50, 75, 90, 95, 99, 100} {
 		t.AddRow([]string{
@@ -3313,16 +3344,16 @@ func onBenchmark(cf *CLIConf, suite benchmark.BenchmarkSuite) error {
 			fmt.Sprintf("%v ms", result.Histogram.ValueAtQuantile(quantile)),
 		})
 	}
-	if _, err := io.Copy(os.Stdout, t.AsBuffer()); err != nil {
+	if _, err := io.Copy(cf.Stdout(), t.AsBuffer()); err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("\n")
+	fmt.Fprintf(cf.Stdout(), "\n")
 	if cf.BenchExport {
 		path, err := benchmark.ExportLatencyProfile(cf.BenchExportPath, result.Histogram, cf.BenchTicks, cf.BenchValueScale)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
+			fmt.Fprintf(cf.Stderr(), "failed exporting latency profile: %s\n", utils.UserMessageFromError(err))
 		} else {
-			fmt.Printf("latency profile saved: %v\n", path)
+			fmt.Fprintf(cf.Stdout(), "latency profile saved: %v\n", path)
 		}
 	}
 	return nil
