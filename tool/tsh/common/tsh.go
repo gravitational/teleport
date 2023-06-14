@@ -914,6 +914,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchExecKube.Flag("container", "Selects the container to exec into.").StringVar(&benchKubeOpts.container)
 	benchExecKube.Flag("interactive", "Create interactive Kube session").BoolVar(&cf.BenchInteractive)
 
+	var benchDBOpts benchDBOptions
+	benchDB := bench.Command("db", "Run Database benchmark tests").Hidden()
+	benchDB.Flag("db-user", "Database user to run the benchmark tests as").StringVar(&cf.DatabaseUser)
+	benchDB.Flag("db-name", "Database name where benchmark will be executed").StringVar(&cf.DatabaseName)
+	benchDB.Flag("uri", "Direct database access URI. It must contain all the connection information including authentication credentials. The contents from --db-user and --db-name will be ignored.").StringVar(&benchDBOpts.URI)
+	benchDBConnect := benchDB.Command("connect", "Run Database connect benchmark. It will evaluate only the time to connect to the target database. No data will be inserted or read from the database.").Hidden()
+	benchDBConnect.Arg("database", "Database to run the benchmark on. Can be obtained from 'tsh db ls' output.").StringVar(&cf.DatabaseService)
+
 	// show key
 	show := app.Command("show", "Read an identity from file and print to stdout.").Hidden()
 	show.Arg("identity_file", "The file containing a public key or a certificate").Required().StringVar(&cf.IdentityFileIn)
@@ -1169,6 +1177,14 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		defer runtimetrace.Stop()
 	}
 
+	dbBenchBase := benchmark.DBBenchmarkConfig{
+		URI:                benchDBOpts.URI,
+		DBService:          cf.DatabaseService,
+		DBUser:             cf.DatabaseUser,
+		DBName:             cf.DatabaseName,
+		InsecureSkipVerify: cf.InsecureSkipVerify,
+	}
+
 	switch command {
 	case ver.FullCommand():
 		err = onVersion(&cf)
@@ -1198,6 +1214,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 				PodName:       benchKubeOpts.pod,
 				ContainerName: benchKubeOpts.container,
 				Interactive:   cf.BenchInteractive,
+			},
+		)
+	case benchDBConnect.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.DBConnectBenchmark{
+				Config: dbBenchBase,
 			},
 		)
 	case join.FullCommand():
@@ -3161,6 +3184,14 @@ func onSSH(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	return trace.Wrap(err)
+}
+
+// TODO
+type benchDBOptions struct {
+	// TODO
+	Protocol string
+	// TODO
+	URI string
 }
 
 // onBenchmark executes benchmark
