@@ -150,22 +150,22 @@ destinations:
 						Service:     "my-db-service",
 						Database:    "the-db",
 						Username:    "alice",
-						Subtype:     UnspecifiedDatabaseSubtype,
+						Format:      UnspecifiedDatabaseFormat,
 					},
 					&DatabaseOutput{
 						Destination: &DestinationMemory{},
 						Service:     "my-db-service",
-						Subtype:     MongoDatabaseSubtype,
+						Format:      MongoDatabaseFormat,
 					},
 					&DatabaseOutput{
 						Destination: &DestinationMemory{},
 						Service:     "my-db-service",
-						Subtype:     TLSDatabaseSubtype,
+						Format:      TLSDatabaseFormat,
 					},
 					&DatabaseOutput{
 						Destination: &DestinationMemory{},
 						Service:     "my-db-service",
-						Subtype:     CockroachDatabaseSubtype,
+						Format:      CockroachDatabaseFormat,
 					},
 					&SSHHostOutput{
 						Destination: &DestinationMemory{},
@@ -428,7 +428,7 @@ destinations:
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
 						},
-						Subtype:  MongoDatabaseSubtype,
+						Format:   MongoDatabaseFormat,
 						Service:  "example-server",
 						Username: "alice",
 						Database: "example",
@@ -478,7 +478,7 @@ destinations:
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
 						},
-						Subtype:  CockroachDatabaseSubtype,
+						Format:   CockroachDatabaseFormat,
 						Service:  "example-server",
 						Username: "alice",
 						Database: "example",
@@ -528,7 +528,7 @@ destinations:
 						Destination: &DestinationDirectory{
 							Path: "/opt/machine-id",
 						},
-						Subtype:  TLSDatabaseSubtype,
+						Format:   TLSDatabaseFormat,
 						Service:  "example-server",
 						Username: "alice",
 						Database: "example",

@@ -278,31 +278,31 @@ func (c *configV1Destination) migrate() (Output, error) {
 		); err != nil {
 			return nil, trace.Wrap(err, "validating template configs")
 		}
-		subtype := UnspecifiedDatabaseSubtype
+		format := UnspecifiedDatabaseFormat
 		for _, templateConfig := range c.Configs {
 			if templateConfig.Mongo != nil {
-				if subtype != UnspecifiedDatabaseSubtype {
-					return nil, trace.BadParameter("multiple candidate subtypes for database output")
+				if format != UnspecifiedDatabaseFormat {
+					return nil, trace.BadParameter("multiple candidate formats for database output")
 				}
-				subtype = MongoDatabaseSubtype
+				format = MongoDatabaseFormat
 			}
 			if templateConfig.Cockroach != nil {
-				if subtype != UnspecifiedDatabaseSubtype {
-					return nil, trace.BadParameter("multiple candidate subtypes for database output")
+				if format != UnspecifiedDatabaseFormat {
+					return nil, trace.BadParameter("multiple candidate formats for database output")
 				}
-				subtype = CockroachDatabaseSubtype
+				format = CockroachDatabaseFormat
 			}
 			if templateConfig.TLS != nil {
-				if subtype != UnspecifiedDatabaseSubtype {
-					return nil, trace.BadParameter("multiple candidate subtypes for database output")
+				if format != UnspecifiedDatabaseFormat {
+					return nil, trace.BadParameter("multiple candidate formats for database output")
 				}
-				subtype = TLSDatabaseSubtype
+				format = TLSDatabaseFormat
 			}
 		}
 		return &DatabaseOutput{
 			Destination: dest,
 			Roles:       c.Roles,
-			Subtype:     subtype,
+			Format:      format,
 			Database:    c.Database.Database,
 			Service:     c.Database.Service,
 			Username:    c.Database.Username,
