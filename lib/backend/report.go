@@ -212,9 +212,9 @@ func (s *Reporter) Get(ctx context.Context, key []byte) (*Item, error) {
 	defer span.End()
 
 	start := s.Clock().Now()
+	item, err := s.Backend.Get(ctx, key)
 	readLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
 	readRequests.WithLabelValues(s.Component).Inc()
-	item, err := s.Backend.Get(ctx, key)
 	if err != nil && !trace.IsNotFound(err) {
 		readRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
