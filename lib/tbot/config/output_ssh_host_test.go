@@ -39,3 +39,38 @@ func TestSSHHostOutput_YAML(t *testing.T) {
 	}
 	testYAML(t, tests)
 }
+
+func TestSSHHostOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testCheckAndSetDefaultsCase[*SSHHostOutput]{
+		{
+			name: "valid",
+			in: func() *SSHHostOutput {
+				return &SSHHostOutput{
+					Destination: memoryDestForTest(),
+					Roles:       []string{"access"},
+					Principals:  []string{"host.example.com"},
+				}
+			},
+		},
+		{
+			name: "missing destination",
+			in: func() *SSHHostOutput {
+				return &SSHHostOutput{
+					Destination: nil,
+					Principals:  []string{"host.example.com"},
+				}
+			},
+			wantErr: "no destination configured for output",
+		},
+		{
+			name: "missing principals",
+			in: func() *SSHHostOutput {
+				return &SSHHostOutput{
+					Destination: memoryDestForTest(),
+				}
+			},
+			wantErr: "at least one principal must be specified",
+		},
+	}
+	testCheckAndSetDefaults(t, tests)
+}

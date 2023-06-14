@@ -42,3 +42,51 @@ func TestDatabaseOutput_YAML(t *testing.T) {
 	}
 	testYAML(t, tests)
 }
+
+func TestDatabaseOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testCheckAndSetDefaultsCase[*DatabaseOutput]{
+		{
+			name: "valid",
+			in: func() *DatabaseOutput {
+				return &DatabaseOutput{
+					Destination: memoryDestForTest(),
+					Roles:       []string{"access"},
+					Database:    "db",
+					Service:     "service",
+					Username:    "username",
+				}
+			},
+		},
+		{
+			name: "missing destination",
+			in: func() *DatabaseOutput {
+				return &DatabaseOutput{
+					Destination: nil,
+					Service:     "service",
+				}
+			},
+			wantErr: "no destination configured for output",
+		},
+		{
+			name: "missing service",
+			in: func() *DatabaseOutput {
+				return &DatabaseOutput{
+					Destination: memoryDestForTest(),
+				}
+			},
+			wantErr: "service must not be empty",
+		},
+		{
+			name: "invalid format",
+			in: func() *DatabaseOutput {
+				return &DatabaseOutput{
+					Destination: memoryDestForTest(),
+					Service:     "service",
+					Format:      "no-such-format",
+				}
+			},
+			wantErr: "unrecognized format (no-such-format)",
+		},
+	}
+	testCheckAndSetDefaults(t, tests)
+}

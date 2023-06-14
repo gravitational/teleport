@@ -20,6 +20,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/tbot/bot"
 )
 
 type testCheckAndSetDefaultsCase[T Output] struct {
@@ -31,6 +33,10 @@ type testCheckAndSetDefaultsCase[T Output] struct {
 	// initial state.
 	want    Output
 	wantErr string
+}
+
+func memoryDestForTest() bot.Destination {
+	return &DestinationMemory{store: map[string][]byte{}}
 }
 
 func testCheckAndSetDefaults[T Output](t *testing.T, tests []testCheckAndSetDefaultsCase[T]) {

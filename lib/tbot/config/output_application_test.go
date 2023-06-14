@@ -48,11 +48,30 @@ func TestApplicationOutput_CheckAndSetDefaults(t *testing.T) {
 			name: "valid",
 			in: func() *ApplicationOutput {
 				return &ApplicationOutput{
-					Destination: &DestinationMemory{store: map[string][]byte{}},
+					Destination: memoryDestForTest(),
 					Roles:       []string{"access"},
 					AppName:     "app",
 				}
 			},
+		},
+		{
+			name: "missing destination",
+			in: func() *ApplicationOutput {
+				return &ApplicationOutput{
+					Destination: nil,
+					AppName:     "app",
+				}
+			},
+			wantErr: "no destination configured for output",
+		},
+		{
+			name: "missing app_name",
+			in: func() *ApplicationOutput {
+				return &ApplicationOutput{
+					Destination: memoryDestForTest(),
+				}
+			},
+			wantErr: "app_name must not be empty",
 		},
 	}
 	testCheckAndSetDefaults(t, tests)

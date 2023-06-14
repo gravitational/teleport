@@ -39,3 +39,38 @@ func TestKubernetesOutput_YAML(t *testing.T) {
 	}
 	testYAML(t, tests)
 }
+
+func TestKubernetesOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testCheckAndSetDefaultsCase[*KubernetesOutput]{
+		{
+			name: "valid",
+			in: func() *KubernetesOutput {
+				return &KubernetesOutput{
+					Destination:       memoryDestForTest(),
+					Roles:             []string{"access"},
+					KubernetesCluster: "my-cluster",
+				}
+			},
+		},
+		{
+			name: "missing destination",
+			in: func() *KubernetesOutput {
+				return &KubernetesOutput{
+					Destination:       nil,
+					KubernetesCluster: "my-cluster",
+				}
+			},
+			wantErr: "no destination configured for output",
+		},
+		{
+			name: "missing kubernetes_config",
+			in: func() *KubernetesOutput {
+				return &KubernetesOutput{
+					Destination: memoryDestForTest(),
+				}
+			},
+			wantErr: "kubernetes_cluster must not be empty",
+		},
+	}
+	testCheckAndSetDefaults(t, tests)
+}

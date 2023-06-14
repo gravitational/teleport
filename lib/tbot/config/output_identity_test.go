@@ -40,3 +40,27 @@ func TestIdentityOutput_YAML(t *testing.T) {
 	}
 	testYAML(t, tests)
 }
+
+func TestIdentityOutput_CheckAndSetDefaults(t *testing.T) {
+	tests := []testCheckAndSetDefaultsCase[*IdentityOutput]{
+		{
+			name: "valid",
+			in: func() *IdentityOutput {
+				return &IdentityOutput{
+					Destination: memoryDestForTest(),
+					Roles:       []string{"access"},
+				}
+			},
+		},
+		{
+			name: "missing destination",
+			in: func() *IdentityOutput {
+				return &IdentityOutput{
+					Destination: nil,
+				}
+			},
+			wantErr: "no destination configured for output",
+		},
+	}
+	testCheckAndSetDefaults(t, tests)
+}
