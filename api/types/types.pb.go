@@ -15507,8 +15507,8 @@ type JamfSpecV1 struct {
 	// Set to negative to perform syncs immediately on startup.
 	// Defaults to a random delay (a few minutes max).
 	SyncDelay Duration `protobuf:"varint,3,opt,name=sync_delay,json=syncDelay,proto3,casttype=Duration" json:"sync_delay,omitempty"`
-	// Jamf API endpoint.
-	// Example: "https://yourtenant.jamfcloud.com".
+	// Jamf Pro API endpoint.
+	// Example: "https://yourtenant.jamfcloud.com/api".
 	// Required.
 	ApiEndpoint string `protobuf:"bytes,4,opt,name=api_endpoint,json=apiEndpoint,proto3" json:"api_endpoint,omitempty"`
 	// Jamf API username.
