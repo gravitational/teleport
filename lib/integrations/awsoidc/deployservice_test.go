@@ -140,7 +140,7 @@ func TestDeployServiceRequest(t *testing.T) {
 				SubnetIDs:           []string{"1"},
 				TaskRoleARN:         "arn",
 				ClusterName:         stringPointer("mycluster-teleport"),
-				ServiceName:         stringPointer("mycluster-teleport-service"),
+				ServiceName:         stringPointer("mycluster-teleport-database-service"),
 				TaskName:            stringPointer("mycluster-teleport-database-service"),
 				IntegrationName:     "teleportdev",
 				ProxyServerHostPort: "proxy.example.com:3080",

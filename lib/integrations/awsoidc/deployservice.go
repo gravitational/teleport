@@ -162,6 +162,14 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 	baseResourceName := normalizeECSResourceName(r.TeleportClusterName)
 
+	if r.DeploymentMode == "" {
+		return trace.BadParameter("deployment mode is required, please use one of the following: %v", DeploymentModes)
+	}
+
+	if !slices.Contains(DeploymentModes, r.DeploymentMode) {
+		return trace.BadParameter("invalid deployment mode, please use one of the following: %v", DeploymentModes)
+	}
+
 	if r.Region == "" {
 		return trace.BadParameter("region is required")
 	}
@@ -180,12 +188,12 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 	}
 
 	if r.ServiceName == nil || *r.ServiceName == "" {
-		serviceName := fmt.Sprintf("%s-teleport-service", baseResourceName)
+		serviceName := fmt.Sprintf("%s-teleport-%s", baseResourceName, r.DeploymentMode)
 		r.ServiceName = &serviceName
 	}
 
 	if r.TaskName == nil || *r.TaskName == "" {
-		taskName := fmt.Sprintf("%s-teleport-service", baseResourceName)
+		taskName := fmt.Sprintf("%s-teleport-%s", baseResourceName, r.DeploymentMode)
 		r.TaskName = &taskName
 	}
 
@@ -199,14 +207,6 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 
 	if r.ResourceCreationTags == nil {
 		r.ResourceCreationTags = DefaultResourceCreationTags(r.TeleportClusterName, r.IntegrationName)
-	}
-
-	if r.DeploymentMode == "" {
-		return trace.BadParameter("deployment mode is required, please use one of the following: %v", DeploymentModes)
-	}
-
-	if !slices.Contains(DeploymentModes, r.DeploymentMode) {
-		return trace.BadParameter("invalid deployment mode, please use one of the following: %v", DeploymentModes)
 	}
 
 	if len(r.DatabaseResourceMatcherLabels) == 0 {
