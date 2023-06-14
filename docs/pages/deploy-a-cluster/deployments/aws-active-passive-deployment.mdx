@@ -105,8 +105,8 @@ architecture](../../../img/deploy-a-cluster/aws-gslb-proxy-peering-ha-deployment
 
 <Notice type="warning">
 
-With DynamoDB, the kube operator supports <=2 pod replicas per cluster. So, It is not recommended to enable `kube operato` on 
-secondary region, as it will create instability to the cluster. We will enable `kube operator` in the event of Primary Region failure.
+With DynamoDB, the kube operator supports <=2 pod replicas per cluster. So, It is not recommended to enable `kube operator` on 
+the secondary region, as it will create instability to the cluster. We will enable `kube operator` in the event of Primary Region failure only.
 
 </Notice>
 
