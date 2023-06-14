@@ -188,7 +188,7 @@ func TestUpsertEmbedding(t *testing.T) {
 	require.NoError(t, err)
 	result, err := service.GetEmbedding(ctx, types.KindNode, "foo")
 	require.NoError(t, err)
-	require.Equal(t, embedding, result)
+	requireEmbeddingsEqual(t, embedding, result)
 
 	// Test: update the embedding and check we now retrieve the new version
 	embedding = ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{1, 1, 1, 1, 1}, sha256.Sum256([]byte("test2")))
@@ -196,7 +196,7 @@ func TestUpsertEmbedding(t *testing.T) {
 	require.NoError(t, err)
 	result, err = service.GetEmbedding(ctx, types.KindNode, "foo")
 	require.NoError(t, err)
-	require.Equal(t, embedding, result)
+	requireEmbeddingsEqual(t, embedding, result)
 }
 
 // sortableEmbeddings is an ai.Embedding list that can be sorted. This is used
