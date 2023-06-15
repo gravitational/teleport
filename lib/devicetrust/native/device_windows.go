@@ -596,7 +596,7 @@ func activateCredentialInElevatedChild(
 	)
 	// The windows.ShellExecute blocks until the user answers the UAC dialogue.
 	// If they reject the UAC dialogue, an error is returned:
-	//   syscall.Errno The operation was canceled by the user.
+	// * syscall.Errno: The operation was canceled by the user.
 	if err != nil {
 		return nil, trace.Wrap(err, "invoking ShellExecute")
 	}
