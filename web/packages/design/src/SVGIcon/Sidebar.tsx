@@ -14,26 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export enum NavigationCategory {
-  Resources = 'Resources',
-  Management = 'Management',
+import React from 'react';
+
+import { SVGIcon } from './SVGIcon';
+
+import type { SVGIconProps } from './common';
+
+export function SidebarIcon({ size = 24, fill }: SVGIconProps) {
+  return (
+    <SVGIcon fill={fill} size={size} viewBox="0 0 24 24">
+      <path d="M5 2a2.997 2.997 0 0 0-3 3v14a2.997 2.997 0 0 0 3 3h14a2.997 2.997 0 0 0 3-3V5a2.997 2.997 0 0 0-3-3zm5 18V4h9c.276 0 .525.111.707.293S20 4.724 20 5v14c0 .276-.111.525-.293.707S19.276 20 19 20zM8 4v16H5c-.276 0-.525-.111-.707-.293S4 19.276 4 19V5c0-.276.111-.525.293-.707S4.724 4 5 4z" />
+    </SVGIcon>
+  );
 }
-
-export enum ManagementSection {
-  Access = 'Access',
-  Activity = 'Activity',
-  Billing = 'Billing',
-  Clusters = 'Clusters',
-}
-
-export const MANAGEMENT_NAVIGATION_SECTIONS = [
-  ManagementSection.Access,
-  ManagementSection.Activity,
-  ManagementSection.Billing,
-  ManagementSection.Clusters,
-];
-
-export const NAVIGATION_CATEGORIES = [
-  NavigationCategory.Resources,
-  NavigationCategory.Management,
-];

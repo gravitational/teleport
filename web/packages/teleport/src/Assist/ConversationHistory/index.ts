@@ -14,4 +14,4 @@
  * limitations under the License.
  */
 
-export { Assist as default } from './Assist';
+export { ConversationHistory } from './ConversationHistory';
