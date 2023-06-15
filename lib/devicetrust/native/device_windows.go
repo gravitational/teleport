@@ -27,8 +27,6 @@ import (
 	"os/exec"
 	"os/user"
 	"path/filepath"
-	"strings"
-	"syscall"
 	"time"
 
 	"github.com/google/go-attestation/attest"
@@ -39,6 +37,7 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/windowsexec"
 )
 
 const (
@@ -562,9 +561,8 @@ func activateCredentialInElevatedChild(
 	}
 
 	// Assemble the parameter list. We encoded any binary data in base64.
-	// The list is then converted to a space delimited string.
 	// These parameters cause `tsh` to invoke HandleTPMActivateCredential.
-	params := strings.Join([]string{
+	params := []string{
 		"-d", // enable debug mode so relevant logs appear in the new window
 		"device",
 		"tpm-activate-credential",
@@ -572,40 +570,16 @@ func activateCredentialInElevatedChild(
 		base64.StdEncoding.EncodeToString(encryptedCredential.Credential),
 		"--encrypted-credential-secret",
 		base64.StdEncoding.EncodeToString(encryptedCredential.Secret),
-	}, " ")
-
-	// Create pointers to invoke the windows syscall with.
-	operation := "runas"
-	lpOperation, err := syscall.UTF16PtrFromString(operation)
-	if err != nil {
-		return nil, trace.Wrap(err, "converting operation to ptr")
-	}
-	lpFile, err := syscall.UTF16PtrFromString(exe)
-	if err != nil {
-		return nil, trace.Wrap(err, "converting exe to ptr")
-	}
-	lpParameters, err := syscall.UTF16PtrFromString(params)
-	if err != nil {
-		return nil, trace.Wrap(err, "converting params to ptr")
-	}
-	lpDirectory, err := syscall.UTF16PtrFromString(cwd)
-	if err != nil {
-		return nil, trace.Wrap(err, "converting cwd to ptr")
 	}
 
 	log.Debug("Starting elevated process.")
 	// https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew
-	err = windows.ShellExecute(
-		0, // hwnd
-		lpOperation,
-		lpFile,
-		lpParameters,
-		lpDirectory,
-		windows.SW_NORMAL,
+	err = windowsexec.RunAsAndWait(
+		exe,
+		cwd,
+		time.Second*10,
+		params...,
 	)
-	// The windows.ShellExecute blocks until the user answers the UAC dialogue.
-	// If they reject the UAC dialogue, an error is returned:
-	// * syscall.Errno: The operation was canceled by the user.
 	if err != nil {
 		return nil, trace.Wrap(err, "invoking ShellExecute")
 	}
@@ -618,30 +592,12 @@ func activateCredentialInElevatedChild(
 		}
 	}()
 
-	log.Debug("Waiting for credential activation solution from elevated process.")
-	// Wait for result from child process, polling every half second for up to
-	// 10 seconds.
-	for i := 0; i < 20; i++ {
-		if err := ctx.Err(); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		log.Debug("Checking for credential activation solution from elevated process.")
-		var solutionBytes []byte
-		// Intentionally re-use error variable from higher scope so we can
-		// return this error if all attempts fail.
-		solutionBytes, err = os.ReadFile(credActivationPath)
-		if err == nil {
-			return solutionBytes, nil
-		}
-
-		log.WithError(err).Debug("Error when polling for solution. Waiting to try again.")
-		select {
-		case <-ctx.Done():
-		case <-time.After(time.Millisecond * 500):
-		}
+	solutionBytes, err := os.ReadFile(credActivationPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
-	return nil, trace.Wrap(err, "waiting for solution from elevated process timed out")
+
+	return solutionBytes, nil
 }
 
 func handleTPMActivateCredential(encryptedCredential string, encryptedCredentialSecret string) error {
