@@ -75,6 +75,9 @@ const Icons = styled.section`
 const Title = styled.h2`
   margin: 0;
   font-size: 16px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  overflow: hidden;
 `;
 
 function isExpanded(viewMode: AssistViewMode) {
