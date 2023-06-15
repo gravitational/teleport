@@ -30,12 +30,6 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-var errNoCredentials = trace.NotFound("no credentials")
-
-func isNoCredentialsError(err error) bool {
-	return errors.Is(err, errNoCredentials)
-}
-
 // Store is a storage interface for client data. Store is made up of three
 // partial data stores; KeyStore, TrustedCertsStore, and ProfileStore.
 //
@@ -83,12 +77,24 @@ func (s *Store) AddKey(key *Key) error {
 	return nil
 }
 
+// ErrNoCredentials is returned by the client store when a specific key is not found.
+// This error can be used to determine whether a client should retrieve new credentials,
+// like how it is used with lib/client.RetryWithRelogin.
+var ErrNoCredentials = trace.NotFound("no credentials")
+
+// IsNoCredentialsError returns whether the given error is an ErrNoCredentials error.
+func IsNoCredentialsError(err error) bool {
+	return errors.Is(err, ErrNoCredentials)
+}
+
 // GetKey gets the requested key with trusted the requested certificates. The key's
-// trusted certs will be retrieved from the trusted certs store.
+// trusted certs will be retrieved from the trusted certs store. If the key is not
+// found or is missing data (certificates, etc.), then an ErrNoCredentials error
+// is returned.
 func (s *Store) GetKey(idx KeyIndex, opts ...CertOption) (*Key, error) {
 	key, err := s.KeyStore.GetKey(idx, opts...)
 	if trace.IsNotFound(err) {
-		return nil, trace.Wrap(errNoCredentials, err.Error())
+		return nil, trace.Wrap(ErrNoCredentials, err.Error())
 	} else if err != nil {
 		return nil, trace.Wrap(err)
 	}
