@@ -20,7 +20,6 @@ package windowsexec
 
 import (
 	"strings"
-	"syscall"
 	"time"
 	"unsafe"
 
@@ -37,19 +36,19 @@ import (
 type shellExecuteInfoW struct {
 	cbSize         uint32
 	fMask          uint32
-	hwnd           syscall.Handle
+	hwnd           windows.Handle
 	lpVerb         uintptr
 	lpFile         uintptr
 	lpParameters   uintptr
 	lpDirectory    uintptr
 	nShow          int
-	hInstApp       syscall.Handle
+	hInstApp       windows.Handle
 	lpIDList       uintptr
 	lpClass        uintptr
-	hkeyClass      syscall.Handle
+	hkeyClass      windows.Handle
 	dwHotKey       uint32
-	hIconOrMonitor syscall.Handle
-	hProcess       syscall.Handle
+	hIconOrMonitor windows.Handle
+	hProcess       windows.Handle
 }
 
 // These consts are copied verbatim from
@@ -73,22 +72,22 @@ const (
 // is exhausted. It will return an error if the process exits with a non-zero
 // status code.
 func RunAsAndWait(
-	file string, directory string, timeout time.Duration, parameters ...string,
+	file string, directory string, timeout time.Duration, parameters []string,
 ) error {
 	// Convert our various string inputs to UTF16Ptrs
-	lpVerb, err := syscall.UTF16PtrFromString("runas")
+	lpVerb, err := windows.UTF16PtrFromString("runas")
 	if err != nil {
 		return trace.Wrap(err, "converting verb to ptr")
 	}
-	lpFile, err := syscall.UTF16PtrFromString(file)
+	lpFile, err := windows.UTF16PtrFromString(file)
 	if err != nil {
 		return trace.Wrap(err, "converting file to ptr")
 	}
-	lpDirectory, err := syscall.UTF16PtrFromString(directory)
+	lpDirectory, err := windows.UTF16PtrFromString(directory)
 	if err != nil {
 		return trace.Wrap(err, "converting directory to ptr")
 	}
-	lpParameters, err := syscall.UTF16PtrFromString(strings.Join(parameters, " "))
+	lpParameters, err := windows.UTF16PtrFromString(strings.Join(parameters, " "))
 	if err != nil {
 		return trace.Wrap(err, "converting parameters to ptr")
 	}
@@ -108,7 +107,7 @@ func RunAsAndWait(
 
 	success := shellExecuteExW(info)
 	if !success {
-		err := syscall.GetLastError()
+		err := windows.GetLastError()
 		// The above err can still be nil in certain types of failure
 		// if it is returned, then it is much more descriptive, so we should
 		// return that.
@@ -129,30 +128,31 @@ func RunAsAndWait(
 	}
 	// Since we provided SEE_MASK_NOCLOSEPROCESS, closing info.hProcess is our
 	// responsibility.
-	defer syscall.CloseHandle(info.hProcess)
+	defer windows.CloseHandle(info.hProcess)
 
-	waitTime := syscall.INFINITE
+	waitTime := windows.INFINITE
 	if timeout != time.Duration(0) {
 		waitTime = int(timeout.Milliseconds())
 	}
 
 	// Wait for the process to finish.
-	w, err := syscall.WaitForSingleObject(info.hProcess, uint32(waitTime))
+	w, err := windows.WaitForSingleObject(info.hProcess, uint32(waitTime))
+	if err != nil {
+		return trace.Wrap(err, "could not wait for elevated process")
+	}
 	switch w {
-	case syscall.WAIT_OBJECT_0:
+	case windows.WAIT_OBJECT_0:
 		// This means the process exited.
 		break
-	case syscall.WAIT_FAILED:
-		return trace.Wrap(err, "could not wait for elevated process")
-	case syscall.WAIT_TIMEOUT:
+	case uint32(windows.WAIT_TIMEOUT):
 		return trace.Errorf("timed out waiting for elevated process to finish")
 	default:
-		return trace.Errorf("could not wait for process, unknown state")
+		return trace.Errorf("waiting for process resulted in unknown result: %d", w)
 	}
 
 	// Check the exit code.
 	var code uint32
-	if err := syscall.GetExitCodeProcess(info.hProcess, &code); err != nil {
+	if err := windows.GetExitCodeProcess(info.hProcess, &code); err != nil {
 		return err
 	}
 	if code != 0 {
