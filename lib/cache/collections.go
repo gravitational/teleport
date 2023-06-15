@@ -647,7 +647,7 @@ func (c *authServer) fetch(ctx context.Context) (apply func(ctx context.Context)
 		}
 
 		for _, resource := range resources {
-			if err := c.presenceCache.UpsertAuthServer(resource); err != nil {
+			if err := c.presenceCache.UpsertAuthServer(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -673,7 +673,7 @@ func (c *authServer) processEvent(ctx context.Context, event types.Event) error 
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		if err := c.presenceCache.UpsertAuthServer(resource); err != nil {
+		if err := c.presenceCache.UpsertAuthServer(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
