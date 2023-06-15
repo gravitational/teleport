@@ -327,6 +327,15 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	)
 }
 
+// EmbeddingClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) EmbeddingClient() assist.AssistEmbeddingServiceClient {
+	return assist.NewAssistEmbeddingServiceClient(
+		utils.NewGRPCDummyClientConnection("EmbeddingClient() should not be called on ServerWithRoles"),
+	)
+}
+
 // integrationsService returns an Integrations Service.
 func (a *ServerWithRoles) integrationsService() (*integrationv1.Service, error) {
 	igSvc, err := integrationv1.NewService(&integrationv1.ServiceConfig{
@@ -6314,15 +6323,6 @@ func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, m
 	}
 
 	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
-}
-
-func (a *ServerWithRoles) GetAssistantEmbeddings(ctx context.Context, in *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error) {
-	panic("AAAAA")
-	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return a.authServer.GetAssistantEmbeddings(ctx, in)
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.

@@ -100,14 +100,8 @@ func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInpu
 	return &output, nil
 }
 
-// EmbeddingRetriever is an interface that allows the agent to retrieve embeddings from the assist service.
-// Created for cleanness and to avoid circular dependencies.
-type EmbeddingRetriever interface {
-	GetAssistantEmbeddings(ctx context.Context, req *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error)
-}
-
 type embeddingRetrievalTool struct {
-	assistClient EmbeddingRetriever
+	assistClient assist.AssistEmbeddingServiceClient
 	currentUser  string
 }
 

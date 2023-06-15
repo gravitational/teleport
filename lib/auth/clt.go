@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/roundtrip"
+	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/client"
@@ -729,6 +730,9 @@ type ClientI interface {
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)
+
+	// EmbeddingClient returns a client to the Embedding gRPC service.
+	EmbeddingClient() assistpb.AssistEmbeddingServiceClient
 
 	// RotateCertAuthority starts or restarts certificate authority rotation process.
 	RotateCertAuthority(ctx context.Context, req RotateRequest) error

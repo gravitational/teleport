@@ -98,7 +98,7 @@ type Chat struct {
 func (a *Assist) NewChat(ctx context.Context, authClient auth.ClientI,
 	conversationID string, username string,
 ) (*Chat, error) {
-	aichat := a.client.NewChat(authClient, username)
+	aichat := a.client.NewChat(authClient.EmbeddingClient(), username)
 
 	chat := &Chat{
 		assist:         a,

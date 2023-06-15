@@ -294,8 +294,3 @@ func (s *AssistService) IsAssistEnabled(_ context.Context) (*assist.IsAssistEnab
 	_, ok = sanitizer.Inner().(*etcdbk.EtcdBackend)
 	return &assist.IsAssistEnabledResponse{Enabled: !ok}, nil
 }
-
-func (s *AssistService) GetAssistantEmbeddings(_ context.Context, _ *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error) {
-	// This is intentional. This method will never be called.
-	return nil, trace.NotImplemented("not implemented")
-}

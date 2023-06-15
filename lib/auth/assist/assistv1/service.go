@@ -52,6 +52,7 @@ type ServiceConfig struct {
 // Service implements the teleport.assist.v1.AssistService RPC service.
 type Service struct {
 	assist.UnimplementedAssistServiceServer
+	assist.UnimplementedAssistEmbeddingServiceServer
 
 	backend        services.Assistant
 	embeddings     *ai.SimpleRetriever
@@ -128,6 +129,10 @@ func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.Create
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 func (a *Service) IsAssistEnabled(ctx context.Context, _ *assist.IsAssistEnabledRequest) (*assist.IsAssistEnabledResponse, error) {
+	if a.embedder == nil {
+		return &assist.IsAssistEnabledResponse{Enabled: false}, nil
+	}
+
 	return a.backend.IsAssistEnabled(ctx)
 }
 
@@ -136,6 +141,10 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 	authCtx, err := authz.AuthorizeWithVerbs(ctx, a.log, a.authorizer, true, types.KindNode, types.VerbRead, types.VerbList)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if a.embedder == nil {
+		return nil, trace.BadParameter("assist is not configured in auth server")
 	}
 
 	// Call the openAI API to get the embeddings for the query.

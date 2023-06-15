@@ -22,6 +22,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
@@ -35,7 +36,7 @@ const (
 )
 
 // NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
-func NewAgent(assistClient EmbeddingRetriever, username string) *Agent {
+func NewAgent(assistClient assist.AssistEmbeddingServiceClient, username string) *Agent {
 	return &Agent{
 		tools: []Tool{
 			&commandExecutionTool{},
