@@ -43,8 +43,6 @@ jobs:
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport14
       options: --cap-add=SYS_ADMIN --privileged
-      env: 
-        TELEPORT_ENTERPRISE_LICENSE: ${{ secrets.TELEPORT_ENTERPRISE_LICENSE }}
 
     steps:
       - name: Checkout Teleport
