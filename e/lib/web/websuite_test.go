@@ -116,7 +116,7 @@ func newWebSuite(t *testing.T) *webSuite {
 	})
 	require.NoError(t, err)
 
-	err = s.testAuthServer.Auth().UpsertAuthServer(&types.ServerV2{
+	err = s.testAuthServer.Auth().UpsertAuthServer(ctx, &types.ServerV2{
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
