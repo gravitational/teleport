@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -422,7 +423,11 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	}
 
 	// onMessageFn is called when a message is received from the OpenAI API.
+	var writeMu sync.Mutex
 	onMessageFn := func(kind assist.MessageType, payload []byte, createdTime time.Time) error {
+		writeMu.Lock()
+		defer writeMu.Unlock()
+
 		msg := &assistantMessage{
 			Type:        kind,
 			Payload:     string(payload),

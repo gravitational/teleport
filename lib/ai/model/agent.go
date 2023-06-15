@@ -57,16 +57,16 @@ type Agent struct {
 // AgentAction is an event type representing the decision to take a single action, typically a tool invocation.
 type AgentAction struct {
 	// The action to take, typically a tool name.
-	action string
+	Action string `json:"action"`
 
 	// The input to the action, varies depending on the action.
-	input string
+	Input string `json:"input"`
 
 	// The log is either a direct tool response or a thought prompt correlated to the input.
 	log string
 
 	// The reasoning is a string describing the reasoning behind the action.
-	reasoning string
+	Reasoning string `json:"reasoning"`
 }
 
 // agentFinish is an event type representing the decision to finish a thought
@@ -157,15 +157,15 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 	if err, ok := trace.Unwrap(err).(*invalidOutputError); ok {
 		log.Tracef("agent encountered an invalid output error: %v, attempting to recover", err)
 		action := &AgentAction{
-			action: actionException,
-			input:  observationPrefix + "Invalid or incomplete response",
+			Action: actionException,
+			Input:  observationPrefix + "Invalid or incomplete response",
 			log:    thoughtPrefix + err.Error(),
 		}
 
 		// The exception tool is currently a bit special, the observation is always equal to the input.
 		// We can expand on this in the future to make it handle errors better.
-		log.Tracef("agent decided on action %v and received observation %v", action.action, action.input)
-		return stepOutput{action: action, observation: action.input}, nil
+		log.Tracef("agent decided on action %v and received observation %v", action.Action, action.Input)
+		return stepOutput{action: action, observation: action.Input}, nil
 	}
 	if err != nil {
 		log.Tracef("agent encountered an error: %v", err)
@@ -180,33 +180,33 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 
 	var tool Tool
 	for _, candidate := range a.tools {
-		if candidate.Name() == action.action {
+		if candidate.Name() == action.Action {
 			tool = candidate
 			break
 		}
 	}
 
 	if tool == nil {
-		log.Tracef("agent picked an unknown tool %v", action.action)
+		log.Tracef("agent picked an unknown tool %v", action.Action)
 		action := &AgentAction{
-			action: actionException,
-			input:  observationPrefix + "Unknown tool",
-			log:    thoughtPrefix + "No tool with name " + action.action + " exists.",
+			Action: actionException,
+			Input:  observationPrefix + "Unknown tool",
+			log:    thoughtPrefix + "No tool with name " + action.Action + " exists.",
 		}
 
-		return stepOutput{action: action, observation: action.input}, nil
+		return stepOutput{action: action, observation: action.Input}, nil
 	}
 
 	if tool, ok := tool.(*commandExecutionTool); ok {
-		input, err := tool.parseInput(action.input)
+		input, err := tool.parseInput(action.Input)
 		if err != nil {
 			action := &AgentAction{
-				action: actionException,
-				input:  observationPrefix + "Invalid or incomplete response",
+				Action: actionException,
+				Input:  observationPrefix + "Invalid or incomplete response",
 				log:    thoughtPrefix + err.Error(),
 			}
 
-			return stepOutput{action: action, observation: action.input}, nil
+			return stepOutput{action: action, observation: action.Input}, nil
 		}
 
 		completion := &CompletionCommand{
@@ -328,7 +328,7 @@ type planOutput struct {
 // parsePlanningOutput parses the output of the model after asking it to plan it's next action
 // and returns the appropriate event type or an error.
 func parsePlanningOutput(text string) (*AgentAction, *agentFinish, error) {
-	log.Tracef("received planning output: \"%v\"", text)
+	log.Debugf("received planning output: \"%v\"", text)
 	if outputString, found := strings.CutPrefix(text, "<FINAL RESPONSE>"); found {
 		return nil, &agentFinish{output: &Message{Content: outputString}}, nil
 	}
@@ -340,13 +340,13 @@ func parsePlanningOutput(text string) (*AgentAction, *agentFinish, error) {
 	}
 
 	if v, ok := response.Action_input.(string); ok {
-		return &AgentAction{action: response.Action, input: v}, nil, nil
+		return &AgentAction{Action: response.Action, Input: v}, nil, nil
 	} else {
 		input, err := json.Marshal(response.Action_input)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		return &AgentAction{action: response.Action, input: string(input), reasoning: response.Reasoning}, nil, nil
+		return &AgentAction{Action: response.Action, Input: string(input), Reasoning: response.Reasoning}, nil, nil
 	}
 }
