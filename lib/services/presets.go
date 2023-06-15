@@ -296,9 +296,9 @@ func NewPresetGroupAccessRole() types.Role {
 	return role
 }
 
-// defaultRoleMetadataLabels are metadata labels that should be applied to each
-// role by default.
-func defaultRoleMetadataLabels() map[string]map[string]string {
+// bootstrapRoleMetadataLabels are metadata labels that will be applied to each role.
+// These are intended to add labels for older roles that didn't previously have them.
+func bootstrapRoleMetadataLabels() map[string]map[string]string {
 	return map[string]map[string]string{
 		teleport.PresetAccessRoleName: {
 			types.TeleportManagedLabel: types.IsManaged,
@@ -404,7 +404,7 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 	changed := false
 
 	// Role labels
-	defaultRoleLabels, ok := defaultRoleMetadataLabels()[role.GetName()]
+	defaultRoleLabels, ok := bootstrapRoleMetadataLabels()[role.GetName()]
 	if ok {
 		metadata := role.GetMetadata()
 
@@ -412,7 +412,7 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 			metadata.Labels = map[string]string{}
 		}
 		for label, value := range defaultRoleLabels {
-			if metadata.Labels[label] != value {
+			if _, ok := metadata.Labels[label]; !ok {
 				metadata.Labels[label] = value
 				changed = true
 			}

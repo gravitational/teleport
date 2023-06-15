@@ -61,6 +61,7 @@ $ tctl sso configure github \
 
 The contents of `github.yaml` should resemble the following:
 
+<ScopedBlock scope={["oss"]}>
 ```yaml
 kind: github
 metadata:
@@ -81,6 +82,31 @@ spec:
       team: GITHUB-TEAM
 version: v3
 ```
+</ScopedBlock>
+
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```yaml
+kind: github
+metadata:
+  name: github
+spec:
+  api_endpoint_url: ""
+  client_id: <client-id>
+  client_secret: <client-secret>
+  display: GitHub
+  endpoint_url: ""
+  redirect_url: https://<proxy-address>/v1/webapi/github/callback
+  teams_to_logins: null
+  teams_to_roles:
+    - organization: ORG-NAME
+      roles:
+        - access
+        - editor
+        - reviewer
+      team: GITHUB-TEAM
+version: v3
+```
+</ScopedBlock>
 
 <Details title="Mapping multiple roles">
 You can add multiple instances of the `--teams-to-roles` flag or edit the connector
@@ -252,7 +278,7 @@ You will receive the details of your user session within the CLI:
   Logged in as:       jeff
   Cluster:            tele.example.com
   Roles:              access
-  Logins:             jeff, ubuntu, debian, -teleport-internal-join
+  Logins:             jeff, ubuntu, debian
   Kubernetes:         enabled
   Kubernetes users:   dev
   Kubernetes groups:  developer
@@ -270,7 +296,7 @@ You will receive the details of your user session within the CLI:
   Logged in as:       jeff
   Cluster:            tele.example.com
   Roles:              access, requester
-  Logins:             jeff, ubuntu, debian, -teleport-internal-join
+  Logins:             jeff, ubuntu, debian
   Kubernetes:         enabled
   Kubernetes users:   dev
   Kubernetes groups:  developer
@@ -287,7 +313,7 @@ You will receive the details of your user session within the CLI:
   Logged in as:       jeff
   Cluster:            mytenant.teleport.sh
   Roles:              access, requester
-  Logins:             jeff, ubuntu, debian, -teleport-internal-join
+  Logins:             jeff, ubuntu, debian
   Kubernetes:         enabled
   Kubernetes users:   dev
   Kubernetes groups:  developer

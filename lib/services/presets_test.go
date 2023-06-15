@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/modules"
 )
@@ -37,11 +39,12 @@ func TestAddRoleDefaults(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                   string
-		role                   types.Role
-		enterprise             bool
-		reviewNotEmpty         bool
-		accessRequestsNotEmpty bool
+		name                    string
+		role                    types.Role
+		enterprise              bool
+		reviewNotEmpty          bool
+		accessRequestsNotEmpty  bool
+		assumeRandomLoginsEqual bool
 
 		expectedErr require.ErrorAssertionFunc
 		expected    types.Role
@@ -63,6 +66,36 @@ func TestAddRoleDefaults(t *testing.T) {
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetEditorRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetEditorRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "editor (only missing label)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetEditorRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetEditorRoleName],
+					},
 				},
 			},
 			expectedErr: require.NoError,
@@ -85,6 +118,9 @@ func TestAddRoleDefaults(t *testing.T) {
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
 				},
 				Spec: types.RoleSpecV6{
 					Allow: types.RoleConditions{
@@ -105,6 +141,121 @@ func TestAddRoleDefaults(t *testing.T) {
 						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
 						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
 						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "access (only missing label)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
+						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+					},
+				},
+			},
+			expectedErr: require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAccessRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						DatabaseServiceLabels: defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseServiceLabels,
+						DatabaseRoles:         defaultAllowLabels()[teleport.PresetAccessRoleName].DatabaseRoles,
+						Rules:                 defaultAllowRules()[teleport.PresetAccessRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "auditor",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAuditorRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						RecordSession: &types.RecordSession{
+							Desktop: types.NewBoolOption(false),
+						},
+					},
+				},
+			},
+			assumeRandomLoginsEqual: true,
+			expectedErr:             require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAuditorRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						RecordSession: &types.RecordSession{
+							Desktop: types.NewBoolOption(false),
+						},
+					},
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
+					},
+				},
+			},
+		},
+		{
+			name: "auditor (only missing label)",
+			role: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAuditorRoleName,
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						RecordSession: &types.RecordSession{
+							Desktop: types.NewBoolOption(false),
+						},
+					},
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
+					},
+				},
+			},
+			assumeRandomLoginsEqual: true,
+			expectedErr:             require.NoError,
+			expected: &types.RoleV6{
+				Metadata: types.Metadata{
+					Name: teleport.PresetAuditorRoleName,
+					Labels: map[string]string{
+						types.TeleportManagedLabel: types.IsManaged,
+					},
+				},
+				Spec: types.RoleSpecV6{
+					Options: types.RoleOptions{
+						CertificateFormat: constants.CertificateFormatStandard,
+						MaxSessionTTL:     types.NewDuration(apidefaults.MaxCertDuration),
+						RecordSession: &types.RecordSession{
+							Desktop: types.NewBoolOption(false),
+						},
+					},
+					Allow: types.RoleConditions{
+						Rules: defaultAllowRules()[teleport.PresetAuditorRoleName],
 					},
 				},
 			},
@@ -263,6 +414,10 @@ func TestAddRoleDefaults(t *testing.T) {
 
 			role, err := AddRoleDefaults(test.role)
 			test.expectedErr(t, err)
+
+			if test.assumeRandomLoginsEqual && test.expected != nil && role != nil {
+				test.expected.SetLogins(types.Allow, role.GetLogins(types.Allow))
+			}
 
 			require.Empty(t, cmp.Diff(role, test.expected))
 
