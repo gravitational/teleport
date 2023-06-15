@@ -16,10 +16,12 @@ package native
 
 import (
 	"bytes"
+	"context"
 	"crypto/rsa"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"math/big"
 	"os"
 	"os/exec"
@@ -452,6 +454,7 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 }
 
 func solveTPMEnrollChallenge(
+	ctx context.Context,
 	challenge *devicepb.TPMEnrollChallenge,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	akPath, err := setupDeviceStateDir(os.UserConfigDir)
@@ -513,7 +516,8 @@ func solveTPMEnrollChallenge(
 		}
 	} else {
 		log.Info("TPM: Detected that the current process is not running with elevated privileges. Triggering a UAC prompt to run the credential activation in an elevated process.")
-		activationSolution, err = activateCredentialInElevatedChild(*encryptedCredential)
+		fmt.Println("Detected that tsh is not running with elevated privileges. Triggering a UAC prompt to complete the enrollment in an elevated process.")
+		activationSolution, err = activateCredentialInElevatedChild(ctx, *encryptedCredential)
 		if err != nil {
 			return nil, trace.Wrap(err, "activating credential with challenge using elevated child")
 		}
@@ -533,6 +537,7 @@ func solveTPMEnrollChallenge(
 // elevated privileges in order to invoke the TPM 2.0 ActivateCredential
 // command.
 func activateCredentialInElevatedChild(
+	ctx context.Context,
 	encryptedCredential attest.EncryptedCredential,
 ) ([]byte, error) {
 	exe, err := os.Executable()
@@ -554,11 +559,11 @@ func activateCredentialInElevatedChild(
 
 	// Assemble the parameter list. We encoded any binary data in base64.
 	// The list is then converted to a space delimited string.
-	// These parameters cause `tsh` to invoke HandleActivateCredential.
+	// These parameters cause `tsh` to invoke HandleTPMActivateCredential.
 	params := strings.Join([]string{
 		"-d", // enable debug mode so relevant logs appear in the new window
 		"device",
-		"activate-credential",
+		"tpm-activate-credential",
 		"--encrypted-credential",
 		base64.StdEncoding.EncodeToString(encryptedCredential.Credential),
 		"--encrypted-credential-secret",
@@ -613,25 +618,32 @@ func activateCredentialInElevatedChild(
 	// Wait for result from child process, polling every half second for up to
 	// 10 seconds.
 	for i := 0; i < 20; i++ {
-		// TODO: Context cancellation ?
+		if err := ctx.Err(); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		log.Debug("Checking for credential activation solution from elevated process.")
-		solutionBytes, err := os.ReadFile(todoCredentialActivationPath)
+		var solutionBytes []byte
+		// Intentionally re-use error variable from higher scope so we can
+		// return this error if all attempts fail.
+		solutionBytes, err = os.ReadFile(todoCredentialActivationPath)
 		if err == nil {
 			return solutionBytes, nil
 		}
+
 		log.WithError(err).Debug("Error when polling for solution. Waiting to try again.")
-		time.Sleep(time.Millisecond * 500)
+		select {
+		case <-ctx.Done():
+		case <-time.After(time.Millisecond * 500):
+		}
 	}
-	// TODO: Return last error that occurred
-	return nil, trace.BadParameter("failed to receive credential activation results from elevated process")
+	return nil, trace.Wrap(err, "waiting for solution from elevated process timed out")
 }
 
 // TODO: Make this a good path
 var todoCredentialActivationPath = "./credential-activation-results"
 
-// TODO: Make this compile on multiple platforms by deferring calls to this
-// through api.go
-func HandleActivateCredential(encryptedCredential string, encryptedCredentialSecret string) error {
+func handleTPMActivateCredential(encryptedCredential string, encryptedCredentialSecret string) error {
 	log.Debug("Performing credential activation.")
 	// The two input parameters are base64 encoded, so decode them.
 	credentialBytes, err := base64.StdEncoding.DecodeString(encryptedCredential)

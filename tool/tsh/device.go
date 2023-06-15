@@ -166,7 +166,7 @@ type deviceActivateCredentialCommand struct {
 }
 
 func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
-	err := dtnative.HandleActivateCredential(
+	err := dtnative.HandleTPMActivateCredential(
 		c.encryptedCredential, c.encryptedCredentialSecret,
 	)
 	if err != nil {

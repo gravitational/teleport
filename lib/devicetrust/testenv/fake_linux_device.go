@@ -15,6 +15,8 @@
 package testenv
 
 import (
+	"context"
+
 	"github.com/gravitational/trace"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -44,7 +46,7 @@ func (d *FakeLinuxDevice) SignChallenge(_ []byte) (sig []byte, err error) {
 	return nil, trace.NotImplemented("linux device fake unimplemented")
 }
 
-func (d *FakeLinuxDevice) SolveTPMEnrollChallenge(_ *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
+func (d *FakeLinuxDevice) SolveTPMEnrollChallenge(_ context.Context, _ *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, trace.NotImplemented("linux device fake unimplemented")
 }
 
