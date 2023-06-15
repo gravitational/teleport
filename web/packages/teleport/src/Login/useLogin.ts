@@ -39,6 +39,11 @@ export default function useLogin() {
   const auth2faType = cfg.getAuth2faType();
   const isLocalAuthEnabled = cfg.getLocalAuthFlag();
   const motd = cfg.getMotd();
+  const [showMotd, setShowMotd] = useState(!!motd);
+
+  function acknowledgeMotd() {
+    setShowMotd(false);
+  }
 
   function onLogin(email, password, token) {
     attemptActions.start();
@@ -74,12 +79,6 @@ export default function useLogin() {
     const ssoUri = cfg.getSsoUrl(provider.url, provider.name, appStartRoute);
     history.push(ssoUri, true);
   }
-
-  const [showMotd, setShowMotd] = useState(!!motd);
-
-  const acknowledgeMotd = () => {
-    setShowMotd(false);
-  };
 
   return {
     attempt,
