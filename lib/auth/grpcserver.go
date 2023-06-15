@@ -1959,7 +1959,7 @@ func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6,
 	return role, nil
 }
 
-var minSupportedLabelExpressionVersion = semver.Version{Major: 13, Minor: 2}
+var minSupportedLabelExpressionVersion = semver.Version{Major: 13, Minor: 1, Patch: 1}
 
 func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) (*types.RoleV6, error) {
 	if !clientVersion.LessThan(minSupportedLabelExpressionVersion) {
