@@ -45,7 +45,10 @@ func (bootstrap *Bootstrap) AddUserWithRoles(name string, roles ...string) (type
 }
 
 func (bootstrap *Bootstrap) AddRole(name string, spec types.RoleSpecV6) (types.Role, error) {
-	role, err := types.NewRole(name, spec)
+	// TODO(justinas|marcoandredinis): Remove this once Test Integration is updated to build tctl
+	// instead of using the binary from the release tarball.
+	// https://github.com/gravitational/teleport/issues/27528
+	role, err := types.NewRoleWithVersion(name, types.V6, spec)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

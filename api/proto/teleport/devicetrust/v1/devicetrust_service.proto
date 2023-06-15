@@ -23,6 +23,7 @@ import "teleport/devicetrust/v1/device.proto";
 import "teleport/devicetrust/v1/device_collected_data.proto";
 import "teleport/devicetrust/v1/device_enroll_token.proto";
 import "teleport/devicetrust/v1/device_source.proto";
+import "teleport/devicetrust/v1/tpm.proto";
 import "teleport/devicetrust/v1/user_certificates.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
@@ -436,36 +437,6 @@ message TPMEnrollChallengeResponse {
   // The result of the client's platform attestation with the nonce provided
   // in `TPMEnrollChallenge`.
   TPMPlatformParameters platform_parameters = 2;
-}
-
-// Encapsulates the value of a PCR at a point at time.
-// See https://pkg.go.dev/github.com/google/go-attestation/attest#PCR
-message TPMPCR {
-  // the PCR index in the PCR bank
-  int32 index = 1;
-  // the digest currently held in the PCR
-  bytes digest = 2;
-  // the hash algorithm used to produce the digest in this PCR bank. This value
-  // is the underlying value of the Go crypto.Hash type.
-  uint64 digest_alg = 3;
-}
-
-// Encapsulates the result of a quote operation against the TPM over a PCR
-// using an attestation key.
-// See https://pkg.go.dev/github.com/google/go-attestation/attest#Quote
-message TPMQuote {
-  bytes quote = 1;
-  bytes signature = 2;
-}
-
-// The quotes, PCRs and event log from a TPM that attest to the booted state
-// of the machine.
-// See https://pkg.go.dev/github.com/google/go-attestation/attest#PlatformParameters
-// Excludes TPMVersion and Public since these are already known values.
-message TPMPlatformParameters {
-  repeated TPMQuote quotes = 1;
-  repeated TPMPCR pcrs = 2;
-  bytes event_log = 3;
 }
 
 // Request for AuthenticateDevice.

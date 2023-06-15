@@ -1512,7 +1512,11 @@ func (a *Server) GenerateOpenSSHCert(ctx context.Context, req *proto.OpenSSHCert
 	accessInfo := services.AccessInfoFromUser(req.User)
 	roles := make([]types.Role, len(req.Roles))
 	for i := range req.Roles {
-		roles[i] = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		var err error
+		roles[i], err = services.ApplyTraits(req.Roles[i], req.User.GetTraits())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 	roleSet := services.NewRoleSet(roles...)
 
@@ -3261,7 +3265,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// only observe latencies for non-throttled requests
 	start := a.clock.Now()
-	defer generateRequestsLatencies.Observe(time.Since(start).Seconds())
+	defer func() { generateRequestsLatencies.Observe(time.Since(start).Seconds()) }()
 
 	generateRequestsCount.Inc()
 	generateRequestsCurrent.Inc()

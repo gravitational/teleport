@@ -37,6 +37,8 @@ import type { ParticipantMode } from 'teleport/services/session';
 const cfg = {
   isEnterprise: false,
   isCloud: false,
+  assistEnabled: false,
+  automaticUpgrades: false,
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,

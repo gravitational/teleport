@@ -488,9 +488,15 @@ func solveTPMEnrollChallenge(
 	// First perform the credential activation challenge provided by the
 	// auth server.
 	log.Debug("TPM: Activating credential.")
+	encryptedCredential := devicetrust.EncryptedCredentialFromProto(
+		challenge.EncryptedCredential,
+	)
+	if encryptedCredential == nil {
+		return nil, trace.BadParameter("missing encrypted credential in challenge from server")
+	}
 	activationSolution, err := ak.ActivateCredential(
 		tpm,
-		devicetrust.EncryptedCredentialFromProto(challenge.EncryptedCredential),
+		*encryptedCredential,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "activating credential with challenge")
