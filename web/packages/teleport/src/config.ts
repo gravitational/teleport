@@ -66,7 +66,7 @@ const cfg = {
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
     privateKeyPolicy: 'none' as PrivateKeyPolicy,
-    // MOTD is message of the day, displayed to users before login.
+    // motd is message of the day, displayed to users before login.
     motd: '',
   },
 
