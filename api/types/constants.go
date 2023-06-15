@@ -570,6 +570,18 @@ const (
 	// downgraded before being returned to clients on older versions that do not
 	// support one or more features enabled in that resource.
 	TeleportDowngradedLabel = TeleportInternalLabelPrefix + "downgraded"
+
+	// TeleportSystemResourceLabel marks a resource as being used internally by
+	// teleport itself, and should not be exposed to the cluster users or admins.
+	TeleportSystemResourceLabel = TeleportInternalLabelPrefix + "system"
+
+	// IsSystemResource is the expected value of the TeleportSystemResourceLabel label
+	// if set
+	IsSystemResource = "true"
+
+	// TeleportResourceRevision marks a teleport-managed resource with a reversion
+	// number to aid future migrations. Label value is expected to be a number.
+	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.

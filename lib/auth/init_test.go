@@ -30,6 +30,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
@@ -711,8 +712,120 @@ func TestPresets(t *testing.T) {
 		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
 			upsertRoleTest(t, 5 /* presetRoleCount */)
 		})
+
+		t.Run("Changing preset user causes upsert", func(t *testing.T) {
+			auth := &mockUserManager{}
+			ctx := context.Background()
+
+			// GIVEN a user database with an existing user record that needs
+			// updating... (which we're simulating by stripping some values off
+			// the current preset and having the mock auth server rerturn this
+			// mutilated user reource when asked).
+
+			oldUser := services.NewPresetAutomaticAccessBotUser().(*types.UserV2)
+			newLabels := oldUser.Metadata.Labels
+			oldUser.Metadata.Labels = map[string]string{}
+
+			auth.On("CreateUser", ctx, mock.Anything).
+				// if `createPresetUsers` tries to create multiple users,
+				// we only want to pretend that our user of interest
+				// already exists.
+				Return(func(u types.User) error {
+					if u.GetName() == oldUser.GetName() {
+						return trace.AlreadyExists("oops")
+					}
+					return nil
+				})
+
+			auth.On("GetUser", oldUser.GetName(), false).
+				Return(oldUser, nil)
+
+			auth.On("UpsertUser", mock.Anything).
+				Return(nil).Once()
+
+			// WHEN I attempt to create the preset users...
+			err := createPresetUsers(ctx, auth)
+			require.NoError(t, err)
+
+			// EXPECT that GetUser() and UpsertUser() are called as we
+			// expected them to be above (and, by extention, that no other
+			// calls were made into the auth server)
+			auth.AssertExpectations(t)
+
+			// EXPECT that our user of interest has the new labels from
+			// the updated preset applied to it.
+			for k, v := range newLabels {
+				require.Equal(t, v, oldUser.Metadata.Labels[k])
+			}
+		})
+
+		t.Run("Unchanged user does not cause upsert", func(t *testing.T) {
+			ctx := contect.Background()
+			auth := &mockUserManager{}
+
+			// GIVEN a user database with an existing user record that does NOT
+			// need updating...
+
+			user := services.NewPresetAutomaticAccessBotUser().(*types.UserV2)
+			auth.On("CreateUser", ctx, mock.Anything).
+				// if `createPresetUsers` tries to create multiple users,
+				// we only want to pretend that our user of interest
+				// already exists.
+				Return(func(u types.User) error {
+					if u.GetName() == user.GetName() {
+						return trace.AlreadyExists("oops")
+					}
+					return nil
+				})
+
+			auth.On("GetUser", user.GetName(), false).
+				Return(user, nil)
+
+			// Note that any attempt to call UpsertUser inside `createPresetUsers()`
+			// will fail the test, as we
+			// have not told the mock to expect it.
+			err := createPresetUsers(ctx, auth)
+			require.NoError(t, err)
+
+			// EXPECT that all the all of the UserManagement calls that
+			// we expected to happen, happened as we expecteded.
+			auth.AssertExpectations(t)
+		})
 	})
 }
+
+type mockUserManager struct {
+	mock.Mock
+}
+
+func (m *mockUserManager) CreateUser(ctx context.Context, user types.User) error {
+	type delegateFn = func(types.User) error
+	args := m.Called(ctx, user)
+	if delegate, ok := args.Get(0).(delegateFn); ok {
+		return delegate(user)
+	}
+	return args.Error(0)
+}
+
+func (m *mockUserManager) GetUser(username string, withSecrets bool) (types.User, error) {
+	type delegateFn = func(username string, withSecrets bool) (types.User, error)
+	args := m.Called(username, withSecrets)
+	if delegate, ok := args.Get(0).(delegateFn); ok {
+		return delegate(username, withSecrets)
+	}
+	return args.Get(0).(types.User), args.Error(1)
+}
+
+func (m *mockUserManager) UpsertUser(user types.User) error {
+	type delegateFn = func(types.User) error
+	args := m.Called(user)
+	if delegate, ok := args.Get(0).(delegateFn); ok {
+		return delegate(user)
+	}
+	return args.Error(0)
+}
+
+var _ PresetUserManager = &mockUserManager{}
 
 type mockRoleManager struct {
 	roles                map[string]types.Role
