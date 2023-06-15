@@ -329,19 +329,14 @@ type planOutput struct {
 // and returns the appropriate event type or an error.
 func parsePlanningOutput(text string) (*AgentAction, *agentFinish, error) {
 	log.Tracef("received planning output: \"%v\"", text)
+	if outputString, found := strings.CutPrefix(text, "<FINAL RESPONSE>"); found {
+		return nil, &agentFinish{output: &Message{Content: outputString}}, nil
+	}
+
 	response, err := parseJSONFromModel[planOutput](text)
 	if err != nil {
 		log.WithError(err).Trace("failed to parse planning output")
 		return nil, nil, trace.Wrap(err)
-	}
-
-	if response.Action == actionFinalAnswer {
-		outputString, ok := response.Action_input.(string)
-		if !ok {
-			return nil, nil, trace.Errorf("invalid final answer type %T", response.Action_input)
-		}
-
-		return nil, &agentFinish{output: &Message{Content: outputString}}, nil
 	}
 
 	if v, ok := response.Action_input.(string); ok {
