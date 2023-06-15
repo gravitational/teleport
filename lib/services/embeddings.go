@@ -252,7 +252,7 @@ func (n *nodeEmbeddingCollector) RunIndexation(ctx context.Context) error {
 	timestamp := time.Now()
 	for nodeName, node := range n.currentNodes {
 		if node.needsEmbedding {
-			text, err := serializeNode(node.node)
+			text, err := SerializeNode(node.node)
 			if err != nil {
 				n.Log.Warningf("failed to serialize node %s, the node won't be embedded", node.node.GetName())
 				continue
@@ -400,7 +400,7 @@ func (n *nodeEmbeddingCollector) embed(ctx context.Context, kind string, resourc
 
 	newEmbeddings := make([]*ai.Embedding, 0, len(response))
 	for i, vector := range response {
-		newEmbeddings = append(newEmbeddings, ai.NewEmbedding(kind, keys[i], vector, ""))
+		newEmbeddings = append(newEmbeddings, ai.NewEmbedding(kind, keys[i], vector))
 	}
 
 	// Store the new embeddings into the backend
@@ -422,10 +422,10 @@ func embeddingHashMatches(embedding *ai.Embedding, hash ai.Sha256Hash) bool {
 	return *(*ai.Sha256Hash)(embedding.EmbeddedHash) == hash
 }
 
-// serializeNode converts a type.Server into text ready to be fed to an
+// SerializeNode converts a type.Server into text ready to be fed to an
 // embedding model. The YAML serialization function was chosen over JSON and
 // CSV as it provided better results.
-func serializeNode(node types.Server) ([]byte, error) {
+func SerializeNode(node types.Server) ([]byte, error) {
 	a := struct {
 		Name    string            `yaml:"name"`
 		Kind    string            `yaml:"kind"`

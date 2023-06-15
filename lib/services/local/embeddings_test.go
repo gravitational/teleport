@@ -16,7 +16,6 @@ package local
 
 import (
 	"context"
-	"crypto/sha256"
 	"sort"
 	"testing"
 
@@ -31,9 +30,9 @@ import (
 )
 
 var (
-	embedding1 = ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0, 0}, "test1")
-	embedding2 = ai.NewEmbedding(types.KindNode, "bar", ai.Vector64{1, 1, 1}, "test2")
-	embedding3 = ai.NewEmbedding(types.KindDatabase, "bar", ai.Vector64{2}, "test3")
+	embedding1 = ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0, 0})
+	embedding2 = ai.NewEmbedding(types.KindNode, "bar", ai.Vector64{1, 1, 1})
+	embedding3 = ai.NewEmbedding(types.KindDatabase, "bar", ai.Vector64{2})
 )
 
 func errorIsNotFound(t require.TestingT, err error, msgAndArgs ...interface{}) {
@@ -184,7 +183,7 @@ func TestUpsertEmbedding(t *testing.T) {
 	errorIsNotFound(t, err)
 
 	// Test: add an element in the backend and check if we can retrieve it
-	embedding := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0, 0}, "test")
+	embedding := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0, 0})
 	embedding, err = service.UpsertEmbedding(ctx, embedding)
 	require.NoError(t, err)
 	result, err := service.GetEmbedding(ctx, types.KindNode, "foo")
@@ -192,7 +191,7 @@ func TestUpsertEmbedding(t *testing.T) {
 	requireEmbeddingsEqual(t, embedding, result)
 
 	// Test: update the embedding and check we now retrieve the new version
-	embedding = ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{1, 1, 1, 1, 1}, "test2")
+	embedding = ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{1, 1, 1, 1, 1})
 	embedding, err = service.UpsertEmbedding(ctx, embedding)
 	require.NoError(t, err)
 	result, err = service.GetEmbedding(ctx, types.KindNode, "foo")

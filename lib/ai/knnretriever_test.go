@@ -50,11 +50,11 @@ func TestKNNRetriever_GetRelevant(t *testing.T) {
 	const testEmbeddingsSize = 100
 	points := make([]*Embedding, testEmbeddingsSize)
 	for i := 0; i < testEmbeddingsSize; i++ {
-		points[i] = NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector(), "")
+		points[i] = NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector())
 	}
 
 	// Create a query.
-	query := NewEmbedding(types.KindNode, "1", generateVector(), "")
+	query := NewEmbedding(types.KindNode, "1", generateVector())
 
 	retriever, err := NewKNNRetriever(points)
 	require.NoError(t, err)
@@ -79,14 +79,14 @@ func TestKNNRetriever_Insert(t *testing.T) {
 	t.Parallel()
 
 	points := []*Embedding{
-		NewEmbedding(types.KindNode, "1", Vector64{1, 2, 3}, ""),
-		NewEmbedding(types.KindNode, "2", Vector64{4, 5, 6}, ""),
+		NewEmbedding(types.KindNode, "1", Vector64{1, 2, 3}),
+		NewEmbedding(types.KindNode, "2", Vector64{4, 5, 6}),
 	}
 
 	retriever, err := NewKNNRetriever(points)
 	require.NoError(t, err)
 
-	newEmbedding := NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9}, "")
+	newEmbedding := NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9})
 	docs1 := retriever.GetRelevant(newEmbedding, 10)
 	require.Len(t, docs1, 2)
 
@@ -101,15 +101,15 @@ func TestKNNRetriever_Remove(t *testing.T) {
 	t.Parallel()
 
 	points := []*Embedding{
-		NewEmbedding(types.KindNode, "1", Vector64{1, 2, 3}, ""),
-		NewEmbedding(types.KindNode, "2", Vector64{4, 5, 6}, ""),
-		NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9}, ""),
+		NewEmbedding(types.KindNode, "1", Vector64{1, 2, 3}),
+		NewEmbedding(types.KindNode, "2", Vector64{4, 5, 6}),
+		NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9}),
 	}
 
 	retriever, err := NewKNNRetriever(points)
 	require.NoError(t, err)
 
-	query := NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9}, "")
+	query := NewEmbedding(types.KindNode, "3", Vector64{7, 8, 9})
 	docs1 := retriever.GetRelevant(query, 10)
 
 	require.Len(t, docs1, 3)

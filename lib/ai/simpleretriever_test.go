@@ -49,11 +49,11 @@ func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	const testEmbeddingsSize = 100
 	points := make([]*Embedding, testEmbeddingsSize)
 	for i := 0; i < testEmbeddingsSize; i++ {
-		points[i] = NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector(), "")
+		points[i] = NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector())
 	}
 
 	// Create a query.
-	query := NewEmbedding(types.KindNode, "1", generateVector(), "")
+	query := NewEmbedding(types.KindNode, "1", generateVector())
 
 	retriever := NewSimpleRetriever()
 

@@ -81,7 +81,7 @@ func (e *Embedding) GetVector() Vector64 {
 }
 
 // NewEmbedding is an Embedding constructor.
-func NewEmbedding(kind, id string, vector Vector64, content string) *Embedding {
+func NewEmbedding(kind, id string, vector Vector64) *Embedding {
 	hash := sha256.Sum256([]byte(id))
 
 	return &Embedding{
@@ -89,7 +89,6 @@ func NewEmbedding(kind, id string, vector Vector64, content string) *Embedding {
 		EmbeddedId:   id,
 		EmbeddedHash: hash[:],
 		Vector:       vector,
-		//Content:      content,
 	}
 }
 

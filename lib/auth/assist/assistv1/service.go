@@ -148,7 +148,7 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 	}
 
 	// Use default values for the id and content, as we only care about the embeddings.
-	queryEmbeddings := ai.NewEmbedding(msg.Kind, "", embeddings[0], "")
+	queryEmbeddings := ai.NewEmbedding(msg.Kind, "", embeddings[0])
 	documents := a.embeddings.GetRelevant(queryEmbeddings, int(msg.Limit), func(id string, embedding *ai.Embedding) bool {
 		// Run RBAC check on the embedded resource.
 		node, err := a.resourceGetter.GetNode(ctx, "default", embedding.GetEmbeddedID())
@@ -161,9 +161,17 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 
 	protoDocs := make([]*assist.EmbeddedDocument, 0, len(documents))
 	for _, doc := range documents {
+		node, err := a.resourceGetter.GetNode(ctx, "default", doc.GetEmbeddedID())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		content, err := services.SerializeNode(node)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 		protoDocs = append(protoDocs, &assist.EmbeddedDocument{
-			Id: doc.GetEmbeddedID(),
-			//Content:         doc.Content, TODO(jakule): Fix me
+			Id:              doc.GetEmbeddedID(),
+			Content:         string(content),
 			SimilarityScore: float32(doc.SimilarityScore),
 		})
 	}
