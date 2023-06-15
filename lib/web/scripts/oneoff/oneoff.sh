@@ -3,12 +3,16 @@ set -euo pipefail
 
 cdnBaseURL='{{.CDNBaseURL}}'
 teleportVersion='{{.TeleportVersion}}'
+
+# shellcheck disable=all
 tempDir=$({{.BinMktemp}} -d)
 OS=$({{.BinUname}} -s)
 ARCH=$({{.BinUname}} -m)
+# shellcheck enable=all
+
 teleportArgs='{{.TeleportArgs}}'
 
-function teleportTarballName(){    
+function teleportTarballName(){
     if [[ ${OS} == "Darwin" ]]; then
         echo teleport-${teleportVersion}-darwin-universal-bin.tar.gz
         return 0
@@ -38,7 +42,7 @@ function main() {
 
     echo "> ./teleport/teleport ${teleportArgs}"
     ./teleport/teleport ${teleportArgs}
-    
+
     popd > /dev/null
 }
 
