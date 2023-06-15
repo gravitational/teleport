@@ -760,7 +760,7 @@ func TestPresets(t *testing.T) {
 		})
 
 		t.Run("Unchanged user does not cause upsert", func(t *testing.T) {
-			ctx := contect.Background()
+			ctx := context.Background()
 			auth := &mockUserManager{}
 
 			// GIVEN a user database with an existing user record that does NOT
