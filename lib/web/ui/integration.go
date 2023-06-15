@@ -175,4 +175,7 @@ type AWSOIDCDeployServiceResponse struct {
 
 	// TaskDefinitionARN is the Amazon ECS Task Definition ARN created to run the Service.
 	TaskDefinitionARN string `json:"taskDefinitionArn"`
+
+	// ServiceDashboardURL is a link to the service's Dashboard URL in Amazon Console.
+	ServiceDashboardURL string `json:"serviceDashboardUrl"`
 }

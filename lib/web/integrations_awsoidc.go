@@ -154,8 +154,9 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 	}
 
 	return ui.AWSOIDCDeployServiceResponse{
-		ClusterARN:        deployServiceResp.ClusterARN,
-		ServiceARN:        deployServiceResp.ServiceARN,
-		TaskDefinitionARN: deployServiceResp.TaskDefinitionARN,
+		ClusterARN:          deployServiceResp.ClusterARN,
+		ServiceARN:          deployServiceResp.ServiceARN,
+		TaskDefinitionARN:   deployServiceResp.TaskDefinitionARN,
+		ServiceDashboardURL: deployServiceResp.ServiceDashboardURL,
 	}, nil
 }

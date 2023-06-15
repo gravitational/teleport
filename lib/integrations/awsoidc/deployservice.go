@@ -226,6 +226,9 @@ type DeployServiceResponse struct {
 
 	// TaskDefinitionARN is the Amazon ECS Task Definition ARN created to run the  Teleport Service.
 	TaskDefinitionARN string
+
+	// ServiceDashboardURL is a link to the service's Dashboard URL in Amazon Console.
+	ServiceDashboardURL string
 }
 
 // DeployServiceClient describes the required methods to Deploy a  Teleport Service.
@@ -371,8 +374,9 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (D
 // # Resource tagging
 //
 // Created resources have the following set of tags:
+// - teleport.dev/creator_type: teleport
+// - teleport.dev/creator: <clusterName>
 // - teleport.dev/origin: aws-oidc-integration
-// - teleport.dev/cluster: <clusterName>
 // - teleport.dev/integration: <integrationName>
 //
 // If resources already exist, only resources with those tags will be updated.
@@ -402,10 +406,13 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		return nil, trace.Wrap(err)
 	}
 
+	serviceDashboardURL := fmt.Sprintf("https://%s.console.aws.amazon.com/ecs/v2/clusters/%s/services/%s", req.Region, *req.ClusterName, *req.ServiceName)
+
 	return &DeployServiceResponse{
-		ClusterARN:        *cluster.ClusterArn,
-		ServiceARN:        *service.ServiceArn,
-		TaskDefinitionARN: taskDefinitionARN,
+		ClusterARN:          *cluster.ClusterArn,
+		ServiceARN:          *service.ServiceArn,
+		TaskDefinitionARN:   taskDefinitionARN,
+		ServiceDashboardURL: serviceDashboardURL,
 	}, nil
 }
 

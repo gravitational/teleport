@@ -120,6 +120,7 @@ func TestDeployDBService(t *testing.T) {
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/cluster1001-teleport", resp.ClusterARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/cluster1001-teleport/cluster1001-teleport-database-service", resp.ServiceARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/cluster1001-teleport-database-service:1", resp.TaskDefinitionARN)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster1001-teleport/services/cluster1001-teleport-database-service", resp.ServiceDashboardURL)
 	})
 
 	t.Run("recreate everything", func(t *testing.T) {
@@ -136,6 +137,7 @@ func TestDeployDBService(t *testing.T) {
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/cluster1001-teleport", resp.ClusterARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/cluster1001-teleport/cluster1001-teleport-database-service", resp.ServiceARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/cluster1001-teleport-database-service:2", resp.TaskDefinitionARN)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster1001-teleport/services/cluster1001-teleport-database-service", resp.ServiceDashboardURL)
 	})
 
 	t.Run("service is being deleted", func(t *testing.T) {
@@ -164,6 +166,7 @@ func TestDeployDBService(t *testing.T) {
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/cluster1001-teleport", resp.ClusterARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/cluster1001-teleport/cluster1001-teleport-database-service", resp.ServiceARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/cluster1001-teleport-database-service:5", resp.TaskDefinitionARN)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster1001-teleport/services/cluster1001-teleport-database-service", resp.ServiceDashboardURL)
 	})
 
 	t.Run("cluster does not have the required capacity provider", func(t *testing.T) {
@@ -180,6 +183,7 @@ func TestDeployDBService(t *testing.T) {
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/cluster1001-teleport", resp.ClusterARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/cluster1001-teleport/cluster1001-teleport-database-service", resp.ServiceARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/cluster1001-teleport-database-service:9", resp.TaskDefinitionARN)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/cluster1001-teleport/services/cluster1001-teleport-database-service", resp.ServiceDashboardURL)
 	})
 
 	t.Run("cluster does not have the ownership tags", func(t *testing.T) {
@@ -220,5 +224,6 @@ func TestDeployDBService(t *testing.T) {
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:cluster/example-tenant_teleport_sh-teleport", resp.ClusterARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:service/example-tenant_teleport_sh-teleport/example-tenant_teleport_sh-teleport-database-service", resp.ServiceARN)
 		require.Equal(t, "arn:aws:ecs:us-east-1:278576220453:task-definition/example-tenant_teleport_sh-teleport-database-service:1", resp.TaskDefinitionARN)
+		require.Equal(t, "https://us-east-1.console.aws.amazon.com/ecs/v2/clusters/example-tenant_teleport_sh-teleport/services/example-tenant_teleport_sh-teleport-database-service", resp.ServiceDashboardURL)
 	})
 }
