@@ -136,15 +136,10 @@ important.
 
 ## Step 3/3. Create a SAML connector
 
-Create a SAML connector resource using `tctl`:
+Create the file `adfs.yaml` defining a SAML connector resource:
 
-```code
-$ tctl sso configure saml --acs https://teleport.example.com/v1/webapi/saml/acs \
-  --preset adfs \
-  --entity-descriptor https://adfs.example.com/FederationMetadata/2007-06/FederationMetadata.xml \
-  --attributes-to-roles http://schemas.xmlsoap.org/claims/Group,Administrators,editor \
-  --attributes-to-roles http://schemas.xmlsoap.org/claims/Group,Users,access \
-  > adfs.yaml
+```yaml
+(!examples/resources/adfs-connector.yaml!)
 ```
 
 The `acs` field should match the value you set in ADFS earlier and you can
@@ -155,9 +150,6 @@ just created. In our situation, we are mapping the *"Group"* attribute whose ful
 name is `http://schemas.xmlsoap.org/claims/Group` with a value of *"admins"*
 to the *"admin"* role. Groups with the value *"users"* is being mapped to the
 *"users"* role.
-
-You can test this connector before applying it (`cat adfs.yaml | tctl sso test`),
-but until we complete the next step the authentication process will not complete.
 
 Apply the connector:
 
