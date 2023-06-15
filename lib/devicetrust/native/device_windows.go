@@ -516,7 +516,6 @@ func solveTPMEnrollChallenge(
 			return nil, trace.Wrap(err, "activating credential with challenge")
 		}
 	} else {
-		log.Info("TPM: Detected that the current process is not running with elevated privileges. Triggering a UAC prompt to run the credential activation in an elevated process.")
 		fmt.Println("Detected that tsh is not running with elevated privileges. Triggering a UAC prompt to complete the enrollment in an elevated process.")
 		activationSolution, err = activateCredentialInElevatedChild(ctx, *encryptedCredential, credActivatePath)
 		if err != nil {
@@ -600,7 +599,7 @@ func activateCredentialInElevatedChild(
 	return solutionBytes, nil
 }
 
-func handleTPMActivateCredential(encryptedCredential string, encryptedCredentialSecret string) error {
+func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
 	log.Debug("Performing credential activation.")
 	// The two input parameters are base64 encoded, so decode them.
 	credentialBytes, err := base64.StdEncoding.DecodeString(encryptedCredential)

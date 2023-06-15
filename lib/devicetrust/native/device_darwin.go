@@ -248,6 +248,6 @@ func solveTPMAuthnDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*
 	return nil, trace.BadParameter("called solveTPMAuthnDeviceChallenge on darwin")
 }
 
-func handleTPMActivateCredential(_ string, _ string) error {
+func handleTPMActivateCredential(_, _ string) error {
 	return trace.BadParameter("called handleTPMActivateCredential on darwin")
 }
