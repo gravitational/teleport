@@ -69,9 +69,12 @@ const (
 )
 
 // RunAsAndWait uses `ShellExecuteExW` to create a new process with elevated
-// privileges on Windows. It then waits until that process completes, and returns
-// an error if it exited in a bad state.
-func RunAsAndWait(file string, directory string, timeout time.Duration, parameters ...string) error {
+// privileges on Windows. It waits for the process to exit, or until timeout,
+// is exhausted. It will return an error if the process exits with a non-zero
+// status code.
+func RunAsAndWait(
+	file string, directory string, timeout time.Duration, parameters ...string,
+) error {
 	// Convert our various string inputs to UTF16Ptrs
 	lpVerb, err := syscall.UTF16PtrFromString("runas")
 	if err != nil {
@@ -100,7 +103,7 @@ func RunAsAndWait(file string, directory string, timeout time.Duration, paramete
 		lpDirectory:  uintptr(unsafe.Pointer(lpDirectory)),
 		nShow:        windows.SW_NORMAL,
 	}
-	// set the size field of info to the size of info.
+	// Set the size field of info to the size of info.
 	info.cbSize = uint32(unsafe.Sizeof(*info))
 
 	success := shellExecuteExW(info)
