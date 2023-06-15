@@ -523,6 +523,7 @@ func solveTPMEnrollChallenge(
 		if err != nil {
 			return nil, trace.Wrap(err, "activating credential with challenge using elevated child")
 		}
+		fmt.Println("Successfully completed credential activation in elevated process.")
 	}
 
 	log.Debug("TPM: Enrollment challenge completed.")
