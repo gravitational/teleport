@@ -382,7 +382,7 @@ func (f *fakeAnnouncer) UpsertProxy(ctx context.Context, s types.Server) error {
 	return f.err
 }
 
-func (f *fakeAnnouncer) UpsertAuthServer(s types.Server) error {
+func (f *fakeAnnouncer) UpsertAuthServer(ctx context.Context, s types.Server) error {
 	f.upsertCalls[HeartbeatModeAuth]++
 	return f.err
 }
