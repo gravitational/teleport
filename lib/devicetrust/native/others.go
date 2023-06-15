@@ -52,6 +52,6 @@ func solveTPMAuthnDeviceChallenge(
 	return nil, devicetrust.ErrPlatformNotSupported
 }
 
-func handleTPMActivateCredential(_ string, _ string) error {
+func handleTPMActivateCredential(_, _ string) error {
 	return devicetrust.ErrPlatformNotSupported
 }
