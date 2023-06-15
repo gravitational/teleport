@@ -33,7 +33,7 @@ type Ceremony struct {
 	GetDeviceOSType         func() devicepb.OSType
 	EnrollDeviceInit        func() (*devicepb.EnrollDeviceInit, error)
 	SignChallenge           func(chal []byte) (sig []byte, err error)
-	SolveTPMEnrollChallenge func(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error)
+	SolveTPMEnrollChallenge func(ctx context.Context, challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error)
 }
 
 // NewCeremony creates a new ceremony that delegates per-device behavior
@@ -100,7 +100,7 @@ func (c *Ceremony) Run(ctx context.Context, devicesClient devicepb.DeviceTrustSe
 		err = c.enrollDeviceMacOS(stream, resp)
 		// err handled below
 	case devicepb.OSType_OS_TYPE_WINDOWS:
-		err = c.enrollDeviceTPM(stream, resp)
+		err = c.enrollDeviceTPM(ctx, stream, resp)
 		// err handled below
 	default:
 		// This should be caught by the OSType guard at start of function.
@@ -142,7 +142,7 @@ func (c *Ceremony) enrollDeviceMacOS(stream devicepb.DeviceTrustService_EnrollDe
 	return trace.Wrap(err)
 }
 
-func (c *Ceremony) enrollDeviceTPM(stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse) error {
+func (c *Ceremony) enrollDeviceTPM(ctx context.Context, stream devicepb.DeviceTrustService_EnrollDeviceClient, resp *devicepb.EnrollDeviceResponse) error {
 	challenge := resp.GetTpmChallenge()
 	switch {
 	case challenge == nil:
@@ -153,7 +153,7 @@ func (c *Ceremony) enrollDeviceTPM(stream devicepb.DeviceTrustService_EnrollDevi
 		return trace.BadParameter("missing attestation_nonce in challenge from server")
 	}
 
-	challengeResponse, err := c.SolveTPMEnrollChallenge(challenge)
+	challengeResponse, err := c.SolveTPMEnrollChallenge(ctx, challenge)
 	if err != nil {
 		return trace.Wrap(err)
 	}
