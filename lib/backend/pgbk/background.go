@@ -7,8 +7,8 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype/zeronull"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 
@@ -146,7 +146,7 @@ FROM (
 			var action string
 			var key []byte
 			var value []byte
-			var expires pgtype.Timestamp
+			var expires zeronull.Timestamp
 			if err := rows.Scan(&action, &key, &value, &expires); err != nil {
 				return trace.Wrap(err)
 			}
@@ -158,7 +158,7 @@ FROM (
 					Item: backend.Item{
 						Key:     key,
 						Value:   value,
-						Expires: expires.Time,
+						Expires: time.Time(expires),
 					},
 				})
 			case "D":
