@@ -1,0 +1,11 @@
+proxyAddr: proxy.example.com:3080
+kubeClusterName: test-kube-cluster-name
+hostAliases:
+  - ip: "127.0.0.1"
+    hostnames:
+      - "foo.local"
+      - "bar.local"
+  - ip: "10.1.2.3"
+    hostnames:
+      - "foo.remote"
+      - "bar.remote"
