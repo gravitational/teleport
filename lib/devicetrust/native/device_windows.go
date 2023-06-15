@@ -618,7 +618,6 @@ func activateCredentialInElevatedChild(
 		solutionBytes, err := os.ReadFile(todoCredentialActivationPath)
 		if err == nil {
 			return solutionBytes, nil
-
 		}
 		log.WithError(err).Debug("Error when polling for solution. Waiting to try again.")
 		time.Sleep(time.Millisecond * 500)
