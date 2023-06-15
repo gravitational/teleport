@@ -72,7 +72,7 @@ func (b *Backend) backgroundChangeFeed(ctx context.Context) {
 	for {
 		b.log.Info("Starting change feed stream.")
 		err := b.runChangeFeed(ctx)
-		if err == nil {
+		if ctx.Err() != nil {
 			break
 		}
 		b.log.WithError(err).Error("Change feed stream lost.")
@@ -121,11 +121,27 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	b.buf.SetInit()
 	defer b.buf.Reset()
 
-	poll := func() (pgx.Rows, error) {
-		pollCtx, cancel := context.WithTimeout(ctx, 10*time.Second)
-		defer cancel()
-		return conn.Query(pollCtx,
-			`SELECT
+	for {
+		if err := b.pollChangeFeed(ctx, conn, slotName); err != nil {
+			return trace.Wrap(err)
+		}
+
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(backend.DefaultPollStreamPeriod):
+		}
+	}
+}
+
+func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName string) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+
+	t0 := time.Now()
+
+	rows, _ := conn.Query(ctx,
+		`SELECT
   data->>'action',
   decode(COALESCE(data->'columns'->0->>'value', data->'identity'->0->>'value'), 'hex'),
   decode(data->'columns'->1->>'value', 'hex'),
@@ -134,75 +150,60 @@ FROM (
   SELECT data::jsonb as data
   FROM pg_logical_slot_get_changes($1::text, NULL, NULL,
     'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')
-) AS jdata;`,
-			slotName)
-	}
+) AS jdata;`, slotName)
 
-	for {
-		t0 := time.Now()
-		rows, err := poll()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		for rows.Next() {
-			var action string
-			var key []byte
-			var value []byte
-			var expires zeronull.Timestamp
-			if err := rows.Scan(&action, &key, &value, &expires); err != nil {
-				return trace.Wrap(err)
-			}
-
-			switch action {
-			case "I", "U":
-				b.buf.Emit(backend.Event{
-					Type: types.OpPut,
-					Item: backend.Item{
-						Key:     key,
-						Value:   value,
-						Expires: time.Time(expires),
-					},
-				})
-			case "D":
-				b.buf.Emit(backend.Event{
-					Type: types.OpDelete,
-					Item: backend.Item{
-						Key: key,
-					},
-				})
-			case "M":
-				b.log.Debug("Received WAL message.")
-			case "B", "C":
-				b.log.Debug("Received transaction message in change feed (should not happen).")
-			case "T":
-				// it could be possible to just reset the event buffer and
-				// continue from the next row but it's not worth the effort
-				// compared to just killing this connection and reconnecting,
-				// and this should never actually happen anyway - deleting
-				// everything from the backend would leave Teleport in a very
-				// broken state
-				return trace.BadParameter("received truncate WAL message, can't continue")
-			default:
-				return trace.BadParameter("received unknown WAL message %q", action)
-			}
-
-		}
-		if err := rows.Err(); err != nil {
-			return trace.Wrap(err)
-		}
-
-		if n := rows.CommandTag().RowsAffected(); n > 0 {
-			b.log.WithFields(logrus.Fields{
-				"events":  n,
-				"elapsed": time.Since(t0).String(),
-			}).Debug("Fetched change feed events.")
-		}
-
-		select {
-		case <-ctx.Done():
+	var action string
+	var key []byte
+	var value []byte
+	var expires zeronull.Timestamp
+	tag, err := pgx.ForEachRow(rows, []any{&action, &key, &value, &expires}, func() error {
+		switch action {
+		case "I", "U":
+			b.buf.Emit(backend.Event{
+				Type: types.OpPut,
+				Item: backend.Item{
+					Key:     key,
+					Value:   value,
+					Expires: time.Time(expires),
+				},
+			})
 			return nil
-		case <-time.After(backend.DefaultPollStreamPeriod):
+		case "D":
+			b.buf.Emit(backend.Event{
+				Type: types.OpDelete,
+				Item: backend.Item{
+					Key: key,
+				},
+			})
+			return nil
+		case "M":
+			b.log.Debug("Received WAL message.")
+			return nil
+		case "B", "C":
+			b.log.Debug("Received transaction message in change feed (should not happen).")
+			return nil
+		case "T":
+			// it could be possible to just reset the event buffer and
+			// continue from the next row but it's not worth the effort
+			// compared to just killing this connection and reconnecting,
+			// and this should never actually happen anyway - deleting
+			// everything from the backend would leave Teleport in a very
+			// broken state
+			return trace.BadParameter("received truncate WAL message, can't continue")
+		default:
+			return trace.BadParameter("received unknown WAL message %q", action)
 		}
+	})
+	if err != nil {
+		return trace.Wrap(err)
 	}
+
+	if n := tag.RowsAffected(); n > 0 {
+		b.log.WithFields(logrus.Fields{
+			"events":  n,
+			"elapsed": time.Since(t0).String(),
+		}).Debug("Fetched change feed events.")
+	}
+
+	return nil
 }
