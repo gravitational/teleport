@@ -105,33 +105,14 @@ that `alice` can impersonate `jenkins`.
 <Admonition
   type="note"
   title="Access Role"
-  scope="oss"
 >
-We also assign the preset `access` role that allows users to access clusters for Alice's
-convenience.
+We also assign the preset `access` role that allows users to access clusters for
+Alice's convenience.
 </Admonition>
 
-<Admonition
-  type="note"
-  title="Access and Requester Role"
-  scope="enterprise"
->
-We also assign the preset `access` role that allows users to access clusters and the
-preset `requester` role that allows for requesting of cluster resources for Alice's
-convenience.
-</Admonition>
-
-<ScopedBlock scope={["oss"]}>
 ```code
 $ tctl users add alice  --roles=impersonator,access
 ```
-</ScopedBlock>
-
-<ScopedBlock scope={["enterprise", "cloud"]}>
-```code
-$ tctl users add alice  --roles=impersonator,access,requester
-```
-</ScopedBlock>
 
 ## Step 3/3: Use impersonation to issue a certificate
 

@@ -48,24 +48,12 @@ To generate one, run the following command on your Auth Service node:
 $ tctl tokens add --type=app
 ```
 
-<ScopedBlock scope={["oss"]}>
 Next, create a Teleport user with the `access` role that will allow it to
 connect to cluster applications:
 
 ```code
 $ tctl users add --roles=access alice
 ```
-</ScopedBlock>
-
-<ScopedBlock scope={["enterprise"]}>
-Next, create a Teleport user with the `access` role that will allow it to
-connect to cluster applications along with the `requester` role that will
-allow it to request cluster applications:
-
-```code
-$ tctl users add --roles=access,requester alice
-```
-</ScopedBlock>
 </ScopedBlock>
 
 <ScopedBlock scope={["cloud"]}>
