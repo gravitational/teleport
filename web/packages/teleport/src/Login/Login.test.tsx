@@ -15,13 +15,7 @@
  */
 
 import React from 'react';
-import {
-  render,
-  fireEvent,
-  screen,
-  waitFor,
-  waitForElementToBeRemoved,
-} from 'design/utils/testing';
+import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
 import { privateKeyEnablingPolicies } from 'shared/services/consts';
 
 import auth from 'teleport/services/auth/auth';
