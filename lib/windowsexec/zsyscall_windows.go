@@ -43,8 +43,10 @@ var (
 	procShellExecuteExW = modshell32.NewProc("ShellExecuteExW")
 )
 
-func shellExecuteExW(info *shellExecuteInfoW) (wasSuccess bool) {
-	r0, _, _ := syscall.Syscall(procShellExecuteExW.Addr(), 1, uintptr(unsafe.Pointer(info)), 0, 0)
-	wasSuccess = r0 != 0
+func shellExecuteExW(info *shellExecuteInfoW) (err error) {
+	r1, _, e1 := syscall.Syscall(procShellExecuteExW.Addr(), 1, uintptr(unsafe.Pointer(info)), 0, 0)
+	if r1 == 0 {
+		err = errnoErr(e1)
+	}
 	return
 }

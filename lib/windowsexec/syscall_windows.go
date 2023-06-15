@@ -24,11 +24,12 @@ import (
 	"unsafe"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows"
 )
 
 //go:generate go run golang.org/x/sys/windows/mkwinsyscall -output zsyscall_windows.go syscall_windows.go
-//sys	shellExecuteExW(info *shellExecuteInfoW) (wasSuccess bool) = shell32.ShellExecuteExW
+//sys	shellExecuteExW(info *shellExecuteInfoW) (err error) [failretval==0] = shell32.ShellExecuteExW
 
 // shellExecuteInfoW is the input/output struct for ShellExecuteExW.
 // See the docs for information about the fields:
@@ -72,7 +73,7 @@ const (
 // is exhausted. It will return an error if the process exits with a non-zero
 // status code.
 func RunAsAndWait(
-	file string, directory string, timeout time.Duration, parameters []string,
+	file, directory string, timeout time.Duration, parameters []string,
 ) error {
 	// Convert our various string inputs to UTF16Ptrs
 	lpVerb, err := windows.UTF16PtrFromString("runas")
@@ -104,34 +105,23 @@ func RunAsAndWait(
 	}
 	// Set the size field of info to the size of info.
 	info.cbSize = uint32(unsafe.Sizeof(*info))
-
-	success := shellExecuteExW(info)
-	if !success {
-		err := windows.GetLastError()
-		// The above err can still be nil in certain types of failure
-		// if it is returned, then it is much more descriptive, so we should
-		// return that.
-		if err != nil {
-			return trace.Wrap(err, "calling shellExecuteExW")
-		}
-		if info.hInstApp == SE_ERR_ACCESSDENIED {
-			err := trace.BadParameter("shellExecuteExW failed with ACCESSDENIED")
-			return trace.WithUserMessage(
-				err,
-				"This error can occur if the UAC dialogue is rejected or if it is not possible to open a UAC dialogue due to system configuration.",
-			)
-		}
-		// If GetLastError is nil, the only thing we can do is push out the
-		// value of hInstApp.
-		return trace.BadParameter("shellExecuteExW failed and did not call SetLastError. hInstApp=%d", info.hInstApp)
-
+	err = shellExecuteExW(info)
+	if err != nil {
+		// Errors from this can be a little vague, and the contents of hInstApp
+		// can provide additional context. We'll emit a debug log so this is a
+		// little easier to investigate if a user experience issues with this.
+		log.WithFields(log.Fields{
+			"err":      err,
+			"hInstApp": info.hInstApp,
+		}).Debug("Encountered error calling shellExecuteExW")
+		return trace.Wrap(err, "calling shellExecuteExW")
 	}
 	// Since we provided SEE_MASK_NOCLOSEPROCESS, closing info.hProcess is our
 	// responsibility.
 	defer windows.CloseHandle(info.hProcess)
 
 	waitTime := windows.INFINITE
-	if timeout != time.Duration(0) {
+	if timeout > 0 {
 		waitTime = int(timeout.Milliseconds())
 	}
 
