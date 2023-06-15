@@ -19,6 +19,8 @@ package model
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"io"
 	"strings"
 	"time"
 
@@ -229,24 +231,40 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, *agentFinish, error) {
 	scratchpad := a.constructScratchpad(state.intermediateSteps, state.observations)
 	prompt := a.createPrompt(state.chatHistory, scratchpad, state.humanMessage)
-	resp, err := state.llm.CreateChatCompletion(
+	stream, err := state.llm.CreateChatCompletionStream(
 		ctx,
 		openai.ChatCompletionRequest{
 			Model:    openai.GPT4,
 			Messages: prompt,
+			Stream:   true,
 		},
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
 
-	llmOut := resp.Choices[0].Message.Content
-	err = state.tokensUsed.AddTokens(prompt, llmOut)
-	if err != nil {
-		return nil, nil, trace.Wrap(err)
-	}
+	deltas := make(chan string)
+	completion := ""
+	go func() {
+		defer close(deltas)
 
-	action, finish, err := parsePlanningOutput(llmOut)
+		for {
+			response, err := stream.Recv()
+			if errors.Is(err, io.EOF) {
+				return
+			} else if err != nil {
+				log.Tracef("agent encountered an error while streaming: %v", err)
+				return
+			}
+
+			delta := response.Choices[0].Delta.Content
+			deltas <- delta
+			completion += delta
+		}
+	}()
+
+	action, finish, err := parsePlanningOutput(deltas)
+	state.tokensUsed.AddTokens(prompt, completion)
 	return action, finish, trace.Wrap(err)
 }
 
@@ -327,7 +345,12 @@ type planOutput struct {
 
 // parsePlanningOutput parses the output of the model after asking it to plan it's next action
 // and returns the appropriate event type or an error.
-func parsePlanningOutput(text string) (*AgentAction, *agentFinish, error) {
+func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, error) {
+	var text string
+	for delta := range deltas {
+		text += delta
+	}
+
 	log.Debugf("received planning output: \"%v\"", text)
 	if outputString, found := strings.CutPrefix(text, "<FINAL RESPONSE>"); found {
 		return nil, &agentFinish{output: &Message{Content: outputString}}, nil
