@@ -624,7 +624,7 @@ func activateCredentialInElevatedChild(
 		time.Sleep(time.Millisecond * 500)
 	}
 	// TODO: Return last error that occurred
-	return nil, trace.Errorf("failed to receive credential activation results from elevated process")
+	return nil, trace.BadParameter("failed to receive credential activation results from elevated process")
 }
 
 // TODO: Make this a good path
