@@ -19,10 +19,11 @@ import (
 	"crypto/sha256"
 	"time"
 
-	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
+
+	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
+	"github.com/gravitational/teleport/lib/backend"
 )
 
 const (
