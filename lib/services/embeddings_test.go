@@ -165,8 +165,9 @@ func TestNodeEmbeddingWatcherIdempotency(t *testing.T) {
 				MaxStaleness: time.Minute,
 			},
 		},
-		Embeddings: embeddings,
-		Embedder:   embedder,
+		Embeddings:          embeddings,
+		Embedder:            embedder,
+		EmbeddingsRetriever: ai.NewSimpleRetriever(),
 	}
 	watcher, err := services.NewNodeEmbeddingWatcher(ctx, cfg)
 	require.NoError(t, err)
