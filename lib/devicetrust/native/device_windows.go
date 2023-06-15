@@ -579,7 +579,6 @@ func activateCredentialInElevatedChild(
 		"--encrypted-credential-secret",
 		base64.StdEncoding.EncodeToString(encryptedCredential.Secret),
 	}
-
 	if debug {
 		params = append(params, "-d")
 	}
@@ -590,7 +589,7 @@ func activateCredentialInElevatedChild(
 		exe,
 		cwd,
 		time.Second*10,
-		params...,
+		params,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err, "invoking ShellExecute")
