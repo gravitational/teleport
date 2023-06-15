@@ -124,7 +124,7 @@ func RunAsAndWait(
 		}
 		// If GetLastError is nil, the only thing we can do is push out the
 		// value of hInstApp.
-		return trace.Errorf("shellExecuteExW failed and did not call SetLastError. hInstApp=%d", info.hInstApp)
+		return trace.BadParameter("shellExecuteExW failed and did not call SetLastError. hInstApp=%d", info.hInstApp)
 
 	}
 	// Since we provided SEE_MASK_NOCLOSEPROCESS, closing info.hProcess is our

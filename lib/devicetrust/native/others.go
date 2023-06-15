@@ -17,8 +17,6 @@
 package native
 
 import (
-	"context"
-
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
 )
@@ -40,8 +38,8 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 }
 
 func solveTPMEnrollChallenge(
-	_ context.Context,
 	_ *devicepb.TPMEnrollChallenge,
+	_ bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, devicetrust.ErrPlatformNotSupported
 }

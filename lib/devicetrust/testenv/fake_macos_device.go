@@ -15,7 +15,6 @@
 package testenv
 
 import (
-	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
@@ -95,8 +94,8 @@ func (f *FakeMacOSDevice) SignChallenge(chal []byte) (sig []byte, err error) {
 }
 
 func (d *FakeMacOSDevice) SolveTPMEnrollChallenge(
-	_ context.Context,
 	_ *devicepb.TPMEnrollChallenge,
+	_ bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, trace.NotImplemented("mac device does not implement SolveTPMEnrollChallenge")
 }

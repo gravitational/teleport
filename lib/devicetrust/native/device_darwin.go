@@ -240,7 +240,7 @@ func statusErrorFromC(res C.int32_t) error {
 	return &statusError{status: int32(res)}
 }
 
-func solveTPMEnrollChallenge(_ context.Context, _ *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
+func solveTPMEnrollChallenge(_ *devicepb.TPMEnrollChallenge, _ bool) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, trace.BadParameter("called solveTPMEnrollChallenge on darwin")
 }
 
