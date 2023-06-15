@@ -20,7 +20,9 @@ type inventorySyncer struct {
 	logger  *log.Entry
 	storage *storage.S
 
-	createAuditCallback, updateAuditCallback, deleteAuditCallback func(dev *devicepb.Device, err error)
+	mode devicepb.SyncInventoryMode
+
+	createCallback, updateCallback, noopCallback, deleteCallback func(mode devicepb.SyncInventoryMode, dev *devicepb.Device, err error)
 }
 
 // SyncInventory executes its namesake stream.
@@ -51,6 +53,7 @@ func (s *inventorySyncer) SyncInventory(stream devicepb.DeviceTrustService_SyncI
 	if startReq.OnMissingAction == devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_UNSPECIFIED {
 		startReq.OnMissingAction = devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_NOOP
 	}
+	s.mode = startReq.Mode
 
 	// start: Validate source.
 	source := startReq.Source
@@ -85,7 +88,7 @@ func (s *inventorySyncer) SyncInventory(stream devicepb.DeviceTrustService_SyncI
 		assetTag string
 	}
 
-	fullDeleteSync := startReq.Mode == devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL &&
+	fullDeleteSync := s.mode == devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL &&
 		startReq.OnMissingAction == devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE
 
 	seenDevices := make(map[deviceKey]struct{})
@@ -181,7 +184,7 @@ Devices:
 
 			// Attempt delete and record the result.
 			err := s.storage.DeleteDevice(ctx, dev.Id)
-			s.deleteAuditCallback(dev, err)
+			s.deleteCallback(s.mode, dev, err)
 			statuses = append(statuses, &devicepb.DeviceOrStatus{
 				Status: errToStatus(err),
 				// Always set the ID here, the client has no input to compare
@@ -252,17 +255,19 @@ func (s *inventorySyncer) upsertDevices(ctx context.Context, source *devicepb.De
 			})
 			// err handled below
 
-			// Do not issue update audit events for noop updates.
-			// It's too noisy.
-			if err != nil || !proto.Equal(prevUpdateTime, stored.GetUpdateTime()) {
-				s.updateAuditCallback(stored, err)
+			// Notify noops separately from updates, they are needless noise for
+			// audit but interesting for metrics.
+			if err == nil && proto.Equal(prevUpdateTime, stored.GetUpdateTime()) {
+				s.noopCallback(s.mode, stored, err)
+			} else {
+				s.updateCallback(s.mode, stored, err)
 			}
 		}
 		// Attempt Create if either GetDeviceIDByOSTag or UpdateDevice failed with
 		// not found.
 		if trace.IsNotFound(err) {
 			stored, err = s.storage.CreateDevice(ctx, dev, createAsResource)
-			s.createAuditCallback(stored, err)
+			s.createCallback(s.mode, stored, err)
 			// err handled below.
 		}
 
@@ -318,7 +323,7 @@ func (s *inventorySyncer) deleteDevices(ctx context.Context, source *devicepb.De
 				return nil
 			}
 		})
-		s.deleteAuditCallback(dev, err)
+		s.deleteCallback(s.mode, dev, err)
 		if err == nil {
 			st.Id = dev.Id
 			st.Deleted = true

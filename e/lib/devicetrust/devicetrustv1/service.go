@@ -3,14 +3,18 @@ package devicetrustv1
 import (
 	"context"
 	"errors"
+	"strconv"
 	"sync"
+	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
@@ -23,12 +27,56 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	config "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 )
 
 // DataDriftDetectedMessage is the error message used to redact data drift
 // errors.
 const DataDriftDetectedMessage = "collected data drift detected"
+
+// deviceTrustSubsystem is the metric subsystem for Device Trust.
+const deviceTrustSubsystem = "devicetrust"
+
+var (
+	createEnrollTokenHist = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: deviceTrustSubsystem,
+		Name:      "create_device_enroll_token_seconds",
+		Help:      "CreateDeviceEnrollToken RPC histogram labeled by grpc_code",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"grpc_code"})
+
+	enrollHist = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: deviceTrustSubsystem,
+		Name:      "enroll_device_seconds",
+		Help:      "EnrollDevice RPC histogram labeled by grpc_code",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"grpc_code"})
+
+	authnHist = prometheus.NewHistogramVec(prometheus.HistogramOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: deviceTrustSubsystem,
+		Name:      "authenticate_device_seconds",
+		Help:      "AuthenticateDevice RPC histogram labeled by grpc_code",
+		Buckets:   prometheus.DefBuckets,
+	}, []string{"grpc_code"})
+
+	syncOperationsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace: teleport.MetricNamespace,
+		Subsystem: deviceTrustSubsystem,
+		Name:      "sync_inventory_device_operations_total",
+		Help:      "SyncInventory device operations counter, labeled by mode and operation",
+	}, []string{"mode", "operation"})
+
+	allMetrics = []prometheus.Collector{
+		createEnrollTokenHist,
+		enrollHist,
+		authnHist,
+		syncOperationsTotal,
+	}
+)
 
 // AuthServer represents the [auth.Server] methods used by [Service].
 type AuthServer interface {
@@ -68,6 +116,11 @@ type ServiceParams struct {
 
 // New creates a new DeviceTrustService implementer.
 func New(params ServiceParams) (*Service, error) {
+	// Register service metrics. Expected to always work.
+	if err := metrics.RegisterPrometheusCollectors(allMetrics...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch {
 	case params.AuthServer == nil:
 		return nil, trace.BadParameter("parameter AuthServer required")
@@ -408,7 +461,14 @@ func (s *Service) BulkCreateDevices(ctx context.Context, req *devicepb.BulkCreat
 	}, nil
 }
 
-func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (*devicepb.DeviceEnrollToken, error) {
+func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.CreateDeviceEnrollTokenRequest) (token *devicepb.DeviceEnrollToken, err error) {
+	start := time.Now()
+	defer func() {
+		createEnrollTokenHist.
+			WithLabelValues(status.Code(err).String()).
+			Observe(time.Since(start).Seconds())
+	}()
+
 	authCtx, err := s.authorizer.Authorize(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -439,7 +499,6 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	// - User succeeded verb check, but only supplied auto-enroll information.
 	//   (Otherwise, favor legacy behavior.)
 	var devMetadata *apievents.DeviceMetadata
-	var token *devicepb.DeviceEnrollToken
 	if checkErr != nil || (req.DeviceId == "" && req.DeviceData != nil && autoEnrollEnabled) {
 		var dev *devicepb.Device
 		dev, err = s.storage.CreateDeviceEnrollTokenUsingData(ctx, req.DeviceData)
@@ -506,6 +565,13 @@ func (s *Service) redactTokenErr(dev *devicepb.Device, user string, checkErr, ac
 }
 
 func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceServer) (err error) {
+	start := time.Now()
+	defer func() {
+		enrollHist.
+			WithLabelValues(status.Code(err).String()).
+			Observe(time.Since(start).Seconds())
+	}()
+
 	var dev *devicepb.Device
 	defer func() { err = s.redactDataDriftErr(dev, err) }()
 
@@ -560,6 +626,13 @@ func (s *Service) EnrollDevice(stream devicepb.DeviceTrustService_EnrollDeviceSe
 var authnDisabledLogOnce sync.Once
 
 func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_AuthenticateDeviceServer) (err error) {
+	start := time.Now()
+	defer func() {
+		authnHist.
+			WithLabelValues(status.Code(err).String()).
+			Observe(time.Since(start).Seconds())
+	}()
+
 	var dev *devicepb.Device
 	defer func() { err = s.redactDataDriftErr(dev, err) }()
 
@@ -661,16 +734,31 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		})
 	}
 
+	incCounter := func(mode devicepb.SyncInventoryMode, op string, err error) {
+		m := strconv.Itoa(int(mode))
+		if err != nil {
+			syncOperationsTotal.WithLabelValues(m, "errors").Inc()
+			return
+		}
+		syncOperationsTotal.WithLabelValues(m, op).Inc()
+	}
+
 	syncer := &inventorySyncer{
 		logger:  s.logger,
 		storage: s.storage,
-		createAuditCallback: func(dev *devicepb.Device, err error) {
+		createCallback: func(mode devicepb.SyncInventoryMode, dev *devicepb.Device, err error) {
+			incCounter(mode, "create", err)
 			auditCB(events.DeviceCreateEvent, events.DeviceCreateCode, dev, err)
 		},
-		updateAuditCallback: func(dev *devicepb.Device, err error) {
+		updateCallback: func(mode devicepb.SyncInventoryMode, dev *devicepb.Device, err error) {
+			incCounter(mode, "update", err)
 			auditCB(events.DeviceUpdateEvent, events.DeviceUpdateCode, dev, err)
 		},
-		deleteAuditCallback: func(dev *devicepb.Device, err error) {
+		noopCallback: func(mode devicepb.SyncInventoryMode, _ *devicepb.Device, err error) {
+			incCounter(mode, "noop", err)
+		},
+		deleteCallback: func(mode devicepb.SyncInventoryMode, dev *devicepb.Device, err error) {
+			incCounter(mode, "delete", err)
 			auditCB(events.DeviceDeleteEvent, events.DeviceDeleteCode, dev, err)
 		},
 	}

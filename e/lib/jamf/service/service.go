@@ -6,23 +6,32 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc/codes"
 
+	"github.com/gravitational/teleport"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/mdm"
+	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
-const sortByID = "id:asc"
-const sortByReportDateDesc = "general.reportDate:desc"
+const (
+	sortByID             = "id:asc"
+	sortByReportDateDesc = "general.reportDate:desc"
+)
+
+// jamfSubsystem is the metric subsystem for Jamf.
+const jamfSubsystem = "jamf"
 
 var defaultInventory = []*types.JamfInventoryEntry{
 	// https://github.com/gravitational/teleport.e/blob/master/rfd/0007e-device-trust-mdm-integration.md#jamf-inventory-sync
@@ -33,6 +42,20 @@ var defaultInventory = []*types.JamfInventoryEntry{
 		OnMissing:         "DELETE",
 	},
 }
+
+var (
+	syncsTotal = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Namespace:   teleport.MetricNamespace,
+		Subsystem:   jamfSubsystem,
+		Name:        "syncs_total",
+		Help:        "Number of inventory sync runs, labeled by mode and outcome",
+		ConstLabels: map[string]string{},
+	}, []string{"mode", "success"})
+
+	allMetrics = []prometheus.Collector{
+		syncsTotal,
+	}
+)
 
 // S is the Jamf service implementation.
 //
@@ -62,6 +85,11 @@ type Opts struct {
 // New creates a new [S] instance.
 // `ctx` is used to perform initial validations against the Jamf API.
 func New(ctx context.Context, opts Opts) (*S, error) {
+	// Register service metrics. Expected to always work.
+	if err := metrics.RegisterPrometheusCollectors(allMetrics...); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	switch {
 	case opts.Logger == nil:
 		return nil, trace.BadParameter("parameter Logger required")
@@ -236,11 +264,16 @@ func (s *S) Run(ctx context.Context) error {
 				FilterRSQL:      e.Entry.FilterRsql,
 				CutTime:         e.Entry.CutTime,
 			})
+			syncsTotal.WithLabelValues(
+				strconv.Itoa(int(e.Mode)),
+				strconv.FormatBool(err == nil),
+			).Inc()
 			if err != nil {
 				s.logger.WithError(err).Warn("Jamf inventory sync attempt failed")
 				continue
 			}
 			s.logger.Info("Sync complete")
+
 			// Update cut time.
 			if nextCutTime.After(e.Entry.CutTime) {
 				e.Entry.CutTime = nextCutTime
