@@ -598,7 +598,7 @@ func activateCredentialInElevatedChild(
 	// If they reject the UAC dialogue, an error is returned:
 	//   syscall.Errno The operation was canceled by the user.
 	if err != nil {
-		return nil, trace.Wrap(err, "invoking ShellExecuteW")
+		return nil, trace.Wrap(err, "invoking ShellExecute")
 	}
 
 	// Ensure we clean up the results of the execution once we are done with
