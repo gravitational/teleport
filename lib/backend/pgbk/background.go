@@ -40,11 +40,14 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 				return nil
 			}); err != nil {
 				b.log.WithError(err).Error("Failed to delete expired items.")
-				continue
+				break
 			}
 
 			if n > 0 {
-				b.log.WithFields(logrus.Fields{"deleted": n, "elapsed": time.Since(t0).String()}).Debug("Deleted expired items.")
+				b.log.WithFields(logrus.Fields{
+					"deleted": n,
+					"elapsed": time.Since(t0).String(),
+				}).Debug("Deleted expired items.")
 			}
 
 			if n < deleteBatchSize {
