@@ -55,9 +55,6 @@ type shellExecuteInfoW struct {
 // These consts are copied verbatim from
 // https://learn.microsoft.com/en-us/windows/win32/api/shellapi/ns-shellapi-shellexecuteinfow
 const (
-	// SE_ERR_ACCESSDENIED (5):
-	// 	Access denied.
-	SE_ERR_ACCESSDENIED = 0x05
 	// SEE_MASK_NOCLOSEPROCESS (0x00000040):
 	// Use to indicate that the hProcess member receives the process handle.
 	// This handle is typically used to allow an application to find out when a
