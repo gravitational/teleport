@@ -62,7 +62,7 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 	// "tsh device" hidden debug commands.
 	root.collect.CmdClause = parentCmd.Command("collect", "Simulate enroll/authn device data collection").Hidden()
 	root.keyget.CmdClause = parentCmd.Command("keyget", "Get information about the device key").Hidden()
-	root.activateCredential.CmdClause = parentCmd.Command("activate-credential", "").Hidden()
+	root.activateCredential.CmdClause = parentCmd.Command("tpm-activate-credential", "").Hidden()
 	root.activateCredential.Flag("encrypted-credential", "").
 		Required().
 		StringVar(&root.activateCredential.encryptedCredential)
