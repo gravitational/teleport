@@ -748,7 +748,7 @@ func TestPresets(t *testing.T) {
 			require.NoError(t, err)
 
 			// EXPECT that GetUser() and UpsertUser() are called as we
-			// expected them to be above (and, by extention, that no other
+			// expected them to be above (and, by extension, that no other
 			// calls were made into the auth server)
 			auth.AssertExpectations(t)
 
@@ -781,14 +781,14 @@ func TestPresets(t *testing.T) {
 			auth.On("GetUser", user.GetName(), false).
 				Return(user, nil)
 
-			// Note that any attempt to call UpsertUser inside `createPresetUsers()`
-			// will fail the test, as we
-			// have not told the mock to expect it.
+			// WHEN I attempt to create the preset users...
 			err := createPresetUsers(ctx, auth)
 			require.NoError(t, err)
 
-			// EXPECT that all the all of the UserManagement calls that
-			// we expected to happen, happened as we expecteded.
+			// EXPECT that all of the UserManagement calls that we expected to
+			// happen, happened as we expected. Note that any attempt to call
+			// `UpsertUser` inside `createPresetUsers()` will already have
+			// failed the test, as we have not told the mock to expect it.
 			auth.AssertExpectations(t)
 		})
 	})

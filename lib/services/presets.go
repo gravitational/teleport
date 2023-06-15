@@ -43,7 +43,7 @@ func NewPresetAutomaticAccessApproverRole() types.Role {
 			Description: "Approves any access request",
 			Labels: map[string]string{
 				types.TeleportSystemResourceLabel: types.IsSystemResource,
-				types.TeleportResourceRevision:     "1",
+				types.TeleportResourceRevision:    "1",
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -81,7 +81,7 @@ func NewPresetAutomaticAccessBotUser() types.User {
 			Description: "Used internally by Teleport to automatically approve access requests",
 			Labels: map[string]string{
 				types.TeleportSystemResourceLabel: types.IsSystemResource,
-				types.TeleportResourceRevision:     "1",
+				types.TeleportResourceRevision:    "1",
 			},
 		},
 		Spec: types.UserSpecV2{
