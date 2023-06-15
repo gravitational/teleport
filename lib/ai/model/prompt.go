@@ -61,6 +61,7 @@ Markdown code snippet formatted in the following schema:
 {
 	"action": string \\ The action to take. Must be one of %v
 	"action_input": string \\ The input to the action
+	"reasoning": string \\ Your reasoning for taking this action
 }
 %v
 
@@ -68,14 +69,10 @@ Markdown code snippet formatted in the following schema:
 Use this if you want to respond directly to the human or you want to ask the human a question to gather more information.
 You should avoid asking too many questions when you have other options available to you as it may be perceived as annoying.
 But asking is far better than guessing or making assumptions.
-Markdown code snippet formatted in the following schema:
+Text with the hardcoded header <FINAL RESPONSE> followed by your response as below:
 
-%vjson
-{
-    "action": "Final Answer",
-    "action_input": string \\ You should put what you want to return to use here
-}
-%v`, "```", toolnames, "```", "```", "```",
+<FINAL RESPONSE>
+YOUR RESPONSE HERE`, "```", toolnames, "```",
 	)
 }
 
