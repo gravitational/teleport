@@ -416,7 +416,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Equal(t, len(out), 0)
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
-	require.NoError(t, s.PresenceS.UpsertAuthServer(auth))
+	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
 
 	out, err = s.PresenceS.GetAuthServers()
 	require.NoError(t, err)
