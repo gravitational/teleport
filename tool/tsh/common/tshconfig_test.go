@@ -88,7 +88,7 @@ func TestLoadAllConfigs(t *testing.T) {
 	writeConf(globalPath, globalConf)
 	writeConf(userPath, userConf)
 
-	config, err := loadAllConfigs(CLIConf{
+	config, err := loadAllConfigs(&CLIConf{
 		GlobalTshConfigPath: globalPath,
 		HomePath:            homeDir,
 	})

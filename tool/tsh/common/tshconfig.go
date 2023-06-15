@@ -195,16 +195,10 @@ func loadConfig(fullConfigPath string) (*TshConfig, error) {
 }
 
 // loadAllConfigs loads all tsh configs and merges them in appropriate order.
-func loadAllConfigs(cf CLIConf) (*TshConfig, error) {
-	// default to globalTshConfigPathDefault
-	globalConfigPath := cf.GlobalTshConfigPath
-	if globalConfigPath == "" {
-		globalConfigPath = globalTshConfigPathDefault
-	}
-
-	globalConf, err := loadConfig(globalConfigPath)
+func loadAllConfigs(cf *CLIConf) (*TshConfig, error) {
+	globalConf, err := loadConfig(cf.GlobalTshConfigPath)
 	if err != nil {
-		return nil, trace.Wrap(err, "failed to load global tsh config from %q", globalConfigPath)
+		return nil, trace.Wrap(err, "failed to load global tsh config from %q", cf.GlobalTshConfigPath)
 	}
 
 	fullConfigPath := filepath.Join(profile.FullProfilePath(cf.HomePath), tshConfigPath)

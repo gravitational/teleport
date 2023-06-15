@@ -574,6 +574,9 @@ const (
 	proxyDefaultResolutionTimeout = 5 * time.Second
 )
 
+// kingpin can support multiple env vars separated by new lines.
+var clusterEnvVars = fmt.Sprintf("%v\n%v", siteEnvVar, clusterEnvVar)
+
 // env vars that tsh status will check to provide hints about active env vars to a user.
 var tshStatusEnvVars = [...]string{proxyEnvVar, clusterEnvVar, siteEnvVar, kubeClusterEnvVar, teleport.EnvKubeConfig}
 
@@ -598,10 +601,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		TracingProvider: tracing.NoopProvider(),
 	}
 
-	// run early to enable debug logging if env var is set.
-	// this makes it possible to debug early startup functionality, particularly command aliases.
-	initLogger(&cf)
-
 	moduleCfg := modules.GetModules()
 	var cpuProfile, memProfile, traceProfile string
 
@@ -625,6 +624,10 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	app.Flag("cert-format", "SSH certificate format").StringVar(&cf.CertificateFormat)
 	app.Flag("trace", "Capture and export distributed traces").Hidden().BoolVar(&cf.SampleTraces)
 	app.Flag("trace-exporter", "An OTLP exporter URL to send spans to. Note - only tsh spans will be included.").Hidden().StringVar(&cf.TraceExporter)
+
+	// env flags
+	app.Flag("home-path", "home path").Hidden().Envar(types.HomeEnvVar).StringVar(&cf.HomePath)
+	app.Flag("global-config-path", "global config path").Hidden().Envar(globalTshConfigEnvVar).Default(globalTshConfigPathDefault).StringVar(&cf.GlobalTshConfigPath)
 
 	if !moduleCfg.IsBoringBinary() {
 		// The user is *never* allowed to do this in FIPS mode.
@@ -678,7 +681,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	ssh.Flag("dynamic-forward", "Forward localhost connections to remote server using SOCKS5").Short('D').StringsVar(&cf.DynamicForwardedPorts)
 	ssh.Flag("local", "Execute command on localhost after connecting to SSH node").Default("false").BoolVar(&cf.LocalExec)
 	ssh.Flag("tty", "Allocate TTY").Short('t').BoolVar(&cf.Interactive)
-	ssh.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
+	ssh.Flag("cluster", clusterHelp).Short('c').Envar(clusterEnvVars).StringVar(&cf.SiteName)
 	ssh.Flag("option", "OpenSSH options in the format used in the configuration file").Short('o').AllowDuplicate().StringsVar(&cf.Options)
 	ssh.Flag("no-remote-exec", "Don't execute remote command, useful for port forwarding").Short('N').BoolVar(&cf.NoRemoteExec)
 	ssh.Flag("x11-untrusted", "Requests untrusted (secure) X11 forwarding for this session").Short('X').BoolVar(&cf.X11ForwardingUntrusted)
@@ -884,7 +887,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	login.Flag("request-id", "Login with the roles requested in the given request").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
 	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
-	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
+	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").Envar(kubeClusterEnvVar).StringVar(&cf.KubernetesCluster)
 	login.Flag("verbose", "Show extra status information").Short('v').BoolVar(&cf.Verbose)
 	login.Alias(loginUsageFooter)
 
@@ -1014,40 +1017,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		return trace.Wrap(err)
 	}
 
-	// parse CLI commands+flags
-	utils.UpdateAppUsageTemplate(app, args)
-	command, parseErr := app.Parse(args)
-
-	// check env variables after parsing CLI commands+flags
-	setEnvFlags(&cf, os.Getenv)
-
-	// Load tsh config options after parsing cli/env flags
-	confOptions, err := loadAllConfigs(cf)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	cf.TshConfig = *confOptions
-
-	// Load aliases from tsh config options
-	ar := newAliasRunner(cf.TshConfig.Aliases)
-	aliasCommand, runtimeArgs := findAliasCommand(args)
-	if aliasDefinition, ok := ar.getAliasDefinition(aliasCommand); ok {
-		return ar.runAlias(ctx, aliasCommand, aliasDefinition, cf.executablePath, runtimeArgs)
-	}
-
-	if errors.Is(parseErr, kingpin.ErrExpectedCommand) {
-		if _, ok := cf.TshConfig.Aliases[aliasCommand]; ok {
-			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
-			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
-		}
-	}
-
-	// Identity files do not currently contain a proxy address. When loading an
-	// Identity file, a proxy must be passed on the command line as well.
-	if cf.IdentityFileIn != "" && cf.Proxy == "" {
-		return trace.BadParameter("tsh --identity also requires --proxy")
-	}
-
 	// prevent Kingpin from calling os.Exit(), we want to handle errors ourselves.
 	// shouldTerminate will be checked after app.Parse() call.
 	var shouldTerminate *int
@@ -1059,32 +1028,32 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		shouldTerminate = &exitCode
 	})
 
-	if err != nil {
-		app.Usage(args)
-		return trace.Wrap(err)
-	}
-
 	// handle: help command, --help flag, version command, ...
 	if shouldTerminate != nil {
 		return trace.Wrap(&common.ExitCodeError{Code: *shouldTerminate})
 	}
 
-	// Did we initially get the Username from flags/env?
-	cf.ExplicitUsername = cf.Username != ""
+	// parse CLI commands+flags. Check tsh aliases before returning any parsing error.
+	parseErr := cf.parse(app, args, opts...)
 
-	cf.command = command
+	// Load aliases from tsh config options
+	ar := newAliasRunner(cf.TshConfig.Aliases)
+	aliasCommand, runtimeArgs := findAliasCommand(args)
+	if aliasDefinition, ok := ar.getAliasDefinition(aliasCommand); ok {
+		return ar.runAlias(cf.Context, aliasCommand, aliasDefinition, cf.executablePath, runtimeArgs)
+	}
 
-	// apply any options after parsing of arguments to ensure
-	// that defaults don't overwrite options.
-	for _, opt := range opts {
-		if err := opt(&cf); err != nil {
-			return trace.Wrap(err)
+	if errors.Is(parseErr, kingpin.ErrExpectedCommand) {
+		if _, ok := cf.TshConfig.Aliases[aliasCommand]; ok {
+			log.Debugf("Failing due to recursive alias %q. Aliases seen: %v", aliasCommand, ar.getSeenAliases())
+			return trace.BadParameter("recursive alias %q; correct alias definition and try again", aliasCommand)
 		}
 	}
 
-	// Enable debug logging if requested by --debug.
-	// If TELEPORT_DEBUG was set, it was already enabled by prior call to initLogger().
-	initLogger(&cf)
+	if parseErr != nil {
+		app.Usage(args)
+		return trace.Wrap(err)
+	}
 
 	// Connect to the span exporter and initialize the trace provider only if
 	// the --trace flag was set.
@@ -1102,7 +1071,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		if cf.TraceExporter == "" {
 			ignored = []string{login.FullCommand()}
 		}
-		provider, err := newTraceProvider(&cf, command, ignored)
+		provider, err := newTraceProvider(&cf, cf.command, ignored)
 		if err != nil {
 			log.WithError(err).Debug("failed to set up span forwarding.")
 		} else {
@@ -1124,13 +1093,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// start the span for the command and update the config context so that all spans created
 	// in the future will be rooted at this span.
-	ctx, span := cf.TracingProvider.Tracer(teleport.ComponentTSH).Start(cf.Context, command)
+	ctx, span := cf.TracingProvider.Tracer(teleport.ComponentTSH).Start(cf.Context, cf.command)
 	cf.Context = ctx
 	defer span.End()
-
-	if err := client.ValidateAgentKeyOption(cf.AddKeysToAgent); err != nil {
-		return trace.Wrap(err)
-	}
 
 	if cpuProfile != "" {
 		log.Debugf("writing CPU profile to %v", cpuProfile)
@@ -1176,7 +1141,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		defer runtimetrace.Stop()
 	}
 
-	switch command {
+	switch cf.command {
 	case ver.FullCommand():
 		err = onVersion(&cf)
 	case ssh.FullCommand():
@@ -1343,13 +1308,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	default:
 		// Handle commands that might not be available.
 		switch {
-		case tid.ls != nil && command == tid.ls.FullCommand():
+		case tid.ls != nil && cf.command == tid.ls.FullCommand():
 			err = tid.ls.run(&cf)
-		case tid.rm != nil && command == tid.rm.FullCommand():
+		case tid.rm != nil && cf.command == tid.rm.FullCommand():
 			err = tid.rm.run(&cf)
 		default:
 			// This should only happen when there's a missing switch case above.
-			err = trace.BadParameter("command %q not configured", command)
+			err = trace.BadParameter("command %q not configured", cf.command)
 		}
 	}
 
@@ -1663,7 +1628,6 @@ func onLogin(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	tc.HomePath = cf.HomePath
 
 	// DEPRECATED DELETE IN 14.0
 	var warnOnDeprecatedKubeSNIPrinted bool
@@ -3338,11 +3302,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
-	// apply defaults
-	if cf.MinsToLive == 0 {
-		cf.MinsToLive = int32(apidefaults.CertDuration / time.Minute)
-	}
-
 	// split login & host
 	hostLogin := cf.NodeLogin
 	hostUser := cf.UserHost
@@ -3443,19 +3402,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 			return nil, trace.Wrap(err)
 		}
 		c.JumpHosts = hosts
-	}
-
-	// --headless is shorthand for --auth=headless
-	if cf.Headless {
-		if cf.AuthConnector != "" && cf.AuthConnector != constants.HeadlessConnector {
-			return nil, trace.BadParameter("either --headless or --auth can be specified, not both")
-		}
-		cf.AuthConnector = constants.HeadlessConnector
-	}
-
-	// When using Headless, user must be provided explicitly.
-	if cf.AuthConnector == constants.HeadlessConnector && !cf.ExplicitUsername {
-		return nil, trace.BadParameter("user must be set explicitly for headless login with the --user flag or $TELEPORT_USER env variable")
 	}
 
 	if err := tryLockMemory(cf); err != nil {
@@ -3734,6 +3680,10 @@ func parseMFAMode(mode string) (*mfaModeOpts, error) {
 	}
 	return opts, nil
 }
+
+// envGetter is used to read in the environment. In production "os.Getenv"
+// is used.
+type envGetter func(string) string
 
 // setX11Config sets X11 config using CLI and SSH option flags.
 func setX11Config(c *client.Config, cf *CLIConf, o Options, fn envGetter) error {
@@ -4610,46 +4560,92 @@ func serializeEnvironment(profile *client.ProfileStatus, format string) (string,
 	return string(out), trace.Wrap(err)
 }
 
-// envGetter is used to read in the environment. In production "os.Getenv"
-// is used.
-type envGetter func(string) string
-
-// setEnvFlags sets flags that can be set via environment variables.
-func setEnvFlags(cf *CLIConf, getEnv envGetter) {
-	// these can only be set with env vars.
-	if homeDir := getEnv(types.HomeEnvVar); homeDir != "" {
-		cf.HomePath = path.Clean(homeDir)
-	}
-	if configPath := getEnv(globalTshConfigEnvVar); configPath != "" {
-		cf.GlobalTshConfigPath = path.Clean(configPath)
-	}
-
-	// prioritize CLI input for the rest.
-	if cf.SiteName == "" {
-		// check cluster env variables in order of priority.
-		if clusterName := getEnv(clusterEnvVar); clusterName != "" {
-			cf.SiteName = clusterName
-		} else if clusterName = getEnv(siteEnvVar); clusterName != "" {
-			cf.SiteName = clusterName
+// parse cli args, flags, and other options. Then perform post-parse processing steps,
+// such as cleaning file paths and catching bad parameter errors.
+func (cf *CLIConf) parse(app *kingpin.Application, args []string, opts ...CliOption) (parseErr error) {
+	// Parse CLI args, flags, and env variables
+	utils.UpdateAppUsageTemplate(app, args)
+	cf.command, parseErr = app.Parse(args)
+	if parseErr != nil {
+		// Don't immediately return ErrExpectedCommand, as this is an expected error
+		// when used with tsh aliases. Return the error after post-processing steps
+		// and let the caller handle it.
+		if errors.Is(parseErr, kingpin.ErrExpectedCommand) {
+			return trace.Wrap(parseErr)
 		}
 	}
 
-	if cf.KubernetesCluster == "" {
-		cf.KubernetesCluster = getEnv(kubeClusterEnvVar)
+	// apply any options after parsing of arguments to ensure
+	// that defaults don't overwrite options.
+	for _, opt := range opts {
+		if err := opt(cf); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
-	if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
+	// Enable debug logging if requested by --debug or TELEPORT_DEBUG.
+	initLogger(cf)
+
+	// apply defaults
+	if cf.MinsToLive == 0 {
+		cf.MinsToLive = int32(apidefaults.CertDuration / time.Minute)
+	}
+
+	// clean file paths
+	if cf.HomePath != "" {
+		cf.HomePath = path.Clean(cf.HomePath)
+	}
+	if cf.GlobalTshConfigPath != "" {
+		cf.HomePath = path.Clean(cf.GlobalTshConfigPath)
+	}
+
+	// Load tsh config options after parsing cli/env flags and cli options
+	confOptions, parseErr := loadAllConfigs(cf)
+	if parseErr != nil {
+		return trace.Wrap(parseErr)
+	}
+	cf.TshConfig = *confOptions
+
+	// Did we initially get the Username from flags/env?
+	cf.ExplicitUsername = cf.Username != ""
+
+	// --headless is shorthand for --auth=headless
+	if cf.Headless {
+		if cf.AuthConnector != "" && cf.AuthConnector != constants.HeadlessConnector {
+			return trace.BadParameter("either --headless or --auth can be specified, not both")
+		}
+		cf.AuthConnector = constants.HeadlessConnector
+	}
+
+	if cf.AuthConnector == constants.HeadlessConnector {
+		// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
 		if cf.Proxy == "" {
-			cf.Proxy = getEnv(teleport.SSHSessionWebProxyAddr)
+			cf.Proxy = os.Getenv(teleport.SSHSessionWebProxyAddr)
 		}
 		if cf.Username == "" {
-			cf.Username = getEnv(teleport.SSHTeleportUser)
+			cf.Username = os.Getenv(teleport.SSHTeleportUser)
 		}
 		if cf.SiteName == "" {
-			cf.SiteName = getEnv(teleport.SSHTeleportClusterName)
+			cf.SiteName = os.Getenv(teleport.SSHTeleportClusterName)
+		}
+
+		// When using Headless, user must be provided explicitly.
+		if cf.Username == "" {
+			return trace.BadParameter("user must be set provided for headless login")
 		}
 	}
+
+	// Identity files do not currently contain a proxy address. When loading an
+	// Identity file, a proxy must be passed on the command line as well.
+	if cf.IdentityFileIn != "" && cf.Proxy == "" {
+		return trace.BadParameter("tsh --identity also requires --proxy")
+	}
+
+	if err := client.ValidateAgentKeyOption(cf.AddKeysToAgent); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(parseErr)
 }
 
 func handleUnimplementedError(ctx context.Context, perr error, cf CLIConf) error {
