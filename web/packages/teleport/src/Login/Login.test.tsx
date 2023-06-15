@@ -15,7 +15,13 @@
  */
 
 import React from 'react';
-import { render, fireEvent, screen, waitFor } from 'design/utils/testing';
+import {
+  render,
+  fireEvent,
+  screen,
+  waitFor,
+  waitForElementToBeRemoved,
+} from 'design/utils/testing';
 import { privateKeyEnablingPolicies } from 'shared/services/consts';
 
 import auth from 'teleport/services/auth/auth';
@@ -116,8 +122,12 @@ test('login with private key policy enabled through role setting', async () => {
 
 test('show motd only if motd is set', async () => {
   // default login form
-  render(<Login />);
+  const { unmount } = render(<Login />);
   expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
+  expect(
+    screen.queryByText('Welcome to cluster, your activity will be recorded.')
+  ).not.toBeInTheDocument();
+  unmount();
 
   // now set motd
   jest
@@ -125,10 +135,13 @@ test('show motd only if motd is set', async () => {
     .mockImplementation(
       () => 'Welcome to cluster, your activity will be recorded.'
     );
+
   render(<Login />);
+
   expect(
     screen.getByText('Welcome to cluster, your activity will be recorded.')
   ).toBeInTheDocument();
+  expect(screen.queryByPlaceholderText(/username/i)).not.toBeInTheDocument();
 });
 
 test('show login form after modt acknowledge', async () => {
