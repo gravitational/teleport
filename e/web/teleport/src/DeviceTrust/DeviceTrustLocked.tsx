@@ -9,11 +9,13 @@ import Flex from 'design/Flex';
 
 import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
 
-import { Lock } from 'design/Icon';
-
 import Link from 'design/Link';
 
 import { CtaEvent } from 'teleport/services/userEvent';
+
+import { IconCircle } from 'design/Icon/IconCircle';
+
+import { LockIcon } from 'design/SVGIcon';
 
 import {
   TrustedDevice,
@@ -46,9 +48,7 @@ export function DeviceTrustLocked() {
       </Box>
       <StyledMessageContainer>
         <Box bgColor={theme.colors.spotBackground[0]} p="3" borderRadius="50%">
-          <Text fontSize="26px">
-            <Lock />
-          </Text>
+          <IconCircle Icon={LockIcon} size={64} />
         </Box>
         <Text fontSize="2" textAlign="center">
           Device Trust allows Teleport admins to enforce the use of trusted

@@ -32,7 +32,7 @@ export function NewPassword({ setNewPassword, attempt }: State) {
   }
 
   return (
-    <Card as="form" bg="levels.surface" mx="auto" width="512px">
+    <Card as="form" mx="auto" width="512px">
       <Validation>
         {({ validator }) => (
           <>

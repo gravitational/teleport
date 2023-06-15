@@ -34,6 +34,7 @@ export function RequestFeatureLocked() {
         </Box>
       </FeatureHeader>
       <Card
+        m="auto"
         p="24px"
         pb="44px"
         as={Flex}

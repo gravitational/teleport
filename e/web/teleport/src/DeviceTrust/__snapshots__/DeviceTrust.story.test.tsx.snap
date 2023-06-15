@@ -14,9 +14,9 @@ exports[`empty state 1`] = `
   box-sizing: border-box;
   max-width: 700px;
   padding: 24px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c9 {
@@ -76,7 +76,6 @@ exports[`empty state 1`] = `
   box-sizing: border-box;
   max-width: 700px;
   padding: 32px;
-  background-color: levels.surface;
   display: flex;
   align-items: center;
 }
@@ -216,6 +215,15 @@ exports[`empty with CTA 1`] = `
 .c25 {
   box-sizing: border-box;
   padding: 16px;
+  border-radius: 50%;
+}
+
+.c26 {
+  box-sizing: border-box;
+  padding: 16px;
+  height: 64px;
+  width: 64px;
+  background-color: rgba(255,255,255,0.07);
   border-radius: 50%;
 }
 
@@ -377,13 +385,6 @@ exports[`empty with CTA 1`] = `
   margin: 0px;
   margin-right: 4px;
   color: #FFFFFF;
-}
-
-.c26 {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: 26px;
-  margin: 0px;
 }
 
 .c27 {
@@ -660,7 +661,7 @@ exports[`empty with CTA 1`] = `
   color: inherit;
   font-weight: 500;
   font-size: 15px;
-  margin-right: 4px;
+  margin-right: 10px;
 }
 
 .c24 {
@@ -1091,11 +1092,21 @@ exports[`empty with CTA 1`] = `
       >
         <div
           class="c26"
-          font-size="26px"
+          height="64"
+          width="64"
         >
-          <span
-            class="c19 c23 icon icon-lock "
-          />
+          <svg
+            data-testid="svg"
+            fill="#FFFFFF"
+            height="32"
+            viewBox="0 0 10 13"
+            width="32"
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <path
+              d="M8.1501 4.60002H7.8001V3.55002C7.8001 1.81315 6.38697 0.400024 4.6501 0.400024C2.91322 0.400024 1.5001 1.81315 1.5001 3.55002V4.60002H1.1501C0.571285 4.60002 0.100098 5.07121 0.100098 5.65002V11.25C0.100098 11.8288 0.571285 12.3 1.1501 12.3H8.1501C8.72891 12.3 9.2001 11.8288 9.2001 11.25V5.65002C9.2001 5.07121 8.72891 4.60002 8.1501 4.60002ZM2.2001 3.55002C2.2001 2.19902 3.2991 1.10002 4.6501 1.10002C6.0011 1.10002 7.1001 2.19902 7.1001 3.55002V4.60002H2.2001V3.55002ZM8.5001 11.25C8.5001 11.4434 8.34347 11.6 8.1501 11.6H1.1501C0.956722 11.6 0.800098 11.4434 0.800098 11.25V5.65002C0.800098 5.45665 0.956722 5.30002 1.1501 5.30002H8.1501C8.34347 5.30002 8.5001 5.45665 8.5001 5.65002V11.25Z"
+            />
+          </svg>
         </div>
       </div>
       <div

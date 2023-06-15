@@ -106,9 +106,9 @@ exports[`render device list 1`] = `
   margin-left: auto;
   margin-right: auto;
   width: 604px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
@@ -758,9 +758,9 @@ exports[`render failed state for device list 1`] = `
   margin-left: auto;
   margin-right: auto;
   width: 604px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {

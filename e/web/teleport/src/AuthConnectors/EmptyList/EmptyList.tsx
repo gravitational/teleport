@@ -1,6 +1,6 @@
 import React from 'react';
 import styled from 'styled-components';
-import { Text, Box, Flex } from 'design';
+import { Box, Flex, Text } from 'design';
 import { AuthProviderType } from 'shared/services';
 import Card from 'design/Card';
 import { State as ResourceState } from 'teleport/components/useResources';
@@ -15,7 +15,6 @@ export default function EmptyList({ onCreate, showLockedFeature }: Props) {
   return (
     <Card
       color="text.main"
-      bg="levels.surface"
       p="5"
       textAlign="center"
       style={{ boxShadow: 'none' }}
@@ -27,23 +26,23 @@ export default function EmptyList({ onCreate, showLockedFeature }: Props) {
           Connector.
         </Text>
       </Text>
-      <Flex mt="6" flexWrap="wrap" justifyContent="center" minWidth="800px">
+      <Flex
+        flexWrap="wrap"
+        style={{ position: 'relative' }}
+        justifyContent="center"
+        mt="4"
+        minWidth="224px"
+      >
         {renderItem('github', onCreate, false, showLockedFeature)}
-        <Flex
-          flexWrap="wrap"
-          style={{ position: 'relative' }}
-          justifyContent="center"
-        >
-          {renderItem('oidc', onCreate, showLockedFeature, showLockedFeature)}
-          {renderItem('saml', onCreate, showLockedFeature, showLockedFeature)}
-          {showLockedFeature && (
-            <LockedFeatureContainer>
-              <ButtonLockedFeature event={CtaEvent.CTA_AUTH_CONNECTOR}>
-                Unlock OIDC & SAML with Teleport Enterprise
-              </ButtonLockedFeature>
-            </LockedFeatureContainer>
-          )}
-        </Flex>
+        {renderItem('oidc', onCreate, showLockedFeature, showLockedFeature)}
+        {renderItem('saml', onCreate, showLockedFeature, showLockedFeature)}
+        {showLockedFeature && (
+          <LockedFeatureContainer>
+            <ButtonLockedFeature event={CtaEvent.CTA_AUTH_CONNECTOR}>
+              Unlock OIDC & SAML with Teleport Enterprise
+            </ButtonLockedFeature>
+          </LockedFeatureContainer>
+        )}
       </Flex>
     </Card>
   );
@@ -59,10 +58,6 @@ function renderItem(
   const onBtnClick = () => onClick(kind);
   return (
     <ConnectorBox
-      p="4"
-      mx="2"
-      mb="3"
-      bg="levels.surface"
       as="button"
       disabled={isItemLocked}
       onClick={isItemLocked ? null : onBtnClick}
@@ -91,13 +86,15 @@ function renderItem(
 
 const ConnectorBox = styled(Box)(
   props => `
+  min-width: 224px;
+  padding: 24px;
+  margin: 16px 8px;
+  backgroundColor: ${props.theme.colors.levels.surface};
   display: flex;
   flex-direction: column;
   transition: all 0.3s;
   border-radius: 4px;
-  min-width: 340px;
   min-height: 190px;
-  width: 160px;
   border: 2px solid ${props.theme.colors.spotBackground[2]};
   &:focus {
     opacity: .24;
@@ -128,8 +125,8 @@ const ConnectorBox = styled(Box)(
 const LockedFeatureContainer = styled(Box)`
   position: absolute;
   min-width: 360px;
+  max-width: 450px;
   bottom: 0;
-  left: 3rem;
   right: 3rem;
 `;
 
