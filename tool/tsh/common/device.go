@@ -100,7 +100,7 @@ func (c *deviceEnrollCommand) run(cf *CLIConf) error {
 		defer authClient.Close()
 
 		devices := authClient.DevicesClient()
-		dev, err = enroll.RunCeremony(ctx, devices, c.token)
+		dev, err = enroll.RunCeremony(ctx, devices, cf.Debug, c.token)
 		return trace.Wrap(err)
 	}); err != nil {
 		return trace.Wrap(err)
@@ -169,14 +169,15 @@ func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
 	err := dtnative.HandleTPMActivateCredential(
 		c.encryptedCredential, c.encryptedCredentialSecret,
 	)
-	if err != nil {
-		// On error, wait for user input before executing. This is because this
-		// opens in a second window. If we return the error immediately, then
-		// this window closes before the user can inspect it.
-		fmt.Printf("An error occurred during credential activation:\n%s\n", err.Error())
-		fmt.Println("Press enter to close this window.")
-		_, _ = fmt.Scanln()
-		return err
+	if cf.Debug {
+		if err != nil {
+			// On error, wait for user input before executing. This is because this
+			// opens in a second window. If we return the error immediately, then
+			// this window closes before the user can inspect it.
+			log.WithError(err).Debug("An error occurred during credential activation. Press enter to close this window.")
+			_, _ = fmt.Scanln()
+			return trace.Wrap(err)
+		}
 	}
-	return nil
+	return trace.Wrap(err)
 }

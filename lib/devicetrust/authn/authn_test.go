@@ -129,7 +129,7 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 			return err
 		}
 	case devicepb.OSType_OS_TYPE_WINDOWS:
-		solution, err := dev.SolveTPMEnrollChallenge(ctx, resp.GetTpmChallenge())
+		solution, err := dev.SolveTPMEnrollChallenge(resp.GetTpmChallenge(), false)
 		if err != nil {
 			return err
 		}

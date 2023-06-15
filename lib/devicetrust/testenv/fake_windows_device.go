@@ -15,8 +15,6 @@
 package testenv
 
 import (
-	"context"
-
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -74,8 +72,8 @@ func (f *FakeWindowsDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, erro
 }
 
 func (f *FakeWindowsDevice) SolveTPMEnrollChallenge(
-	_ context.Context,
 	challenge *devicepb.TPMEnrollChallenge,
+	_ bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	// This extremely roughly mimics the actual TPM by using the values
 	// provided in the encrypted credential to produce an activation challenge

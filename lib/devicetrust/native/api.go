@@ -15,7 +15,6 @@
 package native
 
 import (
-	"context"
 	"runtime"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -46,8 +45,8 @@ func GetDeviceCredential() (*devicepb.DeviceCredential, error) {
 }
 
 // SolveTPMEnrollChallenge completes a TPM enrollment challenge.
-func SolveTPMEnrollChallenge(ctx context.Context, challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
-	return solveTPMEnrollChallenge(ctx, challenge)
+func SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge, debug bool) (*devicepb.TPMEnrollChallengeResponse, error) {
+	return solveTPMEnrollChallenge(challenge, debug)
 }
 
 // SolveTPMAuthnDeviceChallenge completes a TPM device authetication challenge.
