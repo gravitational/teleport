@@ -661,13 +661,14 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 }
 
 // PresetUserManager contains the required User Management methods to
-// create a Preset Role.
+// create a preset User.
 type PresetUserManager interface {
-	// CreateUser creates a role.
+	// CreateUser creates a new user record based on the supplied `user` instance.
 	CreateUser(ctx context.Context, user types.User) error
-
+	// GetUser fetches a user from the repository by name, optionally fetching
+	// any associated secrets
 	GetUser(username string, withSecrets bool) (types.User, error)
-
+	// Upsert user creates or updates a user record as needed
 	UpsertUser(user types.User) error
 }
 
