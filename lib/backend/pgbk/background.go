@@ -30,8 +30,8 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 			var n int64
 			if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 				tag, err := p.Exec(ctx,
-					"DELETE FROM kv WHERE key = ANY(ARRAY(SELECT key FROM kv WHERE expires IS NOT NULL AND expires <= now() LIMIT $1))",
-					deleteBatchSize,
+					"DELETE FROM kv WHERE key = ANY(ARRAY(SELECT key FROM kv WHERE expires IS NOT NULL AND expires <= $1 LIMIT $2))",
+					b.clock.Now().UTC(), deleteBatchSize,
 				)
 				if err != nil {
 					return trace.Wrap(err)
