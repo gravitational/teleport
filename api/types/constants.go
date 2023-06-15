@@ -568,8 +568,8 @@ const (
 	// support one or more features enabled in that resource.
 	TeleportDowngradedLabel = TeleportInternalLabelPrefix + "downgraded"
 
-	// TeleportManagedLabel identifies resources which are managed by Teleport. These resources can
-	// be freely modified by Teleport if needed.
+	// TeleportManagedLabel identifies resources which are managed by Teleport. If needed, Teleport
+	// may modify these resources, but will not touch any user made modifications to these resources.
 	TeleportManagedLabel = TeleportInternalLabelPrefix + "managed"
 
 	// IsManaged is a string that indicates a resource is managed.
