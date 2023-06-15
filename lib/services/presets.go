@@ -229,7 +229,6 @@ func NewPresetReviewerRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
 }
 
@@ -257,7 +256,6 @@ func NewPresetRequesterRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
 }
 
@@ -292,7 +290,6 @@ func NewPresetGroupAccessRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
 }
 
@@ -409,7 +406,7 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 		metadata := role.GetMetadata()
 
 		if metadata.Labels == nil {
-			metadata.Labels = map[string]string{}
+			metadata.Labels = make(map[string]string, len(defaultRoleLabels))
 		}
 		for label, value := range defaultRoleLabels {
 			if _, ok := metadata.Labels[label]; !ok {

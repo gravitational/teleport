@@ -39,12 +39,11 @@ func TestAddRoleDefaults(t *testing.T) {
 	}
 
 	tests := []struct {
-		name                    string
-		role                    types.Role
-		enterprise              bool
-		reviewNotEmpty          bool
-		accessRequestsNotEmpty  bool
-		assumeRandomLoginsEqual bool
+		name                   string
+		role                   types.Role
+		enterprise             bool
+		reviewNotEmpty         bool
+		accessRequestsNotEmpty bool
 
 		expectedErr require.ErrorAssertionFunc
 		expected    types.Role
@@ -195,8 +194,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					},
 				},
 			},
-			assumeRandomLoginsEqual: true,
-			expectedErr:             require.NoError,
+			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetAuditorRoleName,
@@ -237,8 +235,7 @@ func TestAddRoleDefaults(t *testing.T) {
 					},
 				},
 			},
-			assumeRandomLoginsEqual: true,
-			expectedErr:             require.NoError,
+			expectedErr: require.NoError,
 			expected: &types.RoleV6{
 				Metadata: types.Metadata{
 					Name: teleport.PresetAuditorRoleName,
@@ -414,10 +411,6 @@ func TestAddRoleDefaults(t *testing.T) {
 
 			role, err := AddRoleDefaults(test.role)
 			test.expectedErr(t, err)
-
-			if test.assumeRandomLoginsEqual && test.expected != nil && role != nil {
-				test.expected.SetLogins(types.Allow, role.GetLogins(types.Allow))
-			}
 
 			require.Empty(t, cmp.Diff(role, test.expected))
 

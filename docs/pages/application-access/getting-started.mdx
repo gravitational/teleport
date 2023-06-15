@@ -178,22 +178,11 @@ Make sure to update `apps[0].name` and `apps[0].uri` accordingly if you're using
 
 ### Create a user
 
-<ScopedBlock scope={["oss"]}>
-Next, let's create a user to access the application we've just connected. Teleport has a built-in role called `access` that allows users to access cluster resourcesCreate a local user assigned to these roles:
+Next, let's create a user to access the application we've just connected. Teleport has a built-in role called `access` that allows users to access cluster resources. Create a local user assigned this role:
 
 ```code
 $ tctl users add --roles=access alice
 ```
-</ScopedBlock>
-
-<ScopedBlock scope={["enterprise", "cloud"]}>
-Next, let's create a user to access the application we've just connected. Teleport has a built-in role called `access` that allows users to access cluster resources,
-along with a built-in role called `requester` that allows users to request resources. Create a local user assigned to these roles:
-
-```code
-$ tctl users add --roles=access,requester alice
-```
-</ScopedBlock>
 
 The command will output a signup link. Use it to choose a password and set up a second factor. After that, it will take you to the Teleport Web UI.
 

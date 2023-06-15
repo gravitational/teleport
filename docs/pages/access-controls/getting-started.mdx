@@ -26,12 +26,12 @@ Teleport provides several preset roles: `editor`, `auditor`, and `access`.
 - The `auditor` role authorizes users to view audit logs.
 - The `access` role authorizes users to access cluster resources.
 
-<ScopedBlock scope={["enterprise", "cloud"]}>
+<Details title='Enterprise built in roles'>
 Teleport Enterprise contains two additional preset roles: `reviewer` and `requester`.
 
-- The `reviewer` role authorizes users to review application and user group access requests.
-- The `requester` role authorizes users to request applications and user groups.
-</ScopedBlock>
+- The `reviewer` role authorizes users to review Access Requests.
+- The `requester` role authorizes users to request resources.
+</Details>
 
 <ScopedBlock scope={["oss"]}>
 Invite the local user Alice as cluster `editor`:

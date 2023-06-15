@@ -106,18 +106,10 @@ allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
 
 On your Linux host, run the following command:
 
-<ScopedBlock scope={["oss"]}>
 ```code
 # tctl is an administrative tool that is used to configure Teleport's auth service.
 $ sudo tctl users add teleport-admin --roles=editor,access --logins=root,ubuntu,ec2-user
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
-```code
-# tctl is an administrative tool that is used to configure Teleport's auth service.
-$ sudo tctl users add teleport-admin --roles=editor,access,reviewer --logins=root,ubuntu,ec2-user
-```
-</ScopedBlock>
 
 The command prints a message similar to the following:
 
@@ -204,7 +196,6 @@ Install `tsh` on your local workstation:
 
 Log in to receive short-lived certificates from Teleport:
 
-<ScopedBlock scope={["oss"]}>
 ```code
 # Replace teleport.example.com with your Teleport cluster's public address as configured above.
 $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
@@ -217,21 +208,6 @@ $ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
   Valid until:        2022-04-26 03:04:46 -0400 EDT [valid for 12h0m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
-</ScopedBlock>
-<ScopedBlock scope={["enterprise", "cloud"]}>
-```code
-# Replace teleport.example.com with your Teleport cluster's public address as configured above.
-$ tsh login --proxy=<Var name="teleport.example.com" /> --user=teleport-admin
-> Profile URL:        https://teleport.example.com:443
-  Logged in as:       teleport-admin
-  Cluster:            teleport.example.com
-  Roles:              access, editor, reviewer
-  Logins:             root, ubuntu, ec2-user
-  Kubernetes:         enabled
-  Valid until:        2022-04-26 03:04:46 -0400 EDT [valid for 12h0m0s]
-  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
-```
-</ScopedBlock>
 
 </Details>
 
