@@ -23,7 +23,7 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 
 	for {
 		// see DeleteRange; we run a tight loop here because it could be
-		// possible to have more than 1k new items expire over 30 seconds, so we
+		// possible to have more than 1k new items expire every second, so we
 		// could end up not ever catching up
 		for i := 0; i < backend.DefaultRangeLimit/deleteBatchSize; i++ {
 			t0 := time.Now()
@@ -58,7 +58,7 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(30 * time.Second):
+		case <-time.After(backend.DefaultPollStreamPeriod):
 		}
 
 	}
