@@ -807,13 +807,15 @@ func TestAccessMongoDB(t *testing.T) {
 		opts []mongodb.TestServerOption
 	}{
 		{
-			name: "new server",
-			opts: []mongodb.TestServerOption{},
+			name: "current server",
+			opts: []mongodb.TestServerOption{
+				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion),
+			},
 		},
 		{
-			name: "old server",
+			name: "mongodb 3.6 server",
 			opts: []mongodb.TestServerOption{
-				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion - 1),
+				mongodb.TestServerWireVersion(6),
 			},
 		},
 	}
@@ -2059,9 +2061,9 @@ type agentParams struct {
 	// CloudClients is the cloud API clients for database service.
 	CloudClients clients.Clients
 	// AWSMatchers is a list of AWS databases matchers.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2527,6 +2529,40 @@ func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
 		require.NoError(t, err)
 		testCtx.mysql[name] = testMySQL{
 			db:       mysqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withAtlasMongo(name, authUser, authSession string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthUser:   authUser,
+			AuthToken:  authSession,
+		})
+		require.NoError(t, err)
+		go mongoServer.Serve()
+		t.Cleanup(func() { mongoServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolMongoDB,
+			URI:           net.JoinHostPort("localhost", mongoServer.Port()),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				AccountID: "000000000000",
+			},
+			MongoAtlas: types.MongoAtlas{
+				Name: "test",
+			},
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.mongo[name] = testMongoDB{
+			db:       mongoServer,
 			resource: database,
 		}
 		return database

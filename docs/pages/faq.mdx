@@ -63,6 +63,12 @@ Yes, Teleport supports tunnel multiplexing on a single port. Set the
 setting in the `proxy_service` configuration. Teleport will automatically use
 multiplexing with that configuration.
 
+## Can I copy files from one Teleport node to another?
+
+Yes, Teleport supports [Headless WebAuthn authentication](./access-controls/guides/headless.mdx),
+which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
+are not logged in to Teleport or may not have access to a browser.
+
 ## I'm getting `ssh: subsystem request failed` while I try to copy files, what to do?
 
 Make sure that all Teleport components are at least at version 10.3.0. Older versions
@@ -125,6 +131,12 @@ users to upgrade.
 
 This check is performed against all cluster components, including the Proxy
 Service and Auth Service, as well as agents running other Teleport Services.
+
+## What is the minimum TLS version that Teleport requires?
+
+Teleport requires a minimum of TLS version 1.2.
+
+This means that when applications and clients establish or accept TLS connections with Teleport processes, they must use TLS 1.2 or a higher protocol version. Teleport enforces this requirement in all operations that involve TLS connections.
 
 ## Can I suppress warnings about available upgrades?
 

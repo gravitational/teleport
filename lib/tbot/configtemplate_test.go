@@ -18,18 +18,14 @@ package tbot
 
 import (
 	"bytes"
-	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/identityfile"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/testhelpers"
 	"github.com/gravitational/teleport/lib/tlsca"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
 // Note: This test lives in main to avoid otherwise inevitable import cycles
@@ -77,49 +73,5 @@ func validateTemplate(t *testing.T, tplI config.Template, dest bot.Destination) 
 		require.NoError(t, err)
 		_, err = tlsca.ParseCertificatePEM(b)
 		require.NoError(t, err)
-	}
-}
-
-// TestTemplateRendering performs a full renewal and ensures all expected
-// default config templates are present.
-func TestDefaultTemplateRendering(t *testing.T) {
-	t.Parallel()
-
-	// Make a new auth server.
-	log := utils.NewLoggerForTests()
-	fc, fds := testhelpers.DefaultConfig(t)
-	_ = testhelpers.MakeAndRunTestAuthServer(t, log, fc, fds)
-	rootClient := testhelpers.MakeDefaultAuthClient(t, log, fc)
-
-	// Make and join a new bot instance.
-	const roleName = "dummy-role"
-	role, err := types.NewRole(roleName, types.RoleSpecV6{})
-	require.NoError(t, err)
-	require.NoError(t, rootClient.UpsertRole(context.Background(), role))
-
-	botParams := testhelpers.MakeBot(t, rootClient, "test", roleName)
-	botConfig := testhelpers.MakeMemoryBotConfig(t, fc, botParams)
-	storage, err := botConfig.Storage.GetDestination()
-	require.NoError(t, err)
-	b := New(botConfig, log, nil)
-
-	ident, err := b.getIdentityFromToken()
-	require.NoError(t, err)
-	botClient := testhelpers.MakeBotAuthClient(t, fc, ident)
-	b._ident = ident
-	b._client = botClient
-
-	err = b.renew(context.Background(), storage)
-	require.NoError(t, err)
-
-	dest := botConfig.Destinations[0]
-	destImpl, err := dest.GetDestination()
-	require.NoError(t, err)
-
-	for _, templateName := range config.GetRequiredConfigs() {
-		cfg := dest.GetConfigByName(templateName)
-		require.NotNilf(t, cfg, "template %q must exist", templateName)
-
-		validateTemplate(t, cfg, destImpl)
 	}
 }

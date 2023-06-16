@@ -22,6 +22,8 @@ import { AWSIcon } from 'design/SVGIcon';
 import slackIcon from 'design/assets/images/icons/slack.svg';
 import openaiIcon from 'design/assets/images/icons/openai.svg';
 import jamfIcon from 'design/assets/images/icons/jamf.svg';
+import opsgenieIcon from 'design/assets/images/icons/opsgenie.svg';
+import oktaIcon from 'design/assets/images/icons/okta.svg';
 import Table, { Cell } from 'design/DataTable';
 import { MenuButton, MenuItem } from 'shared/components/MenuAction';
 import { ToolTipInfo } from 'shared/components/ToolTip';
@@ -191,6 +193,14 @@ const IconCell = ({ item }: { item: IntegrationLike }) => {
       case 'jamf':
         formattedText = 'Jamf';
         icon = <IconContainer src={jamfIcon} />;
+        break;
+      case 'okta':
+        formattedText = 'Okta';
+        icon = <IconContainer src={oktaIcon} />;
+        break;
+      case 'opsgenie':
+        formattedText = 'Opsgenie';
+        icon = <IconContainer src={opsgenieIcon} />;
         break;
     }
   } else {

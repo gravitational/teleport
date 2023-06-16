@@ -21,12 +21,14 @@ import (
 	"io"
 	"net/url"
 	"os"
+	"reflect"
 	"strings"
 	"time"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
@@ -38,16 +40,15 @@ import (
 const (
 	DefaultCertificateTTL = 60 * time.Minute
 	DefaultRenewInterval  = 20 * time.Minute
-	DefaultJoinMethod     = "token"
 )
 
 var SupportedJoinMethods = []string{
+	string(types.JoinMethodToken),
 	string(types.JoinMethodAzure),
 	string(types.JoinMethodCircleCI),
 	string(types.JoinMethodGitHub),
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
-	string(types.JoinMethodToken),
 }
 
 var log = logrus.WithFields(logrus.Fields{
@@ -181,14 +182,14 @@ type OnboardingConfig struct {
 	//
 	// You should use Token() instead - this has to be an exported field for YAML unmarshalling
 	// to work correctly, but this could be a path instead of a token
-	TokenValue string `yaml:"token"`
+	TokenValue string `yaml:"token,omitempty"`
 
 	// CAPath is an optional path to a CA certificate.
-	CAPath string `yaml:"ca_path"`
+	CAPath string `yaml:"ca_path,omitempty"`
 
 	// CAPins is a list of certificate authority pins, used to validate the
 	// connection to the Teleport auth server.
-	CAPins []string `yaml:"ca_pins"`
+	CAPins []string `yaml:"ca_pins,omitempty"`
 
 	// JoinMethod is the method the bot should use to exchange a token for the
 	// initial certificate
@@ -202,6 +203,12 @@ type OnboardingConfig struct {
 // in the config
 func (conf *OnboardingConfig) HasToken() bool {
 	return conf.TokenValue != ""
+}
+
+// RenewableJoinMethod indicates that certificate renewal should be used with
+// this join method rather than rejoining each time.
+func (conf *OnboardingConfig) RenewableJoinMethod() bool {
+	return conf.JoinMethod == types.JoinMethodToken
 }
 
 // SetToken stores the value for --token or auth_token in the config
@@ -231,7 +238,7 @@ func (conf *OnboardingConfig) Token() (string, error) {
 
 // BotConfig is the bot's root config object.
 type BotConfig struct {
-	Onboarding   *OnboardingConfig    `yaml:"onboarding,omitempty"`
+	Onboarding   OnboardingConfig     `yaml:"onboarding,omitempty"`
 	Storage      *StorageConfig       `yaml:"storage,omitempty"`
 	Destinations []*DestinationConfig `yaml:"destinations,omitempty"`
 
@@ -250,6 +257,10 @@ type BotConfig struct {
 	// DiagAddr is the address the diagnostics http service should listen on.
 	// If not set, no diagnostics listener is created.
 	DiagAddr string `yaml:"diag_addr,omitempty"`
+
+	// ReloadCh allows a channel to be injected into the bot to trigger a
+	// renewal.
+	ReloadCh <-chan struct{} `yaml:"-"`
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
@@ -282,6 +293,15 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		conf.RenewalInterval = DefaultRenewInterval
 	}
 
+	// We require the join method for `configure` and `start` but not for `init`
+	// Therefore, we need to check its valid here, but enforce its presence
+	// elsewhere.
+	if conf.Onboarding.JoinMethod != types.JoinMethodUnspecified {
+		if !slices.Contains(SupportedJoinMethods, string(conf.Onboarding.JoinMethod)) {
+			return trace.BadParameter("unrecognized join method: %q", conf.Onboarding.JoinMethod)
+		}
+	}
+
 	return nil
 }
 
@@ -311,24 +331,21 @@ func (conf *BotConfig) GetDestinationByPath(path string) (*DestinationConfig, er
 	return nil, nil
 }
 
-// NewDefaultConfig creates a new minimal bot configuration from defaults.
-// CheckAndSetDefaults() will be called.
-func NewDefaultConfig(authServer string) (*BotConfig, error) {
+// newTestConfig creates a new minimal bot configuration from defaults for use
+// in tests
+func newTestConfig(authServer string) (*BotConfig, error) {
 	// Note: we need authServer for CheckAndSetDefaults to succeed.
 	cfg := BotConfig{
 		AuthServer: authServer,
+		Onboarding: OnboardingConfig{
+			JoinMethod: types.JoinMethodToken,
+		},
 	}
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return &cfg, nil
-}
-
-// isJoinMethodDefault determines if the given join method (as input on the
-// CLI) is set to a default value.
-func isJoinMethodDefault(joinMethod string) bool {
-	return joinMethod == "" || joinMethod == DefaultJoinMethod
 }
 
 func storageConfigFromCLIConf(dataDir string) (*StorageConfig, error) {
@@ -453,18 +470,16 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	// (CAPath, CAPins, etc follow different codepaths so we don't want a
 	// situation where different fields become set weirdly due to struct
 	// merging)
-	if cf.Token != "" || len(cf.CAPins) > 0 || !isJoinMethodDefault(cf.JoinMethod) {
-		onboarding := config.Onboarding
-		if onboarding != nil && (onboarding.HasToken() || onboarding.CAPath != "" || len(onboarding.CAPins) > 0) || !isJoinMethodDefault(cf.JoinMethod) {
+	if cf.Token != "" || cf.JoinMethod != "" || len(cf.CAPins) > 0 {
+		if !reflect.DeepEqual(config.Onboarding, OnboardingConfig{}) {
 			// To be safe, warn about possible confusion.
 			log.Warnf("CLI parameters are overriding onboarding config from %s", cf.ConfigPath)
 		}
 
-		config.Onboarding = &OnboardingConfig{
+		config.Onboarding = OnboardingConfig{
 			CAPins:     cf.CAPins,
 			JoinMethod: types.JoinMethod(cf.JoinMethod),
 		}
-
 		config.Onboarding.SetToken(cf.Token)
 	}
 

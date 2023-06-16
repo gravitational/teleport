@@ -60,6 +60,10 @@ var (
 		// TestProxySSH and TestList takes around 10-15s to run, largely due to the 7-10 seconds it takes to create a
 		// tsh test suite. This prevents it from ever completing the 100 runs successfully.
 		"TestProxySSH", "TestList", "TestForwardingTraces", "TestExportingTraces",
+
+		// TestDiagnoseSSHConnection takes around 15s to run.
+		// When running 100x it exceeds the 600s defined to run the tests.
+		"TestDiagnoseSSHConnection",
 	}
 )
 
@@ -169,7 +173,7 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.New {
-			if slices.Contains(testsToSkip, n.RefName) {
+			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}
@@ -182,7 +186,7 @@ func test(repoPath string, ref string, changedFiles []string) {
 		}
 
 		for _, n := range r.Changed {
-			if slices.Contains(testsToSkip, n.RefName) {
+			if slices.Contains(testsToSkip, n.RefName) || slices.Contains(testsToSkip, "*") {
 				log.Printf("-skipping %q (%s)\n", n.RefName, dir)
 				continue
 			}

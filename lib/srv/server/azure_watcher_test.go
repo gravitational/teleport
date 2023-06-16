@@ -27,7 +27,6 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/cloud/azure"
-	"github.com/gravitational/teleport/lib/services"
 )
 
 func (c *mockClients) GetAzureVirtualMachinesClient(subscription string) (azure.VirtualMachinesClient, error) {
@@ -80,12 +79,12 @@ func TestAzureWatcher(t *testing.T) {
 
 	tests := []struct {
 		name    string
-		matcher services.AzureMatcher
+		matcher types.AzureMatcher
 		wantVMs []string
 	}{
 		{
 			name: "all vms",
-			matcher: services.AzureMatcher{
+			matcher: types.AzureMatcher{
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -94,7 +93,7 @@ func TestAzureWatcher(t *testing.T) {
 		},
 		{
 			name: "filter by resource group",
-			matcher: services.AzureMatcher{
+			matcher: types.AzureMatcher{
 				ResourceGroups: []string{"rg1"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -103,7 +102,7 @@ func TestAzureWatcher(t *testing.T) {
 		},
 		{
 			name: "filter by location",
-			matcher: services.AzureMatcher{
+			matcher: types.AzureMatcher{
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location2"},
 				ResourceTags:   types.Labels{"*": []string{"*"}},
@@ -112,7 +111,7 @@ func TestAzureWatcher(t *testing.T) {
 		},
 		{
 			name: "filter by tag",
-			matcher: services.AzureMatcher{
+			matcher: types.AzureMatcher{
 				ResourceGroups: []string{"rg1", "rg2"},
 				Regions:        []string{"location1", "location2"},
 				ResourceTags:   types.Labels{"teleport": []string{"yes"}},
@@ -128,7 +127,7 @@ func TestAzureWatcher(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 			t.Cleanup(cancel)
-			watcher, err := NewAzureWatcher(ctx, []services.AzureMatcher{tc.matcher}, &clients)
+			watcher, err := NewAzureWatcher(ctx, []types.AzureMatcher{tc.matcher}, &clients)
 			require.NoError(t, err)
 
 			go watcher.Run()

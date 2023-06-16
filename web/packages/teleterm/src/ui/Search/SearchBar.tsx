@@ -195,7 +195,7 @@ const Shortcut = styled(Box).attrs({ p: 1 })`
   top: 50%;
   transform: translate(0, -50%);
   color: ${({ theme }) => theme.colors.text.slightlyMuted};
-  background-color: ${({ theme }) => theme.colors.levels.elevated};
+  background-color: ${({ theme }) => theme.colors.spotBackground[0]};
   line-height: 12px;
   font-size: 12px;
   border-radius: ${props => props.theme.radii[2]}px;

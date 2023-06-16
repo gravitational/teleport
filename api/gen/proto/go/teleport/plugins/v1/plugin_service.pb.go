@@ -609,6 +609,108 @@ func (x *GetAvailablePluginTypesResponse) GetPluginTypes() []*PluginType {
 	return nil
 }
 
+// SearchPluginStaticCredentialsRequest is the request type for SearchPluginStaticCredentials. The
+// labels here are attached to a plugin and search credential object at creation time. Labels can
+// be provided to the plugin credentials object and then, during plugin creation, a reference to
+// those labels augmented along with a uniquely identifying ID will ensure a unique mapping between
+// credentials and plugins.
+type SearchPluginStaticCredentialsRequest struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Labels are matched against static credentials objects and returned.
+	Labels map[string]string `protobuf:"bytes,1,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+}
+
+func (x *SearchPluginStaticCredentialsRequest) Reset() {
+	*x = SearchPluginStaticCredentialsRequest{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_teleport_plugins_v1_plugin_service_proto_msgTypes[10]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SearchPluginStaticCredentialsRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchPluginStaticCredentialsRequest) ProtoMessage() {}
+
+func (x *SearchPluginStaticCredentialsRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_plugins_v1_plugin_service_proto_msgTypes[10]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchPluginStaticCredentialsRequest.ProtoReflect.Descriptor instead.
+func (*SearchPluginStaticCredentialsRequest) Descriptor() ([]byte, []int) {
+	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{10}
+}
+
+func (x *SearchPluginStaticCredentialsRequest) GetLabels() map[string]string {
+	if x != nil {
+		return x.Labels
+	}
+	return nil
+}
+
+// SearchPluginStaticCredentialsResponse is the response type for SearchPluginStaticCredentials
+type SearchPluginStaticCredentialsResponse struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// Credentials are the list of credentials matching the requested labels.
+	Credentials []*types.PluginStaticCredentialsV1 `protobuf:"bytes,1,rep,name=credentials,proto3" json:"credentials,omitempty"`
+}
+
+func (x *SearchPluginStaticCredentialsResponse) Reset() {
+	*x = SearchPluginStaticCredentialsResponse{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_teleport_plugins_v1_plugin_service_proto_msgTypes[11]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *SearchPluginStaticCredentialsResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*SearchPluginStaticCredentialsResponse) ProtoMessage() {}
+
+func (x *SearchPluginStaticCredentialsResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_plugins_v1_plugin_service_proto_msgTypes[11]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use SearchPluginStaticCredentialsResponse.ProtoReflect.Descriptor instead.
+func (*SearchPluginStaticCredentialsResponse) Descriptor() ([]byte, []int) {
+	return file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP(), []int{11}
+}
+
+func (x *SearchPluginStaticCredentialsResponse) GetCredentials() []*types.PluginStaticCredentialsV1 {
+	if x != nil {
+		return x.Credentials
+	}
+	return nil
+}
+
 var File_teleport_plugins_v1_plugin_service_proto protoreflect.FileDescriptor
 
 var file_teleport_plugins_v1_plugin_service_proto_rawDesc = []byte{
@@ -681,7 +783,26 @@ var file_teleport_plugins_v1_plugin_service_proto_rawDesc = []byte{
 	0x20, 0x03, 0x28, 0x0b, 0x32, 0x1f, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e,
 	0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x50, 0x6c, 0x75, 0x67, 0x69,
 	0x6e, 0x54, 0x79, 0x70, 0x65, 0x52, 0x0b, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x54, 0x79, 0x70,
-	0x65, 0x73, 0x32, 0x9b, 0x05, 0x0a, 0x0d, 0x50, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x53, 0x65, 0x72,
+	0x65, 0x73, 0x22, 0xc0, 0x01, 0x0a, 0x24, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x50, 0x6c, 0x75,
+	0x67, 0x69, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x69, 0x63, 0x43, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74,
+	0x69, 0x61, 0x6c, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x12, 0x5d, 0x0a, 0x06, 0x6c,
+	0x61, 0x62, 0x65, 0x6c, 0x73, 0x18, 0x01, 0x20, 0x03, 0x28, 0x0b, 0x32, 0x45, 0x2e, 0x74, 0x65,
+	0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x73, 0x2e, 0x76,
+	0x31, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x50, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x53, 0x74,
+	0x61, 0x74, 0x69, 0x63, 0x43, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x6c, 0x73, 0x52,
+	0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x2e, 0x4c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x45, 0x6e, 0x74,
+	0x72, 0x79, 0x52, 0x06, 0x6c, 0x61, 0x62, 0x65, 0x6c, 0x73, 0x1a, 0x39, 0x0a, 0x0b, 0x4c, 0x61,
+	0x62, 0x65, 0x6c, 0x73, 0x45, 0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76,
+	0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75,
+	0x65, 0x3a, 0x02, 0x38, 0x01, 0x22, 0x6b, 0x0a, 0x25, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x50,
+	0x6c, 0x75, 0x67, 0x69, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x69, 0x63, 0x43, 0x72, 0x65, 0x64, 0x65,
+	0x6e, 0x74, 0x69, 0x61, 0x6c, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x12, 0x42,
+	0x0a, 0x0b, 0x63, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x6c, 0x73, 0x18, 0x01, 0x20,
+	0x03, 0x28, 0x0b, 0x32, 0x20, 0x2e, 0x74, 0x79, 0x70, 0x65, 0x73, 0x2e, 0x50, 0x6c, 0x75, 0x67,
+	0x69, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x69, 0x63, 0x43, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69,
+	0x61, 0x6c, 0x73, 0x56, 0x31, 0x52, 0x0b, 0x63, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61,
+	0x6c, 0x73, 0x32, 0xb4, 0x06, 0x0a, 0x0d, 0x50, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x53, 0x65, 0x72,
 	0x76, 0x69, 0x63, 0x65, 0x12, 0x50, 0x0a, 0x0c, 0x43, 0x72, 0x65, 0x61, 0x74, 0x65, 0x50, 0x6c,
 	0x75, 0x67, 0x69, 0x6e, 0x12, 0x28, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e,
 	0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x43, 0x72, 0x65, 0x61, 0x74,
@@ -723,12 +844,22 @@ var file_teleport_plugins_v1_plugin_service_proto_rawDesc = []byte{
 	0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x73, 0x2e, 0x76, 0x31,
 	0x2e, 0x47, 0x65, 0x74, 0x41, 0x76, 0x61, 0x69, 0x6c, 0x61, 0x62, 0x6c, 0x65, 0x50, 0x6c, 0x75,
 	0x67, 0x69, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65,
-	0x42, 0x52, 0x5a, 0x50, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x67,
-	0x72, 0x61, 0x76, 0x69, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65, 0x6c,
-	0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x2f, 0x67, 0x6f, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f,
-	0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x73, 0x2f, 0x76, 0x31, 0x3b, 0x70, 0x6c, 0x75, 0x67, 0x69,
-	0x6e, 0x73, 0x76, 0x31, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x12, 0x96, 0x01, 0x0a, 0x1d, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x50, 0x6c, 0x75, 0x67, 0x69,
+	0x6e, 0x53, 0x74, 0x61, 0x74, 0x69, 0x63, 0x43, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61,
+	0x6c, 0x73, 0x12, 0x39, 0x2e, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x70, 0x6c,
+	0x75, 0x67, 0x69, 0x6e, 0x73, 0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x50,
+	0x6c, 0x75, 0x67, 0x69, 0x6e, 0x53, 0x74, 0x61, 0x74, 0x69, 0x63, 0x43, 0x72, 0x65, 0x64, 0x65,
+	0x6e, 0x74, 0x69, 0x61, 0x6c, 0x73, 0x52, 0x65, 0x71, 0x75, 0x65, 0x73, 0x74, 0x1a, 0x3a, 0x2e,
+	0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2e, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x73,
+	0x2e, 0x76, 0x31, 0x2e, 0x53, 0x65, 0x61, 0x72, 0x63, 0x68, 0x50, 0x6c, 0x75, 0x67, 0x69, 0x6e,
+	0x53, 0x74, 0x61, 0x74, 0x69, 0x63, 0x43, 0x72, 0x65, 0x64, 0x65, 0x6e, 0x74, 0x69, 0x61, 0x6c,
+	0x73, 0x52, 0x65, 0x73, 0x70, 0x6f, 0x6e, 0x73, 0x65, 0x42, 0x52, 0x5a, 0x50, 0x67, 0x69, 0x74,
+	0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x67, 0x72, 0x61, 0x76, 0x69, 0x74, 0x61, 0x74,
+	0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x61,
+	0x70, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x67, 0x6f, 0x2f,
+	0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x73,
+	0x2f, 0x76, 0x31, 0x3b, 0x70, 0x6c, 0x75, 0x67, 0x69, 0x6e, 0x73, 0x76, 0x31, 0x62, 0x06, 0x70,
+	0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -743,52 +874,59 @@ func file_teleport_plugins_v1_plugin_service_proto_rawDescGZIP() []byte {
 	return file_teleport_plugins_v1_plugin_service_proto_rawDescData
 }
 
-var file_teleport_plugins_v1_plugin_service_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
+var file_teleport_plugins_v1_plugin_service_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
 var file_teleport_plugins_v1_plugin_service_proto_goTypes = []interface{}{
-	(*PluginType)(nil),                         // 0: teleport.plugins.v1.PluginType
-	(*CreatePluginRequest)(nil),                // 1: teleport.plugins.v1.CreatePluginRequest
-	(*GetPluginRequest)(nil),                   // 2: teleport.plugins.v1.GetPluginRequest
-	(*ListPluginsRequest)(nil),                 // 3: teleport.plugins.v1.ListPluginsRequest
-	(*ListPluginsResponse)(nil),                // 4: teleport.plugins.v1.ListPluginsResponse
-	(*DeletePluginRequest)(nil),                // 5: teleport.plugins.v1.DeletePluginRequest
-	(*SetPluginCredentialsRequest)(nil),        // 6: teleport.plugins.v1.SetPluginCredentialsRequest
-	(*SetPluginStatusRequest)(nil),             // 7: teleport.plugins.v1.SetPluginStatusRequest
-	(*GetAvailablePluginTypesRequest)(nil),     // 8: teleport.plugins.v1.GetAvailablePluginTypesRequest
-	(*GetAvailablePluginTypesResponse)(nil),    // 9: teleport.plugins.v1.GetAvailablePluginTypesResponse
-	(*types.PluginV1)(nil),                     // 10: types.PluginV1
-	(*types.PluginBootstrapCredentialsV1)(nil), // 11: types.PluginBootstrapCredentialsV1
-	(*types.PluginStaticCredentialsV1)(nil),    // 12: types.PluginStaticCredentialsV1
-	(*types.PluginCredentialsV1)(nil),          // 13: types.PluginCredentialsV1
-	(*types.PluginStatusV1)(nil),               // 14: types.PluginStatusV1
-	(*emptypb.Empty)(nil),                      // 15: google.protobuf.Empty
+	(*PluginType)(nil),                            // 0: teleport.plugins.v1.PluginType
+	(*CreatePluginRequest)(nil),                   // 1: teleport.plugins.v1.CreatePluginRequest
+	(*GetPluginRequest)(nil),                      // 2: teleport.plugins.v1.GetPluginRequest
+	(*ListPluginsRequest)(nil),                    // 3: teleport.plugins.v1.ListPluginsRequest
+	(*ListPluginsResponse)(nil),                   // 4: teleport.plugins.v1.ListPluginsResponse
+	(*DeletePluginRequest)(nil),                   // 5: teleport.plugins.v1.DeletePluginRequest
+	(*SetPluginCredentialsRequest)(nil),           // 6: teleport.plugins.v1.SetPluginCredentialsRequest
+	(*SetPluginStatusRequest)(nil),                // 7: teleport.plugins.v1.SetPluginStatusRequest
+	(*GetAvailablePluginTypesRequest)(nil),        // 8: teleport.plugins.v1.GetAvailablePluginTypesRequest
+	(*GetAvailablePluginTypesResponse)(nil),       // 9: teleport.plugins.v1.GetAvailablePluginTypesResponse
+	(*SearchPluginStaticCredentialsRequest)(nil),  // 10: teleport.plugins.v1.SearchPluginStaticCredentialsRequest
+	(*SearchPluginStaticCredentialsResponse)(nil), // 11: teleport.plugins.v1.SearchPluginStaticCredentialsResponse
+	nil,                    // 12: teleport.plugins.v1.SearchPluginStaticCredentialsRequest.LabelsEntry
+	(*types.PluginV1)(nil), // 13: types.PluginV1
+	(*types.PluginBootstrapCredentialsV1)(nil), // 14: types.PluginBootstrapCredentialsV1
+	(*types.PluginStaticCredentialsV1)(nil),    // 15: types.PluginStaticCredentialsV1
+	(*types.PluginCredentialsV1)(nil),          // 16: types.PluginCredentialsV1
+	(*types.PluginStatusV1)(nil),               // 17: types.PluginStatusV1
+	(*emptypb.Empty)(nil),                      // 18: google.protobuf.Empty
 }
 var file_teleport_plugins_v1_plugin_service_proto_depIdxs = []int32{
-	10, // 0: teleport.plugins.v1.CreatePluginRequest.plugin:type_name -> types.PluginV1
-	11, // 1: teleport.plugins.v1.CreatePluginRequest.bootstrap_credentials:type_name -> types.PluginBootstrapCredentialsV1
-	12, // 2: teleport.plugins.v1.CreatePluginRequest.static_credentials:type_name -> types.PluginStaticCredentialsV1
-	10, // 3: teleport.plugins.v1.ListPluginsResponse.plugins:type_name -> types.PluginV1
-	13, // 4: teleport.plugins.v1.SetPluginCredentialsRequest.credentials:type_name -> types.PluginCredentialsV1
-	14, // 5: teleport.plugins.v1.SetPluginStatusRequest.status:type_name -> types.PluginStatusV1
+	13, // 0: teleport.plugins.v1.CreatePluginRequest.plugin:type_name -> types.PluginV1
+	14, // 1: teleport.plugins.v1.CreatePluginRequest.bootstrap_credentials:type_name -> types.PluginBootstrapCredentialsV1
+	15, // 2: teleport.plugins.v1.CreatePluginRequest.static_credentials:type_name -> types.PluginStaticCredentialsV1
+	13, // 3: teleport.plugins.v1.ListPluginsResponse.plugins:type_name -> types.PluginV1
+	16, // 4: teleport.plugins.v1.SetPluginCredentialsRequest.credentials:type_name -> types.PluginCredentialsV1
+	17, // 5: teleport.plugins.v1.SetPluginStatusRequest.status:type_name -> types.PluginStatusV1
 	0,  // 6: teleport.plugins.v1.GetAvailablePluginTypesResponse.plugin_types:type_name -> teleport.plugins.v1.PluginType
-	1,  // 7: teleport.plugins.v1.PluginService.CreatePlugin:input_type -> teleport.plugins.v1.CreatePluginRequest
-	2,  // 8: teleport.plugins.v1.PluginService.GetPlugin:input_type -> teleport.plugins.v1.GetPluginRequest
-	5,  // 9: teleport.plugins.v1.PluginService.DeletePlugin:input_type -> teleport.plugins.v1.DeletePluginRequest
-	3,  // 10: teleport.plugins.v1.PluginService.ListPlugins:input_type -> teleport.plugins.v1.ListPluginsRequest
-	6,  // 11: teleport.plugins.v1.PluginService.SetPluginCredentials:input_type -> teleport.plugins.v1.SetPluginCredentialsRequest
-	7,  // 12: teleport.plugins.v1.PluginService.SetPluginStatus:input_type -> teleport.plugins.v1.SetPluginStatusRequest
-	8,  // 13: teleport.plugins.v1.PluginService.GetAvailablePluginTypes:input_type -> teleport.plugins.v1.GetAvailablePluginTypesRequest
-	15, // 14: teleport.plugins.v1.PluginService.CreatePlugin:output_type -> google.protobuf.Empty
-	10, // 15: teleport.plugins.v1.PluginService.GetPlugin:output_type -> types.PluginV1
-	15, // 16: teleport.plugins.v1.PluginService.DeletePlugin:output_type -> google.protobuf.Empty
-	4,  // 17: teleport.plugins.v1.PluginService.ListPlugins:output_type -> teleport.plugins.v1.ListPluginsResponse
-	15, // 18: teleport.plugins.v1.PluginService.SetPluginCredentials:output_type -> google.protobuf.Empty
-	15, // 19: teleport.plugins.v1.PluginService.SetPluginStatus:output_type -> google.protobuf.Empty
-	9,  // 20: teleport.plugins.v1.PluginService.GetAvailablePluginTypes:output_type -> teleport.plugins.v1.GetAvailablePluginTypesResponse
-	14, // [14:21] is the sub-list for method output_type
-	7,  // [7:14] is the sub-list for method input_type
-	7,  // [7:7] is the sub-list for extension type_name
-	7,  // [7:7] is the sub-list for extension extendee
-	0,  // [0:7] is the sub-list for field type_name
+	12, // 7: teleport.plugins.v1.SearchPluginStaticCredentialsRequest.labels:type_name -> teleport.plugins.v1.SearchPluginStaticCredentialsRequest.LabelsEntry
+	15, // 8: teleport.plugins.v1.SearchPluginStaticCredentialsResponse.credentials:type_name -> types.PluginStaticCredentialsV1
+	1,  // 9: teleport.plugins.v1.PluginService.CreatePlugin:input_type -> teleport.plugins.v1.CreatePluginRequest
+	2,  // 10: teleport.plugins.v1.PluginService.GetPlugin:input_type -> teleport.plugins.v1.GetPluginRequest
+	5,  // 11: teleport.plugins.v1.PluginService.DeletePlugin:input_type -> teleport.plugins.v1.DeletePluginRequest
+	3,  // 12: teleport.plugins.v1.PluginService.ListPlugins:input_type -> teleport.plugins.v1.ListPluginsRequest
+	6,  // 13: teleport.plugins.v1.PluginService.SetPluginCredentials:input_type -> teleport.plugins.v1.SetPluginCredentialsRequest
+	7,  // 14: teleport.plugins.v1.PluginService.SetPluginStatus:input_type -> teleport.plugins.v1.SetPluginStatusRequest
+	8,  // 15: teleport.plugins.v1.PluginService.GetAvailablePluginTypes:input_type -> teleport.plugins.v1.GetAvailablePluginTypesRequest
+	10, // 16: teleport.plugins.v1.PluginService.SearchPluginStaticCredentials:input_type -> teleport.plugins.v1.SearchPluginStaticCredentialsRequest
+	18, // 17: teleport.plugins.v1.PluginService.CreatePlugin:output_type -> google.protobuf.Empty
+	13, // 18: teleport.plugins.v1.PluginService.GetPlugin:output_type -> types.PluginV1
+	18, // 19: teleport.plugins.v1.PluginService.DeletePlugin:output_type -> google.protobuf.Empty
+	4,  // 20: teleport.plugins.v1.PluginService.ListPlugins:output_type -> teleport.plugins.v1.ListPluginsResponse
+	18, // 21: teleport.plugins.v1.PluginService.SetPluginCredentials:output_type -> google.protobuf.Empty
+	18, // 22: teleport.plugins.v1.PluginService.SetPluginStatus:output_type -> google.protobuf.Empty
+	9,  // 23: teleport.plugins.v1.PluginService.GetAvailablePluginTypes:output_type -> teleport.plugins.v1.GetAvailablePluginTypesResponse
+	11, // 24: teleport.plugins.v1.PluginService.SearchPluginStaticCredentials:output_type -> teleport.plugins.v1.SearchPluginStaticCredentialsResponse
+	17, // [17:25] is the sub-list for method output_type
+	9,  // [9:17] is the sub-list for method input_type
+	9,  // [9:9] is the sub-list for extension type_name
+	9,  // [9:9] is the sub-list for extension extendee
+	0,  // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_teleport_plugins_v1_plugin_service_proto_init() }
@@ -917,6 +1055,30 @@ func file_teleport_plugins_v1_plugin_service_proto_init() {
 				return nil
 			}
 		}
+		file_teleport_plugins_v1_plugin_service_proto_msgTypes[10].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SearchPluginStaticCredentialsRequest); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
+		file_teleport_plugins_v1_plugin_service_proto_msgTypes[11].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*SearchPluginStaticCredentialsResponse); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -924,7 +1086,7 @@ func file_teleport_plugins_v1_plugin_service_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_teleport_plugins_v1_plugin_service_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   10,
+			NumMessages:   13,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

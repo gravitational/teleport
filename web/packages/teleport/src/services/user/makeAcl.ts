@@ -59,6 +59,8 @@ export function makeAcl(json): Acl {
   const deviceTrust = json.deviceTrust || defaultAccess;
   const assist = json.assist || defaultAccess;
 
+  const samlIdpServiceProvider = json.samlIdpServiceProvider || defaultAccess;
+
   return {
     authConnectors,
     trustedClusters,
@@ -87,6 +89,7 @@ export function makeAcl(json): Acl {
     deviceTrust,
     lock,
     assist,
+    samlIdpServiceProvider,
   };
 }
 

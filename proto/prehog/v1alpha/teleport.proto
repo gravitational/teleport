@@ -19,12 +19,27 @@ package prehog.v1alpha;
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
+// a successful user login
+//
+// PostHog event: tp.user.login
 message UserLoginEvent {
-  // anonymized
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64;
+  // should always be a real user as bots and service accounts with long-term
+  // credentials don't ever login
+  //
+  // PostHog property: tp.user_name
   string user_name = 1;
-  // local/github/saml/oidc
+
+  // type of the auth connector used in the login, should be
+  // "local"/"github"/"saml"/"oidc"
+  //
+  // PostHog property: tp.connector_type
   string connector_type = 2;
-  // The anonymized device ID, for logins where device trust is enabled.
+
+  // anonymized device ID, empty or 32 bytes (HMAC-SHA-256) encoded in base64;
+  // for logins where device trust is enabled
+  //
+  // PostHog property: tp.device_id
   string device_id = 3;
 }
 
@@ -44,46 +59,108 @@ message ResourceCreateEvent {
 // the kind of a "resource" as intended by ResourceHeartbeatEvent
 enum ResourceKind {
   RESOURCE_KIND_UNSPECIFIED = 0;
+
+  // PostHog property value: "node"
   RESOURCE_KIND_NODE = 1;
+
+  // PostHog property value: "app_server"
   RESOURCE_KIND_APP_SERVER = 2;
+
+  // PostHog property value: "kube_server"
   RESOURCE_KIND_KUBE_SERVER = 3;
+
+  // PostHog property value: "db_server"
   RESOURCE_KIND_DB_SERVER = 4;
+
+  // PostHog property value: "windows_desktop"
   RESOURCE_KIND_WINDOWS_DESKTOP = 5;
+
+  // ServerV3 ("node") heartbeat with a subkind of "openssh" (as opposed to
+  // empty or "teleport"); not used in keepalives
+  //
+  // PostHog property value: "node.openssh"
   RESOURCE_KIND_NODE_OPENSSH = 6;
 }
 
 // a heartbeat for a resource served by a Teleport instance outside of the
 // control plane (i.e. not auth, not proxy)
+//
+// PostHog event: tp.resource.hb
 message ResourceHeartbeatEvent {
-  // anonymized, 32 bytes (HMAC-SHA-256)
+  // anonymized name of the resource, 32 bytes (HMAC-SHA-256); the name is the
+  // host ID for nodes but the actual user-facing name for other resources, so
+  // an app or a database served by multiple agents won't be counted multiple
+  // times
+  //
+  // PreHog property: tp.resource_name (in base64)
   bytes resource_name = 1;
+
+  // kind of the resource (node, app, db)
+  //
+  // PostHog property: tp.resource_type (as a string, see ResourceKind)
   ResourceKind resource_kind = 2;
+
   // true if the heartbeat has no expiration
+  //
+  // PostHog property: tp.is_static
   bool static = 3;
 }
 
+// an event representing one of several audit events: session.start, port,
+// app.session.start, db.session.start, windows.desktop.session.start; i.e. a
+// SSH shell or port-forward, kubectl exec or kubectl port-forward, DB, App or
+// Desktop connection
+//
+// an earlier encoding (as "tp.session.start") mixed SSH sessions and kubectl
+// execs under a session type of "ssh"
+//
+// PostHog event: tp.session.start
 message SessionStartEvent {
-  // anonymized
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.user_name
   string user_name = 1;
-  // ssh/kube/desktop, maybe db?
+
+  // type of the session, should be "ssh"/"k8s"/"db"/"app"/"desktop" (matching
+  // the values for api/types.SessionKind) or "app_tcp", "ssh_port_v2" or
+  // "k8s_port" for TCP Application Access connections, SSH port forwards and
+  // kubectl port-forward respectively; a type of "ssh_port" represents either a
+  // SSH port forwarding connection or a kubectl port-forward (not used in new
+  // events)
+  //
+  // PostHog property: tp.session_type
   string session_type = 2;
 }
 
+// the issuance of a user certificate from the user CA
+//
+// PostHog event: tp.certificate.issued
 message UserCertificateIssuedEvent {
-  // The anonymized username/principal of the entity that requested the
-  // certificate.
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64; it
+  // can be the username of a bot user rather than of a regular user
+  //
+  // PostHog property: tp.user_name
   string user_name = 1;
-  // The issued certificate TTL.
+
+  // the TTL of the issued certificate, typically 8 or 12 hours
+  //
+  // PostHog property: tp.ttl_minutes (in minutes, rounded up)
   google.protobuf.Duration ttl = 2;
+
   // If true, the certificate was requested by a bot (i.e. Machine ID) user.
+  // PostHog property: tp.is_bot
   bool is_bot = 3;
   // If true, the certificate usage is restricted to database access.
+  // PostHog property: tp.usage_database
   bool usage_database = 4;
   // If true, the certificate usage is restricted to app access.
+  // PostHog property: tp.usage_app
   bool usage_app = 5;
   // If true, the certificate usage is restricted to Kubernetes access.
+  // PostHog property: tp.usage_kubernetes
   bool usage_kubernetes = 6;
   // If true, the certificate usage is restricted to desktop access.
+  // PostHog property: tp.usage_desktop
   bool usage_desktop = 7;
 }
 
@@ -191,6 +268,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34;
   DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35;
   DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36;
+
+  DISCOVER_RESOURCE_SAML_APPLICATION = 37;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -377,15 +456,27 @@ enum CTA {
   CTA_PREMIUM_SUPPORT = 4;
   CTA_TRUSTED_DEVICES = 5;
   CTA_UPGRADE_BANNER = 6;
+  CTA_BILLING_SUMMARY = 7;
 }
 
+// a request forwarded to a kube cluster's API server (other than exec and
+// port-forward)
+//
+// PostHog event: tp.kube.request
 message KubeRequestEvent {
-  // anonymized
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.user_name
   string user_name = 1;
 }
 
+// an sftp event, represents a single operation on a file
+//
+// PostHog event: tp.sftp
 message SFTPEvent {
-  // anonymized
+  // anonymized Teleport username, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.user_name
   string user_name = 1;
   // matching SFTPAction in teleport/api/types/events/events.proto
   int32 action = 2;
@@ -465,12 +556,17 @@ message UIIntegrationEnrollCompleteEvent {
 }
 
 message SubmitEventRequest {
-  // anonymized
+  // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
+  //
+  // PostHog property: tp.cluster_name (still in base64)
   string cluster_name = 1;
 
   // optional, will default to the ingest time if unset
+  //
+  // PostHog timestamp
   google.protobuf.Timestamp timestamp = 2;
 
+  // the event being submitted
   oneof event {
     UserLoginEvent user_login = 3;
     SSOCreateEvent sso_create = 4;
@@ -540,6 +636,7 @@ message SubmitEventRequest {
 message SubmitEventResponse {}
 
 message SubmitEventsRequest {
+  // individual events to be submitted in a batch, up to 500 at once
   repeated SubmitEventRequest events = 1;
 }
 message SubmitEventsResponse {}
@@ -548,9 +645,21 @@ message HelloTeleportRequest {}
 message HelloTeleportResponse {}
 
 service TeleportReportingService {
+  // equivalent to SubmitEvents with a single event, should be unused by now
   rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {
     option deprecated = true;
   }
+
+  // encodes and forwards usage events to the PostHog event database; each
+  // event is annotated with some properties that depend on the identity of the
+  // caller:
+  // - tp.account_id (UUID in string form, can be empty if missing from the
+  //   license)
+  // - tp.license_name (should always be a UUID)
+  // - tp.license_authority (name of the authority that signed the license file
+  //   used for authentication)
+  // - tp.is_cloud (boolean)
   rpc SubmitEvents(SubmitEventsRequest) returns (SubmitEventsResponse) {}
+
   rpc HelloTeleport(HelloTeleportRequest) returns (HelloTeleportResponse) {}
 }

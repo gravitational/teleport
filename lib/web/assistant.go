@@ -312,7 +312,7 @@ func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	sctx *SessionContext, site reversetunnel.RemoteSite,
-) error {
+) (err error) {
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
 	if conversationID == "" {
@@ -371,7 +371,31 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		h.log.WithError(err).Error("Error setting websocket readline")
 		return nil
 	}
-	defer ws.Close()
+	defer func() {
+		closureReason := websocket.CloseNormalClosure
+		closureMsg := ""
+		if err != nil {
+			h.log.WithError(err).Error("Error in the Assistant loop")
+			_ = ws.WriteJSON(&assistantMessage{
+				Type:        assist.MessageKindError,
+				Payload:     "An error has occurred. Please try again later.",
+				CreatedTime: h.clock.Now().UTC().Format(time.RFC3339),
+			})
+			// Set server error code and message: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
+			closureReason = websocket.CloseInternalServerErr
+			closureMsg = err.Error()
+		}
+		// Send the close message to the client and close the connection
+		if err := ws.WriteControl(websocket.CloseMessage,
+			websocket.FormatCloseMessage(closureReason, closureMsg),
+			time.Now().Add(time.Second),
+		); err != nil {
+			h.log.Warnf("Failed to write close message: %v", err)
+		}
+		if err := ws.Close(); err != nil {
+			h.log.Warnf("Failed to close websocket: %v", err)
+		}
+	}()
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
@@ -410,7 +434,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	if chat.IsNewConversation() {
 		// new conversation, generate a hello message
-		if _, err := chat.ProcessComplete(ctx, onMessageFn); err != nil {
+		if _, err := chat.ProcessComplete(ctx, onMessageFn, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -442,11 +466,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		}
 
 		//TODO(jakule): Should we sanitize the payload?
-		if err := chat.InsertAssistantMessage(ctx, assist.MessageKindUserMessage, wsIncoming.Payload); err != nil {
-			return trace.Wrap(err)
-		}
-
-		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn)
+		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn, wsIncoming.Payload)
 		if err != nil {
 			return trace.Wrap(err)
 		}

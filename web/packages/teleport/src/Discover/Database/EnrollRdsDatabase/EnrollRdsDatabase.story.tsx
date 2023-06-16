@@ -27,7 +27,6 @@ export default {
 export const AwsRegionsSelectorDisabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableFetch={true}
     onRefresh={() => null}
     disableSelector={true}
     clear={() => null}
@@ -37,7 +36,6 @@ export const AwsRegionsSelectorDisabled = () => (
 export const AwsRegionsSelectorEnabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableFetch={false}
     onRefresh={() => null}
     disableSelector={false}
     clear={() => null}
@@ -47,7 +45,6 @@ export const AwsRegionsSelectorEnabled = () => (
 export const AwsRegionsSelectorRefreshEnabled = () => (
   <AwsRegionSelector
     onFetch={() => null}
-    disableFetch={true}
     onRefresh={() => null}
     disableSelector={false}
     clear={() => null}

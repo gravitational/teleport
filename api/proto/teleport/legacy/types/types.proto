@@ -348,6 +348,11 @@ message DatabaseSpecV3 {
   ];
   // AdminUser is the database admin user for automatic user provisioning.
   DatabaseAdminUser AdminUser = 11 [(gogoproto.jsontag) = "admin_user,omitempty"];
+  // MongoAtlas contains Atlas metadata about the database.
+  MongoAtlas MongoAtlas = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "mongo_atlas,omitempty"
+  ];
 }
 
 // DatabaseAdminUser contains information about privileged database user used
@@ -426,6 +431,11 @@ message AWS {
   // AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
   // Set this field and ExternalID to enable access across AWS accounts.
   string AssumeRoleARN = 11 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+  // OpenSearch contains AWS OpenSearch specific metadata.
+  OpenSearch OpenSearch = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "opensearch,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -498,6 +508,16 @@ message RedshiftServerless {
   string EndpointName = 2 [(gogoproto.jsontag) = "endpoint_name,omitempty"];
   // WorkgroupID is the workgroup ID.
   string WorkgroupID = 3 [(gogoproto.jsontag) = "workgroup_id,omitempty"];
+}
+
+// OpenSearch contains AWS OpenSearch specific metadata.
+message OpenSearch {
+  // DomainName is the name of the domain.
+  string DomainName = 1 [(gogoproto.jsontag) = "domain_name,omitempty"];
+  // DomainID is the ID of the domain.
+  string DomainID = 2 [(gogoproto.jsontag) = "domain_id,omitempty"];
+  // EndpointType is the type of the endpoint.
+  string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -573,6 +593,12 @@ message MySQLOptions {
   // ServerVersion is the server version reported by DB proxy if the runtime information is
   // not available.
   string ServerVersion = 1 [(gogoproto.jsontag) = "server_version,omitempty"];
+}
+
+// MongoAtlas contains Atlas metadata about the database.
+message MongoAtlas {
+  // Name is the Atlas database instance name.
+  string Name = 1 [(gogoproto.jsontag) = "name,omitempty"];
 }
 
 // InstanceV1 represents the state of a running teleport instance independent
@@ -4421,7 +4447,11 @@ message LockTarget {
 
   // Node specifies the UUID of a Teleport node.
   // A matching node is also prevented from heartbeating to the auth server.
-  string Node = 4 [(gogoproto.jsontag) = "node,omitempty"];
+  // DEPRECATED: use ServerID instead.
+  string Node = 4 [
+    deprecated = true,
+    (gogoproto.jsontag) = "node,omitempty"
+  ];
 
   // MFADevice specifies the UUID of a user MFA device.
   string MFADevice = 5 [(gogoproto.jsontag) = "mfa_device,omitempty"];
@@ -4435,6 +4465,9 @@ message LockTarget {
   // Device is the device ID of a trusted device.
   // Requires Teleport Enterprise.
   string Device = 8 [(gogoproto.jsontag) = "device,omitempty"];
+
+  // ServerID is the host id of the Teleport instance.
+  string ServerID = 9 [(gogoproto.jsontag) = "server_id,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specified
@@ -5829,4 +5862,101 @@ message MessageWithHeader {
     (gogoproto.jsontag) = "",
     (gogoproto.embed) = true
   ];
+}
+
+// AWSMatcher matches AWS EC2 instances and AWS Databases
+message AWSMatcher {
+  // Types are AWS database types to match, "ec2", "rds", "redshift", "elasticache",
+  // or "memorydb".
+  repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
+  // Regions are AWS regions to query for databases.
+  repeated string Regions = 2 [(gogoproto.jsontag) = "regions,omitempty"];
+  // AssumeRoleARN is the AWS role to assume for database discovery.
+  AssumeRole AssumeRole = 3 [(gogoproto.jsontag) = "assume_role,omitempty"];
+  // Tags are AWS resource Tags to match.
+  wrappers.LabelValues Tags = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "tags,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // Params sets the join method when installing on discovered EC2 nodes
+  InstallerParams Params = 5 [(gogoproto.jsontag) = "install,omitempty"];
+  // SSM provides options to use when sending a document command to
+  // an EC2 node
+  AWSSSM SSM = 6 [(gogoproto.jsontag) = "ssm,omitempty"];
+}
+
+// AssumeRole provides a role ARN and ExternalID to assume an AWS role
+// when interacting with AWS resources.
+message AssumeRole {
+  // RoleARN is the fully specified AWS IAM role ARN.
+  string RoleARN = 1 [(gogoproto.jsontag) = "role_arn"];
+  // ExternalID is the external ID used to assume a role in another account.
+  string ExternalID = 2 [(gogoproto.jsontag) = "external_id"];
+}
+
+// InstallParams sets join method to use on discovered nodes
+message InstallerParams {
+  // JoinMethod is the method to use when joining the cluster
+  string JoinMethod = 1 [
+    (gogoproto.jsontag) = "join_method",
+    (gogoproto.casttype) = "JoinMethod"
+  ];
+  // JoinToken is the token to use when joining the cluster
+  string JoinToken = 2 [(gogoproto.jsontag) = "join_token"];
+  // ScriptName is the name of the teleport installer script
+  // resource for the cloud instance to execute
+  string ScriptName = 3 [(gogoproto.jsontag) = "script_name,omitempty"];
+  // InstallTeleport disables agentless discovery
+  bool InstallTeleport = 4 [(gogoproto.jsontag) = "install_teleport,omitempty"];
+  // SSHDConfig provides the path to write sshd configuration changes
+  string SSHDConfig = 5 [(gogoproto.jsontag) = "sshd_config,omitempty"];
+  // PublicProxyAddr is the address of the proxy the discovered node should use
+  // to connect to the cluster. Used only in Azure.
+  string PublicProxyAddr = 6 [(gogoproto.jsontag) = "proxy_addr,omitempty"];
+}
+
+// AWSSSM provides options to use when executing SSM documents
+message AWSSSM {
+  // DocumentName is the name of the document to use when executing an
+  // SSM command
+  string DocumentName = 1 [(gogoproto.jsontag) = "document_name,omitempty"];
+}
+
+// AzureMatcher matches Azure resources.
+// It defines which resource types, filters and some configuration params.
+message AzureMatcher {
+  // Subscriptions are Azure subscriptions to query for resources.
+  repeated string Subscriptions = 1 [(gogoproto.jsontag) = "subscriptions,omitempty"];
+  // ResourceGroups are Azure resource groups to query for resources.
+  repeated string ResourceGroups = 2 [(gogoproto.jsontag) = "resource_groups,omitempty"];
+  // Types are Azure types to match: "mysql", "postgres", "aks", "vm"
+  repeated string Types = 3 [(gogoproto.jsontag) = "types,omitempty"];
+  // Regions are Azure locations to match for databases.
+  repeated string Regions = 4 [(gogoproto.jsontag) = "regions,omitempty"];
+  // ResourceTags are Azure tags on resources to match.
+  wrappers.LabelValues ResourceTags = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "tags,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // Params sets the join method when installing on
+  // discovered Azure nodes.
+  InstallerParams Params = 6 [(gogoproto.jsontag) = "install_params,omitempty"];
+}
+
+// GCPMatcher matches GCP resources.
+message GCPMatcher {
+  // Types are GKE resource types to match: "gke".
+  repeated string Types = 1 [(gogoproto.jsontag) = "types,omitempty"];
+  // Locations are GKE locations to search resources for.
+  repeated string Locations = 2 [(gogoproto.jsontag) = "locations,omitempty"];
+  // Tags are GCP labels to match.
+  wrappers.LabelValues Tags = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "tags,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+  // ProjectIDs are the GCP project ID where the resources are deployed.
+  repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
 }

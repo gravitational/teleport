@@ -400,3 +400,39 @@ func TestBuildRoleARN(t *testing.T) {
 		})
 	}
 }
+
+func TestIsRoleARN(t *testing.T) {
+	for name, tt := range map[string]struct {
+		arn           string
+		expectedValue bool
+	}{
+		"valid full arn":      {"arn:aws:iam::123456789012:role/role-name", true},
+		"valid partial arn":   {"role/role-name", true},
+		"valid user arn":      {"arn:aws:iam::123456789012:user/user-name", false},
+		"invalid arn":         {"arn:aws:iam:::123456789012:role/role-name", false},
+		"invalid partial arn": {"user/user-name", false},
+		"invalid value":       {"role-name", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tt.expectedValue, IsRoleARN(tt.arn))
+		})
+	}
+}
+
+func TestIsUserARN(t *testing.T) {
+	for name, tt := range map[string]struct {
+		arn           string
+		expectedValue bool
+	}{
+		"valid full arn":      {"arn:aws:iam::123456789012:user/user-name", true},
+		"valid partial arn":   {"user/user-name", true},
+		"valid user arn":      {"arn:aws:iam::123456789012:role/role-name", false},
+		"invalid arn":         {"arn:aws:iam:::123456789012:user/user-name", false},
+		"invalid partial arn": {"role/role-name", false},
+		"invalid value":       {"user-name", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tt.expectedValue, IsUserARN(tt.arn))
+		})
+	}
+}

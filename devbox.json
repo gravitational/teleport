@@ -1,0 +1,40 @@
+{
+  "packages": [
+    "addlicense@1.0.0",
+    "bash",
+    "bats@1.3.0",
+    "github:nixos/nixpkgs/d7f28652048b3bed6a512542e62ea1a50691e349#buf",
+    "clang@11.1.0",
+    "gci@0.9.1",
+    "git",
+    "github:nixos/nixpkgs/757a0d107c238d031652a8c09d1f6bf1b6f523a3#go",
+    "github:nixos/nixpkgs/3a785fc61f9d2960970bdce4fa86eb634c86b9d6#golangci-lint",
+    "libiconvReal@1.16",
+    "libfido2@1.13.0",
+    "nodejs@16.18.1",
+    "github:nixos/nixpkgs/b39bfdc033e1d79f2b58e1630530e5d54b19e698#openssl",
+    "patchelf@0.15.0",
+    "protobuf3_20@3.20.3",
+    "python@3.11.2",
+    "shellcheck@0.9.0",
+    "yamllint@1.28.0",
+    "zlib@1.2.13",
+    "path:build.assets/flake#conditional",
+    "path:build.assets/flake#grpc-tools",
+    "path:build.assets/flake#helm",
+    "path:build.assets/flake#libpcsclite",
+    "path:build.assets/flake#node-protoc-ts",
+    "path:build.assets/flake#protoc-gen-gogo",
+    "path:build.assets/flake#rust",
+    "path:build.assets/flake#yarn"
+  ],
+  "shell": {
+    "init_hook": [
+      "export TELEPORT_DEVBOX=1",
+      "unset GOROOT"
+    ]
+  },
+  "nixpkgs": {
+    "commit": "f91ee3065de91a3531329a674a45ddcb3467a650"
+  }
+}

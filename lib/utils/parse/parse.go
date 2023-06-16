@@ -136,7 +136,7 @@ func parseTraitsTemplateExpression(exprString string) (traitsTemplateExpression,
 	return expr, trace.Wrap(err)
 }
 
-func mustNewTraitsTemplateParser() *typical.Parser[traitsTemplateEnv, []string] {
+func mustNewTraitsTemplateParser() *typical.CachedParser[traitsTemplateEnv, []string] {
 	parser, err := newTraitsTemplateParser()
 	if err != nil {
 		panic(trace.Wrap(err, "failed to create template parser (this is a bug)"))
@@ -144,7 +144,7 @@ func mustNewTraitsTemplateParser() *typical.Parser[traitsTemplateEnv, []string] 
 	return parser
 }
 
-func newTraitsTemplateParser() (*typical.Parser[traitsTemplateEnv, []string], error) {
+func newTraitsTemplateParser() (*typical.CachedParser[traitsTemplateEnv, []string], error) {
 	traitsVariable := func(name string) typical.Variable {
 		return typical.DynamicMapFunction(func(e traitsTemplateEnv, key string) ([]string, error) {
 			if e.traitValidator != nil {
@@ -160,7 +160,7 @@ func newTraitsTemplateParser() (*typical.Parser[traitsTemplateEnv, []string], er
 		})
 	}
 
-	parser, err := typical.NewParser[traitsTemplateEnv, []string](typical.ParserSpec{
+	parser, err := typical.NewCachedParser[traitsTemplateEnv, []string](typical.ParserSpec{
 		Variables: map[string]typical.Variable{
 			"external": traitsVariable("external"),
 			"internal": traitsVariable("internal"),
@@ -330,7 +330,7 @@ func parseMatcherExpression(raw string) (Matcher, error) {
 	return matcher, trace.Wrap(err, "evaluating match expression")
 }
 
-func mustNewMatcherParser() *typical.Parser[matcherEnv, Matcher] {
+func mustNewMatcherParser() *typical.CachedParser[matcherEnv, Matcher] {
 	parser, err := newMatcherParser()
 	if err != nil {
 		panic(trace.Wrap(err, "failed to create match parser (this is a bug)"))
@@ -338,8 +338,8 @@ func mustNewMatcherParser() *typical.Parser[matcherEnv, Matcher] {
 	return parser
 }
 
-func newMatcherParser() (*typical.Parser[matcherEnv, Matcher], error) {
-	parser, err := typical.NewParser[matcherEnv, Matcher](typical.ParserSpec{
+func newMatcherParser() (*typical.CachedParser[matcherEnv, Matcher], error) {
+	parser, err := typical.NewCachedParser[matcherEnv, Matcher](typical.ParserSpec{
 		Functions: map[string]typical.Function{
 			RegexpMatchFnName:    typical.UnaryFunction[matcherEnv](regexpMatch),
 			RegexpNotMatchFnName: typical.UnaryFunction[matcherEnv](regexpNotMatch),

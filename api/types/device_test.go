@@ -15,6 +15,7 @@
 package types
 
 import (
+	"crypto"
 	"testing"
 	"time"
 
@@ -24,79 +25,8 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"github.com/gravitational/teleport/api/defaults"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
-
-// TestUnmarshalDevice tests that devices can be successfully
-// unmarshalled from YAML and JSON.
-func TestUnmarshalDevice(t *testing.T) {
-	for _, tc := range []struct {
-		desc          string
-		input         string
-		errorContains string
-		expected      *DeviceV1
-	}{
-		{
-			desc: "success",
-			input: `
-{
-  "kind": "device",
-	"version": "v1",
-	"metadata": {
-		"name": "xaa"
-	},
-	"spec": {
-		"asset_tag": "mymachine",
-		"os_type": "macos",
-		"enroll_status": "enrolled"
-	}
-}`,
-			expected: &DeviceV1{
-				ResourceHeader: ResourceHeader{
-					Kind:    KindDevice,
-					Version: "v1",
-					Metadata: Metadata{
-						Namespace: defaults.Namespace,
-						Name:      "xaa",
-					},
-				},
-				Spec: &DeviceSpec{
-					OsType:       "macos",
-					AssetTag:     "mymachine",
-					EnrollStatus: "enrolled",
-				},
-			},
-		},
-		{
-			desc:          "fail string as num",
-			errorContains: `cannot unmarshal number`,
-			input: `
-{
-  "kind": "device",
-	"version": "v1",
-	"metadata": {
-		"name": "secretid"
-	},
-	"spec": {
-		"asset_tag": 4,
-		"os_type": "macos",
-		"enroll_status": "enrolled"
-	}
-}`,
-		},
-	} {
-		t.Run(tc.desc, func(t *testing.T) {
-			out, err := UnmarshalDevice([]byte(tc.input))
-			if tc.errorContains != "" {
-				require.ErrorContains(t, err, tc.errorContains, "error from UnmarshalDevice does not contain the expected string")
-				return
-			}
-			require.NoError(t, err, "UnmarshalDevice returned unexpected error")
-			require.Equal(t, tc.expected, out, "unmarshalled device  does not match what was expected")
-		})
-	}
-}
 
 func TestDeviceConversions_toAndFrom(t *testing.T) {
 	t1 := time.UnixMilli(1680276526972000) // Fri Mar 31 2023 15:28:46 UTC
@@ -142,6 +72,34 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 				ReportedAssetTag:        assetTag + "-reported",
 				SystemSerialNumber:      assetTag + "-system",
 				BaseBoardSerialNumber:   assetTag + "-board",
+				TpmPlatformAttestation: &devicepb.TPMPlatformAttestation{
+					Nonce: []byte("foo-bar-bizz"),
+					PlatformParameters: &devicepb.TPMPlatformParameters{
+						EventLog: []byte("dummy-event-log"),
+						Quotes: []*devicepb.TPMQuote{
+							{
+								Quote:     []byte("fake-quote-1"),
+								Signature: []byte("fake-signature-1"),
+							},
+							{
+								Quote:     []byte("fake-quote-2"),
+								Signature: []byte("fake-signature-2"),
+							},
+						},
+						Pcrs: []*devicepb.TPMPCR{
+							{
+								Index:     0,
+								Digest:    []byte("fake-sha1-digest"),
+								DigestAlg: uint64(crypto.SHA1),
+							},
+							{
+								Index:     1,
+								Digest:    []byte("fake-sha256-digest"),
+								DigestAlg: uint64(crypto.SHA256),
+							},
+						},
+					},
+				},
 			},
 		},
 		Source: &devicepb.DeviceSource{
@@ -177,10 +135,12 @@ func TestResourceAttestationType_toAndFrom(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
 		attestationType string
-		errorContains   string
+		wantEmpty       bool
+		wantErr         string
 	}{
 		{
 			attestationType: "unspecified",
+			wantEmpty:       true,
 		},
 		{
 			attestationType: "tpm_ekpub",
@@ -193,18 +153,23 @@ func TestResourceAttestationType_toAndFrom(t *testing.T) {
 		},
 		{
 			attestationType: "quantum_entanglement",
-			errorContains:   "unknown attestation type",
+			wantErr:         "unknown attestation type",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.attestationType, func(t *testing.T) {
 			asEnum, err := ResourceDeviceAttestationTypeFromString(tt.attestationType)
-			if tt.errorContains != "" {
-				require.ErrorContains(t, err, tt.errorContains)
+			if tt.wantErr != "" {
+				require.ErrorContains(t, err, tt.wantErr, "ResourceDeviceAttestationTypeFromString error mismatch")
 				return
 			}
+
 			got := ResourceDeviceAttestationTypeToString(asEnum)
-			require.Equal(t, tt.attestationType, got)
+			want := tt.attestationType
+			if tt.wantEmpty {
+				want = ""
+			}
+			require.Equal(t, want, got, "ResourceDeviceAttestationTypeToString mismatch")
 		})
 	}
 }

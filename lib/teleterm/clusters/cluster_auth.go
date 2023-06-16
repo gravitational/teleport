@@ -46,7 +46,7 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 	// Do the ALPN handshake test to decide if connection upgrades are required
 	// for TLS Routing. Only do the test once Ping verifies the cluster is
 	// reachable.
-	c.clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(c.clusterClient.WebProxyAddr, c.clusterClient.InsecureSkipVerify)
+	c.clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(ctx, c.clusterClient.WebProxyAddr, c.clusterClient.InsecureSkipVerify)
 
 	if err := c.clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)

@@ -38,16 +38,6 @@ jobs:
       - name: Checkout Teleport
         uses: actions/checkout@v3
 
-      - name: Rust cargo cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            ${{ github.workspace }}/target
-            /usr/local/cargo/registry
-            /usr/local/cargo/git
-          key: ${{ runner.os }}-cargo-${{ github.workflow }}-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-${{ github.workflow }}-
-
       - name: Run tests
         timeout-minutes: 40
         run: make test-rust

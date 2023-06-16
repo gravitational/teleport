@@ -50,21 +50,8 @@ Export the Teleport user certificate authority by running the following from
 `cmd.exe` on your Windows system:
 
 ```code
-$ curl -o teleport.cer 'https://teleport-proxy.example.com:443/webapi/auth/export?type=windows'
+$ curl -o teleport.cer https://teleport-proxy.example.com/webapi/auth/export?type=windows
 ```
-
-<Admonition type="warning" title="PowerShell">
-Be sure to run the above command in `cmd.exe`. In PowerShell, `curl` is an alias for
-[`Invoke-WebRequest`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.3)
-which has different semantics.
-
-If you must use PowerShell, remove the alias before running curl with the
-following command:
-
-```
-> Remove-Item alias:curl
-```
-</Admonition>
 
 ### Install the Teleport service for Windows
 

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { lazy } from 'react';
 
 import {
   ActiveSessionsIcon,
@@ -46,70 +46,28 @@ import {
 
 import type { TeleportFeature, FeatureFlags } from './types';
 
-const Audit = React.lazy(
-  () => import(/* webpackChunkName: "audit" */ './Audit')
+const Audit = lazy(() => import('./Audit'));
+const Nodes = lazy(() => import('./Nodes'));
+const Sessions = lazy(() => import('./Sessions'));
+const Account = lazy(() => import('./Account'));
+const Applications = lazy(() => import('./Apps'));
+const Kubes = lazy(() => import('./Kubes'));
+const Support = lazy(() => import('./Support'));
+const Clusters = lazy(() => import('./Clusters'));
+const Trust = lazy(() => import('./TrustedClusters'));
+const Users = lazy(() => import('./Users'));
+const Roles = lazy(() => import('./Roles'));
+const Recordings = lazy(() => import('./Recordings'));
+const AuthConnectors = lazy(() => import('./AuthConnectors'));
+const Locks = lazy(() => import('./LocksV2/Locks'));
+const NewLock = lazy(() => import('./LocksV2/NewLock'));
+const Databases = lazy(() => import('./Databases'));
+const Desktops = lazy(() => import('./Desktops'));
+const Discover = lazy(() => import('./Discover'));
+const Integrations = lazy(() => import('./Integrations'));
+const IntegrationEnroll = lazy(
+  () => import('@gravitational/teleport/src/Integrations/Enroll')
 );
-const Nodes = React.lazy(
-  () => import(/* webpackChunkName: "nodes" */ './Nodes')
-);
-const Sessions = React.lazy(
-  () => import(/* webpackChunkName: "sessions" */ './Sessions')
-);
-const Account = React.lazy(
-  () => import(/* webpackChunkName: "account" */ './Account')
-);
-const Applications = React.lazy(
-  () => import(/* webpackChunkName: "apps" */ './Apps')
-);
-const Kubes = React.lazy(
-  () => import(/* webpackChunkName: "kubes" */ './Kubes')
-);
-const Support = React.lazy(
-  () => import(/* webpackChunkName: "support" */ './Support')
-);
-const Clusters = React.lazy(
-  () => import(/* webpackChunkName: "clusters" */ './Clusters')
-);
-const Trust = React.lazy(
-  () => import(/* webpackChunkName: "trusted-clusters" */ './TrustedClusters')
-);
-const Users = React.lazy(
-  () => import(/* webpackChunkName: "users" */ './Users')
-);
-const Roles = React.lazy(
-  () => import(/* webpackChunkName: "roles" */ './Roles')
-);
-const Recordings = React.lazy(
-  () => import(/* webpackChunkName: "recordings" */ './Recordings')
-);
-const AuthConnectors = React.lazy(
-  () => import(/* webpackChunkName: "auth-connectors" */ './AuthConnectors')
-);
-const Locks = React.lazy(
-  () => import(/* webpackChunkName: "locks" */ './LocksV2/Locks')
-);
-const NewLock = React.lazy(
-  () => import(/* webpackChunkName: "newLock" */ './LocksV2/NewLock')
-);
-const Databases = React.lazy(
-  () => import(/* webpackChunkName: "databases" */ './Databases')
-);
-const Desktops = React.lazy(
-  () => import(/* webpackChunkName: "desktop" */ './Desktops')
-);
-const Discover = React.lazy(
-  () => import(/* webpackChunkName: "discover" */ './Discover')
-);
-const Integrations = React.lazy(
-  () => import(/* webpackChunkName: "integrations" */ './Integrations')
-);
-const IntegrationEnroll = React.lazy(
-  () =>
-    import(
-      /* webpackChunkName: "integration-enroll" */ '@gravitational/teleport/src/Integrations/Enroll'
-    )
-);
-const Assist = React.lazy(() => import('./Assist'));
 
 // ****************************
 // Resource Features
@@ -407,6 +365,10 @@ export class FeatureDiscover implements TeleportFeature {
   hasAccess(flags: FeatureFlags) {
     return flags.discover;
   }
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureIntegrations implements TeleportFeature {
@@ -614,21 +576,6 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   };
 }
 
-export class FeatureAssist implements TeleportFeature {
-  category = NavigationCategory.Assist;
-
-  route = {
-    title: 'Assist',
-    path: cfg.routes.assist,
-    exact: false,
-    component: Assist,
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.assist;
-  }
-}
-
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -662,6 +609,5 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
-    new FeatureAssist(),
   ];
 }

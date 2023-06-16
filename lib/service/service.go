@@ -1886,7 +1886,7 @@ func (process *TeleportProcess) initAuthService() error {
 					Version:  teleport.Version,
 				},
 			}
-			state, err := process.storage.GetState(types.RoleAdmin)
+			state, err := process.storage.GetState(process.GracefulExitContext(), types.RoleAdmin)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.Warningf("Failed to get rotation state: %v.", err)
@@ -2199,7 +2199,7 @@ func (process *TeleportProcess) NewLocalCache(clt auth.ClientI, setupConfig cach
 
 // GetRotation returns the process rotation.
 func (process *TeleportProcess) GetRotation(role types.SystemRole) (*types.Rotation, error) {
-	state, err := process.storage.GetState(role)
+	state, err := process.storage.GetState(context.TODO(), role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -4428,6 +4428,19 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			}
 			if alpnServer != nil {
 				warnOnErr(alpnServer.Close(), log)
+			}
+
+			// Explicitly deleting proxy heartbeats helps the behavior of
+			// reverse tunnel agents during rollouts, as otherwise they'll keep
+			// trying to reach proxies until the heartbeats expire.
+			if services.ShouldDeleteServerHeartbeatsOnShutdown(ctx) {
+				if err := conn.Client.DeleteProxy(ctx, process.Config.HostUUID); err != nil {
+					if !trace.IsNotFound(err) {
+						log.WithError(err).Warn("Failed to delete heartbeat.")
+					} else {
+						log.WithError(err).Debug("Failed to delete heartbeat.")
+					}
+				}
 			}
 		}
 		warnOnErr(asyncEmitter.Close(), log)

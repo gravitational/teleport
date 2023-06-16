@@ -92,6 +92,11 @@ type NodeClient struct {
 
 	mu      sync.Mutex
 	closers []io.Closer
+
+	// ProxyPublicAddr is the web proxy public addr, as opposed to the local proxy
+	// addr set in TC.WebProxyAddr. This is needed to report the correct address
+	// to SSH_TELEPORT_WEBPROXY_ADDR used by some features like "teleport status".
+	ProxyPublicAddr string
 }
 
 // AddCloser adds an [io.Closer] that will be closed when the
@@ -1138,7 +1143,7 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
-		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(proxyAddr),
+		ALPNConnUpgradeRequired:    proxy.teleportClient.IsALPNConnUpgradeRequiredForWebProxy(ctx, proxyAddr),
 		PROXYHeaderGetter:          CreatePROXYHeaderGetter(ctx, proxy.teleportClient.PROXYSigner),
 		InsecureAddressDiscovery:   proxy.teleportClient.InsecureSkipVerify,
 	})
@@ -1574,11 +1579,12 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	close(emptyCh)
 
 	nc := &NodeClient{
-		Client:      tracessh.NewClient(sshconn, chans, emptyCh),
-		Namespace:   apidefaults.Namespace,
-		TC:          tc,
-		Tracer:      tc.Tracer,
-		FIPSEnabled: fipsEnabled,
+		Client:          tracessh.NewClient(sshconn, chans, emptyCh),
+		Namespace:       apidefaults.Namespace,
+		TC:              tc,
+		Tracer:          tc.Tracer,
+		FIPSEnabled:     fipsEnabled,
+		ProxyPublicAddr: tc.WebProxyAddr,
 	}
 
 	// Start a goroutine that will run for the duration of the client to process
@@ -1592,7 +1598,7 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 // RunInteractiveShell creates an interactive shell on the node and copies stdin/stdout/stderr
 // to and from the node and local shell. This will block until the interactive shell on the node
 // is terminated.
-func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker) error {
+func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
 	ctx, span := c.Tracer.Start(
 		ctx,
 		"nodeClient/RunInteractiveShell",
@@ -1608,15 +1614,20 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 	if err != nil {
 		return trace.Wrap(err)
 	}
-
 	env[teleport.EnvSSHSessionInvited] = string(encoded)
+
+	// Overwrite "SSH_SESSION_WEBPROXY_ADDR" with the public addr reported by the proxy. Otherwise,
+	// this would be set to the localhost addr (tc.WebProxyAddr) used for Web UI client connections.
+	if c.ProxyPublicAddr != "" && c.TC.WebProxyAddr != c.ProxyPublicAddr {
+		env[teleport.SSHSessionWebProxyAddr] = c.ProxyPublicAddr
+	}
 
 	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err = nodeSession.runShell(ctx, mode, nil, c.TC.OnShellCreated); err != nil {
+	if err = nodeSession.runShell(ctx, mode, beforeStart, c.TC.OnShellCreated); err != nil {
 		switch e := trace.Unwrap(err).(type) {
 		case *ssh.ExitError:
 			c.TC.ExitStatus = e.ExitStatus()
@@ -1695,7 +1706,7 @@ func (c *NodeClient) handleGlobalRequests(ctx context.Context, requestCh <-chan 
 					continue
 				}
 
-				c.OnMFA()
+				go c.OnMFA()
 			case teleport.SessionEvent:
 				// Parse event and create events.EventFields that can be consumed directly
 				// by caller.

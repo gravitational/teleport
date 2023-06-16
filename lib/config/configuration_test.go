@@ -818,7 +818,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 
 	require.True(t, cfg.Databases.Enabled)
 	require.Empty(t, cmp.Diff(cfg.Databases.AzureMatchers,
-		[]services.AzureMatcher{
+		[]types.AzureMatcher{
 			{
 				Subscriptions:  []string{"sub1", "sub2"},
 				ResourceGroups: []string{"group1", "group2"},
@@ -839,11 +839,11 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			},
 		}))
 	require.Empty(t, cmp.Diff(cfg.Databases.AWSMatchers,
-		[]services.AWSMatcher{
+		[]types.AWSMatcher{
 			{
 				Types:   []string{"rds"},
 				Regions: []string{"us-west-1"},
-				AssumeRole: services.AssumeRole{
+				AssumeRole: &types.AssumeRole{
 					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
 					ExternalID: "externalID123",
 				},
@@ -872,7 +872,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Types, []string{"ec2"})
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.RoleARN, "arn:aws:iam::123456789012:role/DBDiscoverer")
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalID, "externalID123")
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, services.InstallerParams{
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, &types.InstallerParams{
 		InstallTeleport: true,
 		JoinMethod:      "iam",
 		JoinToken:       defaults.IAMInviteTokenName,
@@ -2450,7 +2450,7 @@ func TestAppsCLF(t *testing.T) {
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/teleport/docs/application-access/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{
@@ -3705,11 +3705,11 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 			},
 			expectedDiscovery: servicecfg.DiscoveryConfig{
 				Enabled: true,
-				AzureMatchers: []services.AzureMatcher{
+				AzureMatchers: []types.AzureMatcher{
 					{
 						Subscriptions: []string{"abcd"},
 						Types:         []string{"aks", "vm"},
-						Params: services.InstallerParams{
+						Params: &types.InstallerParams{
 							JoinMethod:      "azure",
 							JoinToken:       "azure-token",
 							ScriptName:      "default-installer",
@@ -3731,7 +3731,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 			},
 			expectedDiscovery: servicecfg.DiscoveryConfig{
 				Enabled: true,
-				AzureMatchers: []services.AzureMatcher{
+				AzureMatchers: []types.AzureMatcher{
 					{
 						Subscriptions: []string{"abcd"},
 						Types:         []string{"aks"},

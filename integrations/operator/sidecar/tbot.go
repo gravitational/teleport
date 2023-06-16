@@ -65,7 +65,7 @@ func (b *Bot) initializeConfig() {
 
 	// Initialize tbot config
 	b.cfg = &config.BotConfig{
-		Onboarding: &config.OnboardingConfig{
+		Onboarding: config.OnboardingConfig{
 			TokenValue: "",         // Field should be populated later, before running
 			CAPins:     []string{}, // Field should be populated later, before running
 			JoinMethod: types.JoinMethodToken,
@@ -184,8 +184,7 @@ func (b *Bot) Start(ctx context.Context) error {
 
 	b.cfg.Onboarding.CAPins = caPins
 
-	reloadChan := make(chan struct{})
-	realBot := tbot.New(b.cfg, log.StandardLogger(), reloadChan)
+	realBot := tbot.New(b.cfg, log.StandardLogger())
 
 	b.running = true
 	log.Info("Running tbot")
