@@ -25,9 +25,7 @@ import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { GlobalStyle } from './globals';
 import { darkTheme, lightTheme } from './theme';
 
-export const ThemeProvider = (
-  props: React.PropsWithChildren<{ theme?: unknown }>
-) => {
+export const ThemeProvider = (props: React.PropsWithChildren<unknown>) => {
   // Listening to Electron's nativeTheme.on('updated') is a workaround.
   // The renderer should be able to get the current theme via "prefers-color-scheme" media query.
   // Unfortunately, it does not work correctly on Ubuntu where the query from above always returns the old value
@@ -54,7 +52,18 @@ export const ThemeProvider = (
   }, [ctx.mainProcessClient]);
 
   return (
-    <StyledThemeProvider theme={props.theme || activeTheme}>
+    <StaticThemeProvider theme={activeTheme}>
+      {props.children}
+    </StaticThemeProvider>
+  );
+};
+
+/** Uses a theme from a prop. Useful in storybbok. */
+export const StaticThemeProvider = (
+  props: React.PropsWithChildren<{ theme?: unknown }>
+) => {
+  return (
+    <StyledThemeProvider theme={props.theme}>
       <StyleSheetManager disableVendorPrefixes>
         <React.Fragment>
           <GlobalStyle />
