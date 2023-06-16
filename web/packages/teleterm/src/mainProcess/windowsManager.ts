@@ -100,7 +100,7 @@ export class WindowsManager {
 
     nativeTheme.on('updated', () => {
       window.webContents.send(
-        'main-process-subscribe-to-native-theme-update',
+        'main-process-native-theme-update',
         nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
       );
     });

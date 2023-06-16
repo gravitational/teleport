@@ -61,7 +61,7 @@ export default function createMainProcessClient(): MainProcessClient {
     },
     subscribeToNativeThemeUpdate: listener => {
       const onThemeChange = (_, value: 'dark' | 'light') => listener(value);
-      const channel = 'main-process-subscribe-to-native-theme-update';
+      const channel = 'main-process-native-theme-update';
       ipcRenderer.addListener(channel, onThemeChange);
       return {
         cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
