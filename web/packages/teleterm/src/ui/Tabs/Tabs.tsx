@@ -17,12 +17,11 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import { typography } from 'design/system';
-import { Box, ButtonIcon } from 'design';
-import * as Icons from 'design/Icon';
+import { Box } from 'design';
 
 import { Document } from 'teleterm/ui/services/workspacesService';
 
-import { TabItem } from './TabItem';
+import { TabItem, NewTabItem } from './TabItem';
 
 export function Tabs(props: Props) {
   const {
@@ -31,7 +30,6 @@ export function Tabs(props: Props) {
     onSelect,
     onClose,
     onNew,
-    disableNew,
     onMoved,
     onContextMenu,
     newTabTooltip,
@@ -66,16 +64,7 @@ export function Tabs(props: Props) {
   return (
     <StyledTabs as="nav" typography="h5" bold {...styledProps}>
       {$items}
-      <ButtonIcon
-        ml="1"
-        mr="2"
-        size={0}
-        disabled={disableNew}
-        title={newTabTooltip}
-        onClick={onNew}
-      >
-        <Icons.Add fontSize="16px" />
-      </ButtonIcon>
+      <NewTabItem tooltip={newTabTooltip} onClick={onNew} />
     </StyledTabs>
   );
 }
@@ -87,7 +76,6 @@ function getIsLoading(doc: Document): boolean {
 type Props = {
   items: Document[];
   activeTab: string;
-  disableNew: boolean;
   newTabTooltip: string;
   closeTabTooltip: string;
   onNew: () => void;

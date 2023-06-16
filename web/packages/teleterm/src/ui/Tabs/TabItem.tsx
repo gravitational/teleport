@@ -16,7 +16,7 @@ limitations under the License.
 
 import React, { useRef } from 'react';
 import styled from 'styled-components';
-import { Close as CloseIcon } from 'design/Icon';
+import * as Icons from 'design/Icon';
 import { ButtonIcon, Text } from 'design';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
@@ -68,6 +68,10 @@ export function TabItem(props: TabItemProps) {
       onClick={onClick}
       onContextMenu={onContextMenu}
       title={name}
+      css={`
+        flex-grow: 1;
+        min-width: 0;
+      `}
     >
       <TabContent
         ref={ref}
@@ -89,7 +93,7 @@ export function TabItem(props: TabItemProps) {
             `}
             onClick={handleClose}
           >
-            <CloseIcon fontSize="16px" />
+            <Icons.Close fontSize="16px" />
           </ButtonIcon>
         )}
       </TabContent>
@@ -99,13 +103,35 @@ export function TabItem(props: TabItemProps) {
   );
 }
 
+type NewTabItemProps = {
+  tooltip: string;
+  onClick(): void;
+};
+
+export function NewTabItem(props: NewTabItemProps) {
+  return (
+    <RelativeContainer>
+      <TabContent active={false}>
+        <ButtonIcon
+          ml="1"
+          mr="2"
+          size={0}
+          title={props.tooltip}
+          onClick={props.onClick}
+        >
+          <Icons.Add fontSize="16px" />
+        </ButtonIcon>
+      </TabContent>
+      <BottomShadow />
+    </RelativeContainer>
+  );
+}
+
 const RelativeContainer = styled.div`
   position: relative;
   display: flex;
   flex-basis: 0;
-  flex-grow: 1;
   align-items: center;
-  min-width: 0;
   height: 100%;
 `;
 
