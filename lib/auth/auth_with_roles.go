@@ -3771,8 +3771,8 @@ func minRequiredVersionForRole(role types.Role) (semver.Version, string, error) 
 // the zero version.
 //
 // Examples:
-// - (15.x.x, 13.1.0) -> true (anything older than 13.1.0 is >1 major behind v15)
-// - (14.x.x, 13.1.0) -> false (13.0.9 is within one major of v14)
+// - (15.x.x, 13.1.1) -> true (anything older than 13.1.1 is >1 major behind v15)
+// - (14.x.x, 13.1.1) -> false (13.0.9 is within one major of v14)
 // - (14.x.x, 13.0.0) -> true (anything older than 13.0.0 is >1 major behind v14)
 func safeToSkipInventoryCheck(authVersion, minRequiredVersion semver.Version) bool {
 	return authVersion.Major > roundToNextMajor(minRequiredVersion)
@@ -3781,7 +3781,7 @@ func safeToSkipInventoryCheck(authVersion, minRequiredVersion semver.Version) bo
 // roundToNextMajor returns the next major version that is *not less than* [v].
 //
 // Examples:
-// - 13.1.0 -> 14.0.0
+// - 13.1.1 -> 14.0.0
 // - 13.0.0 -> 13.0.0
 // - 13.0.0-alpha -> 13.0.0
 func roundToNextMajor(v semver.Version) int64 {
