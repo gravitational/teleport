@@ -579,7 +579,7 @@ func activateCredentialInElevatedChild(
 		base64.StdEncoding.EncodeToString(encryptedCredential.Secret),
 	}
 	if debug {
-		params = append(params, "-d")
+		params = append(params, "--debug")
 	}
 
 	log.Debug("Starting elevated process.")

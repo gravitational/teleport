@@ -55,7 +55,7 @@ func SolveTPMAuthnDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChall
 }
 
 // HandleTPMActivateCredential completes the credential activation part of an
-// enrollment challenge. This is usually called in an elevated process thats
+// enrollment challenge. This is usually called in an elevated process that's
 // created by SolveTPMEnrollChallenge.
 func HandleTPMActivateCredential(encryptedCredential string, encryptedCredentialSecret string) error {
 	return handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret)
