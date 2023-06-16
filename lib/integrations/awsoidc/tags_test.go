@@ -29,17 +29,15 @@ func TestDefaultTags(t *testing.T) {
 	d := DefaultResourceCreationTags(clusterName, integrationName)
 
 	expectedTags := awsTags{
-		"teleport.dev/creator":      "mycluster",
-		"teleport.dev/creator_type": "teleport",
-		"teleport.dev/integration":  "myawsaccount",
-		"teleport.dev/origin":       "integration_awsoidc",
+		"teleport.dev/cluster":     "mycluster",
+		"teleport.dev/integration": "myawsaccount",
+		"teleport.dev/origin":      "integration_awsoidc",
 	}
 	require.Equal(t, expectedTags, d)
 
 	t.Run("ecs tags", func(t *testing.T) {
 		expectedECSTags := []ecsTypes.Tag{
-			{Key: stringPointer("teleport.dev/creator"), Value: stringPointer("mycluster")},
-			{Key: stringPointer("teleport.dev/creator_type"), Value: stringPointer("teleport")},
+			{Key: stringPointer("teleport.dev/cluster"), Value: stringPointer("mycluster")},
 			{Key: stringPointer("teleport.dev/integration"), Value: stringPointer("myawsaccount")},
 			{Key: stringPointer("teleport.dev/origin"), Value: stringPointer("integration_awsoidc")},
 		}
@@ -49,8 +47,7 @@ func TestDefaultTags(t *testing.T) {
 	t.Run("resource is teleport managed", func(t *testing.T) {
 		t.Run("all tags match", func(t *testing.T) {
 			awsResourceTags := []ecsTypes.Tag{
-				{Key: stringPointer("teleport.dev/creator"), Value: stringPointer("mycluster")},
-				{Key: stringPointer("teleport.dev/creator_type"), Value: stringPointer("teleport")},
+				{Key: stringPointer("teleport.dev/cluster"), Value: stringPointer("mycluster")},
 				{Key: stringPointer("teleport.dev/integration"), Value: stringPointer("myawsaccount")},
 				{Key: stringPointer("teleport.dev/origin"), Value: stringPointer("integration_awsoidc")},
 			}
@@ -58,8 +55,7 @@ func TestDefaultTags(t *testing.T) {
 		})
 		t.Run("extra tags in aws resource", func(t *testing.T) {
 			awsResourceTags := []ecsTypes.Tag{
-				{Key: stringPointer("teleport.dev/creator"), Value: stringPointer("mycluster")},
-				{Key: stringPointer("teleport.dev/creator_type"), Value: stringPointer("teleport")},
+				{Key: stringPointer("teleport.dev/cluster"), Value: stringPointer("mycluster")},
 				{Key: stringPointer("teleport.dev/integration"), Value: stringPointer("myawsaccount")},
 				{Key: stringPointer("teleport.dev/origin"), Value: stringPointer("integration_awsoidc")},
 				{Key: stringPointer("unrelated"), Value: stringPointer("true")},
@@ -68,16 +64,14 @@ func TestDefaultTags(t *testing.T) {
 		})
 		t.Run("missing one of the labels should return false", func(t *testing.T) {
 			awsResourceTags := []ecsTypes.Tag{
-				{Key: stringPointer("teleport.dev/creator"), Value: stringPointer("mycluster")},
-				{Key: stringPointer("teleport.dev/creator_type"), Value: stringPointer("teleport")},
+				{Key: stringPointer("teleport.dev/cluster"), Value: stringPointer("mycluster")},
 				{Key: stringPointer("teleport.dev/integration"), Value: stringPointer("myawsaccount")},
 			}
 			require.False(t, d.MatchesECSTags(awsResourceTags), "resource was wrongly detected as Teleport managed")
 		})
 		t.Run("one of the labels has a different value, should return false", func(t *testing.T) {
 			awsResourceTags := []ecsTypes.Tag{
-				{Key: stringPointer("teleport.dev/creator"), Value: stringPointer("another-cluster")},
-				{Key: stringPointer("teleport.dev/creator_type"), Value: stringPointer("teleport")},
+				{Key: stringPointer("teleport.dev/cluster"), Value: stringPointer("another-cluster")},
 				{Key: stringPointer("teleport.dev/integration"), Value: stringPointer("myawsaccount")},
 				{Key: stringPointer("teleport.dev/origin"), Value: stringPointer("integration_awsoidc")},
 			}

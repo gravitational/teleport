@@ -440,11 +440,9 @@ const (
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
 
-	// CreatorTypeLabel is a resource metadata label name used to identify the creator type.
-	CreatorTypeLabel = TeleportNamespace + "/creator_type"
-
-	// CreatorLabel is a resource metadata label name used to identify the creator name.
-	CreatorLabel = TeleportNamespace + "/creator"
+	// ClusterLabel is a label that identifies the current cluster when creating resources on another systems.
+	// Eg, when creating a resource in AWS, this label must be set as a Tag in the resource.
+	ClusterLabel = TeleportNamespace + "/cluster"
 
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"

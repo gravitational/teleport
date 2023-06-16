@@ -25,17 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-const (
-	// OriginIntegration identifies a resource whose origin is the AWS OIDC Integration
-	OriginIntegration = "aws-oidc-integration"
-
-	// ClusterTagKey is the key for the label which identifies the Teleport Cluster's name that created the AWS Resource.
-	ClusterTagKey = types.TeleportNamespace + "/cluster"
-
-	// IntegrationTagKey is the key for the label which identifies the Teleport Integration's name that created the AWS Resource.
-	IntegrationTagKey = types.TeleportNamespace + "/integration"
-)
-
 type awsTags map[string]string
 
 // String converts awsTags into a ',' separated list of k:v
@@ -50,14 +39,12 @@ func (d awsTags) String() string {
 
 // DefaultResourceCreationTags returns the default tags that should be applied when creating new AWS resources.
 // The following tags are returned:
-// - teleport.dev/creator_type: teleport
-// - teleport.dev/creator: <clusterName>
+// - teleport.dev/cluster: <clusterName>
 // - teleport.dev/origin: aws-oidc-integration
 // - teleport.dev/integration: <integrationName>
 func DefaultResourceCreationTags(clusterName, integrationName string) awsTags {
 	return awsTags{
-		types.CreatorTypeLabel: "teleport",
-		types.CreatorLabel:     clusterName,
+		types.ClusterLabel:     clusterName,
 		types.OriginLabel:      types.OriginIntegrationAWSOIDC,
 		types.IntegrationLabel: integrationName,
 	}

@@ -27,7 +27,11 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
-// generateTeleportConfigString creates a teleport.yaml configuration
+// generateTeleportConfigString creates a teleport.yaml configuration that the agent
+// deployed in a ECS Cluster (using Fargate) will use.
+//
+// Returns config as base64-encoded string suitable for passing to teleport process
+// via --config-string flag.
 func generateTeleportConfigString(req DeployServiceRequest) (string, error) {
 	teleportConfig, err := config.MakeSampleFileConfig(config.SampleFlags{
 		Version:      defaults.TeleportConfigVersionV3,
@@ -47,7 +51,7 @@ func generateTeleportConfigString(req DeployServiceRequest) (string, error) {
 	teleportConfig.NodeName = ""
 
 	// Use IAM Token join method to enroll into the Cluster.
-	// iam-token must have the following TokenRule:
+	// req.TeleportIAMTokenName must have the following TokenRule:
 	/*
 		types.TokenRule{
 			AWSAccount: "<account-id>",
@@ -55,7 +59,7 @@ func generateTeleportConfigString(req DeployServiceRequest) (string, error) {
 		}
 	*/
 	teleportConfig.JoinParams = config.JoinParams{
-		TokenName: string(types.JoinMethodIAM) + "-token",
+		TokenName: *req.TeleportIAMTokenName,
 		Method:    types.JoinMethodIAM,
 	}
 
@@ -67,7 +71,7 @@ func generateTeleportConfigString(req DeployServiceRequest) (string, error) {
 		}}
 
 	default:
-		return "", trace.BadParameter("invalid deployment mode, supported modes: %v", DeploymentModes)
+		return "", trace.BadParameter("invalid deployment mode %q, supported modes: %v", req.DeploymentMode, DeploymentModes)
 	}
 
 	teleportConfigYAMLBytes, err := yaml.Marshal(teleportConfig)

@@ -40,8 +40,8 @@ var (
 
 	// Ensure Cpu and Memory use one of the allowed combinations:
 	// https://docs.aws.amazon.com/AmazonECS/latest/developerguide/task_definition_parameters.html
-	taskCPU = "512"
-	taskMem = "1024"
+	taskCPU = "2048"
+	taskMem = "4096"
 
 	// taskAgentContainerName is the name of the container to run within the Task.
 	// Each task supports multiple containers, but, currently, there's only one being used.
@@ -52,6 +52,9 @@ var (
 
 	// serviceForceDeletion indicates that the service must be deleted even if it has running tasks.
 	serviceForceDeletion = true
+
+	// defaultTeleportIAMTokenName is the default Teleport IAM Token to use when it's not specified.
+	defaultTeleportIAMTokenName = "discover-aws-oidc-iam-token"
 )
 
 const (
@@ -114,6 +117,11 @@ type DeployServiceRequest struct {
 	// TeleportClusterName is the Teleport Cluster Name, used to create default names for Cluster, Service and Task.
 	TeleportClusterName string
 
+	// TeleportIAMTokenNameis the Teleport IAM Token to use in the deployed Service.
+	// Optional.
+	// Defaults to discover-aws-oidc-iam-token
+	TeleportIAMTokenName *string
+
 	// ProxyServerHostPort is the Teleport Proxy's Public.
 	ProxyServerHostPort string
 
@@ -161,6 +169,10 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("teleport cluster name is required")
 	}
 	baseResourceName := normalizeECSResourceName(r.TeleportClusterName)
+
+	if r.TeleportIAMTokenName == nil || *r.TeleportIAMTokenName == "" {
+		r.TeleportIAMTokenName = &defaultTeleportIAMTokenName
+	}
 
 	if r.DeploymentMode == "" {
 		return trace.BadParameter("deployment mode is required, please use one of the following: %v", DeploymentModes)
@@ -268,6 +280,7 @@ type DeployServiceClient interface {
 
 // NewDeployServiceClient creates a new DeployServiceClient using a AWSClientRequest.
 func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (DeployServiceClient, error) {
+	fmt.Println(clientReq.Token)
 	return newECSClient(ctx, clientReq)
 }
 
@@ -374,8 +387,7 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (D
 // # Resource tagging
 //
 // Created resources have the following set of tags:
-// - teleport.dev/creator_type: teleport
-// - teleport.dev/creator: <clusterName>
+// - teleport.dev/cluster: <clusterName>
 // - teleport.dev/origin: aws-oidc-integration
 // - teleport.dev/integration: <integrationName>
 //
