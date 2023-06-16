@@ -34,6 +34,7 @@ test('correct formatting of apps fetch response', async () => {
         labels: [{ name: 'env', value: 'dev' }],
         clusterId: 'cluster-id',
         fqdn: 'app-name.example.com',
+        friendlyName: '',
         launchUrl:
           '/web/launch/app-name.example.com/cluster-id/app-name.example.com',
         awsRoles: [],
@@ -50,6 +51,7 @@ test('correct formatting of apps fetch response', async () => {
         labels: [],
         clusterId: 'cluster-id',
         fqdn: '',
+        friendlyName: '',
         launchUrl: '',
         awsRoles: [],
         awsConsole: false,
@@ -65,6 +67,7 @@ test('correct formatting of apps fetch response', async () => {
         labels: [],
         clusterId: 'cluster-id',
         fqdn: '',
+        friendlyName: '',
         launchUrl: '',
         awsRoles: [],
         awsConsole: false,
