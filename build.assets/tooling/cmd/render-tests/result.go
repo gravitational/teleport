@@ -170,7 +170,6 @@ func (rr *runResult) printSummary(out io.Writer) {
 }
 
 func (rr *runResult) printFlakinessSummary(out io.Writer) {
-	fmt.Fprintln(out, separator)
 	if rr.testCount.fail == 0 {
 		fmt.Fprintln(out, "No flaky tests!")
 		return
@@ -198,16 +197,6 @@ func (rr *runResult) printFlakinessSummary(out io.Writer) {
 		}
 		fmt.Fprintf(out, "FAIL(%3.1f%%): %s\n", test.count.failureRate()*100, test.name)
 	}
-
-	fmt.Fprintln(out, separator)
-
-	for i, test := range alltests {
-		if rr.top != 0 && i >= rr.top {
-			break
-		}
-		printOutput(out, test.name, test.output)
-	}
-
 }
 
 // printFailedTests prints a summary list of the failed tests and packages in

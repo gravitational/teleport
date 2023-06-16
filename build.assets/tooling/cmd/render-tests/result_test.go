@@ -222,10 +222,7 @@ func TestPrintFlakinessSummaryNoFail(t *testing.T) {
 	output := &bytes.Buffer{}
 	rr.printFlakinessSummary(output)
 
-	expected := `
-===================================================
-No flaky tests!
-`[1:]
+	expected := "No flaky tests!\n"
 	require.Equal(t, expected, output.String())
 }
 
@@ -246,24 +243,8 @@ func TestPrintFlakinessSummaryFail(t *testing.T) {
 	rr.printFlakinessSummary(output)
 
 	expected := `
-===================================================
 FAIL(30.0%): example.com/package3.Test5
 FAIL(20.0%): example.com/package1.Test1
-===================================================
-OUTPUT example.com/package3.Test5
-===================================================
-=== RUN   Test5
-    baz_test.go:10: nevermind
---- FAIL: Test5 (0.00s)
-===================================================
-OUTPUT example.com/package1.Test1
-===================================================
-=== RUN   Test1
-    foo_test.go:6: doing stuff
-x =  1
-    foo_test.go:8: fail
---- FAIL: Test1 (0.00s)
-===================================================
 `[1:]
 	require.Equal(t, expected, output.String())
 }
