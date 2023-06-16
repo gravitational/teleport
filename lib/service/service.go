@@ -1761,7 +1761,7 @@ func (process *TeleportProcess) initAuthService() error {
 					Version:  teleport.Version,
 				},
 			}
-			state, err := process.storage.GetState(types.RoleAdmin)
+			state, err := process.storage.GetState(process.GracefulExitContext(), types.RoleAdmin)
 			if err != nil {
 				if !trace.IsNotFound(err) {
 					log.Warningf("Failed to get rotation state: %v.", err)
@@ -2062,7 +2062,7 @@ func (process *TeleportProcess) newLocalCache(clt auth.ClientI, setupConfig cach
 }
 
 func (process *TeleportProcess) getRotation(role types.SystemRole) (*types.Rotation, error) {
-	state, err := process.storage.GetState(role)
+	state, err := process.storage.GetState(context.TODO(), role)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

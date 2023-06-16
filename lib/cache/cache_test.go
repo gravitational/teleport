@@ -1749,11 +1749,13 @@ func TestProxies(t *testing.T) {
 func TestAuthServers(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
 	server := suite.NewServer(types.KindAuthServer, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
-	err := p.presenceS.UpsertAuthServer(server)
+	err := p.presenceS.UpsertAuthServer(ctx, server)
 	require.NoError(t, err)
 
 	out, err := p.presenceS.GetAuthServers()
@@ -1778,7 +1780,7 @@ func TestAuthServers(t *testing.T) {
 	// update srv parameters
 	srv.SetAddr("127.0.0.2:2033")
 
-	err = p.presenceS.UpsertAuthServer(srv)
+	err = p.presenceS.UpsertAuthServer(ctx, srv)
 	require.NoError(t, err)
 
 	out, err = p.presenceS.GetAuthServers()
