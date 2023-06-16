@@ -195,7 +195,7 @@ func (rr *runResult) printFlakinessSummary(out io.Writer) {
 		if rr.top != 0 && i >= rr.top {
 			break
 		}
-		fmt.Fprintf(out, "FAIL(%3.1f%%): %s\n", test.count.failureRate()*100, test.name)
+		fmt.Fprintf(out, "FAIL(%d from %d): %s\n", test.count.fail, test.count.total, test.name)
 	}
 }
 

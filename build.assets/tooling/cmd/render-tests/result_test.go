@@ -243,8 +243,8 @@ func TestPrintFlakinessSummaryFail(t *testing.T) {
 	rr.printFlakinessSummary(output)
 
 	expected := `
-FAIL(30.0%): example.com/package3.Test5
-FAIL(20.0%): example.com/package1.Test1
+FAIL(3 from 10): example.com/package3.Test5
+FAIL(2 from 10): example.com/package1.Test1
 `[1:]
 	require.Equal(t, expected, output.String())
 }
