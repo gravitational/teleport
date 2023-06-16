@@ -186,11 +186,9 @@ You can then use `/tmp/isrgrootx1.pem` as the value of the `db_service.databases
 ## Step 3/4. Configure Atlas
 
 Teleport MongoDB Atlas integration supports two methods of authentication:
-* Self-managed X.509: This method relies on certificates for authentication,
+- Self-managed X.509: This method relies on certificates for authentication,
   with MongoDB Atlas trusting the Teleport certificates.
-
-* AWS IAM: The authentication is done using AWS credentials fetched by Teleport.
-
+- AWS IAM: The authentication is done using AWS credentials fetched by Teleport.
 <Tabs>
 <TabItem label="Self-managed X.509">
 First, obtain Teleport CA certificate by running the following `tctl auth sign`
@@ -268,7 +266,8 @@ guide, we will the name `teleport-access`.
 
 ### Create a MongoDB User
 
-On the Security / Database Access page add a new database user with **AWS IAM**
+{/*lint ignore messaging*/}
+On the **Security / Database Access** page add a new database user with **AWS IAM**
 authentication method, and choose "IAM Role" as the **IAM User type**. Then, fill in
 the AWS ARN field with the ARN of the newly created IAM role. In the **Database
 User Privileges** section, give the user sufficient privileges to access the
