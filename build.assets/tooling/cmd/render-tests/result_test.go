@@ -64,16 +64,16 @@ func TestStatus(t *testing.T) {
 	rr := newRunResult(byPackage, 0)
 	feedEvents(t, rr, passFailSkip)
 
-	require.Equal(t, rr.testCount.pass, 1)
-	require.Equal(t, rr.testCount.fail, 1)
-	require.Equal(t, rr.testCount.skip, 1)
-	require.Equal(t, rr.pkgCount.fail, 1)
+	require.Equal(t, 1, rr.testCount.pass)
+	require.Equal(t, 1, rr.testCount.fail)
+	require.Equal(t, 1, rr.testCount.skip)
+	require.Equal(t, 1, rr.pkgCount.fail)
 	pkgname := "example.com/package"
 	pkg := rr.packages[pkgname]
-	require.Equal(t, pkg.count.fail, 1)
-	require.Equal(t, pkg.tests[pkgname+".TestEmpty"].count.pass, 1)
-	require.Equal(t, pkg.tests[pkgname+".TestParse"].count.fail, 1)
-	require.Equal(t, pkg.tests[pkgname+".TestParseHostPort"].count.skip, 1)
+	require.Equal(t, 1, pkg.count.fail)
+	require.Equal(t, 1, pkg.tests[pkgname+".TestEmpty"].count.pass)
+	require.Equal(t, 1, pkg.tests[pkgname+".TestParse"].count.fail)
+	require.Equal(t, 1, pkg.tests[pkgname+".TestParseHostPort"].count.skip)
 }
 
 func TestSuccessOutput(t *testing.T) {
@@ -122,8 +122,8 @@ func TestFailureOutput(t *testing.T) {
 		"\texample.com/package\tcoverage: 2.4% of statements\n",
 		"FAIL\texample.com/package\t0.007s\n",
 	}
-	require.Equal(t, pkg.tests[pkgname+".TestParse"].output, expectedTestOutput)
-	require.Equal(t, pkg.output, expectedPkgOutput)
+	require.Equal(t, expectedTestOutput, pkg.tests[pkgname+".TestParse"].output)
+	require.Equal(t, expectedPkgOutput, pkg.output)
 }
 
 func TestPrintTestResultByPackage(t *testing.T) {
