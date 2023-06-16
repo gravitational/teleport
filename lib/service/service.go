@@ -1708,8 +1708,7 @@ func (process *TeleportProcess) initAuthService() error {
 		})
 
 		go func() {
-			_, err := embeddingProcessor.Run(process.ExitContext(), ai.EmbeddingPeriod)
-			if err != nil {
+			if err := embeddingProcessor.Run(process.ExitContext(), ai.EmbeddingPeriod); err != nil {
 				log.Warnf("embedding processor failed: %v", err)
 			}
 		}()

@@ -122,7 +122,7 @@ func (b *batchReducer[T, V]) Finalize(ctx context.Context) (V, error) {
 }
 
 type EmbeddingProcessorConfig struct {
-	AiClient     *ai.Client
+	AiClient     ai.Embedder
 	EmbeddingSrv Embeddings
 	NodeSrv      NodesStreamGetter
 	Log          logrus.FieldLogger
@@ -130,7 +130,7 @@ type EmbeddingProcessorConfig struct {
 }
 
 type EmbeddingProcessor struct {
-	aiClient     *ai.Client
+	aiClient     ai.Embedder
 	embeddingSrv Embeddings
 	nodeSrv      NodesStreamGetter
 	log          logrus.FieldLogger
@@ -175,11 +175,11 @@ func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*nodeStrin
 	return results, nil
 }
 
-func (e *EmbeddingProcessor) Run(ctx context.Context, period time.Duration) ([]*ai.Embedding, error) {
+func (e *EmbeddingProcessor) Run(ctx context.Context, period time.Duration) error {
 	for {
 		select {
 		case <-ctx.Done():
-			return nil, ctx.Err()
+			return ctx.Err()
 		case <-time.After(e.jitter(period)):
 			e.process(ctx)
 		}
@@ -194,8 +194,9 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 	}
 
 	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx, "nodes")
-	nodesStream := e.nodeSrv.GetNodeStream(ctx, "nodes")
+	nodesStream := e.nodeSrv.GetNodeStream(ctx, "default")
 
+	moveEmbeddingIter := true
 	for {
 		hasNextNode := nodesStream.Next()
 		if !hasNextNode {
@@ -204,7 +205,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 
 		embedding := &ai.Embedding{}
 		hasNextEmbedding := embeddingsStream.Next()
-		if hasNextEmbedding {
+		if hasNextEmbedding && moveEmbeddingIter {
 			// Check if the embedding is for the current node
 			// If exists, use it
 			embedding = embeddingsStream.Item()
@@ -232,6 +233,8 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 			if err := e.upsertEmbeddings(ctx, vectors); err != nil {
 				e.log.Warnf("Failed to upsert embeddings: %v", err)
 			}
+		} else {
+			moveEmbeddingIter = true
 		}
 	}
 
