@@ -191,6 +191,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34;
   DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35;
   DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36;
+
+  DISCOVER_RESOURCE_SAML_APPLICATION = 37;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.

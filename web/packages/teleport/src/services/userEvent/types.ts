@@ -123,6 +123,8 @@ export enum DiscoverEventResource {
   ApplicationHttp = 'DISCOVER_RESOURCE_APPLICATION_HTTP',
   ApplicationTcp = 'DISCOVER_RESOURCE_APPLICATION_TCP',
   WindowsDesktop = 'DISCOVER_RESOURCE_WINDOWS_DESKTOP',
+
+  SamlApplication = 'DISCOVER_RESOURCE_SAML_APPLICATION',
 }
 
 export enum DiscoverEventStatus {
