@@ -1579,11 +1579,12 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	close(emptyCh)
 
 	nc := &NodeClient{
-		Client:      tracessh.NewClient(sshconn, chans, emptyCh),
-		Namespace:   apidefaults.Namespace,
-		TC:          tc,
-		Tracer:      tc.Tracer,
-		FIPSEnabled: fipsEnabled,
+		Client:          tracessh.NewClient(sshconn, chans, emptyCh),
+		Namespace:       apidefaults.Namespace,
+		TC:              tc,
+		Tracer:          tc.Tracer,
+		FIPSEnabled:     fipsEnabled,
+		ProxyPublicAddr: tc.WebProxyAddr,
 	}
 
 	// Start a goroutine that will run for the duration of the client to process
@@ -1617,7 +1618,9 @@ func (c *NodeClient) RunInteractiveShell(ctx context.Context, mode types.Session
 
 	// Overwrite "SSH_SESSION_WEBPROXY_ADDR" with the public addr reported by the proxy. Otherwise,
 	// this would be set to the localhost addr (tc.WebProxyAddr) used for Web UI client connections.
-	env[teleport.SSHSessionWebproxyAddr] = c.ProxyPublicAddr
+	if c.ProxyPublicAddr != "" && c.TC.WebProxyAddr != c.ProxyPublicAddr {
+		env[teleport.SSHSessionWebProxyAddr] = c.ProxyPublicAddr
+	}
 
 	nodeSession, err := newSession(ctx, c, sessToJoin, env, c.TC.Stdin, c.TC.Stdout, c.TC.Stderr, c.TC.EnableEscapeSequences)
 	if err != nil {

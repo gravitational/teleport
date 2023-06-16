@@ -2668,7 +2668,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 
 func (tc *TeleportClient) newSessionEnv() map[string]string {
 	env := map[string]string{
-		teleport.SSHSessionWebproxyAddr: tc.WebProxyAddr,
+		teleport.SSHSessionWebProxyAddr: tc.WebProxyAddr,
 	}
 	if tc.SessionID != "" {
 		env[sshutils.SessionEnvVar] = tc.SessionID
