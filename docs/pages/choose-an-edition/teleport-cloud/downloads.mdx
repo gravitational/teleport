@@ -22,9 +22,10 @@ Binaries include:
 |`tbot`| A client tool you will use to associate a bot user with a machine identity|
 
 <Notice title="macOS installations">
-For macOS the `tsh` is only signed for macOS in the Teleport client-only package.
-We recommend installing the Teleport package and then the client-only. That will provide you
-a signed `tsh` that allows for using Touch ID functionality.
+For macOS, `tsh` comes in the main Teleport package and also in a separate client-only package.
+The client-only package includes a signed variant of `tsh`. Certain functionality, such as Touch ID support,
+only works when `tsh` has been signed. Therefore, if you are installing the main Teleport package on a macOS system,
+we recommend you first install the main Teleport package and then install the client-only package over this.
 </Notice>
 
 Here are the available archives:
