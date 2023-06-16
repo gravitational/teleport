@@ -4537,7 +4537,7 @@ func setEnvFlags(cf *CLIConf, getEnv envGetter) {
 	// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
 	if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
 		if cf.Proxy == "" {
-			cf.Proxy = getEnv(teleport.SSHSessionWebproxyAddr)
+			cf.Proxy = getEnv(teleport.SSHSessionWebProxyAddr)
 		}
 		if cf.Username == "" {
 			cf.Username = getEnv(teleport.SSHTeleportUser)
