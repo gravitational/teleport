@@ -6,6 +6,8 @@ import useLogin, { State } from 'teleport/Login/useLogin';
 
 import logoSrc from 'design/assets/images/teleport-medallion.svg';
 
+import Motd from 'teleport/Login/Motd';
+
 import cfg from 'e-teleport/config';
 
 export default function Container() {
@@ -35,27 +37,34 @@ export function Login({
   isPasswordlessEnabled,
   primaryAuthType,
   privateKeyPolicyEnabled,
+  motd,
+  showMotd,
+  acknowledgeMotd,
 }: State) {
   return (
     <>
       <Logo src={logoSrc} />
-      <LoginForm
-        title={'Sign in to Teleport'}
-        authProviders={authProviders}
-        auth2faType={auth2faType}
-        preferredMfaType={preferredMfaType}
-        isLocalAuthEnabled={isLocalAuthEnabled}
-        onLoginWithSso={onLoginWithSso}
-        onLoginWithWebauthn={onLoginWithWebauthn}
-        onLogin={onLogin}
-        attempt={attempt}
-        clearAttempt={clearAttempt}
-        isRecoveryEnabled={isRecoveryEnabled}
-        onRecover={onRecover}
-        isPasswordlessEnabled={isPasswordlessEnabled}
-        primaryAuthType={primaryAuthType}
-        privateKeyPolicyEnabled={privateKeyPolicyEnabled}
-      />
+      {showMotd ? (
+        <Motd message={motd} onClick={acknowledgeMotd} />
+      ) : (
+        <LoginForm
+          title={'Sign in to Teleport'}
+          authProviders={authProviders}
+          auth2faType={auth2faType}
+          preferredMfaType={preferredMfaType}
+          isLocalAuthEnabled={isLocalAuthEnabled}
+          onLoginWithSso={onLoginWithSso}
+          onLoginWithWebauthn={onLoginWithWebauthn}
+          onLogin={onLogin}
+          attempt={attempt}
+          clearAttempt={clearAttempt}
+          isRecoveryEnabled={isRecoveryEnabled}
+          onRecover={onRecover}
+          isPasswordlessEnabled={isPasswordlessEnabled}
+          primaryAuthType={primaryAuthType}
+          privateKeyPolicyEnabled={privateKeyPolicyEnabled}
+        />
+      )}
     </>
   );
 }
