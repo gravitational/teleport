@@ -9,14 +9,6 @@
     "bash": {
       "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#bash"
     },
-    "bash@5.2-p15": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#bash",
-      "version": "5.2-p15"
-    },
-    "bash_5": {
-      "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#bash_5"
-    },
     "bats@1.3.0": {
       "last_modified": "2021-09-01T12:51:06Z",
       "resolved": "github:NixOS/nixpkgs/6cc260cfd60f094500b79e279069b499806bf6d8#bats",
@@ -27,11 +19,6 @@
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#clang",
       "version": "11.1.0"
     },
-    "gcc@12.2.0": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#gcc12",
-      "version": "12.2.0"
-    },
     "gci@0.9.1": {
       "last_modified": "2023-02-28T22:11:13Z",
       "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#gci",
@@ -39,29 +26,6 @@
     },
     "git": {
       "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#git"
-    },
-    "git@2.40.1": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#git",
-      "version": "2.40.1"
-    },
-    "go@1.20.3": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#go",
-      "version": "1.20.3"
-    },
-    "go_1_20": {
-      "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#go_1_20"
-    },
-    "gotestsum@latest": {
-      "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#gotestsum",
-      "version": "1.10.0"
-    },
-    "kubernetes-helm@3.11.1": {
-      "last_modified": "2023-02-28T22:11:13Z",
-      "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#kubernetes-helm",
-      "version": "3.11.1"
     },
     "libfido2@1.13.0": {
       "last_modified": "2023-05-01T16:53:22Z",
@@ -73,9 +37,6 @@
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#libiconvReal",
       "version": "1.16"
     },
-    "nodejs": {
-      "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#nodejs"
-    },
     "nodejs@16.18.1": {
       "last_modified": "2023-01-02T04:31:48Z",
       "resolved": "github:NixOS/nixpkgs/a4379d2b0deefedc8dba360897557707ea9ee9a7#nodejs-16_x",
@@ -86,27 +47,15 @@
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#patchelf",
       "version": "0.15.0"
     },
-    "path:build.assets/flake": {},
-    "path:build.assets/flake#helm": {},
     "protobuf3_20@3.20.3": {
       "last_modified": "2023-05-01T16:53:22Z",
       "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#protobuf3_20",
       "version": "3.20.3"
     },
-    "protoc-gen-go@1.28.1": {
-      "last_modified": "2023-02-28T22:11:13Z",
-      "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#protoc-gen-go",
-      "version": "1.28.1"
-    },
     "python@3.11.2": {
       "last_modified": "2023-03-31T22:52:29Z",
-      "plugin_version": "0.0.1",
       "resolved": "github:NixOS/nixpkgs/242246ee1e58f54d2322227fc5eef53b4a616a31#python311",
       "version": "3.11.2"
-    },
-    "rustup": {
-      "plugin_version": "0.0.1",
-      "resolved": "github:NixOS/nixpkgs/f80ac848e3d6f0c12c52758c0f25c10c97ca3b62#rustup"
     },
     "shellcheck@0.9.0": {
       "last_modified": "2023-05-01T16:53:22Z",
@@ -118,10 +67,10 @@
       "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#yamllint",
       "version": "1.28.0"
     },
-    "yarn@1.22.19": {
+    "zlib@1.2.13": {
       "last_modified": "2023-05-01T16:53:22Z",
-      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#yarn",
-      "version": "1.22.19"
+      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#zlib",
+      "version": "1.2.13"
     }
   }
 }

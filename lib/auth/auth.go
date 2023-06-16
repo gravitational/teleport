@@ -3265,7 +3265,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// only observe latencies for non-throttled requests
 	start := a.clock.Now()
-	defer generateRequestsLatencies.Observe(time.Since(start).Seconds())
+	defer func() { generateRequestsLatencies.Observe(time.Since(start).Seconds()) }()
 
 	generateRequestsCount.Inc()
 	generateRequestsCurrent.Inc()
@@ -3726,6 +3726,10 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	user, err := a.GetUser(req.User, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if req.LoginIP == "" {
+		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
+		log.Debug("Creating new web session without login IP specified.")
 	}
 	clusterName, err := a.GetClusterName()
 	if err != nil {

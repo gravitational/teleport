@@ -364,6 +364,9 @@ const (
 	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
 	KindWatchStatus = "watch_status"
 
+	// V7 is the seventh version of resources.
+	V7 = "v7"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 

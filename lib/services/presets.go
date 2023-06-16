@@ -34,7 +34,7 @@ import (
 func NewPresetEditorRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -106,7 +106,7 @@ func NewPresetEditorRole() types.Role {
 func NewPresetAccessRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
@@ -137,7 +137,7 @@ func NewPresetAccessRole() types.Role {
 				DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 					},
@@ -172,7 +172,7 @@ func NewPresetAccessRole() types.Role {
 func NewPresetAuditorRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,

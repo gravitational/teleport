@@ -465,7 +465,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 
 			session, err := h.authenticateWebSession(w, r)
 			if err != nil {
-				h.log.WithError(err).Debug("Could not authenticate.")
+				h.log.Debugf("Could not authenticate: %v", err)
 			}
 			session.XCSRF = csrfToken
 
@@ -559,7 +559,9 @@ func (h *Handler) bindMinimalEndpoints() {
 	// find is like ping, but is faster because it is optimized for servers
 	// and does not fetch the data that servers don't need, e.g.
 	// OIDC connectors and auth preferences
-	h.GET("/webapi/find", h.WithUnauthenticatedHighLimiter(h.find))
+	// Note that find is a unique endpoint that requires high request rates
+	// sometimes through NATs and thus should not be rate limited by IP.
+	h.GET("/webapi/find", httplib.MakeHandler(h.find))
 	// Issue host credentials.
 	h.POST("/webapi/host/credentials", h.WithUnauthenticatedHighLimiter(h.hostCredentials))
 }
@@ -1218,6 +1220,7 @@ func (h *Handler) ping(w http.ResponseWriter, r *http.Request, p httprouter.Para
 }
 
 func (h *Handler) find(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	// TODO(jent,espadolini): add a time-based cache to further reduce load on this endpoint
 	proxyConfig, err := h.cfg.ProxySettings.GetProxySettings(r.Context())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1394,6 +1397,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
 			LocalConnectorName: localConnectorName,
 			PrivateKeyPolicy:   cap.GetPrivateKeyPolicy(),
+			MOTD:               cap.GetMessageOfTheDay(),
 		}
 	}
 
@@ -2691,16 +2695,23 @@ func (h *Handler) siteNodeConnect(
 	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
 		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
-	authAccessPoint, err := site.CachingAccessPoint()
-	if err != nil {
-		h.log.WithError(err).Debug("Unable to get auth access point.")
-		return nil, trace.Wrap(err)
-	}
+	keepAliveInterval := req.KeepAliveInterval
+	// Try to use the keep alive interval from the request.
+	// When it's not set or below a second, use the cluster's keep alive interval.
+	if keepAliveInterval < time.Second {
+		authAccessPoint, err := site.CachingAccessPoint()
+		if err != nil {
+			h.log.Debugf("Unable to get auth access point: %v", err)
+			return nil, trace.Wrap(err)
+		}
 
-	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
-		return nil, trace.Wrap(err)
+		netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
+		if err != nil {
+			h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
+			return nil, trace.Wrap(err)
+		}
+
+		keepAliveInterval = netConfig.GetKeepAliveInterval()
 	}
 
 	terminalConfig := TerminalHandlerConfig{
@@ -2710,7 +2721,7 @@ func (h *Handler) siteNodeConnect(
 		LocalAuthProvider:  h.auth.accessPoint,
 		DisplayLogin:       displayLogin,
 		SessionData:        sessionData,
-		KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
+		KeepAliveInterval:  keepAliveInterval,
 		ProxyHostPort:      h.ProxyHostPort(),
 		ProxyPublicAddr:    h.PublicProxyAddr(),
 		InteractiveCommand: req.InteractiveCommand,

@@ -45,13 +45,20 @@ func GetDeviceCredential() (*devicepb.DeviceCredential, error) {
 }
 
 // SolveTPMEnrollChallenge completes a TPM enrollment challenge.
-func SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
-	return solveTPMEnrollChallenge(challenge)
+func SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge, debug bool) (*devicepb.TPMEnrollChallengeResponse, error) {
+	return solveTPMEnrollChallenge(challenge, debug)
 }
 
 // SolveTPMAuthnDeviceChallenge completes a TPM device authetication challenge.
 func SolveTPMAuthnDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
 	return solveTPMAuthnDeviceChallenge(challenge)
+}
+
+// HandleTPMActivateCredential completes the credential activation part of an
+// enrollment challenge. This is usually called in an elevated process that's
+// created by SolveTPMEnrollChallenge.
+func HandleTPMActivateCredential(encryptedCredential string, encryptedCredentialSecret string) error {
+	return handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret)
 }
 
 // GetDeviceOSType returns the devicepb.OSType for the current OS

@@ -27,11 +27,11 @@ $ tctl users add \
 ```
 </ScopedBlock>
 
-| Flag                      | Description                                                                                                                              |
-|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| <nobr>`--roles`</nobr>    | List of roles to assign to the user. The builtin `access` role allows them to connect to any database server registered with Teleport.   |
-| <nobr>`--db-users`</nobr> | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
-| <nobr>`--db-names`</nobr> | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
+| Flag         | Description                                                                                                                              |
+|--------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `--roles`    | List of roles to assign to the user. The builtin `access` role allows them to connect to any database server registered with Teleport.   |
+| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
+| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
 
 <Admonition type="warning">
   Database names are only enforced for PostgreSQL and MongoDB databases.

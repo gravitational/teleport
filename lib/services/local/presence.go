@@ -357,8 +357,8 @@ func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertAuthServer(server types.Server) error {
-	return s.upsertServer(context.TODO(), authServersPrefix, server)
+func (s *PresenceService) UpsertAuthServer(ctx context.Context, server types.Server) error {
+	return s.upsertServer(ctx, authServersPrefix, server)
 }
 
 // DeleteAllAuthServers deletes all auth servers
@@ -375,8 +375,8 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 
 // UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertProxy(server types.Server) error {
-	return s.upsertServer(context.TODO(), proxiesPrefix, server)
+func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) error {
+	return s.upsertServer(ctx, proxiesPrefix, server)
 }
 
 // GetProxies returns a list of registered proxies
@@ -391,9 +391,9 @@ func (s *PresenceService) DeleteAllProxies() error {
 }
 
 // DeleteProxy deletes proxy
-func (s *PresenceService) DeleteProxy(name string) error {
+func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
 	key := backend.Key(proxiesPrefix, name)
-	return s.Delete(context.TODO(), key)
+	return s.Delete(ctx, key)
 }
 
 // DeleteAllReverseTunnels deletes all reverse tunnels

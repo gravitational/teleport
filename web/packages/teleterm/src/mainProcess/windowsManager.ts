@@ -16,11 +16,18 @@
 
 import path from 'path';
 
-import { app, BrowserWindow, Menu, Rectangle, screen } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  Rectangle,
+  screen,
+  nativeTheme,
+} from 'electron';
 
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
-import theme from 'teleterm/ui/ThemeProvider/theme';
+import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
 
 type WindowState = Rectangle;
 
@@ -47,13 +54,16 @@ export class WindowsManager {
   }
 
   createWindow(): void {
+    const activeTheme = nativeTheme.shouldUseDarkColors
+      ? darkTheme
+      : lightTheme;
     const windowState = this.getWindowState();
     const window = new BrowserWindow({
       x: windowState.x,
       y: windowState.y,
       width: windowState.width,
       height: windowState.height,
-      backgroundColor: theme.colors.levels.sunken,
+      backgroundColor: activeTheme.colors.levels.sunken,
       minWidth: 400,
       minHeight: 300,
       show: false,
@@ -86,6 +96,12 @@ export class WindowsManager {
 
     window.webContents.on('context-menu', (_, props) => {
       this.popupUniversalContextMenu(window, props);
+    });
+
+    nativeTheme.on('updated', () => {
+      window.webContents.send('main-process-native-theme-update', {
+        shouldUseDarkColors: nativeTheme.shouldUseDarkColors,
+      });
     });
 
     window.webContents.session.setPermissionRequestHandler(

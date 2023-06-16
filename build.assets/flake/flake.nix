@@ -23,6 +23,8 @@
   inputs = {
     flake-utils.url = "github:numtide/flake-utils";
     nixpkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # general packages
+    rust-overlay.url = "github:oxalica/rust-overlay";
+
 
     # Linting dependencies
     helmPkgs.url = "github:nixos/nixpkgs/8ad5e8132c5dcf977e308e7bf5517cc6cc0bf7d8"; # helm 3.11.1
@@ -37,6 +39,7 @@
   outputs = { self,
               flake-utils,
               nixpkgs,
+              rust-overlay,
 
               helmPkgs,
               libbpfPkgs,
@@ -46,12 +49,15 @@
       (system:
         let
           # These versions are not available from nixpkgs
-          golangciLintVersion = "v1.53.2";
-          rustVersion = "1.68.0";
           gogoVersion = "v1.3.2";
           helmUnittestVersion = "v1.0.16";
-          nodeProtocTsVersion = "5.0.1";
+          nodeProtocTsVersion = "v5.0.1";
           grpcToolsVersion = "1.12.4";
+          libpcscliteVersion = "1.9.9-teleport";
+          rustVersion = "1.68.0";
+          yarnVersion = "1.22.19";
+
+          overlays = [ (import rust-overlay) ];
 
           # Package aliases to make reusing these packages easier.
           # The individual package names here have been determined by using
@@ -61,7 +67,9 @@
 
           # pkgs is an alias for the nixpkgs at the system level. This will be used
           # for general utilities.
-          pkgs = nixpkgs.legacyPackages.${system};
+          pkgs = import nixpkgs {
+            inherit system overlays;
+          };
 
           # The helm unittest plugin.
           helm-unittest = pkgs.buildGoModule rec {
@@ -88,32 +96,52 @@
           # Wrap helm with the unittest plugin.
           helm = (pkgs.wrapHelm helmPkgs.legacyPackages.${system}.kubernetes-helm {plugins = [helm-unittest];});
 
-          # Install golangci-lint
-          golangci-lint = pkgs.stdenv.mkDerivation {
-            name = "golangci-lint";
+          libpcscliteAdditionalNativeBuildInputs = if pkgs.stdenv.isDarwin then
+            [pkgs.darwin.IOKit] else [];
+          libpcscliteAdditionalBuildInputs = if pkgs.stdenv.isLinux then
+            [pkgs.libusb1] else [];
+
+          # Compile libpcsclite.
+          libpcsclite = pkgs.stdenv.mkDerivation {
+            name = "libpcsclite";
+            src = pkgs.fetchFromGitHub {
+              owner = "gravitational";
+              repo = "PCSC";
+              rev = libpcscliteVersion;
+              sha256 = "sha256-Eig30fj7YlDHe6A/ceJ+KLhzT/ctxb9d4nFnsxk+WsA=";
+            };
+            nativeBuildInputs = [
+              pkgs.autoreconfHook
+            ] ++ libpcscliteAdditionalNativeBuildInputs;
             buildInputs = [
-              pkgs.cacert
-              pkgs.curl
-            ];
-            dontUnpack = true;
-            buildPhase = ''
-              curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $out/bin ${golangciLintVersion}
+              pkgs.autoconf-archive
+              pkgs.flex
+              pkgs.gcc
+              pkgs.pkg-config
+            ] ++ libpcscliteAdditionalBuildInputs;
+            configurePhase = ''
+              ./bootstrap
+              ./configure --enable-static --with-pic --disable-libsystemd --with-systemdsystemunitdir=$out --exec-prefix=$out --prefix=$out
             '';
+            makeFlags = [
+              "CFLAGS=\"-std=gnu99\""
+            ];
           };
 
           # Compile protoc-gen-gogo for golang protobuf compilation.
-          protoc-gen-gogo = pkgs.stdenv.mkDerivation {
+          protoc-gen-gogo = pkgs.buildGoModule {
             name = "protoc-gen-gogo";
+            version = gogoVersion;
+
             src = pkgs.fetchFromGitHub {
               owner = "gogo";
               repo = "protobuf";
               rev = gogoVersion;
               sha256 = "sha256-CoUqgLFnLNCS9OxKFS7XwjE17SlH6iL1Kgv+0uEK2zU=";
             };
-            buildInputs = [
-              pkgs.cacert
-              pkgs.go
-            ];
+
+            vendorSha256 = "sha256-nOL2Ulo9VlOHAqJgZuHl7fGjz/WFAaWPdemplbQWcak=";
+
             buildPhase = ''
               export GOBIN="$out/bin"
               export GOCACHE="$(mktemp -d)"
@@ -122,36 +150,61 @@
             '';
           };
 
-          # Compile grpc-tools for nodejs protobuf compilation.
-          grpc-tools = pkgs.stdenv.mkDerivation {
-            name = "grpc-tools";
-            dontUnpack = true;
+          node-protoc-ts = pkgs.buildNpmPackage {
+            name = "grpc_tools_node_protoc_ts";
+            version = nodeProtocTsVersion;
+
+            src = pkgs.fetchFromGitHub {
+              owner = "agreatfool";
+              repo = "grpc_tools_node_protoc_ts";
+              rev = nodeProtocTsVersion;
+              sha256 = "sha256-kDrflQVENjOY7ei3+D3Znx4eUDPoja8UGG2Phv1eptA=";
+            };
+
+            npmDepsHash = "sha256-fxOyItDkkv5OAmtScD9ykq26Meh6qyZSDmWegeh+GRY=";
+          };
+
+          grpc-tools = pkgs.stdenv.mkDerivation rec {
+            pname = "grpc-tools";
+            version = grpcToolsVersion;
+          
+            src = pkgs.fetchFromGitHub {
+              owner = "grpc";
+              repo = "grpc-node";
+              rev = "grpc-tools@${grpcToolsVersion}";
+              fetchSubmodules = true;
+              sha256 = "sha256-708lBIGW5+vvSTrZHl/kc+ck7JKNXElrghIGDrMSyx8=";
+            };
+          
+            sourceRoot = "source/packages/grpc-tools";
+          
+            nativeBuildInputs = [ pkgs.cmake ];
+          
+            installPhase = ''
+              install -Dm755 -t $out/bin grpc_node_plugin
+
+              cp grpc_node_plugin grpc_tools_node_protoc_plugin
+              install -Dm755 -t $out/bin grpc_tools_node_protoc_plugin
+              
+              install -Dm755 -t $out/bin deps/protobuf/protoc
+            '';
+          };
+
+          rust = pkgs.rust-bin.stable.${rustVersion}.default;
+
+          # Yarn binary.
+          yarn = pkgs.stdenv.mkDerivation {
+            name = "yarn";
+            src = fetchTarball {
+              url = "https://yarnpkg.com/downloads/${yarnVersion}/yarn-v${yarnVersion}.tar.gz";
+              sha256 = "sha256:0jl77rl2sidsj3ym637w7g35wnv190l96n050aqlm4pyc6wi8v6p";
+            };
             buildInputs = [
               pkgs.nodejs-16_x
             ];
             buildPhase = ''
-              export HOME="$(mktemp -d)"
-              export TEMPDIR="$(mktemp -d)"
-              npm install --prefix "$TEMPDIR" grpc_tools_node_protoc_ts@${nodeProtocTsVersion} grpc-tools@${grpcToolsVersion}
-              mv "$TEMPDIR" "$out"
-              mkdir "$out/bin"
-              cd "$out/bin"
-              ln -s ../node_modules/.bin/* "$out/bin/"
-            '';
-          };
-
-          # Rust and cargo binaries.
-          rust = pkgs.stdenv.mkDerivation {
-            name = "rust";
-            dontUnpack = true;
-            buildInputs = [
-              pkgs.cacert
-              pkgs.curl
-            ];
-            buildPhase = ''
-              export RUSTUP_HOME="$out"
-              export CARGO_HOME="$out"
-              curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --no-modify-path --default-toolchain "${rustVersion}"
+              mkdir "$out"
+              cp -R * "$out"
             '';
           };
 
@@ -168,11 +221,13 @@
         {
           packages = {
             conditional = conditional;
-            golangci-lint = golangci-lint;
+            node-protoc-ts = node-protoc-ts;
             grpc-tools = grpc-tools;
             helm = helm;
+            libpcsclite = libpcsclite;
             protoc-gen-gogo = protoc-gen-gogo;
             rust = rust;
+            yarn = yarn;
           };
       });
 }
