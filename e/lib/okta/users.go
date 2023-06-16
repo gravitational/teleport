@@ -108,7 +108,9 @@ type UserAssignmentCreator struct {
 	accessState services.AccessState
 
 	// hash will be used to calculate the name of the assignment to create.
-	hash crypto.Hash
+	hash          crypto.Hash
+	groupPageSize int
+	appPageSize   int
 }
 
 // NewUserAssignmentCreator creates a new user assignment creator.
@@ -128,7 +130,8 @@ func NewUserAssignmentCreator(config UserAssignmentCreatorConfig) (*UserAssignme
 		accessState: services.AccessState{
 			MFAVerified: true,
 		},
-		hash: crypto.SHA256,
+		hash:        crypto.SHA256,
+		appPageSize: defaults.DefaultChunkSize,
 	}
 
 	return creator, nil
@@ -231,7 +234,7 @@ func (u *UserAssignmentCreator) groupTargets(ctx context.Context, accessChecker 
 	var targets []string
 
 	// Page through the user groups.
-	groups, nextKey, err := u.accessPoint.ListUserGroups(ctx, 0, "")
+	groups, nextKey, err := u.accessPoint.ListUserGroups(ctx, u.groupPageSize, "")
 
 	for {
 		if err != nil {
@@ -254,7 +257,7 @@ func (u *UserAssignmentCreator) groupTargets(ctx context.Context, accessChecker 
 		}
 
 		// Get the next page of results.
-		groups, nextKey, err = u.accessPoint.ListUserGroups(ctx, 0, nextKey)
+		groups, nextKey, err = u.accessPoint.ListUserGroups(ctx, u.groupPageSize, nextKey)
 	}
 
 	return targets, nil
@@ -267,7 +270,7 @@ func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChec
 	// Page through the app servers.
 	resp, err := u.accessPoint.ListResources(ctx, proto.ListResourcesRequest{
 		ResourceType: types.KindAppServer,
-		Limit:        defaults.DefaultChunkSize,
+		Limit:        int32(u.appPageSize),
 	})
 
 	for {
@@ -300,7 +303,7 @@ func (u *UserAssignmentCreator) appServerTargets(ctx context.Context, accessChec
 		resp, err = u.accessPoint.ListResources(ctx, proto.ListResourcesRequest{
 			ResourceType: types.KindAppServer,
 			StartKey:     resp.NextKey,
-			Limit:        defaults.DefaultChunkSize,
+			Limit:        int32(u.appPageSize),
 		})
 	}
 

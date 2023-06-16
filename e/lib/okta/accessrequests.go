@@ -57,6 +57,9 @@ type AccessRequestReconcilerAccessPoint interface {
 
 	// GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
 	GetInventoryConnectedServiceCount(service types.SystemRole) uint64
+
+	// GetPlugins will get all plugins from the backend.
+	GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error)
 }
 
 // AccessRequestReconcilerConfig is the configuration for the AccessRequestReconciler.
@@ -196,7 +199,7 @@ func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context)
 	var serviceConnectionFailures int
 
 	for {
-		newOktaServiceConnected := isOktaServiceConnected(ctx, a.accessPoint)
+		newOktaServiceConnected := isOktaServiceConnected(ctx, a.log, a.accessPoint)
 		if newOktaServiceConnected {
 			serviceConnectionFailures = 0
 

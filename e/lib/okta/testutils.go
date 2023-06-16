@@ -67,6 +67,7 @@ type testAccessPoint struct {
 	services.DatabaseServices
 	services.Identity
 	services.Okta
+	services.Plugins
 	services.Presence
 	services.Trust
 	services.UserGroups
@@ -121,6 +122,7 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 	identity := local.NewIdentityService(backend)
 	okta, err := local.NewOktaService(backend, clock)
 	require.NoError(t, err)
+	plugins := local.NewPluginsService(backend)
 	presence := local.NewPresenceService(backend)
 	userGroups, err := local.NewUserGroupService(backend)
 	require.NoError(t, err)
@@ -146,6 +148,7 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 		DynamicAccessService:  dynamicAccess,
 		Identity:              identity,
 		Okta:                  okta,
+		Plugins:               plugins,
 		Presence:              presence,
 		Trust:                 ca,
 		UserGroups:            userGroups,

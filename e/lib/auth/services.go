@@ -22,6 +22,8 @@ import (
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/e/lib/okta"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type CleanupFuncs []func() error
@@ -61,8 +63,16 @@ func startOktaReconciler(ctx context.Context, plugin *Plugin, cleanupFuncs Clean
 		return nil, trace.Wrap(err)
 	}
 
+	authServerWithPlugins := struct {
+		*auth.Server
+		services.Plugins
+	}{
+		Server:  plugin.authServer.AuthServer,
+		Plugins: plugin.plugins,
+	}
+
 	oktaAccessRequestReconciler, err := okta.NewAccessRequestReconciler(ctx, &okta.AccessRequestReconcilerConfig{
-		AccessPoint: plugin.authServer.AuthServer,
+		AccessPoint: authServerWithPlugins,
 		OktaClient:  plugin.authServer.AuthServer.OktaClient(),
 		ClusterName: clusterName.GetClusterName(),
 	})

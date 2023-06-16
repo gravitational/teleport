@@ -43,6 +43,10 @@ func TestUserAssignmentCreator(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	// set app and group page sizes to 1 to make sure we exercise pagination logic.
+	uac.groupPageSize = 1
+	uac.appPageSize = 1
+
 	testUser := "test-user@test.user"
 	testRole := "test-role"
 

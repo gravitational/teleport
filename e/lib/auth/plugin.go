@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
@@ -79,6 +80,8 @@ type Plugin struct {
 	// authServer is the authServer passed into RegisterAuthServices on
 	// startup.
 	authServer *auth.GRPCServer
+	// plugins is the plugins backend service.
+	plugins services.Plugins
 }
 
 // GetName returns plugin name
@@ -254,14 +257,14 @@ func (p *Plugin) registerPluginsService(server *auth.GRPCServer) error {
 	}
 
 	authorizers := plugins.NewAuthorizerSetFromConfig(p.HostedPlugins.OAuthProviders)
-	pluginService := local.NewPluginsService(server.GetBackend())
+	p.plugins = local.NewPluginsService(server.GetBackend())
 	pluginStaticCredentialsService, err := local.NewPluginStaticCredentialsService(server.GetBackend())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	service, err := pluginsv1.NewService(pluginsv1.ServiceConfig{
 		Authorizer:                     p.authServer.Authorizer,
-		PluginService:                  pluginService,
+		PluginService:                  p.plugins,
 		PluginStaticCredentialsService: pluginStaticCredentialsService,
 		PluginAuthorizers:              authorizers,
 	})
