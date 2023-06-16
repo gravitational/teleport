@@ -2425,7 +2425,7 @@ type JamfService struct {
 	// ExitOnSync tells the service to exit immediately after the first sync.
 	ExitOnSync bool `yaml:"exit_on_sync,omitempty"`
 	// APIEndpoint is the Jamf Pro API endpoint.
-	// Example: "https://yourtenant.jamfcloud.com".
+	// Example: "https://yourtenant.jamfcloud.com/api".
 	APIEndpoint string `yaml:"api_endpoint,omitempty"`
 	// Username is the Jamf Pro API username.
 	Username string `yaml:"username,omitempty"`
