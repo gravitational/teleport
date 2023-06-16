@@ -99,10 +99,9 @@ export class WindowsManager {
     });
 
     nativeTheme.on('updated', () => {
-      window.webContents.send(
-        'main-process-native-theme-update',
-        nativeTheme.shouldUseDarkColors ? 'dark' : 'light'
-      );
+      window.webContents.send('main-process-native-theme-update', {
+        shouldUseDarkColors: nativeTheme.shouldUseDarkColors,
+      });
     });
 
     window.webContents.session.setPermissionRequestHandler(

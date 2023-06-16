@@ -194,8 +194,8 @@ export default class MainProcess {
       event.returnValue = this.settings;
     });
 
-    ipcMain.on('main-process-get-native-theme', event => {
-      event.returnValue = nativeTheme.shouldUseDarkColors ? 'dark' : 'light';
+    ipcMain.on('main-process-should-use-dark-colors', event => {
+      event.returnValue = nativeTheme.shouldUseDarkColors;
     });
 
     ipcMain.handle('main-process-get-resolved-child-process-addresses', () => {

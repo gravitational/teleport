@@ -39,14 +39,14 @@ export const ThemeProvider = (
   // Additional issue is that nativeTheme does not return correct values at all on Fedora:
   // https://github.com/electron/electron/issues/33635#issuecomment-1502215450
   const ctx = useAppContext();
-  const [activeTheme, setActiveTheme] = useState(
-    ctx.mainProcessClient.getNativeTheme() === 'dark' ? darkTheme : lightTheme
+  const [activeTheme, setActiveTheme] = useState(() =>
+    ctx.mainProcessClient.shouldUseDarkColors() ? darkTheme : lightTheme
   );
 
   useEffect(() => {
     const { cleanup } = ctx.mainProcessClient.subscribeToNativeThemeUpdate(
-      theme => {
-        setActiveTheme(theme === 'dark' ? darkTheme : lightTheme);
+      ({ shouldUseDarkColors }) => {
+        setActiveTheme(shouldUseDarkColors ? darkTheme : lightTheme);
       }
     );
 

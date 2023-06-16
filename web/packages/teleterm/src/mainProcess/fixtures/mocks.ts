@@ -69,8 +69,8 @@ export class MockMainProcessClient implements MainProcessClient {
     return '';
   }
 
-  getNativeTheme() {
-    return 'dark' as const;
+  shouldUseDarkColors() {
+    return true;
   }
 
   subscribeToNativeThemeUpdate() {

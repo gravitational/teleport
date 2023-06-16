@@ -56,11 +56,12 @@ export default function createMainProcessClient(): MainProcessClient {
     openConfigFile() {
       return ipcRenderer.invoke('main-process-open-config-file');
     },
-    getNativeTheme() {
-      return ipcRenderer.sendSync('main-process-get-native-theme');
+    shouldUseDarkColors() {
+      return ipcRenderer.sendSync('main-process-should-use-dark-colors');
     },
     subscribeToNativeThemeUpdate: listener => {
-      const onThemeChange = (_, value: 'dark' | 'light') => listener(value);
+      const onThemeChange = (_, value: { shouldUseDarkColors: boolean }) =>
+        listener(value);
       const channel = 'main-process-native-theme-update';
       ipcRenderer.addListener(channel, onThemeChange);
       return {
