@@ -67,7 +67,6 @@ export function TabItem(props: TabItemProps) {
     <RelativeContainer
       onClick={onClick}
       onContextMenu={onContextMenu}
-      title={name}
       css={`
         flex-grow: 1;
         min-width: 0;
@@ -78,6 +77,7 @@ export function TabItem(props: TabItemProps) {
         active={active}
         dragging={isDragging}
         canDrag={canDrag}
+        title={name}
       >
         <Title color="inherit" fontWeight={700} fontSize="12px">
           {name}
