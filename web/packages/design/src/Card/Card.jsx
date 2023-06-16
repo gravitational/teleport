@@ -22,11 +22,11 @@ import { darkTheme } from './../theme';
 const Card = styled(Box)`
   box-shadow: ${props => props.theme.boxShadow[2]};
   border-radius: 8px;
+  background-color: ${props => props.theme.colors.levels.surface};
 `;
 
 Card.defaultProps = {
   theme: { darkTheme },
-  bg: 'levels.surface',
 };
 
 Card.displayName = 'Card';
