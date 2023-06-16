@@ -41,6 +41,9 @@ build_teleport_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/sshutils/x11 \
     FuzzParseDisplay fuzz_parse_display
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils/aws \
+    FuzzParseSigV4 fuzz_parse_sig_v4
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/utils/parse \
     FuzzNewExpression fuzz_new_expression
 
