@@ -1848,7 +1848,7 @@ func TestUserGroups(t *testing.T) {
 			return types.NewUserGroup(
 				types.Metadata{
 					Name: name,
-				},
+				}, types.UserGroupSpecV1{},
 			)
 		},
 		create: p.userGroups.CreateUserGroup,
