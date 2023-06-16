@@ -63,7 +63,8 @@ export type AddButtonResourceKind =
   | 'application'
   | 'desktop'
   | 'kubernetes'
-  | 'database';
+  | 'database'
+  | 'saml application';
 
 export type Props = {
   isLeafCluster: boolean;

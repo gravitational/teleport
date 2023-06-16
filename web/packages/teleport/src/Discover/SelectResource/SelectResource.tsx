@@ -316,6 +316,12 @@ function sortResourcesByKind(
         ...resources.filter(r => r.kind !== ResourceKind.Kubernetes),
       ];
       break;
+    case 'saml application':
+      sorted = [
+        ...resources.filter(r => r.kind === ResourceKind.SamlApplication),
+        ...resources.filter(r => r.kind !== ResourceKind.SamlApplication),
+      ];
+      break;
   }
   return sorted;
 }
