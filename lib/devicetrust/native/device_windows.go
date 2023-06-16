@@ -521,7 +521,7 @@ func solveTPMEnrollChallenge(
 			return nil, trace.Wrap(err, "activating credential with challenge")
 		}
 	} else {
-		_, _ = fmt.Fprintln(os.Stderr, "Detected that tsh is not running with elevated privileges. Triggering a UAC prompt to complete the enrollment in an elevated process.")
+		fmt.Fprintln(os.Stderr, "Detected that tsh is not running with elevated privileges. Triggering a UAC prompt to complete the enrollment in an elevated process.")
 		activationSolution, err = activateCredentialInElevatedChild(
 			*encryptedCredential,
 			stateDir.credentialActivationPath,
@@ -530,7 +530,7 @@ func solveTPMEnrollChallenge(
 		if err != nil {
 			return nil, trace.Wrap(err, "activating credential with challenge using elevated child")
 		}
-		_, _ = fmt.Fprintln(os.Stderr, "Successfully completed credential activation in elevated process.")
+		fmt.Fprintln(os.Stderr, "Successfully completed credential activation in elevated process.")
 	}
 
 	log.Debug("TPM: Enrollment challenge completed.")
