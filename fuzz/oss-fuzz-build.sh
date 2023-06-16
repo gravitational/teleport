@@ -117,6 +117,18 @@ build_teleport_api_fuzzers() {
   compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/aws \
     FuzzParseDynamoDBEndpoint fuzz_parse_dynamodb_endpoint
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
+    FuzzParseDatabaseEndpoint fuzz_azure_parse_database_endpoint
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
+    FuzzParseCacheForRedisEndpoint fuzz_azure_parse_cache_for_redis_endpoint
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
+    FuzzNormalizeLocation fuzz_azure_normalize_location
+
+  compile_native_go_fuzzer $TELEPORT_PREFIX/api/utils/azure \
+    FuzzParseMSSQLEndpoint fuzz_azure_parse_mssql_endpoint
+
   cd -
 
 }
