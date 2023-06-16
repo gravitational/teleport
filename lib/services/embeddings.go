@@ -16,8 +16,10 @@ package services
 
 import (
 	"context"
+	"strings"
 	"time"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
@@ -193,54 +195,56 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 		processFn: e.mapProcessFn,
 	}
 
-	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx, "nodes")
-	nodesStream := e.nodeSrv.GetNodeStream(ctx, "default")
+	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx, types.KindNode)
+	nodesStream := e.nodeSrv.GetNodeStream(ctx, defaults.Namespace)
 
-	moveEmbeddingIter := true
-	for {
-		hasNextNode := nodesStream.Next()
-		if !hasNextNode {
-			break
-		}
-
-		embedding := &ai.Embedding{}
-		hasNextEmbedding := embeddingsStream.Next()
-		if hasNextEmbedding && moveEmbeddingIter {
-			// Check if the embedding is for the current node
-			// If exists, use it
-			embedding = embeddingsStream.Item()
-		}
-
-		node := nodesStream.Item()
-
-		nodeData, err := serializeNode(node)
-		if err != nil {
-			e.log.Errorf("Failed to serialize node: %v", err)
-			continue
-		}
-
-		nodeHash := ai.EmbeddingHash(nodeData)
-		if !EmbeddingHashMatches(embedding, nodeHash) {
+	s := NewZipStreams(
+		nodesStream,
+		embeddingsStream,
+		func(node types.Server) error {
+			nodeData, err := serializeNode(node)
+			if err != nil {
+				return trace.Wrap(err)
+			}
 			vectors, err := batch.Add(ctx, &nodeStringPair{node, string(nodeData)})
 			if err != nil {
-				e.log.Warnf("Failed to add node to batch: %v", err)
-
-				// If something went wrong, stop processing the stream
-				// and try again later
-				break
+				return trace.Wrap(err)
 			}
-
 			if err := e.upsertEmbeddings(ctx, vectors); err != nil {
-				e.log.Warnf("Failed to upsert embeddings: %v", err)
+				return trace.Wrap(err)
 			}
-		} else {
-			moveEmbeddingIter = true
-		}
-	}
 
-	err := trace.NewAggregate(embeddingsStream.Done(), embeddingsStream.Done())
-	if err != nil {
-		e.log.Warnf("Failed to precess embeddings stream: %v", err)
+			return nil
+		},
+		func(node types.Server, embedding *ai.Embedding) error {
+			nodeData, err := serializeNode(node)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			nodeHash := ai.EmbeddingHash(nodeData)
+
+			if !EmbeddingHashMatches(embedding, nodeHash) {
+				vectors, err := batch.Add(ctx, &nodeStringPair{node, string(nodeData)})
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				if err := e.upsertEmbeddings(ctx, vectors); err != nil {
+					return trace.Wrap(err)
+				}
+			}
+			return nil
+		},
+		func(node types.Server, embeddings *ai.Embedding) int {
+			if node.GetName() == embeddings.GetName() {
+				return 0
+			}
+
+			return strings.Compare(node.GetName(), embeddings.GetName())
+		},
+	)
+
+	if err := s.Process(); err != nil {
+		e.log.Warnf("Failed to generate nodes embedding: %v", err)
 	}
 
 	vectors, err := batch.Finalize(ctx)
@@ -264,4 +268,87 @@ func (e *EmbeddingProcessor) upsertEmbeddings(ctx context.Context, rawEmbeddings
 		}
 	}
 	return nil
+}
+
+type ZipStreams[T, V any] struct {
+	leader      stream.Stream[T]
+	follower    stream.Stream[V]
+	onMissing   func(elem T) error
+	onEqualKeys func(leader T, follower V) error
+
+	// The result will be 0 if a == b, -1 if a < b, and +1 if a > b.
+	compareKeys func(leader T, follower V) int
+}
+
+func NewZipStreams[T, V any](leader stream.Stream[T], follower stream.Stream[V],
+	onMissing func(elem T) error,
+	onEqualKeys func(leader T, follower V) error,
+	compare func(leader T, follower V) int,
+) *ZipStreams[T, V] {
+	return &ZipStreams[T, V]{
+		leader:      leader,
+		follower:    follower,
+		onMissing:   onMissing,
+		onEqualKeys: onEqualKeys,
+		compareKeys: compare,
+	}
+}
+
+func (z *ZipStreams[T, V]) Process() error {
+	var leaderItem T
+	var followerItem V
+	hasLeader := z.leader.Next()
+	hasFollower := z.follower.Next()
+
+	if hasLeader {
+		leaderItem = z.leader.Item()
+	}
+	if hasFollower {
+		followerItem = z.follower.Item()
+	}
+
+	for hasLeader && hasFollower {
+		if z.compareKeys(leaderItem, followerItem) == -1 {
+			// leader > follower - follower is missing
+			if err := z.onMissing(leaderItem); err != nil {
+				return err
+			}
+
+			hasLeader = z.leader.Next()
+			if hasLeader {
+				leaderItem = z.leader.Item()
+			}
+		} else if z.compareKeys(leaderItem, followerItem) == 1 {
+			// leader < follower - advancde
+			hasFollower = z.follower.Next()
+			if hasFollower {
+				followerItem = z.follower.Item()
+			}
+		} else {
+			// leader == follower
+			if err := z.onEqualKeys(leaderItem, followerItem); err != nil {
+				return err
+			}
+			hasLeader = z.leader.Next()
+			hasFollower = z.follower.Next()
+			if hasLeader {
+				leaderItem = z.leader.Item()
+			}
+			if hasFollower {
+				followerItem = z.follower.Item()
+			}
+		}
+	}
+
+	for hasLeader {
+		if err := z.onMissing(leaderItem); err != nil {
+			return err
+		}
+		hasLeader = z.leader.Next()
+		if hasLeader {
+			leaderItem = z.leader.Item()
+		}
+	}
+
+	return trace.NewAggregate(z.leader.Done(), z.follower.Done())
 }
