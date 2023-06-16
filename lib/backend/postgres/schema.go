@@ -55,7 +55,7 @@ const migrateV1 = `
 	CREATE INDEX lease_expires ON lease (expires);
 
 	CREATE TABLE event (
-		eventid BIGSERIAL NOT NULL,
+		eventid BIGINT NOT NULL,
 		created TIMESTAMPTZ NOT NULL,
 		key BYTEA NOT NULL,
 		id BIGINT NOT NULL,

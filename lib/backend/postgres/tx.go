@@ -385,7 +385,7 @@ func (tx *pgTx) InsertEvent(eventType types.OpType, item backend.Item) {
 	if tx.err != nil {
 		return
 	}
-	const query = `INSERT INTO event (created, key, id, type) VALUES ($1,$2,$3,$4)`
+	const query = `INSERT INTO event (eventid, created, key, id, type) VALUES ((select coalesce(max(eventid), 0)+1 from event),$1,$2,$3,$4)`
 	_, err := tx.sqlTx.ExecContext(tx.ctx, query, tx.now(), item.Key, item.ID, eventType)
 	tx.rollback(err)
 }
