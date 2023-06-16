@@ -186,6 +186,15 @@ func (rr *runResult) printFlakinessSummary(out io.Writer) {
 				alltests = append(alltests, test)
 			}
 		}
+		// Create a pseudo-test result for the package level output
+		// as it can contain relevant output not included in individual
+		// tests such as crash or data race output.
+		tr := &testResult{
+			name:   pkg.name,
+			count:  pkg.count,
+			output: pkg.output,
+		}
+		alltests = append(alltests, tr)
 	}
 	// reverse sort by failure rate
 	sort.Slice(alltests, func(i, j int) bool {

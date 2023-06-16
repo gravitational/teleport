@@ -219,7 +219,7 @@ func TestPrintFlakinessSummaryNoFail(t *testing.T) {
 }
 
 func TestPrintFlakinessSummaryFail(t *testing.T) {
-	rr := newRunResult(byFlakiness, 2) // top 2 failures only
+	rr := newRunResult(byFlakiness, 3) // top 3 failures only (including packages)
 	feedEvents(t, rr, flakyPass)
 	feedEvents(t, rr, flakyFail1)
 	feedEvents(t, rr, flakyPass)
@@ -235,6 +235,7 @@ func TestPrintFlakinessSummaryFail(t *testing.T) {
 	rr.printFlakinessSummary(output)
 
 	expected := `
+FAIL(4 from 10): example.com/package3
 FAIL(3 from 10): example.com/package3.Test5
 FAIL(2 from 10): example.com/package1.Test1
 `[1:]
