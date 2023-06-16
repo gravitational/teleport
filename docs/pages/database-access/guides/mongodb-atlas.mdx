@@ -7,7 +7,7 @@ videoBanner: mu_ZKTjnFJ8
 In this guide you will:
 
 1. Configure Teleport for accessing your MongoDB Atlas cluster.
-2. Configure self-managed X.509 authentication on your Atlas cluster.
+2. Configure MongoDB Atlas authentication.
 3. Connect to your Atlas cluster via Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
@@ -185,11 +185,12 @@ You can then use `/tmp/isrgrootx1.pem` as the value of the `db_service.databases
 
 ## Step 3/4. Configure Atlas
 
-### Enable self-managed X.509 authentication
-
-Teleport will authenticate with MongoDB Atlas using
-[self-managed X.509 authentication](https://docs.atlas.mongodb.com/security-self-managed-x509/).
-
+Teleport MongoDB Atlas integration supports two methods of authentication:
+- Self-managed X.509: This method relies on certificates for authentication,
+  with MongoDB Atlas trusting the Teleport certificates.
+- AWS IAM: The authentication is done using AWS credentials fetched by Teleport.
+<Tabs>
+<TabItem label="Self-managed X.509">
 First, obtain Teleport CA certificate by running the following `tctl auth sign`
 command against your Teleport cluster:
 
@@ -209,8 +210,9 @@ toggle "Self-managed X.509 Authentication" on:
 Paste the contents of `mongo.cas` file in the Certificate Authority edit box and
 click Save.
 
-### Create MongoDB user
+### Create a MongoDB user
 
+{/*lint ignore messaging*/}
 On the Security / Database Access page add a new database user with Certificate
 authentication method:
 
@@ -225,6 +227,58 @@ certificate with `CN=alice` subject.
   Case matters so make sure to specify Common Name in the username with capital
   letters `CN=`.
 </Admonition>
+</TabItem>
+
+<TabItem label="AWS IAM">
+
+You must provide the Teleport Database Service access to AWS credentials.
+
+(!docs/pages/includes/aws-credentials.mdx service="the Database Service"!)
+
+### Create a MongoDB IAM role
+
+Navigate to the [AWS IAM console](https://console.aws.amazon.com/iam/). In the
+navigation pane, choose **Roles** and then choose **Create role**. Next, select
+the "Custom trust policy" type. Edit the trust policy to allow the Teleport
+Database service IAM role to assume this role so that the Teleport can fetch the
+necessary credentials to authenticate to MongoDB:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "Statement1",
+            "Effect": "Allow",
+            "Principal": {
+                "AWS": "arn:aws:iam::111111111111:role/teleport-database-access",
+                "Service": "ec2.amazonaws.com"
+            },
+            "Action": "sts:AssumeRole"
+        }
+    ]
+}
+```
+
+Your role won’t require any permission, so you can leave it empty on the
+**Add Permissions** step. Then, choose a name for it and create it. In this
+guide, we will the name `teleport-access`.
+
+### Create a MongoDB User
+
+{/*lint ignore messaging*/}
+On the **Security / Database Access** page add a new database user with **AWS IAM**
+authentication method, and choose "IAM Role" as the **IAM User type**. Then, fill in
+the AWS ARN field with the ARN of the newly created IAM role. In the **Database
+User Privileges** section, give the user sufficient privileges to access the
+desired database data.
+
+![Create AWS IAM database user](../../../img/database-access/guides/atlas/atlas-add-aws-iam-user.png)
+
+Please note that Teleport does not support authentication using AWS IAM users;
+it exclusively supports authentication using AWS IAM roles.
+</TabItem>
+</Tabs>
 
 ## Step 4/4. Connect
 
@@ -253,6 +307,8 @@ $ tsh db ls
 </TabItem>
 </Tabs>
 
+<Tabs>
+<TabItem label="Self-managed X.509 authentication">
 To retrieve credentials for a database and connect to it:
 
 ```code
@@ -265,6 +321,23 @@ when connecting to the database instance:
 ```code
 $ tsh db connect --db-user=alice mongodb-atlas
 ```
+</TabItem>
+<TabItem label="AWS IAM authentication">
+To retrieve credentials for a database and connect to it, you must provide the
+database username in the `role/<role-name>` format:
+
+```code
+$ tsh db connect --db-user=role/teleport-access mongodb-atlas
+```
+
+Alternatively, you provide the full ARN as the database username when connecting
+to the database instance:
+
+```code
+$ tsh db connect --db-user=arn:aws:iam::111111111111:role/teleport-access mongodb-atlas
+```
+</TabItem>
+</Tabs>
 
 <Admonition type="note" title="Preparing your client environment">
   Either the `mongosh` or `mongo` command-line clients should be available in `PATH` in order to be
@@ -288,3 +361,5 @@ $ tsh db logout
 
 ## Further reading
 - [Which certificate authority signs MongoDB Atlas cluster TLS certificates?](https://docs.atlas.mongodb.com/reference/faq/security/#which-certificate-authority-signs-mongodb-atlas-cluster-tls-certificates-)
+- [Self-managed X.509 authentication](https://docs.atlas.mongodb.com/security-self-managed-x509/)
+- [AWS IAM authentication](https://www.mongodb.com/docs/atlas/security/passwordless-authentication/)
