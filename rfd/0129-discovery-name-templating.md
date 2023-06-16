@@ -298,12 +298,17 @@ argument. These commands shall support
 `tsh <sub-command> [--labels keys=val1,key2=val2,...] [--query <predicate>] [name | prefix]` syntax:
 
 - `tsh db login`
+- `tsh db logout`
 - `tsh db connect`
 - `tsh db env`
 - `tsh db config`
+- `tsh kube login`
+- `tsh app login`
+- `tsh app logout`
+- `tsh app config`
 - `tsh proxy db`
 - `tsh proxy kube`
-- `tsh kube login`
+- `tsh proxy app`
 
 To support prefix names, we add a new predicate expression function
 `hasPrefix`, and change the `tsh` API calls to use `hasPrefix(name, "<prefix>")`
