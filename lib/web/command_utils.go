@@ -22,9 +22,9 @@ import (
 	"encoding/json"
 	"io"
 	"net"
+	"sync"
 	"time"
 
-	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 )
 
@@ -39,13 +39,9 @@ type WSConn interface {
 
 	WriteControl(messageType int, data []byte, deadline time.Time) error
 	WriteMessage(messageType int, data []byte) error
-	NextReader() (messageType int, r io.Reader, err error)
 	ReadMessage() (messageType int, p []byte, err error)
-
+	SetReadLimit(limit int64)
 	SetReadDeadline(t time.Time) error
-	PingHandler() func(appData string) error
-	SetPingHandler(h func(appData string) error)
-	PongHandler() func(appData string) error
 	SetPongHandler(h func(appData string) error)
 }
 
@@ -98,10 +94,39 @@ func newPayloadWriter(nodeID, outputName string, stream io.Writer) *payloadWrite
 // by any underlying code as we want to keep the connection open until the command
 // is executed on all nodes and a single failure should not close the connection.
 type noopCloserWS struct {
-	*websocket.Conn
+	WSConn
 }
 
 // Close does nothing.
 func (ws *noopCloserWS) Close() error {
 	return nil
+}
+
+// syncRWWSConn is a wrapper around websocket.Conn, which serializes
+// read and write to a web socket connection. This is needed to prevent
+// a race conditions and panics in gorilla/websocket.
+// Details https://pkg.go.dev/github.com/gorilla/websocket#hdr-Concurrency
+// This struct does not lock SetReadDeadline() as the SetReadDeadline()
+// is called from the pong handler, which is interanlly called on ReadMessage()
+// according to https://pkg.go.dev/github.com/gorilla/websocket#hdr-Control_Messages
+// This would prevent the pong handler from being called.
+type syncRWWSConn struct {
+	// WSConn the underlying websocket connection.
+	WSConn
+	// rmtx is a mutex used to serialize reads.
+	rmtx sync.Mutex
+	// wmtx is a mutex used to serialize writes.
+	wmtx sync.Mutex
+}
+
+func (s *syncRWWSConn) WriteMessage(messageType int, data []byte) error {
+	s.wmtx.Lock()
+	defer s.wmtx.Unlock()
+	return s.WSConn.WriteMessage(messageType, data)
+}
+
+func (s *syncRWWSConn) ReadMessage() (messageType int, p []byte, err error) {
+	s.rmtx.Lock()
+	defer s.rmtx.Unlock()
+	return s.WSConn.ReadMessage()
 }

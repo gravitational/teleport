@@ -22,15 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-type labelExpressionTestResource struct {
-	labels map[string]string
-}
-
-func (t labelExpressionTestResource) GetLabel(key string) (string, bool) {
-	label, ok := t.labels[key]
-	return label, ok
-}
-
 func TestLabelExpressions(t *testing.T) {
 	t.Parallel()
 
@@ -146,6 +137,30 @@ func TestLabelExpressions(t *testing.T) {
 			expectMatch: true,
 		},
 		{
+			desc: "email.local",
+			expr: `contains(email.local(user.spec.traits["email"]), labels["owner"]) &&
+			       contains(email.local(user.spec.traits["full email"]), labels["owner"])`,
+			resourceLabels: map[string]string{
+				"owner": "test",
+			},
+			userTraits: map[string][]string{
+				"email":      {"test@example.com"},
+				"full email": {"Test <test@example.com>"},
+			},
+			expectMatch: true,
+		},
+		{
+			desc: "email.local error",
+			expr: `contains(email.local(user.spec.traits["email"]), labels["owner"])`,
+			resourceLabels: map[string]string{
+				"owner": "test",
+			},
+			userTraits: map[string][]string{
+				"email": {"test"},
+			},
+			expectEvaluateError: []string{`failed to parse "email.local" argument`},
+		},
+		{
 			desc: "string helpers",
 			expr: `
 			contains(strings.lower(user.spec.traits["logins"]), "name") &&
@@ -157,6 +172,136 @@ func TestLabelExpressions(t *testing.T) {
 				"logins": {"test", "Name"},
 			},
 			expectMatch: true,
+		},
+		{
+			desc: "labels_matching name",
+			expr: `contains(labels_matching("^project-(name|label)$"), "skunkworks")`,
+			resourceLabels: map[string]string{
+				"project-name":  "skunkworks",
+				"project-label": "secret",
+			},
+			expectMatch: true,
+		},
+		{
+			desc: "labels_matching label",
+			expr: `contains(labels_matching("^project-(name|label)$"), "skunkworks")`,
+			resourceLabels: map[string]string{
+				"project-name":  "secret",
+				"project-label": "skunkworks",
+			},
+			expectMatch: true,
+		},
+		{
+			desc: "labels_matching glob",
+			expr: `contains(labels_matching("project-*"), "skunkworks")`,
+			resourceLabels: map[string]string{
+				"project-name":  "skunkworks",
+				"project-label": "secret",
+			},
+			expectMatch: true,
+		},
+		{
+			desc: "labels_matching no match",
+			expr: `contains(labels_matching("project-*"), "skunkworks")`,
+			resourceLabels: map[string]string{
+				"project": "skunkworks",
+			},
+			expectMatch: false,
+		},
+		{
+			desc: "contains_any match",
+			expr: `contains_any(user.spec.traits["projects"], labels_matching("project-*"))`,
+			userTraits: map[string][]string{
+				"projects": []string{"parser", "skunkworks", "algorithms"},
+			},
+			resourceLabels: map[string]string{
+				"project-name":  "skunkworks",
+				"project-label": "secret",
+			},
+			expectMatch: true,
+		},
+		{
+			desc: "contains_any no match",
+			expr: `contains_any(user.spec.traits["projects"], labels_matching("project-*"))`,
+			userTraits: map[string][]string{
+				"projects": []string{"parser", "algorithms"},
+			},
+			resourceLabels: map[string]string{
+				"project-name":  "skunkworks",
+				"project-label": "secret",
+			},
+			expectMatch: false,
+		},
+		{
+			desc:       "contains_any empty first arg",
+			expr:       `contains_any(user.spec.traits["projects"], labels_matching("project-*"))`,
+			userTraits: map[string][]string{},
+			resourceLabels: map[string]string{
+				"project-name":  "skunkworks",
+				"project-label": "secret",
+			},
+			expectMatch: false,
+		},
+		{
+			desc: "contains_any empty second arg",
+			expr: `contains_any(user.spec.traits["projects"], labels_matching("project-*"))`,
+			userTraits: map[string][]string{
+				"projects": []string{"parser", "algorithms"},
+			},
+			resourceLabels: map[string]string{
+				"team": "security",
+			},
+			expectMatch: false,
+		},
+		{
+			desc: "contains_all match",
+			expr: `contains_all(user.spec.traits["projects"], labels_matching("project-*"))`,
+			userTraits: map[string][]string{
+				"projects": []string{"parser", "skunkworks", "algorithms"},
+			},
+			resourceLabels: map[string]string{
+				"project-primary":   "parser",
+				"project-secondary": "algorithms",
+			},
+			expectMatch: true,
+		},
+		{
+			desc: "contains_all no match",
+			expr: `contains_all(user.spec.traits["projects"], labels_matching("project-*"))`,
+			userTraits: map[string][]string{
+				"projects": []string{"parser", "skunkworks", "algorithms"},
+			},
+			resourceLabels: map[string]string{
+				"project-primary":   "parser",
+				"project-secondary": "algorithms",
+				"project-label":     "secret",
+			},
+			expectMatch: false,
+		},
+		{
+			desc:       "contains_all empty first arg",
+			expr:       `contains_all(user.spec.traits["projects"], labels_matching("project-*"))`,
+			userTraits: map[string][]string{},
+			resourceLabels: map[string]string{
+				"project-primary":   "parser",
+				"project-secondary": "algorithms",
+				"project-label":     "secret",
+			},
+			expectMatch: false,
+		},
+		{
+			desc: "contains_all empty second arg",
+			expr: `contains_all(user.spec.traits["projects"], labels_matching("project-*"))`,
+			userTraits: map[string][]string{
+				"projects": []string{"parser", "skunkworks", "algorithms"},
+			},
+			// This resource seems unrelated to the contains_all expression. To
+			// avoid footguns, contains_all intentionally returns false when the
+			// second argument is empty.
+			resourceLabels: map[string]string{
+				"team": "security",
+			},
+			expectMatch: false,
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
@@ -170,10 +315,8 @@ func TestLabelExpressions(t *testing.T) {
 			require.NoError(t, err, trace.DebugReport(err))
 
 			env := labelExpressionEnv{
-				resourceLabelGetter: labelExpressionTestResource{
-					labels: tc.resourceLabels,
-				},
-				userTraits: tc.userTraits,
+				resourceLabelGetter: mapLabelGetter(tc.resourceLabels),
+				userTraits:          tc.userTraits,
 			}
 
 			match, err := parsedExpr.Evaluate(env)

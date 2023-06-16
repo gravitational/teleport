@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -601,7 +600,8 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 func IsErrorResolvableWithRelogin(err error) bool {
 	// Assume that failed handshake is a result of expired credentials.
 	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) ||
-		trace.IsBadParameter(err) || trace.IsTrustError(err) || keys.IsPrivateKeyPolicyError(err) || trace.IsNotFound(err)
+		trace.IsBadParameter(err) || trace.IsTrustError(err) ||
+		keys.IsPrivateKeyPolicyError(err) || IsNoCredentialsError(err)
 }
 
 // GetProfile gets the profile for the specified proxy address, or
@@ -675,7 +675,15 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		return nil
 	}
 
-	p := &profile.Profile{
+	if err := c.ClientStore.SaveProfile(c.Profile(), makeCurrent); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// Profile converts Config to *profile.Profile.
+func (c *Config) Profile() *profile.Profile {
+	return &profile.Profile{
 		Username:                      c.Username,
 		WebProxyAddr:                  c.WebProxyAddr,
 		SSHProxyAddr:                  c.SSHProxyAddr,
@@ -691,11 +699,6 @@ func (c *Config) SaveProfile(makeCurrent bool) error {
 		LoadAllCAs:                    c.LoadAllCAs,
 		PrivateKeyPolicy:              c.PrivateKeyPolicy,
 	}
-
-	if err := c.ClientStore.SaveProfile(p, makeCurrent); err != nil {
-		return trace.Wrap(err)
-	}
-	return nil
 }
 
 // ParsedProxyHost holds the hostname and Web & SSH proxy addresses
@@ -1779,7 +1782,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodeAddrs []string, command []string) error {
@@ -1902,7 +1905,12 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				runPresenceTask(presenceCtx, out, clt.AuthClient, tc, session.GetSessionID())
+				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+					resp, err := tc.PromptMFAChallenge(ctx, proxyAddr, c, func(opts *PromptMFAChallengeOpts) {
+						opts.Quiet = true
+					})
+					return resp, trace.Wrap(err)
+				})
 			}
 		}
 	}
@@ -1910,7 +1918,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
 	// running shell with a given session means "join" it:
-	err = tc.runShell(ctx, nc, mode, session, beforeStart)
+	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2665,7 +2673,7 @@ func (tc *TeleportClient) runCommandOnNodes(ctx context.Context, clt *ClusterCli
 
 func (tc *TeleportClient) newSessionEnv() map[string]string {
 	env := map[string]string{
-		teleport.SSHSessionWebproxyAddr: tc.WebProxyAddr,
+		teleport.SSHSessionWebProxyAddr: tc.WebProxyAddr,
 	}
 	if tc.SessionID != "" {
 		env[sshutils.SessionEnvVar] = tc.SessionID
@@ -2675,49 +2683,6 @@ func (tc *TeleportClient) newSessionEnv() map[string]string {
 		env[key] = val
 	}
 	return env
-}
-
-// runShell starts an interactive SSH session/shell.
-// sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/runShell",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	env := tc.newSessionEnv()
-	env[teleport.EnvSSHJoinMode] = string(mode)
-	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
-	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(tc.Config.DisplayParticipantRequirements)
-
-	encoded, err := json.Marshal(&tc.Config.Invited)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	env[teleport.EnvSSHSessionInvited] = string(encoded)
-
-	nodeSession, err := newSession(ctx, nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err = nodeSession.runShell(ctx, mode, beforeStart, tc.OnShellCreated); err != nil {
-		switch e := trace.Unwrap(err).(type) {
-		case *ssh.ExitError:
-			tc.ExitStatus = e.ExitStatus()
-		case *ssh.ExitMissingError:
-			tc.ExitStatus = 1
-		}
-
-		return trace.Wrap(err)
-	}
-	if nodeSession.ExitMsg == "" {
-		fmt.Fprintln(tc.Stderr, "the connection was closed on the remote side on ", time.Now().Format(time.RFC822))
-	} else {
-		fmt.Fprintln(tc.Stderr, nodeSession.ExitMsg)
-	}
-	return nil
 }
 
 // getProxyLogin determines which SSH principal to use when connecting to proxy.
@@ -3302,7 +3267,7 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	}
 
 	// Perform the ALPN test once at login.
-	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(tc.WebProxyAddr, tc.InsecureSkipVerify)
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)
@@ -4751,13 +4716,13 @@ func (tc *TeleportClient) NewKubernetesServiceClient(ctx context.Context, cluste
 // IsALPNConnUpgradeRequiredForWebProxy returns true if connection upgrade is
 // required for provided addr. The provided address must be a web proxy
 // address.
-func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(proxyAddr string) bool {
+func (tc *TeleportClient) IsALPNConnUpgradeRequiredForWebProxy(ctx context.Context, proxyAddr string) bool {
 	// Use cached value.
 	if proxyAddr == tc.WebProxyAddr {
 		return tc.TLSRoutingConnUpgradeRequired
 	}
 	// Do a test for other proxy addresses.
-	return client.IsALPNConnUpgradeRequired(proxyAddr, tc.InsecureSkipVerify)
+	return client.IsALPNConnUpgradeRequired(ctx, proxyAddr, tc.InsecureSkipVerify)
 }
 
 // RootClusterCACertPool returns a *x509.CertPool with the root cluster CA.
@@ -4784,7 +4749,7 @@ func (tc *TeleportClient) RootClusterCACertPool(ctx context.Context) (*x509.Cert
 }
 
 // HeadlessApprove handles approval of a headless authentication request.
-func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthenticationID string) error {
+func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthenticationID string, confirm bool) error {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"teleportClient/HeadlessApprove",
@@ -4822,15 +4787,18 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Errorf("cannot approve a headless authentication from a non-pending state: %v", headlessAuthn.State.Stringify())
 	}
 
-	confirmationPrompt := fmt.Sprintf("Headless login attempt from IP address %q requires approval.\nContact your administrator if you didn't initiate this login attempt.\nApprove?", headlessAuthn.ClientIpAddress)
-	ok, err := prompt.Confirmation(ctx, tc.Stdout, prompt.Stdin(), confirmationPrompt)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	fmt.Fprintf(tc.Stdout, "Headless login attempt from IP address %q requires approval.\nContact your administrator if you didn't initiate this login attempt.\n", headlessAuthn.ClientIpAddress)
 
-	if !ok {
-		err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
-		return trace.Wrap(err)
+	if confirm {
+		ok, err := prompt.Confirmation(ctx, tc.Stdout, prompt.Stdin(), "Approve?")
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if !ok {
+			err = rootClient.UpdateHeadlessAuthenticationState(ctx, headlessAuthenticationID, types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED, nil)
+			return trace.Wrap(err)
+		}
 	}
 
 	chall, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{

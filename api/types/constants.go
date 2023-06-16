@@ -364,6 +364,9 @@ const (
 	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
 	KindWatchStatus = "watch_status"
 
+	// V7 is the seventh version of resources.
+	V7 = "v7"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -562,6 +565,11 @@ const (
 	// that the discovered resource is owned by. It is used to differentiate resources
 	// that belong to different discovery services that operate on different sets of resources.
 	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
+
+	// TeleportDowngradedLabel identifies resources that have been automatically
+	// downgraded before being returned to clients on older versions that do not
+	// support one or more features enabled in that resource.
+	TeleportDowngradedLabel = TeleportInternalLabelPrefix + "downgraded"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.

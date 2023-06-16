@@ -245,18 +245,6 @@ DEBUG=1 ./build/teleport start -d
 Keep the server running in this mode, and make your UI changes in `/dist` directory.
 For instructions about how to update the Web UI, read [the `web` README](web#readme).
 
-#### Updating Web UI assets
-
-After you commit a change to [the `webapps`
-repo](https://github.com/gravitational/webapps), you need to update the Web UI
-assets in the `webassets/` git submodule.
-
-Run `make update-webassets` to update the `webassets` repo and create a PR for
-`teleport` to update its git submodule.
-
-You will need to have the `gh` utility installed on your system for the script
-to work. For installation instructions, read the [GitHub CLI installation](https://github.com/cli/cli/releases/latest) documentation.
-
 ### Managing dependencies
 
 All dependencies are managed using [Go modules](https://blog.golang.org/using-go-modules). Here are the instructions for some common tasks:
@@ -305,6 +293,28 @@ Why is a specific module imported?
 Why is a specific version of a module imported?
 
 `go mod graph | grep $modname`
+
+### Devbox Build (experimental)
+
+**Note**: Devbox support is still experimental. It's very possible things make not work as intended.
+
+Teleport can be built using [devbox](https://www.jetpack.io/devbox). To use devbox, follow
+the instructions to install devbox [here](https://www.jetpack.io/devbox/docs/quickstart/) and
+then run:
+
+`devbox shell`
+
+This will install Teleport's various build dependencies and drop you into a shell with these
+dependencies. From here, you can build Teleport normally.
+
+#### flake.nix
+
+A nix flake is located in `build.assets/flake` that allows for installation of Teleport's less
+common build tooling. If this flake is updated, run:
+
+`devbox install`
+
+in order to make sure the changes in the flake are reflected in the local devbox shell.
 
 ## Why did We Build Teleport?
 

@@ -452,6 +452,10 @@ type CLIConf struct {
 	// HeadlessAuthenticationID is the ID of a headless authentication.
 	HeadlessAuthenticationID string
 
+	// headlessSkipConfirm determines whether to provide a y/N
+	// confirmation prompt before prompting for MFA.
+	headlessSkipConfirm bool
+
 	// DTAuthnRunCeremony allows tests to override the default device
 	// authentication function.
 	// Defaults to [dtauthn.NewCeremony().Run].
@@ -525,13 +529,14 @@ func Main() {
 }
 
 const (
-	authEnvVar        = "TELEPORT_AUTH"
-	clusterEnvVar     = "TELEPORT_CLUSTER"
-	kubeClusterEnvVar = "TELEPORT_KUBE_CLUSTER"
-	loginEnvVar       = "TELEPORT_LOGIN"
-	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
-	proxyEnvVar       = "TELEPORT_PROXY"
-	headlessEnvVar    = "TELEPORT_HEADLESS"
+	authEnvVar                = "TELEPORT_AUTH"
+	clusterEnvVar             = "TELEPORT_CLUSTER"
+	kubeClusterEnvVar         = "TELEPORT_KUBE_CLUSTER"
+	loginEnvVar               = "TELEPORT_LOGIN"
+	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
+	proxyEnvVar               = "TELEPORT_PROXY"
+	headlessEnvVar            = "TELEPORT_HEADLESS"
+	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar               = "TELEPORT_SITE"
@@ -975,8 +980,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Headless login approval
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
-	approve := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
-	approve.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
+	headlessApprove.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -1331,7 +1337,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])
-	case approve.FullCommand():
+	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
 	default:
 		// Handle commands that might not be available.
@@ -2619,13 +2625,13 @@ func showAppsAsText(apps []types.Application, active []tlsca.RouteToApp, verbose
 	fmt.Println(t.AsBuffer().String())
 }
 
-func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, format string, verbose bool) error {
+func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, format string, verbose bool) error {
 	format = strings.ToLower(format)
 	switch format {
 	case teleport.Text, "":
-		showDatabasesAsText(w, clusterFlag, databases, active, roleSet, verbose)
+		showDatabasesAsText(w, clusterFlag, databases, active, accessChecker, verbose)
 	case teleport.JSON, teleport.YAML:
-		out, err := serializeDatabases(databases, format, roleSet)
+		out, err := serializeDatabases(databases, format, accessChecker)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -2636,12 +2642,12 @@ func showDatabases(w io.Writer, clusterFlag string, databases []types.Database, 
 	return nil
 }
 
-func serializeDatabases(databases []types.Database, format string, roleSet services.RoleSet) (string, error) {
+func serializeDatabases(databases []types.Database, format string, accessChecker services.AccessChecker) (string, error) {
 	if databases == nil {
 		databases = []types.Database{}
 	}
 
-	printObj, err := getDatabasePrintObject(databases, roleSet)
+	printObj, err := getDatabasePrintObject(databases, accessChecker)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -2656,11 +2662,11 @@ func serializeDatabases(databases []types.Database, format string, roleSet servi
 	return string(out), trace.Wrap(err)
 }
 
-func getDatabasePrintObject(databases []types.Database, roleSet services.RoleSet) (any, error) {
-	if roleSet == nil || len(databases) == 0 {
+func getDatabasePrintObject(databases []types.Database, accessChecker services.AccessChecker) (any, error) {
+	if accessChecker == nil || len(accessChecker.RoleNames()) == 0 || len(databases) == 0 {
 		return databases, nil
 	}
-	dbsWithUsers, err := getDatabasesWithUsers(databases, roleSet)
+	dbsWithUsers, err := getDatabasesWithUsers(databases, accessChecker)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -2679,8 +2685,8 @@ type databaseWithUsers struct {
 	Users *dbUsers `json:"users"`
 }
 
-func getDBUsers(db types.Database, roles services.RoleSet) *dbUsers {
-	users := roles.EnumerateDatabaseUsers(db)
+func getDBUsers(db types.Database, accessChecker services.AccessChecker) *dbUsers {
+	users := accessChecker.EnumerateDatabaseUsers(db)
 	var denied []string
 	allowed := users.Allowed()
 	if users.WildcardAllowed() {
@@ -2695,9 +2701,9 @@ func getDBUsers(db types.Database, roles services.RoleSet) *dbUsers {
 	}
 }
 
-func newDatabaseWithUsers(db types.Database, roles services.RoleSet) (*databaseWithUsers, error) {
+func newDatabaseWithUsers(db types.Database, accessChecker services.AccessChecker) (*databaseWithUsers, error) {
 	dbWithUsers := &databaseWithUsers{
-		Users: getDBUsers(db, roles),
+		Users: getDBUsers(db, accessChecker),
 	}
 	switch db := db.(type) {
 	case *types.DatabaseV3:
@@ -2708,10 +2714,10 @@ func newDatabaseWithUsers(db types.Database, roles services.RoleSet) (*databaseW
 	return dbWithUsers, nil
 }
 
-func getDatabasesWithUsers(databases types.Databases, roles services.RoleSet) ([]*databaseWithUsers, error) {
+func getDatabasesWithUsers(databases types.Databases, accessChecker services.AccessChecker) ([]*databaseWithUsers, error) {
 	var dbsWithUsers []*databaseWithUsers
 	for _, db := range databases {
-		dbWithUsers, err := newDatabaseWithUsers(db, roles)
+		dbWithUsers, err := newDatabaseWithUsers(db, accessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -2734,13 +2740,13 @@ func serializeDatabasesAllClusters(dbListings []databaseListing, format string) 
 	return string(out), trace.Wrap(err)
 }
 
-func formatUsersForDB(database types.Database, roleSet services.RoleSet) string {
+func formatUsersForDB(database types.Database, accessChecker services.AccessChecker) string {
 	// may happen if fetching the role set failed for any reason.
-	if roleSet == nil {
+	if accessChecker == nil {
 		return "(unknown)"
 	}
 
-	dbUsers := getDBUsers(database, roleSet)
+	dbUsers := getDBUsers(database, accessChecker)
 	if len(dbUsers.Allowed) == 0 {
 		return "(none)"
 	}
@@ -2751,7 +2757,7 @@ func formatUsersForDB(database types.Database, roleSet services.RoleSet) string 
 	return fmt.Sprintf("%v, except: %v", dbUsers.Allowed, dbUsers.Denied)
 }
 
-func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) []string {
+func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) []string {
 	name := database.GetName()
 	var connect string
 	for _, a := range active {
@@ -2779,7 +2785,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 			database.GetProtocol(),
 			database.GetType(),
 			database.GetURI(),
-			formatUsersForDB(database, roleSet),
+			formatUsersForDB(database, accessChecker),
 			database.LabelsString(),
 			connect,
 		)
@@ -2787,7 +2793,7 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 		row = append(row,
 			name,
 			database.GetDescription(),
-			formatUsersForDB(database, roleSet),
+			formatUsersForDB(database, accessChecker),
 			formatDatabaseLabels(database),
 			connect,
 		)
@@ -2796,14 +2802,14 @@ func getDatabaseRow(proxy, cluster, clusterFlag string, database types.Database,
 	return row
 }
 
-func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, roleSet services.RoleSet, verbose bool) {
+func showDatabasesAsText(w io.Writer, clusterFlag string, databases []types.Database, active []tlsca.RouteToDatabase, accessChecker services.AccessChecker, verbose bool) {
 	var rows [][]string
 	for _, database := range databases {
 		rows = append(rows, getDatabaseRow("", "",
 			clusterFlag,
 			database,
 			active,
-			roleSet,
+			accessChecker,
 			verbose))
 	}
 	var t asciitable.Table
@@ -2824,7 +2830,7 @@ func printDatabasesWithClusters(clusterFlag string, dbListings []databaseListing
 			clusterFlag,
 			listing.Database,
 			active,
-			listing.roleSet,
+			listing.accessChecker,
 			verbose))
 	}
 	var t asciitable.Table
@@ -3223,7 +3229,7 @@ func onJoin(cf *CLIConf) error {
 		return trace.BadParameter("'%v' is not a valid session ID (must be GUID)", cf.SessionID)
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.Join(context.TODO(), types.SessionParticipantMode(cf.JoinMode), cf.Namespace, *sid, nil)
+		return tc.Join(cf.Context, types.SessionParticipantMode(cf.JoinMode), cf.Namespace, *sid, nil)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -4634,7 +4640,7 @@ func setEnvFlags(cf *CLIConf, getEnv envGetter) {
 	// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
 	if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
 		if cf.Proxy == "" {
-			cf.Proxy = getEnv(teleport.SSHSessionWebproxyAddr)
+			cf.Proxy = getEnv(teleport.SSHSessionWebProxyAddr)
 		}
 		if cf.Username == "" {
 			cf.Username = getEnv(teleport.SSHTeleportUser)
@@ -4826,7 +4832,7 @@ func onHeadlessApprove(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID)
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
 }

@@ -311,7 +311,8 @@ func TestGetAllowedKubeUsersAndGroupsForCluster(t *testing.T) {
 	}
 	for _, tc := range tt[:1] {
 		t.Run(tc.name, func(t *testing.T) {
-			users, groups := getAllowedKubeUsersAndGroupsForCluster(tc.roleSet, tc.cluster)
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tc.roleSet)
+			users, groups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, tc.cluster)
 			require.Equal(t, tc.expectedUsers, users)
 			require.Equal(t, tc.expectedGroups, groups)
 		})
@@ -361,7 +362,8 @@ func TestMakeClusterHiddenLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			clusters := MakeKubeClusters(tc.clusters, tc.roleSet)
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clusterName", tc.roleSet)
+			clusters := MakeKubeClusters(tc.clusters, accessChecker)
 			for i, cluster := range clusters {
 				require.Equal(t, tc.expectedLabels[i], cluster.Labels)
 			}
@@ -401,7 +403,8 @@ func TestMakeServersHiddenLabels(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			servers, err := MakeServers(tc.clusterName, tc.servers, tc.roleSet)
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tc.roleSet)
+			servers, err := MakeServers(tc.clusterName, tc.servers, accessChecker)
 			require.NoError(t, err)
 			for i, server := range servers {
 				require.Equal(t, tc.expectedLabels[i], server.Labels)
@@ -448,7 +451,8 @@ func TestMakeDesktopHiddenLabel(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	desktop, err := MakeDesktop(windowsDesktop, services.NewRoleSet())
+	accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", services.RoleSet{})
+	desktop, err := MakeDesktop(windowsDesktop, accessChecker)
 	require.NoError(t, err)
 	labels := []Label{
 		{

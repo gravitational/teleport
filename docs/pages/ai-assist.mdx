@@ -45,13 +45,9 @@ Assist by signing up for a
 [Teleport Team plan](https://goteleport.com/pricing/).
 </Notice>
 
-Teleport Assist currently doesn't support:
-- Teleport clusters using the etcd backend
-- Per-session MFA (support coming soon)
-
-If your installation is using etcd or requires per-session MFA, you can create a
-new cluster with any other backend without per-session MFA or sign up for the
-Teleport Team plan.
+Teleport Assist currently doesn't support Teleport clusters using the etcd backend.
+If your installation is using etcd, you can create a new cluster with
+any other backend or sign up for the Teleport Team plan.
 
 ## Step 1/3. Generate an OpenAI API key
 
@@ -104,7 +100,7 @@ proxy_service:
 
 
 Make sure that your Teleport user has the `assistant` permission. By default, users
-with built-in `auditor` and `editor` roles have this permission. You can also
+with built-in `access` and `editor` roles have this permission. You can also
 add it to a custom role. Here is an example:
 
 ```yaml

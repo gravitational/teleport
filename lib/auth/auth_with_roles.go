@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -31,6 +32,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
@@ -1881,11 +1883,11 @@ func (a *ServerWithRoles) ListWindowsDesktopServices(ctx context.Context, req ty
 	return nil, trace.NotImplemented(notImplementedMessage)
 }
 
-func (a *ServerWithRoles) UpsertAuthServer(s types.Server) error {
+func (a *ServerWithRoles) UpsertAuthServer(ctx context.Context, s types.Server) error {
 	if err := a.action(apidefaults.Namespace, types.KindAuthServer, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertAuthServer(s)
+	return a.authServer.UpsertAuthServer(ctx, s)
 }
 
 func (a *ServerWithRoles) GetAuthServers() ([]types.Server, error) {
@@ -1911,11 +1913,11 @@ func (a *ServerWithRoles) DeleteAuthServer(name string) error {
 	return a.authServer.DeleteAuthServer(name)
 }
 
-func (a *ServerWithRoles) UpsertProxy(s types.Server) error {
+func (a *ServerWithRoles) UpsertProxy(ctx context.Context, s types.Server) error {
 	if err := a.action(apidefaults.Namespace, types.KindProxy, types.VerbCreate, types.VerbUpdate); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.UpsertProxy(s)
+	return a.authServer.UpsertProxy(ctx, s)
 }
 
 func (a *ServerWithRoles) GetProxies() ([]types.Server, error) {
@@ -1934,11 +1936,11 @@ func (a *ServerWithRoles) DeleteAllProxies() error {
 }
 
 // DeleteProxy deletes proxy by name
-func (a *ServerWithRoles) DeleteProxy(name string) error {
+func (a *ServerWithRoles) DeleteProxy(ctx context.Context, name string) error {
 	if err := a.action(apidefaults.Namespace, types.KindProxy, types.VerbDelete); err != nil {
 		return trace.Wrap(err)
 	}
-	return a.authServer.DeleteProxy(name)
+	return a.authServer.DeleteProxy(ctx, name)
 }
 
 func (a *ServerWithRoles) UpsertReverseTunnel(r types.ReverseTunnel) error {
@@ -3631,6 +3633,11 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 		return trace.Wrap(err)
 	}
 
+	if downgradeReason := role.GetMetadata().Labels[types.TeleportDowngradedLabel]; downgradeReason != "" {
+		return trace.BadParameter("refusing to upsert role because %s label is set with reason %q",
+			types.TeleportDowngradedLabel, downgradeReason)
+	}
+
 	// Some options are only available with enterprise subscription
 	if err := checkRoleFeatureSupport(role); err != nil {
 		return trace.Wrap(err)
@@ -3649,6 +3656,18 @@ func (a *ServerWithRoles) UpsertRole(ctx context.Context, role types.Role) error
 		if modules.GetModules().BuildType() != modules.BuildEnterprise {
 			return trace.AccessDenied("Hardware Key support is only available with an enterprise license")
 		}
+	}
+
+	// Note: passing a.authServer.GetInventoryStatus here intentionally bypasses
+	// the authz checks in a.GetInventoryStatus, for these reasons:
+	// - We don't actually return the inventory status result, we're only using
+	//   it internally to check for a misconfiguration and return a generic error.
+	// - We don't want to require users to have new permissions to call UpsertRole.
+	// - GetInventoryStatus currently only supports builtin roles.
+	// - This user already has UpsertRole permissions and could give themselves
+	//   arbitrary permissions if they wanted to.
+	if err := checkInventorySupportsRole(ctx, role, api.Version, a.authServer.GetInventoryStatus); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.UpsertRole(ctx, role)
@@ -3685,6 +3704,91 @@ func checkRoleFeatureSupport(role types.Role) error {
 	default:
 		return nil
 	}
+}
+
+type inventoryGetter func(context.Context, proto.InventoryStatusRequest) proto.InventoryStatusSummary
+
+// checkInventorySupportsRole returns an error if any connected servers found in
+// the inventory do not support some features enabled in [role]. This is only a
+// best-effort check meant to prevent common user errors, since some unsupported
+// servers may not be connected to this auth, or they may connect later.
+func checkInventorySupportsRole(ctx context.Context, role types.Role, authVersion string, getInventory inventoryGetter) error {
+	minRequiredVersion, msg, err := minRequiredVersionForRole(role)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if safeToSkipInventoryCheck(*semver.New(authVersion), minRequiredVersion) {
+		return nil
+	}
+
+	inventoryStatus := getInventory(ctx, proto.InventoryStatusRequest{Connected: true})
+	for _, hello := range inventoryStatus.Connected {
+		version, err := semver.NewVersion(hello.Version)
+		if err != nil {
+			log.Warnf("Connected server %q has unparseable version %q", hello.ServerID, hello.Version)
+			continue
+		}
+		if version.LessThan(minRequiredVersion) {
+			return trace.BadParameter(msg)
+		}
+	}
+	return nil
+}
+
+func minRequiredVersionForRole(role types.Role) (semver.Version, string, error) {
+	// DELETE IN 15.0.0
+	// The label expression checks can be deleted in 15.0.0 since all servers
+	// that don't support label expressions are on 13.x or older. If no other
+	// feature checks have been added at that time, checkInventorySupportsRole
+	// can be deleted entirely.
+	for _, kind := range types.LabelMatcherKinds {
+		for _, rct := range []types.RoleConditionType{types.Allow, types.Deny} {
+			labelMatchers, err := role.GetLabelMatchers(rct, kind)
+			if err != nil {
+				return semver.Version{}, "", trace.Wrap(err)
+			}
+			if len(labelMatchers.Expression) != 0 {
+				return minSupportedLabelExpressionVersion, fmt.Sprintf(
+					"one or more connected servers is running a Teleport version "+
+						"older than %s which does not support the label expressions used "+
+						"in this role.", minSupportedLabelExpressionVersion), nil
+			}
+		}
+	}
+	// Return the zero version to indicate all server versions are supported.
+	return semver.Version{}, "", nil
+}
+
+// safeToSkipInventoryCheck returns true if all possible versions *less than*
+// [minRequiredVersion] are more than one major version behind [authVersion].
+//
+// In this case, any servers older than [minRequiredVersion] are already
+// unsupported and shouldn't be connected, so it's safe to skip the inventory
+// check as an optimization.
+//
+// This also covers the case where minRequiredVersionForRole returned
+// the zero version.
+//
+// Examples:
+// - (15.x.x, 13.1.1) -> true (anything older than 13.1.1 is >1 major behind v15)
+// - (14.x.x, 13.1.1) -> false (13.0.9 is within one major of v14)
+// - (14.x.x, 13.0.0) -> true (anything older than 13.0.0 is >1 major behind v14)
+func safeToSkipInventoryCheck(authVersion, minRequiredVersion semver.Version) bool {
+	return authVersion.Major > roundToNextMajor(minRequiredVersion)
+}
+
+// roundToNextMajor returns the next major version that is *not less than* [v].
+//
+// Examples:
+// - 13.1.1 -> 14.0.0
+// - 13.0.0 -> 13.0.0
+// - 13.0.0-alpha -> 13.0.0
+func roundToNextMajor(v semver.Version) int64 {
+	if (semver.Version{Major: v.Major}).LessThan(v) {
+		return v.Major + 1
+	}
+	return v.Major
 }
 
 // GetRole returns role by name
