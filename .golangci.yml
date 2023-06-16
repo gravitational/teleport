@@ -10,6 +10,12 @@ issues:
     - linters:
       - unused
       path: 'integrations/operator/controllers/resources/(.+)_controller_test\.go'
+    # Temporarily ignore Device Trust deprecation warnings.
+    # TODO(codingllama): Remove asap.
+    - path: e/lib/(devicetrust|jamf)/.*
+      text: SA1019
+      linters:
+      - staticcheck
   exclude-use-default: true
   max-same-issues: 0
   max-issues-per-linter: 0
