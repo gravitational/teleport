@@ -50,9 +50,6 @@ var (
 	// oneAgent is used to define the desired agent count when creating a service.
 	oneAgent = int32(1)
 
-	// serviceForceDeletion indicates that the service must be deleted even if it has running tasks.
-	serviceForceDeletion = true
-
 	// defaultTeleportIAMTokenName is the default Teleport IAM Token to use when it's not specified.
 	defaultTeleportIAMTokenName = "discover-aws-oidc-iam-token"
 )
@@ -265,10 +262,6 @@ type DeployServiceClient interface {
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.UpdateService
 	UpdateService(ctx context.Context, params *ecs.UpdateServiceInput, optFns ...func(*ecs.Options)) (*ecs.UpdateServiceOutput, error)
 
-	// DeleteService deletes a service.
-	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.DeleteService
-	DeleteService(ctx context.Context, params *ecs.DeleteServiceInput, optFns ...func(*ecs.Options)) (*ecs.DeleteServiceOutput, error)
-
 	// CreateService starts a task within a cluster.
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.CreateService
 	CreateService(ctx context.Context, params *ecs.CreateServiceInput, optFns ...func(*ecs.Options)) (*ecs.CreateServiceOutput, error)
@@ -369,7 +362,6 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (D
 //	                "ecs:RegisterTaskDefinition",
 //	                "ecs:CreateService",
 //	                "ecs:DescribeServices",
-//	                "ecs:DeleteService",
 //	                "ecs:UpdateService"
 //	            ],
 //	            "Resource": "*"
@@ -626,37 +618,29 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServi
 
 			// If the LaunchType is the required one, than we can update the current Service.
 			// Otherwise we have to delete it.
-			if service.LaunchType == ecsTypes.LaunchTypeFargate {
-				updateServiceResp, err := clt.UpdateService(ctx, &ecs.UpdateServiceInput{
-					Service:        req.ServiceName,
-					DesiredCount:   &oneAgent,
-					TaskDefinition: &taskARN,
-					Cluster:        req.ClusterName,
-					NetworkConfiguration: &ecsTypes.NetworkConfiguration{
-						AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
-							AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
-							Subnets:        req.SubnetIDs,
-						},
-					},
-					ForceNewDeployment: true,
-					PropagateTags:      ecsTypes.PropagateTagsService,
-				})
-				if err != nil {
-					return nil, trace.Wrap(err)
-				}
-
-				return updateServiceResp.Service, nil
+			if service.LaunchType != ecsTypes.LaunchTypeFargate {
+				return nil, trace.Errorf("ECS Service %q already exists but has an invalid LaunchType %q. Delete the Service and try again.", *req.ServiceName, service.LaunchType)
 			}
-		}
 
-		// The service is deleted if the its status is INACTIVE (aka deleted) or if it's owned by Teleport and has the wrong LaunchType.
-		_, err := clt.DeleteService(ctx, &ecs.DeleteServiceInput{
-			Service: req.ServiceName,
-			Cluster: req.ClusterName,
-			Force:   &serviceForceDeletion,
-		})
-		if err != nil {
-			return nil, trace.Wrap(err)
+			updateServiceResp, err := clt.UpdateService(ctx, &ecs.UpdateServiceInput{
+				Service:        req.ServiceName,
+				DesiredCount:   &oneAgent,
+				TaskDefinition: &taskARN,
+				Cluster:        req.ClusterName,
+				NetworkConfiguration: &ecsTypes.NetworkConfiguration{
+					AwsvpcConfiguration: &ecsTypes.AwsVpcConfiguration{
+						AssignPublicIp: ecsTypes.AssignPublicIpEnabled, // no internet connection otherwise
+						Subnets:        req.SubnetIDs,
+					},
+				},
+				ForceNewDeployment: true,
+				PropagateTags:      ecsTypes.PropagateTagsService,
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			return updateServiceResp.Service, nil
 		}
 	}
 
