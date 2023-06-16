@@ -210,8 +210,6 @@ The plugin imports the following third-party code:
 
 |Package|Description|
 |---|---|
-|`github.com/gravitational/teleport-plugins/lib`|Code shared between Teleport plugins, e.g., to run a background job for retrieving new events from the Teleport Auth Service.|
-|`github.com/gravitational/teleport-plugins/lib/watcherjob`|A library for writing programs that listen for audit events from the Auth Service.|
 |`github.com/gravitational/teleport/api/client`|A library for authenticating to the Auth Service's gRPC API and making requests.|
 |`github.com/gravitational/teleport/api/types`|Types used in the Auth Service API, e.g., Access Requests.|
 |`github.com/gravitational/trace`|Presenting errors with more useful detail than the standard library provides.|
@@ -352,39 +350,7 @@ Access Requests but also other audit events, such as the creation of a
 certificate. We will explain in the next section why we are using this function
 signature for `handleEvent`.
 
-The `run` method starts a new background routine using `lib.NewProcess(ctx)`.
-This returns an implementation of the `lib.Process` interface, which Access
-Request plugins use to run jobs independently of the main program. This function
-takes a Go *context*, an abstraction that Go libraries often use to control
-long-running routines.
-
-Next, `run` calls `watcherjob.NewJob`. A watcher job is an implementation of a
-`lib.ServiceJob`, a task for the `lib.Process` to execute. In this case, the
-`lib.ServiceJob` listens for new events from the Teleport Auth Service and
-executes code in response. 
-
-In `watcherjob.NewJob`, we have configured the watcher job to use a Teleport
-client (which we will create in the next section), as well as to watch only for
-Access Request events.
-
-Finally, by passing the `g.handleEvent` method to `watcherjob.NewJob`, we
-instruct the watcher job to call `g.handleEvent` whenever it receives an Access
-Request. The function we pass to `watcherjob.NewJob` must have the following
-signature, which we implement in the `handleEvent` method:
-
-```go
-func (ctx context.Context, event types.Event) error
-```
-
-This is also why we define `handleEvent` as a method of `googleSheetsPlugin`,
-since it means that we can include data about our API clients in this function
-while adhering to the expected function signature (and without declaring more
-global variables).
-
-Finally, we begin the watcher job within our `lib.Process` using
-`proc.SpawnCriticalJob`, and wait for the job to terminate. We do this by
-receiving from a Go *channel*, which is a way for multiple concurrent routines
-to communicate with one another.
+The `run` method {/*TODO: Describe how this works*/}
 
 ### Initialize the API clients
 
@@ -463,20 +429,12 @@ in this guide, you can use the Teleport API to set up more sophisticated
 workflows that take full advantage of your communication and project management
 tools. 
 
-### Use the common plugin base 
-
-The
-[`common.BaseApp`](https://pkg.go.dev/github.com/gravitational/teleport-plugins/access/common#BaseApp)
-type makes it easier to write an Access Request plugin based on a messaging
-application like Discord or Slack, helping to ensure that your plugin implements
-a full set of features.
-
 ### Manage state
 
 While the plugin we developed in this guide is stateless, updating Access
 Request information by searching all rows of a spreadsheet, real-world Access
 Request plugins typically need to manage state. You can use the
-[`plugindata`](https://pkg.go.dev/github.com/gravitational/teleport-plugins/lib/plugindata)
+[`plugindata`](https://pkg.go.dev/github.com/gravitational/teleport/api/types#PluginData)
 package to make it easier for your Access Request plugin to do this. 
 
 ### Consult the examples
