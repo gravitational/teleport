@@ -108,6 +108,7 @@ export interface FeatureFlags {
   locks: boolean;
   newLocks: boolean;
   assist: boolean;
+  samlIdpServiceProviders: boolean;
 }
 
 // LockedFeatures are used for determining which features are disabled in the user's cluster.

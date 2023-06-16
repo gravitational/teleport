@@ -122,6 +122,7 @@ class TeleportContext implements types.Context {
         locks: false,
         newLocks: false,
         assist: false,
+        samlIdpServiceProviders: false,
       };
     }
 
@@ -154,6 +155,8 @@ class TeleportContext implements types.Context {
       newLocks:
         userContext.getLockAccess().create && userContext.getLockAccess().edit,
       assist: userContext.getAssistantAccess().list && this.assistEnabled,
+      samlIdpServiceProviders:
+        userContext.getSamlIdpServiceProviderAccess().list,
     };
   }
 }
