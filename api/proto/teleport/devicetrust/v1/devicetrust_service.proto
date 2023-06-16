@@ -525,8 +525,10 @@ message AuthenticateDeviceChallengeResponse {
 // (end loop)
 // -> SyncInventoryEnd
 // (loop until server closes the stream, zero or more times)
-// <- SyncInventoryResult (deleted/missing devices)
-// (end)
+// <- SyncInventoryMissingDevices
+// -> SyncInventoryDevices (removals only)
+// <- SyncInventoryResult
+// (end loop)
 message SyncInventoryRequest {
   oneof payload {
     SyncInventoryStart start = 1;
@@ -541,6 +543,7 @@ message SyncInventoryResponse {
   oneof payload {
     SyncInventoryAck ack = 1;
     SyncInventoryResult result = 2;
+    SyncInventoryMissingDevices missing_devices = 3;
   }
 }
 
@@ -551,15 +554,25 @@ message SyncInventoryStart {
   // by this RPC.
   DeviceSource source = 1;
 
+  // TODO(codingllama): Delete deprecated fields once they are unused.
+
   // Mode of syncing.
-  // Required.
-  SyncInventoryMode mode = 2;
+  // Deprecated: Use `track_missing_devices` instead.
+  SyncInventoryMode mode = 2 [deprecated = true];
 
   // Action for devices missing from the external inventory, but present in
   // Teleport.
   // Only executed if mode is FULL and external_sync_successful is set to true
   // in the SyncInventoryEnd message.
-  SyncInventoryDeviceAction on_missing_action = 3;
+  // Deprecated: Use `track_missing_devices` instead.
+  SyncInventoryDeviceAction on_missing_action = 3 [deprecated = true];
+
+  // If true, the server keeps track of the devices upserted during the sync.
+  // After receiving the [SyncInventoryEnd] message, the server informs the
+  // client of all devices that are present in storage but not observed in the
+  // upserts.
+  // See [SyncInventoryRequest] and [SyncInventoryMissingDevices] for details.
+  bool track_missing_devices = 4;
 }
 
 // Mode of sync for SyncInventory.
@@ -595,7 +608,8 @@ message SyncInventoryEnd {
   // True if the external sync was fully successful (for example, all reads from
   // an MDM API were successful).
   // If false the sync's on_missing_action is skipped.
-  bool external_sync_successful = 1;
+  // Deprecated: Use [SyncInventoryStart.track_missing_devices] instead.
+  bool external_sync_successful = 1 [deprecated = true];
 }
 
 // SyncInventoryDevices transports devices to add/update/remove.
@@ -615,4 +629,19 @@ message SyncInventoryAck {}
 message SyncInventoryResult {
   // Devices modified, in the same order as the input when applicable.
   repeated DeviceOrStatus devices = 1;
+}
+
+// SyncInventoryMissingDevices informs the sync client of all stored devices
+// that were not observed in upserts during the sync.
+//
+// Requires `track_missing_devices` to be set in the [SyncInventoryStart]
+// message.
+//
+// The client must follow up with a [SyncInventoryDevices] message, including
+// any devices to be deleted.
+message SyncInventoryMissingDevices {
+  // Devices missing from the client-side sync.
+  // Guaranteed to have the following fields: id, os_type, asset_tag and
+  // profile.external_id.
+  repeated Device devices = 1;
 }

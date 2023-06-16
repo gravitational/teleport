@@ -5781,8 +5781,8 @@ message JamfSpecV1 {
     (gogoproto.jsontag) = "sync_delay,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
-  // Jamf API endpoint.
-  // Example: "https://yourtenant.jamfcloud.com".
+  // Jamf Pro API endpoint.
+  // Example: "https://yourtenant.jamfcloud.com/api".
   // Required.
   string api_endpoint = 4 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
   // Jamf API username.
