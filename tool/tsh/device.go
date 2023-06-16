@@ -165,17 +165,19 @@ type deviceActivateCredentialCommand struct {
 	encryptedCredentialSecret string
 }
 
-func (c *deviceActivateCredentialCommand) run(_ *CLIConf) error {
+func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
 	err := dtnative.HandleTPMActivateCredential(
 		c.encryptedCredential, c.encryptedCredentialSecret,
 	)
-	if err != nil {
-		// On error, wait for user input before executing. This is because this
-		// opens in a second window. If we return the error immediately, then
-		// this window closes before the user can inspect it.
-		log.WithError(err).Error("An error occurred during credential activation. Press enter to close this window.")
-		_, _ = fmt.Scanln()
-		return trace.Wrap(err)
+	if cf.Debug {
+		if err != nil {
+			// On error, wait for user input before executing. This is because this
+			// opens in a second window. If we return the error immediately, then
+			// this window closes before the user can inspect it.
+			log.WithError(err).Error("An error occurred during credential activation. Press enter to close this window.")
+			_, _ = fmt.Scanln()
+			return trace.Wrap(err)
+		}
 	}
-	return nil
+	return trace.Wrap(err)
 }
