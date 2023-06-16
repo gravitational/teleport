@@ -4,7 +4,3 @@ package devicetrust
 // features, currently planned for Teleport 13.1.
 // TODO(codingllama): Use a single guard from the OSS package.
 var MDMFeatureActive = false
-
-// TPMEnrollmentActive is a temporary guard for TPM enrollment with device
-// trust, currently planned for Teleport 13.1.
-var TPMEnrollmentActive = false

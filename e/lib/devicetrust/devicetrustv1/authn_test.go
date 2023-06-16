@@ -49,8 +49,6 @@ func enrollSimulator(
 }
 
 func TestService_AuthenticateDevice(t *testing.T) {
-	setTPMFeatureActive(t, true)
-
 	emitter := &eventstest.MockEmitter{}
 	env := testenv.NewUsingT(
 		t,
@@ -205,8 +203,6 @@ func TestService_AuthenticateDevice(t *testing.T) {
 }
 
 func TestService_AuthenticateDevice_errors(t *testing.T) {
-	setTPMFeatureActive(t, true)
-
 	emitter := &eventstest.MockEmitter{}
 	env := testenv.NewUsingT(
 		t,

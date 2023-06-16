@@ -17,7 +17,6 @@ import (
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
-	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/eventstest"
@@ -48,8 +47,6 @@ func (e *unsupportedDeviceSimulator) enrollRequest(dev *devicepb.Device, enrollT
 }
 
 func TestService_EnrollDevice(t *testing.T) {
-	setTPMFeatureActive(t, true)
-
 	deviceTrustConfig := &types.DeviceTrust{}
 	emitter := &eventstest.MockEmitter{}
 	env := testenv.MustNew(
@@ -657,10 +654,4 @@ func TestService_EnrollDevice(t *testing.T) {
 			}
 		})
 	}
-}
-
-func setTPMFeatureActive(t *testing.T, active bool) {
-	prev := dtent.TPMEnrollmentActive
-	t.Cleanup(func() { dtent.TPMEnrollmentActive = prev })
-	dtent.TPMEnrollmentActive = active
 }

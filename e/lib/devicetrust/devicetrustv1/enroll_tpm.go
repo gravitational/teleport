@@ -12,7 +12,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/e/lib/devicetrust"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
@@ -34,9 +33,6 @@ func (c *enrollCeremony) enrollDeviceTPM(
 	dev *devicepb.Device,
 	stream devicepb.DeviceTrustService_EnrollDeviceServer,
 ) (*devicepb.DeviceCredential, error) {
-	if !devicetrust.TPMEnrollmentActive {
-		return nil, trace.BadParameter("tpm enrollment is currently disabled")
-	}
 	logger := c.logger.WithFields(log.Fields{
 		"device_id":     dev.Id,
 		"asset_tag":     dev.AssetTag,
