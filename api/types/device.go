@@ -173,6 +173,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 			OsBuild:           p.OsBuild,
 			OsUsernames:       p.OsUsernames,
 			JamfBinaryVersion: p.JamfBinaryVersion,
+			ExternalId:        p.ExternalId,
 		}
 	}
 
@@ -258,6 +259,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			OsBuild:           p.OsBuild,
 			OsUsernames:       p.OsUsernames,
 			JamfBinaryVersion: p.JamfBinaryVersion,
+			ExternalId:        p.ExternalId,
 		}
 	}
 
