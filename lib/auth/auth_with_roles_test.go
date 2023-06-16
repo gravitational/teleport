@@ -3319,7 +3319,7 @@ func createUserGroup(t *testing.T, s *ServerWithRoles, name string, labels map[s
 	userGroup, err := types.NewUserGroup(types.Metadata{
 		Name:   name,
 		Labels: labels,
-	})
+	}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
 	err = s.CreateUserGroup(context.Background(), userGroup)
 	require.NoError(t, err)
