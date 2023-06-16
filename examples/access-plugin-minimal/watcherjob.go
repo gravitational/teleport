@@ -18,9 +18,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport-plugins/lib"
-	"github.com/gravitational/teleport-plugins/lib/watcherjob"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/trace"
 )
 
 func (g *googleSheetsPlugin) handleEvent(ctx context.Context, event types.Event) error {
@@ -39,22 +38,27 @@ func (g *googleSheetsPlugin) handleEvent(ctx context.Context, event types.Event)
 
 func (g *googleSheetsPlugin) run() error {
 	ctx := context.Background()
-	proc := lib.NewProcess(ctx)
-	watcherJob := watcherjob.NewJob(
-		g.teleportClient,
-		watcherjob.Config{
-			Watch: types.Watch{Kinds: []types.WatchKind{types.WatchKind{Kind: types.KindAccessRequest}}},
+
+	watch, err := g.teleportClient.NewWatcher(ctx, types.Watch{
+		Name: "Access Requests",
+		Kinds: []types.WatchKind{
+			types.WatchKind{Kind: types.KindAccessRequest},
 		},
-		g.handleEvent,
-	)
+	})
 
-	proc.SpawnCriticalJob(watcherJob)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
-	fmt.Println("Started the watcher job")
+	fmt.Println("Starting the watcher job")
 
-	<-watcherJob.Done()
-
-	fmt.Println("The watcher job is finished")
-
-	return nil
+	for {
+		select {
+		case e := <-watch.Events():
+			g.handleEvent(ctx, e)
+		case <-watch.Done():
+			fmt.Println("The watcher job is finished")
+			return nil
+		}
+	}
 }
