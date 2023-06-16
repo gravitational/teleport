@@ -1,0 +1,20 @@
+  You can download one of the following .pkg installers for macOS:
+
+  | Link                                                                                                      | Binaries                                   |
+  |-----------------------------------------------------------------------------------------------------------|--------------------------------------------|
+  | [`teleport-ent-(=cloud.version=).pkg`](https://cdn.teleport.dev/teleport-ent-(=cloud._version=).pkg) | `teleport`<br/>`tctl`<br/>`tsh`<br/>`tbot` |
+  | [`tsh-(=cloud.version=).pkg`](https://cdn.teleport.dev/tsh-(=cloud.version=).pkg)                   | `tsh`                                      |
+
+  You can also fetch an installer from the command line:
+
+  ```code
+  $ curl -O https://cdn.teleport.dev/teleport-ent-(=cloud.version=).pkg
+  # Install on Macintosh HD
+  $ sudo installer -pkg teleport-ent-(=cloud.version=).pkg -target / 
+  Password:
+  installer: Package name is teleport-ent-(=cloud.version=)
+  installer: Upgrading at base path /
+  installer: The upgrade was successful.
+  $ which teleport
+  /usr/local/bin/teleport
+  ```
