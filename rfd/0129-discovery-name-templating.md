@@ -290,12 +290,12 @@ This naming convention does not violate our kube cluster name validation regex:
 
 Users will be frustrated if they are forced to type out verbose resource names
 when using `tsh`.
-To avoid this poor UX, sub-commands should support prefix resource names or label
-matching to identify resources.
+To avoid this poor UX, sub-commands should support prefix resource names, label
+matching, or using a predicate expression to select a resource.
 
 The same UX should apply to all `tsh` sub-commands that take a resource name
 argument. These commands shall support
-`tsh <sub-command> [name | prefix] [key1=value1,key2=value2,...]` syntax:
+`tsh <sub-command> [--labels keys=val1,key2=val2,...] [--query <predicate>] [name | prefix]` syntax:
 
 - `tsh db login`
 - `tsh db connect`
@@ -304,6 +304,23 @@ argument. These commands shall support
 - `tsh proxy db`
 - `tsh proxy kube`
 - `tsh kube login`
+
+To support prefix names, we add a new predicate expression function
+`hasPrefix`, and change the `tsh` API calls to use `hasPrefix(name, "<prefix>")`
+rather than the current predicate expression `name == "<name>"`.
+
+The `--query` flag provides the full power of the predicate language, which
+includes label matching.
+The `--labels` flag provides a less powerful, but more convenient notation for
+selecting a resource by matching labels.
+
+We already support both of these cli features as either a flag or positional arg
+in other `tsh` commands, e.g. `tsh db ls --query="..." key1=val1,key2=val2,...`
+
+When `--query` is used along with a positional arg for the resource name or
+prefix, we will need to combine the two as a single predicate expression, e.g.
+`tsh db connect --query='labels.env == "prod"' foo-db`
+will be combined into the predicate expression `hasPrefix(name, "foo-db") && (labels.env == "prod")`
 
 #### `tsh` examples
 
@@ -337,13 +354,17 @@ Hint: use `tsh db ls -v` or `tsh db ls --format=[yaml | json]` to list all datab
 $ tsh db connect --db-user=alice --db-name-postgres bar-rds-us-west-2
 #...connects to "bar-rds-us-west-2-123456789012" by prefix...
 
-# or connect by label(s)
-$ tsh db connect --db-user=alice --db-name-postgres region=us-west-2 
+# or connect by label(s) using --labels
+$ tsh db connect --db-user=alice --db-name-postgres --labels region=us-west-2
+#...connects to "bar-rds-us-west-2-123456789012" by matching region label...
+
+# or connect by label(s) in a --query predicate
+$ tsh db connect --db-user=alice --db-name-postgres --query 'labels.region == "us-west-2"'
 #...connects to "bar-rds-us-west-2-123456789012" by matching region label...
 
 # ambiguous label(s) match is also an error
-$ tsh db connect --db-user=alice --db-name-postgres region=us-west-1 
-error: ambiguous database labels could match multiple databases:
+$ tsh db connect --db-user=alice --db-name-postgres --query 'labels.region == "us-west-1"'
+error: ambiguous database query matches multiple databases:
 Name                           Description               Protocol Type URI                                                   Allowed Users Labels                                                                                                                                    Connect 
 ------------------------------ ------------------------- -------- ---- ----------------------------------------------------- ------------- ----------------------------------------------------------------------------------------------------------------------------------------- ------- 
 bar-rds-us-west-1-123456789012 RDS instance in us-west-1 postgres rds  bar.abcdefghijklmnop.us-west-1.rds.amazonaws.com:5432 [*]           account-id=123456789012,endpoint-type=instance,engine-version=13.10,engine=postgres,env=dev,region=us-west-1,teleport.dev/origin=dynamic          
@@ -353,9 +374,9 @@ Hint: try addressing the database by its full name or by matching its labels (ex
 Hint: use `tsh db ls -v` or `tsh db ls --format=[yaml | json]` to list all databases with verbose details.
 
 # resolve the error by using either more specific labels or adding a prefix name
-$ tsh db connect --db-user=alice --db-name-postgres foo region=us-west-1 
+$ tsh db connect --db-user=alice --db-name-postgres --query 'labels.region == "us-west-1"' foo
 #...connects to "foo-rds-us-west-1-123456789012" by prefix and label...
-$ tsh db connect --db-user=alice --db-name-postgres region=us-west-1,env=prod
+$ tsh db connect --db-user=alice --db-name-postgres --query 'labels.region == "us-west-1" && labels.env == "prod"'
 #...connects to "foo-rds-us-west-1-123456789012" by multiple labels...
 ```
 
