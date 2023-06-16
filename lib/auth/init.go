@@ -24,6 +24,7 @@ import (
 	"strings"
 	"time"
 
+	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -196,7 +197,7 @@ type InitConfig struct {
 	Integrations services.Integrations
 
 	// Embeddings is a service that manages Embeddings
-	Embeddings services.Embeddings
+	Embeddings aiembeddings.Embeddings
 
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService

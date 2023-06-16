@@ -43,6 +43,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
+	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -1699,7 +1700,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if cfg.Auth.AssistAPIKey != "" {
 		log.Debugf("Starting embedding watcher")
 		openAIClient := ai.NewClient(cfg.Auth.AssistAPIKey)
-		embeddingProcessor := services.NewEmbeddingProcessor(&services.EmbeddingProcessorConfig{
+		embeddingProcessor := aiembeddings.NewEmbeddingProcessor(&aiembeddings.EmbeddingProcessorConfig{
 			AiClient:     openAIClient,
 			EmbeddingSrv: authServer,
 			NodeSrv:      authServer,

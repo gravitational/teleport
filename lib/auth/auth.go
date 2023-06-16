@@ -43,6 +43,7 @@ import (
 	"github.com/coreos/go-oidc/oauth2"
 	"github.com/google/uuid"
 	liblicense "github.com/gravitational/license"
+	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
@@ -398,7 +399,7 @@ type Services struct {
 	services.Integrations
 	services.Okta
 	services.Assistant
-	services.Embeddings
+	aiembeddings.Embeddings
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
