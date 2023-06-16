@@ -43,7 +43,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gravitational/roundtrip"
-	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -71,6 +70,7 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/ai"
+	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"

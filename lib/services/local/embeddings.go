@@ -18,7 +18,6 @@ import (
 	"context"
 	"time"
 
-	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -26,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
+	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/teleport/lib/backend"
 )
 

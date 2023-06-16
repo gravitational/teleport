@@ -17,8 +17,9 @@
 package stream
 
 import (
-	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/internalutils/stream"
 )
 
 type ZipStreams[T, V any] struct {

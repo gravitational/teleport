@@ -24,7 +24,6 @@ import (
 	"strings"
 	"time"
 
-	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -40,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
+	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"

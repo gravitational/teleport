@@ -21,19 +21,19 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/teleport/api/defaults"
-	"github.com/gravitational/teleport/lib/services"
-	streamutils "github.com/gravitational/teleport/lib/utils/stream"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/proto"
 	"gopkg.in/yaml.v3"
 
+	"github.com/gravitational/teleport/api/defaults"
 	embeddingpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/embedding/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
+	"github.com/gravitational/teleport/lib/services"
+	streamutils "github.com/gravitational/teleport/lib/utils/stream"
 )
 
 // Embeddings service is responsible for storing and retrieving embeddings in
