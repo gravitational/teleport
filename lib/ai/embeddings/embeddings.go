@@ -110,6 +110,7 @@ type batchReducer[T, V any] struct {
 
 // Add adds a new item to the batch. If the batch is full, it will be processed
 // and the result will be returned. Otherwise, a zero value will be returned.
+// Finalize must be called to process the remaining data in the batch.
 func (b *batchReducer[T, V]) Add(ctx context.Context, data T) (V, error) {
 	b.data = append(b.data, data)
 	if len(b.data) >= b.batchSize {
@@ -220,6 +221,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 	s := streamutils.NewZipStreams(
 		nodesStream,
 		embeddingsStream,
+		// On new node callback. Add the node to the batch.
 		func(node types.Server) error {
 			nodeData, err := serializeNode(node)
 			if err != nil {
@@ -235,6 +237,8 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 
 			return nil
 		},
+		// On equall node callback. Check if the node's embedding hash matches
+		// the one in the backend. If not, add the node to the batch.
 		func(node types.Server, embedding *ai.Embedding) error {
 			nodeData, err := serializeNode(node)
 			if err != nil {
@@ -253,6 +257,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 			}
 			return nil
 		},
+		// On compare keys callback. Compare the keys for iterration.
 		func(node types.Server, embeddings *ai.Embedding) int {
 			if node.GetName() == embeddings.GetName() {
 				return 0
@@ -266,6 +271,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 		e.log.Warnf("Failed to generate nodes embedding: %v", err)
 	}
 
+	// Process the remaining nodes in the batch
 	vectors, err := batch.Finalize(ctx)
 	if err != nil {
 		e.log.Warnf("Failed to add node to batch: %v", err)
