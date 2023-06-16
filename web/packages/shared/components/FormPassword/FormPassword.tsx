@@ -107,7 +107,7 @@ function FormPassword(props: Props) {
   return (
     <Validation>
       {({ validator }) => (
-        <Card as="form" bg="levels.surface" width="456px" p="6">
+        <Card as="form" width="456px" p="6">
           <Status attempt={attempt} />
           <FieldInput
             rule={requiredField('Current Password is required')}
