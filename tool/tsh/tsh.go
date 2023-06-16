@@ -3516,6 +3516,14 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.AddKeysToAgent = client.AddKeysToAgentNo
 	}
 
+	// headless login produces short-lived MFA-verifed certs, which should never be added to the agent.
+	if cf.AuthConnector == constants.HeadlessConnector {
+		if cf.AddKeysToAgent == client.AddKeysToAgentYes || cf.AddKeysToAgent == client.AddKeysToAgentOnly {
+			log.Info("Skipping adding keys to agent for headless login")
+		}
+		c.AddKeysToAgent = client.AddKeysToAgentNo
+	}
+
 	c.EnableEscapeSequences = cf.EnableEscapeSequences
 
 	// pass along mock sso login if provided (only used in tests)
