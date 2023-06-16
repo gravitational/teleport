@@ -145,11 +145,20 @@ adding the kind of matcher to the resource name.
 However, AKS kube clusters do not require globally unique names - they only need
 to be unique within the same resource group in the same subscription.
 
+Additionally, resource group names may contain characters that are not valid
+in Teleport database/kube names, so we must either omit the resource group name
+in those cases or perform some kind of string transform.
+If we include the resource region, it will serve as a heuristic to avoid name
+collision when resource group names contain invalid characters.
+Including resource region will also be consistent with the other cloud naming
+schemes.
+
 To make the naming convention consistent, and to "future-proof" it, the
 naming convention will be to append a suffix that includes:
 
 - Name of the Azure matcher type
   - `aks`, `mysql`, `postgres`, `redis`, `sqlserver` (as of writing this RFD)
+- Azure region
 - Azure resource group name
   - resource group names may contain characters that we do not allow in database
     or kube cluster names.
@@ -185,19 +194,19 @@ both named `foo` exist in the the `1111..` subscription and `group1`.
 If the discovery service applies the new naming convention, the discovered
 resources should be named:
 
-- `foo-aks-group1-11111111-1111-1111-1111-111111111111`
-- `foo-aks-group2-11111111-1111-1111-1111-111111111111`
-- `foo-aks-group1-22222222-2222-2222-2222-222222222222`
-- `foo-aks-group2-22222222-2222-2222-2222-222222222222`
-- `foo-mysql-group1-11111111-1111-1111-1111-111111111111`
-- `foo-postgres-group1-11111111-1111-1111-1111-111111111111`
+- `foo-eastus-aks-group1-11111111-1111-1111-1111-111111111111`
+- `foo-eastus-aks-group2-11111111-1111-1111-1111-111111111111`
+- `foo-eastus-aks-group1-22222222-2222-2222-2222-222222222222`
+- `foo-eastus-aks-group2-22222222-2222-2222-2222-222222222222`
+- `foo-eastus-mysql-group1-11111111-1111-1111-1111-111111111111`
+- `foo-eastus-postgres-group1-11111111-1111-1111-1111-111111111111`
 
 If resources exist within the Azure resource group `weird-)(-group-name`,
 then we simply drop the resource group name from the resource name:
 
-- `foo-aks-11111111-1111-1111-1111-111111111111`
-- `foo-aks-22222222-2222-2222-2222-222222222222`
-- `foo-mysql-11111111-1111-1111-1111-111111111111`
+- `foo-eastus-aks-11111111-1111-1111-1111-111111111111`
+- `foo-eastus-aks-22222222-2222-2222-2222-222222222222`
+- `foo-eastus-mysql-11111111-1111-1111-1111-111111111111`
 - ...
 
 Unfortunately, this would allow name collisions across resource groups.
@@ -215,8 +224,8 @@ $ echo "other-weird-)(-group-name" | base64 | sed 's#[+/=]#x#g' | tr '[:upper:]'
 b3rozxit
 ```
 
-- `foo-aks-d2vpcmqt-11111111-1111-1111-1111-111111111111`
-- `foo-aks-b3rozxit-11111111-1111-1111-1111-111111111111`
+- `foo-eastus-aks-d2vpcmqt-11111111-1111-1111-1111-111111111111`
+- `foo-eastus-aks-b3rozxit-11111111-1111-1111-1111-111111111111`
 - ...
 
 Each database name will be unique, since `foo` must be globally unique among
@@ -226,6 +235,8 @@ Even if a new database type is added that doesn't have this globally unique
 name property, the resource group name and subscription ID will avoid name
 collisions, and the databases will be distinguished from databases in other
 clouds.
+If resource group name has invalid characters, the Azure region will make name
+collisions even more unlikely.
 
 Likewise, the discovered AKS clusters will avoid colliding with other kube
 clusters in Azure or other clouds.
