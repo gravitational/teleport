@@ -58,7 +58,7 @@ export const ThemeProvider = (props: React.PropsWithChildren<unknown>) => {
   );
 };
 
-/** Uses a theme from a prop. Useful in storybbok. */
+/** Uses a theme from a prop. Useful in storybook. */
 export const StaticThemeProvider = (
   props: React.PropsWithChildren<{ theme?: unknown }>
 ) => {
