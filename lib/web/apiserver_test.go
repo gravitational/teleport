@@ -235,7 +235,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = s.server.Auth().UpsertAuthServer(&types.ServerV2{
+	err = s.server.Auth().UpsertAuthServer(ctx, &types.ServerV2{
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -1633,7 +1633,7 @@ func isResizeEventEnvelope(e *Envelope) bool {
 func TestTerminalPing(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(time.Second))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1667,7 +1667,7 @@ func TestTerminalPing(t *testing.T) {
 
 	select {
 	case <-done:
-	case <-time.After(time.Minute):
+	case <-time.After(6 * time.Second):
 		t.Fatal("timeout waiting for ping")
 	}
 }
@@ -7337,7 +7337,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = server.Auth().UpsertAuthServer(&types.ServerV2{
+	err = server.Auth().UpsertAuthServer(ctx, &types.ServerV2{
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{

@@ -8482,6 +8482,7 @@ depends_on:
 - build-linux-amd64-deb
 - build-linux-amd64-fips-deb
 - build-linux-arm64-deb
+- build-linux-arm-deb
 steps:
 - name: Check out code
   image: docker:git
@@ -17230,6 +17231,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 91a2ca37bd7d648e1bebd19817df269bf4498c881d8e02c64105b78fb3121c68
+hmac: 00665b79186e25b022b99fea2af4a2da0cd867f7b0b995ce4541af3d2d242b3d
 
 ...
