@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/teleport/e/lib/jamf"
 	jamfservice "github.com/gravitational/teleport/e/lib/jamf/service"
 	"github.com/gravitational/teleport/e/lib/jamf/testenv"
+	"github.com/gravitational/teleport/e/lib/mdm"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -624,7 +625,7 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 	// Sync with a too-high cut time to begin with.
 	t.Run("t=now", func(t *testing.T) {
 		gotTime, err := s.RunOnce(ctx, jamfservice.RunSpec{
-			Mode:    devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			Mode:    mdm.SyncModePartial,
 			CutTime: now,
 		})
 		if err != nil {
@@ -645,7 +646,7 @@ func TestS_RunOnce_partialSync(t *testing.T) {
 
 		t.Run(fmt.Sprintf("t=%v", cutTime), func(t *testing.T) {
 			gotTime, err := s.RunOnce(ctx, jamfservice.RunSpec{
-				Mode:    devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+				Mode:    mdm.SyncModePartial,
 				CutTime: cutTime,
 			})
 			if err != nil {

@@ -310,6 +310,7 @@ func TestS_CreateDevice(t *testing.T) {
 			OsBuild:           "22D68",
 			OsUsernames:       []string{"admin", "codingllama", "alpaca"},
 			JamfBinaryVersion: "10.44.1-t1677509507",
+			ExternalId:        "99",
 		},
 	}
 
@@ -378,6 +379,7 @@ func TestS_CreateDevice(t *testing.T) {
 					OsBuild:           "22D68",
 					OsUsernames:       []string{"admin", "alpaca"},
 					JamfBinaryVersion: "10.44.1",
+					ExternalId:        "99",
 				},
 			},
 		},
@@ -437,8 +439,11 @@ func TestS_CreateDevice(t *testing.T) {
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
 			}
 			if test.mdmFeatureActive {
-				want.Source = got.Source
-				want.Profile = got.Profile
+				want.Source = test.dev.Source
+				want.Profile = test.dev.Profile
+				if want.Profile != nil {
+					want.Profile.UpdateTime = got.Profile.GetUpdateTime() // system-managed
+				}
 			} else {
 				if got.Source != nil {
 					t.Errorf("CreateDevice: got Source=%v, wanted nil (feature disabled)", got.Source)

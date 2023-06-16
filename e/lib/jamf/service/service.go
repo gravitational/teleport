@@ -159,20 +159,20 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 type scheduleEntry struct {
 	*types.JamfInventoryEntry
 
-	OnMissingAction devicepb.SyncInventoryDeviceAction
-	CutTime         time.Time
+	onMissing mdm.DeviceAction
+	cutTime   time.Time
 }
 
 func newJamfScheduler(spec *types.JamfSpecV1) (*mdm.SyncScheduler[*scheduleEntry], error) {
 	parsedInv := make([]*scheduleEntry, len(spec.Inventory))
 	for i, e := range spec.Inventory {
-		onMissing := devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_NOOP
+		onMissing := mdm.DeviceActionNoop
 		if e.OnMissing == types.JamfOnMissingDelete {
-			onMissing = devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE
+			onMissing = mdm.DeviceActionDelete
 		}
 		parsedInv[i] = &scheduleEntry{
 			JamfInventoryEntry: e,
-			OnMissingAction:    onMissing,
+			onMissing:          onMissing,
 		}
 	}
 
@@ -255,14 +255,14 @@ func (s *S) Run(ctx context.Context) error {
 				"Mode":       e.Mode,
 				"FilterRSQL": e.Entry.FilterRsql,
 				"OnMissing":  e.Entry.OnMissing,
-				"CutTime":    e.Entry.CutTime,
+				"CutTime":    e.Entry.cutTime,
 			}).Info("Starting sync")
 
 			nextCutTime, err := s.RunOnce(ctx, RunSpec{
-				Mode:            e.Mode,
-				OnMissingAction: e.Entry.OnMissingAction,
-				FilterRSQL:      e.Entry.FilterRsql,
-				CutTime:         e.Entry.CutTime,
+				Mode:       e.Mode,
+				OnMissing:  e.Entry.onMissing,
+				FilterRSQL: e.Entry.FilterRsql,
+				CutTime:    e.Entry.cutTime,
 			})
 			syncsTotal.WithLabelValues(
 				strconv.Itoa(int(e.Mode)),
@@ -275,8 +275,8 @@ func (s *S) Run(ctx context.Context) error {
 			s.logger.Info("Sync complete")
 
 			// Update cut time.
-			if nextCutTime.After(e.Entry.CutTime) {
-				e.Entry.CutTime = nextCutTime
+			if nextCutTime.After(e.Entry.cutTime) {
+				e.Entry.cutTime = nextCutTime
 			}
 
 		case <-ctx.Done():
@@ -289,9 +289,9 @@ func (s *S) Run(ctx context.Context) error {
 
 // RunSpec holds the parameters for an [S.RunOnce] invocation.
 type RunSpec struct {
-	Mode            devicepb.SyncInventoryMode
-	OnMissingAction devicepb.SyncInventoryDeviceAction
-	FilterRSQL      string
+	Mode       mdm.SyncMode
+	OnMissing  mdm.DeviceAction
+	FilterRSQL string
 	// CutTime is the cut time for partial syncs. The sync stops as soon as the
 	// first computer modified before `CutTime` is found.
 	CutTime time.Time
@@ -319,8 +319,7 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 					Name:   sourceName,
 					Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
 				},
-				Mode:            spec.Mode,
-				OnMissingAction: spec.OnMissingAction,
+				TrackMissingDevices: spec.Mode == mdm.SyncModeFull && spec.OnMissing == mdm.DeviceActionDelete,
 			},
 		},
 	}); err != nil {
@@ -334,13 +333,7 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 		return time.Time{}, trace.BadParameter("unexpected payload %T, expecting ack", resp.Payload)
 	}
 
-	// TODO(codingllama): Add a delete-confirmation step to the SyncInventory
-	//  stream and apply it here.
-	//  Trusting the external pagination to never have gaps could lead to deletion
-	//  of legitimate devices.
-
 	// Devices.
-	failedMDMRead := false
 	seenCount := 0
 	getReq := &jamf.GetComputersInventoryRequest{
 		Section: []string{
@@ -356,7 +349,7 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 
 	// Sort by recent use on PARTIAL syncs.
 	// Alternatively we could use an RSQL filter.
-	if spec.Mode == devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL {
+	if spec.Mode == mdm.SyncModePartial {
 		getReq.Sort = []string{sortByReportDateDesc}
 	}
 
@@ -364,9 +357,7 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 		// Read inventory from Jamf.
 		inventoryResp, err := s.jamf.GetComputersInventory(ctx, getReq)
 		if err != nil {
-			s.logger.WithError(err).Warn("Jamf read failed, aborting current sync")
-			failedMDMRead = true
-			break
+			return time.Time{}, trace.Wrap(err, "jamf read failed")
 		}
 		jamfDevs := inventoryResp.Results
 		jamfDevsLen := len(jamfDevs)
@@ -376,7 +367,7 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 		partialStop := false
 		for _, inv := range jamfDevs {
 			// Stop partial sync?
-			if spec.Mode == devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL &&
+			if spec.Mode == mdm.SyncModePartial &&
 				inv.General != nil &&
 				inv.General.ReportDate.Before(spec.CutTime) {
 				s.logger.Debugf("Stopping partial sync, general.reportDate=%v", inv.General.ReportDate)
@@ -451,32 +442,45 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 	// End.
 	if err := stream.Send(&devicepb.SyncInventoryRequest{
 		Payload: &devicepb.SyncInventoryRequest_End{
-			End: &devicepb.SyncInventoryEnd{
-				ExternalSyncSuccessful: !failedMDMRead,
-			},
+			End: &devicepb.SyncInventoryEnd{},
 		},
 	}); err != nil {
 		return time.Time{}, trace.Wrap(err, "end: Send")
 	}
-	// Receive deletion reports until EOF.
+
+	// Handle missing devices until EOF.
 	for page := 0; true; page++ {
 		resp, err = stream.Recv()
 		if errors.Is(err, io.EOF) {
 			break
 		}
 		if err != nil {
-			return time.Time{}, trace.Wrap(err, "end: Recv")
+			return time.Time{}, trace.Wrap(err, "end: Recv missing devices")
+		}
+
+		// TODO(codingllama): Verify missing devices against Jamf API.
+
+		// Echo missing devices for deletion.
+		if err := stream.Send(&devicepb.SyncInventoryRequest{
+			Payload: &devicepb.SyncInventoryRequest_DevicesToRemove{
+				DevicesToRemove: &devicepb.SyncInventoryDevices{
+					Devices: resp.GetMissingDevices().GetDevices(),
+				},
+			},
+		}); err != nil {
+			return time.Time{}, trace.Wrap(err, "end: Send devices to remove")
+		}
+
+		resp, err = stream.Recv()
+		if err != nil {
+			return time.Time{}, trace.Wrap(err, "end: Recv results")
 		}
 		s.logSyncResult(resp.GetResult(), syncState{
-			page:      page,
-			isEndPage: true,
+			page:         page,
+			expectDelete: true,
 		})
 	}
 
-	// Did we complete the entire sync successfully?
-	if failedMDMRead {
-		return time.Time{}, errors.New("sync partially successful, MDM reads failed")
-	}
 	return nextCutTime, nil
 }
 
@@ -526,9 +530,9 @@ func computerInventoryToDevice(c *jamf.ComputerInventory) (*devicepb.Device, err
 }
 
 type syncState struct {
-	jamfDevices []*jamf.ComputerInventory
-	page        int
-	isEndPage   bool
+	jamfDevices  []*jamf.ComputerInventory
+	page         int
+	expectDelete bool
 }
 
 func (s *S) logSyncResult(result *devicepb.SyncInventoryResult, state syncState) {
@@ -556,7 +560,7 @@ func (s *S) logSyncResult(result *devicepb.SyncInventoryResult, state syncState)
 				"DeviceID":     status.GetId(),
 				"Platform":     platform,
 				"SerialNumber": serialNumber,
-				"ExpectDelete": state.isEndPage,
+				"ExpectDelete": state.expectDelete,
 			}).Warn("Failed to sync device")
 
 		case status.GetDeleted():

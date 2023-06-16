@@ -3,7 +3,6 @@ package devicetrustv1
 import (
 	"context"
 	"errors"
-	"strconv"
 	"sync"
 	"time"
 
@@ -67,8 +66,8 @@ var (
 		Namespace: teleport.MetricNamespace,
 		Subsystem: deviceTrustSubsystem,
 		Name:      "sync_inventory_device_operations_total",
-		Help:      "SyncInventory device operations counter, labeled by mode and operation",
-	}, []string{"mode", "operation"})
+		Help:      "SyncInventory device operations counter, labeled by operation",
+	}, []string{"operation"})
 
 	allMetrics = []prometheus.Collector{
 		createEnrollTokenHist,
@@ -734,31 +733,30 @@ func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventory
 		})
 	}
 
-	incCounter := func(mode devicepb.SyncInventoryMode, op string, err error) {
-		m := strconv.Itoa(int(mode))
+	incCounter := func(op string, err error) {
 		if err != nil {
-			syncOperationsTotal.WithLabelValues(m, "errors").Inc()
+			syncOperationsTotal.WithLabelValues("errors").Inc()
 			return
 		}
-		syncOperationsTotal.WithLabelValues(m, op).Inc()
+		syncOperationsTotal.WithLabelValues(op).Inc()
 	}
 
 	syncer := &inventorySyncer{
 		logger:  s.logger,
 		storage: s.storage,
-		createCallback: func(mode devicepb.SyncInventoryMode, dev *devicepb.Device, err error) {
-			incCounter(mode, "create", err)
+		createCallback: func(dev *devicepb.Device, err error) {
+			incCounter("create", err)
 			auditCB(events.DeviceCreateEvent, events.DeviceCreateCode, dev, err)
 		},
-		updateCallback: func(mode devicepb.SyncInventoryMode, dev *devicepb.Device, err error) {
-			incCounter(mode, "update", err)
+		updateCallback: func(dev *devicepb.Device, err error) {
+			incCounter("update", err)
 			auditCB(events.DeviceUpdateEvent, events.DeviceUpdateCode, dev, err)
 		},
-		noopCallback: func(mode devicepb.SyncInventoryMode, _ *devicepb.Device, err error) {
-			incCounter(mode, "noop", err)
+		noopCallback: func(_ *devicepb.Device, err error) {
+			incCounter("noop", err)
 		},
-		deleteCallback: func(mode devicepb.SyncInventoryMode, dev *devicepb.Device, err error) {
-			incCounter(mode, "delete", err)
+		deleteCallback: func(dev *devicepb.Device, err error) {
+			incCounter("delete", err)
 			auditCB(events.DeviceDeleteEvent, events.DeviceDeleteCode, dev, err)
 		},
 	}

@@ -86,6 +86,7 @@ type storedDeviceProfile struct {
 	OSBuild           string    `json:"os_build,omitempty"`            // Optional.
 	OSUsernames       []string  `json:"os_usernames,omitempty"`        // Optional.
 	JamfBinaryVersion string    `json:"jamf_binary_version,omitempty"` // Optional.
+	ExternalID        string    `json:"external_id,omitempty"`         // Optional.
 }
 
 type tpmPlatformAttestation struct {

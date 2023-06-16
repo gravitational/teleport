@@ -9,7 +9,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/e/lib/mdm"
 )
@@ -52,84 +51,84 @@ func TestSyncScheduler_completeSchedule(t *testing.T) {
 		{
 			offset: 0,
 			entry:  fullPartial,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:   mdm.SyncModeFull,
 		},
 		// t=1, initial sync
 		{
 			offset: 1,
 			entry:  fullOnly,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:   mdm.SyncModeFull,
 		},
 		// t=2, initial sync
 		{
 			offset: 1,
 			entry:  partialOnly,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=5h
 		{
 			offset: 5 * time.Hour,
 			entry:  partialOnly,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=6h
 		{
 			offset: 1 * time.Hour,
 			entry:  fullPartial,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=8h
 		{
 			offset: 2 * time.Hour,
 			entry:  fullOnly,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:   mdm.SyncModeFull,
 		},
 		// t=10h
 		{
 			offset: 2 * time.Hour,
 			entry:  partialOnly,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=12h
 		{
 			offset: 2 * time.Hour,
 			entry:  fullPartial,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=15h
 		{
 			offset: 3 * time.Hour,
 			entry:  partialOnly,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=16h
 		{
 			offset: 1 * time.Hour,
 			entry:  fullOnly,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:   mdm.SyncModeFull,
 		},
 		// t=18h
 		{
 			offset: 2 * time.Hour,
 			entry:  fullPartial,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:   mdm.SyncModeFull,
 		},
 		// t=20h
 		{
 			offset: 2 * time.Hour,
 			entry:  partialOnly,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=24h
 		{
 			offset: 4 * time.Hour,
 			entry:  fullPartial,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		{
 			offset: 1,
 			entry:  fullOnly,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:   mdm.SyncModeFull,
 		},
 		// and so on...
 	})
@@ -152,49 +151,49 @@ func TestSyncScheduler_partialNotDivisor(t *testing.T) {
 	assertSchedule(t, scheduler, []wantSchedule{
 		{
 			entry: entry,
-			mode:  devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:  mdm.SyncModeFull,
 		},
 		// t=5h
 		{
 			offset: 5 * time.Hour,
 			entry:  entry,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=10h
 		{
 			offset: 5 * time.Hour,
 			entry:  entry,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=12h
 		{
 			offset: 2 * time.Hour,
 			entry:  entry,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:   mdm.SyncModeFull,
 		},
 		// t=17
 		{
 			offset: 5 * time.Hour,
 			entry:  entry,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=22h
 		{
 			offset: 5 * time.Hour,
 			entry:  entry,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// t=24
 		{
 			offset: 2 * time.Hour,
 			entry:  entry,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:   mdm.SyncModeFull,
 		},
 		// t=29
 		{
 			offset: 5 * time.Hour,
 			entry:  entry,
-			mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:   mdm.SyncModePartial,
 		},
 		// and so on...
 	})
@@ -231,20 +230,20 @@ func TestSyncScheduler_scheduleCantBeExhausted(t *testing.T) {
 		// t=1
 		{
 			entry: entries[0],
-			mode:  devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:  mdm.SyncModePartial,
 		},
 		// t=2
 		{
 			entry: entries[0],
-			mode:  devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:  mdm.SyncModeFull,
 		},
 		{
 			entry: entries[1],
-			mode:  devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+			mode:  mdm.SyncModePartial,
 		},
 		{
 			entry: entries[2],
-			mode:  devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			mode:  mdm.SyncModeFull,
 		},
 		// and then loops perfectly.
 	}
@@ -324,7 +323,7 @@ type wantSchedule struct {
 	// offset is the offset of this entry in relation to the preceding entry.
 	offset time.Duration
 	entry  *types.JamfInventoryEntry
-	mode   devicepb.SyncInventoryMode
+	mode   mdm.SyncMode
 }
 
 func assertSchedule(t *testing.T, scheduler *mdm.SyncScheduler[*types.JamfInventoryEntry], wantEntries []wantSchedule) {

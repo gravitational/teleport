@@ -224,6 +224,7 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 				OSBuild:           d.Profile.OsBuild,
 				OSUsernames:       d.Profile.OsUsernames,
 				JamfBinaryVersion: d.Profile.JamfBinaryVersion,
+				ExternalID:        d.Profile.ExternalId,
 			}
 		}
 	}
@@ -1378,6 +1379,7 @@ func storedToDeviceView(deviceID string, sd *storedDevice, view devicepb.DeviceV
 			OsBuild:           sd.Profile.OSBuild,
 			OsUsernames:       sd.Profile.OSUsernames,
 			JamfBinaryVersion: sd.Profile.JamfBinaryVersion,
+			ExternalId:        sd.Profile.ExternalID,
 		}
 	}
 

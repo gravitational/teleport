@@ -9,7 +9,9 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/testing/protocmp"
@@ -24,7 +26,6 @@ type syncInventoryTest struct {
 	name string
 
 	start       *devicepb.SyncInventoryStart
-	end         *devicepb.SyncInventoryEnd
 	devicePages [][]*devicepb.Device
 
 	wantCodes         [][]codes.Code // expected response codes, per page
@@ -46,10 +47,6 @@ func TestService_SyncInventory(t *testing.T) {
 	jamfSource := &devicepb.DeviceSource{
 		Name:   "jamf",
 		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
-	}
-
-	endSuccess := &devicepb.SyncInventoryEnd{
-		ExternalSyncSuccessful: true,
 	}
 
 	oldProfile := &devicepb.DeviceProfile{
@@ -173,7 +170,6 @@ func TestService_SyncInventory(t *testing.T) {
 			start: &devicepb.SyncInventoryStart{
 				Source: jamfSource,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				allDevices[0:2],
 				allDevices[2:4],
@@ -201,7 +197,6 @@ func TestService_SyncInventory(t *testing.T) {
 			start: &devicepb.SyncInventoryStart{
 				Source: jamfSource,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				allDevices,
 			},
@@ -212,54 +207,11 @@ func TestService_SyncInventory(t *testing.T) {
 			assertSync:        assertNoChanges,
 		},
 		{
-			name: "partial doesn't cause deletion",
-			start: &devicepb.SyncInventoryStart{
-				Source: jamfSource,
-			},
-			end: endSuccess,
-			devicePages: [][]*devicepb.Device{
-				{llamaDev}, // only one device
-			},
-			wantCodes: [][]codes.Code{
-				{codes.OK},
-			},
-			wantUniqueDevices: 1,
-			assertSync: func(t *testing.T, got [][]*devicepb.DeviceOrStatus, devsBefore []*devicepb.Device) {
-				// Sanity check.
-				if got, want := len(devsBefore), len(allDevices); got != want {
-					t.Errorf("Got %v devices before sync, want %v", got, want)
-				}
-
-				// No changes or deletions.
-				assertNoChanges(t, got, devsBefore)
-			},
-		},
-		{
-			// The same as above, except for on_missing_action=DELETE.
-			name: "partial ignores on_missing_action",
-			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
-			},
-			end: endSuccess,
-			devicePages: [][]*devicepb.Device{
-				{llamaDev}, // only one device
-			},
-			wantCodes: [][]codes.Code{
-				{codes.OK},
-			},
-			wantUniqueDevices: 1,
-			assertSync:        assertNoChanges,
-		},
-		{
 			name: "full multiple pages",
 			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+				Source:              jamfSource,
+				TrackMissingDevices: true,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				allDevices[0:3],
 				allDevices[3:6],
@@ -286,11 +238,9 @@ func TestService_SyncInventory(t *testing.T) {
 		{
 			name: "full single page",
 			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+				Source:              jamfSource,
+				TrackMissingDevices: true,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				allDevices,
 			},
@@ -301,49 +251,11 @@ func TestService_SyncInventory(t *testing.T) {
 			assertSync:        assertNoChanges,
 		},
 		{
-			name: "full on_missing_action=NOOP",
-			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_NOOP,
-			},
-			end: endSuccess,
-			devicePages: [][]*devicepb.Device{
-				{llamaDev}, // only one device
-			},
-			wantCodes: [][]codes.Code{
-				{codes.OK},
-			},
-			wantUniqueDevices: 1,
-			assertSync:        assertNoChanges,
-		},
-		{
-			name: "full with external failure causes no deletions",
-			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
-			},
-			end: &devicepb.SyncInventoryEnd{
-				ExternalSyncSuccessful: false, // disables on_missing_action=DELETE
-			},
-			devicePages: [][]*devicepb.Device{
-				{llamaDev}, // only one device
-			},
-			wantCodes: [][]codes.Code{
-				{codes.OK},
-			},
-			wantUniqueDevices: 1,
-			assertSync:        assertNoChanges,
-		},
-		{
 			name: "empty full sync causes no deletions",
 			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+				Source:              jamfSource,
+				TrackMissingDevices: true,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				{}, // empty page
 				{
@@ -367,7 +279,6 @@ func TestService_SyncInventory(t *testing.T) {
 			start: &devicepb.SyncInventoryStart{
 				Source: jamfSource,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				{
 					alpacaDev,
@@ -410,9 +321,7 @@ func TestService_SyncInventory(t *testing.T) {
 			name: "full with update",
 			start: &devicepb.SyncInventoryStart{
 				Source: jamfSource,
-				Mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				{
 					dev1,
@@ -444,7 +353,6 @@ func TestService_SyncInventory(t *testing.T) {
 			start: &devicepb.SyncInventoryStart{
 				Source: jamfSource,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				{
 					dev1,
@@ -484,11 +392,9 @@ func TestService_SyncInventory(t *testing.T) {
 		{
 			name: "full with deletion",
 			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+				Source:              jamfSource,
+				TrackMissingDevices: true,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				{
 					dev2,
@@ -526,11 +432,9 @@ func TestService_SyncInventory(t *testing.T) {
 		{
 			name: "full with inventory wipe",
 			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+				Source:              jamfSource,
+				TrackMissingDevices: true,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				{dev2},
 			},
@@ -547,15 +451,12 @@ func TestService_SyncInventory(t *testing.T) {
 			wantUniqueDevices: 6,
 			assertSync:        assertStoredDevs(dev2),
 		},
-
 		{
-			name: "full doesn't delete devices that failed to update",
+			name: "tracks devices that failed to update",
 			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+				Source:              jamfSource,
+				TrackMissingDevices: true,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				{
 					{
@@ -576,11 +477,9 @@ func TestService_SyncInventory(t *testing.T) {
 		{
 			name: "full rebuild",
 			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+				Source:              jamfSource,
+				TrackMissingDevices: true,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				allDevices,
 			},
@@ -610,11 +509,9 @@ func TestService_SyncInventory(t *testing.T) {
 		{
 			name: "other source takes ownership",
 			start: &devicepb.SyncInventoryStart{
-				Source:          otherSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+				Source:              otherSource,
+				TrackMissingDevices: true,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				{
 					dev1, // takes ownership
@@ -633,13 +530,11 @@ func TestService_SyncInventory(t *testing.T) {
 			assertSync:        assertStoredDevs(append(allDevices, tctlDev)...),
 		},
 		{
-			name: "on_missing_action respects source",
+			name: "tracking respects source",
 			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+				Source:              jamfSource,
+				TrackMissingDevices: true,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				{dev1}, // takes ownership again
 			},
@@ -662,11 +557,9 @@ func TestService_SyncInventory(t *testing.T) {
 		{
 			name: "full rebuild",
 			start: &devicepb.SyncInventoryStart{
-				Source:          jamfSource,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-				OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
+				Source:              jamfSource,
+				TrackMissingDevices: true,
 			},
-			end: endSuccess,
 			devicePages: [][]*devicepb.Device{
 				allDevices,
 			},
@@ -689,7 +582,7 @@ func runSyncInventoryTests(t *testing.T, ctx context.Context, devices devicepb.D
 			}
 
 			// Sync!
-			got, err := syncInventoryPages(ctx, devices, test.start, test.end, test.devicePages)
+			got, err := syncInventoryPages(ctx, devices, test.start, test.devicePages)
 			if err != nil {
 				t.Fatalf("SyncInventory failed: %v", err)
 			}
@@ -799,21 +692,17 @@ func TestService_SyncInventory_audit(t *testing.T) {
 	ctx := context.Background()
 	devices := env.DevicesClient
 
-	startFullDelete := &devicepb.SyncInventoryStart{
+	startTracking := &devicepb.SyncInventoryStart{
 		Source: &devicepb.DeviceSource{
 			Name:   "jamf",
 			Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
 		},
-		Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
-		OnMissingAction: devicepb.SyncInventoryDeviceAction_SYNC_INVENTORY_DEVICE_ACTION_DELETE,
-	}
-	endSuccess := &devicepb.SyncInventoryEnd{
-		ExternalSyncSuccessful: true,
+		TrackMissingDevices: true,
 	}
 
 	mustSync := func(t *testing.T, devs []*devicepb.Device) {
 		t.Helper()
-		_, err := syncInventoryPages(ctx, devices, startFullDelete, endSuccess, [][]*devicepb.Device{devs})
+		_, err := syncInventoryPages(ctx, devices, startTracking, [][]*devicepb.Device{devs})
 		if err != nil {
 			t.Fatalf("SyncInventory failed: %v", err)
 		}
@@ -915,7 +804,6 @@ func TestService_SyncInventory_devicesToRemove(t *testing.T) {
 		ctx,
 		devicesClient,
 		&devicepb.SyncInventoryStart{Source: source1},
-		&devicepb.SyncInventoryEnd{ExternalSyncSuccessful: true},
 		[][]*devicepb.Device{allDevices})
 	if err != nil {
 		t.Fatalf("syncInventoryPages failed: %v", err)
@@ -940,7 +828,6 @@ func TestService_SyncInventory_devicesToRemove(t *testing.T) {
 		ctx,
 		devicesClient,
 		&devicepb.SyncInventoryStart{Source: source2},
-		&devicepb.SyncInventoryEnd{},
 		[][]*devicepb.Device{{dev4, dev5}}); err != nil {
 		t.Fatalf("syncInventoryPages failed: %v", err)
 	}
@@ -1050,15 +937,161 @@ func TestService_SyncInventory_devicesToRemove(t *testing.T) {
 	assertEvents(t, emitter.Events(), wantEvents)
 }
 
+// TestService_SyncInventory_missingDevices tests missing devices aspects not
+// covered by TestService_SyncInventory.
+func TestService_SyncInventory_missingDevices(t *testing.T) {
+	setMDMFeatureActive(t, true)
+
+	env := testenv.MustNew()
+	defer env.Close()
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	source := &devicepb.DeviceSource{
+		Name:   "jamf",
+		Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_JAMF,
+	}
+
+	// Prepare test devices.
+	var allDevs []*devicepb.Device
+	for _, dev := range []*devicepb.Device{
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama",
+			Source:   source,
+			Profile: &devicepb.DeviceProfile{
+				ExternalId: "1",
+			},
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "alpaca",
+			Source:   source,
+			Profile: &devicepb.DeviceProfile{
+				ExternalId: "2",
+			},
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "camel",
+			Source:   source,
+			Profile: &devicepb.DeviceProfile{
+				ExternalId: "3",
+			},
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+			AssetTag: "win",
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_LINUX,
+			AssetTag: "linux",
+		},
+	} {
+		created, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+			Device: dev,
+		})
+		if err != nil {
+			t.Fatalf("CreateDevice failed: %v", err)
+		}
+		allDevs = append(allDevs, created)
+	}
+	llamaDev := allDevs[0]
+	alpacaDev := allDevs[1]
+	camelDev := allDevs[2]
+
+	// opts is used to compare Device slices.
+	opts := []cmp.Option{
+		cmpopts.SortSlices(func(d1, d2 *devicepb.Device) bool { return d1.Id < d2.Id }),
+		protocmp.Transform(),
+	}
+
+	tests := []struct {
+		name         string
+		devsToUpsert []*devicepb.Device
+		missingFn    func([]*devicepb.Device) []*devicepb.Device
+		wantErr      string
+		wantMissing  []*devicepb.Device
+		wantStored   []*devicepb.Device
+	}{
+		{
+			name:         "echoing non-missing device fails stream",
+			devsToUpsert: []*devicepb.Device{llamaDev},
+			missingFn: func(_ []*devicepb.Device) []*devicepb.Device {
+				return []*devicepb.Device{llamaDev} // not missing!
+			},
+			// win and linux dev aren't owned by Jamf, so they aren't considered
+			// missing.
+			wantMissing: []*devicepb.Device{alpacaDev, camelDev},
+			wantErr:     "missing devices",
+			wantStored:  allDevs,
+		},
+		{
+			name:         "non-echoed devices are not deleted",
+			devsToUpsert: []*devicepb.Device{alpacaDev},
+			missingFn: func(_ []*devicepb.Device) []*devicepb.Device {
+				return nil // nothing echoed, nothing removed
+			},
+			wantMissing: []*devicepb.Device{llamaDev, camelDev},
+			wantStored:  allDevs,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			missingFn := func(missing []*devicepb.Device) []*devicepb.Device {
+				// Missing devices are only expected to have the fields below.
+				want := make([]*devicepb.Device, len(test.wantMissing))
+				for i, d := range test.wantMissing {
+					want[i] = &devicepb.Device{
+						Id:       d.Id,
+						OsType:   d.OsType,
+						AssetTag: d.AssetTag,
+						Profile: &devicepb.DeviceProfile{
+							ExternalId: d.Profile.GetExternalId(),
+						},
+					}
+				}
+				// Assert missing devices.
+				if diff := cmp.Diff(want, missing, opts...); diff != "" {
+					t.Errorf("Missing devices mismatch (-want +got)\n%s", diff)
+				}
+
+				return test.missingFn(missing)
+			}
+
+			// Run SyncInventory stream.
+			_, err := syncInventoryMissing(ctx, devices, source, test.devsToUpsert, missingFn)
+			if test.wantErr != "" {
+				assert.ErrorContains(t, err, test.wantErr, "SyncInventory error mismatch")
+				// Keep asserting statuses and storage.
+			} else if err != nil {
+				t.Fatalf("SyncInventory failed: %v", err)
+			}
+
+			// Assert stored.
+			storedDevs, err := listAllDevices(ctx, devices)
+			if err != nil {
+				t.Fatalf("listAllDevices failed: %v", err)
+			}
+			if diff := cmp.Diff(test.wantStored, storedDevs, opts...); diff != "" {
+				t.Errorf("Stored devices mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
 // syncInventoryPages sends `startReq`, then `devicePages` as `devices_to_add`
 // (one send per page), and finally `endReq` to a SyncInventory stream.
-// Statuses are captured, one per sent page, and returned. Deletion reports are
-// flattened and appended as a single result page in the end, if present.
+//
+// Statuses are captured, one per sent page, and returned.
+//
+// Any missing devices are echoed back for deletion. The deletion statuses are
+// appended as a single status page in the end, when present.
 func syncInventoryPages(
 	ctx context.Context,
 	devices devicepb.DeviceTrustServiceClient,
 	startReq *devicepb.SyncInventoryStart,
-	endReq *devicepb.SyncInventoryEnd,
 	devicePages [][]*devicepb.Device) ([][]*devicepb.DeviceOrStatus, error) {
 	stream, err := devices.SyncInventory(ctx)
 	if err != nil {
@@ -1107,27 +1140,65 @@ func syncInventoryPages(
 	// End sync.
 	if err := stream.Send(&devicepb.SyncInventoryRequest{
 		Payload: &devicepb.SyncInventoryRequest_End{
-			End: endReq,
+			End: &devicepb.SyncInventoryEnd{},
 		},
 	}); err != nil {
 		return nil, fmt.Errorf("end: Send: %w", err)
 	}
 
-	// Capture (flattened) deletion reports.
+	// Handle missing devices.
 	var deletes []*devicepb.DeviceOrStatus
 	for {
-		resp, err = stream.Recv()
+		resp, err := stream.Recv()
 		if errors.Is(err, io.EOF) {
 			break // Server closed the stream.
 		}
 		if err != nil {
 			return nil, fmt.Errorf("end: Recv: %w", err)
 		}
-		res := resp.GetResult()
-		if res == nil {
+		missingResp := resp.GetMissingDevices()
+		if missingResp == nil {
+			return nil, fmt.Errorf("end: got payload=%T, want MissingDevices", resp.GetPayload())
+		}
+
+		// Verify missing devices.
+		missingDevs := missingResp.GetDevices()
+		if len(missingDevs) == 0 {
+			return nil, errors.New("got empty missing devices page")
+		}
+		for i, dev := range missingDevs {
+			if dev.Id == "" ||
+				dev.OsType == devicepb.OSType_OS_TYPE_UNSPECIFIED ||
+				dev.AssetTag == "" {
+				return nil, fmt.Errorf("missing device #%v missing required fields: %#v", i, dev)
+			}
+		}
+
+		// Echo devices back for deletion.
+		if err := stream.Send(&devicepb.SyncInventoryRequest{
+			Payload: &devicepb.SyncInventoryRequest_DevicesToRemove{
+				DevicesToRemove: &devicepb.SyncInventoryDevices{
+					Devices: missingDevs,
+				},
+			},
+		}); err != nil {
+			return nil, fmt.Errorf("end: Send devices_to_remove: %w", err)
+		}
+
+		// Receive and verify report.
+		resp, err = stream.Recv()
+		if err != nil {
+			return nil, fmt.Errorf("err: Recv removed devices: %w", err)
+		}
+		resultResp := resp.GetResult()
+		if resultResp == nil {
 			return nil, fmt.Errorf("end: got payload=%T, want Result", resp.GetPayload())
 		}
-		deletes = append(deletes, resp.GetResult().GetDevices()...)
+		resultDevs := resultResp.GetDevices()
+		if got, want := len(resultDevs), len(missingDevs); got != want {
+			return nil, fmt.Errorf("missing devices result has %v statuses, want %v", got, want)
+		}
+		deletes = append(deletes, resultDevs...)
 	}
 	if len(deletes) > 0 {
 		results = append(results, deletes)
@@ -1192,7 +1263,7 @@ func syncInventoryDelete(
 	// Signal end and wait for EOF.
 	if err := stream.Send(&devicepb.SyncInventoryRequest{
 		Payload: &devicepb.SyncInventoryRequest_End{
-			End: &devicepb.SyncInventoryEnd{ExternalSyncSuccessful: true},
+			End: &devicepb.SyncInventoryEnd{},
 		},
 	}); err != nil {
 		return nil, fmt.Errorf("end Send: %w", err)
@@ -1211,6 +1282,96 @@ func syncInventoryDelete(
 		// Unexpected, record and let the test figure it out.
 		statuses = append(statuses, resp.GetResult().Devices)
 	}
+}
+
+// syncInventoryMissing runs a missing devices-focused SyncInventory stream.
+// It returns the collated statuses of the missing devices step.
+func syncInventoryMissing(
+	ctx context.Context,
+	devicesClient devicepb.DeviceTrustServiceClient,
+	source *devicepb.DeviceSource,
+	devsToUpsert []*devicepb.Device,
+	missingFn func([]*devicepb.Device) []*devicepb.Device,
+) ([]*devicepb.DeviceOrStatus, error) {
+	stream, err := devicesClient.SyncInventory(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	// Start.
+	if err := stream.Send(&devicepb.SyncInventoryRequest{
+		Payload: &devicepb.SyncInventoryRequest_Start{
+			Start: &devicepb.SyncInventoryStart{
+				Source:              source,
+				TrackMissingDevices: true,
+			},
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("start Send: %w", err)
+	}
+
+	// Ack.
+	if _, err := stream.Recv(); err != nil {
+		return nil, fmt.Errorf("start Recv: %w", err)
+	}
+
+	if len(devsToUpsert) > 0 {
+		// Devices.
+		if err := stream.Send(&devicepb.SyncInventoryRequest{
+			Payload: &devicepb.SyncInventoryRequest_DevicesToUpsert{
+				DevicesToUpsert: &devicepb.SyncInventoryDevices{
+					Devices: devsToUpsert,
+				},
+			},
+		}); err != nil {
+			return nil, fmt.Errorf("devices Send: %w", err)
+		}
+
+		// Result.
+		if _, err := stream.Recv(); err != nil {
+			return nil, fmt.Errorf("devices Recv: %w", err)
+		}
+	}
+
+	// End.
+	if err := stream.Send(&devicepb.SyncInventoryRequest{
+		Payload: &devicepb.SyncInventoryRequest_End{
+			End: &devicepb.SyncInventoryEnd{},
+		},
+	}); err != nil {
+		return nil, fmt.Errorf("end Send: %w", err)
+	}
+
+	// Missing devices.
+	var statuses []*devicepb.DeviceOrStatus
+	for {
+		resp, err := stream.Recv() // MissingDevices
+		if errors.Is(err, io.EOF) {
+			break // Server closed the stream.
+		}
+		if err != nil {
+			return nil, fmt.Errorf("missing Recv: %w", err)
+		}
+
+		// Echo deletions.
+		if err := stream.Send(&devicepb.SyncInventoryRequest{
+			Payload: &devicepb.SyncInventoryRequest_DevicesToRemove{
+				DevicesToRemove: &devicepb.SyncInventoryDevices{
+					Devices: missingFn(resp.GetMissingDevices().GetDevices()),
+				},
+			},
+		}); err != nil {
+			return nil, fmt.Errorf("missing remove Send: %w", err)
+		}
+
+		// Deletion statuses.
+		resp, err = stream.Recv()
+		if err != nil {
+			return nil, fmt.Errorf("missing result Recv: %w", err)
+		}
+		statuses = append(statuses, resp.GetResult().GetDevices()...)
+	}
+	return statuses, nil
 }
 
 func listAllDevices(ctx context.Context, devices devicepb.DeviceTrustServiceClient) ([]*devicepb.Device, error) {

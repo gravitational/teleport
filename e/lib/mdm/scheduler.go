@@ -6,8 +6,6 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
-	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 )
 
 // ErrScheduleNoEntries is returned when no entries are provided to the
@@ -22,7 +20,7 @@ type ScheduleEntry[E any] struct {
 	// Entry is the underlying sync entry.
 	Entry E
 	// Mode is the sync mode to be used for the entry.
-	Mode devicepb.SyncInventoryMode
+	Mode SyncMode
 
 	avoidReschedule bool
 	offset          time.Duration
@@ -135,7 +133,7 @@ func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initi
 		if initialSync {
 			t.schedule = append(t.schedule, ScheduleEntry[E]{
 				Entry:           entry,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+				Mode:            SyncModeFull,
 				avoidReschedule: true,         // another FULL is in the schedule.
 				offset:          initialDelay, // sync "immediately"
 			})
@@ -145,7 +143,7 @@ func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initi
 		fullOffset := initialDelay + info.SyncPeriodFull
 		t.schedule = append(t.schedule, ScheduleEntry[E]{
 			Entry:  entry,
-			Mode:   devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL,
+			Mode:   SyncModeFull,
 			offset: fullOffset,
 		})
 
@@ -154,23 +152,23 @@ func (t *SyncScheduler[E]) reschedule(entry E, initialDelay time.Duration, initi
 		for partialOffset < fullOffset {
 			t.schedule = append(t.schedule, ScheduleEntry[E]{
 				Entry:           entry,
-				Mode:            devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL,
+				Mode:            SyncModePartial,
 				avoidReschedule: true, // reschedule only on FULL.
 				offset:          partialOffset,
 			})
 			partialOffset += info.SyncPeriodPartial
 		}
 	case hasFull || hasPartial: // type "2", FULL or PARTIAL
-		var mode devicepb.SyncInventoryMode
+		var mode SyncMode
 		var offset time.Duration
 
 		// FULL takes precedence.
 		if hasFull {
 			offset = info.SyncPeriodFull
-			mode = devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_FULL
+			mode = SyncModeFull
 		} else {
 			offset = info.SyncPeriodPartial
-			mode = devicepb.SyncInventoryMode_SYNC_INVENTORY_MODE_PARTIAL
+			mode = SyncModePartial
 		}
 
 		if initialSync {
