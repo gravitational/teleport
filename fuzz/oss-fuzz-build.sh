@@ -87,6 +87,9 @@ build_teleport_fuzzers() {
 #  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/mongodb/protocol \
 #   FuzzMongoRead fuzz_mongo_read
 
+  compile_native_go_fuzzer $TELEPORT_PREFIX/lib/srv/db/opensearch \
+    FuzzPathToMatcher fuzz_opensearch_path_to_matcher
+
   compile_native_go_fuzzer $TELEPORT_PREFIX/lib/auth/webauthn \
     FuzzParseCredentialCreationResponseBody fuzz_parse_credential_creation_response_body
 
