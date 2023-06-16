@@ -1421,7 +1421,7 @@ func isResizeEventEnvelope(e *Envelope) bool {
 func TestTerminalPing(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(time.Second))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1455,7 +1455,7 @@ func TestTerminalPing(t *testing.T) {
 
 	select {
 	case <-done:
-	case <-time.After(time.Minute):
+	case <-time.After(6 * time.Second):
 		t.Fatal("timeout waiting for ping")
 	}
 }
