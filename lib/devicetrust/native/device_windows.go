@@ -20,51 +20,63 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"fmt"
 	"math/big"
 	"os"
 	"os/exec"
 	"os/user"
 	"path/filepath"
+	"time"
 
 	"github.com/google/go-attestation/attest"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/windows"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/lib/devicetrust"
+	"github.com/gravitational/teleport/lib/windowsexec"
 )
 
 const (
-	deviceStateFolderName  = ".teleport-device"
-	attestationKeyFileName = "attestation.key"
+	deviceStateFolderName        = ".teleport-device"
+	attestationKeyFileName       = "attestation.key"
+	credentialActivationFileName = "credential-activation"
 )
 
+type deviceState struct {
+	attestationKeyPath       string
+	credentialActivationPath string
+}
+
 // setupDeviceStateDir ensures that device state directory exists.
-// It returns the absolute path to where the attestation key can be found:
-// $CONFIG_DIR/teleport-device/attestation.key
-func setupDeviceStateDir(getBaseDir func() (string, error)) (akPath string, err error) {
+// It returns a struct containing the path of each part of the device state,
+// or nil and an error if it was not possible to set up the directory.
+func setupDeviceStateDir(getBaseDir func() (string, error)) (*deviceState, error) {
 	base, err := getBaseDir()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	deviceStateDirPath := filepath.Join(base, deviceStateFolderName)
-	keyPath := filepath.Join(deviceStateDirPath, attestationKeyFileName)
-
-	if _, err := os.Stat(deviceStateDirPath); err != nil {
-		if os.IsNotExist(err) {
-			// If it doesn't exist, we can create it and return as we know
-			// the perms are correct as we created it.
-			if err := os.Mkdir(deviceStateDirPath, 700); err != nil {
-				return "", trace.Wrap(err)
-			}
-			return keyPath, nil
-		}
-		return "", trace.Wrap(err)
+	ds := &deviceState{
+		attestationKeyPath:       filepath.Join(deviceStateDirPath, attestationKeyFileName),
+		credentialActivationPath: filepath.Join(deviceStateDirPath, credentialActivationFileName),
 	}
 
-	return keyPath, nil
+	switch _, err := os.Stat(deviceStateDirPath); {
+	case os.IsNotExist(err):
+		// If it doesn't exist, we can create it and return as we know
+		// the perms are correct as we created it.
+		if err := os.Mkdir(deviceStateDirPath, 700); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case err != nil:
+		return nil, trace.Wrap(err)
+	}
+
+	return ds, nil
 }
 
 // getMarshaledEK returns the EK public key in PKIX, ASN.1 DER format.
@@ -137,7 +149,7 @@ func createAndSaveAK(
 }
 
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	akPath, err := setupDeviceStateDir(os.UserConfigDir)
+	stateDir, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -156,13 +168,13 @@ func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
 
 	// Try to load an existing AK in the case of re-enrollment, but, if the
 	// AK does not exist, create one and persist it.
-	ak, err := loadAK(tpm, akPath)
+	ak, err := loadAK(tpm, stateDir.attestationKeyPath)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return nil, trace.Wrap(err, "loading ak")
 		}
 		log.Debug("TPM: No existing AK was found on disk, an AK will be created.")
-		ak, err = createAndSaveAK(tpm, akPath)
+		ak, err = createAndSaveAK(tpm, stateDir.attestationKeyPath)
 		if err != nil {
 			return nil, trace.Wrap(err, "creating ak")
 		}
@@ -414,7 +426,7 @@ func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 // getDeviceCredential will only return the credential ID on windows. The
 // other information is determined server-side.
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	akPath, err := setupDeviceStateDir(os.UserConfigDir)
+	stateDir, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -431,7 +443,7 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 	}()
 
 	// Attempt to load the AK from well-known location.
-	ak, err := loadAK(tpm, akPath)
+	ak, err := loadAK(tpm, stateDir.attestationKeyPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "loading ak")
 	}
@@ -449,8 +461,9 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 
 func solveTPMEnrollChallenge(
 	challenge *devicepb.TPMEnrollChallenge,
+	debug bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
-	akPath, err := setupDeviceStateDir(os.UserConfigDir)
+	stateDir, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -468,7 +481,7 @@ func solveTPMEnrollChallenge(
 	}()
 
 	// Attempt to load the AK from well-known location.
-	ak, err := loadAK(tpm, akPath)
+	ak, err := loadAK(tpm, stateDir.attestationKeyPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "loading ak")
 	}
@@ -494,12 +507,30 @@ func solveTPMEnrollChallenge(
 	if encryptedCredential == nil {
 		return nil, trace.BadParameter("missing encrypted credential in challenge from server")
 	}
-	activationSolution, err := ak.ActivateCredential(
-		tpm,
-		*encryptedCredential,
-	)
-	if err != nil {
-		return nil, trace.Wrap(err, "activating credential with challenge")
+
+	var activationSolution []byte
+	if windows.GetCurrentProcessToken().IsElevated() {
+		log.Debug("TPM: Detected current process is elevated. Will run credential activation in current process.")
+		// If we are running with elevated privileges, we can just complete the
+		// credential activation here.
+		activationSolution, err = ak.ActivateCredential(
+			tpm,
+			*encryptedCredential,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "activating credential with challenge")
+		}
+	} else {
+		fmt.Fprintln(os.Stderr, "Detected that tsh is not running with elevated privileges. Triggering a UAC prompt to complete the enrollment in an elevated process.")
+		activationSolution, err = activateCredentialInElevatedChild(
+			*encryptedCredential,
+			stateDir.credentialActivationPath,
+			debug,
+		)
+		if err != nil {
+			return nil, trace.Wrap(err, "activating credential with challenge using elevated child")
+		}
+		fmt.Fprintln(os.Stderr, "Successfully completed credential activation in elevated process.")
 	}
 
 	log.Debug("TPM: Enrollment challenge completed.")
@@ -511,10 +542,131 @@ func solveTPMEnrollChallenge(
 	}, nil
 }
 
+// activateCredentialInElevated child uses `runas` to trigger a child process
+// with elevated privileges. This is necessary because the process must have
+// elevated privileges in order to invoke the TPM 2.0 ActivateCredential
+// command.
+func activateCredentialInElevatedChild(
+	encryptedCredential attest.EncryptedCredential,
+	credActivationPath string,
+	debug bool,
+) ([]byte, error) {
+	exe, err := os.Executable()
+	if err != nil {
+		return nil, trace.Wrap(err, "determining current executable path")
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, trace.Wrap(err, "determining current working directory")
+	}
+
+	// Clear up the results of any previous credential activation
+	if err := os.Remove(credActivationPath); err != nil {
+		err := trace.ConvertSystemError(err)
+		if !trace.IsNotFound(err) {
+			return nil, trace.Wrap(err, "clearing previous credential activation results")
+		}
+	}
+
+	// Assemble the parameter list. We encoded any binary data in base64.
+	// These parameters cause `tsh` to invoke HandleTPMActivateCredential.
+	params := []string{
+		"device",
+		"tpm-activate-credential",
+		"--encrypted-credential",
+		base64.StdEncoding.EncodeToString(encryptedCredential.Credential),
+		"--encrypted-credential-secret",
+		base64.StdEncoding.EncodeToString(encryptedCredential.Secret),
+	}
+	if debug {
+		params = append(params, "-d")
+	}
+
+	log.Debug("Starting elevated process.")
+	// https://learn.microsoft.com/en-us/windows/win32/api/shellapi/nf-shellapi-shellexecutew
+	err = windowsexec.RunAsAndWait(
+		exe,
+		cwd,
+		time.Second*10,
+		params,
+	)
+	if err != nil {
+		return nil, trace.Wrap(err, "invoking ShellExecute")
+	}
+
+	// Ensure we clean up the results of the execution once we are done with
+	// it.
+	defer func() {
+		if err := os.Remove(credActivationPath); err != nil {
+			log.WithError(err).Debug("Failed to clean up credential activation result")
+		}
+	}()
+
+	solutionBytes, err := os.ReadFile(credActivationPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return solutionBytes, nil
+}
+
+func handleTPMActivateCredential(encryptedCredential, encryptedCredentialSecret string) error {
+	log.Debug("Performing credential activation.")
+	// The two input parameters are base64 encoded, so decode them.
+	credentialBytes, err := base64.StdEncoding.DecodeString(encryptedCredential)
+	if err != nil {
+		return trace.Wrap(err, "decoding encrypted credential")
+	}
+	secretBytes, err := base64.StdEncoding.DecodeString(encryptedCredentialSecret)
+	if err != nil {
+		return trace.Wrap(err, "decoding encrypted credential secret")
+	}
+
+	stateDir, err := setupDeviceStateDir(os.UserConfigDir)
+	if err != nil {
+		return trace.Wrap(err, "setting up device state directory")
+	}
+
+	tpm, err := attest.OpenTPM(&attest.OpenConfig{
+		TPMVersion: attest.TPMVersion20,
+	})
+	if err != nil {
+		return trace.Wrap(err, "opening tpm")
+	}
+	defer func() {
+		if err := tpm.Close(); err != nil {
+			log.WithError(err).Debug("TPM: Failed to close TPM.")
+		}
+	}()
+
+	// Attempt to load the AK from well-known location.
+	ak, err := loadAK(tpm, stateDir.attestationKeyPath)
+	if err != nil {
+		return trace.Wrap(err, "loading ak")
+	}
+	defer ak.Close(tpm)
+
+	solution, err := ak.ActivateCredential(
+		tpm,
+		attest.EncryptedCredential{
+			Credential: credentialBytes,
+			Secret:     secretBytes,
+		},
+	)
+	if err != nil {
+		return trace.Wrap(err, "activating credential with challenge")
+	}
+
+	log.Debug("Completed credential activation. Returning result to original process.")
+	return trace.Wrap(
+		os.WriteFile(stateDir.credentialActivationPath, solution, 0600),
+	)
+}
+
 func solveTPMAuthnDeviceChallenge(
 	challenge *devicepb.TPMAuthenticateDeviceChallenge,
 ) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
-	akPath, err := setupDeviceStateDir(os.UserConfigDir)
+	stateDir, err := setupDeviceStateDir(os.UserConfigDir)
 	if err != nil {
 		return nil, trace.Wrap(err, "setting up device state directory")
 	}
@@ -532,7 +684,7 @@ func solveTPMAuthnDeviceChallenge(
 	}()
 
 	// Attempt to load the AK from well-known location.
-	ak, err := loadAK(tpm, akPath)
+	ak, err := loadAK(tpm, stateDir.attestationKeyPath)
 	if err != nil {
 		return nil, trace.Wrap(err, "loading ak")
 	}
