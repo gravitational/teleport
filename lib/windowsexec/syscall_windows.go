@@ -113,6 +113,10 @@ func RunAsAndWait(
 		}).Debug("Encountered error calling shellExecuteExW")
 		return trace.Wrap(err, "calling shellExecuteExW")
 	}
+	if info.hProcess == 0 {
+		return trace.Errorf("unexpected null hProcess handle from shellExecuteExW call")
+	}
+
 	// Since we provided SEE_MASK_NOCLOSEPROCESS, closing info.hProcess is our
 	// responsibility.
 	defer windows.CloseHandle(info.hProcess)
