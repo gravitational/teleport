@@ -95,15 +95,15 @@ auth_service:
  ...
  tunnel_strategy:
   type: proxy_peering
-  agent_connection_count: 4
+  agent_connection_count: 2
 ```
 Reference the [Auth Server configuration](../../reference/config.mdx#auth-service) reference page 
 for additional settings.
 
 <Notice type="warning">
 
-With DynamoDB, the kube operator supports <=2 pod replicas per cluster. So, It is not recommended to enable `kube operator` on 
-the secondary region, as it will create instability to the cluster. We will enable `kube operator` in the event of Primary Region failure only.
+The Teleport Kubernetes Operator must run in the same Kubernetes cluster and namespace if running multiple replicas.
+So, It is not possible to enable `kube operator` on the secondary region, as it will create instability to the cluster. 
 
 </Notice>
 
