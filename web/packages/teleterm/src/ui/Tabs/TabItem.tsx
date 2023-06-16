@@ -27,6 +27,7 @@ type TabItemProps = {
   index?: number;
   name?: string;
   active?: boolean;
+  nextActive?: boolean;
   closeTabTooltip?: string;
   isLoading?: boolean;
   onClick?(): void;
@@ -39,6 +40,7 @@ export function TabItem(props: TabItemProps) {
   const {
     name,
     active,
+    nextActive,
     onClick,
     onClose,
     index,
@@ -62,71 +64,78 @@ export function TabItem(props: TabItemProps) {
   };
 
   return (
-    <StyledTabItem
+    <RelativeContainer
       onClick={onClick}
       onContextMenu={onContextMenu}
-      ref={ref}
-      active={active}
-      dragging={isDragging}
       title={name}
-      canDrag={canDrag}
     >
-      <Title color="inherit" fontWeight={700} fontSize="12px">
-        {name}
-      </Title>
-      {isLoading && active && <LinearProgress transparentBackground={true} />}
-      {onClose && (
-        <ButtonIcon
-          size={0}
-          mr={1}
-          title={closeTabTooltip}
-          css={`
-            transition: none;
-          `}
-          onClick={handleClose}
-        >
-          <CloseIcon fontSize="16px" />
-        </ButtonIcon>
-      )}
-    </StyledTabItem>
+      <TabContent
+        ref={ref}
+        active={active}
+        dragging={isDragging}
+        canDrag={canDrag}
+      >
+        <Title color="inherit" fontWeight={700} fontSize="12px">
+          {name}
+        </Title>
+        {isLoading && active && <LinearProgress transparentBackground={true} />}
+        {onClose && (
+          <ButtonIcon
+            size={0}
+            mr={1}
+            title={closeTabTooltip}
+            css={`
+              transition: none;
+            `}
+            onClick={handleClose}
+          >
+            <CloseIcon fontSize="16px" />
+          </ButtonIcon>
+        )}
+      </TabContent>
+      {!active && !nextActive && <Separator />}
+      {(!active || isDragging) && <BottomShadow />}
+    </RelativeContainer>
   );
 }
 
-const StyledTabItem = styled.div(({ theme, active, dragging, canDrag }) => {
-  const styles: any = {
-    display: 'flex',
-    flexBasis: '0',
-    flexGrow: '1',
-    opacity: '1',
-    color: theme.colors.text.slightlyMuted,
-    alignItems: 'center',
-    minWidth: '0',
-    height: '100%',
-    border: 'none',
-    borderRadius: '8px 8px 0 0',
-    '&:hover, &:focus': {
-      color: theme.colors.text.main,
-      transition: 'color .3s',
-    },
-    position: 'relative',
-  };
+const RelativeContainer = styled.div`
+  position: relative;
+  display: flex;
+  flex-basis: 0;
+  flex-grow: 1;
+  align-items: center;
+  min-width: 0;
+  height: 100%;
+`;
 
-  if (active) {
-    styles['backgroundColor'] = theme.colors.levels.sunken;
-    styles['color'] = theme.colors.text.main;
-    styles['transition'] = 'none';
+const TabContent = styled.div`
+  display: flex;
+  z-index: 1; // covers shadow from the top
+  align-items: center;
+  min-width: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px 8px 0 0;
+  position: relative;
+  opacity: ${props => (props.dragging ? 0 : 1)};
+  color: ${props =>
+    props.active
+      ? props.theme.colors.text.main
+      : props.theme.colors.text.slightlyMuted};
+  background: ${props =>
+    props.active
+      ? props.theme.colors.levels.sunken
+      : props.theme.colors.levels.surface};
+  box-shadow: ${props =>
+    props.active ? 'inset 0px 2px 1.5px -1px rgba(0, 0, 0, 0.12)' : undefined};
+
+  &:hover,
+  &:focus {
+    color: ${props => props.theme.colors.text.main};
+    transition: color 0.3s;
   }
-
-  if (dragging) {
-    styles['opacity'] = 0;
-  }
-
-  if (canDrag) {
-    styles['cursor'] = 'pointer';
-  }
-
-  return styles;
-});
+`;
 
 const Title = styled(Text)`
   display: block;
@@ -141,4 +150,24 @@ const Title = styled(Text)`
   border: none;
   min-width: 0;
   width: 100%;
+`;
+
+const BottomShadow = styled.div`
+  box-shadow: 0 2px 1px -1px rgba(0, 0, 0, 0.2), 0 1px 1.5px rgba(0, 0, 0, 0.13),
+    0 1px 4px rgba(0, 0, 0, 0.12);
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: inherit;
+`;
+
+const Separator = styled.div`
+  height: 23px;
+  width: 1px;
+  position: absolute;
+  z-index: 1;
+  right: 0;
+  background: ${props => props.theme.colors.spotBackground[2]};
 `;

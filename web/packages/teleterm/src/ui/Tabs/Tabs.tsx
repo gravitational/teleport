@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Fragment } from 'react';
+import React from 'react';
 import styled from 'styled-components';
 import { typography } from 'design/system';
 import { Box, ButtonIcon } from 'design';
@@ -39,34 +39,29 @@ export function Tabs(props: Props) {
     ...styledProps
   } = props;
 
-  const $emptyTab = (
-    <>
-      <TabItem active={true} />
-      <Separator />
-    </>
+  const $items = items.length ? (
+    items.map((item, index) => {
+      const active = item.uri === activeTab;
+      const nextActive = items[index + 1]?.uri === activeTab;
+      return (
+        <TabItem
+          key={item.uri}
+          index={index}
+          name={item.title}
+          active={active}
+          nextActive={nextActive}
+          onClick={() => onSelect(item)}
+          onClose={() => onClose(item)}
+          onContextMenu={() => onContextMenu(item)}
+          onMoved={onMoved}
+          isLoading={getIsLoading(item)}
+          closeTabTooltip={closeTabTooltip}
+        />
+      );
+    })
+  ) : (
+    <TabItem active={true} />
   );
-
-  const $items = items.length
-    ? items.map((item, index) => {
-        const active = item.uri === activeTab;
-        return (
-          <Fragment key={item.uri}>
-            <TabItem
-              index={index}
-              name={item.title}
-              active={active}
-              onClick={() => onSelect(item)}
-              onClose={() => onClose(item)}
-              onContextMenu={() => onContextMenu(item)}
-              onMoved={onMoved}
-              isLoading={getIsLoading(item)}
-              closeTabTooltip={closeTabTooltip}
-            />
-            <Separator />
-          </Fragment>
-        );
-      })
-    : $emptyTab;
 
   return (
     <StyledTabs as="nav" typography="h5" bold {...styledProps}>
@@ -102,13 +97,6 @@ type Props = {
   [index: string]: any;
 };
 
-const Separator = styled.div`
-  height: 23px;
-  width: 1px;
-  margin: 0 1px;
-  background: ${props => props.theme.colors.spotBackground[2]};
-`;
-
 const StyledTabs = styled(Box)`
   background-color: ${props => props.theme.colors.levels.surface};
   min-height: 32px;
@@ -116,10 +104,8 @@ const StyledTabs = styled(Box)`
   flex-wrap: nowrap;
   align-items: center;
   flex-shrink: 0;
-  overflow: hidden;
+  max-width: 100%;
   position: relative;
   z-index: 1;
-  box-shadow: 0px 1px 10px 0px rgba(0, 0, 0, 0.12),
-    0px 4px 5px 0px rgba(0, 0, 0, 0.14), 0px 2px 4px -1px rgba(0, 0, 0, 0.2);
   ${typography}
 `;
