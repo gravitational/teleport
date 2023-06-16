@@ -853,6 +853,8 @@ message AppSpecV3 {
   AppAWS AWS = 6 [(gogoproto.jsontag) = "aws,omitempty"];
   // Cloud identifies the cloud instance the app represents.
   string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
+  // UserGroups are a list of user group IDs that this app is associated with.
+  repeated string UserGroups = 8;
 }
 
 // App is a specific application that a server proxies.
@@ -5444,6 +5446,18 @@ message UserGroupV1 {
     (gogoproto.jsontag) = "",
     (gogoproto.embed) = true
   ];
+
+  // Spec is the user group resource spec.
+  UserGroupSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// UserGroupSpecV1 is the specification of a user group.
+message UserGroupSpecV1 {
+  // Applications are a list of application IDs belonging to this user group.
+  repeated string Applications = 1;
 }
 
 // OktaImportRuleSpecV1 is a Okta import rule specification.
