@@ -58,6 +58,7 @@ type Presence interface {
 	// NodesGetter gets nodes
 	NodesGetter
 
+	// NodesStreamGetter gets nodes as a stream
 	NodesStreamGetter
 
 	// DeleteAllNodes deletes all nodes in a namespace.

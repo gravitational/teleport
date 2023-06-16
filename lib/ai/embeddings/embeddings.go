@@ -71,6 +71,8 @@ func UnmarshalEmbedding(bytes []byte) (*ai.Embedding, error) {
 	return (*ai.Embedding)(&embedding), nil
 }
 
+// EmbeddingHashMatches returns true if the hash of the embedding matches the
+// given hash.
 func EmbeddingHashMatches(embedding *ai.Embedding, hash ai.Sha256Hash) bool {
 	if len(embedding.EmbeddedHash) != 32 {
 		return false
@@ -98,12 +100,16 @@ func serializeNode(node types.Server) ([]byte, error) {
 	return text, trace.Wrap(err)
 }
 
+// batchReducer is a helper struct that batches data and processes it in
+// batches.
 type batchReducer[T, V any] struct {
 	data      []T
 	batchSize int
 	processFn func(ctx context.Context, data []T) (V, error)
 }
 
+// Add adds a new item to the batch. If the batch is full, it will be processed
+// and the result will be returned. Otherwise, a zero value will be returned.
 func (b *batchReducer[T, V]) Add(ctx context.Context, data T) (V, error) {
 	b.data = append(b.data, data)
 	if len(b.data) >= b.batchSize {
@@ -116,6 +122,7 @@ func (b *batchReducer[T, V]) Add(ctx context.Context, data T) (V, error) {
 	return def, nil
 }
 
+// Finalize processes the remaining data in the batch and returns the result.
 func (b *batchReducer[T, V]) Finalize(ctx context.Context) (V, error) {
 	if len(b.data) > 0 {
 		val, err := b.processFn(ctx, b.data)
@@ -127,6 +134,7 @@ func (b *batchReducer[T, V]) Finalize(ctx context.Context) (V, error) {
 	return def, nil
 }
 
+// EmbeddingProcessorConfig is the configuration for EmbeddingProcessor.
 type EmbeddingProcessorConfig struct {
 	AiClient     ai.Embedder
 	EmbeddingSrv Embeddings
@@ -135,6 +143,8 @@ type EmbeddingProcessorConfig struct {
 	Jitter       retryutils.Jitter
 }
 
+// EmbeddingProcessor is responsible for processing nodes, generating embeddings
+// and storing their the embeddings in the backend.
 type EmbeddingProcessor struct {
 	aiClient     ai.Embedder
 	embeddingSrv Embeddings
@@ -143,6 +153,7 @@ type EmbeddingProcessor struct {
 	jitter       retryutils.Jitter
 }
 
+// NewEmbeddingProcessor returns a new EmbeddingProcessor.
 func NewEmbeddingProcessor(cfg *EmbeddingProcessorConfig) *EmbeddingProcessor {
 	return &EmbeddingProcessor{
 		aiClient:     cfg.AiClient,
@@ -153,11 +164,14 @@ func NewEmbeddingProcessor(cfg *EmbeddingProcessorConfig) *EmbeddingProcessor {
 	}
 }
 
+// nodeStringPair is a helper struct that pairs a node with a data string.
 type nodeStringPair struct {
 	node types.Server
 	data string
 }
 
+// mapProcessFn is a helper function that maps a slice of nodeStringPair,
+// compute embeddings and return them as a slice of ai.Embedding.
 func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*nodeStringPair) ([]*ai.Embedding, error) {
 	dataBatch := make([]string, 0, len(data))
 	for _, pair := range data {
@@ -181,6 +195,7 @@ func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*nodeStrin
 	return results, nil
 }
 
+// Run runs the EmbeddingProcessor.
 func (e *EmbeddingProcessor) Run(ctx context.Context, period time.Duration) error {
 	for {
 		select {
@@ -263,6 +278,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 	}
 }
 
+// upsertEmbeddings is a helper function that upserts the embeddings into the backend.
 func (e *EmbeddingProcessor) upsertEmbeddings(ctx context.Context, rawEmbeddings []*ai.Embedding) error {
 	// Store the new embeddings into the backend
 	for _, embedding := range rawEmbeddings {

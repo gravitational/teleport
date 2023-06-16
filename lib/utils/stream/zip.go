@@ -22,16 +22,29 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 )
 
+// ZipStreams is a helper for iterrate two streams and process elements in the
+// leader stream only if they don't already exists in the follower stream.
+// The streams must be sorted and comparable.
 type ZipStreams[T, V any] struct {
-	leader      stream.Stream[T]
-	follower    stream.Stream[V]
-	onMissing   func(elem T) error
+	// leader is the stream that will be leading the iteration.
+	leader stream.Stream[T]
+	// follower is the stream that will be following the iteration.
+	follower stream.Stream[V]
+	// onMissing is the function that will be called when the leader element is
+	// missing in the follower stream.
+	onMissing func(elem T) error
+	// onEqualKeys is the function that will be called when the leader element
+	// has the same key as the follower element. It allows additional processing
+	// of the element.
 	onEqualKeys func(leader T, follower V) error
 
-	// The result will be 0 if a == b, -1 if a < b, and +1 if a > b.
+	// compareKeys is the function that will be used to compare the keys of the
+	// leader and follower elements.
+	// It should return 0 if leader == follower, -1 if leader < follower, and +1 if leader > follower.
 	compareKeys func(leader T, follower V) int
 }
 
+// NewZipStreams returns a new instance of ZipStreams.
 func NewZipStreams[T, V any](leader stream.Stream[T], follower stream.Stream[V],
 	onMissing func(elem T) error,
 	onEqualKeys func(leader T, follower V) error,
@@ -46,6 +59,8 @@ func NewZipStreams[T, V any](leader stream.Stream[T], follower stream.Stream[V],
 	}
 }
 
+// Process processed the streams and returns an error that happened during the
+// processing. Processing will stop on the first error.
 func (z *ZipStreams[T, V]) Process() error {
 	var leaderItem T
 	var followerItem V

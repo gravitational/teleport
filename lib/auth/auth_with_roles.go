@@ -1136,8 +1136,9 @@ func (a *ServerWithRoles) GetInstances(ctx context.Context, filter types.Instanc
 	return a.authServer.GetInstances(ctx, filter)
 }
 
+// GetNodeStream returns a stream of nodes.
 func (a *ServerWithRoles) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
-	if err := a.action(apidefaults.Namespace, types.KindNode, types.VerbList, types.VerbRead); err != nil {
+	if err := a.action(namespace, types.KindNode, types.VerbList, types.VerbRead); err != nil {
 		return stream.Fail[types.Server](trace.Wrap(err))
 	}
 

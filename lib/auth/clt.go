@@ -283,6 +283,7 @@ func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.Use
 	return trace.NotImplemented(notImplementedMessage)
 }
 
+// GetNodeStream not implemented: can only be called locally
 func (c *Client) GetNodeStream(_ context.Context, _ string) stream.Stream[types.Server] {
 	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
