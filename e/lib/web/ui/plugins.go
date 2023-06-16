@@ -54,6 +54,11 @@ func pluginDetails(p types.Plugin) string {
 		return "Devices will be synced from Jamf to Teleport device inventory"
 	case *types.PluginSpecV1_Okta:
 		return "Okta applications and groups will be synced to Teleport"
+	case *types.PluginSpecV1_Opsgenie:
+		if len(settings.Opsgenie.DefaultSchedules) > 0 {
+			return fmt.Sprintf(`Teleport access requests will show up as alerts in schedule %q`, settings.Opsgenie.DefaultSchedules[0])
+		}
+		return "Teleport access requests will be created in the Opsgenie schedule indicated by opsgenie_notify_services annotation on the access request"
 	default:
 		return ""
 	}

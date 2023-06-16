@@ -316,9 +316,11 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 		})
 	}
 
-	resp.PluginTypes = append(resp.PluginTypes, &pluginspb.PluginType{
-		Type: string(types.PluginTypeOkta),
-	})
+	staticPlugins := []*pluginspb.PluginType{
+		{Type: string(types.PluginTypeOkta)},
+		{Type: string(types.PluginTypeOpsgenie)},
+	}
+	resp.PluginTypes = append(resp.PluginTypes, staticPlugins...)
 
 	return resp, nil
 }

@@ -234,15 +234,15 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
   },
   {
     type: 'opsgenie',
-    name: 'OpsGenie',
+    name: 'Opsgenie',
     icon: opsgenieIcon, // TODO(lisa): update all these icons to SVGIcon for theme friendly
-    url: 'https://goteleport.com/docs/application-access/okta/guide/',
+    url: 'https://goteleport.com/docs/access-controls/access-requests/resource-requests/', // TODO(lisa): change to opsgenie docs (wip)
     hosted: true,
-    fullName: 'OpsGenie Alerts',
+    fullName: 'Opsgenie Alerts',
     Description: () => (
       <Text>
         <p>
-          Integrating with OpsGenie allows Teleport access requests to show up
+          Integrating with Opsgenie allows Teleport access requests to show up
           as alerts in the specified Opsgenie schedule.
         </p>
         <p>

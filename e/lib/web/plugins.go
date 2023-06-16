@@ -187,25 +187,34 @@ func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, para
 			return nil, trace.Wrap(err)
 		}
 		return nil, nil
-	case types.PluginTypeJamf:
-		pluginReq := createJamfPluginRequest(r.Form)
 
-		// TODO(sshah):
-		//  1.	Create plugin static credential
-		// 	2.	Create plugin
+	// Static plugins
+	case types.PluginTypeJamf, types.PluginTypeOkta, types.PluginTypeOpsgenie:
+
+		var pluginReq *pluginspb.CreatePluginRequest
+		switch pluginType {
+		case types.PluginTypeJamf:
+			pluginReq = createJamfPluginRequest(r.Form)
+			// TODO(sshah):
+			//  1.	Create plugin static credential
+			// 	2.	Create plugin
+		case types.PluginTypeOkta:
+			pluginReq = p.createOktaPluginRequest(r.Form)
+		case types.PluginTypeOpsgenie:
+			pluginReq = p.createOpsgeniePluginRequest(r.Form)
+		}
+
+		pluginsClt, err := getPluginClientFromSessionContext(sessCtx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		_, err = pluginsClt.CreatePlugin(r.Context(), pluginReq)
+		if err != nil {
+			p.Log.WithError(err).Errorf("Failed to %s plugin", pluginType)
+			return nil, trace.Wrap(err)
+		}
 
 		resp, err := ui.NewPlugin(pluginReq.Plugin)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return resp, nil
-	case types.PluginTypeOkta:
-		plugin, err := p.createOktaPlugin(r.Context(), sessCtx, r.Form)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		resp, err := ui.NewPlugin(plugin)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -454,12 +463,14 @@ func createJamfPluginRequest(req url.Values) *pluginspb.CreatePluginRequest {
 	}
 }
 
-// createOktaPlugin creates the Okta plugin from the given form data.
-func (p *Plugin) createOktaPlugin(ctx context.Context, sessCtx *web.SessionContext, form url.Values) (types.Plugin, error) {
+// createOktaPluginRequest creates Okta plugin request from the given form data.
+func (p *Plugin) createOktaPluginRequest(form url.Values) *pluginspb.CreatePluginRequest {
 	orgURL := form.Get("orgURL")
-	req := &pluginspb.CreatePluginRequest{
+	apiToken := form.Get("apiToken")
+
+	return &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
-			SubKind: types.PluginSubkindMDM,
+			SubKind: types.PluginSubkindAccess,
 			Metadata: types.Metadata{
 				Labels: map[string]string{
 					plugins.HostedPluginLabel: "true",
@@ -485,24 +496,53 @@ func (p *Plugin) createOktaPlugin(ctx context.Context, sessCtx *web.SessionConte
 			},
 			Spec: &types.PluginStaticCredentialsSpecV1{
 				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: form.Get("apiToken"),
+					APIToken: apiToken,
 				},
 			},
 		},
 	}
+}
 
-	pluginsClt, err := getPluginClientFromSessionContext(sessCtx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+// createOpsgeniePluginRequest creates Opsgenie plugin from the given form data.
+func (p *Plugin) createOpsgeniePluginRequest(form url.Values) *pluginspb.CreatePluginRequest {
+	apiEndpoint := form.Get("apiEndpoint")
+	apiKey := form.Get("apiKey")
+	scheduleName := form.Get("scheduleName")
+
+	return &pluginspb.CreatePluginRequest{
+		Plugin: &types.PluginV1{
+			SubKind: types.PluginSubkindAccess,
+			Metadata: types.Metadata{
+				Labels: map[string]string{
+					plugins.HostedPluginLabel: "true",
+				},
+				Name: types.PluginTypeOpsgenie,
+			},
+			Spec: types.PluginSpecV1{
+				Settings: &types.PluginSpecV1_Opsgenie{
+					Opsgenie: &types.PluginOpsgenieAccessSettings{
+						DefaultSchedules: []string{scheduleName},
+						ApiEndpoint:      apiEndpoint,
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"opsgenie/api-endpoint": apiEndpoint,
+					},
+					Name: types.PluginTypeOpsgenie,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+					APIToken: apiKey,
+				},
+			},
+		},
 	}
-
-	_, err = pluginsClt.CreatePlugin(ctx, req)
-	if err != nil {
-		p.Log.WithError(err).Error("Failed to CreatePlugin()")
-		return nil, trace.Wrap(err)
-	}
-
-	return req.Plugin, nil
 }
 
 // getPluginClientFromSessionContext will return the plugin client from a given session context.

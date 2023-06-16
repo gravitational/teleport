@@ -1155,7 +1155,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               <div
                 class="c13"
               >
-                OpsGenie
+                Opsgenie
               </div>
             </div>
             <div

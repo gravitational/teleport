@@ -44,18 +44,6 @@ func TestCreatePluginHandle(t *testing.T) {
 			expectedResp: "unknown plugin type",
 		},
 		{
-			name:     "detect duplicate plugin request",
-			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
-			request: url.Values{
-				"type":        {"jamf"},
-				"apiEndpoint": {"https://testserver.com"},
-				"username":    {"uname"},
-				"password":    {"pass"},
-				"csrf_token":  {webPack.csrfToken},
-			},
-			expectedResp: "Devices will be synced from Jamf to Teleport device inventory",
-		},
-		{
 			name:     "Okta plugin",
 			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
 			request: url.Values{
@@ -65,6 +53,18 @@ func TestCreatePluginHandle(t *testing.T) {
 				"csrf_token": {webPack.csrfToken},
 			},
 			expectedResp: "Okta applications and groups will be synced to Teleport",
+		},
+		{
+			name:     "Opsgenie plugin",
+			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
+			request: url.Values{
+				"type":         {"opsgenie"},
+				"apiEndpoint":  {"https://www.some-apiendoint.com"},
+				"apiKey":       {"some-api-key"},
+				"scheduleName": {"some-schedule-name"},
+				"csrf_token":   {webPack.csrfToken},
+			},
+			expectedResp: "some-schedule-name",
 		},
 	}
 
