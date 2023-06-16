@@ -104,20 +104,6 @@ func TestFailureOutput(t *testing.T) {
 		"--- FAIL: TestParse (0.00s)\n",
 	}
 	expectedPkgOutput := []string{
-		"=== RUN   TestParseHostPort\n",
-		"=== PAUSE TestParseHostPort\n",
-		"=== RUN   TestEmpty\n",
-		"=== PAUSE TestEmpty\n",
-		"=== RUN   TestParse\n",
-		"=== PAUSE TestParse\n",
-		"=== CONT  TestParseHostPort\n",
-		"    addr_test.go:32: \n",
-		"=== CONT  TestParse\n",
-		"--- SKIP: TestParseHostPort (0.00s)\n",
-		"=== CONT  TestEmpty\n",
-		"    addr_test.go:71: failed\n",
-		"--- PASS: TestEmpty (0.00s)\n",
-		"--- FAIL: TestParse (0.00s)\n",
 		"FAIL\n",
 		"\texample.com/package\tcoverage: 2.4% of statements\n",
 		"FAIL\texample.com/package\t0.007s\n",
@@ -200,6 +186,12 @@ func TestPrintFailedTestOutput(t *testing.T) {
 	rr.printFailedTestOutput(output)
 
 	expected := `
+OUTPUT example.com/package
+===================================================
+FAIL
+	example.com/package	coverage: 2.4% of statements
+FAIL	example.com/package	0.007s
+===================================================
 OUTPUT example.com/package.TestParse
 ===================================================
 === RUN   TestParse
