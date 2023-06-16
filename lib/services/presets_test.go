@@ -53,7 +53,7 @@ func TestAddRoleDefaults(t *testing.T) {
 			role: &types.RoleV6{
 				Metadata: types.Metadata{
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 			},
@@ -66,7 +66,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetEditorRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 			},
@@ -75,7 +75,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetEditorRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -102,7 +102,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetEditorRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -118,7 +118,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetAccessRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -132,7 +132,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetAccessRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -163,7 +163,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetAccessRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -181,7 +181,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetAuditorRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -199,7 +199,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetAuditorRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -240,7 +240,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetAuditorRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -263,7 +263,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetReviewerRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 			},
@@ -276,7 +276,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetReviewerRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: "true",
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 			},
@@ -287,7 +287,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetReviewerRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: "true",
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -314,7 +314,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetReviewerRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: "true",
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -334,7 +334,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetRequesterRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: types.IsManaged,
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 			},
@@ -347,7 +347,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetRequesterRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: "true",
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 			},
@@ -358,7 +358,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetRequesterRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: "true",
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{
@@ -385,7 +385,7 @@ func TestAddRoleDefaults(t *testing.T) {
 				Metadata: types.Metadata{
 					Name: teleport.PresetRequesterRoleName,
 					Labels: map[string]string{
-						types.TeleportManagedLabel: "true",
+						types.TeleportInternalResourceType: types.PresetResource,
 					},
 				},
 				Spec: types.RoleSpecV6{

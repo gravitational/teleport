@@ -40,7 +40,7 @@ func NewPresetEditorRole() types.Role {
 			Namespace:   apidefaults.Namespace,
 			Description: "Edit cluster configuration",
 			Labels: map[string]string{
-				types.TeleportManagedLabel: types.IsManaged,
+				types.TeleportInternalResourceType: types.PresetResource,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -112,7 +112,7 @@ func NewPresetAccessRole() types.Role {
 			Namespace:   apidefaults.Namespace,
 			Description: "Access cluster resources",
 			Labels: map[string]string{
-				types.TeleportManagedLabel: types.IsManaged,
+				types.TeleportInternalResourceType: types.PresetResource,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -178,7 +178,7 @@ func NewPresetAuditorRole() types.Role {
 			Namespace:   apidefaults.Namespace,
 			Description: "Review cluster events and replay sessions",
 			Labels: map[string]string{
-				types.TeleportManagedLabel: types.IsManaged,
+				types.TeleportInternalResourceType: types.PresetResource,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -220,7 +220,7 @@ func NewPresetReviewerRole() types.Role {
 			Namespace:   apidefaults.Namespace,
 			Description: "Review access requests",
 			Labels: map[string]string{
-				types.TeleportManagedLabel: types.IsManaged,
+				types.TeleportInternalResourceType: types.PresetResource,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -247,7 +247,7 @@ func NewPresetRequesterRole() types.Role {
 			Namespace:   apidefaults.Namespace,
 			Description: "Request all resources",
 			Labels: map[string]string{
-				types.TeleportManagedLabel: types.IsManaged,
+				types.TeleportInternalResourceType: types.PresetResource,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -274,7 +274,7 @@ func NewPresetGroupAccessRole() types.Role {
 			Namespace:   apidefaults.Namespace,
 			Description: "Have access to all user groups",
 			Labels: map[string]string{
-				types.TeleportManagedLabel: types.IsManaged,
+				types.TeleportInternalResourceType: types.PresetResource,
 			},
 		},
 		Spec: types.RoleSpecV6{
@@ -298,13 +298,13 @@ func NewPresetGroupAccessRole() types.Role {
 func bootstrapRoleMetadataLabels() map[string]map[string]string {
 	return map[string]map[string]string{
 		teleport.PresetAccessRoleName: {
-			types.TeleportManagedLabel: types.IsManaged,
+			types.TeleportInternalResourceType: types.PresetResource,
 		},
 		teleport.PresetEditorRoleName: {
-			types.TeleportManagedLabel: types.IsManaged,
+			types.TeleportInternalResourceType: types.PresetResource,
 		},
 		teleport.PresetAuditorRoleName: {
-			types.TeleportManagedLabel: types.IsManaged,
+			types.TeleportInternalResourceType: types.PresetResource,
 		},
 		// Group access, reviewer and requester are intentionally not added here as there may be
 		// existing customer defined roles that have these labels.
@@ -420,11 +420,11 @@ func AddRoleDefaults(role types.Role) (types.Role, error) {
 		}
 	}
 
-	// Check if the role has a TeleportManagedLabel attached. We do this after setting the role metadata
+	// Check if the role has a TeleportInternalResourceType attached. We do this after setting the role metadata
 	// labels because we set the role metadata labels for roles that have been well established (access,
 	// editor, auditor) that may not already have this label set, but we don't set it for newer roles
 	// (group-access, reviewer, requester) that may have customer definitions.
-	if role.GetMetadata().Labels[types.TeleportManagedLabel] != types.IsManaged {
+	if role.GetMetadata().Labels[types.TeleportInternalResourceType] != types.PresetResource {
 		return nil, trace.AlreadyExists("not modifying user created role")
 	}
 
