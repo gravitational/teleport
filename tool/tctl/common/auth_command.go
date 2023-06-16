@@ -854,7 +854,13 @@ func (a *AuthCommand) generateUserKeys(ctx context.Context, clusterAPI auth.Clie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	fmt.Printf("\nThe credentials have been written to %s\n", strings.Join(filesWritten, ", "))
+	// Print a tip guiding people towards Machine ID. We use stderr here in case
+	// someone is programatically parsing stdout.
+	_, _ = fmt.Fprintln(
+		os.Stderr,
+		"\nGenerating credentials to allow a machine access to Teleport? We recommend Teleport's Machine ID! Find out more at https://goteleport.com/r/machineid-tip",
+	)
+	fmt.Printf("The credentials have been written to %s\n", strings.Join(filesWritten, ", "))
 
 	return nil
 }
