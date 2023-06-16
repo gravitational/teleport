@@ -408,7 +408,23 @@ No security concerns I can think of.
 
 ### Backward Compatibility
 
-No concerns I can think of.
+
+If the Teleport Discovery service is upgraded, but `tsh` is not, then
+we may break backwards compatibility with user automation scripts, and/or
+frustrate users with long names they must type fully, since their `tsh` does
+not have the UX improvements.
+
+Solution: backport `tsh` UX changes to prior versions and reserve changes to 
+the Teleport Discovery naming schema for v14.
+This way users can continue to type the old names of discovered resources and
+connect by prefix match.
+
+`tsh` UX changes will add a new predicate expression `hasPrefix` to the
+server-side predicate resource parser.
+If a user has a newer `tsh` version than the server, then `hasPrefix` may not
+be supported by the server and `tsh` will get an error.
+To avoid issues, we can make `tsh` fallback to listing resources without a
+predicate expression and filter the results by matching prefix name.
 
 ### Audit Events
 
