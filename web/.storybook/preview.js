@@ -44,7 +44,10 @@ const ThemeDecorator = (storyFn, meta) => {
 
   if (meta.title.startsWith('Teleterm/')) {
     ThemeProvider = TeletermThemeProvider;
-    theme = meta.globals.theme === 'Dark Theme' ? teletermDarkTheme : teletermLightTheme;
+    theme =
+      meta.globals.theme === 'Dark Theme'
+        ? teletermDarkTheme
+        : teletermLightTheme;
   } else {
     ThemeProvider = DefaultThemeProvider;
     theme = meta.globals.theme === 'Dark Theme' ? darkTheme : lightTheme;
