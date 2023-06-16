@@ -177,5 +177,5 @@ func (c *deviceActivateCredentialCommand) run(_ *CLIConf) error {
 		_, _ = fmt.Scanln()
 		return trace.Wrap(err)
 	}
-	return trace.Wrap(err)
+	return nil
 }
