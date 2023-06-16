@@ -473,7 +473,6 @@ func TestProcessAssignments(t *testing.T) {
 
 			// Make sure the rate limit is not in effect here.
 			a.rateLimiter = rate.NewLimiter(rate.Inf, 1)
-			a.assignmentClient.rateLimiter = a.rateLimiter
 
 			for _, group := range test.groups {
 				require.NoError(t, ap.CreateUserGroup(ctx, group))

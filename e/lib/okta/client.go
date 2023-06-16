@@ -149,6 +149,35 @@ func (w *wrappedClient) getAppAssignments(ctx context.Context, appID string) ([]
 	return userIDs, nil
 }
 
+// getAppGroups will return the list of groups an application belongs to.
+func (w *wrappedClient) getAppGroups(ctx context.Context, appID string) ([]string, error) {
+	var groupIDs []string
+
+	// We'll use the max page size of 200 here to minimize API calls.
+	// https://developer.okta.com/docs/reference/api/apps/#list-groups-assigned-to-application
+	groups, resp, err := w.client.Application.ListApplicationGroupAssignments(ctx, appID, query.NewQueryParams(
+		query.WithLimit(200),
+	))
+
+	for {
+		if err != nil {
+			return nil, trace.Wrap(oktaErrToTrace(err), "error when getting application groups")
+		}
+
+		for _, group := range groups {
+			groupIDs = append(groupIDs, group.Id)
+		}
+
+		if !resp.HasNextPage() {
+			break
+		}
+
+		resp, err = resp.Next(ctx, &groups)
+	}
+
+	return groupIDs, nil
+}
+
 // listUsers will return a mapping of usernames to user IDs from Okta.
 func (w *wrappedClient) listUsers(ctx context.Context) (map[string]string, error) {
 	usernameToUserID := map[string]string{}

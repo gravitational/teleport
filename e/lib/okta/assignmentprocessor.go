@@ -93,7 +93,6 @@ type assignmentProcessor struct {
 }
 
 func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssignments) *assignmentProcessor {
-	rateLimiter := rate.NewLimiter(rate.Every(time.Second/time.Duration(maxNumWorkers)), 1)
 	return &assignmentProcessor{
 		log:               svc.log,
 		clock:             svc.clock,
@@ -102,9 +101,8 @@ func newAssignmentProcessor(svc *Service, assignmentGetter func() types.OktaAssi
 		emitter:           svc.emitter,
 		accessPoint:       svc.accessPoint,
 		assignmentGetter:  assignmentGetter,
-		rateLimiter:       rateLimiter,
 		oktaClient:        svc.client,
-		assignmentClient:  newAssignmentClient(svc.log, svc.client, rateLimiter),
+		assignmentClient:  newAssignmentClient(svc.log, svc.client),
 		stopCh:            make(chan struct{}, 1),
 		userTargetCounter: map[string]map[string]struct{}{},
 	}
@@ -131,7 +129,7 @@ func (a *assignmentProcessor) loop(ctx context.Context, oktaClient oktaClient) {
 
 		// Refresh the assignment client every loop.
 		a.assignmentClientMu.Lock()
-		a.assignmentClient = newAssignmentClient(a.log, oktaClient, a.rateLimiter)
+		a.assignmentClient = newAssignmentClient(a.log, oktaClient)
 		a.assignmentClientMu.Unlock()
 
 		if err := a.processAssignments(ctx); err != nil {

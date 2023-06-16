@@ -47,7 +47,7 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	service, _, _ := newTestService(t, ap)
-	_, err := service.oktaGroupToUserGroup(oktaGroup)
+	_, err := service.oktaGroupToUserGroup(oktaGroup, nil)
 	require.ErrorIs(t, trace.BadParameter("the okta group okta-group-id has no profile"), err)
 
 	oktaGroup = &okta.Group{
@@ -58,7 +58,7 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 		},
 	}
 
-	userGroup, err := service.oktaGroupToUserGroup(oktaGroup)
+	userGroup, err := service.oktaGroupToUserGroup(oktaGroup, nil)
 	require.NoError(t, err)
 
 	expected, err := types.NewUserGroup(types.Metadata{
@@ -69,6 +69,23 @@ func TestOktaGroupToUserGroup(t *testing.T) {
 			teleport.OktaOrgURLLabel:  service.orgURL,
 			teleport.OktaGroupIDLabel: "okta-group-id",
 		},
+	}, types.UserGroupSpecV1{})
+	require.NoError(t, err)
+	require.Equal(t, expected, userGroup)
+
+	userGroup, err = service.oktaGroupToUserGroup(oktaGroup, []string{"app1", "app2"})
+	require.NoError(t, err)
+
+	expected, err = types.NewUserGroup(types.Metadata{
+		Name:        "okta-group-id",
+		Description: "group name (group description)",
+		Labels: map[string]string{
+			types.OriginLabel:         types.OriginOkta,
+			teleport.OktaOrgURLLabel:  service.orgURL,
+			teleport.OktaGroupIDLabel: "okta-group-id",
+		},
+	}, types.UserGroupSpecV1{
+		Applications: []string{"app1", "app2"},
 	})
 	require.NoError(t, err)
 	require.Equal(t, expected, userGroup)
@@ -130,11 +147,69 @@ func TestOktaAppToApplications(t *testing.T) {
 	tests := []struct {
 		name             string
 		oktaApp          *okta.Application
+		groupIDs         []string
 		errAssertionFunc require.ErrorAssertionFunc
 		expected         []*types.AppV3
 	}{
 		{
-			name: "happy path",
+			name: "happy path (with group IDs)",
+			oktaApp: &okta.Application{
+				Id:     "app-id",
+				Name:   "app-name",
+				Status: "ACTIVE",
+				Label:  "app label",
+				Links: map[string]interface{}{
+					"appLinks": []interface{}{
+						map[string]interface{}{
+							"name": "applink-name1",
+							"href": "https://www.link1.com",
+						},
+						map[string]interface{}{
+							"name": "applink-name2",
+							"href": "https://www.link2.com",
+						},
+					},
+				},
+			},
+			groupIDs:         []string{"group1", "group2", "group3"},
+			errAssertionFunc: require.NoError,
+			expected: []*types.AppV3{
+				newApp(t,
+					types.Metadata{
+						Name:        "3cjffnnvq17sgg",
+						Description: "app label",
+						Labels: map[string]string{
+							types.OriginLabel:        types.OriginOkta,
+							teleport.OktaOrgURLLabel: testOrgURL,
+							teleport.OktaAppIDLabel:  "app-id",
+						},
+					},
+					types.AppSpecV3{
+						URI:        "https://www.link1.com",
+						PublicAddr: fmt.Sprintf("3cjffnnvq17sgg.%s", testClusterName),
+						UserGroups: []string{"group1", "group2", "group3"},
+					},
+				),
+				newApp(t,
+					types.Metadata{
+						Name:        "4nmi1dlgr9wc9z",
+						Description: "app label",
+						Labels: map[string]string{
+							types.OriginLabel:        types.OriginOkta,
+							teleport.OktaOrgURLLabel: testOrgURL,
+							teleport.OktaAppIDLabel:  "app-id",
+						},
+					},
+					types.AppSpecV3{
+						URI:        "https://www.link2.com",
+						PublicAddr: fmt.Sprintf("4nmi1dlgr9wc9z.%s", testClusterName),
+						UserGroups: []string{"group1", "group2", "group3"},
+					},
+				),
+			},
+		},
+		{
+			name: "happy path (no group IDs)",
 			oktaApp: &okta.Application{
 				Id:     "app-id",
 				Name:   "app-name",
@@ -237,7 +312,7 @@ func TestOktaAppToApplications(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			ap := newTestAccessPoint(t, clockwork.NewRealClock())
 			service, _, _ := newTestService(t, ap)
-			apps, err := service.oktaAppToApp(test.oktaApp)
+			apps, err := service.oktaAppToApp(test.oktaApp, test.groupIDs)
 			test.errAssertionFunc(t, err)
 			require.Equal(t, test.expected, apps)
 		})

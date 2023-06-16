@@ -22,7 +22,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/time/rate"
 )
 
 // assignmentClient is a caching Okta client that will keep track of of Okta
@@ -33,8 +32,6 @@ import (
 type assignmentClient struct {
 	log        *logrus.Entry
 	oktaClient oktaClient
-
-	rateLimiter *rate.Limiter
 
 	// Mapping of usernames to user IDs.
 	usersMu sync.Mutex
@@ -50,13 +47,12 @@ type assignmentClient struct {
 }
 
 // newAssignmentClient will return a new assignment client.
-func newAssignmentClient(log *logrus.Entry, oktaClient oktaClient, rateLimiter *rate.Limiter) *assignmentClient {
+func newAssignmentClient(log *logrus.Entry, oktaClient oktaClient) *assignmentClient {
 	return &assignmentClient{
-		log:         log,
-		oktaClient:  oktaClient,
-		rateLimiter: rateLimiter,
-		groups:      map[string]map[string]bool{},
-		apps:        map[string]map[string]bool{},
+		log:        log,
+		oktaClient: oktaClient,
+		groups:     map[string]map[string]bool{},
+		apps:       map[string]map[string]bool{},
 	}
 }
 
@@ -74,10 +70,6 @@ func (a *assignmentClient) userAssignedToGroup(ctx context.Context, username, gr
 
 	if assignments == nil {
 		a.log.Debugf("Refreshing assignments for group %s", groupID)
-		if err := a.rateLimiter.Wait(ctx); err != nil {
-			return false, trace.Wrap(err)
-		}
-
 		members, err := a.oktaClient.getGroupAssignments(ctx, groupID)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -148,10 +140,6 @@ func (a *assignmentClient) unregisterUserFromGroup(ctx context.Context, username
 		return nil
 	}
 
-	if err := a.rateLimiter.Wait(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := a.oktaClient.unassignUserFromGroup(ctx, userID, groupID); err != nil {
 		if _, ok := err.(oktaAPIValidationError); !ok {
 			return trace.Wrap(err)
@@ -185,10 +173,6 @@ func (a *assignmentClient) userAssignedToApp(ctx context.Context, username, appI
 
 	if assignments == nil {
 		a.log.Debugf("Refreshing assignments for app %s", appID)
-		if err := a.rateLimiter.Wait(ctx); err != nil {
-			return false, trace.Wrap(err)
-		}
-
 		members, err := a.oktaClient.getAppAssignments(ctx, appID)
 		if err != nil {
 			return false, trace.Wrap(err)
@@ -228,10 +212,6 @@ func (a *assignmentClient) registerUserToApp(ctx context.Context, username, appI
 		return nil
 	}
 
-	if err := a.rateLimiter.Wait(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := a.oktaClient.assignUserToApplication(ctx, userID, appID); err != nil {
 		return trace.Wrap(err)
 	}
@@ -263,10 +243,6 @@ func (a *assignmentClient) unregisterUserFromApp(ctx context.Context, username, 
 		return nil
 	}
 
-	if err := a.rateLimiter.Wait(ctx); err != nil {
-		return trace.Wrap(err)
-	}
-
 	if err := a.oktaClient.unassignUserFromApplication(ctx, userID, appID); err != nil {
 		if _, ok := err.(oktaAPIValidationError); !ok {
 			return trace.Wrap(err)
@@ -288,10 +264,6 @@ func (a *assignmentClient) userID(ctx context.Context, username string) (string,
 	a.usersMu.Lock()
 	if a.users == nil {
 		var err error
-
-		if err := a.rateLimiter.Wait(ctx); err != nil {
-			return "", trace.Wrap(err)
-		}
 
 		a.users, err = a.oktaClient.listUsers(ctx)
 		if err != nil {

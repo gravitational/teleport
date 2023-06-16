@@ -92,28 +92,30 @@ func (s *Service) synchronize(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	var errs []error
+	groupsToAppsMapping, err := s.synchronizeApplications(ctx)
+	if err != nil {
+		s.log.Warnf("Error when synchronizing applications, unable to sync groups: %v", err)
 
-	if err := s.synchronizeGroups(ctx); err != nil {
-		errs = append(errs, err)
+		// We need the groups to apps mapping in order to synchronize groups properly, so
+		// we won't try to synchronize groups if we can't synchronize apps.
+		return trace.Wrap(err)
+	}
+
+	if err := s.synchronizeGroups(ctx, groupsToAppsMapping); err != nil {
 		s.log.Warnf("Error when synchronizing groups: %v", err)
+		return trace.Wrap(err)
 	}
 
-	if err := s.synchronizeApplications(ctx); err != nil {
-		errs = append(errs, err)
-		s.log.Warnf("Error when synchronizing applications: %v", err)
-	}
-
-	return trace.NewAggregate(errs...)
+	return nil
 }
 
 // synchronizeGroups will synchronize Okta groups with the backend.
-func (s *Service) synchronizeGroups(ctx context.Context) error {
+func (s *Service) synchronizeGroups(ctx context.Context, groupsToAppsMapping userGroupsToApplications) error {
 	newGroups := map[string]types.UserGroup{}
 	err := s.client.iterateGroups(ctx, func(oktaGroup *okta.Group) error {
 		s.log.Debugf("Processing Okta group %v", oktaGroup.Id)
 
-		userGroup, err := s.oktaGroupToUserGroup(oktaGroup)
+		userGroup, err := s.oktaGroupToUserGroup(oktaGroup, groupsToAppsMapping[oktaGroup.Id])
 		if err != nil {
 			s.log.Debugf("Error converting Okta group: %v", err)
 			return nil
@@ -149,10 +151,14 @@ func (s *Service) synchronizeGroups(ctx context.Context) error {
 	return nil
 }
 
+// userGroupsToApplications is a mapping of user groups to applications.
+type userGroupsToApplications map[string][]string
+
 // synchronizeApplications will synchronize Okta applications with the backend.
-func (s *Service) synchronizeApplications(ctx context.Context) error {
+func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToApplications, error) {
 	s.log.Debug("Synchronizing applications")
 
+	groupsToAppsMapping := userGroupsToApplications{}
 	newApps := map[string]*types.AppV3{}
 	err := s.client.iterateApps(ctx, func(oktaApp okta.App) error {
 		// This type assertion is necessary as okta.App, which is supplied by the Okta go SDK,
@@ -167,7 +173,17 @@ func (s *Service) synchronizeApplications(ctx context.Context) error {
 			return nil
 		}
 
-		apps, err := s.oktaAppToApp(oktaApplication)
+		groups, err := s.client.getAppGroups(ctx, oktaApplication.Id)
+		if err != nil {
+			s.log.Debugf("Error getting groups for applications: %v", err)
+			return nil
+		}
+
+		for _, group := range groups {
+			groupsToAppsMapping[group] = append(groupsToAppsMapping[group], oktaApplication.Id)
+		}
+
+		apps, err := s.oktaAppToApp(oktaApplication, groups)
 		if err != nil {
 			s.log.Debugf("Error converting Okta app: %v", err)
 			return nil
@@ -180,7 +196,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) error {
 		return nil
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	s.newAppsMu.Lock()
@@ -192,17 +208,17 @@ func (s *Service) synchronizeApplications(ctx context.Context) error {
 	s.appsDeleted = nil
 
 	if err := s.appsReconciler.Reconcile(ctx); err != nil {
-		return trace.Wrap(err, "error during application reconciliation")
+		return nil, trace.Wrap(err, "error during application reconciliation")
 	}
 
 	// If all of the app stats are 0, skip the emit. We only want to emit on changes.
 	if s.appsAdded == nil && s.appsUpdated == nil && s.appsDeleted == nil {
-		return nil
+		return nil, nil
 	}
 
 	s.emitSyncEventsInBatches(ctx, events.OktaApplicationsUpdateEvent, events.OktaApplicationsUpdateCode, s.appsAdded, s.appsUpdated, s.appsDeleted)
 
-	return nil
+	return groupsToAppsMapping, nil
 }
 
 func (s *Service) seedGroupReconciler(ctx context.Context) error {

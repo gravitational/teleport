@@ -38,6 +38,26 @@ func TestSynchronizeGroups(t *testing.T) {
 	ap := newTestAccessPoint(t, clockwork.NewRealClock())
 	svc, client, emitter := newTestService(t, ap)
 
+	// Add in one app to get a group to app mapping from
+	client.oktaApps = []okta.App{
+		// This app should be added.
+		&okta.Application{
+			Id:     "app1",
+			Name:   "app-name",
+			Status: "ACTIVE",
+			Label:  "app label",
+			Links: map[string]interface{}{
+				"appLinks": []interface{}{
+					map[string]interface{}{
+						"name": "applink-name1",
+						"href": "https://www.link1.com",
+					},
+				},
+			},
+		},
+	}
+	client.appsToGroups["app1"] = []string{"group4"}
+
 	// Add a few groups to ignore since they don't have an origin of Okta.
 	addGroup(t, "ignored1", types.OriginConfigFile, "", ap)
 	addGroup(t, "ignored2", types.OriginConfigFile, "", ap)
@@ -101,14 +121,23 @@ func TestSynchronizeGroups(t *testing.T) {
 	group3, err = ap.GetUserGroup(ctx, "group3")
 	require.NoError(t, err)
 	require.Equal(t, "group name (group 3 description)", group3.GetMetadata().Description)
+	require.Empty(t, group3.GetApplications())
 	group4, err := ap.GetUserGroup(ctx, "group4")
 	require.NoError(t, err)
 	require.Equal(t, "group name (group 4 description)", group4.GetMetadata().Description)
+	require.Equal(t, []string{"app1"}, group4.GetApplications())
 
 	// This should have never been created.
 	_, err = ap.GetUserGroup(ctx, "group5")
 	require.True(t, trace.IsNotFound(err))
 
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaApplicationsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaApplicationsUpdateCode, event.GetCode())
+		require.Equal(t, int32(1), event.Added)
+		require.Equal(t, int32(0), event.Updated)
+		require.Equal(t, int32(0), event.Deleted)
+	})
 	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
 		require.Equal(t, events.OktaGroupsUpdateEvent, event.GetType())
 		require.Equal(t, events.OktaGroupsUpdateCode, event.GetCode())
@@ -179,6 +208,7 @@ func TestSynchronizeApplications(t *testing.T) {
 		// This app should fail but not interrupt the sync.
 		&dummyOktaApp{},
 	}
+	client.appsToGroups["app4"] = []string{"group4"}
 
 	apps := mapOfAllApps(t, svc)
 	require.Len(t, apps, 3)
@@ -207,10 +237,12 @@ func TestSynchronizeApplications(t *testing.T) {
 	require.NoError(t, err)
 	app4Link1 := apps[app4Link1Name]
 	require.Equal(t, "https://www.link1.com", app4Link1.GetURI())
+	require.Equal(t, []string{"group4"}, app4Link1.GetUserGroups())
 	app4Link2Name, err := appName(svc.hash, "app4", "applink-name2")
 	require.NoError(t, err)
 	app4Link2 := apps[app4Link2Name]
 	require.Equal(t, "https://www.link2.com", app4Link2.GetURI())
+	require.Equal(t, []string{"group4"}, app4Link2.GetUserGroups())
 
 	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
 		require.Equal(t, events.OktaApplicationsUpdateEvent, event.GetType())
@@ -299,7 +331,7 @@ func addGroup(t *testing.T, name, origin, orgURL string, ap auth.OktaAccessPoint
 	userGroup, err := types.NewUserGroup(types.Metadata{
 		Name:   name,
 		Labels: labels,
-	})
+	}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
 
 	require.NoError(t, ap.CreateUserGroup(context.Background(), userGroup))

@@ -80,7 +80,7 @@ type testAccessPoint struct {
 
 var _ auth.OktaAccessPoint = (*testAccessPoint)(nil)
 
-func (*testAccessPoint) NewKeepAliver(ctx context.Context) (types.KeepAliver, error) { return nil, nil }
+func (*testAccessPoint) NewKeepAliver(context.Context) (types.KeepAliver, error) { return nil, nil }
 
 func (*testAccessPoint) GenerateCertAuthorityCRL(context.Context, types.CertAuthType) ([]byte, error) {
 	return nil, nil
@@ -174,7 +174,7 @@ func newTestService(t *testing.T, ap auth.OktaAccessPoint) (*Service, *testOktaC
 
 	ctx := context.Background()
 
-	emitter := eventstest.NewChannelEmitter(1)
+	emitter := eventstest.NewChannelEmitter(2)
 	client := newTestClient()
 	services.NewLockWatcher(ctx, services.LockWatcherConfig{})
 	lockWatcher, err := services.NewLockWatcher(ctx, services.LockWatcherConfig{
@@ -236,6 +236,8 @@ type testOktaClient struct {
 	// appsToUsers is a mapping of application IDs to users that have been assigned to them.
 	appsToUsers map[string]map[string]bool
 
+	appsToGroups map[string][]string
+
 	unassignGroupErr map[string]error
 	unassignAppErr   map[string]error
 }
@@ -245,6 +247,7 @@ func newTestClient() *testOktaClient {
 		usernamesToUserIDs: map[string]string{},
 		groupsToUsers:      map[string]map[string]bool{},
 		appsToUsers:        map[string]map[string]bool{},
+		appsToGroups:       map[string][]string{},
 		unassignGroupErr:   map[string]error{},
 		unassignAppErr:     map[string]error{},
 		oktaOrgURL:         testOrgURL,
@@ -272,7 +275,7 @@ func (t *testOktaClient) iterateApps(_ context.Context, fn func(okta.App) error)
 }
 
 // getGroupAssignments will return the list of users assigned to a group.
-func (t *testOktaClient) getGroupAssignments(ctx context.Context, groupID string) ([]string, error) {
+func (t *testOktaClient) getGroupAssignments(_ context.Context, groupID string) ([]string, error) {
 	t.groupsToUsersMu.Lock()
 	defer t.groupsToUsersMu.Unlock()
 
@@ -290,7 +293,7 @@ func (t *testOktaClient) getGroupAssignments(ctx context.Context, groupID string
 }
 
 // getAppAssignments will return the list of users assigned to an app.
-func (t *testOktaClient) getAppAssignments(ctx context.Context, appID string) ([]string, error) {
+func (t *testOktaClient) getAppAssignments(_ context.Context, appID string) ([]string, error) {
 	t.appsToUsersMu.Lock()
 	defer t.appsToUsersMu.Unlock()
 
@@ -307,8 +310,13 @@ func (t *testOktaClient) getAppAssignments(ctx context.Context, appID string) ([
 	return users, nil
 }
 
+// getAppGroups will return the list of groups an application belongs to.
+func (t *testOktaClient) getAppGroups(_ context.Context, appID string) ([]string, error) {
+	return t.appsToGroups[appID], nil
+}
+
 // listUsers will return a mapping of usernames to user IDs from Okta.
-func (t *testOktaClient) listUsers(ctx context.Context) (map[string]string, error) {
+func (t *testOktaClient) listUsers(_ context.Context) (map[string]string, error) {
 	t.usernamesToUserIDsMu.Lock()
 	defer t.usernamesToUserIDsMu.Unlock()
 
@@ -340,7 +348,7 @@ func (t *testOktaClient) addGroupToMapping(groupId string) {
 }
 
 // assignUserToGroup will assign the given user to the group.
-func (t *testOktaClient) assignUserToGroup(ctx context.Context, username, groupId string) error {
+func (t *testOktaClient) assignUserToGroup(_ context.Context, username, groupId string) error {
 	t.groupsToUsersMu.Lock()
 	defer t.groupsToUsersMu.Unlock()
 
@@ -353,7 +361,7 @@ func (t *testOktaClient) assignUserToGroup(ctx context.Context, username, groupI
 }
 
 // unassignUserFromGroup will unassign the given user from the group.
-func (t *testOktaClient) unassignUserFromGroup(ctx context.Context, username, groupId string) error {
+func (t *testOktaClient) unassignUserFromGroup(_ context.Context, username, groupId string) error {
 	t.groupsToUsersMu.Lock()
 	defer t.groupsToUsersMu.Unlock()
 
@@ -381,7 +389,7 @@ func (t *testOktaClient) addApplicationToMapping(applicationId string) {
 }
 
 // assignUserToApplication will assign the given user to the application.
-func (t *testOktaClient) assignUserToApplication(ctx context.Context, username, applicationId string) error {
+func (t *testOktaClient) assignUserToApplication(_ context.Context, username, applicationId string) error {
 	t.appsToUsersMu.Lock()
 	defer t.appsToUsersMu.Unlock()
 
@@ -394,7 +402,7 @@ func (t *testOktaClient) assignUserToApplication(ctx context.Context, username, 
 }
 
 // unassignUserFromApplication will unassign the given user from the application.
-func (t *testOktaClient) unassignUserFromApplication(ctx context.Context, username, applicationId string) error {
+func (t *testOktaClient) unassignUserFromApplication(_ context.Context, username, applicationId string) error {
 	t.appsToUsersMu.Lock()
 	defer t.appsToUsersMu.Unlock()
 
@@ -504,7 +512,7 @@ func group(t *testing.T, name, origin, orgURL string) types.UserGroup {
 			types.OriginLabel:        origin,
 			teleport.OktaOrgURLLabel: orgURL,
 		},
-	})
+	}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
 	return userGroup
 }

@@ -37,7 +37,7 @@ const (
 )
 
 // oktaGroupToUserGroup converts an Okta group object to a types.UserGroup object.
-func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group) (types.UserGroup, error) {
+func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group, appIDs []string) (types.UserGroup, error) {
 	if err := isGroupValid(oktaGroup); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -63,6 +63,9 @@ func (s *Service) oktaGroupToUserGroup(oktaGroup *okta.Group) (types.UserGroup, 
 			Description: description,
 			Labels:      labels,
 		},
+		types.UserGroupSpecV1{
+			Applications: appIDs,
+		},
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -82,7 +85,7 @@ type appLinks struct {
 
 // oktaAppToApps converts an Okta app object to types.Application objects. This will convert
 // multiple appLinks in an Okta object into multiple applications.
-func (s *Service) oktaAppToApp(oktaApplication *okta.Application) ([]*types.AppV3, error) {
+func (s *Service) oktaAppToApp(oktaApplication *okta.Application, groupIDs []string) ([]*types.AppV3, error) {
 	appIdentifier := fmt.Sprintf("%s (%s)", oktaApplication.Id, oktaApplication.Label)
 
 	// Filter out Okta apps if they're not the kind we want to display to users.
@@ -138,6 +141,7 @@ func (s *Service) oktaAppToApp(oktaApplication *okta.Application) ([]*types.AppV
 			types.AppSpecV3{
 				URI:        appLink.Href,
 				PublicAddr: publicAddr,
+				UserGroups: groupIDs,
 			},
 		)
 		if err != nil {

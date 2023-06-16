@@ -49,6 +49,14 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const (
+	// 10 API calls per second will give us a reasonable throughput without
+	// needing to slow down too much.
+	oktaAPICallsPerSecond    = 10
+	oktaTransportIdleTimeout = 30 * time.Second
+	oktaConnectionTimeout    = 30 * time.Second
+)
+
 // ProxyGetter is an interface for retrieving proxy IDs.
 type ProxyGetter interface {
 	GetProxyIDs() []string
@@ -174,6 +182,9 @@ type oktaClient interface {
 	// getAppAssignments will return the list of users assigned to an app.
 	getAppAssignments(ctx context.Context, appID string) ([]string, error)
 
+	// getAppGroups will return the list of groups an application belongs to.
+	getAppGroups(ctx context.Context, appID string) ([]string, error)
+
 	// listUsers will return a mapping of usernames to user IDs from Okta.
 	listUsers(ctx context.Context) (map[string]string, error)
 
@@ -282,6 +293,27 @@ type Service struct {
 	httpServer *http.Server
 }
 
+// rateLimitingHTTPTransport will only perform HTTP requests after waiting the
+// for the rate limiter.
+type rateLimitingHTTPTransport struct {
+	delegate    *http.Transport
+	rateLimiter *rate.Limiter
+}
+
+func (r *rateLimitingHTTPTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	// Before issuing any HTTP request, wait to ensure we only issue the number of
+	// requests the rate limiter allows.
+	if err := r.rateLimiter.Wait(req.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return r.delegate.RoundTrip(req)
+}
+
+func (r *rateLimitingHTTPTransport) CloseIdleConnections() {
+	r.delegate.CloseIdleConnections()
+}
+
 // New will create a new Okta service.
 func New(ctx context.Context, config Config) (*Service, error) {
 	return newWithClientCreator(ctx, config, func(context.Context, Config) (oktaClient, error) {
@@ -289,6 +321,20 @@ func New(ctx context.Context, config Config) (*Service, error) {
 			okta.WithCache(false), // We don't want a cache as we need up to date info.
 			okta.WithOrgUrl(config.OktaAPIEndpoint),
 			okta.WithToken(config.OktaAPIToken),
+			okta.WithHttpClientPtr(&http.Client{
+				Transport: &rateLimitingHTTPTransport{
+					// This transport was taken from the Okta client.
+					delegate: &http.Transport{
+						IdleConnTimeout: oktaTransportIdleTimeout,
+					},
+					// This should limit the number of API calls per second to 10. Okta's per second
+					// API rate limit is 100, so this should ensure that we use a small amount of that
+					// bandwidth:
+					// https://developer.okta.com/docs/reference/rl-global-other-endpoints/
+					rateLimiter: rate.NewLimiter(rate.Every(time.Second/time.Duration(oktaAPICallsPerSecond)), 1),
+				},
+				Timeout: oktaConnectionTimeout,
+			}),
 
 			// By default, the rate limit backoff is 30 seconds and the number of retries is 2.
 			// This can cause assignment processing timeouts because we don't expect API calls to
