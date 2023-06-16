@@ -1,0 +1,41 @@
+<Tabs>
+  <TabItem label="Mac">
+    [Download the MacOS .pkg installer](https://goteleport.com/download?os=mac) (`tsh` client only, signed) and double-click to run it.
+  </TabItem>
+
+  <TabItem label="Mac - Homebrew">
+    ```code
+    $ brew install teleport
+    ```
+
+    <Admonition type="note">
+      The Teleport package in Homebrew is not maintained by Teleport and we can't
+      guarantee its reliability or security. We recommend the use of our [own Teleport packages](https://goteleport.com/download?os=mac).
+
+      If you choose to use Homebrew, you must verify that the versions of `tsh` and
+      `tctl` are compatible with the versions you run server-side. Homebrew usually
+      ships the latest release of Teleport, which may be incompatible with older
+      versions. See our [compatibility policy](../management/operations/upgrading.mdx#component-compatibility) for details.
+    </Admonition>
+  </TabItem>
+
+  <TabItem label="Windows - Powershell">
+    ```code
+    $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip
+    # Unzip the archive and move `tsh.exe` to your %PATH%
+    ```
+  </TabItem>
+
+  <TabItem label="Linux">
+    For more options (including RPM/DEB packages and downloads for i386/ARM/ARM64) please see our [installation page](../installation.mdx).
+
+    ```code
+    $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
+    $ cd teleport
+    $ sudo ./install
+    # Teleport binaries have been copied to /usr/local/bin
+    # To configure the systemd service for Teleport take a look at examples/systemd/README.mdx
+    ```
+  </TabItem>
+</Tabs>
