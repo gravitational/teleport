@@ -51,6 +51,8 @@ const InvoiceSettingsE = lazy(
   () => import('e-teleport/Billing/InvoiceSettings')
 );
 
+const DiscoverE = lazy(() => import('e-teleport/Discover'));
+
 // ****************************
 // Resource Features
 // ****************************
@@ -140,6 +142,12 @@ class FeatureNewLock extends OSS.FeatureNewLock {
     // Enterprise version allows resources access requests
     // and device trusts to be locked.
     component: NewLock,
+  };
+}
+export class FeatureDiscoverE extends OSS.FeatureDiscover {
+  route = {
+    ...super.getRoute(),
+    component: DiscoverE,
   };
 }
 
@@ -372,7 +380,7 @@ export function getEnterpriseFeatures(): TeleportFeature[] {
     new OSS.FeatureLocks(),
     new FeatureNewLock(),
     new FeatureIntegrations(),
-    new OSS.FeatureDiscover(),
+    new FeatureDiscoverE(),
     new FeatureIntegrationEnroll(),
 
     // - Activity

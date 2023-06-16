@@ -1,10 +1,12 @@
 import React from 'react';
 
-import { Discover as DiscoverComponent } from 'teleport/Discover/Discover';
+import { DiscoverComponent } from 'teleport/Discover/Discover';
 
 import useTeleport from 'e-teleport/useTeleportE';
 import { useBanner } from 'e-teleport/Banner/useBanner';
 import SwitchBack from 'e-teleport/Banner/Switchback';
+
+import { resourceViewConfigs } from './resourceViewConfig';
 
 export function Discover() {
   const ctx = useTeleport();
@@ -38,5 +40,5 @@ export function Discover() {
     );
   }
 
-  return <DiscoverComponent />;
+  return <DiscoverComponent eViewConfigs={resourceViewConfigs} />;
 }

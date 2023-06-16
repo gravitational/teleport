@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
+	enterpriseui "github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -290,14 +291,70 @@ spec:
 	require.True(t, trace.IsBadParameter(err))
 }
 
+func TestUpsertSAMLIdpServiceProvider(t *testing.T) {
+	m := &mockedResourceAPIGetter{}
+
+	existingServiceProviders := make(map[string]types.SAMLIdPServiceProvider)
+	m.mockCreateSAMLIdPServiceProvider = func(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+		existingServiceProviders[sp.GetName()] = sp
+		return nil
+	}
+	m.mockGetSAMLIdPServiceProvider = func(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
+		sp, ok := existingServiceProviders[name]
+		if ok {
+			return sp, nil
+		}
+		return nil, trace.NotFound("")
+	}
+
+	// Test bad request.
+	invalidRequest := &enterpriseui.CreateSAMLIdPServiceProviderRequest{Name: "app_saml", EntityDescriptor: "<invalid xml"}
+
+	sp, err := upsertSAMLIdPServiceProvider(context.Background(), m, *invalidRequest, "", httprouter.Params{})
+	require.Nil(t, sp)
+	require.Error(t, err)
+
+	goodRequest := &enterpriseui.CreateSAMLIdPServiceProviderRequest{Name: "app_saml", EntityDescriptor: `<EntityDescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-06-03T09:53:47.739Z" entityID="https://test.com/saml/metadata">
+	<SPSSODescriptor xmlns="urn:oasis:names:tc:SAML:2.0:metadata" validUntil="2023-06-03T09:53:47.738823Z" protocolSupportEnumeration="urn:oasis:names:tc:SAML:2.0:protocol" AuthnRequestsSigned="false" WantAssertionsSigned="true">
+	 <KeyDescriptor use="encryption">
+		<KeyInfo xmlns="http://www.w3.org/2000/09/xmldsig#">
+		 <X509Data xmlns="http://www.w3.org/2000/09/xmldsig#">
+			<X509Certificate xmlns="http://www.w3.org/2000/09/xmldsig#">abcdefg</X509Certificate>
+		 </X509Data>
+		</KeyInfo>
+		<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes128-cbc"></EncryptionMethod>
+		<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes192-cbc"></EncryptionMethod>
+		<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#aes256-cbc"></EncryptionMethod>
+		<EncryptionMethod Algorithm="http://www.w3.org/2001/04/xmlenc#rsa-oaep-mgf1p"></EncryptionMethod>
+	 </KeyDescriptor>
+	 <NameIDFormat>urn:oasis:names:tc:SAML:2.0:nameid-format:transient</NameIDFormat>
+	 <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-POST" Location="https://test.com/saml/acs" index="1"></AssertionConsumerService>
+	 <AssertionConsumerService Binding="urn:oasis:names:tc:SAML:2.0:bindings:HTTP-Artifact" Location="https://test.com/saml/acs" index="2"></AssertionConsumerService>
+	</SPSSODescriptor>
+ </EntityDescriptor>`}
+
+	// Creating new service provider succeeds.
+	sp, err = upsertSAMLIdPServiceProvider(context.Background(), m, *goodRequest, "POST", httprouter.Params{})
+	require.NoError(t, err)
+	require.Contains(t, sp.Content, "entity_id: https://test.com/saml/metadata")
+
+	// Creating existing service provider fails.
+	sp, err = upsertSAMLIdPServiceProvider(context.Background(), m, *goodRequest, "POST", httprouter.Params{})
+	require.Nil(t, sp)
+	require.Error(t, err)
+	require.True(t, trace.IsAlreadyExists(err))
+}
+
 type mockedResourceAPIGetter struct {
-	mockGetGithubConnectors func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
-	mockUpsertSAMLConnector func(ctx context.Context, connector types.SAMLConnector) error
-	mockGetSAMLConnector    func(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
-	mockGetSAMLConnectors   func(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
-	mockUpsertOIDCConnector func(ctx context.Context, connector types.OIDCConnector) error
-	mockGetOIDCConnector    func(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
-	mockGetOIDCConnectors   func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	mockGetGithubConnectors          func(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
+	mockUpsertSAMLConnector          func(ctx context.Context, connector types.SAMLConnector) error
+	mockGetSAMLConnector             func(ctx context.Context, id string, withSecrets bool) (types.SAMLConnector, error)
+	mockGetSAMLConnectors            func(ctx context.Context, withSecrets bool) ([]types.SAMLConnector, error)
+	mockUpsertOIDCConnector          func(ctx context.Context, connector types.OIDCConnector) error
+	mockGetOIDCConnector             func(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
+	mockGetOIDCConnectors            func(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	mockCreateSAMLIdPServiceProvider func(ctx context.Context, sp types.SAMLIdPServiceProvider) error
+	mockGetSAMLIdPServiceProvider    func(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
 }
 
 func (m *mockedResourceAPIGetter) GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error) {
@@ -354,4 +411,20 @@ func (m *mockedResourceAPIGetter) GetOIDCConnectors(ctx context.Context, withSec
 	}
 
 	return nil, trace.NotImplemented("mockGetOIDCConnectors not implemented")
+}
+
+func (m *mockedResourceAPIGetter) CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error {
+	if m.mockCreateSAMLIdPServiceProvider != nil {
+		return m.mockCreateSAMLIdPServiceProvider(ctx, sp)
+	}
+
+	return trace.NotImplemented("mockCreateSAMlIdPServiceProvider not implemented")
+}
+
+func (m *mockedResourceAPIGetter) GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error) {
+	if m.mockGetSAMLIdPServiceProvider != nil {
+		return m.mockGetSAMLIdPServiceProvider(ctx, name)
+	}
+
+	return nil, trace.NotImplemented("mockGetSAMlIdPServiceProvider not implemented")
 }

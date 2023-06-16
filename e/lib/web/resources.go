@@ -178,6 +178,46 @@ func upsertOIDCConnector(ctx context.Context, clt resourcesAPIGetter, content, h
 	return ui.NewResourceItem(conn)
 }
 
+func (p *Plugin) upsertSAMLIdPServiceProviderHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
+	clt, err := ctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var req enterpriseui.CreateSAMLIdPServiceProviderRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	upsertedItem, err := upsertSAMLIdPServiceProvider(r.Context(), clt, req, r.Method, params)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return upsertedItem, nil
+}
+
+func upsertSAMLIdPServiceProvider(ctx context.Context, clt resourcesAPIGetter, req enterpriseui.CreateSAMLIdPServiceProviderRequest, httpMethod string, params httprouter.Params) (*ui.ResourceItem, error) {
+	get := func(ctx context.Context, name string) (types.Resource, error) {
+		return clt.GetSAMLIdPServiceProvider(ctx, name)
+	}
+
+	if err := web.CheckResourceUpsert(ctx, httpMethod, params, req.Name, get); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sp, err := services.GenerateIdPServiceProviderFromFields(req.Name, req.EntityDescriptor)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := clt.CreateSAMLIdPServiceProvider(ctx, sp); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.NewResourceItem(sp)
+}
+
 type resourcesAPIGetter interface {
 	// GetGithubConnectors returns all configured Github connectors
 	GetGithubConnectors(ctx context.Context, withSecrets bool) ([]types.GithubConnector, error)
@@ -193,4 +233,8 @@ type resourcesAPIGetter interface {
 	GetOIDCConnector(ctx context.Context, id string, withSecrets bool) (types.OIDCConnector, error)
 	// GetOIDCConnectors gets OIDC connectors list
 	GetOIDCConnectors(ctx context.Context, withSecrets bool) ([]types.OIDCConnector, error)
+	// CreateSAMLIdPServiceProvider creates a new SAML IdP service provider resource.
+	CreateSAMLIdPServiceProvider(ctx context.Context, sp types.SAMLIdPServiceProvider) error
+	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
+	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
 }

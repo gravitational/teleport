@@ -73,6 +73,8 @@ const cfg = {
     pluginTypesPath: '/v1/enterprise/plugins/types',
     pluginPath: '/v1/enterprise/plugin/:name?',
 
+    samlIdpPath: '/v1/enterprise/samlidp',
+
     // TODO(sshah): limit, startKey and search is supported by this API but currently
     // only limit and startKey based pagination is implemented in the UI.
     devices: '/v1/enterprise/devices?limit=:limit?&startKey=:startKey?',

@@ -12,6 +12,7 @@ import { downloadsService } from './services/downloads';
 import { pluginsService } from './services/plugins';
 
 import { upgradeWindowService } from './services/upgradeWindow';
+import { IdpService } from './services/idp';
 
 class TeleportEContext extends TeleportContext {
   storeAccessRequests = new StoreAccessRequests();
@@ -23,6 +24,7 @@ class TeleportEContext extends TeleportContext {
   downloadsService = downloadsService;
   pluginsService = pluginsService;
   deviceService = deviceService;
+  idpService = new IdpService();
 }
 
 export default TeleportEContext;

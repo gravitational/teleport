@@ -1,0 +1,16 @@
+import React from 'react';
+import { MemoryRouter } from 'react-router';
+
+import { DownloadMetadata as DownloadMetadataComponent } from './DownloadMetadata';
+
+export default {
+  title: 'TeleportE/Discover/SAML Application',
+};
+
+export const DownloadMetadata = () => {
+  return (
+    <MemoryRouter>
+      <DownloadMetadataComponent nextStep={() => null} prevStep={() => null} />
+    </MemoryRouter>
+  );
+};
