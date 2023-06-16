@@ -51,8 +51,8 @@ type deviceState struct {
 }
 
 // setupDeviceStateDir ensures that device state directory exists.
-// It returns the absolute path to where the attestation key can be found:
-// $CONFIG_DIR/teleport-device/attestation.key
+// It returns a struct containing the path of each part of the device state,
+// or nil and an error if it was not possible to set up the directory.
 func setupDeviceStateDir(getBaseDir func() (string, error)) (*deviceState, error) {
 	base, err := getBaseDir()
 	if err != nil {
@@ -65,15 +65,14 @@ func setupDeviceStateDir(getBaseDir func() (string, error)) (*deviceState, error
 		credentialActivationPath: filepath.Join(deviceStateDirPath, credentialActivationFileName),
 	}
 
-	if _, err := os.Stat(deviceStateDirPath); err != nil {
-		if os.IsNotExist(err) {
-			// If it doesn't exist, we can create it and return as we know
-			// the perms are correct as we created it.
-			if err := os.Mkdir(deviceStateDirPath, 700); err != nil {
-				return nil, trace.Wrap(err)
-			}
-			return ds, nil
+	switch _, err := os.Stat(deviceStateDirPath); {
+	case os.IsNotExist(err):
+		// If it doesn't exist, we can create it and return as we know
+		// the perms are correct as we created it.
+		if err := os.Mkdir(deviceStateDirPath, 700); err != nil {
+			return nil, trace.Wrap(err)
 		}
+	case err != nil:
 		return nil, trace.Wrap(err)
 	}
 
