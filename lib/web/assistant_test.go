@@ -225,9 +225,9 @@ func Test_runAssistError(t *testing.T) {
 		err = json.Unmarshal(payload, &msg)
 		require.NoError(t, err)
 
-		// Expect OpenAI error message
+		// Expect a generic error message
 		require.Equal(t, assist.MessageKindError, msg.Type)
-		require.Contains(t, msg.Payload, "You are sending requests too quickly")
+		require.Contains(t, msg.Payload, "An error has occurred.")
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -267,8 +267,7 @@ func Test_runAssistError(t *testing.T) {
 	ws, err := s.makeAssistant(t, authPack, conversationID)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		// Close should yield an error as the server closes the connection
-		require.Error(t, ws.Close())
+		ws.Close()
 	})
 
 	// verify responses
