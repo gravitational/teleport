@@ -18,6 +18,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -287,6 +288,26 @@ type accessChecker struct {
 //   - `access RoleGetter` should be a RoleGetter which will be used to fetch the
 //     full RoleSet
 func NewAccessChecker(info *AccessInfo, localCluster string, access RoleGetter) (AccessChecker, error) {
+	var managedByPredicate bool = false
+
+	mb, ok := info.Traits["managed_by"]
+	fmt.Println("---------------------------------")
+	fmt.Printf("--------------------------------- %v\n", info.Traits)
+	if ok {
+		for _, value := range mb {
+			if value == "predicate" {
+				managedByPredicate = true
+			}
+		}
+	}
+
+	if managedByPredicate {
+		return &accessCheckerPredicate{
+			info:         info,
+			localCluster: localCluster,
+		}, nil
+	}
+
 	roleSet, err := FetchRoles(info.Roles, access, info.Traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -957,6 +978,8 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 // will not be mapped.
 func AccessInfoFromLocalCertificate(cert *ssh.Certificate) (*AccessInfo, error) {
 	traits, err := ExtractTraitsFromCert(cert)
+	fmt.Printf("-------------- TRAITS EXTRACTED FROM LOCAL CERT: %v\n", traits)
+
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

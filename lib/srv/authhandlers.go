@@ -583,6 +583,9 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	fmt.Println("-------------------- RBAC CHECKS: CREATING ACCESS CHECKER")
+
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
@@ -592,6 +595,9 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	fmt.Println("-------------------- GET ACCESS STATE")
+
 	state := accessChecker.GetAccessState(authPref)
 	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
 
@@ -613,6 +619,8 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
+
+	fmt.Printf("-------------------- CALL CHECK ACCESS, %T\n", accessChecker)
 
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(
