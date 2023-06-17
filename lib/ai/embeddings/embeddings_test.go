@@ -26,6 +26,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/defaults"
@@ -88,13 +89,14 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	done := make(chan struct{})
 	go func() {
 		err := processor.Run(ctx, 100*time.Millisecond)
-		require.ErrorContains(t, err, "context canceled")
+		assert.ErrorContains(t, err, "context canceled")
 		close(done)
 	}()
 
 	// Add some node servers.
-	nodes := make([]types.Server, 0, 5)
-	for i := 0; i < 5; i++ {
+	const numNodes = 5
+	nodes := make([]types.Server, 0, numNodes)
+	for i := 0; i < numNodes; i++ {
 		node, _ := types.NewServer(fmt.Sprintf("node%d", i), types.KindNode, types.ServerSpecV2{
 			Addr:     "127.0.0.1:1234",
 			Hostname: fmt.Sprintf("node%d", i),
@@ -110,8 +112,8 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 
 	require.Eventually(t, func() bool {
 		items, err := stream.Collect(embeddings.GetEmbeddings(ctx, types.KindNode))
-		require.NoError(t, err)
-		return (len(items) == 5) && (len(nodes) == 5)
+		assert.NoError(t, err)
+		return (len(items) == numNodes) && (len(nodes) == numNodes)
 	}, 7*time.Second, 200*time.Millisecond)
 
 	cancel()
