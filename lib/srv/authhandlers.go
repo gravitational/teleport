@@ -578,24 +578,36 @@ func (a *ahLoginChecker) canLoginWithRBAC(cert *ssh.Certificate, ca types.CertAu
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	fmt.Println("-------------------- RBAC CHECKS: CREATING ACCESS CHECKER")
+
 	accessChecker, err := services.NewAccessChecker(accessInfo, clusterName, a.c.AccessPoint)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	fmt.Println("-------------------- CHECK JOIN PRINCIPAL")
 
 	// we don't need to check the RBAC for the node if they are only allowed to join sessions
 	if osUser == teleport.SSHSessionJoinPrincipal && auth.RoleSupportsModeratedSessions(accessChecker.Roles()) {
 		return nil
 	}
 
+	fmt.Println("-------------------- GET AUTH PREFERENCE")
+
 	authPref, err := a.c.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	fmt.Println("-------------------- GET ACCESS STATE")
+
 	state := accessChecker.GetAccessState(authPref)
 	_, state.MFAVerified = cert.Extensions[teleport.CertExtensionMFAVerified]
 	state.EnableDeviceVerification = true
 	state.DeviceVerified = dtauthz.IsSSHDeviceVerified(cert)
+
+	fmt.Printf("-------------------- CALL CHECK ACCESS, %T\n", accessChecker)
 
 	// check if roles allow access to server
 	if err := accessChecker.CheckAccess(

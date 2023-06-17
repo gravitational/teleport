@@ -254,6 +254,9 @@ type Config struct {
 	// InstanceMetadataClient specifies the instance metadata client.
 	InstanceMetadataClient cloud.InstanceMetadata
 
+	// Predicate represents Predicate auth server config
+	Predicate PredicateConfig
+
 	// token is either the token needed to join the auth server, or a path pointing to a file
 	// that contains the token
 	//
@@ -274,6 +277,15 @@ type Config struct {
 	// and the value is retrieved via AuthServerAddresses() and set via SetAuthServerAddresses()
 	// as we still need to keep multiple addresses and return them for older config versions.
 	authServers []utils.NetAddr
+}
+
+// PredicateConfig represents Predicate auth server config
+type PredicateConfig struct {
+	// Enabled predicate reporting enabled
+	Enabled bool
+
+	// Addr predicate service addr
+	Addr string
 }
 
 // RoleAndIdentityEvent is a role and its corresponding identity event.

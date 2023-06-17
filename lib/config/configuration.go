@@ -279,6 +279,15 @@ func ApplyFileConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.WindowsDesktop.Disabled() {
 		cfg.WindowsDesktop.Enabled = false
 	}
+
+	if fc.Predicate.Enabled {
+		cfg.Predicate.Enabled = true
+		if fc.Predicate.Addr == "" {
+			return trace.Errorf("Please, provide predicate_service.addr configuration variable")
+		}
+		cfg.Predicate.Addr = fc.Predicate.Addr
+	}
+
 	applyString(fc.NodeName, &cfg.Hostname)
 
 	// apply "advertise_ip" setting:

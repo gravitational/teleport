@@ -99,6 +99,9 @@ type FileConfig struct {
 
 	// Plugins is the section of the config for configuring the plugin service.
 	Plugins PluginService `yaml:"plugin_service,omitempty"`
+
+	// Predicate is the section of the config describing Predicate service
+	Predicate Predicate `yaml:"predicate_service,omitempty"`
 }
 
 // ReadFromFile reads Teleport configuration from a file. Currently only YAML
@@ -1020,6 +1023,12 @@ type PluginService struct {
 	Enabled bool `yaml:"enabled"`
 	// Plugins is a map of matchers for enabled plugin resources.
 	Plugins map[string]string `yaml:"plugins,omitempty"`
+}
+
+// Predicate represents the configuration for the predicate service.
+type Predicate struct {
+	Enabled bool   `yaml:"enabled"`
+	Addr    string `yaml:"addr"`
 }
 
 // Opsgenie represents the configuration for the Opsgenie plugin.
