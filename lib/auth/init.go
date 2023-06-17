@@ -632,6 +632,14 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 			continue
 		}
 
+		if types.IsSystemResource(role) {
+			// System resources * always* get reset on every auth startup
+			if err := rm.UpsertRole(ctx, role); err != nil {
+				return trace.Wrap(err, "failed upserting system role %s", role.GetName())
+			}
+			continue
+		}
+
 		err := rm.CreateRole(ctx, role)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
@@ -672,6 +680,8 @@ type PresetUserManager interface {
 	UpsertUser(user types.User) error
 }
 
+// createPresetUsers creates all of the required user presets. No attempt is
+// made to migrate any existing users to the lastest preset.
 func createPresetUsers(ctx context.Context, um PresetUserManager) error {
 	users := []types.User{
 		services.NewPresetAutomaticAccessBotUser(),
@@ -680,6 +690,14 @@ func createPresetUsers(ctx context.Context, um PresetUserManager) error {
 		// Some users are only valid for enterprise Teleport, and so will be
 		// nil for an OSS build and can be skipped
 		if user == nil {
+			continue
+		}
+
+		if types.IsSystemResource(user) {
+			// System resources * always* get reset on every auth startup
+			if err := um.UpsertUser(user); err != nil {
+				return trace.Wrap(err, "failed upserting system user %s", user.GetName())
+			}
 			continue
 		}
 
@@ -693,59 +711,9 @@ func createPresetUsers(ctx context.Context, um PresetUserManager) error {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err, "failed creating preset user %s", user.GetName())
 		}
-
-		// Try to upgrade any existing user
-		oldUser, err := um.GetUser(user.GetName(), false)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		changed := migrateUser(oldUser, user)
-		if !changed {
-			// no changes, nothing to do here. Move along to the next preset user.
-			continue
-		}
-
-		if err = um.UpsertUser(oldUser); err != nil {
-			return trace.Wrap(err, "failed updating preset user %s", user.GetName())
-		}
 	}
 
 	return nil
-}
-
-// migrateUser attempts to update a user from an existing revision of
-// a preset user (aka `oldUser`) to match the latest revision of the
-// user preset (aka `newUser`) in place. Returns `true` if the `oldUser`
-// was modified in any way.
-//
-// Currently only updates the user's internal teleport labels (i.e. those
-// prefixed with TeleportInternalLabelPrefix).
-func migrateUser(oldUser, newUser types.User) bool {
-	metadata := oldUser.GetMetadata()
-	oldLabels := metadata.Labels
-	newLabels := newUser.GetMetadata().Labels
-	combinedLabels := map[string]string{}
-	changed := false
-
-	for k, v := range oldLabels {
-		combinedLabels[k] = v
-	}
-	for k, v := range newLabels {
-		if strings.HasPrefix(k, types.TeleportInternalLabelPrefix) {
-			if oldValue := oldLabels[k]; oldValue != v {
-				changed = true
-				combinedLabels[k] = v
-			}
-		}
-	}
-
-	if changed {
-		metadata.Labels = combinedLabels
-		oldUser.SetMetadata(metadata)
-	}
-
-	return changed
 }
 
 // isFirstStart returns 'true' if the auth server is starting for the 1st time

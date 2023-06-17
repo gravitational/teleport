@@ -456,6 +456,13 @@ func TestPresets(t *testing.T) {
 		services.NewPresetAuditorRole(),
 	}
 
+	presetRoleNames := []string{
+		teleport.PresetGroupAccessRoleName,
+		teleport.PresetEditorRoleName,
+		teleport.PresetAccessRoleName,
+		teleport.PresetAuditorRoleName,
+	}
+
 	t.Run("EmptyCluster", func(t *testing.T) {
 		as := newTestAuthServer(ctx, t)
 		clock := clockwork.NewFakeClock()
@@ -469,8 +476,8 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		// Presets were created
-		for _, role := range roles {
-			_, err := as.GetRole(ctx, role.GetName())
+		for _, role := range presetRoleNames {
+			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
 	})
@@ -490,8 +497,8 @@ func TestPresets(t *testing.T) {
 		require.NoError(t, err)
 
 		// Presets were created
-		for _, role := range roles {
-			_, err := as.GetRole(ctx, role.GetName())
+		for _, role := range presetRoleNames {
+			_, err := as.GetRole(ctx, role)
 			require.NoError(t, err)
 		}
 
@@ -617,31 +624,91 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
-	upsertRoleTest := func(t *testing.T, presetRoleCount int) {
-		roleManager := &mockRoleManager{
-			roles: make(map[string]types.Role, presetRoleCount),
-		}
+	upsertRoleTest := func(t *testing.T, expectedPresetRoles []string, expectedSystemRoles []string) {
+		// test state
+		ctx := context.Background()
+		createdSystemRoles := make(map[string]types.Role)
+		createdPresets := make(map[string]types.Role)
+
+		//
+		// Test #1 - popuulating an empty cluster
+		//
+		roleManager := newMockRoleManager(t)
+
+		// EXPECT that non-system resources will be created once
+		// and once only.
+		roleManager.
+			On("CreateRole", ctx, mock.Anything).
+			Run(func(args mock.Arguments) {
+				r := args[1].(types.Role)
+				require.Contains(t, expectedPresetRoles, r.GetName())
+				require.NotContains(t, createdPresets, r.GetName())
+				require.False(t, types.IsSystemResource(r))
+				createdPresets[r.GetName()] = r
+			}).
+			Return(nil)
+
+		// EXPECT that any (and ONLY) system resources will be upserted
+		roleManager.
+			On("UpsertRole", ctx, mock.Anything).
+			Run(func(args mock.Arguments) {
+				r := args[1].(types.Role)
+				require.True(t, types.IsSystemResource(r))
+				require.Contains(t, expectedSystemRoles, r.GetName())
+				require.NotContains(t, createdSystemRoles, r.GetName())
+				createdSystemRoles[r.GetName()] = r
+			}).
+			Maybe().
+			Return(nil)
 
 		err := createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
+		require.Len(t, createdPresets, len(expectedPresetRoles))
+		require.Len(t, createdSystemRoles, len(expectedSystemRoles))
+		roleManager.AssertExpectations(t)
 
-		require.Equal(t, 0, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
-		require.Equal(t, 0, roleManager.getRoleCallsCount, "unexpected call to GetRole")
-		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+		//
+		// Test #2 - popuulating an already-populated cluster
+		//
+		roleManager = newMockRoleManager(t)
 
-		// Running a second time should return Already Exists, so it fetches the role.
-		// The role was not changed, so it can't call the UpsertRole method.
-		roleManager.ResetCallCounters()
+		// EXPECT that createPresets will try to create all expected
+		// non-system roles
+		roleManager.
+			On("CreateRole", ctx, mock.Anything).
+			Run(func(args mock.Arguments) {
+				require.Contains(t, createdPresets, args[1].(types.Role).GetName())
+			}).
+			Return(trace.AlreadyExists("dupe"))
+
+		// EXPECT that any (and ONLY) expected system roles will be
+		// automatically upserted
+		roleManager.
+			On("UpsertRole", ctx, mock.Anything).
+			Run(requireSystemResource(t, 1)).
+			Maybe().
+			Return(nil)
+
+		// EXPECT that all of the roles created in the previous step (and ONLY the
+		// roles created in the previous step will be queried.
+		for name, role := range createdPresets {
+			roleManager.
+				On("GetRole", mock.Anything, name).
+				Return(role, nil)
+		}
 
 		err = createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
+		roleManager.AssertExpectations(t)
 
-		require.Zero(t, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
-		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
-		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+		//
+		// Test #3 - populating an already-populated cluster with updated presets
+		//
+		roleManager = newMockRoleManager(t)
 
-		// Removing a specific resource which is part of the Default Allow Rules should trigger an UpsertRole call
-		editorRole := roleManager.roles[teleport.PresetEditorRoleName]
+		// Removing a specific resource which is part of the Default Allow Rules
+		// should trigger an UpsertRole call
+		editorRole := createdPresets[teleport.PresetEditorRoleName]
 		allowRulesWithoutConnectionDiag := []types.Rule{}
 
 		for _, r := range editorRole.GetRules(types.Allow) {
@@ -651,20 +718,48 @@ func TestPresets(t *testing.T) {
 			allowRulesWithoutConnectionDiag = append(allowRulesWithoutConnectionDiag, r)
 		}
 		editorRole.SetRules(types.Allow, allowRulesWithoutConnectionDiag)
-		err = roleManager.UpsertRole(ctx, editorRole)
-		require.NoError(t, err)
 
-		roleManager.ResetCallCounters()
+		// EXPECT that createPresets will try to create all expected
+		// non-system roles
+		remainingPresets := toSet(expectedPresetRoles)
+		roleManager.
+			On("CreateRole", ctx, mock.Anything).
+			Run(func(args mock.Arguments) {
+				r := args[1].(types.Role)
+				require.Contains(t, createdPresets, r.GetName())
+				delete(remainingPresets, r.GetName())
+			}).
+			Return(trace.AlreadyExists("dupe"))
+
+		// EXPECT that all of the roles created in the first step (and ONLY the
+		// roles created in the first step will be queried.
+		for name, role := range createdPresets {
+			roleManager.
+				On("GetRole", mock.Anything, name).
+				Return(role, nil)
+		}
+
+		// EXPECT that any system roles will be automatically upserted
+		// AND our modified editor resource will be updated using an upsert
+		roleManager.
+			On("UpsertRole", ctx, mock.Anything).
+			Return(func(_ context.Context, r types.Role) error {
+				if types.IsSystemResource(r) {
+					require.Contains(t, expectedSystemRoles, r.GetName())
+					return nil
+				}
+				require.Equal(t, teleport.PresetEditorRoleName, r.GetName())
+				return nil
+			})
+
 		err = createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
-
-		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
-		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
-		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+		require.Empty(t, remainingPresets)
+		roleManager.AssertExpectations(t)
 	}
 
 	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		upsertRoleTest(t, 4 /* presetRoleCount */)
+		upsertRoleTest(t, presetRoleNames, nil)
 	})
 
 	t.Run("Enterprise", func(t *testing.T) {
@@ -710,92 +805,51 @@ func TestPresets(t *testing.T) {
 		})
 
 		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-			upsertRoleTest(t, 5 /* presetRoleCount */)
+			upsertRoleTest(t, presetRoleNames, []string{teleport.PresetAutomaticAccessApprovalRoleName})
 		})
 
-		t.Run("Changing preset user causes upsert", func(t *testing.T) {
-			auth := &mockUserManager{}
+		t.Run("System users are always upserted", func(t *testing.T) {
 			ctx := context.Background()
+			sysUser := services.NewPresetAutomaticAccessBotUser().(*types.UserV2)
 
-			// GIVEN a user database with an existing user record that needs
-			// updating... (which we're simulating by stripping some values off
-			// the current preset and having the mock auth server rerturn this
-			// mutilated user reource when asked).
+			// GIVEN a user database...
+			auth := newMockUserManager(t)
 
-			oldUser := services.NewPresetAutomaticAccessBotUser().(*types.UserV2)
-			newLabels := oldUser.Metadata.Labels
-			oldUser.Metadata.Labels = map[string]string{}
-
+			// Set the expectation that all user creations will succeed EXCEPT
+			// for our known system user
 			auth.On("CreateUser", ctx, mock.Anything).
-				// if `createPresetUsers` tries to create multiple users,
-				// we only want to pretend that our user of interest
-				// already exists.
-				Return(func(u types.User) error {
-					if u.GetName() == oldUser.GetName() {
-						return trace.AlreadyExists("oops")
-					}
-					return nil
-				})
+				Run(requireSystemResource(t, 1)).
+				Maybe().
+				Return(nil)
 
-			auth.On("GetUser", oldUser.GetName(), false).
-				Return(oldUser, nil)
-
+			// All attempts to upsert should succeed, and record the being upserted
+			upsertedUsers := []string{}
 			auth.On("UpsertUser", mock.Anything).
-				Return(nil).Once()
+				Run(func(args mock.Arguments) {
+					u := args.Get(0).(types.User)
+					upsertedUsers = append(upsertedUsers, u.GetName())
+				}).
+				Return(nil)
 
 			// WHEN I attempt to create the preset users...
 			err := createPresetUsers(ctx, auth)
+
+			// EXPECT that the process succeeds and the system user was upserted
 			require.NoError(t, err)
-
-			// EXPECT that GetUser() and UpsertUser() are called as we
-			// expected them to be above (and, by extension, that no other
-			// calls were made into the auth server)
 			auth.AssertExpectations(t)
-
-			// EXPECT that our user of interest has the new labels from
-			// the updated preset applied to it.
-			for k, v := range newLabels {
-				require.Equal(t, v, oldUser.Metadata.Labels[k])
-			}
-		})
-
-		t.Run("Unchanged user does not cause upsert", func(t *testing.T) {
-			ctx := context.Background()
-			auth := &mockUserManager{}
-
-			// GIVEN a user database with an existing user record that does NOT
-			// need updating...
-
-			user := services.NewPresetAutomaticAccessBotUser().(*types.UserV2)
-			auth.On("CreateUser", ctx, mock.Anything).
-				// if `createPresetUsers` tries to create multiple users,
-				// we only want to pretend that our user of interest
-				// already exists.
-				Return(func(u types.User) error {
-					if u.GetName() == user.GetName() {
-						return trace.AlreadyExists("oops")
-					}
-					return nil
-				})
-
-			auth.On("GetUser", user.GetName(), false).
-				Return(user, nil)
-
-			// WHEN I attempt to create the preset users...
-			err := createPresetUsers(ctx, auth)
-			require.NoError(t, err)
-
-			// EXPECT that all of the UserManagement calls that we expected to
-			// happen, happened as we expected. Note that any attempt to call
-			// `UpsertUser` inside `createPresetUsers()` will already have
-			// failed the test, as we have not told the mock to expect it.
-			auth.AssertExpectations(t)
+			require.Contains(t, upsertedUsers, sysUser.Metadata.Name)
 		})
 	})
 }
 
 type mockUserManager struct {
 	mock.Mock
+}
+
+func newMockUserManager(t *testing.T) *mockUserManager {
+	m := &mockUserManager{}
+	m.Test(t)
+	return m
 }
 
 func (m *mockUserManager) CreateUser(ctx context.Context, user types.User) error {
@@ -828,49 +882,59 @@ func (m *mockUserManager) UpsertUser(user types.User) error {
 var _ PresetUserManager = &mockUserManager{}
 
 type mockRoleManager struct {
-	roles                map[string]types.Role
-	getRoleCallsCount    int
-	createRoleCallsCount int
-	upsertRoleCallsCount int
+	mock.Mock
 }
 
-// ResetCallCounters resets the method call counters.
-func (m *mockRoleManager) ResetCallCounters() {
-	m.getRoleCallsCount = 0
-	m.createRoleCallsCount = 0
-	m.upsertRoleCallsCount = 0
-}
+var _ PresetRoleManager = &mockRoleManager{}
 
-// GetRole returns role by name.
-func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role, error) {
-	m.getRoleCallsCount = m.getRoleCallsCount + 1
-
-	role, ok := m.roles[name]
-	if !ok {
-		return nil, trace.NotFound("role not found")
-	}
-	return role, nil
+func newMockRoleManager(t *testing.T) *mockRoleManager {
+	m := &mockRoleManager{}
+	m.Test(t)
+	return m
 }
 
 // CreateRole creates a role.
 func (m *mockRoleManager) CreateRole(ctx context.Context, role types.Role) error {
-	m.createRoleCallsCount = m.createRoleCallsCount + 1
-
-	_, ok := m.roles[role.GetName()]
-	if ok {
-		return trace.AlreadyExists("role not found")
+	type delegateFn = func(context.Context, types.Role) error
+	args := m.Called(ctx, role)
+	if delegate, ok := args[0].(delegateFn); ok {
+		return delegate(ctx, role)
 	}
-
-	m.roles[role.GetName()] = role
-	return nil
+	return args.Error(0)
 }
 
-// UpsertRole creates or updates a role and emits a related audit event.
-func (m *mockRoleManager) UpsertRole(ctx context.Context, role types.Role) error {
-	m.upsertRoleCallsCount = m.upsertRoleCallsCount + 1
-	m.roles[role.GetName()] = role
+func (m *mockRoleManager) GetRole(ctx context.Context, name string) (types.Role, error) {
+	type delegateFn = func(context.Context, string) (types.Role, error)
+	args := m.Called(ctx, name)
+	if delegate, ok := args[0].(delegateFn); ok {
+		return delegate(ctx, name)
+	}
+	return args[0].(types.Role), args.Error(1)
+}
 
-	return nil
+func (m *mockRoleManager) UpsertRole(ctx context.Context, role types.Role) error {
+	type delegateFn = func(context.Context, types.Role) error
+	args := m.Called(ctx, role)
+	if delegate, ok := args[0].(delegateFn); ok {
+		return delegate(ctx, role)
+	}
+	return args.Error(0)
+}
+
+func requireSystemResource(t *testing.T, argno int) func(mock.Arguments) {
+	return func(args mock.Arguments) {
+		argOfInterest := args[argno]
+		require.Implements(t, (*types.Resource)(nil), argOfInterest)
+		require.True(t, types.IsSystemResource(argOfInterest.(types.Resource)))
+	}
+}
+
+func toSet(items []string) map[string]struct{} {
+	result := make(map[string]struct{})
+	for _, v := range items {
+		result[v] = struct{}{}
+	}
+	return result
 }
 
 func setupConfig(t *testing.T) InitConfig {

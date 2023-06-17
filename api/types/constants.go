@@ -573,15 +573,18 @@ const (
 
 	// TeleportSystemResourceLabel marks a resource as being used internally by
 	// teleport itself, and should not be exposed to the cluster users or admins.
-	TeleportSystemResourceLabel = TeleportInternalLabelPrefix + "system"
-
-	// IsSystemResource is the expected value of the TeleportSystemResourceLabel label
-	// if set
-	IsSystemResource = "true"
+	TeleportResourceTypeLabel = TeleportInternalLabelPrefix + "resource-type"
 
 	// TeleportResourceRevision marks a teleport-managed resource with a reversion
 	// number to aid future migrations. Label value is expected to be a number.
 	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
+)
+
+type TeleportResourceType string
+
+const (
+	TeleportResourceTypeSystem TeleportResourceType = "system"
+	TeleportResourceTypePreset TeleportResourceType = "preset"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
