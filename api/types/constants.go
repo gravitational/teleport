@@ -581,7 +581,7 @@ const (
 
 	// SystemResource are resources that will be automatically created and overwritten on startup. Users
 	// should not change these resources.
-	SystemResources = "system"
+	SystemResource = "system"
 
 	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
 	// to them, but user changes to these resources will be preserved.
