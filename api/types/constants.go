@@ -580,10 +580,19 @@ const (
 	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
 )
 
+// TeleportResourceType defines the expected values of the `TeleportResourceTypeLabel`
+// label.
 type TeleportResourceType string
 
 const (
+	// TeleportResourceTypeSystem marks a resource as being required internally
+	// by teleport. Teleport may reset, edit or ortherwise modify this resource
+	// at will, and no attempt to preserve any user changes will be made.
 	TeleportResourceTypeSystem TeleportResourceType = "system"
+
+	// TeleportResourceTypePreset marks a resource that is created and managed by
+	// teleport, but is open for user modification. Teleport will attempt to preserve
+	// any user modifications when changing or updating the resource.
 	TeleportResourceTypePreset TeleportResourceType = "preset"
 )
 
