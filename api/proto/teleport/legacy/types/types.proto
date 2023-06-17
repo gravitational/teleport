@@ -912,6 +912,22 @@ message AppSpecV3 {
   repeated string UserGroups = 8;
 }
 
+// AppServerOrSAMLIdPServiceProviderV1 holds either an AppServerV3 or a SAMLIdPServiceProviderV1 resource (never both).
+// Used in application listings that request both app servers and saml apps.
+message AppServerOrSAMLIdPServiceProviderV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+  // Kind is the resource kind. Always "app_server_saml_idp_sp".
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // The AppServer or SAMLIdPServiceProvider resource.
+  oneof Resource {
+    // AppServer is the AppServer resource.
+    AppServerV3 AppServer = 2 [(gogoproto.jsontag) = "app_server,omitempty"];
+    // SAMLIdPServiceProvider is the SAMLIdPServiceProvider resource.
+    SAMLIdPServiceProviderV1 SAMLIdPServiceProvider = 3 [(gogoproto.jsontag) = "saml_idp_service_provider,omitempty"];
+  }
+}
+
 // App is a specific application that a server proxies.
 //
 // DELETE IN 9.0. Deprecated, use AppV3.
