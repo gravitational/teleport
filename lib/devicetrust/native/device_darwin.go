@@ -240,10 +240,14 @@ func statusErrorFromC(res C.int32_t) error {
 	return &statusError{status: int32(res)}
 }
 
-func solveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error) {
+func solveTPMEnrollChallenge(_ *devicepb.TPMEnrollChallenge, _ bool) (*devicepb.TPMEnrollChallengeResponse, error) {
 	return nil, trace.BadParameter("called solveTPMEnrollChallenge on darwin")
 }
 
 func solveTPMAuthnDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
 	return nil, trace.BadParameter("called solveTPMAuthnDeviceChallenge on darwin")
+}
+
+func handleTPMActivateCredential(_, _ string) error {
+	return trace.BadParameter("called handleTPMActivateCredential on darwin")
 }
