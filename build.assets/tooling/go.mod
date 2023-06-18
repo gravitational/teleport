@@ -5,7 +5,7 @@ go 1.18
 require (
 	github.com/alecthomas/kingpin/v2 v2.3.2 // replaced
 	github.com/bmatcuk/doublestar/v4 v4.6.0
-	github.com/bradleyfalzon/ghinstallation/v2 v2.4.0
+	github.com/bradleyfalzon/ghinstallation/v2 v2.5.0
 	github.com/google/go-github/v41 v41.0.0
 	github.com/google/uuid v1.3.0
 	github.com/gravitational/trace v1.2.1
@@ -28,7 +28,6 @@ require (
 	github.com/fatih/color v1.15.0 // indirect
 	github.com/golang-jwt/jwt/v4 v4.5.0 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
-	github.com/google/go-github/v52 v52.0.0 // indirect
 	github.com/google/go-querystring v1.1.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
@@ -48,5 +47,7 @@ require (
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
+
+require github.com/google/go-github/v53 v53.0.0 // indirect
 
 replace github.com/alecthomas/kingpin/v2 => github.com/gravitational/kingpin/v2 v2.1.11-0.20230515143221-4ec6b70ecd33
