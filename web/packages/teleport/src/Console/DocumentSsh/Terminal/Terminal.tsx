@@ -21,6 +21,7 @@ import React, {
   useRef,
 } from 'react';
 import { Flex } from 'design';
+import { ITheme } from 'xterm';
 
 import { getPlatform } from 'design/theme/utils';
 
@@ -37,6 +38,7 @@ export interface TerminalRef {
 export interface TerminalProps {
   tty: Tty;
   fontFamily: string;
+  theme: ITheme;
 }
 
 export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
@@ -59,6 +61,7 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
       el: elementRef.current,
       fontFamily: props.fontFamily,
       fontSize,
+      theme: props.theme,
     });
     termCtrlRef.current = termCtrl;
 
@@ -75,6 +78,10 @@ export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
     // do not re-initialize xterm when theme changes, use specialized handlers.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    termCtrlRef.current?.updateTheme(props.theme);
+  }, [props.theme]);
 
   return (
     <Flex
