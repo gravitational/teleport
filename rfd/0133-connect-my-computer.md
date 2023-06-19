@@ -438,6 +438,53 @@ flag is `true`. [The Web UI temporarily uses this flag](https://github.com/gravi
 to show certain CTAs and intends to switch to using cluster features instead. However, for CMC this
 flag should be sufficient. CMC in itself is not going to be considered a cluster feature.
 
+### Security
+
+#### Access to the node
+
+The biggest concern is of course that Connect My Computer enables the user to grant access to their
+own machine as the system user that they regularly use, potentially exposing sensitive data. This is
+not a concern when connecting any other SSH node to the cluster, as usually those server nodes are
+understood as shared computers.
+
+Connect My Computer is targeted at hobbyists, people who just set up their Cloud cluster. The UI for
+Connect My Computer will not be accessible if the user doesn't have permission to create join
+tokens. As long as the administrators of more populated clusters follow the principle of least
+privilege, Connect My Computer won't be available to users who are not able to add new nodes to the
+cluster anyway. The UI of Connect My Computer should also make it absolutely clear as to what is
+going to happen. It won't be a single button the user can click by mistake.
+
+We did consider using some kind of an ephemeral user account for the agent. However, eventually we
+want to allow the user to share a link to a shell session on their device, ala
+[Teleconsole](https://github.com/gravitational/teleconsole). Think of a dev inviting a teammate to
+debug an issue with their dev setup. This feature would be substantially less useful if instead of
+sharing a session of your regular system user, you had to share a session from some ephemeral or
+otherwise restricted user account.
+
+From the point of view of the cluster, a node connected through Connect My Computer is just a
+regular node. There's no way to enforce that only a certain cluster user can access it. By
+default, [the role](#setting-up-roles) is added only to the user running Connect My Computer.
+However, anyone with the ability to change user roles will be able to add the role to any other
+cluster user, enabling that user to connect to the node made available through Connect My Computer.
+
+#### Access to UI and autostart
+
+We already mentioned how the UI of Connect My Computer is accessible only if the user has permission
+to create join tokens. There's another principle we want to enforce: if the agent is running, the
+user must be able to stop the agent without being forced to close the app.
+
+Imagine a scenario where:
+
+1) The UI controls of CMC are gated behind being logged in to a cluster.
+2) The agent is automatically started on app launch.
+
+With this in place, it'd be possible for the user to lose access to the cluster (e.g. losing their
+MFA device) while the agent is still sharing their computer with the cluster.
+
+As such, tying the autostart of the agent to being logged in to the cluster gives the user more
+control while also being easier to solve on the UI level – if the user can't access the UI to
+control the agent, the agent should not be running.
+
 ### Detecting breaking changes
 
 Many different parts of our infrastructure and codebase are involved in making CMC work. As such, we
