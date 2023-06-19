@@ -603,8 +603,8 @@ export function finishCommandResult(
 }
 
 export function addCommandResultSummary(
-    state: AssistState,
-    action: AddCommandResultSummaryAction
+  state: AssistState,
+  action: AddCommandResultSummaryAction
 ): AssistState {
   const messages = new Map(state.messages.data);
 

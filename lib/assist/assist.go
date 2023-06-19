@@ -110,7 +110,7 @@ type Chat struct {
 	// Username is the username of the user who started the chat.
 	Username string
 	// potentiallyStaleHistory indicates messages might have been inserted into
-	// the chat history and the messages should be re-fecthed before attempting
+	// the chat history and the messages should be re-fetched before attempting
 	// the next completion.
 	potentiallyStaleHistory bool
 }

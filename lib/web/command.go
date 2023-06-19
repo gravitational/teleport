@@ -287,6 +287,7 @@ func (h *Handler) executeCommand(
 	runCommands(hosts, runCmd, h.log)
 
 	// Optionally try to compute the command summary.
+	// TODO: find way to skip this in tests?
 	if output := buffer.Export(); output != nil {
 		summary, err := h.summarizeOutput(output, clt, identity, req, ctx)
 		if err != nil {

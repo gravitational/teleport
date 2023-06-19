@@ -421,14 +421,14 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           const data = JSON.parse(msg.payload) as RawPayload;
           const payload = atob(data.payload);
 
-          if (data.type === "summary") {
+          if (data.type === 'summary') {
             dispatch({
               type: AssistStateActionType.AddCommandResultSummary,
               conversationId: state.conversations.selectedId,
               summary: payload,
               executionId: execParams.execution_id,
               command: execParams.command,
-            })
+            });
           } else {
             dispatch({
               type: AssistStateActionType.UpdateCommandResult,

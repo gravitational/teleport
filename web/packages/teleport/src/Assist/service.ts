@@ -17,9 +17,13 @@
 import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 
-import {convertPayloadToQuery, findIntersection, sortLoginsWithRootLoginsLast,} from 'teleport/Assist/context/utils';
+import {
+  convertPayloadToQuery,
+  findIntersection,
+  sortLoginsWithRootLoginsLast,
+} from 'teleport/Assist/context/utils';
 
-import {EventType} from 'teleport/lib/term/enums';
+import { EventType } from 'teleport/lib/term/enums';
 
 import NodeService from 'teleport/services/nodes';
 
@@ -40,7 +44,7 @@ import type {
   ServerMessage,
   SessionEvent,
 } from './types';
-import {ServerMessageType} from './types';
+import { ServerMessageType } from './types';
 
 export async function loadConversations(): Promise<Conversation[]> {
   const res: GetConversationsResponse = await api.get(
@@ -66,7 +70,7 @@ export async function resolveServerMessage(
       return resolveServerCommandResultMessage(message, clusterId);
 
     case ServerMessageType.CommandResultSummary:
-      return resolveServerCommandResultSummaryMessage(message)
+      return resolveServerCommandResultSummaryMessage(message);
 
     case ServerMessageType.Assist:
     case ServerMessageType.User:
@@ -174,17 +178,17 @@ export async function resolveServerCommandResultMessage(
 }
 
 export function resolveServerCommandResultSummaryMessage(
-    message: ServerMessage,
+  message: ServerMessage
 ): ResolvedCommandResultSummaryServerMessage {
   const payload = JSON.parse(message.payload) as CommandResultSummaryPayload;
 
-    return {
-      type: ServerMessageType.CommandResultSummary,
-      executionId: payload.execution_id,
-      command: payload.command,
-      summary: payload.summary,
-      created: new Date(message.created_time),
-    };
+  return {
+    type: ServerMessageType.CommandResultSummary,
+    executionId: payload.execution_id,
+    command: payload.command,
+    summary: payload.summary,
+    created: new Date(message.created_time),
+  };
 }
 
 export function resolveServerCommandMessage(

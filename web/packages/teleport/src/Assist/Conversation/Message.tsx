@@ -17,20 +17,30 @@
 import React from 'react';
 import styled from 'styled-components';
 
-import {CheckIcon} from 'design/SVGIcon';
+import { CheckIcon } from 'design/SVGIcon';
 
-import type {ConversationMessage} from 'teleport/Assist/types';
-import {Author, ResolvedServerMessage, ServerMessageType,} from 'teleport/Assist/types';
+import type { ConversationMessage } from 'teleport/Assist/types';
+import {
+  Author,
+  ResolvedServerMessage,
+  ServerMessageType,
+} from 'teleport/Assist/types';
 
-import {TeleportAvatar, UserAvatar,} from 'teleport/Assist/Conversation/Avatar';
-import {TypingContainer, TypingDot,} from 'teleport/Assist/Conversation/Typing';
-import {Timestamp} from 'teleport/Assist/Conversation/Timestamp';
-import {EntryContainer} from 'teleport/Assist/Conversation/EntryContainer';
-import {MessageEntry} from 'teleport/Assist/Conversation/MessageEntry';
-import {useAssist} from 'teleport/Assist/context/AssistContext';
-import {ExecuteRemoteCommandEntry} from 'teleport/Assist/Conversation/ExecuteRemoteCommandEntry';
-import {CommandResultEntry} from 'teleport/Assist/Conversation/CommandResultEntry';
-import {CommandResultSummaryEntry} from 'teleport/Assist/Conversation/CommandResultSummaryEntry';
+import {
+  TeleportAvatar,
+  UserAvatar,
+} from 'teleport/Assist/Conversation/Avatar';
+import {
+  TypingContainer,
+  TypingDot,
+} from 'teleport/Assist/Conversation/Typing';
+import { Timestamp } from 'teleport/Assist/Conversation/Timestamp';
+import { EntryContainer } from 'teleport/Assist/Conversation/EntryContainer';
+import { MessageEntry } from 'teleport/Assist/Conversation/MessageEntry';
+import { useAssist } from 'teleport/Assist/context/AssistContext';
+import { ExecuteRemoteCommandEntry } from 'teleport/Assist/Conversation/ExecuteRemoteCommandEntry';
+import { CommandResultEntry } from 'teleport/Assist/Conversation/CommandResultEntry';
+import { CommandResultSummaryEntry } from 'teleport/Assist/Conversation/CommandResultSummaryEntry';
 
 interface MessageProps {
   message: ConversationMessage;
@@ -131,10 +141,10 @@ function createComponentForEntry(
       );
     case ServerMessageType.CommandResultSummary:
       return (
-          <CommandResultSummaryEntry
-              command={entry.command}
-              summary={entry.summary}
-          />
+        <CommandResultSummaryEntry
+          command={entry.command}
+          summary={entry.summary}
+        />
       );
   }
 }

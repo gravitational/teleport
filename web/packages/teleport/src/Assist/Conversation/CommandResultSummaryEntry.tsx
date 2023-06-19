@@ -40,7 +40,7 @@ const Title = styled.div`
 
 const Summary = styled.div`
   padding: 10px 15px 0 17px;
-  
+
   ${markdownCSS}
 `;
 
@@ -50,14 +50,22 @@ const Header = styled.div`
   padding-right: 20px;
 `;
 
-export function CommandResultSummaryEntry(props: CommandResultSummaryEntryProps) {
+export function CommandResultSummaryEntry(
+  props: CommandResultSummaryEntryProps
+) {
   return (
     <Container>
       <Header>
-        <Title>Summary of command execution <pre>{props.command}"</pre></Title>
+        <Title>
+          Summary of command execution <pre>{props.command}</pre>
+        </Title>
       </Header>
 
-      <Summary><ReactMarkdown remarkPlugins={[remarkGfm]}>{props.summary}</ReactMarkdown></Summary>
+      <Summary>
+        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+          {props.summary}
+        </ReactMarkdown>
+      </Summary>
     </Container>
   );
 }
