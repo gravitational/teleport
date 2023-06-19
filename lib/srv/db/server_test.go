@@ -330,15 +330,18 @@ func TestTrackActiveConnections(t *testing.T) {
 	// Create a few connections, increasing the active connections. Keep track
 	// of the closer functions, so we can close them later.
 	for i := 0; i < numActiveConnections; i++ {
+		expectedActiveConnections := int32(i + 1)
 		conn, err := testCtx.postgresClient(ctx, "alice", "postgres", "postgres", "postgres")
 		require.NoError(t, err)
 		closeFuncs = append(closeFuncs, func() error { return conn.Close(ctx) })
 		// We're also adding them to the test cleanup to ensure connections are
 		// closed even when the test fails.
 		t.Cleanup(func() { conn.Close(ctx) })
-	}
 
-	require.Equal(t, int32(numActiveConnections), testCtx.server.getActiveConnections())
+		require.Eventually(t, func() bool {
+			return expectedActiveConnections == testCtx.server.activeConnections.Load()
+		}, time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
+	}
 
 	// For each connection we close, the active connections should drop too.
 	for i := 0; i < numActiveConnections; i++ {
@@ -349,8 +352,8 @@ func TestTrackActiveConnections(t *testing.T) {
 		// happen when closing a connection. We might need to give it sometime
 		// to properly close the connection.
 		require.Eventually(t, func() bool {
-			return expectedActiveConnections == testCtx.server.getActiveConnections()
-		}, time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.getActiveConnections())
+			return expectedActiveConnections == testCtx.server.activeConnections.Load()
+		}, time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
 	}
 }
 
@@ -372,9 +375,13 @@ func TestShutdownWithActiveConnections(t *testing.T) {
 	// Shutdown doesn't return immediately. We must wait for a short period to
 	// ensure it hasn't been completed.
 	require.Never(t, func() bool {
-		<-shutdownErrCh
-		return true
-	}, time.Second, time.Second, "unexpected server shutdown")
+		select {
+		case <-shutdownErrCh:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 100*time.Millisecond, "unexpected server shutdown")
 
 	select {
 	case err := <-connErrCh:
@@ -456,7 +463,7 @@ func databaseServerWithActiveConnection(t *testing.T, ctx context.Context) (*Ser
 	}()
 
 	require.Eventually(t, func() bool {
-		return testCtx.server.getActiveConnections() == int32(1)
+		return testCtx.server.activeConnections.Load() == int32(1)
 	}, time.Second, 100*time.Millisecond, "expected one active connection, but got none")
 
 	// Ensures the first query has been received.

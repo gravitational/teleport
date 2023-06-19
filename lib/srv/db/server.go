@@ -289,7 +289,7 @@ type Server struct {
 	// log is used for logging.
 	log *logrus.Entry
 	// activeConnections counts the number of database active connections.
-	activeConnections int32
+	activeConnections atomic.Int32
 	// connContext context used by connection resources. Canceling will cause
 	// active connections to drop.
 	connContext context.Context
@@ -795,12 +795,13 @@ func (s *Server) Close() error {
 }
 
 // Shutdown performs a graceful shutdown.
-func (s *Server) Shutdown(ctx context.Context) error {
-	err := s.close(ctx)
+func (s *Server) Shutdown(ctx context.Context) (err error) {
+	err = s.close(ctx)
+	defer s.closeConnFunc()
 
-	activeConnections := s.getActiveConnections()
+	activeConnections := s.activeConnections.Load()
 	if activeConnections == 0 {
-		return err
+		return
 	}
 
 	s.log.Infof("Shutdown: waiting for %v connections to finish.", activeConnections)
@@ -808,13 +809,12 @@ func (s *Server) Shutdown(ctx context.Context) error {
 	ticker := time.NewTicker(s.cfg.ShutdownPollPeriod)
 	defer ticker.Stop()
 
-loop:
 	for {
 		select {
 		case <-ticker.C:
-			activeConnections = s.getActiveConnections()
+			activeConnections = s.activeConnections.Load()
 			if activeConnections == 0 {
-				break loop
+				return
 			}
 
 			if time.Since(lastReport) > 10*s.cfg.ShutdownPollPeriod {
@@ -823,12 +823,9 @@ loop:
 			}
 		case <-ctx.Done():
 			s.log.Infof("Context canceled wait, returning.")
-			break loop
+			return
 		}
 	}
-
-	s.closeConnFunc()
-	return err
 }
 
 func (s *Server) close(ctx context.Context) error {
@@ -883,6 +880,10 @@ func (s *Server) ForceHeartbeat() error {
 // upgrades it to TLS, extracts identity information from it, performs
 // authorization and dispatches to the appropriate database engine.
 func (s *Server) HandleConnection(conn net.Conn) {
+	// Track active connections.
+	s.activeConnections.Add(1)
+	defer s.activeConnections.Add(-1)
+
 	log := s.log.WithField("addr", conn.RemoteAddr())
 	log.Debug("Accepted connection.")
 	// Upgrade the connection to TLS since the other side of the reverse
@@ -906,9 +907,6 @@ func (s *Server) HandleConnection(conn net.Conn) {
 		log.WithError(err).Error("Failed to extract identity from connection.")
 		return
 	}
-	// Track active connections.
-	s.trackActiveConnections(1)
-	defer s.trackActiveConnections(-1)
 	// Dispatch the connection for processing by an appropriate database
 	// service.
 	err = s.handleConnection(ctx, tlsConn)
@@ -1193,15 +1191,4 @@ func (s *Server) trackSession(ctx context.Context, sessionCtx *common.Session) e
 	}()
 
 	return nil
-}
-
-// getActiveConnections returns the number of active database connections.
-func (s *Server) getActiveConnections() int32 {
-	return atomic.LoadInt32(&s.activeConnections)
-}
-
-// trackActiveConnections adds the delta to the number of active database
-// connections.
-func (s *Server) trackActiveConnections(delta int32) int32 {
-	return atomic.AddInt32(&s.activeConnections, delta)
 }
