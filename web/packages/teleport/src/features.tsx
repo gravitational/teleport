@@ -406,6 +406,10 @@ export class FeatureDiscover implements TeleportFeature {
   hasAccess(flags: FeatureFlags) {
     return flags.discover;
   }
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureIntegrations implements TeleportFeature {

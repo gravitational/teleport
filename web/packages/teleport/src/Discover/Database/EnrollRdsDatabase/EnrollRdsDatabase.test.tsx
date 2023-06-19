@@ -53,6 +53,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
       },
     } as any,
     viewConfig: null,
+    exitFlow: null,
     indexedViews: [],
     setResourceSpec: () => null,
     updateAgentMeta: jest.fn(x => x),
