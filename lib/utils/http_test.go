@@ -17,7 +17,9 @@ limitations under the License.
 package utils
 
 import (
+	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -50,4 +52,44 @@ func TestGetAnyHeader(t *testing.T) {
 	require.Equal(t, "a1", GetAnyHeader(header, "aaa"))
 	require.Equal(t, "a1", GetAnyHeader(header, "ccc", "aaa"))
 	require.Equal(t, "b1", GetAnyHeader(header, "bbb", "aaa"))
+}
+
+func TestChainHTTPMiddlewares(t *testing.T) {
+	baseHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte("baseHandler"))
+	})
+
+	middleware2 := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("middleware2->"))
+			next.ServeHTTP(w, r)
+		})
+	}
+	middleware4 := func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Write([]byte("middleware4->"))
+			next.ServeHTTP(w, r)
+		})
+	}
+
+	handler := ChainHTTPMiddlewares(
+		baseHandler,
+		nil,
+		middleware2,
+		nil,
+		middleware4,
+		nil,
+	)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequest("", "/", nil)
+	handler.ServeHTTP(w, r)
+
+	resp := w.Result()
+	defer resp.Body.Close()
+
+	require.Equal(t, http.StatusOK, resp.StatusCode)
+	body, err := io.ReadAll(resp.Body)
+	require.NoError(t, err)
+	require.Equal(t, "middleware4->middleware2->baseHandler", string(body))
 }

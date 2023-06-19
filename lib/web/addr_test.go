@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 */
+
 package web
 
 import (
@@ -21,12 +22,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-func TestMaybeUpdateClientSrvAddr(t *testing.T) {
+func TestNewXForwardedForMiddleware(t *testing.T) {
 	t.Parallel()
 
 	observeredAddr := utils.MustParseAddr("11.22.33.44:1234")
@@ -34,10 +36,6 @@ func TestMaybeUpdateClientSrvAddr(t *testing.T) {
 
 	// Setup response writer with observeredAddr.
 	fakeConn, _ := net.Pipe()
-	rw := &responseWriterWithRemoteAddr{
-		ResponseWriter: newResponseWriterHijacker(nil, fakeConn),
-		remoteAddr:     observeredAddr,
-	}
 
 	// Setup request with observeredAddr.
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -53,127 +51,125 @@ func TestMaybeUpdateClientSrvAddr(t *testing.T) {
 	reqWithMultipleXFF.Header.Add("X-Forwarded-For", "88.77.66.55:8765")
 
 	tests := []struct {
-		name                  string
-		inputUseXForwardedFor bool
-		inputRW               http.ResponseWriter
-		inputReq              *http.Request
-		wantRemoteAddr        string
-		wantError             bool
+		name           string
+		inputReq       *http.Request
+		wantRemoteAddr string
+		wantError      bool
 	}{
 		{
-			name:           "UseXForwardedFor not enabled",
-			inputRW:        rw,
+			name:           "no X-Forwarded-For header",
 			inputReq:       req,
 			wantRemoteAddr: observeredAddr.String(),
 		},
 		{
-			name:                  "no X-Forwarded-For header",
-			inputRW:               rw,
-			inputReq:              req,
-			inputUseXForwardedFor: true,
-			wantRemoteAddr:        observeredAddr.String(),
+			name:      "multiple X-Forwarded-For values",
+			inputReq:  reqWithMultipleXFF,
+			wantError: true,
 		},
 		{
-			name:                  "multiple X-Forwarded-For values",
-			inputRW:               rw,
-			inputReq:              reqWithMultipleXFF,
-			inputUseXForwardedFor: true,
-			wantError:             true,
-		},
-		{
-			name:                  "using X-Forwarded-For header",
-			inputRW:               rw,
-			inputReq:              reqWithXFF,
-			inputUseXForwardedFor: true,
-			wantRemoteAddr:        xForwardedAddr.String(),
+			name:           "using X-Forwarded-For header",
+			inputReq:       reqWithXFF,
+			wantRemoteAddr: xForwardedAddr.String(),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			h := &Handler{
-				cfg: Config{
-					UseXForwardedFor: test.inputUseXForwardedFor,
-				},
-			}
+			checkRemoteAddr := http.HandlerFunc(func(outputRW http.ResponseWriter, outputReq *http.Request) {
+				// Verify hijacked conn.
+				hj, ok := outputRW.(http.Hijacker)
+				require.True(t, ok)
+				outputConn, _, err := hj.Hijack()
+				require.NoError(t, err)
+				require.Equal(t, test.wantRemoteAddr, outputConn.RemoteAddr().String())
 
-			outputRW, outputReq, err := h.maybeUpdateClientSrcAddr(test.inputRW, test.inputReq)
+				// Verify request.
+				require.Equal(t, test.wantRemoteAddr, outputReq.RemoteAddr)
+
+				// Verify request context.
+				clientSrcAddr, _ := utils.ClientAddrFromContext(outputReq.Context())
+				require.Equal(t, test.wantRemoteAddr, clientSrcAddr.String())
+
+				outputRW.WriteHeader(http.StatusAccepted)
+			})
+
+			recorder := httptest.NewRecorder()
+			inputResponseWriter := &responseWriterWithRemoteAddr{
+				ResponseWriter: newResponseWriterHijacker(recorder, fakeConn),
+				remoteAddr:     observeredAddr,
+			}
+			handler := NewXForwardedForMiddleware(checkRemoteAddr)
+			handler.ServeHTTP(inputResponseWriter, test.inputReq)
+
+			response := recorder.Result()
+			defer response.Body.Close()
 			if test.wantError {
-				require.Error(t, err)
-				return
+				require.Equal(t, http.StatusBadRequest, response.StatusCode)
+			} else {
+				require.Equal(t, http.StatusAccepted, response.StatusCode)
 			}
-			require.NoError(t, err)
-
-			// Verify hijacked conn.
-			hj, ok := outputRW.(http.Hijacker)
-			require.True(t, ok)
-			outputConn, _, err := hj.Hijack()
-			require.NoError(t, err)
-			require.Equal(t, test.wantRemoteAddr, outputConn.RemoteAddr().String())
-
-			// Verify request.
-			require.Equal(t, test.wantRemoteAddr, outputReq.RemoteAddr)
-
-			// Verify request context.
-			clientSrcAddr, _ := utils.ClientAddrFromContext(outputReq.Context())
-			require.Equal(t, test.wantRemoteAddr, clientSrcAddr.String())
 		})
 	}
 
 }
 
-func TestParseForwardedAddr(t *testing.T) {
+func TestParseXForwardedForHeaders(t *testing.T) {
 	t.Parallel()
 
 	inputObserveredAddr := "1.2.3.4:12345"
 	tests := []struct {
-		name               string
-		inputForwardedAddr string
-		wantAddr           string
-		wantError          bool
+		name                      string
+		inputXForwardedForHeaders []string
+		wantAddr                  string
+		wantError                 func(error) bool
 	}{
 		{
-			name:               "empty",
-			inputForwardedAddr: "",
-			wantError:          true,
+			name:                      "empty",
+			inputXForwardedForHeaders: []string{},
+			wantError:                 trace.IsNotFound,
 		},
 		{
-			name:               "invalid X-Forwarded-For",
-			inputForwardedAddr: "not-an-ip",
-			wantError:          true,
+			name:                      "invalid X-Forwarded-For",
+			inputXForwardedForHeaders: []string{"not-an-ip"},
+			wantError:                 trace.IsBadParameter,
 		},
 		{
-			name:               "ipv4",
-			inputForwardedAddr: "3.4.5.6",
-			wantAddr:           "3.4.5.6:12345",
+			name:                      "ipv4",
+			inputXForwardedForHeaders: []string{"3.4.5.6"},
+			wantAddr:                  "3.4.5.6:12345",
 		},
 		{
-			name:               "ipv4 with port",
-			inputForwardedAddr: "3.4.5.6:22222",
-			wantAddr:           "3.4.5.6:22222",
+			name:                      "ipv4 with port",
+			inputXForwardedForHeaders: []string{"3.4.5.6:22222"},
+			wantAddr:                  "3.4.5.6:22222",
 		},
 		{
-			name:               "ipv6",
-			inputForwardedAddr: "2001:db8::21f:5bff:febf:ce22:8a2e",
-			wantAddr:           "[2001:db8:0:21f:5bff:febf:ce22:8a2e]:12345",
+			name:                      "ipv6",
+			inputXForwardedForHeaders: []string{"2001:db8::21f:5bff:febf:ce22:8a2e"},
+			wantAddr:                  "[2001:db8:0:21f:5bff:febf:ce22:8a2e]:12345",
 		},
 		{
-			name:               "ipv6 with port",
-			inputForwardedAddr: "[2001:db8::21f:5bff:febf:ce22:8a2e]:22222",
-			wantAddr:           "[2001:db8:0:21f:5bff:febf:ce22:8a2e]:22222",
+			name:                      "ipv6 with port",
+			inputXForwardedForHeaders: []string{"[2001:db8::21f:5bff:febf:ce22:8a2e]:22222"},
+			wantAddr:                  "[2001:db8:0:21f:5bff:febf:ce22:8a2e]:22222",
 		},
 		{
-			name:               "multiple IPs",
-			inputForwardedAddr: "3.4.5.6, 7.8.9.10, 11.12.13.14",
-			wantError:          true,
+			name:                      "multiple IPs",
+			inputXForwardedForHeaders: []string{"3.4.5.6, 7.8.9.10, 11.12.13.14"},
+			wantError:                 trace.IsBadParameter,
+		},
+		{
+			name:                      "multiple headers",
+			inputXForwardedForHeaders: []string{"3.4.5.6", "7.8.9.10", "11.12.13.14"},
+			wantError:                 trace.IsBadParameter,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			actualAddr, err := parseForwardedAddr(inputObserveredAddr, test.inputForwardedAddr)
-			if test.wantError {
-				require.Error(t, err)
+			actualAddr, err := parseXForwardedForHeaders(inputObserveredAddr, test.inputXForwardedForHeaders)
+			if test.wantError != nil {
+				require.True(t, test.wantError(err))
 			} else {
 				require.NoError(t, err)
 				require.Equal(t, test.wantAddr, actualAddr.String())

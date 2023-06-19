@@ -76,8 +76,7 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	// connection upgrade portion.
 	h := &Handler{
 		cfg: Config{
-			ALPNHandler:      alpnHandler,
-			UseXForwardedFor: true,
+			ALPNHandler: alpnHandler,
 		},
 		log:   newPackageLogger(),
 		clock: clockwork.NewRealClock(),
@@ -129,11 +128,16 @@ func sendConnUpgradeRequest(t *testing.T, h *Handler, upgradeType string, server
 
 	// serverConn will be hijacked.
 	w := newResponseWriterHijacker(nil, serverConn)
-	w, r, err = h.maybeUpdateClientSrcAddr(w, r)
 	require.NoError(t, err)
 
 	go func() {
-		_, err := h.connectionUpgrade(w, r, nil)
+		// Use XForwardedFor middleware to set IPs.
+		var err error
+		connUpgradeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_, err = h.connectionUpgrade(w, r, nil)
+		})
+		NewXForwardedForMiddleware(connUpgradeHandler).ServeHTTP(w, r)
+
 		require.NoError(t, err)
 	}()
 
