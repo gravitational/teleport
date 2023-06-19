@@ -34,22 +34,24 @@ type connectedGetter interface {
 }
 
 // isOktaServiceConnected will return true if an Okta service is seen in the inventory or in the plugins list.
-func isOktaServiceConnected(ctx context.Context, log logrus.FieldLogger, getter connectedGetter) bool {
+func isOktaServiceConnected(ctx context.Context, log logrus.FieldLogger, pluginsEnabled bool, getter connectedGetter) bool {
 	// Check to see if the Okta service is in the inventory.
 	if getter.GetInventoryConnectedServiceCount(types.RoleOkta) > 0 {
 		return true
 	}
 
-	// If it's not in the inventory, check to see if there's an Okta plugin.
-	plugins, err := getter.GetPlugins(ctx, false)
-	if err != nil {
-		log.Errorf("error trying to get plugins to test for Okta service connectivity: %v", err)
-		return false
-	}
+	if pluginsEnabled {
+		// If it's not in the inventory, check to see if there's an Okta plugin.
+		plugins, err := getter.GetPlugins(ctx, false)
+		if err != nil {
+			log.Errorf("error trying to get plugins to test for Okta service connectivity: %v", err)
+			return false
+		}
 
-	for _, plugin := range plugins {
-		if plugin.GetType() == types.PluginTypeOkta {
-			return true
+		for _, plugin := range plugins {
+			if plugin.GetType() == types.PluginTypeOkta {
+				return true
+			}
 		}
 	}
 

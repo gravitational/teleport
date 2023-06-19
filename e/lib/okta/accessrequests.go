@@ -82,6 +82,9 @@ type AccessRequestReconcilerConfig struct {
 	// OnReconcile is called after each access request resource reconciliation.
 	OnReconcile func(types.AccessRequests)
 
+	// PluginsEnabled should be set to true if plugins are enabled on this auth server.
+	PluginsEnabled bool
+
 	// onServiceDisconnectedCh is a channel that will be signaled to when the service disconnects.
 	// This is to be used for testing.
 	onServiceDisconnectedCh chan struct{}
@@ -124,9 +127,10 @@ type AccessRequestReconciler struct {
 	clock       clockwork.Clock
 	clusterName string
 
-	accessPoint AccessRequestReconcilerAccessPoint
-	oktaClient  services.OktaAssignments
-	onReconcile func(types.AccessRequests)
+	accessPoint    AccessRequestReconcilerAccessPoint
+	oktaClient     services.OktaAssignments
+	onReconcile    func(types.AccessRequests)
+	pluginsEnabled bool
 
 	watcherMu sync.Mutex
 	watcher   *services.AccessRequestWatcher
@@ -168,6 +172,7 @@ func NewAccessRequestReconciler(ctx context.Context, config *AccessRequestReconc
 		clusterName:             config.ClusterName,
 		accessPoint:             config.AccessPoint,
 		onReconcile:             config.OnReconcile,
+		pluginsEnabled:          config.PluginsEnabled,
 		oktaClient:              config.OktaClient,
 		reconcileCh:             make(chan struct{}),
 		stopCh:                  make(chan struct{}, 1),
@@ -199,7 +204,7 @@ func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context)
 	var serviceConnectionFailures int
 
 	for {
-		newOktaServiceConnected := isOktaServiceConnected(ctx, a.log, a.accessPoint)
+		newOktaServiceConnected := isOktaServiceConnected(ctx, a.log, a.pluginsEnabled, a.accessPoint)
 		if newOktaServiceConnected {
 			serviceConnectionFailures = 0
 
