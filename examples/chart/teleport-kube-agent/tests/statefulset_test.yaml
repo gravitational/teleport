@@ -701,3 +701,21 @@ tests:
           content:
             name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
             value: "true"
+
+  - it: should set the hostAliases when specified
+    template: statefulset.yaml
+    values:
+      - ../.lint/stateful.yaml
+      - ../.lint/host-aliases.yaml
+    asserts:
+      - equal:
+          path: spec.template.spec.hostAliases
+          value:
+            - ip: "127.0.0.1"
+              hostnames:
+                - "foo.local"
+                - "bar.local"
+            - ip: "10.1.2.3"
+              hostnames:
+                - "foo.remote"
+                - "bar.remote"

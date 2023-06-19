@@ -16,7 +16,7 @@ limitations under the License.
 
 import { fonts } from './fonts';
 import { getContrastRatio, lighten } from './utils/colorManipulator';
-import { lightBlue, blueGrey, yellow } from './palette';
+import { blueGrey, lightBlue, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
 
@@ -25,15 +25,15 @@ const contrastThreshold = 3;
 
 const colors = {
   /*
-  Colors in `levels` are used to reflect the perceived depth of elements in the UI.
-  The further back an element is, the more "sunken" it is, and the more forwards it is, the more "elevated" it is (think CSS z-index).
+    Colors in `levels` are used to reflect the perceived depth of elements in the UI.
+    The further back an element is, the more "sunken" it is, and the more forwards it is, the more "elevated" it is (think CSS z-index).
 
-  A `sunken` color would be used to represent something like the background of the app.
-  While `surface` would be the color of the primary surface where most content is located (such as tables).
-  Any colors more "elevated" than that would be used for things such as popovers, menus, and dialogs.
+    A `sunken` color would be used to represent something like the background of the app.
+    While `surface` would be the color of the primary surface where most content is located (such as tables).
+    Any colors more "elevated" than that would be used for things such as popovers, menus, and dialogs.
 
-  For more information on this concept: https://m3.material.io/styles/elevation/applying-elevation
- */
+    For more information on this concept: https://m3.material.io/styles/elevation/applying-elevation
+   */
   levels: {
     deep: '#000000',
 
@@ -112,6 +112,10 @@ const colors = {
       hover: '#33B1FF',
       active: '#66C5FF',
     },
+  },
+
+  tooltip: {
+    background: '#212B2F',
   },
 
   progressBarColor: '#00BFA5',

@@ -20,6 +20,7 @@ import (
 	"fmt"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils/aws"
 )
@@ -44,6 +45,8 @@ type App struct {
 	AWSConsole bool `json:"awsConsole"`
 	// AWSRoles is a list of AWS IAM roles for the application representing AWS console.
 	AWSRoles []aws.Role `json:"awsRoles,omitempty"`
+	// FriendlyName is a friendly name for the app.
+	FriendlyName string `json:"friendlyName,omitempty"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.
@@ -68,14 +71,15 @@ func MakeApps(c MakeAppsConfig) []App {
 		labels := makeLabels(teleApp.GetAllLabels())
 
 		app := App{
-			Name:        teleApp.GetName(),
-			Description: teleApp.GetDescription(),
-			URI:         teleApp.GetURI(),
-			PublicAddr:  teleApp.GetPublicAddr(),
-			Labels:      labels,
-			ClusterID:   c.AppClusterName,
-			FQDN:        fqdn,
-			AWSConsole:  teleApp.IsAWSConsole(),
+			Name:         teleApp.GetName(),
+			Description:  teleApp.GetDescription(),
+			URI:          teleApp.GetURI(),
+			PublicAddr:   teleApp.GetPublicAddr(),
+			Labels:       labels,
+			ClusterID:    c.AppClusterName,
+			FQDN:         fqdn,
+			AWSConsole:   teleApp.IsAWSConsole(),
+			FriendlyName: services.FriendlyName(teleApp),
 		}
 
 		if teleApp.IsAWSConsole() {

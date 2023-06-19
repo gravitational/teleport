@@ -807,13 +807,15 @@ func TestAccessMongoDB(t *testing.T) {
 		opts []mongodb.TestServerOption
 	}{
 		{
-			name: "new server",
-			opts: []mongodb.TestServerOption{},
+			name: "current server",
+			opts: []mongodb.TestServerOption{
+				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion),
+			},
 		},
 		{
-			name: "old server",
+			name: "mongodb 3.6 server",
 			opts: []mongodb.TestServerOption{
-				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion - 1),
+				mongodb.TestServerWireVersion(6),
 			},
 		},
 	}

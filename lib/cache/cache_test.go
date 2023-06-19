@@ -1530,14 +1530,14 @@ func TestProxies(t *testing.T) {
 		newResource: func(name string) (types.Server, error) {
 			return suite.NewServer(types.KindProxy, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 		},
-		create: modifyNoContext(p.presenceS.UpsertProxy),
+		create: p.presenceS.UpsertProxy,
 		list: func(_ context.Context) ([]types.Server, error) {
 			return p.presenceS.GetProxies()
 		},
 		cacheList: func(_ context.Context) ([]types.Server, error) {
 			return p.cache.GetProxies()
 		},
-		update: modifyNoContext(p.presenceS.UpsertProxy),
+		update: p.presenceS.UpsertProxy,
 		deleteAll: func(_ context.Context) error {
 			return p.presenceS.DeleteAllProxies()
 		},
@@ -1555,14 +1555,14 @@ func TestAuthServers(t *testing.T) {
 		newResource: func(name string) (types.Server, error) {
 			return suite.NewServer(types.KindAuthServer, name, "127.0.0.1:2022", apidefaults.Namespace), nil
 		},
-		create: modifyNoContext(p.presenceS.UpsertAuthServer),
+		create: p.presenceS.UpsertAuthServer,
 		list: func(_ context.Context) ([]types.Server, error) {
 			return p.presenceS.GetAuthServers()
 		},
 		cacheList: func(_ context.Context) ([]types.Server, error) {
 			return p.cache.GetAuthServers()
 		},
-		update: modifyNoContext(p.presenceS.UpsertAuthServer),
+		update: p.presenceS.UpsertAuthServer,
 		deleteAll: func(_ context.Context) error {
 			return p.presenceS.DeleteAllAuthServers()
 		},
@@ -1848,7 +1848,7 @@ func TestUserGroups(t *testing.T) {
 			return types.NewUserGroup(
 				types.Metadata{
 					Name: name,
-				},
+				}, types.UserGroupSpecV1{},
 			)
 		},
 		create: p.userGroups.CreateUserGroup,

@@ -68,6 +68,14 @@ export class MockMainProcessClient implements MainProcessClient {
   async openConfigFile() {
     return '';
   }
+
+  shouldUseDarkColors() {
+    return true;
+  }
+
+  subscribeToNativeThemeUpdate() {
+    return { cleanup: () => undefined };
+  }
 }
 
 export const makeRuntimeSettings = (

@@ -48,6 +48,18 @@ type dialConfig struct {
 	// proxyHeaderGetter is used if present to get signed PROXY headers to propagate client's IP.
 	// Used by proxy's web server to make calls on behalf of connected clients.
 	proxyHeaderGetter PROXYHeaderGetter
+	// proxyURLFunc is a function used to get ProxyURL. Defaults to
+	// utils.GetProxyURL if not specified. Currently only used in tests to
+	// overwrite the ProxyURL as httpproxy.FromEnvironment skips localhost
+	// proxies.
+	proxyURLFunc func(dialAddr string) *url.URL
+}
+
+func (c *dialConfig) getProxyURL(dialAddr string) *url.URL {
+	if c.proxyURLFunc != nil {
+		return c.proxyURLFunc(dialAddr)
+	}
+	return utils.GetProxyURL(dialAddr)
 }
 
 // WithInsecureSkipVerify specifies if dialing insecure when using an HTTPS proxy.
@@ -71,6 +83,14 @@ func WithALPNConnUpgrade(alpnConnUpgradeRequired bool) DialOption {
 func WithALPNConnUpgradePing(alpnConnUpgradeWithPing bool) DialOption {
 	return func(cfg *dialProxyConfig) {
 		cfg.alpnConnUpgradeWithPing = alpnConnUpgradeWithPing
+	}
+}
+
+func withProxyURL(proxyURL *url.URL) DialProxyOption {
+	return func(cfg *dialProxyConfig) {
+		cfg.proxyURLFunc = func(_ string) *url.URL {
+			return proxyURL
+		}
 	}
 }
 
@@ -179,7 +199,7 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 		}
 
 		// Wrap with proxy URL dialer if proxy URL is detected.
-		if proxyURL := utils.GetProxyURL(addr); proxyURL != nil {
+		if proxyURL := cfg.getProxyURL(addr); proxyURL != nil {
 			dialer = newProxyURLDialer(proxyURL, dialer, opts...)
 		}
 
@@ -327,7 +347,7 @@ func newTLSRoutingWithConnUpgradeDialer(ssh ssh.ClientConfig, params connectPara
 				InsecureSkipVerify: insecure,
 				ServerName:         host,
 			},
-			ALPNConnUpgradeRequired: IsALPNConnUpgradeRequired(params.addr, insecure),
+			ALPNConnUpgradeRequired: IsALPNConnUpgradeRequired(ctx, params.addr, insecure),
 			GetClusterCAs: func(_ context.Context) (*x509.CertPool, error) {
 				tlsConfig, err := params.cfg.Credentials[0].TLSConfig()
 				if err != nil {

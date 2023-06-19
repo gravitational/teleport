@@ -776,7 +776,8 @@ func TestGetDefaultDBNameAndUser(t *testing.T) {
 					},
 				},
 			}
-			dbUser, err := getDefaultDBUser(test.db, services.RoleSet{role})
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", services.NewRoleSet(role))
+			dbUser, err := getDefaultDBUser(test.db, accessChecker)
 			if test.expectErr != "" {
 				require.ErrorContains(t, err, test.expectErr)
 				if test.expectDBUserHint != "" {
@@ -786,7 +787,7 @@ func TestGetDefaultDBNameAndUser(t *testing.T) {
 			}
 			require.NoError(t, err)
 			require.Equal(t, test.expectDBUser, dbUser)
-			dbName, err := getDefaultDBName(test.db, services.RoleSet{role})
+			dbName, err := getDefaultDBName(test.db, accessChecker)
 			if test.expectErr != "" {
 				require.ErrorContains(t, err, test.expectErr)
 				if test.expectDBNameHint != "" {

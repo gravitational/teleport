@@ -36,6 +36,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -1065,19 +1066,18 @@ func (s *session) launch() {
 	// If the identity is verified with an MFA device, we enabled MFA-based presence for the session.
 	if s.presenceEnabled {
 		go func() {
-			ticker := time.NewTicker(PresenceVerifyInterval)
+			ticker := s.registry.clock.NewTicker(PresenceVerifyInterval)
 			defer ticker.Stop()
-		outer:
 			for {
 				select {
-				case <-ticker.C:
-					err := s.checkPresence()
+				case <-ticker.Chan():
+					err := s.checkPresence(s.serverCtx)
 					if err != nil {
 						s.log.WithError(err).Error("Failed to check presence, terminating session as a security measure")
 						s.Stop()
 					}
 				case <-s.stopC:
-					break outer
+					return
 				}
 			}
 		}()
@@ -1127,7 +1127,7 @@ func (s *session) startInteractive(ctx context.Context, scx *ServerContext, p *p
 	s.inWriter = inWriter
 	s.io.AddReader("reader", inReader)
 	s.io.AddWriter(sessionRecorderID, utils.WriteCloserWithContext(scx.srv.Context(), s.Recorder()))
-	s.BroadcastMessage("Creating session with ID: %v...", s.id)
+	s.BroadcastMessage("Creating session with ID: %v", s.id)
 	s.BroadcastMessage(SessionControlsInfoBroadcast)
 
 	if err := s.startTerminal(ctx, scx); err != nil {
@@ -1546,16 +1546,24 @@ func (s *session) lingerAndDie(ctx context.Context, party *party) {
 	}
 }
 
-func (s *session) checkPresence() error {
+func (s *session) checkPresence(ctx context.Context) error {
+	// We cannot check presence on the local tracker as that will not
+	// be updated in response to parties performing their presence
+	// checks. To prevent the stale version of the session tracker from
+	// terminating a session we must get the session tracker from Auth.
+	tracker, err := s.registry.SessionTrackerService.GetSessionTracker(ctx, s.tracker.tracker.GetSessionID())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	s.mu.Lock()
 	defer s.mu.Unlock()
-
-	for _, participant := range s.tracker.GetParticipants() {
+	for _, participant := range tracker.GetParticipants() {
 		if participant.User == s.initiator {
 			continue
 		}
 
-		if participant.Mode == string(types.SessionModeratorMode) && time.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
+		if participant.Mode == string(types.SessionModeratorMode) && s.registry.clock.Now().UTC().After(participant.LastActive.Add(PresenceMaxDifference)) {
 			s.log.Warnf("Participant %v is not active, kicking.", participant.ID)
 			if party := s.parties[rsession.ID(participant.ID)]; party != nil {
 				if err := party.closeUnderSessionLock(); err != nil {
@@ -1834,12 +1842,12 @@ func (s *session) join(ch ssh.Channel, scx *ServerContext, mode types.SessionPar
 		}
 
 		modes := s.access.CanJoin(accessContext)
-		if !auth.SliceContainsMode(modes, mode) {
+		if !slices.Contains(modes, mode) {
 			return trace.AccessDenied("insufficient permissions to join session %v", s.id)
 		}
 
 		if s.presenceEnabled {
-			_, err := ch.SendRequest(teleport.MFAPresenceRequest, false, nil)
+			_, _, err := scx.ServerConn.SendRequest(teleport.MFAPresenceRequest, false, nil)
 			if err != nil {
 				return trace.WrapWithMessage(err, "failed to send MFA presence request")
 			}
@@ -1970,13 +1978,13 @@ func (s *session) trackSession(ctx context.Context, teleportUser string, policyS
 		HostUser:     teleportUser,
 		Reason:       s.scx.env[teleport.EnvSSHSessionReason],
 		HostPolicies: policySet,
-		Created:      s.registry.clock.Now(),
+		Created:      s.registry.clock.Now().UTC(),
 		Participants: []types.Participant{
 			{
 				ID:         p.id.String(),
 				User:       p.user,
 				Mode:       string(p.mode),
-				LastActive: time.Now().UTC(),
+				LastActive: s.registry.clock.Now().UTC(),
 			},
 		},
 		HostID: s.registry.Srv.ID(),

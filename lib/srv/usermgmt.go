@@ -334,8 +334,8 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	return trace.NewAggregate(errs...)
 }
 
-// DeleteUser deletes the user only if they are
-// present in the specified group
+// DeleteUser deletes the specified user only if they are
+// present in the specified group.
 func (u *HostUserManagement) DeleteUser(username string, gid string) error {
 	tempUser, err := u.backend.Lookup(username)
 	if err != nil {
@@ -388,7 +388,7 @@ func (u *HostUserManagement) Shutdown() {
 	u.cancel()
 }
 
-// UserExists returns nil should a hostuser exist
+// UserExists looks up an existing host user.
 func (u *HostUserManagement) UserExists(username string) (*user.User, error) {
 	tempUser, err := u.backend.Lookup(username)
 	if err != nil {

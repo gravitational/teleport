@@ -17,7 +17,7 @@
 import type { UserGroup } from './types';
 
 export function makeUserGroup(json): UserGroup {
-  const { name, description } = json;
+  const { name, description, friendlyName } = json;
 
   const labels = json.labels || [];
 
@@ -25,5 +25,6 @@ export function makeUserGroup(json): UserGroup {
     name,
     description,
     labels,
+    friendlyName,
   };
 }
