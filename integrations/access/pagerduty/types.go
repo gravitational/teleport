@@ -195,3 +195,7 @@ type ListOnCallsResult struct {
 	PaginationResult
 	OnCalls []OnCall `json:"oncalls"`
 }
+
+type ListAbilitiesResult struct {
+	Abilities []string `json:"abilities"`
+}

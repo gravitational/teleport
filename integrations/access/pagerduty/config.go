@@ -45,6 +45,7 @@ type PagerdutyConfig struct {
 const NotifyServiceDefaultAnnotation = "pagerduty_notify_service"
 const ServicesDefaultAnnotation = "pagerduty_services"
 
+// TODO(tcsc): re-plant back in `teleport-plugins`
 func LoadConfig(filepath string) (*Config, error) {
 	t, err := toml.LoadFile(filepath)
 	if err != nil {

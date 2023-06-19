@@ -27,12 +27,13 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/google/go-querystring/query"
-	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
+	"github.com/gravitational/trace"
 )
 
 const (
@@ -68,7 +69,7 @@ type Pagerduty struct {
 	webProxyURL *url.URL
 }
 
-func NewPagerdutyClient(conf PagerdutyConfig, clusterName, webProxyAddr string) (Pagerduty, error) {
+func NewPagerdutyClient(conf PagerdutyConfig, clusterName, webProxyAddr string, statusSink common.StatusSink) (Pagerduty, error) {
 	var (
 		webProxyURL *url.URL
 		err         error
@@ -79,36 +80,31 @@ func NewPagerdutyClient(conf PagerdutyConfig, clusterName, webProxyAddr string) 
 		}
 	}
 
+	// APIEndpoint parameter is set only in tests
+	endPointURL := "https://api.pagerduty.com"
+	if conf.APIEndpoint != "" {
+		endPointURL = conf.APIEndpoint
+	}
+
 	client := resty.NewWithClient(&http.Client{
 		Timeout: pdHTTPTimeout,
 		Transport: &http.Transport{
 			MaxConnsPerHost:     pdMaxConns,
 			MaxIdleConnsPerHost: pdMaxConns,
-		},
-	})
-	// APIEndpoint parameter is set only in tests
-	if conf.APIEndpoint != "" {
-		client.SetBaseURL(conf.APIEndpoint)
-	} else {
-		client.SetBaseURL("https://api.pagerduty.com")
+		}}).
+		SetBaseURL(endPointURL).
+		SetHeader("Accept", "application/vnd.pagerduty+json;version=2").
+		SetHeader("Content-Type", "application/json").
+		SetHeader("Authorization", "Token token="+conf.APIKey).
+		OnBeforeRequest(func(_ *resty.Client, req *resty.Request) error {
+			req.SetError(&ErrorResult{})
+			return nil
+		})
+
+	if statusSink != nil {
+		client.OnAfterResponse(onAfterPagerDutyResponse(statusSink))
 	}
-	client.SetHeader("Accept", "application/vnd.pagerduty+json;version=2")
-	client.SetHeader("Content-Type", "application/json")
-	client.SetHeader("Authorization", "Token token="+conf.APIKey)
-	client.OnBeforeRequest(func(_ *resty.Client, req *resty.Request) error {
-		req.SetError(&ErrorResult{})
-		return nil
-	})
-	client.OnAfterResponse(func(_ *resty.Client, resp *resty.Response) error {
-		if resp.IsError() {
-			result := resp.Error()
-			if result, ok := result.(*ErrorResult); ok {
-				return trace.Errorf("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
-			}
-			return trace.Errorf("unknown error result %#v", result)
-		}
-		return nil
-	})
+
 	return Pagerduty{
 		client:      client,
 		clusterName: clusterName,
@@ -117,8 +113,53 @@ func NewPagerdutyClient(conf PagerdutyConfig, clusterName, webProxyAddr string) 
 	}, nil
 }
 
+func statusFromStatusCode(httpCode int) types.PluginStatus {
+	var code types.PluginStatusCode
+	switch {
+	case httpCode == http.StatusUnauthorized:
+		code = types.PluginStatusCode_UNAUTHORIZED
+	case httpCode >= 200 && httpCode < 400:
+		code = types.PluginStatusCode_RUNNING
+	default:
+		code = types.PluginStatusCode_OTHER_ERROR
+	}
+	return &types.PluginStatusV1{Code: code}
+}
+
+func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
+	return func(_ *resty.Client, resp *resty.Response) error {
+		log := logger.Get(resp.Request.Context())
+		status := statusFromStatusCode(resp.StatusCode())
+
+		// No usable context in scope, use background with a reasonable timeout
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+
+		if err := sink.Emit(ctx, status); err != nil {
+			log.WithError(err).Errorf("Error while emitting PagerDuty plugin status: %v", err)
+		}
+
+		if resp.IsError() {
+			result := resp.Error()
+			if result, ok := result.(*ErrorResult); ok {
+				return trace.Errorf("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
+			}
+			return trace.Errorf("unknown error result %#v", result)
+		}
+		return nil
+	}
+}
+
 func (p Pagerduty) HealthCheck(ctx context.Context) error {
-	// TODO: decide what to check.
+	var result ListAbilitiesResult
+	_, err := p.client.NewRequest().
+		SetContext(ctx).
+		SetResult(&result).
+		Get("abilities")
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
@@ -141,7 +182,6 @@ func (p Pagerduty) CreateIncident(ctx context.Context, serviceID, reqID string, 
 		},
 	}
 	var result IncidentResult
-
 	_, err = p.client.NewRequest().
 		SetContext(ctx).
 		SetHeader("From", p.from).
@@ -209,6 +249,9 @@ func (p Pagerduty) ResolveIncident(ctx context.Context, incidentID string, resol
 func (p Pagerduty) GetUserInfo(ctx context.Context, userID string) (User, error) {
 	var result UserResult
 
+	p.client.SetDebug(true)
+	defer p.client.SetDebug(false)
+
 	_, err := p.client.NewRequest().
 		SetContext(ctx).
 		SetResult(&result).
@@ -222,7 +265,7 @@ func (p Pagerduty) GetUserInfo(ctx context.Context, userID string) (User, error)
 }
 
 // GetUserByEmail finds a user by email.
-func (p Pagerduty) FindUserByEmail(ctx context.Context, userEmail string) (User, error) {
+func (p *Pagerduty) FindUserByEmail(ctx context.Context, userEmail string) (User, error) {
 	userEmail = strings.ToLower(userEmail)
 	usersQuery, err := query.Values(ListUsersQuery{
 		Query: userEmail,
@@ -258,7 +301,7 @@ func (p Pagerduty) FindUserByEmail(ctx context.Context, userEmail string) (User,
 }
 
 // FindServiceByName finds a service by its name (case-insensitive).
-func (p Pagerduty) FindServiceByName(ctx context.Context, serviceName string) (Service, error) {
+func (p *Pagerduty) FindServiceByName(ctx context.Context, serviceName string) (Service, error) {
 	// In PagerDuty service names are unique and in fact case-insensitive.
 	serviceName = strings.ToLower(serviceName)
 	servicesQuery, err := query.Values(ListServicesQuery{Query: serviceName})
@@ -301,7 +344,7 @@ func (p Pagerduty) FindServicesByNames(ctx context.Context, serviceNames []strin
 }
 
 // RangeOnCallPolicies iterates over the escalation policy IDs for which a given user is currently on-call.
-func (p Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, escalationPolicyIDs []string) ([]string, error) {
+func (p *Pagerduty) FilterOnCallPolicies(ctx context.Context, userID string, escalationPolicyIDs []string) ([]string, error) {
 	policyIDSet := stringset.New(escalationPolicyIDs...)
 	filteredIDSet := stringset.New()
 
