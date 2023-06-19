@@ -1,5 +1,5 @@
 /*
-Copyright 2019 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,8 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
-import { ThemeContext } from 'styled-components';
+import React, {
+  forwardRef,
+  useEffect,
+  useImperativeHandle,
+  useRef,
+} from 'react';
 import { Flex } from 'design';
 
 import { getPlatform } from 'design/theme/utils';
@@ -26,56 +30,61 @@ import { getMappedAction } from 'teleport/Console/useKeyboardNav';
 
 import StyledXterm from '../../StyledXterm';
 
-export default class Terminal extends React.Component<{ tty: Tty }> {
-  static contextType = ThemeContext;
+export interface TerminalRef {
+  focus(): void;
+}
 
-  terminal: XTermCtrl;
+export interface TerminalProps {
+  tty: Tty;
+  fontFamily: string;
+}
 
-  refTermContainer = React.createRef<HTMLElement>();
+export const Terminal = forwardRef<TerminalRef, TerminalProps>((props, ref) => {
+  const termCtrlRef = useRef<XTermCtrl>();
+  const elementRef = useRef<HTMLElement>();
 
-  componentDidMount() {
+  useImperativeHandle(
+    ref,
+    () => ({
+      focus: () => termCtrlRef.current.term.focus(),
+    }),
+    []
+  );
+
+  useEffect(() => {
     const platform = getPlatform();
     const fontSize = platform.isMac ? 12 : 14;
 
-    this.terminal = new XTermCtrl(this.props.tty, {
-      el: this.refTermContainer.current,
-      fontFamily: this.context.fonts.mono,
+    const termCtrl = new XTermCtrl(props.tty, {
+      el: elementRef.current,
+      fontFamily: props.fontFamily,
       fontSize,
     });
+    termCtrlRef.current = termCtrl;
 
-    this.terminal.open();
+    termCtrl.open();
 
-    this.terminal.term.attachCustomKeyEventHandler(event => {
+    termCtrl.term.attachCustomKeyEventHandler(event => {
       const { tabSwitch } = getMappedAction(event);
       if (tabSwitch) {
         return false;
       }
     });
-  }
 
-  componentWillUnmount() {
-    this.terminal.destroy();
-  }
+    return () => termCtrl.destroy();
+    // do not re-initialize xterm when theme changes, use specialized handlers.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  shouldComponentUpdate() {
-    return false;
-  }
-
-  focus() {
-    this.terminal.term.focus();
-  }
-
-  render() {
-    return (
-      <Flex
-        flexDirection="column"
-        height="100%"
-        width="100%"
-        px="2"
-        style={{ overflow: 'auto' }}
-      >
-        <StyledXterm ref={this.refTermContainer} />
-      </Flex>
-    );
-  }
-}
+  return (
+    <Flex
+      flexDirection="column"
+      height="100%"
+      width="100%"
+      px="2"
+      style={{ overflow: 'auto' }}
+    >
+      <StyledXterm ref={elementRef} />
+    </Flex>
+  );
+});
