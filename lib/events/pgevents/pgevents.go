@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v4"
@@ -31,7 +32,6 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	"github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
@@ -220,7 +220,7 @@ func New(ctx context.Context, cfg Config) (*Log, error) {
 	}
 
 	if cfg.AuthMode == AzureADAuth {
-		bc, err := pgbk.AzureBeforeConnect(cfg.AzureClientID, cfg.Log)
+		bc, err := AzureBeforeConnect(cfg.AzureClientID, cfg.Log)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
