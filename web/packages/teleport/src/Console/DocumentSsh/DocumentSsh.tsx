@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React, { useRef, useEffect } from 'react';
+import { useTheme } from 'styled-components';
 
 import { Indicator, Box } from 'design';
 
@@ -26,14 +27,13 @@ import {
 } from 'shared/components/FileTransfer';
 
 import * as stores from 'teleport/Console/stores';
-import { colors } from 'teleport/Console/colors';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
 
 import Document from '../Document';
 
-import Terminal from './Terminal';
+import { Terminal, TerminalRef } from './Terminal';
 import useSshSession from './useSshSession';
 import { useFileTransfer } from './useFileTransfer';
 
@@ -46,7 +46,7 @@ export default function DocumentSshWrapper(props: PropTypes) {
 }
 
 function DocumentSsh({ doc, visible }: PropTypes) {
-  const refTerminal = useRef<Terminal>();
+  const terminalRef = useRef<TerminalRef>();
   const { tty, status, closeDocument, session } = useSshSession(doc);
   const webauthn = useWebAuthn(tty);
   const {
@@ -55,9 +55,10 @@ function DocumentSsh({ doc, visible }: PropTypes) {
     getUploader,
     fileTransferRequests,
   } = useFileTransfer(tty, session, doc, webauthn.addMfaToScpUrls);
+  const theme = useTheme();
 
   function handleCloseFileTransfer() {
-    refTerminal.current.terminal.term.focus();
+    terminalRef.current?.focus();
   }
 
   function handleFileTransferDecision(requestId: string, approve: boolean) {
@@ -65,10 +66,8 @@ function DocumentSsh({ doc, visible }: PropTypes) {
   }
 
   useEffect(() => {
-    if (refTerminal?.current) {
-      // when switching tabs or closing tabs, focus on visible terminal
-      refTerminal.current.terminal.term.focus();
-    }
+    // when switching tabs or closing tabs, focus on visible terminal
+    terminalRef.current?.focus();
   }, [visible, webauthn.requested]);
 
   return (
@@ -86,7 +85,9 @@ function DocumentSsh({ doc, visible }: PropTypes) {
           errorText={webauthn.errorText}
         />
       )}
-      {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
+      {status === 'initialized' && (
+        <Terminal ref={terminalRef} tty={tty} fontFamily={theme.fonts.mono} />
+      )}
       <FileTransfer
         FileTransferRequestsComponent={
           <FileTransferRequests
@@ -104,7 +105,6 @@ function DocumentSsh({ doc, visible }: PropTypes) {
             : null
         }
         afterClose={handleCloseFileTransfer}
-        backgroundColor={colors.levels.surface}
         transferHandlers={{
           getDownloader,
           getUploader,
