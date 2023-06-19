@@ -646,6 +646,7 @@ func (a *Server) validateGithubAuthCallback(ctx context.Context, diagCtx *SSODia
 			Traits:     user.GetTraits(),
 			SessionTTL: params.SessionTTL,
 			LoginTime:  a.clock.Now().UTC(),
+			LoginIP:    req.ClientLoginIP,
 		})
 		if err != nil {
 			return nil, trace.Wrap(err, "Failed to create web session.")

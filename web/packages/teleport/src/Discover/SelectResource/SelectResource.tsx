@@ -45,7 +45,7 @@ interface SelectResourceProps {
   onSelect: (resource: ResourceSpec) => void;
 }
 
-export function SelectResource(props: SelectResourceProps) {
+export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
   const location = useLocation<{ entity: AddButtonResourceKind }>();
   const history = useHistory();
@@ -86,7 +86,8 @@ export function SelectResource(props: SelectResourceProps) {
       ...updatedResources.filter(r => r.hasAccess),
       ...updatedResources.filter(r => !r.hasAccess),
     ];
-    setDefaultResources(filteredResourcesByPerm);
+    const sortedResources = sortResources(filteredResourcesByPerm);
+    setDefaultResources(sortedResources);
 
     // A user can come to this screen by clicking on
     // a `add <specific-resource-type>` button.
@@ -97,11 +98,11 @@ export function SelectResource(props: SelectResourceProps) {
     if (resourceKindSpecifiedByUrlLoc) {
       const sortedResourcesByKind = sortResourcesByKind(
         resourceKindSpecifiedByUrlLoc,
-        filteredResourcesByPerm
+        sortedResources
       );
       onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
     } else {
-      setResources(filteredResourcesByPerm);
+      setResources(sortedResources);
     }
 
     // Processing of the lists should only happen once on init.
@@ -140,8 +141,8 @@ export function SelectResource(props: SelectResourceProps) {
                 resourceCardProps = {
                   onClick: () => {
                     if (r.hasAccess) {
-                      props.onSelect(r);
                       setShowApp(true);
+                      onSelect(r);
                     }
                   },
                 };
@@ -154,7 +155,7 @@ export function SelectResource(props: SelectResourceProps) {
                 };
               } else {
                 resourceCardProps = {
-                  onClick: () => r.hasAccess && props.onSelect(r),
+                  onClick: () => r.hasAccess && onSelect(r),
                 };
               }
 
@@ -178,9 +179,7 @@ export function SelectResource(props: SelectResourceProps) {
                   )}
                   {!r.hasAccess && (
                     <ToolTipNoPermBadge
-                      children={
-                        <PermissionsErrorMessage resourceKind={r.kind} />
-                      }
+                      children={<PermissionsErrorMessage resource={r} />}
                     />
                   )}
                   <Flex px={2} alignItems="center">
@@ -274,6 +273,8 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
       return acl.kubeServers.read && acl.kubeServers.list;
     case ResourceKind.Server:
       return acl.nodes.list;
+    case ResourceKind.SamlApplication:
+      return acl.samlIdpServiceProvider.create;
     default:
       return false;
   }
@@ -317,6 +318,25 @@ function sortResourcesByKind(
       break;
   }
   return sorted;
+}
+
+// Sort the resources alphabetically and with the Guided resources listed first.
+export function sortResources(resources: ResourceSpec[]) {
+  const sortedResources = [...resources];
+  sortedResources.sort((a, b) => {
+    if (!a.unguidedLink && a.hasAccess && !b.unguidedLink && b.hasAccess) {
+      return a.name.localeCompare(b.name);
+    }
+    if (!b.unguidedLink && b.hasAccess) {
+      return 1;
+    }
+    if (!a.unguidedLink && a.hasAccess) {
+      return -1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  return sortedResources;
 }
 
 function makeResourcesWithHasAccessField(acl: Acl): ResourceSpec[] {

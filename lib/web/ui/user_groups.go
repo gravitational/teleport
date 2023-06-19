@@ -29,6 +29,8 @@ type UserGroup struct {
 	Description string `json:"description"`
 	// Labels is the user group list of labels
 	Labels []Label `json:"labels"`
+	// FriendlyName is a friendly name for the user group.
+	FriendlyName string `json:"friendlyName,omitempty"`
 }
 
 // MakeUserGroups creates user group objects for the UI.
@@ -38,9 +40,10 @@ func MakeUserGroups(clusterName string, userGroups []types.UserGroup, userRoles 
 		uiLabels := makeLabels(userGroup.GetStaticLabels())
 
 		uiUserGroups = append(uiUserGroups, UserGroup{
-			Name:        userGroup.GetName(),
-			Description: userGroup.GetMetadata().Description,
-			Labels:      uiLabels,
+			Name:         userGroup.GetName(),
+			Description:  userGroup.GetMetadata().Description,
+			Labels:       uiLabels,
+			FriendlyName: services.FriendlyName(userGroup),
 		})
 	}
 

@@ -104,6 +104,8 @@ type userACL struct {
 	Locks access `json:"lock"`
 	// Assist defines access to assist feature.
 	Assist access `json:"assist"`
+	// SAMLIdpServiceProvider defines access to `saml_idp_service_provider` objects.
+	SAMLIdpServiceProvider access `json:"samlIdpServiceProvider"`
 }
 
 type authType string
@@ -197,6 +199,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
+	samlIdpServiceProviderAccess := newAccess(userRoles, ctx, types.KindSAMLIdPServiceProvider)
 
 	var assistAccess access
 	if features.Assist {
@@ -251,6 +254,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		DeviceTrust:             deviceTrust,
 		Locks:                   lockAccess,
 		Assist:                  assistAccess,
+		SAMLIdpServiceProvider:  samlIdpServiceProviderAccess,
 	}
 
 	// local user

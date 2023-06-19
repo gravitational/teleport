@@ -49,7 +49,7 @@ export const PrivateKeyLoginDisabledCard = ({
   // lost password or two-factor device.
   onRecover?: (isRecoverPassword: boolean) => void;
 }) => (
-  <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
+  <Card my="5" mx="auto" width="464px" px={5} pb={4}>
     <Text typography="h3" pt={4} textAlign="center" color="text.main">
       {title}
     </Text>

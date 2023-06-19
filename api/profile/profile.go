@@ -142,6 +142,12 @@ func (p *Profile) TLSConfig() (*tls.Config, error) {
 	}, nil
 }
 
+// RequireKubeLocalProxy returns true if this profile indicates a local proxy
+// is required for kube access.
+func (p *Profile) RequireKubeLocalProxy() bool {
+	return p.KubeProxyAddr == p.WebProxyAddr && p.TLSRoutingConnUpgradeRequired
+}
+
 func certPoolFromProfile(p *Profile) (*x509.CertPool, error) {
 	// Check if CAS dir exist if not try to load certs from legacy certs.pem file.
 	if _, err := os.Stat(p.TLSClusterCASDir()); err != nil {
