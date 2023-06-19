@@ -41,6 +41,37 @@ here is a summary of it:
   where the command will be executed is fetched on the suite function, and the
   workload function only connects to it.
 
+### Common options
+The benchmark structure already supports common flags to parametrize the test
+execution:
+- `--rate`: Control how many workload functions are executed per second. For
+  example, it can control how many connections will be sent to the target
+  database per second.
+- `--duration`: Defines for how long the test will be executed.
+
+### Results
+The benchmark commands follow a standardized result output. There is also an
+option to export the test results to a more detailed version using the `--export`
+flag.
+
+```code
+$ tsh bench ...
+* Requests originated: 9
+* Requests failed: 0
+
+Histogram
+
+Percentile Response Duration
+---------- -----------------
+25         123 ms
+50         125 ms
+75         129 ms
+90         130 ms
+95         130 ms
+99         130 ms
+100        130 ms
+```
+
 ## Details
 The database flow areas will be split into isolated suites, allowing developers
 to test and validate them individually.
@@ -108,6 +139,22 @@ amounts of queries.
 $ tsh bench db connect --db-user=postgres --db-name=postgres postgres-dev
 ```
 
+```mermaid
+sequenceDiagram
+  participant tsh
+  participant Teleport
+  participant Database as DB
+
+  tsh->>Teleport: Generate Certificates (tsh db login)
+
+  loop every execution
+    tsh->>Teleport: Establish connection
+    Teleport->>DB: Connect
+    DB->>tsh: Connection
+    tsh->>DB: Ping
+  end
+```
+
 #### Import/Export data
 It is a typical flow for users to import data to their databases. This suite is
 focused on running multiple queries within the same database connection (much
@@ -119,6 +166,27 @@ workload function.
 The exporting suite will load data outside the workload function. This way, the
 measuring will only include read queries.
 
+```code
+$ tsh bench db import --db-user=postgres --db-name=postgres postgres-dev
+```
+
+```mermaid
+sequenceDiagram
+  participant tsh
+  participant Teleport
+  participant Database as DB
+
+  tsh->>Teleport: Generate Certificates (tsh db login)
+  tsh->>Teleport: Establish connection
+  Teleport->>DB: Connect
+  DB->>tsh: Connection
+
+  loop every execution
+    tsh->>DB: Query
+    DB->>tsh: Result
+  end
+```
+
 ##### Data generation
 The database clients will have access to a set of functions that can be used to
 generate random data. Those functions will cover the following types: `[]byte`,
@@ -126,6 +194,10 @@ generate random data. Those functions will cover the following types: `[]byte`,
 generating `[]byte` and `string`, will make it possible to define their length.
 The clients will be responsible for determining their structure (if required,
 creating them on the `Setup` call) and filling with data on `CreateRecord`.
+
+Users will be able to seed them through the `--seed` flag. If none is provided,
+a random seed will be used. In addition, the seed will be printed so it can be
+used to replicate failures.
 
 ### Direct database connections
 To directly connect to the databases, the suites must accept the credentials
@@ -164,3 +236,14 @@ to the `all` host that can be used on the SSH benchmark.
 ```code
 $ tsh bench db connect --query 'resource.spec.protocol == "postgres"'
 ```
+
+### Database-specific
+Database-specific tests would allow users to test isolated features from
+databases. For example, users might want to try PostgreSQL queries using
+geometric types (such as boxes). For that cases, there will be necessary to have
+PostgreSQL-specific logic.
+
+### Support local proxy
+Supporting local proxy usage (tunneled or not) will cover most database
+connection flows. Also, profiling them will help us understand the additional
+overhead added.
