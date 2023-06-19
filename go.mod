@@ -74,7 +74,8 @@ require (
 	github.com/google/btree v1.1.2
 	github.com/google/go-attestation v0.4.4-0.20220404204839-8820d49b18d9
 	github.com/google/go-cmp v0.5.9
-	github.com/google/go-tpm-tools v0.3.11
+	github.com/google/go-querystring v1.1.0
+	github.com/google/go-tpm-tools v0.3.12
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.3.0
 	github.com/googleapis/gax-go/v2 v2.8.0
