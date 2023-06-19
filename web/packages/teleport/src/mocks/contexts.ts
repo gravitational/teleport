@@ -62,6 +62,7 @@ export const allAccessAcl: Acl = {
   plugins: fullAccess,
   integrations: { ...fullAccess, use: true },
   assist: fullAccess,
+  samlIdpServiceProvider: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
