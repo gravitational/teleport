@@ -166,9 +166,11 @@ type deviceActivateCredentialCommand struct {
 }
 
 func (c *deviceActivateCredentialCommand) run(cf *CLIConf) error {
+	//nolint:staticcheck // HandleTPMActivateCredential works depending on the platform.
 	err := dtnative.HandleTPMActivateCredential(
 		c.encryptedCredential, c.encryptedCredentialSecret,
 	)
+	//nolint:staticcheck // `err` can indeed be nil.
 	if cf.Debug && err != nil {
 		// On error, wait for user input before executing. This is because this
 		// opens in a second window. If we return the error immediately, then
