@@ -86,7 +86,12 @@ function DocumentSsh({ doc, visible }: PropTypes) {
         />
       )}
       {status === 'initialized' && (
-        <Terminal ref={terminalRef} tty={tty} fontFamily={theme.fonts.mono} />
+        <Terminal
+          ref={terminalRef}
+          tty={tty}
+          fontFamily={theme.fonts.mono}
+          theme={theme.colors.terminal}
+        />
       )}
       <FileTransfer
         FileTransferRequestsComponent={
