@@ -156,11 +156,11 @@ function SearchBar() {
         <Flex alignItems="center" flex={1}>
           <Input
             {...defaultInputProps}
-              // Adds `text-overflow: ellipsis` only to the closed state.
-              // Generally, ellipsis does not work when the input is focused.
-              // This causes flickering when an item is selected by clicking -
-              // the input loses focus, the ellipsis activates for a moment,
-              // and after a fraction of a second is removed when the input receives focus back.
+            // Adds `text-overflow: ellipsis` only to the closed state.
+            // Generally, ellipsis does not work when the input is focused.
+            // This causes flickering when an item is selected by clicking -
+            // the input loses focus, the ellipsis activates for a moment,
+            // and after a fraction of a second is removed when the input receives focus back.
             css={`
               text-overflow: ellipsis;
             `}
