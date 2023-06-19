@@ -517,13 +517,13 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 		if err != nil {
 			return fmt.Errorf("init: %w", err)
 		}
+		defer stream.CloseSend()
 
 		// 1. Init.
 		if err := stream.Send(&devicepb.AuthenticateDeviceRequest{
 			Payload: &devicepb.AuthenticateDeviceRequest_Init{
 				Init: &devicepb.AuthenticateDeviceInit{
-					UserCertificates: nil,
-					CredentialId:     key1.id,
+					CredentialId: key1.id,
 					DeviceData: &devicepb.DeviceCollectedData{
 						CollectTime:  timestamppb.Now(),
 						OsType:       dev1.OsType,
@@ -558,7 +558,7 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 		}
 
 		// 3. Success.
-		if _, err := stream.Recv(); err != nil && !errors.Is(err, io.EOF) {
+		if _, err := stream.Recv(); err != nil {
 			return fmt.Errorf("success Recv: %w", err)
 		}
 		return nil
@@ -633,7 +633,18 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 			emitter.Reset()
 
 			// Test!
-			err := authenticate()
+			const maxAttempts = 3
+			var err error
+			for i := 0; i < maxAttempts; i++ {
+				err = authenticate()
+				// Sometimes authenticate fails with a mysterious `io.EOF`, retry if
+				// that's the case.
+				if errors.Is(err, io.EOF) {
+					t.Logf("Got EOF from authenticate, retrying: %q", err)
+					continue
+				}
+				break
+			}
 
 			// Success scenario assertions.
 			if test.wantSuccess {
@@ -650,7 +661,7 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 
 			// Failure assertions.
 			if !trace.IsBadParameter(err) {
-				t.Fatalf("AuthenticateDevice returned err = %v (%T), want trace.BadParameterError", err, err)
+				t.Fatalf("AuthenticateDevice returned err = %q (%T), want trace.BadParameterError", err, err)
 			}
 			assert.ErrorContains(t, err, "device trust disabled", "AuthenticateDevice error mismatch")
 

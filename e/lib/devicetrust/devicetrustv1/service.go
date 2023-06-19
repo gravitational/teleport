@@ -107,6 +107,7 @@ type Service struct {
 
 // ServiceParams holds creation parameters for Service.
 type ServiceParams struct {
+	Logger     log.FieldLogger
 	AuthServer AuthServer
 	Authorizer authz.Authorizer
 	Emitter    apievents.Emitter
@@ -131,8 +132,13 @@ func New(params ServiceParams) (*Service, error) {
 		return nil, trace.BadParameter("parameter Storage required")
 	}
 
+	baseLogger := params.Logger
+	if baseLogger == nil {
+		baseLogger = log.StandardLogger()
+	}
+
 	return &Service{
-		logger:     log.WithField(trace.Component, "devicetrust.service"),
+		logger:     baseLogger.WithField(trace.Component, "devicetrust.service"),
 		authServer: params.AuthServer,
 		authorizer: params.Authorizer,
 		emitter:    params.Emitter,

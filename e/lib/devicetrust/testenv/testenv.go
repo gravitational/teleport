@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/test/bufconn"
@@ -139,8 +140,12 @@ func New(opts ...Opt) (*E, error) {
 		return nil, err
 	}
 
+	logger := log.New()
+	logger.SetLevel(log.PanicLevel) // Silence logging for tests.
+
 	// Device service.
 	dtV1, err := devicetrustv1.New(devicetrustv1.ServiceParams{
+		Logger: logger,
 		AuthServer: &fakeAuthServer{
 			augmentFunc: e.augmentCertsFunc,
 			authSpec:    e.authSpec,
