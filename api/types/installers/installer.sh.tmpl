@@ -32,7 +32,7 @@ on_azure() {
   # adding the key apt shows a key signing error when installing teleport.
   LEGACY_UBUNTU=false
   # If VERSION_CODENAME is not provided, use default value.
-  VERSION_CODENAME=$(VERSION_CODENAME:-unknown)
+  VERSION_CODENAME=${VERSION_CODENAME:-unknown}
   if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
     LEGACY_UBUNTU=true
   fi
