@@ -632,6 +632,24 @@ Use Discover Wizard to enroll new resources and access them:
    - [ ] Click "Add another cluster", provide an address to a new cluster and submit the form. Close
      the modal when asked for credentials. Verify that the cluster was still added and is visible in
      the profile selector.
+- Search bar
+   - [ ] Verify that you can connect to all three resources types on root clusters and leaf
+     clusters.
+   - [ ] Verify that picking a resource filter and a cluster filter at the same time works as
+     expected.
+   - [ ] Verify that connecting to a resource from a different root cluster switches to the
+     workspace of that root cluster.
+   - Shut down a root cluster.
+      - [ ] Verify that attempting to search returns "Some of the search results are incomplete" in
+        the search bar.
+      - [ ] Verify that clicking "Show details" next to the error message and then closing the modal
+        by clicking one of the buttons or by pressing Escape does not close the search bar.
+   - Log in as a user with a short TTL. Make sure you're not logged in to any other cluster. Wait for
+     the cert to expire. Enter a search term that usually returns some results.
+      - [ ] Relogin when asked. Verify that the search bar is not collapsed and shows search
+        results.
+      - [ ] Close the login modal instead of logging in. Verify that the search bar is not collapsed
+        and shows "No matching results found".
 - Resilience when resources become unavailable
    - DocumentCluster
       - For each scenario, create at least one DocumentCluster tab for each available resource kind.
