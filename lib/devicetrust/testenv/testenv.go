@@ -122,7 +122,7 @@ type FakeDevice interface {
 	EnrollDeviceInit() (*devicepb.EnrollDeviceInit, error)
 	GetDeviceOSType() devicepb.OSType
 	SignChallenge(chal []byte) (sig []byte, err error)
-	SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge) (*devicepb.TPMEnrollChallengeResponse, error)
+	SolveTPMEnrollChallenge(challenge *devicepb.TPMEnrollChallenge, debug bool) (*devicepb.TPMEnrollChallengeResponse, error)
 	SolveTPMAuthnDeviceChallenge(challenge *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error)
 	GetDeviceCredential() *devicepb.DeviceCredential
 }
