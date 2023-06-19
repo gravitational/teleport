@@ -114,7 +114,8 @@ func (b *Backend) retry(ctx context.Context, f func(*pgxpool.Pool) error) error 
 	}
 
 	for i := 1; i < 20; i++ {
-		if err := f(b.pool); err == nil {
+		err := f(b.pool)
+		if err == nil {
 			return nil
 		}
 
