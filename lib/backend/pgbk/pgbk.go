@@ -9,6 +9,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype/zeronull"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -166,7 +167,8 @@ func (b *Backend) setupAndMigrate(ctx context.Context) error {
 					CREATE TABLE kv (
 						key bytea PRIMARY KEY,
 						value bytea NOT NULL,
-						expires timestamp
+						expires timestamp,
+						rev uuid NOT NULL
 					);
 					CREATE INDEX kv_expires ON kv (expires) WHERE expires IS NOT NULL;
 					INSERT INTO migrate (version) VALUES (2);`,
@@ -205,12 +207,14 @@ var _ backend.Backend = (*Backend)(nil)
 // Create writes item if key doesn't exist
 func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	var r int64
+	rev := newRev()
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		tag, err := p.Exec(ctx,
-			"INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3) "+
-				"ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires "+
-				"WHERE kv.expires IS NOT NULL AND kv.expires <= $4",
-			i.Key, i.Value, zeronull.Timestamp(i.Expires.UTC()), b.clock.Now().UTC())
+			"INSERT INTO kv (key, value, expires, rev) VALUES ($1, $2, $3, $4) "+
+				"ON CONFLICT (key) DO UPDATE SET "+
+				"value = EXCLUDED.value, expires = EXCLUDED.expires, rev = EXCLUDED.rev "+
+				"WHERE kv.expires IS NOT NULL AND kv.expires <= $5",
+			i.Key, i.Value, zeronull.Timestamp(i.Expires.UTC()), rev, b.clock.Now().UTC())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -228,11 +232,13 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 
 // Put writes item
 func (b *Backend) Put(ctx context.Context, i backend.Item) (*backend.Lease, error) {
+	rev := newRev()
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		_, err := p.Exec(ctx,
-			"INSERT INTO kv (key, value, expires) VALUES ($1, $2, $3) "+
-				"ON CONFLICT (key) DO UPDATE SET value = excluded.value, expires = excluded.expires",
-			i.Key, i.Value, zeronull.Timestamp(i.Expires.UTC()))
+			"INSERT INTO kv (key, value, expires, rev) VALUES ($1, $2, $3, $4) "+
+				"ON CONFLICT (key) DO UPDATE SET "+
+				"value = EXCLUDED.value, expires = EXCLUDED.expires, rev = EXCLUDED.rev",
+			i.Key, i.Value, zeronull.Timestamp(i.Expires.UTC()), rev)
 		return trace.Wrap(err)
 	}); err != nil {
 		return nil, trace.Wrap(err)
@@ -246,10 +252,11 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 		return nil, trace.BadParameter("expected and replaceWith keys should match")
 	}
 	var r int64
+	rev := newRev()
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		tag, err := p.Exec(ctx,
-			"UPDATE kv SET value = $2, expires = $3 WHERE key = $1 AND value = $4 AND (expires IS NULL OR expires > $5)",
-			replaceWith.Key, replaceWith.Value, zeronull.Timestamp(replaceWith.Expires.UTC()), expected.Value, b.clock.Now().UTC())
+			"UPDATE kv SET value = $2, expires = $3, rev = $4 WHERE key = $1 AND value = $5 AND (expires IS NULL OR expires > $6)",
+			replaceWith.Key, replaceWith.Value, zeronull.Timestamp(replaceWith.Expires.UTC()), rev, expected.Value, b.clock.Now().UTC())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -268,10 +275,11 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 // Update writes item if key exists
 func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, error) {
 	var r int64
+	rev := newRev()
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		tag, err := p.Exec(ctx,
-			"UPDATE kv SET value = $2, expires = $3 WHERE key = $1 AND (expires IS NULL OR expires > $4)",
-			i.Key, i.Value, zeronull.Timestamp(i.Expires.UTC()), b.clock.Now().UTC())
+			"UPDATE kv SET value = $2, expires = $3, rev = $4 WHERE key = $1 AND (expires IS NULL OR expires > $5)",
+			i.Key, i.Value, zeronull.Timestamp(i.Expires.UTC()), rev, b.clock.Now().UTC())
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -293,10 +301,11 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		var value []byte
 		var expires zeronull.Timestamp
+		var rev pgtype.UUID
 		err := p.QueryRow(ctx,
-			"SELECT value, expires FROM kv "+
+			"SELECT value, expires, rev FROM kv "+
 				"WHERE key = $1 AND (expires IS NULL OR expires > $2)",
-			key, b.clock.Now().UTC()).Scan(&value, &expires)
+			key, b.clock.Now().UTC()).Scan(&value, &expires, &rev)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		} else if err != nil {
@@ -329,19 +338,20 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		r.Items = nil
 		rows, _ := p.Query(ctx,
-			"SELECT key, value, expires FROM kv "+
+			"SELECT key, value, expires, rev FROM kv "+
 				"WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > $3) "+
 				"LIMIT $4",
 			startKey, endKey, b.clock.Now().UTC(), limit,
 		)
-		var k, v []byte
-		var e zeronull.Timestamp
-		_, err := pgx.ForEachRow(rows, []any{&k, &v, &e},
+		var key, value []byte
+		var expires zeronull.Timestamp
+		var rev pgtype.UUID
+		_, err := pgx.ForEachRow(rows, []any{&key, &value, &expires, &rev},
 			func() error {
 				r.Items = append(r.Items, backend.Item{
-					Key:     k,
-					Value:   v,
-					Expires: time.Time(e),
+					Key:     key,
+					Value:   value,
+					Expires: time.Time(expires),
 				})
 				return nil
 			},
@@ -410,10 +420,11 @@ func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byt
 // KeepAlive implements backend.Backend
 func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires time.Time) error {
 	var r int64
+	rev := newRev()
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		tag, err := p.Exec(ctx,
-			"UPDATE kv SET expires = $2 WHERE key = $1 AND (expires IS NULL OR expires > $3)",
-			lease.Key, zeronull.Timestamp(expires.UTC()), b.clock.Now().UTC())
+			"UPDATE kv SET expires = $2, rev = $3 WHERE key = $1 AND (expires IS NULL OR expires > $4)",
+			lease.Key, zeronull.Timestamp(expires.UTC()), rev, b.clock.Now().UTC())
 		if err != nil {
 			return trace.Wrap(err)
 		}

@@ -149,7 +149,8 @@ func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName s
   data->>'action',
   decode(COALESCE(data->'columns'->0->>'value', data->'identity'->0->>'value'), 'hex'),
   decode(data->'columns'->1->>'value', 'hex'),
-  (data->'columns'->2->>'value')::timestamp
+  (data->'columns'->2->>'value')::timestamp,
+  (data->'columns'->3->>'value')::text
 FROM (
   SELECT data::jsonb as data
   FROM pg_logical_slot_get_changes($1::text, NULL, NULL,
@@ -160,7 +161,8 @@ FROM (
 	var key []byte
 	var value []byte
 	var expires zeronull.Timestamp
-	tag, err := pgx.ForEachRow(rows, []any{&action, &key, &value, &expires}, func() error {
+	var rev zeronull.Text
+	tag, err := pgx.ForEachRow(rows, []any{&action, &key, &value, &expires, &rev}, func() error {
 		switch action {
 		case "I", "U":
 			b.buf.Emit(backend.Event{

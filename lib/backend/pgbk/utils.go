@@ -5,8 +5,10 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
+	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -79,4 +81,11 @@ func newLease(i backend.Item) *backend.Lease {
 		lease.Key = i.Key
 	}
 	return &lease
+}
+
+func newRev() pgtype.UUID {
+	return pgtype.UUID{
+		Bytes:  uuid.New(),
+		Status: pgtype.Present,
+	}
 }
