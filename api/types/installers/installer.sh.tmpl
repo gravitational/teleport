@@ -31,6 +31,8 @@ on_azure() {
   # old versions of ubuntu require that keys get added by `apt-key add`, without
   # adding the key apt shows a key signing error when installing teleport.
   LEGACY_UBUNTU=false
+  # If VERSION_CODENAME is not provided, use default value.
+  VERSION_CODENAME=$(VERSION_CODENAME:-unknown)
   if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
     LEGACY_UBUNTU=true
   fi
