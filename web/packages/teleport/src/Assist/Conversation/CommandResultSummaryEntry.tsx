@@ -54,7 +54,7 @@ export function CommandResultSummaryEntry(props: CommandResultSummaryEntryProps)
   return (
     <Container>
       <Header>
-        <Title>Execution summary of command "{props.command}"</Title>
+        <Title>Summary of command execution <pre>{props.command}"</pre></Title>
       </Header>
 
       <Summary><ReactMarkdown remarkPlugins={[remarkGfm]}>{props.summary}</ReactMarkdown></Summary>

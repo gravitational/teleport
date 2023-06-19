@@ -178,6 +178,7 @@ export interface NodeState {
 
 export interface RawPayload {
   node_id: string;
+  type: string;
   payload: string;
 }
 
