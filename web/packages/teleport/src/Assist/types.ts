@@ -21,6 +21,7 @@ export enum ServerMessageType {
   Error = 'CHAT_MESSAGE_ERROR',
   Command = 'COMMAND',
   CommandResult = 'COMMAND_RESULT',
+  CommandResultSummary = 'COMMAND_RESULT_SUMMARY',
   CommandResultStream = 'COMMAND_RESULT_STREAM',
   AssistPartialMessage = 'CHAT_PARTIAL_MESSAGE_ASSISTANT',
   AssistPartialMessageEnd = 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE',
@@ -68,6 +69,14 @@ export interface ResolvedCommandResultServerMessage {
   created: Date;
 }
 
+export interface ResolvedCommandResultSummaryServerMessage {
+  type: ServerMessageType.CommandResultSummary;
+  executionId: string;
+  summary: string;
+  command: string;
+  created: Date;
+}
+
 export interface ResolvedAssistThoughtServerMessage {
   type: ServerMessageType.AssistThought;
   message: string;
@@ -108,6 +117,7 @@ export type ResolvedServerMessage =
   | ResolvedUserServerMessage
   | ResolvedErrorServerMessage
   | ResolvedCommandResultServerMessage
+  | ResolvedCommandResultSummaryServerMessage
   | ResolvedAssistThoughtServerMessage
   | ResolvedCommandResultStreamServerMessage;
 
@@ -140,6 +150,12 @@ export interface CommandResultPayload {
   node_name: string;
   session_id: string;
   execution_id: string;
+}
+
+export interface CommandResultSummaryPayload {
+  execution_id: string;
+  command: string;
+  summary: string;
 }
 
 export interface ExecEvent {
