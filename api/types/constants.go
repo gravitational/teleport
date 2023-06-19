@@ -661,6 +661,16 @@ const (
 	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
 	// to them, but user changes to these resources will be preserved.
 	PresetResource = "preset"
+
+	// ProxyGroupIDLabel is the internal-use label for proxy heartbeats that's
+	// used by reverse tunnel agents to keep track of multiple independent sets
+	// of proxies in proxy peering mode.
+	ProxyGroupIDLabel = TeleportInternalLabelPrefix + "proxygroup-id"
+
+	// ProxyGroupGenerationLabel is the internal-use label for proxy heartbeats
+	// that's used by reverse tunnel agents to know which proxies in each proxy
+	// group they should attempt to be connected to.
+	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.

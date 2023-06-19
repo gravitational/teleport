@@ -141,6 +141,14 @@ type ProxyConfig struct {
 	// the "X-Forwarded-For" headers for web APIs recevied from layer 7 load
 	// balancers or reverse proxies.
 	TrustXForwardedFor bool
+
+	// ProxyGroupID is the reverse tunnel group ID, advertised as a label and
+	// used by reverse tunnel agents in proxy peering mode.
+	ProxyGroupID string
+
+	// ProxyGroupGeneration is the reverse tunnel group generation, advertised
+	// as a label and used by reverse tunnel agents in proxy peering mode.
+	ProxyGroupGeneration string
 }
 
 // WebPublicAddr returns the address for the web endpoint on this proxy that
