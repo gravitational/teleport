@@ -35,6 +35,7 @@ type Plugins interface {
 	GetPlugin(ctx context.Context, name string, withSecrets bool) (types.Plugin, error)
 	GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error)
 	ListPlugins(ctx context.Context, limit int, startKey string, withSecrets bool) ([]types.Plugin, string, error)
+	HasPluginType(ctx context.Context, pluginType types.PluginType) (bool, error)
 	SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error
 	SetPluginStatus(ctx context.Context, name string, creds types.PluginStatus) error
 }
