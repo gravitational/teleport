@@ -480,13 +480,16 @@ func SetLabels(staticLabels map[string]string, cmdLabels services.CommandLabels,
 		}
 		s.labels = labelsClone
 
-		// Create dynamic labels.
-		s.dynamicLabels, err = labels.NewDynamic(s.ctx, &labels.DynamicConfig{
-			Labels: cmdLabels,
-		})
-		if err != nil {
-			return trace.Wrap(err)
+		if len(cmdLabels) > 0 {
+			// Create dynamic labels.
+			s.dynamicLabels, err = labels.NewDynamic(s.ctx, &labels.DynamicConfig{
+				Labels: cmdLabels,
+			})
+			if err != nil {
+				return trace.Wrap(err)
+			}
 		}
+
 		s.cloudLabels = cloudLabels
 		return nil
 	}

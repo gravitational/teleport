@@ -3963,6 +3963,17 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		})
 	}
 
+	staticLabels := make(map[string]string, 2)
+	if cfg.Proxy.ProxyGroupID != "" {
+		staticLabels[types.ProxyGroupIDLabel] = cfg.Proxy.ProxyGroupID
+	}
+	if cfg.Proxy.ProxyGroupGeneration != "" {
+		staticLabels[types.ProxyGroupGenerationLabel] = cfg.Proxy.ProxyGroupGeneration
+	}
+	if len(staticLabels) > 0 {
+		log.Infof("Enabling proxy group labels: group ID = %q, generation = %q.", cfg.Proxy.ProxyGroupID, cfg.Proxy.ProxyGroupGeneration)
+	}
+
 	sshProxy, err := regular.New(
 		process.ExitContext(),
 		cfg.SSH.Addr,
@@ -3994,6 +4005,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		regular.SetIngressReporter(ingress.SSH, ingressReporter),
 		regular.SetPROXYSigner(proxySigner),
 		regular.SetPublicAddrs(cfg.Proxy.PublicAddrs),
+		regular.SetLabels(staticLabels, services.CommandLabels(nil), labels.Importer(nil)),
 	)
 	if err != nil {
 		return trace.Wrap(err)
