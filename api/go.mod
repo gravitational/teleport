@@ -3,6 +3,7 @@ module github.com/gravitational/teleport/api
 go 1.19
 
 require (
+	cloud.google.com/go/compute/metadata v0.2.3
 	github.com/coreos/go-semver v0.3.1
 	github.com/go-piv/piv-go v1.11.0
 	github.com/gogo/protobuf v1.3.2
@@ -31,6 +32,7 @@ require (
 )
 
 require (
+	cloud.google.com/go/compute v1.19.1 // indirect
 	github.com/beevik/etree v1.1.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.2.1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
