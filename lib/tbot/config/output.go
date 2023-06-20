@@ -65,7 +65,7 @@ type Output interface {
 }
 
 // ListSubdirectories lists all subdirectories that will be used by the given
-// templates.. Primarily used for on-the-fly directory creation.
+// templates. Primarily used for on-the-fly directory creation.
 func listSubdirectories(templates []template) ([]string, error) {
 	// Note: currently no standard identity.Artifacts create subdirs. If that
 	// ever changes, we'll need to adapt this to ensure we initialize them
