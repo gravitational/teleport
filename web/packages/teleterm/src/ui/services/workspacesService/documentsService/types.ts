@@ -152,6 +152,11 @@ export interface DocumentPtySession extends DocumentBase {
   leafClusterId?: string;
 }
 
+export interface DocumentConnectMyComputerSetup extends DocumentBase {
+  kind: 'doc.connect_my_computer_setup';
+  clusterUri: uri.ClusterUri;
+}
+
 export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
@@ -163,7 +168,8 @@ export type Document =
   | DocumentBlank
   | DocumentGateway
   | DocumentCluster
-  | DocumentTerminal;
+  | DocumentTerminal
+  | DocumentConnectMyComputerSetup;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document
@@ -194,6 +200,10 @@ export type CreateGatewayDocumentOpts = {
 
 export type CreateClusterDocumentOpts = {
   clusterUri: uri.ClusterUri;
+};
+
+export type CreateConnectMyComputerSetupDocumentOpts = {
+  clusterUri: uri.RootClusterUri;
 };
 
 export type CreateTshKubeDocumentOptions = {

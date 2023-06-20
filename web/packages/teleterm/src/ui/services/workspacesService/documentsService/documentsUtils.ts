@@ -49,6 +49,8 @@ export function getResourceUri(
         rootClusterId: document.rootClusterId,
         leafClusterId: document.leafClusterId,
       });
+    case 'doc.connect_my_computer_setup':
+      return document.clusterUri;
     case 'doc.blank':
       return undefined;
     default:

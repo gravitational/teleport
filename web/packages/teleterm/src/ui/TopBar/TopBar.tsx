@@ -24,12 +24,14 @@ import { Connections } from './Connections';
 import { Clusters } from './Clusters';
 import { Identity } from './Identity';
 import { AdditionalActions } from './AdditionalActions';
+import { ConnectMyComputer } from './ConnectMyComputer';
 
 export function TopBar() {
   return (
     <Grid>
       <JustifyLeft>
         <Connections />
+        <ConnectMyComputer />
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
@@ -64,6 +66,7 @@ const JustifyLeft = styled.div`
   justify-self: start;
   align-items: center;
   height: 100%;
+  gap: 16px;
 `;
 
 const JustifyRight = styled.div`

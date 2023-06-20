@@ -20,11 +20,13 @@ import { DocumentUri, ServerUri, paths, routing } from 'teleterm/ui/uri';
 import {
   CreateAccessRequestDocumentOpts,
   CreateClusterDocumentOpts,
+  CreateConnectMyComputerSetupDocumentOpts,
   CreateGatewayDocumentOpts,
   CreateTshKubeDocumentOptions,
   Document,
   DocumentAccessRequests,
   DocumentCluster,
+  DocumentConnectMyComputerSetup,
   DocumentGateway,
   DocumentGatewayCliClient,
   DocumentOrigin,
@@ -178,6 +180,18 @@ export class DocumentsService {
       targetUser,
       targetName,
       targetProtocol,
+    };
+  }
+
+  createConnectMyComputerSetupDocument(
+    opts: CreateConnectMyComputerSetupDocumentOpts
+  ): DocumentConnectMyComputerSetup {
+    const uri = routing.getDocUri({ docId: unique() });
+    return {
+      uri,
+      kind: 'doc.connect_my_computer_setup',
+      title: 'Connect My Computer',
+      clusterUri: opts.clusterUri,
     };
   }
 
