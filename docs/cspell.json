@@ -683,6 +683,7 @@
     "strslice",
     "structs",
     "subkind",
+    "subgroups",
     "sudoer",
     "syscalls",
     "sysvinit",
