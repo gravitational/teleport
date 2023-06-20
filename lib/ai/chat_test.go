@@ -19,8 +19,6 @@ package ai
 import (
 	"context"
 	"encoding/json"
-	"github.com/gravitational/teleport/lib/ai/model"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -28,7 +26,10 @@ import (
 	"time"
 
 	"github.com/sashabaranov/go-openai"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/ai/model"
 )
 
 func TestChat_PromptTokens(t *testing.T) {
