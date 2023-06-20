@@ -1323,6 +1323,8 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		err = deviceCmd.collect.run(&cf)
 	case deviceCmd.keyget.FullCommand():
 		err = deviceCmd.keyget.run(&cf)
+	case deviceCmd.activateCredential.FullCommand():
+		err = deviceCmd.activateCredential.run(&cf)
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])
@@ -4639,7 +4641,7 @@ func setEnvFlags(cf *CLIConf, getEnv envGetter) {
 	// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
 	if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
 		if cf.Proxy == "" {
-			cf.Proxy = getEnv(teleport.SSHSessionWebproxyAddr)
+			cf.Proxy = getEnv(teleport.SSHSessionWebProxyAddr)
 		}
 		if cf.Username == "" {
 			cf.Username = getEnv(teleport.SSHTeleportUser)

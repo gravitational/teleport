@@ -431,6 +431,11 @@ message AWS {
   // AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
   // Set this field and ExternalID to enable access across AWS accounts.
   string AssumeRoleARN = 11 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+  // OpenSearch contains AWS OpenSearch specific metadata.
+  OpenSearch OpenSearch = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "opensearch,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -503,6 +508,16 @@ message RedshiftServerless {
   string EndpointName = 2 [(gogoproto.jsontag) = "endpoint_name,omitempty"];
   // WorkgroupID is the workgroup ID.
   string WorkgroupID = 3 [(gogoproto.jsontag) = "workgroup_id,omitempty"];
+}
+
+// OpenSearch contains AWS OpenSearch specific metadata.
+message OpenSearch {
+  // DomainName is the name of the domain.
+  string DomainName = 1 [(gogoproto.jsontag) = "domain_name,omitempty"];
+  // DomainID is the ID of the domain.
+  string DomainID = 2 [(gogoproto.jsontag) = "domain_id,omitempty"];
+  // EndpointType is the type of the endpoint.
+  string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.

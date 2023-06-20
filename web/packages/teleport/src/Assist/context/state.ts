@@ -90,7 +90,10 @@ export interface SetConversationMessagesAction {
 
 export interface AddMessageAction {
   type: AssistStateActionType.AddMessage;
-  messageType: ServerMessageType.User | ServerMessageType.Assist;
+  messageType:
+    | ServerMessageType.User
+    | ServerMessageType.Assist
+    | ServerMessageType.Error;
   message: string;
   conversationId: string;
 }

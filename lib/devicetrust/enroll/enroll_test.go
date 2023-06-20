@@ -90,7 +90,7 @@ func TestCeremony_Run(t *testing.T) {
 				SolveTPMEnrollChallenge: test.dev.SolveTPMEnrollChallenge,
 			}
 
-			got, err := c.Run(ctx, devices, "faketoken")
+			got, err := c.Run(ctx, devices, false, "faketoken")
 			test.assertErr(t, err)
 			test.assertGotDevice(t, got)
 		})
