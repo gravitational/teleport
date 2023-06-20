@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (g *googleSheetsPlugin) updateSpreadsheet(ar types.AccessRequest) error {
+func (g *googleSheetsClient) updateSpreadsheet(ar types.AccessRequest) error {
 	s, err := g.sheetsClient.Get(spreadSheetID).IncludeGridData(true).Do()
 	if err != nil {
 		return trace.Wrap(err)

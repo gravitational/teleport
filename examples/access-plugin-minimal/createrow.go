@@ -23,7 +23,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
-func (g *googleSheetsPlugin) createRow(ar types.AccessRequest) error {
+func (g *googleSheetsClient) createRow(ar types.AccessRequest) error {
 	row := g.makeRowData(ar)
 
 	req := sheets.BatchUpdateSpreadsheetRequest{

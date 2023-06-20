@@ -25,7 +25,7 @@ import (
 
 func stringPtr(s string) *string { return &s }
 
-func (g *googleSheetsPlugin) makeRowData(ar types.AccessRequest) *sheets.RowData {
+func (g *googleSheetsClient) makeRowData(ar types.AccessRequest) *sheets.RowData {
 	requestState, ok := requestStates[ar.GetState()]
 
 	// Could not find a state, but this is still a valid Access Request
