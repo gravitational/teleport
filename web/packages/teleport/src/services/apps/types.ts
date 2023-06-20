@@ -33,6 +33,7 @@ export interface App {
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
   friendlyName?: string;
+  userGroups: string;
 }
 
 export type AwsRole = {
