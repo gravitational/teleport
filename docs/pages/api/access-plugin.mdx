@@ -16,8 +16,7 @@ integrates with your organization's unique workflows.
 In this guide, we will explore a number of Teleport's API client libraries by
 showing you how to write a plugin that lets you manage Access Requests via
 Google Sheets. The plugin lists new Access Requests in a Google Sheets
-spreadsheet, with links to allow or deny each request. You can write the plugin
-in 260 lines of Go code. 
+spreadsheet, with links to allow or deny each request. 
 
 ![The result of the plugin](../../img/api/google-sheets.png)
 
@@ -345,12 +344,23 @@ existing one:
 whether the request is new. If so, we call `createRow`. If not, we call
 `updateSpreadsheet`.
 
-It is worth noting that the function takes any `types.Event`, which includes
-Access Requests but also other audit events, such as the creation of a
-certificate. We will explain in the next section why we are using this function
-signature for `handleEvent`.
+To pass events to `handleEvent`, we define a `run` method, which contains the
+main loop for our demo plugin.
 
-The `run` method {/*TODO: Describe how this works*/}
+The Teleport API client type, `client.Client`, has a `NewWatcher` method that
+listens for new audit events from the Auth Service API via a gRPC stream. The
+second parameter of the method indicates the type of audit event to watch for,
+in this case, events having to do with Teleport Access Requests.
+
+The result of `NewWatcher`, a `types.Watcher`, enables `run`  to respond to
+new audit events by calling the `Events` method. This returns a Go
+**channel**, a runtime abstraction that allows concurrent routines to
+communicate. Another channel, returned by `Done`, indicates when the watcher
+has finished.
+
+In a `for` loop, the `run` method receives from either the `Done` channel or
+`Events` channel, whichever is ready to send first. If it receives from the
+`Events` channel, it calls the `handleEvents` method to process the event.
 
 ### Initialize the API clients
 
