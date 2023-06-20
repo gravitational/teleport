@@ -27,13 +27,13 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/google/go-querystring/query"
+	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/teleport/integrations/lib/stringset"
-	"github.com/gravitational/trace"
 )
 
 const (
@@ -42,6 +42,8 @@ const (
 	pdListLimit   = uint(100)
 
 	pdIncidentKeyPrefix = "teleport-access-request"
+
+	pdStatusUpdateTimeout time.Duration = 10 * time.Second
 )
 
 var incidentBodyTemplate = template.Must(template.New("incident body").Parse(
@@ -126,7 +128,7 @@ func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 		status := statusFromStatusCode(resp.StatusCode())
 
 		// No usable context in scope, use background with a reasonable timeout
-		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), pdStatusUpdateTimeout)
 		defer cancel()
 
 		if err := sink.Emit(ctx, status); err != nil {
@@ -242,9 +244,6 @@ func (p Pagerduty) ResolveIncident(ctx context.Context, incidentID string, resol
 // GetUserInfo loads a user profile by id.
 func (p Pagerduty) GetUserInfo(ctx context.Context, userID string) (User, error) {
 	var result UserResult
-
-	p.client.SetDebug(true)
-	defer p.client.SetDebug(false)
 
 	_, err := p.client.NewRequest().
 		SetContext(ctx).
