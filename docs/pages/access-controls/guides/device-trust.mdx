@@ -37,8 +37,8 @@ Teleport Auth Server, proving the identity of the trusted device.
 
 On Windows devices, a TPM (Trusted Platform Module) is used to perform an
 attestation as to the state of the device. This attestation is signed by a
-private key that is protected by the TPM. This means that we know both
-information about the state of the device, and that the request has come from
+private key that is also protected by the TPM. The signed attestation ensures that the Teleport Auth Server knows both
+the state of the device and that the request has come from
 the device.
 
 Device management is divided into two separate phases: inventory management and
@@ -72,11 +72,12 @@ layer of protection.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- To enroll a macOS device:
+- To enroll a macOS device, you need:
   - A signed and notarized `tsh` binary for enrollment.
     [Download the macOS tsh installer](../../installation.mdx#macos).
   - A Teleport version newer than v12.0.0.
-- To enroll a Windows device:
+  
+- To enroll a Windows device, you need:
   - A device that includes a TPM with 2.0 support.
   - `tsh` installed on the device. [Download the Windows tsh installer](../../installation.mdx#windows-tsh-client-only).
   - Credentials for a user with administrator privileges for the device. This is only required during enrollment.
@@ -153,7 +154,7 @@ $ tsh logout; tsh login --proxy=example.com --user=alice
 ```
 
 Before we can enroll the device, we need to register it. In order to register
-a device, we need to first determine its serial number.
+a device, you first need to determine its serial number.
 
 <Tabs>
   <TabItem label="macOS">
@@ -192,9 +193,9 @@ a device, we need to first determine its serial number.
   </TabItem>
 </Tabs>
 
-Replace the the `$SERIAL` variable below with the serial number obtained from
+Replace the `$SERIAL` variable below with the serial number obtained from
 the device you wish to enroll and `$OS` with `macos` or `windows`, and execute
-the command:
+the following command:
 
 ```code
 $ export OS=macos
@@ -246,8 +247,8 @@ $ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificate
 ```
 
 <Admonition type="warning" title="Windows">
-On Windows, the `tsh device enroll` command will attempt to elevate to
-administrator privileges on the device. This is required in order to perform a
+On Windows, the `tsh device enroll` command attempts to elevate to
+administrator privileges on the device. Privilege elevation is required to perform a
 TPM Credential Activation. This is only required on enrollment and will not be
 required on future device authentications.
 </Admonition>
@@ -260,7 +261,7 @@ This advice only applies to Device Trust on platforms that use TPMs. For now,
 this is just Windows.
 
 Some TPMs include a certificate (known as an EKCert) signed by the
-manufacturer's CA (Certificate Authority). This certificate allows a third party
+manufacturer's certificate authority (CA). This certificate allows a third party
 (such a Teleport cluster) to know that the TPM it is communicating with is
 legitimate. This significantly reduces the burden on the administrator to ensure
 that the device has not been tampered with prior to enrollment.
@@ -278,14 +279,14 @@ To configure `ekcert_allowed_cas`, you must first obtain the CA certificate in
 PEM format from the manufacturer of the TPM included in your devices. This step
 varies from manufacturer to manufacturer.
 
-Once you have obtained the CA certificate in PEM format, there are two ways of
+After you obtain the CA certificate in PEM format, there are two ways of
 configuring `ekcert_allowed_cas`:
 
 - Statically using the Teleport configuration file. This is the simplest
   option, but is not possible for Teleport Cloud clusters and not recommended
-  for clusters in a highly available configuration
+  for clusters in a highly available configuration.
 - Dynamically using `cluster_auth_preference` resource. This works with all
-  clusters and is the most flexible
+  clusters and is the most flexible.
 
 <Tabs dropDownCaption="Teleport Deployment">
 <TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise Cloud" >
