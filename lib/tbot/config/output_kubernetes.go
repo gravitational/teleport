@@ -19,6 +19,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -49,7 +50,8 @@ func (o *KubernetesOutput) templates() []template {
 		&templateTLSCAs{},
 		&templateIdentity{},
 		&templateKubernetes{
-			clusterName: o.KubernetesCluster,
+			clusterName:          o.KubernetesCluster,
+			executablePathGetter: os.Executable,
 		},
 	}
 }

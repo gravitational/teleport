@@ -37,7 +37,8 @@ import (
 // templateSSHClient contains parameters for the ssh_config config
 // template
 type templateSSHClient struct {
-	getSSHVersion func() (*semver.Version, error)
+	getSSHVersion        func() (*semver.Version, error)
+	executablePathGetter executablePathGetter
 	// destPath controls whether or not to write the SSH config file.
 	// This is lets this be skipped on non-directory destinations where this
 	// doesn't make sense.
@@ -139,7 +140,7 @@ func (c *templateSSHClient) render(
 		return trace.Wrap(err)
 	}
 
-	executablePath, err := getExecutablePath()
+	executablePath, err := c.executablePathGetter()
 	if err != nil {
 		return trace.Wrap(err)
 	}
