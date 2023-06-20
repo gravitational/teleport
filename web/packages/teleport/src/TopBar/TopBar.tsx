@@ -47,7 +47,7 @@ import {
 
 import ClusterSelector from './ClusterSelector';
 
-const Assist = React.lazy(() => import('web/packages/teleport/src/Assist'));
+const Assist = React.lazy(() => import('teleport/Assist'));
 
 const AssistButton = styled.div`
   padding: 0 10px;
