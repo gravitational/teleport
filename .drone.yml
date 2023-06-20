@@ -6098,29 +6098,6 @@ steps:
     path: /var/run
   - name: dockerconfig
     path: /root/.docker
-- name: Build and push buildbox-fips
-  image: docker
-  pull: if-not-exists
-  commands:
-  - apk add --no-cache make aws-cli
-  - chown -R $UID:$GID /go
-  - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
-    -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - make -C build.assets buildbox-fips
-  - docker tag public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
-    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
-  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
-  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - aws ecr-public get-login-password --profile production --region=us-east-1 | docker
-    login -u="AWS" --password-stdin public.ecr.aws
-  - docker push public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
 - name: Build and push buildbox-arm
   image: docker
   pull: if-not-exists
