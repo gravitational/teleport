@@ -153,8 +153,8 @@ We also provide the following images for FIPS builds of Teleport Enterprise:
 
 | Image name | Includes troubleshooting tools | Image base |
 | - | - | - |
-| `public.ecr.aws/gravitational/teleport-ent:(=teleport.major_version=)-fips` | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
-| `(=teleport.latest_ent_docker_image=)-fips` | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `gravitational/teleport-ent-fips-distroless` | No | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
+| `gravitational/teleport-ent-fips-distroless-debug` | Yes | [Ubuntu 20.04](https://hub.docker.com/\_/ubuntu) |
 
 For testing, we always recommend that you use the latest release version of
 Teleport Enterprise, which is currently `(=teleport.latest_ent_docker_image=)`.
@@ -170,11 +170,6 @@ Teleport are available from our [Legacy Amazon ECR Public repository](https://ga
 When running a container from one of the images listed above, consider the
 container equivalent to running the `teleport` binary. The Teleport container
 requires access to a file system and network ports.
-
-Our [Helm charts](#helm) take care of the Teleport container's system
-requirements for you if deploying Teleport on Kubernetes, so these instructions
-are relevant only when running a standalone Teleport container in some other
-environment.
 
 #### Configuration
 
@@ -202,8 +197,9 @@ you will need to make sure that any file paths you name are mounted on the
 container. 
 
 For example, if you are running the Teleport Proxy Service on a container, you
-need to mount this directory to your Teleport container, then assign the
-following fields in the container's configuration file to the appropriate paths:
+need to mount the directory containing TLS credentials to your Teleport
+container, then assign the following fields in the container's configuration
+file to the appropriate paths:
 
 ```yaml
 proxy_service:
