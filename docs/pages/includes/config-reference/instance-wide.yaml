@@ -55,13 +55,18 @@ teleport:
         # token_name: /var/lib/teleport/tokenjoin
         token_name: "token-name"
 
-    # Optional CA pin of the Auth Service, which enables new agents to trust a
-    # Teleport cluster when joining via the Auth Service directly. This can be
-    # either the literal value of the CA pin or an absolute path to a file
-    # consisting only of the CA pin.
+    # Optional CA pin of the Auth Service. Specifying a CA pin enables new
+    # agents to trust a Teleport cluster when joining via the Auth Service
+    # directly. You can assign the ca_pin field to the literal value of the CA
+    # pin or an absolute path to a file. If you specify a file, the file should
+    # only contain the CA pin.
     #
-    # You can also specify the value of ca_pin as a list of CA pins or file
-    # paths.
+    # You can also specify the value of the ca_pin key as a YAML list of CA pins
+    # or file paths, e.g.:
+    #
+    # ca_pin:
+    #   - /var/lib/teleport/pin1
+    #   - /var/lib/teleport/pin2
     #
     # See the documentation on using CA pins:
     # https://goteleport.com/docs/management/join-services-to-your-cluster/join-token/#connecting-directly-to-the-auth-service.
