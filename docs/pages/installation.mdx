@@ -122,6 +122,25 @@ We provide pre-built `amd64`, `arm`, and `arm64` Docker images for every version
 </TabItem>
 </Tabs>
 
+## Amazon EC2
+
+We also provide pre-built `amd64` Amazon Linux 2023 based EC2 AMIs with Teleport pre-installed.
+
+The image names all include the build timestamp (shown as `$TIMESTAMP` in the table
+below), and are tagged for easier searching.
+
+| Image name | Edition | FIPS support | AMI Tags | Owner Account ID | 
+| - | - | - | - | - |
+| `teleport-oss-(=teleport.version=)-$TIMESTAMP` | OSS | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: oss`, `TeleportFipsEnabled: false` | 146628656107 | 
+| `teleport-ent-(=teleport.version=)-$TIMESTAMP` | Enterprise | No | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: false` | 146628656107 |
+| `teleport-oss-(=teleport.version=)-fips-$TIMESTAMP` | Enterprise | Yes | `TeleportVersion: (=teleport.version=)`, `TeleportEdition: ent`, `TeleportFipsEnabled: true` | 146628656107 |
+
+All images are based on Amazon Linux 2023 and have been hardened using the
+Amazon EC2 ImageBuilder [STIG](https://public.cyber.mil/stigs/) hardening 
+component.
+
+Teleport AMIs are automatically published to all [non-opt-in AWS regions](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/using-regions-availability-zones.html#concepts-available-regions).
+
 ## Helm
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
