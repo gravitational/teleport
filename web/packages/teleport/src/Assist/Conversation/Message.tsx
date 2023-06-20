@@ -107,6 +107,7 @@ function createComponentForEntry(
   switch (entry.type) {
     case ServerMessageType.Assist:
     case ServerMessageType.User:
+    case ServerMessageType.Error:
       return <MessageEntry content={entry.message} />;
 
     case ServerMessageType.Command:
