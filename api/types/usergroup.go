@@ -28,21 +28,37 @@ import (
 // UserGroup specifies an externally sourced group.
 type UserGroup interface {
 	ResourceWithLabels
+
+	// GetApplications will return a list of application IDs associated with the user group.
+	GetApplications() []string
+	// SetApplications will set the list of application IDs associated with the user group.
+	SetApplications([]string)
 }
 
 var _ ResourceWithLabels = (*UserGroupV1)(nil)
 
 // NewUserGroup returns a new UserGroup.
-func NewUserGroup(metadata Metadata) (UserGroup, error) {
+func NewUserGroup(metadata Metadata, spec UserGroupSpecV1) (UserGroup, error) {
 	g := &UserGroupV1{
 		ResourceHeader: ResourceHeader{
 			Metadata: metadata,
 		},
+		Spec: spec,
 	}
 	if err := g.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return g, nil
+}
+
+// GetApplications will return a list of application IDs associated with the user group.
+func (g *UserGroupV1) GetApplications() []string {
+	return g.Spec.Applications
+}
+
+// SetApplications will set the list of application IDs associated with the user group.
+func (g *UserGroupV1) SetApplications(applications []string) {
+	g.Spec.Applications = applications
 }
 
 // String returns the user group string representation.

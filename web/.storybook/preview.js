@@ -21,8 +21,11 @@ import { darkTheme, lightTheme } from './../packages/design/src/theme';
 import DefaultThemeProvider from '../packages/design/src/ThemeProvider';
 import Box from './../packages/design/src/Box';
 import '../packages/teleport/src/lib/polyfillRandomUuid';
-import { ThemeProvider as TeletermThemeProvider } from './../packages/teleterm/src/ui/ThemeProvider';
-import { theme as TeletermTheme } from './../packages/teleterm/src/ui/ThemeProvider/theme';
+import { StaticThemeProvider as TeletermThemeProvider } from './../packages/teleterm/src/ui/ThemeProvider';
+import {
+  darkTheme as teletermDarkTheme,
+  lightTheme as teletermLightTheme,
+} from './../packages/teleterm/src/ui/ThemeProvider/theme';
 import { handlersTeleport } from './../packages/teleport/src/mocks/handlers';
 
 // Checks we are running non-node environment (browser)
@@ -41,7 +44,10 @@ const ThemeDecorator = (storyFn, meta) => {
 
   if (meta.title.startsWith('Teleterm/')) {
     ThemeProvider = TeletermThemeProvider;
-    theme = TeletermTheme;
+    theme =
+      meta.globals.theme === 'Dark Theme'
+        ? teletermDarkTheme
+        : teletermLightTheme;
   } else {
     ThemeProvider = DefaultThemeProvider;
     theme = meta.globals.theme === 'Dark Theme' ? darkTheme : lightTheme;

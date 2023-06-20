@@ -40,7 +40,12 @@ type Destination interface {
 	// multiple processes of tbot concurrently.
 	TryLock() (func() error, error)
 
+	// CheckAndSetDefaults validates the configuration and sets any defaults.
+	//
+	// This must be called before other methods on Destination can be called.
 	CheckAndSetDefaults() error
 
+	// MarshalYAML enables the yaml package to correctly marshal the Destination
+	// as YAML including the type header.
 	MarshalYAML() (interface{}, error)
 }

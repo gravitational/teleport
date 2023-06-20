@@ -165,7 +165,7 @@ func (h *Handler) executeCommand(
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
 
-	ws, err := upgrader.Upgrade(w, r, nil)
+	rawWS, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		errMsg := "Error upgrading to websocket"
 		h.log.WithError(err).Error(errMsg)
@@ -174,16 +174,27 @@ func (h *Handler) executeCommand(
 	}
 
 	defer func() {
-		ws.WriteMessage(websocket.CloseMessage, nil)
-		ws.Close()
+		rawWS.WriteMessage(websocket.CloseMessage, nil)
+		rawWS.Close()
 	}()
 
 	keepAliveInterval := netConfig.GetKeepAliveInterval()
-	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
+	err = rawWS.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
 		return nil, trace.Wrap(err)
 	}
+	// Update the read deadline upon receiving a pong message.
+	rawWS.SetPongHandler(func(_ string) error {
+		// This is intentonally called without a lock as this callback is
+		// called from the same goroutine as the read loop which is already locked.
+		return trace.Wrap(rawWS.SetReadDeadline(deadlineForInterval(keepAliveInterval)))
+	})
+
+	// Wrap the raw websocket connection in a syncRWWSConn so that we can
+	// safely read and write to the the single websocket connection from
+	// multiple goroutines/execution nodes.
+	ws := &syncRWWSConn{WSConn: rawWS}
 
 	hosts, err := findByQuery(ctx, clt, req.Query)
 	if err != nil {
@@ -505,11 +516,6 @@ func (t *commandHandler) handler(r *http.Request) {
 	}
 
 	t.log.Debug("Creating websocket stream")
-
-	// Update the read deadline upon receiving a pong message.
-	t.ws.SetPongHandler(func(_ string) error {
-		return trace.Wrap(t.ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval)))
-	})
 
 	// Start sending ping frames through websocket to the client.
 	go startPingLoop(r.Context(), t.ws, t.keepAliveInterval, t.log, t.Close)

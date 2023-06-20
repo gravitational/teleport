@@ -195,12 +195,6 @@ func NewFromEnv(ctx context.Context) (*Integration, error) {
 
 	var paths BinPaths
 
-	if os.Getenv("CI") != "" {
-		if licenseStr == "" {
-			return nil, trace.AccessDenied("tests on CI should run with enterprise license")
-		}
-	}
-
 	if version := os.Getenv("TELEPORT_GET_VERSION"); version == "" {
 		paths = BinPaths{
 			Teleport: os.Getenv("TELEPORT_BINARY"),
