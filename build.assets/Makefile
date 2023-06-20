@@ -38,7 +38,6 @@ include grpcbox.mk # Requires images.mk
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
 # make it harder to run `make -C build.assets release` locally as the buildbox would not automatically be built.
 BUILDBOX_NAME=$(BUILDBOX)
-BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
 DOCSBOX=public.ecr.aws/gravitational/docs
 
@@ -443,9 +442,9 @@ release-enterprise:
 # CI should not use this target, it should use named Makefile targets like release-amd64-fips.
 #
 .PHONY:release-fips
-release-fips: buildbox-fips webassets
+release-fips: buildbox-centos7-fips webassets
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_FIPS_NAME) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
 
 #
