@@ -125,7 +125,7 @@ The MVP will not verify the checksum of the downloaded archive.
 ##### Agent versioning
 
 The version of the agent that Connect uses always matches the version of Connect. If Connect detects
-that the combination of the agent version and the cluster version breaks the compatibility promise,
+that the combination of the agent version and the cluster version breaks [the compatibility promise](https://goteleport.com/docs/faq/#version-compatibility),
 it shows a warning on the setup page and the status page, informing about lack of support and
 recommending an upgrade or a downgrade.
 
@@ -135,8 +135,32 @@ major version behind the cluster.
 To check if the versions are compatible, Connect compares its version with the cluster version from
 the `Ping` response.
 
-<details open>
-<summary>Connect & cluster version matrix</summary>
+This is how the UI behaves depending on the version differences:
+
+* If the agent is on the same version as the cluster, everything's okay and Connect doesn't show any
+  extra information.
+* If the agent is two major versions or more _behind_ the cluster, Connect shows a warning on the
+  setup page and the status page explaining that servers do not support clients that are more than
+  one major version behind, links to `https://goteleport.com/docs/faq/#version-compatibility` and
+  recommends _an upgrade_ of Connect.
+   * Examples: Connect v11.0.0 & cluster v13.1.1, Connect v10.3.16 & cluster v12.0.1.
+* If the agent is one major version or more _ahead of_ the cluster, Connect shows a warning on the
+  setup page and the status page explaining that servers do not support clients that are on a newer
+  major version, links to `https://goteleport.com/docs/faq/#version-compatibility` and recommends _a
+  downgrade_ of Connect.
+   * Examples: Connect v14.0.0 & cluster v13.1.1, Connect v10.3.16 & cluster v9.3.26.
+* If the agent is on a supported client version that is older than the cluster version, Connect
+  shows an informational message only on the status page recommending an upgrade, similar to [how
+  the Web UI does it](https://github.com/gravitational/teleport/blob/12204708e71704a8073a6ee5d2b2358db23071c1/lib/auth/auth.go#L1101-L1103),
+  and links to the download page.
+   * Examples: Connect v13.1.0 & cluster v13.1.1, Connect v12.0.0 & cluster v13.1.0.
+
+It's important that the warnings are shown indeed as warnings and not as errors – we don't want to
+stop the user from running the agent, we just want to explain the compatibility promise and that
+Connect My Computer might not work properly with that setup.
+
+<details>
+<summary>A matrix of Connect & cluster version considerations</summary>
 
 |  | A. Newest cluster (V) | B. Cluster one major version behind (V-1) | C. Cluster two major versions behind (V-2) |
 |---|---|---|---|
