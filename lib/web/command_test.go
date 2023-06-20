@@ -292,28 +292,20 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 		default:
 		}
 
-		out := make([]byte, 100)
-		n, err := stream.Read(out)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
 		var env Envelope
-		err = json.Unmarshal(out[:n], &env)
-		if err != nil {
-			return trace.Wrap(err)
+		dec := json.NewDecoder(stream)
+		if err := dec.Decode(&env); err != nil {
+			return trace.Wrap(err, "decoding envelope JSON from stream")
 		}
 
 		d, err := base64.StdEncoding.DecodeString(env.Payload)
 		if err != nil {
-			return trace.Wrap(err)
+			return trace.Wrap(err, "decoding b64 payload")
 		}
+
 		data := removeSpace(string(d))
-		if n > 0 && strings.Contains(data, substr) {
+		if strings.Contains(data, substr) {
 			return nil
-		}
-		if err != nil {
-			return trace.Wrap(err)
 		}
 	}
 }
