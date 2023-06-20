@@ -68,6 +68,7 @@ $ tctl sso configure github \
 
 The contents of `github.yaml` should resemble the following:
 
+<ScopedBlock scope={["oss"]}>
 ```yaml
 kind: github
 metadata:
@@ -88,6 +89,31 @@ spec:
       team: GITHUB-TEAM
 version: v3
 ```
+</ScopedBlock>
+
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```yaml
+kind: github
+metadata:
+  name: github
+spec:
+  api_endpoint_url: ""
+  client_id: <client-id>
+  client_secret: <client-secret>
+  display: GitHub
+  endpoint_url: ""
+  redirect_url: https://<proxy-address>/v1/webapi/github/callback
+  teams_to_logins: null
+  teams_to_roles:
+    - organization: ORG-NAME
+      roles:
+        - access
+        - editor
+        - reviewer
+      team: GITHUB-TEAM
+version: v3
+```
+</ScopedBlock>
 
 <Details title="Mapping multiple roles">
 You can add multiple instances of the `--teams-to-roles` flag or edit the connector
@@ -252,14 +278,32 @@ After logging in successfully, you will see the following:
 
 You will receive the details of your user session within the CLI:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```code
 > Profile URL:        https://tele.example.com:443
   Logged in as:       jeff
   Cluster:            tele.example.com
   Roles:              access
-  Logins:             jeff, ubuntu, debian, -teleport-internal-join
+  Logins:             jeff, ubuntu, debian
+  Kubernetes:         enabled
+  Kubernetes users:   dev
+  Kubernetes groups:  developer
+  Valid until:        2023-03-08 17:13:50 -0600 CST [valid for 7h51m0s]
+  Extensions:         permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</ScopedBlock>
+
+
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+> Profile URL:        https://tele.example.com:443
+  Logged in as:       jeff
+  Cluster:            tele.example.com
+  Roles:              access, requester
+  Logins:             jeff, ubuntu, debian
   Kubernetes:         enabled
   Kubernetes users:   dev
   Kubernetes groups:  developer
@@ -275,8 +319,8 @@ You will receive the details of your user session within the CLI:
 > Profile URL:        https://mytenant.teleport.sh:443
   Logged in as:       jeff
   Cluster:            mytenant.teleport.sh
-  Roles:              access
-  Logins:             jeff, ubuntu, debian, -teleport-internal-join
+  Roles:              access, requester
+  Logins:             jeff, ubuntu, debian
   Kubernetes:         enabled
   Kubernetes users:   dev
   Kubernetes groups:  developer

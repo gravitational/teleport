@@ -80,9 +80,27 @@ to call [`tsh login`](../reference/cli.mdx#tsh-login) in the beginning.
 
 ## Installing tsh
 
-Follow [these install instructions](../installation.mdx) to obtain the `tsh`
-binary. Ideally, install `tsh` of the same version as the version used in your
-Teleport cluster.
+Follow the instructions below to install the `tsh` binary. 
+
+We recommend installing `tsh` of the same major version as the version used in
+your Teleport cluster. 
+
+To find the version number, either:
+
+- In the Web UI, select your username in the upper right, then click
+  **Help & Support**. You will see the version of your Teleport
+  cluster under **CLUSTER INFORMATION**.
+
+- Use `curl` and `jq`. Replace <Var name="teleport.example.com" />
+  with your Proxy Service address (e.g. `mytenant.teleport.sh` for Teleport
+  Enterprise Cloud):
+  
+  ```code
+  $ curl https://<Var name="teleport.example.com" />/webapi/find | jq '.server_version'
+  "(=teleport.version=)"
+  ```
+
+(!docs/pages/includes/install-tsh.mdx!)
 
 ## User identities
 
@@ -878,5 +896,11 @@ exit
 end of session playback
 ```
 
+## Uninstalling tsh
+
+To remove `tsh` and associated user data see
+[Uninstalling Teleport](../management/admin/uninstall-teleport.mdx).
+
 ## Further reading
 - [CLI Reference](../reference/cli.mdx).
+

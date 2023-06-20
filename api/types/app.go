@@ -72,6 +72,10 @@ type Application interface {
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
 	GetAWSExternalID() string
+	// GetUserGroups will get the list of user group IDs associated with the application.
+	GetUserGroups() []string
+	// SetUserGroups will set the list of user group IDs associated with the application.
+	SetUserGroups([]string)
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
 }
@@ -287,6 +291,16 @@ func (a *AppV3) GetAWSExternalID() string {
 		return ""
 	}
 	return a.Spec.AWS.ExternalID
+}
+
+// GetUserGroups will get the list of user group IDss associated with the application.
+func (a *AppV3) GetUserGroups() []string {
+	return a.Spec.UserGroups
+}
+
+// SetUserGroups will set the list of user group IDs associated with the application.
+func (a *AppV3) SetUserGroups(userGroups []string) {
+	a.Spec.UserGroups = userGroups
 }
 
 // String returns the app string representation.

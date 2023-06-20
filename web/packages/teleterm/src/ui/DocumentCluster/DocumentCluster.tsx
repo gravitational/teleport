@@ -82,7 +82,7 @@ export function Cluster() {
   }
 
   return (
-    <Layout mx="auto" px={5} pt={3} height="100%">
+    <Layout mx="auto" px={5} pt={2} height="100%">
       <ClusterResources />
     </Layout>
   );
