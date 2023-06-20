@@ -144,7 +144,7 @@ func (b *BatchReducer[T, V]) Finalize(ctx context.Context) (V, error) {
 
 // EmbeddingProcessorConfig is the configuration for EmbeddingProcessor.
 type EmbeddingProcessorConfig struct {
-	AiClient     Embedder
+	AIClient     Embedder
 	EmbeddingSrv Embeddings
 	NodeSrv      services.NodesStreamGetter
 	Log          logrus.FieldLogger
@@ -164,7 +164,7 @@ type EmbeddingProcessor struct {
 // NewEmbeddingProcessor returns a new EmbeddingProcessor.
 func NewEmbeddingProcessor(cfg *EmbeddingProcessorConfig) *EmbeddingProcessor {
 	return &EmbeddingProcessor{
-		aiClient:     cfg.AiClient,
+		aiClient:     cfg.AIClient,
 		embeddingSrv: cfg.EmbeddingSrv,
 		nodeSrv:      cfg.NodeSrv,
 		log:          cfg.Log,

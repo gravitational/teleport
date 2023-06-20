@@ -1700,7 +1700,7 @@ func (process *TeleportProcess) initAuthService() error {
 		log.Debugf("Starting embedding watcher")
 		openAIClient := ai.NewClient(cfg.Auth.AssistAPIKey)
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
-			AiClient:     openAIClient,
+			AIClient:     openAIClient,
 			EmbeddingSrv: authServer,
 			NodeSrv:      authServer,
 			Log:          log,

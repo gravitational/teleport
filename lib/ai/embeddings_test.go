@@ -77,7 +77,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	embeddings := local.NewEmbeddingsService(bk)
 
 	processor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
-		AiClient:     &embedder,
+		AIClient:     &embedder,
 		EmbeddingSrv: embeddings,
 		NodeSrv:      presence,
 		Log:          utils.NewLoggerForTests(),
