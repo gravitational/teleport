@@ -374,6 +374,23 @@ func (h *HeadlessAuthenticationWatcher) WaitForUpdate(ctx context.Context, subsc
 			} else if ok {
 				return ha, nil
 			}
+		case <-subscriber.Stale():
+			// drain the updates channel before checking the backend.
+			select {
+			case <-subscriber.Updates():
+			default:
+			}
+
+			ha, err = h.identityService.GetHeadlessAuthentication(ctx, subscriber.Name())
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if ok, err := cond(ha); err != nil {
+				return nil, trace.Wrap(err)
+			} else if ok {
+				return ha, nil
+			}
 		case <-ctx.Done():
 			return nil, trace.Wrap(ctx.Err())
 		case <-h.Done():
