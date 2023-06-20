@@ -259,6 +259,7 @@ describe('registering new databases, mainly error checking', () => {
         engine: DatabaseEngine.AuroraMysql,
       },
     } as any,
+    exitFlow: () => null,
     viewConfig: null,
     indexedViews: [],
     setResourceSpec: () => null,

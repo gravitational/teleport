@@ -579,7 +579,8 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 func IsErrorResolvableWithRelogin(err error) bool {
 	// Assume that failed handshake is a result of expired credentials.
 	return utils.IsHandshakeFailedError(err) || utils.IsCertExpiredError(err) ||
-		trace.IsBadParameter(err) || trace.IsTrustError(err) || keys.IsPrivateKeyPolicyError(err) || trace.IsNotFound(err)
+		trace.IsBadParameter(err) || trace.IsTrustError(err) ||
+		keys.IsPrivateKeyPolicyError(err) || IsNoCredentialsError(err)
 }
 
 // GetProfile gets the profile for the specified proxy address, or
@@ -2629,7 +2630,7 @@ func (tc *TeleportClient) runCommand(ctx context.Context, nodeClient *NodeClient
 
 func (tc *TeleportClient) newSessionEnv() map[string]string {
 	env := map[string]string{
-		teleport.SSHSessionWebproxyAddr: tc.WebProxyAddr,
+		teleport.SSHSessionWebProxyAddr: tc.WebProxyAddr,
 	}
 	if tc.SessionID != "" {
 		env[sshutils.SessionEnvVar] = tc.SessionID
