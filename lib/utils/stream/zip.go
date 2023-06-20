@@ -58,7 +58,7 @@ func NewZipStreams[T, V any](leader stream.Stream[T], follower stream.Stream[V],
 	}
 }
 
-// Process consumes the streams and returns an error reported by handler funcitons.
+// Process consumes the streams and returns an error reported by handler functions.
 // Processing will stop on the first error.
 func (z *ZipStreams[T, V]) Process() error {
 	var leaderItem T
