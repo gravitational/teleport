@@ -65,7 +65,6 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
-	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -399,7 +398,7 @@ type Services struct {
 	services.Integrations
 	services.Okta
 	services.Assistant
-	ai.Embeddings
+	services.Embeddings
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
