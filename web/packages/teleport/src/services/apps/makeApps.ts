@@ -69,6 +69,6 @@ export default function makeApp(json: any): App {
     isCloudOrTcpEndpoint: isTcp || isCloud,
     addrWithProtocol,
     friendlyName,
-    userGroups
+    userGroups,
   };
 }
