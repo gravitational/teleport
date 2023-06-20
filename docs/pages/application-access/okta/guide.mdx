@@ -19,7 +19,7 @@ configurations to enable it.
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - (!docs/pages/includes/tctl.mdx!)
-- An Okta organization with an [Okta API token](https://developer.okta.com/docs/guides/create-an-api-token) provisioned.
+- An Okta organization with an [Okta API token](https://developer.okta.com/docs/guides/create-an-api-token) created.
 - A running Teleport cluster with Okta login configured.
 - An instance where you will run the Okta Service. This can live anywhere
   with outbound access to Okta and must be running Linux.
@@ -30,7 +30,7 @@ Before setting up the Okta Service, you should create Okta import rules in order
 to ensure that our Okta applications are set up with appropriate labeling before
 you attempt to synchronize them. First, you'll need to get the group and application
 IDs from Okta. The easiest way to do this is to use the <Var name="okta-api-token" />
-provisioned earlier.
+that was created when when evaluating the prerequisites.
 
 To get group IDs:
 
@@ -152,8 +152,8 @@ ssh_service:
   enabled: no
 okta_service:
   enabled: yes
-  api_endpoint: <Var name="okta-endpoint-url" />
-  api_token_path: <Var name="okta-api-token-path" />
+  api_endpoint: <replace-with-okta-endpoint-url>
+  api_token_path: <replace-with-okta-api-token-path>
 ```
 
 Edit `/etc/teleport.yaml` to replace `teleport.example.com:443` with the host
