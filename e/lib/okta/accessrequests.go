@@ -57,9 +57,6 @@ type AccessRequestReconcilerAccessPoint interface {
 
 	// GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
 	GetInventoryConnectedServiceCount(service types.SystemRole) uint64
-
-	// GetPlugins will get all plugins from the backend.
-	GetPlugins(ctx context.Context, withSecrets bool) ([]types.Plugin, error)
 }
 
 // AccessRequestReconcilerConfig is the configuration for the AccessRequestReconciler.
@@ -82,8 +79,9 @@ type AccessRequestReconcilerConfig struct {
 	// OnReconcile is called after each access request resource reconciliation.
 	OnReconcile func(types.AccessRequests)
 
-	// PluginsEnabled should be set to true if plugins are enabled on this auth server.
-	PluginsEnabled bool
+	// Plugins is an optional plugins service that will allow the access request reconciler to query
+	// plugins. This may be nil.
+	Plugins services.Plugins
 
 	// onServiceDisconnectedCh is a channel that will be signaled to when the service disconnects.
 	// This is to be used for testing.
@@ -127,10 +125,10 @@ type AccessRequestReconciler struct {
 	clock       clockwork.Clock
 	clusterName string
 
-	accessPoint    AccessRequestReconcilerAccessPoint
-	oktaClient     services.OktaAssignments
-	onReconcile    func(types.AccessRequests)
-	pluginsEnabled bool
+	accessPoint AccessRequestReconcilerAccessPoint
+	plugins     services.Plugins
+	oktaClient  services.OktaAssignments
+	onReconcile func(types.AccessRequests)
 
 	watcherMu sync.Mutex
 	watcher   *services.AccessRequestWatcher
@@ -172,7 +170,7 @@ func NewAccessRequestReconciler(ctx context.Context, config *AccessRequestReconc
 		clusterName:             config.ClusterName,
 		accessPoint:             config.AccessPoint,
 		onReconcile:             config.OnReconcile,
-		pluginsEnabled:          config.PluginsEnabled,
+		plugins:                 config.Plugins,
 		oktaClient:              config.OktaClient,
 		reconcileCh:             make(chan struct{}),
 		stopCh:                  make(chan struct{}, 1),
@@ -203,8 +201,14 @@ func (a *AccessRequestReconciler) manageReconcilerStartStop(ctx context.Context)
 	serviceStarted := false
 	var serviceConnectionFailures int
 
+	if a.plugins == nil {
+		a.log.Debug("This auth server does not support plugins, so the Okta access request reconciler will not check for Okta plugins.")
+	} else {
+		a.log.Debug("This auth server supports plugins, so the Okta access request reconciler will check for Okta plugins.")
+	}
+
 	for {
-		newOktaServiceConnected := isOktaServiceConnected(ctx, a.log, a.pluginsEnabled, a.accessPoint)
+		newOktaServiceConnected := isOktaServiceConnected(ctx, a.log, a.accessPoint, a.plugins)
 		if newOktaServiceConnected {
 			serviceConnectionFailures = 0
 

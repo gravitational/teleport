@@ -40,13 +40,13 @@ func TestIsOktaConnected(t *testing.T) {
 			types.RoleAuth:  1,
 			types.RoleOkta:  1,
 		}
-		require.True(t, isOktaServiceConnected(ctx, log, false, ap))
+		require.True(t, isOktaServiceConnected(ctx, log, ap, nil))
 
 		ap.serviceCounts = map[types.SystemRole]uint64{
 			types.RoleAdmin: 1,
 			types.RoleAuth:  1,
 		}
-		require.False(t, isOktaServiceConnected(ctx, log, false, ap))
+		require.False(t, isOktaServiceConnected(ctx, log, ap, nil))
 	})
 
 	t.Run("plugins", func(t *testing.T) {
@@ -74,7 +74,7 @@ func TestIsOktaConnected(t *testing.T) {
 			},
 		})
 		require.NoError(t, ap.CreatePlugin(ctx, slackPlugin))
-		require.False(t, isOktaServiceConnected(ctx, log, true, ap))
+		require.False(t, isOktaServiceConnected(ctx, log, ap, ap))
 
 		oktaPlugin := types.NewPluginV1(types.Metadata{
 			Name: "okta",
@@ -94,10 +94,10 @@ func TestIsOktaConnected(t *testing.T) {
 			},
 		})
 		require.NoError(t, ap.CreatePlugin(ctx, oktaPlugin))
-		require.True(t, isOktaServiceConnected(ctx, log, true, ap))
-		require.False(t, isOktaServiceConnected(ctx, log, false, ap))
+		require.True(t, isOktaServiceConnected(ctx, log, ap, ap))
+		require.False(t, isOktaServiceConnected(ctx, log, ap, nil))
 
 		require.NoError(t, ap.DeletePlugin(ctx, oktaPlugin.GetName()))
-		require.False(t, isOktaServiceConnected(ctx, log, true, ap))
+		require.False(t, isOktaServiceConnected(ctx, log, ap, ap))
 	})
 }
