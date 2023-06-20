@@ -25,7 +25,6 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
-	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -48,7 +47,7 @@ func (e EmbeddingsService) GetEmbedding(ctx context.Context, kind, resourceID st
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return aiembeddings.UnmarshalEmbedding(result.Value)
+	return ai.UnmarshalEmbedding(result.Value)
 }
 
 // GetEmbeddings returns a stream of embeddings for a given kind.
@@ -56,7 +55,7 @@ func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) strea
 	startKey := backend.ExactKey(embeddingsPrefix, kind)
 	items := backend.StreamRange(ctx, e, startKey, backend.RangeEnd(startKey), 50)
 	return stream.FilterMap(items, func(item backend.Item) (*ai.Embedding, bool) {
-		embedding, err := aiembeddings.UnmarshalEmbedding(item.Value)
+		embedding, err := ai.UnmarshalEmbedding(item.Value)
 		if err != nil {
 			e.log.Warnf("Skipping embedding at %s, failed to unmarshal: %v", item.Key, err)
 			return nil, false
@@ -67,7 +66,7 @@ func (e EmbeddingsService) GetEmbeddings(ctx context.Context, kind string) strea
 
 // UpsertEmbedding creates or update a single ai.Embedding in the backend.
 func (e EmbeddingsService) UpsertEmbedding(ctx context.Context, embedding *ai.Embedding) (*ai.Embedding, error) {
-	value, err := aiembeddings.MarshalEmbedding(embedding)
+	value, err := ai.MarshalEmbedding(embedding)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

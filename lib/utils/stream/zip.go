@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/teleport/api/internalutils/stream"
 )
 
-// ZipStreams is a helper for iterrate two streams and process elements in the
+// ZipStreams is a helper for iterate two streams and process elements in the
 // leader stream only if they don't already exists in the follower stream.
 // The streams must be sorted and comparable.
 type ZipStreams[T, V any] struct {
@@ -37,7 +37,6 @@ type ZipStreams[T, V any] struct {
 	// has the same key as the follower element. It allows additional processing
 	// of the element.
 	onEqualKeys func(leader T, follower V) error
-
 	// compareKeys is the function that will be used to compare the keys of the
 	// leader and follower elements.
 	// It should return 0 if leader == follower, -1 if leader < follower, and +1 if leader > follower.
@@ -59,8 +58,8 @@ func NewZipStreams[T, V any](leader stream.Stream[T], follower stream.Stream[V],
 	}
 }
 
-// Process processed the streams and returns an error that happened during the
-// processing. Processing will stop on the first error.
+// Process consumes the streams and returns an error reported by handler funcitons.
+// Processing will stop on the first error.
 func (z *ZipStreams[T, V]) Process() error {
 	var leaderItem T
 	var followerItem V
@@ -75,17 +74,18 @@ func (z *ZipStreams[T, V]) Process() error {
 	}
 
 	for hasLeader && hasFollower {
-		if z.compareKeys(leaderItem, followerItem) == -1 {
+		cmp := z.compareKeys(leaderItem, followerItem)
+		if cmp == -1 {
 			// leader > follower - follower is missing
 			if err := z.onMissing(leaderItem); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 
 			hasLeader = z.leader.Next()
 			if hasLeader {
 				leaderItem = z.leader.Item()
 			}
-		} else if z.compareKeys(leaderItem, followerItem) == 1 {
+		} else if cmp == 1 {
 			// leader < follower - advancde
 			hasFollower = z.follower.Next()
 			if hasFollower {
@@ -94,7 +94,7 @@ func (z *ZipStreams[T, V]) Process() error {
 		} else {
 			// leader == follower
 			if err := z.onEqualKeys(leaderItem, followerItem); err != nil {
-				return err
+				return trace.Wrap(err)
 			}
 			hasLeader = z.leader.Next()
 			hasFollower = z.follower.Next()
@@ -109,7 +109,7 @@ func (z *ZipStreams[T, V]) Process() error {
 
 	for hasLeader {
 		if err := z.onMissing(leaderItem); err != nil {
-			return err
+			return trace.Wrap(err)
 		}
 		hasLeader = z.leader.Next()
 		if hasLeader {

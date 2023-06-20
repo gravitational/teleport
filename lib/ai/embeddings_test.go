@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package embeddings_test
+package ai_test
 
 import (
 	"context"
@@ -24,9 +24,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -35,16 +33,15 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/ai"
-	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // MockEmbedder returns embeddings based on the sha256 hash function. Those
 // embeddings have no semantic meaning but ensure different embedded content
 // provides different embeddings.
-type MockEmbedder struct {
-}
+type MockEmbedder struct{}
 
 func (m MockEmbedder) ComputeEmbeddings(_ context.Context, input []string) ([]ai.Vector64, error) {
 	result := make([]ai.Vector64, len(input))
@@ -79,18 +76,18 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	presence := local.NewPresenceService(bk)
 	embeddings := local.NewEmbeddingsService(bk)
 
-	processor := aiembeddings.NewEmbeddingProcessor(&aiembeddings.EmbeddingProcessorConfig{
+	processor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
 		AiClient:     &embedder,
 		EmbeddingSrv: embeddings,
 		NodeSrv:      presence,
-		Log:          logrus.WithField(trace.Component, "test"),
+		Log:          utils.NewLoggerForTests(),
 		Jitter:       retryutils.NewSeventhJitter(),
 	})
 
 	done := make(chan struct{})
 	go func() {
 		err := processor.Run(ctx, 100*time.Millisecond)
-		assert.ErrorContains(t, err, "context canceled")
+		assert.ErrorIs(t, context.Canceled, err)
 		close(done)
 	}()
 
@@ -119,7 +116,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 
 	cancel()
 
-	waitForDone(t, done)
+	waitForDone(t, done, "timed out waiting for processor to stop")
 
 	validateEmbeddings(t,
 		presence.GetNodeStream(ctx, defaults.Namespace),
@@ -130,10 +127,10 @@ func TestMarshallUnmarshallEmbedding(t *testing.T) {
 	// We test that float precision is above six digits
 	initial := ai.NewEmbedding(types.KindNode, "foo", ai.Vector64{0.1234567, 1, 1}, sha256.Sum256([]byte("test")))
 
-	marshaled, err := aiembeddings.MarshalEmbedding(initial)
+	marshaled, err := ai.MarshalEmbedding(initial)
 	require.NoError(t, err)
 
-	final, err := aiembeddings.UnmarshalEmbedding(marshaled)
+	final, err := ai.UnmarshalEmbedding(marshaled)
 	require.NoError(t, err)
 
 	require.Equal(t, initial.EmbeddedId, final.EmbeddedId)
@@ -142,13 +139,13 @@ func TestMarshallUnmarshallEmbedding(t *testing.T) {
 	require.Equal(t, initial.Vector, final.Vector)
 }
 
-func waitForDone(t *testing.T, done chan struct{}) {
+func waitForDone(t *testing.T, done chan struct{}, errMsg string) {
 	t.Helper()
 
 	select {
 	case <-done:
 	case <-time.After(5 * time.Second):
-		t.Fatal("timed out waiting for processor to stop")
+		t.Fatal(errMsg)
 	}
 }
 
@@ -242,7 +239,7 @@ func Test_batchReducer_Add(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ctx := context.Background()
-			br := aiembeddings.NewBatchReducer[int, int](tt.processFn, tt.batchSize)
+			br := ai.NewBatchReducer[int, int](tt.processFn, tt.batchSize)
 
 			for i, d := range tt.data {
 				got, err := br.Add(ctx, d)

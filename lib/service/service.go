@@ -70,7 +70,6 @@ import (
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/ai"
-	aiembeddings "github.com/gravitational/teleport/lib/ai/embeddings"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -1700,7 +1699,7 @@ func (process *TeleportProcess) initAuthService() error {
 	if cfg.Auth.AssistAPIKey != "" {
 		log.Debugf("Starting embedding watcher")
 		openAIClient := ai.NewClient(cfg.Auth.AssistAPIKey)
-		embeddingProcessor := aiembeddings.NewEmbeddingProcessor(&aiembeddings.EmbeddingProcessorConfig{
+		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
 			AiClient:     openAIClient,
 			EmbeddingSrv: authServer,
 			NodeSrv:      authServer,
@@ -1708,11 +1707,9 @@ func (process *TeleportProcess) initAuthService() error {
 			Jitter:       retryutils.NewFullJitter(),
 		})
 
-		go func() {
-			if err := embeddingProcessor.Run(process.ExitContext(), ai.EmbeddingPeriod); err != nil {
-				log.Warnf("embedding processor failed: %v", err)
-			}
-		}()
+		process.RegisterFunc("ai.embedding-processor", func() error {
+			return embeddingProcessor.Run(process.ExitContext(), ai.EmbeddingPeriod)
+		})
 	}
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
