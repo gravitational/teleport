@@ -47,6 +47,8 @@ type App struct {
 	AWSRoles []aws.Role `json:"awsRoles,omitempty"`
 	// FriendlyName is a friendly name for the app.
 	FriendlyName string `json:"friendlyName,omitempty"`
+	// UserGroups is a list of associated user groups.
+	UserGroups []string `json:"user_groups,omitempty"`
 }
 
 // MakeAppsConfig contains parameters for converting apps to UI representation.
@@ -80,6 +82,7 @@ func MakeApps(c MakeAppsConfig) []App {
 			FQDN:         fqdn,
 			AWSConsole:   teleApp.IsAWSConsole(),
 			FriendlyName: services.FriendlyName(teleApp),
+			UserGroups:   teleApp.GetUserGroups(),
 		}
 
 		if teleApp.IsAWSConsole() {
