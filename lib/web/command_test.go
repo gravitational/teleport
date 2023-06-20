@@ -24,7 +24,9 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
+	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -35,7 +37,9 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
 	"github.com/gravitational/trace"
+	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -47,9 +51,17 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const testCommand = "echo txlxport | sed 's/x/e/g'"
+
 func TestExecuteCommand(t *testing.T) {
 	t.Parallel()
-	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
+	openAIMock := mockOpenAISummary(t)
+	openAIConfig := openai.DefaultConfig("test-token")
+	openAIConfig.BaseURL = openAIMock.URL + "/v1"
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		disableDiskBasedRecording: true,
+		OpenAIConfig:              &openAIConfig,
+	})
 
 	ws, _, err := s.makeCommand(t, s.authPack(t, "foo"), uuid.New())
 	require.NoError(t, err)
@@ -63,8 +75,13 @@ func TestExecuteCommand(t *testing.T) {
 func TestExecuteCommandHistory(t *testing.T) {
 	t.Parallel()
 
-	// Given
-	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
+	openAIMock := mockOpenAISummary(t)
+	openAIConfig := openai.DefaultConfig("test-token")
+	openAIConfig.BaseURL = openAIMock.URL + "/v1"
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		disableDiskBasedRecording: true,
+		OpenAIConfig:              &openAIConfig,
+	})
 	authPack := s.authPack(t, "foo")
 
 	ctx := context.Background()
@@ -91,7 +108,7 @@ func TestExecuteCommandHistory(t *testing.T) {
 	// When command executes
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 
-	// Explecitly close the stream
+	// Explicitly close the stream
 	err = stream.Close()
 	require.NoError(t, err)
 
@@ -105,12 +122,13 @@ func TestExecuteCommandHistory(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		return len(messages.GetMessages()) == 1
+		return len(messagesByType(messages.GetMessages())[assistlib.MessageKindCommandResult]) == 1
 	}, 5*time.Second, 100*time.Millisecond)
 
 	// Assert the returned message
-	msg := messages.GetMessages()[0]
-	require.Equal(t, string(assistlib.MessageKindCommandResult), msg.Type)
+	resultMessages, ok := messagesByType(messages.GetMessages())[assistlib.MessageKindCommandResult]
+	require.True(t, ok, "Message must be of type COMMAND_RESULT")
+	msg := resultMessages[0]
 	require.NotZero(t, msg.CreatedTime)
 
 	var result commandExecResult
@@ -123,13 +141,92 @@ func TestExecuteCommandHistory(t *testing.T) {
 	require.Equal(t, "node", result.NodeID)
 }
 
+func TestExecuteCommandSummary(t *testing.T) {
+	t.Parallel()
+
+	openAIMock := mockOpenAISummary(t)
+	openAIConfig := openai.DefaultConfig("test-token")
+	openAIConfig.BaseURL = openAIMock.URL + "/v1"
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		disableDiskBasedRecording: true,
+		OpenAIConfig:              &openAIConfig,
+	})
+	authPack := s.authPack(t, "foo")
+
+	ctx := context.Background()
+	clt, err := s.server.NewClient(auth.TestUser("foo"))
+	require.NoError(t, err)
+
+	// Create conversation, otherwise the command execution will not be saved
+	conversation, err := clt.CreateAssistantConversation(context.Background(), &assist.CreateAssistantConversationRequest{
+		Username:    "foo",
+		CreatedTime: timestamppb.Now(),
+	})
+	require.NoError(t, err)
+
+	require.NotEmpty(t, conversation.GetId())
+
+	conversationID, err := uuid.Parse(conversation.GetId())
+	require.NoError(t, err)
+
+	ws, _, err := s.makeCommand(t, authPack, conversationID)
+	require.NoError(t, err)
+
+	stream := NewWStream(ctx, ws, utils.NewLoggerForTests(), nil)
+
+	// Wait for command execution to complete
+	require.NoError(t, waitForCommandOutput(stream, "teleport"))
+
+	// Stream one more message, this should be the summary message
+	out := make([]byte, 100)
+	n, err := stream.Read(out)
+	require.NoError(t, err)
+
+	var env Envelope
+	err = json.Unmarshal(out[:n], &env)
+	require.NoError(t, err)
+	require.Equal(t, envelopeTypeSummary, env.GetType())
+	require.NotEmpty(t, env.GetPayload())
+
+	// Explicitly close the stream
+	err = stream.Close()
+	require.NoError(t, err)
+
+	// Then command execution history is saved
+	var messages *assist.GetAssistantMessagesResponse
+	// Command execution history is saved in asynchronusly, so we need to wait for it.
+	require.Eventually(t, func() bool {
+		messages, err = clt.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
+			ConversationId: conversationID.String(),
+			Username:       "foo",
+		})
+		require.NoError(t, err)
+
+		return len(messagesByType(messages.GetMessages())[assistlib.MessageKindCommandResultSummary]) == 1
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// Check the returned summary message
+	summaryMessages, ok := messagesByType(messages.GetMessages())[assistlib.MessageKindCommandResultSummary]
+	require.True(t, ok, "At least one summary message is expected")
+	msg := summaryMessages[0]
+	require.NotZero(t, msg.CreatedTime)
+
+	var result assistlib.CommandExecSummary
+	err = json.Unmarshal([]byte(msg.GetPayload()), &result)
+	require.NoError(t, err)
+
+	require.NotEmpty(t, result.ExecutionID)
+	require.Equal(t, testCommand, result.Command)
+	require.NotEmpty(t, result.Summary)
+}
+
 func (s *WebSuite) makeCommand(t *testing.T, pack *authPack, conversationID uuid.UUID) (*websocket.Conn, *session.Session, error) {
 	req := CommandRequest{
 		Query:          fmt.Sprintf("name == \"%s\"", s.srvID),
 		Login:          pack.login,
 		ConversationID: conversationID.String(),
 		ExecutionID:    uuid.New().String(),
-		Command:        "echo txlxport | sed 's/x/e/g'",
+		Command:        testCommand,
 	}
 
 	u := url.URL{
@@ -242,4 +339,49 @@ func Test_runCommands(t *testing.T) {
 	runCommands(hosts, runCmd, logger)
 
 	require.Equal(t, int32(100), counter.Load())
+}
+
+func mockOpenAISummary(t *testing.T) *httptest.Server {
+	var summaryHandler http.HandlerFunc
+	summaryHandler = func(w http.ResponseWriter, r *http.Request) {
+		req := &openai.ChatCompletionRequest{}
+		err := json.NewDecoder(r.Body).Decode(req)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+		}
+		resp := openai.ChatCompletionResponse{
+			ID:      strconv.Itoa(int(time.Now().Unix())),
+			Object:  "test-object",
+			Created: time.Now().Unix(),
+			Model:   req.Model,
+			Choices: []openai.ChatCompletionChoice{
+				{
+					Message: openai.ChatCompletionMessage{
+						Role:    openai.ChatMessageRoleAssistant,
+						Content: "This is the summary of the command.",
+						Name:    "",
+					},
+				},
+			},
+			Usage: openai.Usage{},
+		}
+
+		respBytes, err := json.Marshal(resp)
+		assert.NoError(t, err, "Marshal error")
+
+		_, err = w.Write(respBytes)
+		assert.NoError(t, err, "Write error")
+
+	}
+	server := httptest.NewServer(summaryHandler)
+	t.Cleanup(server.Close)
+	return server
+}
+
+func messagesByType(messages []*assist.AssistantMessage) map[assistlib.MessageType][]*assist.AssistantMessage {
+	byType := make(map[assistlib.MessageType][]*assist.AssistantMessage)
+	for _, message := range messages {
+		byType[assistlib.MessageType(message.GetType())] = append(byType[assistlib.MessageType(message.GetType())], message)
+	}
+	return byType
 }

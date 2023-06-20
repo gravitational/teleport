@@ -287,13 +287,18 @@ func (h *Handler) executeCommand(
 	runCommands(hosts, runCmd, h.log)
 
 	// Optionally try to compute the command summary.
-	// TODO: find way to skip this in tests?
 	if output := buffer.Export(); output != nil {
-		summary, err := h.summarizeOutput(output, clt, identity, req, ctx)
+		// Convert the map nodeId->output into a map nodeName->output
+		namedOutput := outputByName(hosts, output)
+
+		summary, err := h.summarizeOutput(namedOutput, clt, identity, req, ctx)
 		if err != nil {
 			h.log.Warn(err)
 			return nil, nil
 		}
+
+		// Add the summary message to the backend so it is persisted on chat
+		// reload.
 		messagePayload, err := json.Marshal(&assistlib.CommandExecSummary{
 			ExecutionID: req.ExecutionID,
 			Command:     req.Command,
@@ -313,8 +318,6 @@ func (h *Handler) executeCommand(
 			},
 		}
 
-		// Add the summary message to the backend so it is persisted on chat
-		// reload.
 		err = clt.CreateAssistantMessage(ctx, summaryMessage)
 		if err != nil {
 			h.log.Warn(err)
@@ -339,6 +342,18 @@ func (h *Handler) executeCommand(
 	}
 
 	return nil, nil
+}
+
+func outputByName(hosts []hostInfo, output map[string][]byte) map[string][]byte {
+	hostIDToName := make(map[string]string)
+	for _, host := range hosts {
+		hostIDToName[host.id] = host.hostName
+	}
+	namedOutput := make(map[string][]byte)
+	for id, data := range output {
+		namedOutput[hostIDToName[id]] = data
+	}
+	return namedOutput
 }
 
 func (h *Handler) summarizeOutput(output map[string][]byte, clt auth.ClientI, identity srv.IdentityContext, req *CommandRequest, ctx context.Context) (string, error) {
