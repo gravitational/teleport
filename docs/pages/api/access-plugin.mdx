@@ -244,9 +244,13 @@ Later in the program, we will need a way to map these states to strings that we
 can write to our Google Sheets spreadsheet. We obtain the request states from
 Teleport's `types` library and map them to strings in the `requestStates` map.
 
-`googleSheetsPlugin` is a struct type that contains the API clients for the
-Teleport Auth Service and Google Sheets. We will explain later why we use a
-struct to organize these two clients, instead of, say, two separate variables.
+The `AccessRequestPlugin` type represents a generic Access Request plugin, and
+you can use this type to build your own rudimentary plugin. It contains a
+Teleport API client and an `EventHandler`, any Go type that implements a
+`HandleEvent` method.
+
+In our case, the type that implements `HandleEvent` is `googleSheetsClient`, a
+struct type that contains an API client for Google Sheets.
 
 ### Prepare row data
 
@@ -263,9 +267,9 @@ introduce a utility function called `stringPtr` that returns the pointer to the
 provided string. This makes it easier to assign the values of cells in the
 `sheets.RowData` using chains of function calls.
 
-`makeRowData` is a method of the `googleSheetsPlugin` type. (The `*` before
-`googleSheetsPlugin` indicates that the method receives a *pointer* to a
-`googleSheetsPlugin`.) It takes a `types.AccessRequest`, which Teleport's API
+`makeRowData` is a method of the `googleSheetsClient` type. (The `*` before
+`googleSheetsClient` indicates that the method receives a *pointer* to a
+`googleSheetsClient`.) It takes a `types.AccessRequest`, which Teleport's API
 library uses to represent the fields within an Access Request.
 
 The Google Sheets client library defines a `sheets.RowData` type that we
@@ -330,37 +334,33 @@ It then calls `updateRow` with the Access Request and the row's number.
 
 ### Handle incoming Access Requests
 
-The plugin will call a handler function when it receives an event. To set this
-up, we use the `run` method below with a `handleEvent` function that determines
-whether to call `updateSpreadsheet` or `createRow` depending on whether an
-incoming Access Request event is a new Access Request or an update to an
-existing one:
+The plugin calls a handler function when it receives an event. To set this up,
+we use the `Run` method of our generic `AccessRequestPlugin` type, which
+contains the main loop of the plugin:
 
 ```go
 (!examples/access-plugin-minimal/watcherjob.go!)
 ```
 
-`handleEvent` checks whether an Access Request is in a pending state, i.e.,
-whether the request is new. If so, we call `createRow`. If not, we call
-`updateSpreadsheet`.
-
-To pass events to `handleEvent`, we define a `run` method, which contains the
-main loop for our demo plugin.
+As we described above, the `AccessRequestPlugin` type's `EventHandler` field is
+assigned to an interface with a `HandleEvent` method. In this case, the
+implementation is `*googleSheetsClient.HandleEvent`. This method checks whether
+an Access Request is in a pending state, i.e., whether the request is new. If
+so, it calls `createRow`. If not, it calls `updateSpreadsheet`.
 
 The Teleport API client type, `client.Client`, has a `NewWatcher` method that
 listens for new audit events from the Auth Service API via a gRPC stream. The
 second parameter of the method indicates the type of audit event to watch for,
 in this case, events having to do with Teleport Access Requests.
 
-The result of `NewWatcher`, a `types.Watcher`, enables `run`  to respond to
-new audit events by calling the `Events` method. This returns a Go
-**channel**, a runtime abstraction that allows concurrent routines to
-communicate. Another channel, returned by `Done`, indicates when the watcher
-has finished.
+The result of `NewWatcher`, a `types.Watcher`, enables `Run` to respond to new
+audit events by calling the `Events` method. This returns a Go **channel**, a
+runtime abstraction that allows concurrent routines to communicate. Another
+channel, returned by `Done`, indicates when the watcher has finished.
 
-In a `for` loop, the `run` method receives from either the `Done` channel or
+In a `for` loop, the `Run` method receives from either the `Done` channel or
 `Events` channel, whichever is ready to send first. If it receives from the
-`Events` channel, it calls the `handleEvents` method to process the event.
+`Events` channel, it calls the `HandleEvent` method to process the event.
 
 ### Initialize the API clients
 
@@ -373,8 +373,8 @@ clients:
 (!examples/access-plugin-minimal/main.go!)
 ```
 
-The `main` function, the entrypoint to our program, initializes a
-`googleSheetsPlugin` and uses it run the plugin. 
+The `main` function, the entrypoint to our program, initializes an
+`AccessRequestPlugin` and `googleSheetsClient` and uses them run the plugin. 
 
 The function creates a Google Sheets API client by loading the credentials file
 you downloaded earlier at the relative path `credentials.json`.

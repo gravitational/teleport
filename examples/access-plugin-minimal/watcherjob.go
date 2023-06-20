@@ -18,11 +18,12 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/types"
 )
 
-func (g *googleSheetsPlugin) handleEvent(ctx context.Context, event types.Event) error {
+func (g *googleSheetsClient) HandleEvent(ctx context.Context, event types.Event) error {
 	if event.Resource == nil {
 		return nil
 	}
@@ -36,10 +37,10 @@ func (g *googleSheetsPlugin) handleEvent(ctx context.Context, event types.Event)
 	return g.updateSpreadsheet(r)
 }
 
-func (g *googleSheetsPlugin) run() error {
+func (p *AccessRequestPlugin) Run() error {
 	ctx := context.Background()
 
-	watch, err := g.teleportClient.NewWatcher(ctx, types.Watch{
+	watch, err := p.TeleportClient.NewWatcher(ctx, types.Watch{
 		Name: "Access Requests",
 		Kinds: []types.WatchKind{
 			types.WatchKind{Kind: types.KindAccessRequest},
@@ -55,7 +56,7 @@ func (g *googleSheetsPlugin) run() error {
 	for {
 		select {
 		case e := <-watch.Events():
-			g.handleEvent(ctx, e)
+			p.EventHandler.HandleEvent(ctx, e)
 		case <-watch.Done():
 			fmt.Println("The watcher job is finished")
 			return nil
