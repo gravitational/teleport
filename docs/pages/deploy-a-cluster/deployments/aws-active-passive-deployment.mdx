@@ -11,7 +11,8 @@ general architecture can apply to various cloud providers and self-hosted exampl
 In this architecture, the Auth and Proxy components and their networking components run parallelly in two 
 different cloud regions. These components utilize a global DynamoDB storage backend for the cluster state and audit 
 logs, while a copied S3 bucket is used for session recordings. The Route53 DNS failover is the control point to switch 
-between the active and passive clusters during the event of a regional outage.
+between the active and passive clusters during the event of a regional outage. This document mainly focuses on Kubernetes,
+but same concepts applies with Virtual Machines/EC2 instances.
 
 ## Overview
 
@@ -54,7 +55,7 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
 - Deploying and maintaining the added layer of regional components takes more engineering effort.
 - More technically complex to deploy than a single region Teleport cluster or simple disaster recovery.
 
-### Configuration
+### Configuration Example with Teleport Kubernetes and Helm:
 
 ##Prerequisites
 
