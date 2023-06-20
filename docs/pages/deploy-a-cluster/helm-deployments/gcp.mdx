@@ -17,11 +17,7 @@ cluster to Teleport.
 
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
 
-## Step 1/7. Install Helm
-
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-install.mdx!)
-
-## Step 2/7. Add the Teleport Helm chart repository
+## Step 1/6. Add the Teleport Helm chart repository
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
@@ -32,7 +28,7 @@ cluster to Teleport.
   The steps below apply to Google Cloud Google Kubernetes Engine (GKE) Standard deployments.
 </Admonition>
 
-## Step 3/7. Google Cloud IAM configuration
+## Step 2/6. Google Cloud IAM configuration
 
 For Teleport to be able to create the Firestore collections, indexes, and the Google Cloud Storage bucket it needs,
 you'll need to configure a Google Cloud service account with permissions to use these services.
@@ -207,7 +203,7 @@ secret/teleport-gcp-credentials created
  The credentials file stored in any secret used must have the key name `gcp-credentials.json`.
 </Admonition>
 
-## Step 4/7. Install and configure cert-manager
+## Step 3/6. Install and configure cert-manager
 
 Reference the [cert-manager docs](https://cert-manager.io/docs/).
 
@@ -275,7 +271,7 @@ After you have created the `Issuer` and updated the values, add it to your clust
 $ kubectl --namespace teleport create -f gcp-issuer.yaml
 ```
 
-## Step 5/7. Set values to configure the cluster
+## Step 4/6. Set values to configure the cluster
 
 <Details title="License Secret" scopeOnly={false} scope={"enterprise"} opened={true}>
 
@@ -388,7 +384,7 @@ replicaset.apps/teleport-auth-57989d4cbd   2         2         2       22h
 replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 ```
 
-## Step 6/7. Set up DNS
+## Step 5/6. Set up DNS
 
 You'll need to set up a DNS `A` record for `teleport.example.com`.
 
@@ -414,7 +410,7 @@ $ gcloud dns record-sets transaction describe --zone="${MYZONE?}"
 $ gcloud dns record-sets transaction execute --zone="${MYZONE?}"
 ```
 
-## Step 7/7. Create a Teleport user
+## Step 6/6. Create a Teleport user
 
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
