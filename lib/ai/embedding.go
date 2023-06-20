@@ -30,7 +30,7 @@ const (
 	maxOpenAIEmbeddingsPerRequest = 1000
 	// EmbeddingPeriod is the time between two embedding routines.
 	// A seventh jitter is applied on the period.
-	EmbeddingPeriod = 15 * time.Minute
+	EmbeddingPeriod = time.Hour
 )
 
 // EmbeddingHash is the hash function that should be used to compute embedding

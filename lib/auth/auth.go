@@ -621,11 +621,6 @@ type Server struct {
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
-
-	// nodeEmbeddingWatcher listens for nodes and emebeds them.
-	// This is used only when Assist is enabled and allows to build an index
-	// to perform semantic node search.
-	nodeEmbeddingWatcher *services.NodeEmbeddingWatcher
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -741,15 +736,6 @@ func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher 
 	a.lock.Lock()
 	defer a.lock.Unlock()
 	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
-}
-
-// SetNodeEmbeddingsWatcher stores a reference to the nodeEmbeddingWatcher into
-// the auth. This should be called only when Assist is enabled and the
-// auth runs the Embeddings service.
-func (a *Server) SetNodeEmbeddingsWatcher(watcher *services.NodeEmbeddingWatcher) {
-	a.lock.Lock()
-	defer a.lock.Unlock()
-	a.nodeEmbeddingWatcher = watcher
 }
 
 // syncUpgradeWindowStartHour attempts to load the cloud UpgradeWindowStartHour value and set
