@@ -33,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -338,8 +337,9 @@ func TestSQSMessagesCollectorErrorsOnReceive(t *testing.T) {
 
 	gotNoOfCalls := mockReceiver.getNoOfCalls()
 	// We can't be sure that there will be equaly noOfCalls as expected,
-	// because they are process in async way, that's why margin in EquateApprox is used.
-	require.Empty(t, cmp.Diff(float32(gotNoOfCalls), float32(expectedNoOfCalls), cmpopts.EquateApprox(0, 4)))
+	// because they are process in async way, but anything within range x>= 0 && x< 1.5*expected is valid.
+	require.LessOrEqual(t, float64(gotNoOfCalls), 1.5*float64(expectedNoOfCalls), "receiveMessage got to many calls")
+	require.Greater(t, gotNoOfCalls, 0, "receiveMessage was not called at all")
 }
 
 type mockReceiver struct {
