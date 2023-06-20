@@ -31,7 +31,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
-	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/model"
@@ -123,7 +122,7 @@ func (a *Assist) GenerateSummary(ctx context.Context, message string) (string, e
 // loadMessages loads the messages from the database.
 func (c *Chat) loadMessages(ctx context.Context) error {
 	// existing conversation, retrieve old messages
-	messages, err := c.authClient.GetAssistantMessages(ctx, &assistpb.GetAssistantMessagesRequest{
+	messages, err := c.authClient.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
 		ConversationId: c.ConversationID,
 		Username:       c.Username,
 	})
@@ -196,8 +195,8 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 
 	// write the user message to persistent storage and the chat structure
 	c.chat.Insert(openai.ChatMessageRoleUser, userInput)
-	if err := c.authClient.CreateAssistantMessage(ctx, &assistpb.CreateAssistantMessageRequest{
-		Message: &assistpb.AssistantMessage{
+	if err := c.authClient.CreateAssistantMessage(ctx, &assist.CreateAssistantMessageRequest{
+		Message: &assist.AssistantMessage{
 			Type:        string(MessageKindUserMessage),
 			Payload:     userInput, // TODO(jakule): Sanitize the payload
 			CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),

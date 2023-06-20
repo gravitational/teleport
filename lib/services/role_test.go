@@ -1166,6 +1166,7 @@ func newRole(mut func(*types.RoleV6)) *types.RoleV6 {
 		},
 	}
 	mut(r)
+	r.CheckAndSetDefaults()
 	return r
 }
 
@@ -6614,8 +6615,7 @@ func TestGetKubeResources(t *testing.T) {
 			roles: []types.Role{
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.KubernetesLabels = types.Labels{"env": {"prod"}}
-					r.Spec.Allow.KubernetesResources =
-						[]types.KubernetesResource{podA, podB}
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
@@ -6626,8 +6626,7 @@ func TestGetKubeResources(t *testing.T) {
 			roles: []types.Role{
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.KubernetesLabelsExpression = `labels["env"] == "prod"`
-					r.Spec.Allow.KubernetesResources =
-						[]types.KubernetesResource{podA, podB}
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
@@ -6638,13 +6637,11 @@ func TestGetKubeResources(t *testing.T) {
 			roles: []types.Role{
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.KubernetesLabelsExpression = `labels["env"] == "prod"`
-					r.Spec.Allow.KubernetesResources =
-						[]types.KubernetesResource{podA, podB}
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
 				}),
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Deny.KubernetesLabels = types.Labels{"env": {"prod"}}
-					r.Spec.Deny.KubernetesResources =
-						[]types.KubernetesResource{podA}
+					r.Spec.Deny.KubernetesResources = []types.KubernetesResource{podA}
 				}),
 			},
 			clusterLabels: map[string]string{"env": "prod"},
@@ -6656,13 +6653,11 @@ func TestGetKubeResources(t *testing.T) {
 			roles: []types.Role{
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Allow.KubernetesLabelsExpression = `labels["env"] == "staging"`
-					r.Spec.Allow.KubernetesResources =
-						[]types.KubernetesResource{podA, podB}
+					r.Spec.Allow.KubernetesResources = []types.KubernetesResource{podA, podB}
 				}),
 				newRole(func(r *types.RoleV6) {
 					r.Spec.Deny.KubernetesLabels = types.Labels{"env": {"prod"}}
-					r.Spec.Deny.KubernetesResources =
-						[]types.KubernetesResource{podA}
+					r.Spec.Deny.KubernetesResources = []types.KubernetesResource{podA}
 				}),
 			},
 			clusterLabels: map[string]string{"env": "staging"},

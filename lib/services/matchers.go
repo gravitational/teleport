@@ -270,6 +270,8 @@ const (
 	AWSMatcherElastiCache = "elasticache"
 	// AWSMatcherMemoryDB is the AWS matcher type for MemoryDB databases.
 	AWSMatcherMemoryDB = "memorydb"
+	// AWSMatcherOpenSearch is the AWS matcher type for OpenSearch databases.
+	AWSMatcherOpenSearch = "opensearch"
 )
 
 // SupportedAWSMatchers is list of AWS services currently supported by the
@@ -288,6 +290,7 @@ var SupportedAWSDatabaseMatchers = []string{
 	AWSMatcherRedshiftServerless,
 	AWSMatcherElastiCache,
 	AWSMatcherMemoryDB,
+	AWSMatcherOpenSearch,
 }
 
 // RequireAWSIAMRolesAsUsersMatchers is a list of the AWS databases that

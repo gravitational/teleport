@@ -364,6 +364,9 @@ const (
 	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
 	KindWatchStatus = "watch_status"
 
+	// V7 is the seventh version of resources.
+	V7 = "v7"
+
 	// V6 is the sixth version of resources.
 	V6 = "v6"
 
@@ -437,6 +440,10 @@ const (
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
 
+	// ClusterLabel is a label that identifies the current cluster when creating resources on another systems.
+	// Eg, when creating a resource in AWS, this label must be set as a Tag in the resource.
+	ClusterLabel = TeleportNamespace + "/cluster"
+
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
 
@@ -463,6 +470,13 @@ const (
 	// OriginOkta is an origin value indicating that the resource was
 	// created from the Okta service.
 	OriginOkta = "okta"
+
+	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
+	// created from the AWS OIDC Integration.
+	OriginIntegrationAWSOIDC = "integration_awsoidc"
+
+	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
+	IntegrationLabel = TeleportNamespace + "/integration"
 
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation

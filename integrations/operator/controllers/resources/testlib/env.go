@@ -28,7 +28,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	core "k8s.io/api/core/v1"
-	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	apiruntime "k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
@@ -55,7 +54,7 @@ import (
 var scheme = apiruntime.NewScheme()
 
 func init() {
-	utilruntime.Must(v1.AddToScheme(scheme))
+	utilruntime.Must(core.AddToScheme(scheme))
 	utilruntime.Must(resourcesv1.AddToScheme(scheme))
 	utilruntime.Must(resourcesv2.AddToScheme(scheme))
 	utilruntime.Must(resourcesv3.AddToScheme(scheme))
