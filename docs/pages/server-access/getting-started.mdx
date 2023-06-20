@@ -133,7 +133,7 @@ configuration:
 Run the following command to create a user that can access the Teleport Web UI:
 
 ```code
-$ sudo tctl users add tele-admin --roles=editor,access,reviewer --logins=root,ubuntu,ec2-user
+$ tctl users add tele-admin --roles=editor,access,reviewer --logins=root,ubuntu,ec2-user
 ```
 
 This will generate an initial login link where you can create a password and set
@@ -312,7 +312,7 @@ Execute the following command within your bastion host console:
 
 ```code
 # List servers
-$ sudo tctl nodes ls
+$ tctl nodes ls
 ```
 
 This displays the unified resource catalog with all queried resources in one
