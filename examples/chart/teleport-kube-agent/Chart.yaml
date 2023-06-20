@@ -1,4 +1,4 @@
-.version: &version "14.0.0.walt.ami.2"
+.version: &version "14.0.0-walt-ami.3"
 
 name: teleport-kube-agent
 apiVersion: v2
