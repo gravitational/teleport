@@ -62,7 +62,7 @@ var errSkip = errors.New("")
 
 // AppSettings hold optional arguments to the PagerDuty plugin app.
 type AppSettings struct {
-	// Teleport is a handle to the client to ue when communicating with
+	// Teleport is a handle to the client to use when communicating with
 	// the Teleport auth server. The PagerDuty app will create a GRPC-
 	// based client on startup if this is not set.
 	Teleport teleport.Client
