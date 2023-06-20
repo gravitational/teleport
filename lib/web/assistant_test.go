@@ -25,9 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"testing"
-	"time"
 
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/roundtrip"
@@ -38,6 +36,7 @@ import (
 	"golang.org/x/time/rate"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	aitest "github.com/gravitational/teleport/lib/ai/testutils"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
 )
@@ -130,7 +129,7 @@ func Test_runAssistant(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			responses := tc.responses
-			server := httptest.NewServer(getTestHandlerFn(t, responses))
+			server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
 			t.Cleanup(server.Close)
 
 			openaiCfg := openai.DefaultConfig("test-token")
@@ -307,49 +306,6 @@ func (s *WebSuite) makeAssistant(t *testing.T, pack *authPack, conversationID st
 	}
 
 	return ws, nil
-}
-
-func getTestHandlerFn(t *testing.T, responses []string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		req := &openai.ChatCompletionRequest{}
-		err := json.NewDecoder(r.Body).Decode(req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
-
-		// Use assert as require doesn't work when called from a goroutine
-		if !assert.GreaterOrEqual(t, len(responses), 1, "Unexpected request") {
-			http.Error(w, "Unexpected request", http.StatusBadRequest)
-			return
-		}
-
-		dataBytes := responses[0]
-
-		resp := openai.ChatCompletionResponse{
-			ID:      strconv.Itoa(int(time.Now().Unix())),
-			Object:  "test-object",
-			Created: time.Now().Unix(),
-			Model:   req.Model,
-			Choices: []openai.ChatCompletionChoice{
-				{
-					Message: openai.ChatCompletionMessage{
-						Role:    openai.ChatMessageRoleAssistant,
-						Content: dataBytes,
-						Name:    "",
-					},
-				},
-			},
-			Usage: openai.Usage{},
-		}
-
-		respBytes, err := json.Marshal(resp)
-		assert.NoError(t, err, "Marshal error")
-
-		_, err = w.Write(respBytes)
-		assert.NoError(t, err, "Write error")
-
-		responses = responses[1:]
-	}
 }
 
 // generateTextResponse generates a response for a text completion

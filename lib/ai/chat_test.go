@@ -18,18 +18,14 @@ package ai
 
 import (
 	"context"
-	"encoding/json"
-	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"testing"
-	"time"
 
 	"github.com/sashabaranov/go-openai"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/ai/model"
+	aitest "github.com/gravitational/teleport/lib/ai/testutils"
 )
 
 func TestChat_PromptTokens(t *testing.T) {
@@ -95,7 +91,7 @@ func TestChat_PromptTokens(t *testing.T) {
 			responses := []string{
 				generateCommandResponse(),
 			}
-			server := httptest.NewServer(getTestHandlerFn(t, responses))
+			server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
 
 			t.Cleanup(server.Close)
 
@@ -126,7 +122,7 @@ func TestChat_Complete(t *testing.T) {
 		generateTextResponse(),
 		generateCommandResponse(),
 	}
-	server := httptest.NewServer(getTestHandlerFn(t, responses))
+	server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
 	defer server.Close()
 
 	cfg := openai.DefaultConfig("secret-test-token")
@@ -175,49 +171,6 @@ func TestChat_Complete(t *testing.T) {
 		require.Len(t, command.Nodes, 1)
 		require.Equal(t, "localhost", command.Nodes[0])
 	})
-}
-
-func getTestHandlerFn(t *testing.T, responses []string) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		req := &openai.ChatCompletionRequest{}
-		err := json.NewDecoder(r.Body).Decode(req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
-
-		// Use assert as require doesn't work when called from a goroutine
-		if !assert.GreaterOrEqual(t, len(responses), 1, "Unexpected request") {
-			http.Error(w, "Unexpected request", http.StatusBadRequest)
-			return
-		}
-
-		dataBytes := responses[0]
-
-		resp := openai.ChatCompletionResponse{
-			ID:      strconv.Itoa(int(time.Now().Unix())),
-			Object:  "test-object",
-			Created: time.Now().Unix(),
-			Model:   req.Model,
-			Choices: []openai.ChatCompletionChoice{
-				{
-					Message: openai.ChatCompletionMessage{
-						Role:    openai.ChatMessageRoleAssistant,
-						Content: dataBytes,
-						Name:    "",
-					},
-				},
-			},
-			Usage: openai.Usage{},
-		}
-
-		respBytes, err := json.Marshal(resp)
-		assert.NoError(t, err, "Marshal error")
-
-		_, err = w.Write(respBytes)
-		assert.NoError(t, err, "Write error")
-
-		responses = responses[1:]
-	}
 }
 
 // generateTextResponse generates a response for a text completion
