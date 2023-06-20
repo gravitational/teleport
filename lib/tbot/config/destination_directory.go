@@ -228,7 +228,7 @@ func (dd *DestinationDirectory) Read(name string) ([]byte, error) {
 }
 
 func (dd *DestinationDirectory) String() string {
-	return fmt.Sprintf("directory: %s", dd.Path)
+	return fmt.Sprintf("%s: %s", DestinationDirectoryType, dd.Path)
 }
 
 func (dd *DestinationDirectory) TryLock() (func() error, error) {
