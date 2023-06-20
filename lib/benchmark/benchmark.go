@@ -59,8 +59,8 @@ const (
 
 // Config specifies benchmark requests to run
 type Config struct {
-	// Rate is requests per second origination rate
-	Rate int
+	// Interval between request origination
+	Interval time.Duration
 	// MinimumWindow is the min duration
 	MinimumWindow time.Duration
 	// MinimumMeasurments is the min amount of requests
@@ -191,8 +191,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 
 	var wg sync.WaitGroup
 	go func() {
-		interval := time.Duration(1 / float64(c.Rate) * float64(time.Second))
-		ticker := time.NewTicker(interval)
+		ticker := time.NewTicker(c.Interval)
 		defer ticker.Stop()
 		start := time.Now()
 		for {
@@ -200,7 +199,7 @@ func (c *Config) Benchmark(ctx context.Context, tc *client.TeleportClient, suite
 			case <-ticker.C:
 				// ticker makes its first tick after the given duration, not immediately
 				// this sets the send measure ResponseStart time accurately
-				delay = delay + interval
+				delay = delay + c.Interval
 				t := start.Add(delay)
 				measure := benchMeasure{
 					ResponseStart: t,

@@ -261,7 +261,7 @@ func (s *WebSessionBenchmark) Config(ctx context.Context, tc *client.TeleportCli
 		s.Max = len(servers)
 	}
 
-	cfg.Rate = 2
+	cfg.Interval = 500 * time.Millisecond
 
 	window := time.Duration(s.Max) * time.Second
 	if cfg.MinimumWindow < window {

@@ -41,17 +41,17 @@ func (lg *Linear) GetBenchmark() *Config {
 	cnf := &Config{
 		MinimumWindow:       lg.MinimumWindow,
 		MinimumMeasurements: lg.MinimumMeasurements,
-		Rate:                lg.currentRPS,
+		Interval:                time.Duration(1 / float64(lg.currentRPS) * float64(time.Second)),
 	}
 
 	if lg.currentRPS < lg.LowerBound {
 		lg.currentRPS = lg.LowerBound
-		cnf.Rate = lg.currentRPS
+		cnf.Interval = time.Duration(1 / float64(lg.currentRPS) * float64(time.Second))
 		return cnf
 	}
 
 	lg.currentRPS += lg.Step
-	cnf.Rate = lg.currentRPS
+	cnf.Interval = time.Duration(1 / float64(lg.currentRPS) * float64(time.Second))
 	if lg.currentRPS > lg.UpperBound {
 		return nil
 	}

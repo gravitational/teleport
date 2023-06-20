@@ -209,8 +209,8 @@ type CLIConf struct {
 	NoCache bool
 	// BenchDuration is a duration for the benchmark
 	BenchDuration time.Duration
-	// BenchRate is a requests per second rate to maintain
-	BenchRate int
+	// BenchInterval is maintained between requests
+	BenchInterval time.Duration
 	// BenchInteractive indicates that we should create interactive session
 	BenchInteractive bool
 	// BenchRandom indicates that we should connect to a random host each time
@@ -892,7 +892,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
-	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
+	bench.Flag("interval", "Interval between requests").Default("100ms").DurationVar(&cf.BenchInterval)
 	bench.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
 	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
@@ -3203,7 +3203,7 @@ func onBenchmark(cf *CLIConf, suite benchmark.Suite) error {
 	}
 	cnf := benchmark.Config{
 		MinimumWindow: cf.BenchDuration,
-		Rate:          cf.BenchRate,
+		Interval:      cf.BenchInterval,
 	}
 
 	type configer interface {
