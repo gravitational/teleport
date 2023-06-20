@@ -614,11 +614,19 @@ type PresetRoleManager interface {
 // createPresets creates preset resources (eg, roles).
 func createPresets(ctx context.Context, rm PresetRoleManager) error {
 	roles := []types.Role{
+		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
+		services.NewPresetReviewerRole(),
+		services.NewPresetRequesterRole(),
 	}
 	for _, role := range roles {
+		// If the role is nil, skip because it doesn't apply to this Teleport installation.
+		if role == nil {
+			continue
+		}
+
 		err := rm.CreateRole(ctx, role)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
@@ -630,7 +638,7 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 				return trace.Wrap(err)
 			}
 
-			role, err := services.AddDefaultAllowConditions(currentRole)
+			role, err := services.AddRoleDefaults(currentRole)
 			if trace.IsAlreadyExists(err) {
 				continue
 			}

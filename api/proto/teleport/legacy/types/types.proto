@@ -2724,6 +2724,7 @@ message SessionJoinPolicy {
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
 // access-requests.
+// Please remember to update IsEmpty when updating this message.
 message AccessRequestConditions {
   // Roles is the name of roles which will match the request rule.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -2768,6 +2769,7 @@ message AccessRequestConditions {
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
 // access reviews.
+// Please remember to update IsEmpty when updating this message.
 message AccessReviewConditions {
   // Roles is the name of roles which may be reviewed.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];

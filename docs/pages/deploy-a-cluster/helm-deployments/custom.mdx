@@ -214,6 +214,7 @@ If you're not migrating an existing Teleport cluster, you'll need to create a
 user to be able to log into Teleport. This needs to be done on the Teleport
 auth server, so we can run the command using `kubectl`:
 
+<ScopedBlock scope={["oss"]}>
 ```code
 $ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor
 
@@ -222,6 +223,17 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```code
+$ kubectl --namespace teleport exec deployment/teleport-auth -- tctl users add test --roles=access,editor,reviewer
+
+User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
+```
+</ScopedBlock>
 
 <Admonition type="note">
 If you didn't set up DNS for your hostname earlier, remember to replace
