@@ -279,19 +279,18 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (D
 
 // DeployService calls Amazon ECS APIs to deploy a Teleport Service.
 //
-// # Pre-requirement: Set up iam-token for auto join
+// # Pre-requirement: Set up discover-aws-oidc-iam-token for auto join
 //
-// The Teleport Service connects via `iam-token`, so ensure your cluster has the following token:
+// The Teleport Service connects via `discover-aws-oidc-iam-token`, so ensure your cluster has the following token:
 //
 //	kind: token
 //	metadata:
-//	  name: iam-token
+//	  name: discover-aws-oidc-iam-token
 //	spec:
 //	  allow:
 //	  - aws_account: "<account_id>"
 //	  join_method: iam
 //	  roles:
-//	  - Discovery
 //	  - Db
 //	version: v2
 //
@@ -303,33 +302,33 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (D
 // The req.TaskRoleARN Role must have permissions according to the Teleport Services being deployed.
 // Example for a DatabaseService:
 //
-//		{
-//		    "Version": "2012-10-17",
-//		    "Statement": [
-//		        {
-//		            "Effect": "Allow",
-//		            "Action": [
-//		                "iam:DeleteRolePolicy",
-//		                "iam:PutRolePolicy",
-//		                "iam:GetRolePolicy"
-//		            ],
-//		            "Resource": "arn:aws:iam::123456789012:role/<req.TaskRoleARN>"
-//		        },
-//	         {
-//	             "Effect": "Allow",
-//	             "Action": [
-//	                  "rds:DescribeDBInstances",
-//	                  "rds:ModifyDBInstance"
-//	              ],
-//	              "Resource": "*"
-//	         },
-//		        {
-//		            "Effect": "Allow",
-//		            "Action": "logs:*",
-//		            "Resource": "*"
-//		        }
-//		    ]
-//		}
+//	{
+//	    "Version": "2012-10-17",
+//	    "Statement": [
+//	        {
+//	            "Effect": "Allow",
+//	            "Action": [
+//	                "iam:DeleteRolePolicy",
+//	                "iam:PutRolePolicy",
+//	                "iam:GetRolePolicy"
+//	            ],
+//	            "Resource": "arn:aws:iam::123456789012:role/<req.TaskRoleARN>"
+//	        },
+//	        {
+//	            "Effect": "Allow",
+//	            "Action": [
+//	                "rds:DescribeDBInstances",
+//	                "rds:ModifyDBInstance"
+//	            ],
+//	            "Resource": "*"
+//	        },
+//	        {
+//	            "Effect": "Allow",
+//	            "Action": "logs:*",
+//	            "Resource": "*"
+//	        }
+//	    ]
+//	}
 //
 // And the following Trust Policy
 //
