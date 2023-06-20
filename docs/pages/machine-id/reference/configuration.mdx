@@ -8,6 +8,10 @@ The following snippet shows full YAML configuration of the Machine ID client
 `tbot -c /etc/tbot.yaml`.
 
 ```yaml
+# Version specifies the version of the configuration file in use. `v2` is the
+# most recent and should be used for all new bots.
+version: v2
+
 # Debug enables verbose logging to stderr.
 debug: true
 
@@ -24,13 +28,19 @@ renewal_interval: "1m"
 # If set, quit after the first renewal.
 oneshot: true
 
-# Onboarding values are used on first connect for token joining, and used for
-# each renewal when using delegated joining methods (e.g IAM).
+# The onboarding configuration specifies how the bot should authenticate with
+# the Teleport cluster on first join, and in the case of delegated join methods,
+# on each renewal.
 onboarding:
-    # Cluster join method. Can be "token" or "iam".
+    # The method the bot should use to join the cluster. This can be:
+    # - token
+    # - circleci
+    # - github
+    # - gitlab
+    # - iam
     join_method: "token"
 
-    # Token used to join the cluster. (only required for join_method: token)
+    # The name of the token to use when joining the cluster.
     #
     # This can also be an absolute path to a file containing the token.
     # The token can live in a temporary file that's deleted after tbot is first launched, 
@@ -41,9 +51,11 @@ onboarding:
     token: "00000000000000000000000000000000"
 
     # CA Path used to validate the identity of the Teleport Auth Server on first connect.
+    # This value is not used when connecting to a proxy.
     ca_path: "/path/to/ca.pem"
 
     # CA Pins used to validate the identity of the Teleport Auth Server on first connect.
+    # This value is not used when connecting to a proxy.
     ca_pins:
         - "(=presets.ca_pin=)"
         - "(=presets.ca_pin=)"
@@ -170,6 +182,15 @@ destinations:
 
 ## Destinations
 
+A destination is something that `tbot` can read and write to. Destinations are
+used in two places in the `tbot` configuration:
+
+- Specifying where `tbot` should write and read it's own core state to
+- Specifying where an output should write the generated files to
+
+The most common destination type is `directory`, but new types may be introduced
+to support other platforms (e.g Kubernetes Secrets).
+
 ### `directory`
 
 ```yaml
@@ -202,6 +223,6 @@ acls: try
 ### `memory`
 
 ```yaml
-# For a memory destination, type will always be `directory`.
+# For a memory destination, type will always be `memory`.
 type: memory
 ```

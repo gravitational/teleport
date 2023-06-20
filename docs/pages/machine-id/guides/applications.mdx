@@ -76,10 +76,14 @@ onboarding:
   ca_pins:
   - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 storage:
-  directory: /var/lib/teleport/bot
-destinations:
-  - directory: /opt/machine-id
-    app: grafana-example
+  type: directory
+  path: /var/lib/teleport/bot
+outputs:
+  - type: application
+    destination:
+      type: directory
+      path: /opt/machine-id
+    app_name: grafana-example
 ```
 </ScopedBlock>
 <ScopedBlock scope={["oss","enterprise"]}>
@@ -91,10 +95,14 @@ onboarding:
   ca_pins:
   - "(=presets.ca_pin=)"
 storage:
-  directory: /var/lib/teleport/bot
-destinations:
-  - directory: /opt/machine-id
-    app: grafana-example
+  type: directory
+  path: /var/lib/teleport/bot
+outputs:
+  - type: application
+    destination:
+      type: directory
+      path: /opt/machine-id
+    app_name: grafana-example
 ```
 </ScopedBlock>
 
@@ -165,7 +173,7 @@ $ journalctl -u machine-id | grep -i app
 Jul 29 12:34:56 example tbot[29177]: INFO [TBOT]      Generated identity for app {"grafana-example"} tbot/renew.go:429
 ```
 
-Given the destination directory `/opt/machine-id`, the following
+Given the output destination directory `/opt/machine-id`, the following
 certificate files can be used:
  - `/opt/machine-id/tlscert`: the client TLS certificate
  - `/opt/machine-id/key`: the TLS certificate's private key
@@ -247,15 +255,16 @@ environments.
 ### Client application requires certificates with standard extensions
 
 If your automated service requires TLS certificates with a specific file
-extension, you may also enable the `tls` config template in `tbot.yaml`:
+extension, you may also enable the `specific_tls_naming` option for the output:
 
 ```yaml
-destinations:
-  - directory: /opt/machine-id
-    app: grafana-example
-
-    configs:
-      - tls
+outputs:
+  - type: application
+    destination:
+      type: directory
+      path: /opt/machine-id
+    app_name: grafana-example
+    specific_tls_naming: true
 ```
 
 This will generate `tls.crt` and `tls.key` inside `/opt/machine-id`
