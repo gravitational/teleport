@@ -215,6 +215,7 @@ func tagPipelines() []pipeline {
 			"build-linux-amd64-deb",
 			"build-linux-amd64-fips-deb",
 			"build-linux-arm64-deb",
+			"build-linux-arm-deb",
 		},
 		workflows: []ghaWorkflow{
 			{

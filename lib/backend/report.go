@@ -124,7 +124,7 @@ func (s *Reporter) GetRange(ctx context.Context, startKey []byte, endKey []byte,
 
 	start := s.Clock().Now()
 	res, err := s.Backend.GetRange(ctx, startKey, endKey, limit)
-	batchReadLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	batchReadLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	batchReadRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		batchReadRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -146,7 +146,7 @@ func (s *Reporter) Create(ctx context.Context, i Item) (*Lease, error) {
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.Create(ctx, i)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -169,7 +169,7 @@ func (s *Reporter) Put(ctx context.Context, i Item) (*Lease, error) {
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.Put(ctx, i)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -191,7 +191,7 @@ func (s *Reporter) Update(ctx context.Context, i Item) (*Lease, error) {
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.Update(ctx, i)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -212,9 +212,9 @@ func (s *Reporter) Get(ctx context.Context, key []byte) (*Item, error) {
 	defer span.End()
 
 	start := s.Clock().Now()
-	readLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
-	readRequests.WithLabelValues(s.Component).Inc()
 	item, err := s.Backend.Get(ctx, key)
+	readLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
+	readRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		readRequestsFailed.WithLabelValues(s.Component).Inc()
 	}
@@ -236,7 +236,7 @@ func (s *Reporter) CompareAndSwap(ctx context.Context, expected Item, replaceWit
 
 	start := s.Clock().Now()
 	lease, err := s.Backend.CompareAndSwap(ctx, expected, replaceWith)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) && !trace.IsCompareFailed(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -258,7 +258,7 @@ func (s *Reporter) Delete(ctx context.Context, key []byte) error {
 
 	start := s.Clock().Now()
 	err := s.Backend.Delete(ctx, key)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -281,7 +281,7 @@ func (s *Reporter) DeleteRange(ctx context.Context, startKey []byte, endKey []by
 
 	start := s.Clock().Now()
 	err := s.Backend.DeleteRange(ctx, startKey, endKey)
-	batchWriteLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	batchWriteLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	batchWriteRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		batchWriteRequestsFailed.WithLabelValues(s.Component).Inc()
@@ -307,7 +307,7 @@ func (s *Reporter) KeepAlive(ctx context.Context, lease Lease, expires time.Time
 
 	start := s.Clock().Now()
 	err := s.Backend.KeepAlive(ctx, lease, expires)
-	writeLatencies.WithLabelValues(s.Component).Observe(time.Since(start).Seconds())
+	writeLatencies.WithLabelValues(s.Component).Observe(s.Clock().Since(start).Seconds())
 	writeRequests.WithLabelValues(s.Component).Inc()
 	if err != nil && !trace.IsNotFound(err) {
 		writeRequestsFailed.WithLabelValues(s.Component).Inc()

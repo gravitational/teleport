@@ -136,8 +136,10 @@ chart.
 
 ## macOS
 
-<Tabs dropdownCaption="Teleport Edition">
-<TabItem label="Installer" options="Open Source" scope="oss">
+<Tabs dropdownView dropdownCaption="Teleport Edition">
+<TabItem label="Open Source" scope="oss">
+  <Tabs>
+  <TabItem label="Teleport package" >
   You can download one of the following .pkg installers for macOS:
 
   |Link|Binaries|
@@ -160,7 +162,7 @@ chart.
   ```
 
 </TabItem>
-<TabItem label="Homebrew" options="Open Source">
+<TabItem label="Homebrew">
 
   <Notice type="danger">
 
@@ -200,9 +202,16 @@ chart.
   against `tsh version` and `tctl version`.
 
 </TabItem>
-<TabItem label="Installer " options="Enterprise,Cloud"  scope={["enterprise", "cloud"]}>
+</Tabs>
+</TabItem>
+<TabItem label="Enterprise" scope="enterprise">
 
 (!docs/pages/includes/enterprise/install-macos.mdx!)
+
+</TabItem>
+<TabItem label="Cloud" scope="cloud">
+
+(!docs/pages/includes/cloud/install-macos.mdx!)
 
 </TabItem>
 </Tabs>

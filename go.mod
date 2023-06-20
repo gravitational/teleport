@@ -30,13 +30,14 @@ require (
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.44.280
-	github.com/aws/aws-sdk-go-v2 v1.18.0
+	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.25
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.24
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.3
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.67
-	github.com/aws/aws-sdk-go-v2/service/athena v1.30.0
+	github.com/aws/aws-sdk-go-v2/service/athena v1.30.2
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.98.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.1
 	github.com/aws/aws-sdk-go-v2/service/glue v1.50.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.33.1
@@ -167,6 +168,7 @@ require (
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.30.0
 	gopkg.in/check.v1 v1.0.0-20201130134442-10cb98267c6c
+	gopkg.in/dnaeon/go-vcr.v3 v3.1.2
 	gopkg.in/ini.v1 v1.67.0
 	gopkg.in/square/go-jose.v2 v2.6.0
 	gopkg.in/yaml.v2 v2.4.0
@@ -214,8 +216,8 @@ require (
 	github.com/apache/arrow/go/v12 v12.0.0 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.33 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.27 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.34 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.28 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.34 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.25 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.19.7 // indirect

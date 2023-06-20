@@ -39,6 +39,9 @@ spec:
       {{- if .Values.dnsPolicy }}
       dnsPolicy: {{ .Values.dnsPolicy | quote }}
       {{- end }}
+      {{- if .Values.hostAliases }}
+      hostAliases: {{- toYaml .Values.hostAliases | nindent 8 }}
+      {{- end }}
       securityContext:
         fsGroup: 9807
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
