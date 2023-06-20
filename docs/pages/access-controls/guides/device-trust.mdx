@@ -35,7 +35,7 @@ On macOS devices, Device Trust uses the Secure Enclave in order to store a
 device private key. That key is used to solve device challenges issued by the
 Teleport Auth Server, proving the identity of the trusted device.
 
-On Windows devices, a TPM (Trusted Platform Module) is used to perform an
+On Windows devices, a Trusted Platform Module (TPM) is used to perform an
 attestation as to the state of the device. This attestation is signed by a
 private key that is also protected by the TPM. The signed attestation ensures that the Teleport Auth Server knows both
 the state of the device and that the request has come from
@@ -153,7 +153,7 @@ Relogin to fetch updated certificates:
 $ tsh logout; tsh login --proxy=example.com --user=alice
 ```
 
-Before we can enroll the device, we need to register it. In order to register
+Before you can enroll the device, you need to register it. To register
 a device, you first need to determine its serial number.
 
 <Tabs>
@@ -249,7 +249,7 @@ $ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificate
 <Admonition type="warning" title="Windows">
 On Windows, the `tsh device enroll` command attempts to elevate to
 administrator privileges on the device. Privilege elevation is required to perform a
-TPM Credential Activation. This is only required on enrollment and will not be
+TPM Credential Activation. This step is only required for enrollment and is not
 required on future device authentications.
 </Admonition>
 
@@ -260,7 +260,7 @@ The device above is now a trusted device.
 This advice only applies to Device Trust on platforms that use TPMs. For now,
 this is just Windows.
 
-Some TPMs include a certificate (known as an EKCert) signed by the
+Some TPMs include a certificate—known as an EKCert—signed by the
 manufacturer's certificate authority (CA). This certificate allows a third party
 (such a Teleport cluster) to know that the TPM it is communicating with is
 legitimate. This significantly reduces the burden on the administrator to ensure
@@ -272,7 +272,7 @@ without knowledge of the manufacturer's CA. This verification is enabled by the
 inclusion of the Teleport configuration field called `ekcert_allowed_cas`.
 
 Once configured, only devices that include a TPM with an EKCert signed by a
-CA specified in the field will be able to enroll. Previously enrolled devices
+CA specified in the field will be able to enroll. Previously-enrolled devices
 will not be affected.
 
 To configure `ekcert_allowed_cas`, you must first obtain the CA certificate in
