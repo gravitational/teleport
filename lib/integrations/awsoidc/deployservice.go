@@ -273,7 +273,6 @@ type DeployServiceClient interface {
 
 // NewDeployServiceClient creates a new DeployServiceClient using a AWSClientRequest.
 func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (DeployServiceClient, error) {
-	fmt.Println(clientReq.Token)
 	return newECSClient(ctx, clientReq)
 }
 
