@@ -158,6 +158,7 @@
     "SLOWLOG",
     "SSUBSCRIBE",
     "SSWS",
+    "STIG",
     "SUNSUBSCRIBE",
     "SUPATH",
     "Shockbyte",
