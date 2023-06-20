@@ -100,18 +100,27 @@ func serializeNode(node types.Server) ([]byte, error) {
 	return text, trace.Wrap(err)
 }
 
-// batchReducer is a helper struct that batches data and processes it in
+// BatchReducer is a helper struct that batches data and processes it in
 // batches.
-type batchReducer[T, V any] struct {
+type BatchReducer[T, V any] struct {
 	data      []T
 	batchSize int
 	processFn func(ctx context.Context, data []T) (V, error)
 }
 
+// NewBatchReducer is a BatchReducer contructor.
+func NewBatchReducer[T, V any](processFn func(ctx context.Context, data []T) (V, error), batchSize int) *BatchReducer[T, V] {
+	return &BatchReducer[T, V]{
+		data:      make([]T, 0),
+		batchSize: batchSize,
+		processFn: processFn,
+	}
+}
+
 // Add adds a new item to the batch. If the batch is full, it will be processed
 // and the result will be returned. Otherwise, a zero value will be returned.
 // Finalize must be called to process the remaining data in the batch.
-func (b *batchReducer[T, V]) Add(ctx context.Context, data T) (V, error) {
+func (b *BatchReducer[T, V]) Add(ctx context.Context, data T) (V, error) {
 	b.data = append(b.data, data)
 	if len(b.data) >= b.batchSize {
 		val, err := b.processFn(ctx, b.data)
@@ -124,7 +133,7 @@ func (b *batchReducer[T, V]) Add(ctx context.Context, data T) (V, error) {
 }
 
 // Finalize processes the remaining data in the batch and returns the result.
-func (b *batchReducer[T, V]) Finalize(ctx context.Context) (V, error) {
+func (b *BatchReducer[T, V]) Finalize(ctx context.Context) (V, error) {
 	if len(b.data) > 0 {
 		val, err := b.processFn(ctx, b.data)
 		b.data = b.data[:0]
@@ -209,11 +218,9 @@ func (e *EmbeddingProcessor) Run(ctx context.Context, period time.Duration) erro
 }
 
 func (e *EmbeddingProcessor) process(ctx context.Context) {
-	batch := &batchReducer[*nodeStringPair, []*ai.Embedding]{
-		data:      make([]*nodeStringPair, 0),
-		batchSize: 1000, // Max batch size allowed by OpenAI API
-		processFn: e.mapProcessFn,
-	}
+	batch := NewBatchReducer[*nodeStringPair, []*ai.Embedding](e.mapProcessFn,
+		1000, // Max batch size allowed by OpenAI API,
+	)
 
 	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx, types.KindNode)
 	nodesStream := e.nodeSrv.GetNodeStream(ctx, defaults.Namespace)

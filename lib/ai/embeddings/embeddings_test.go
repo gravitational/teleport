@@ -19,6 +19,7 @@ package embeddings_test
 import (
 	"context"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -167,5 +168,93 @@ func validateEmbeddings(t *testing.T, nodesStream stream.Stream[types.Server], e
 
 		require.Equal(t, node.GetName(), emb.GetEmbeddedID(), "Node ID and embedding ID should be equal")
 		require.Equal(t, types.KindNode, emb.GetEmbeddedKind(), "Node kind and embedding kind should be equal")
+	}
+}
+
+func Test_batchReducer_Add(t *testing.T) {
+	t.Parallel()
+
+	// Sum process function - used for simplicity
+	sumFn := func(ctx context.Context, data []int) (int, error) {
+		sum := 0
+		for _, d := range data {
+			sum += d
+		}
+		return sum, nil
+	}
+
+	type testCase struct {
+		// Test case name
+		name string
+		// Process batch size
+		batchSize int
+		// Input data
+		data []int
+		// Function to process batch
+		processFn func(ctx context.Context, data []int) (int, error)
+		// Expected result on Add
+		want []int
+		// Expected result on Finalize
+		finalizeResult int
+		// Expected error
+		wantErr assert.ErrorAssertionFunc
+	}
+
+	tests := []testCase{
+		{
+			name:           "empty",
+			batchSize:      100,
+			data:           []int{},
+			want:           []int{},
+			finalizeResult: 0,
+			processFn:      sumFn,
+			wantErr:        assert.NoError,
+		},
+		{
+			name:           "one element",
+			batchSize:      100,
+			data:           []int{1},
+			want:           []int{0},
+			finalizeResult: 1,
+			processFn:      sumFn,
+			wantErr:        assert.NoError,
+		},
+		{
+			name:           "many elements",
+			batchSize:      3,
+			data:           []int{1, 1, 1, 1},
+			want:           []int{0, 0, 3, 0},
+			finalizeResult: 1,
+			processFn:      sumFn,
+			wantErr:        assert.NoError,
+		},
+		{
+			name:      "propagate error",
+			batchSize: 2,
+			data:      []int{0},
+			want:      []int{0},
+			processFn: func(ctx context.Context, data []int) (int, error) {
+				return 0, errors.New("error")
+			},
+			wantErr: assert.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			ctx := context.Background()
+			br := aiembeddings.NewBatchReducer[int, int](tt.processFn, tt.batchSize)
+
+			for i, d := range tt.data {
+				got, err := br.Add(ctx, d)
+				require.NoError(t, err)
+				assert.Equalf(t, tt.want[i], got, "Add(%v)", tt.data)
+			}
+
+			got, err := br.Finalize(ctx)
+			if !tt.wantErr(t, err, fmt.Sprintf("Finalize(%v)", tt.data)) {
+				return
+			}
+			assert.Equalf(t, tt.finalizeResult, got, "Finalize(%v)", tt.data)
+		})
 	}
 }
