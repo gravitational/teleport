@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	sheets "google.golang.org/api/sheets/v4"
@@ -36,7 +37,13 @@ var requestStates = map[types.RequestState]string{
 	types.RequestState_NONE:     "NONE",
 }
 
-type googleSheetsPlugin struct {
-	sheetsClient   *sheets.SpreadsheetsService
-	teleportClient *client.Client
+type AccessRequestPlugin struct {
+	TeleportClient *client.Client
+	EventHandler   interface {
+		HandleEvent(ctx context.Context, event types.Event) error
+	}
+}
+
+type googleSheetsClient struct {
+	sheetsClient *sheets.SpreadsheetsService
 }
