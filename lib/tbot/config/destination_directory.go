@@ -65,7 +65,7 @@ func (dd *DestinationDirectory) UnmarshalYAML(node *yaml.Node) error {
 
 func (dd *DestinationDirectory) CheckAndSetDefaults() error {
 	if dd.Path == "" {
-		return trace.BadParameter("Destination path must not be empty")
+		return trace.BadParameter("destination path must not be empty")
 	}
 
 	secureSupported, err := botfs.HasSecureWriteSupport()
