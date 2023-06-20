@@ -47,12 +47,16 @@ func main() {
 		panic(err)
 	}
 
-	gs := googleSheetsPlugin{
-		sheetsClient:   sheets.NewSpreadsheetsService(svc),
-		teleportClient: teleport,
+	gs := googleSheetsClient{
+		sheetsClient: sheets.NewSpreadsheetsService(svc),
 	}
 
-	if err := gs.run(); err != nil {
+	plugin := AccessRequestPlugin{
+		TeleportClient: teleport,
+		EventHandler:   &gs,
+	}
+
+	if err := plugin.Run(); err != nil {
 		panic(err)
 	}
 }
