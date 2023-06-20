@@ -147,11 +147,11 @@ exports[`render correct dialog after creating a new account 1`] = `
   min-width: 584px;
   margin-left: auto;
   margin-right: auto;
-  background-color: #222C59;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -217,7 +217,6 @@ exports[`render correct dialog after creating a new account 1`] = `
   min-width: 584px;
   margin-left: auto;
   margin-right: auto;
-  background-color: levels.surface;
   border-radius: 8px;
   overflow: hidden;
   display: flex;
@@ -566,11 +565,11 @@ exports[`render correct dialog after resetting account 1`] = `
   min-width: 584px;
   margin-left: auto;
   margin-right: auto;
-  background-color: #222C59;
   border-radius: 8px;
   overflow: hidden;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -636,7 +635,6 @@ exports[`render correct dialog after resetting account 1`] = `
   min-width: 584px;
   margin-left: auto;
   margin-right: auto;
-  background-color: levels.surface;
   border-radius: 8px;
   overflow: hidden;
   display: flex;

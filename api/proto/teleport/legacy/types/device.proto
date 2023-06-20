@@ -145,4 +145,5 @@ message DeviceProfile {
   string os_build = 4 [(gogoproto.jsontag) = "os_build,omitempty"];
   repeated string os_usernames = 5 [(gogoproto.jsontag) = "os_usernames,omitempty"];
   string jamf_binary_version = 6 [(gogoproto.jsontag) = "jamf_binary_version,omitempty"];
+  string external_id = 7 [(gogoproto.jsontag) = "external_id,omitempty"];
 }
