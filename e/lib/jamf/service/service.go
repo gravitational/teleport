@@ -8,12 +8,14 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/grpc/codes"
 
 	"github.com/gravitational/teleport"
@@ -458,13 +460,16 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 			return time.Time{}, trace.Wrap(err, "end: Recv missing devices")
 		}
 
-		// TODO(codingllama): Verify missing devices against Jamf API.
+		devicesToRemove, err := s.confirmMissingDevices(ctx, resp.GetMissingDevices().GetDevices())
+		if err != nil {
+			return time.Time{}, trace.Wrap(err, "confirming missing devices in Jamf")
+		}
 
 		// Echo missing devices for deletion.
 		if err := stream.Send(&devicepb.SyncInventoryRequest{
 			Payload: &devicepb.SyncInventoryRequest_DevicesToRemove{
 				DevicesToRemove: &devicepb.SyncInventoryDevices{
-					Devices: resp.GetMissingDevices().GetDevices(),
+					Devices: devicesToRemove,
 				},
 			},
 		}); err != nil {
@@ -484,6 +489,79 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 	return nextCutTime, nil
 }
 
+func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.Device) ([]*devicepb.Device, error) {
+	group, groupCtx := errgroup.WithContext(ctx)
+	const jamfGroupLimit = 8 // Arbitrary. Not too many, not too few.
+	group.SetLimit(jamfGroupLimit)
+
+	missingLen := len(missingDevs)
+	var devicesMux sync.Mutex // guards devicesToRemove
+	devicesToRemove := make([]*devicepb.Device, 0, missingLen)
+	markForRemoval := func(d *devicepb.Device) {
+		devicesMux.Lock()
+		devicesToRemove = append(devicesToRemove, d)
+		devicesMux.Unlock()
+	}
+
+	// Concurrently query devices on Jamf.
+	// We are looking for either confirmation that the device doesn't exist, or an
+	// existing but mismatched device.
+	for _, dev := range missingDevs {
+		dev := dev
+		id := dev.Profile.GetExternalId()
+		if id == "" {
+			s.logger.WithField("Device", dev).Debug("Marking device without external_id for removal")
+			markForRemoval(dev)
+			continue
+		}
+
+		group.Go(func() error {
+			computer, err := s.jamf.GetComputersInventoryByID(groupCtx, &jamf.GetComputersInventoryByIDRequest{
+				ID: id,
+				Section: []string{
+					jamf.SectionGeneral,  // for Platform
+					jamf.SectionHardware, // for SerialNumber
+				},
+			})
+
+			apiErr := &jamf.APIError{}
+			switch {
+			case errors.As(err, &apiErr) && apiErr.StatusCode == 404:
+				// Safe to remove, doesn't exist on Jamf.
+				markForRemoval(dev)
+			case err != nil: // Unexpected error
+				s.logger.
+					WithField("Device", dev).
+					WithError(err).
+					Debug("Skipping removal of device, query failed")
+			case computer.General != nil &&
+				platformToOSType(computer.General.Platform) == dev.OsType &&
+				computer.Hardware != nil &&
+				computer.Hardware.SerialNumber == dev.AssetTag:
+				s.logger.
+					WithField("Device", dev).
+					Debug("Skipping removal, device found on Jamf")
+			default:
+				// ID matches the wrong device. A leftover from other times?
+				s.logger.
+					WithFields(log.Fields{
+						"Computer": computer,
+						"Device":   dev,
+					}).Debug("Marking mismatched device for removal")
+				markForRemoval(dev)
+			}
+
+			return nil
+		})
+	}
+
+	if err := group.Wait(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return devicesToRemove, nil
+}
+
 func computerInventoryToDevice(c *jamf.ComputerInventory) (*devicepb.Device, error) {
 	if c == nil {
 		// This is rather unexpected, but let's guard against it anyway.
@@ -497,11 +575,8 @@ func computerInventoryToDevice(c *jamf.ComputerInventory) (*devicepb.Device, err
 		return nil, trace.BadParameter("computer inventory has no general or hardware section")
 	}
 
-	var osType devicepb.OSType
-	switch {
-	case strings.EqualFold("mac", c.General.Platform):
-		osType = devicepb.OSType_OS_TYPE_MACOS
-	default:
+	osType := platformToOSType(c.General.Platform)
+	if osType == devicepb.OSType_OS_TYPE_UNSPECIFIED {
 		return nil, trace.BadParameter("unexpected general.platform=%q", c.General.Platform)
 	}
 
@@ -516,6 +591,7 @@ func computerInventoryToDevice(c *jamf.ComputerInventory) (*devicepb.Device, err
 		ModelIdentifier:   c.Hardware.ModelIdentifier,
 		OsUsernames:       usernames,
 		JamfBinaryVersion: c.General.JamfBinaryVersion,
+		ExternalId:        c.ID,
 	}
 	if c.OperatingSystem != nil {
 		profile.OsVersion = c.OperatingSystem.Version
@@ -527,6 +603,13 @@ func computerInventoryToDevice(c *jamf.ComputerInventory) (*devicepb.Device, err
 		AssetTag: c.Hardware.SerialNumber,
 		Profile:  profile,
 	}, nil
+}
+
+func platformToOSType(platform string) devicepb.OSType {
+	if strings.EqualFold("Mac", platform) {
+		return devicepb.OSType_OS_TYPE_MACOS
+	}
+	return devicepb.OSType_OS_TYPE_UNSPECIFIED
 }
 
 type syncState struct {

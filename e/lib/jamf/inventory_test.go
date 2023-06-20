@@ -2,6 +2,7 @@ package jamf_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -174,6 +175,95 @@ func TestClient_GetComputersInventory(t *testing.T) {
 			}
 			if diff := cmp.Diff(test.want, got, cmpopts.EquateEmpty()); diff != "" {
 				t.Errorf("GetComputersInventory mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
+func TestClient_GetComputersInventoryID(t *testing.T) {
+	env := testenv.MustNew(nil /* opts */)
+	defer env.Close()
+
+	api := env.API
+	client := env.Client
+	ctx := context.Background()
+
+	inv := []*jamf.ComputerInventory{
+		{
+			ID: "2",
+			General: &jamf.ComputerGeneralSection{
+				Name:     "llama's macbook",
+				Platform: "Mac",
+			},
+			Hardware: &jamf.ComputerHardwareSection{
+				ModelIdentifier: "MacBookPro9,2",
+				SerialNumber:    "CXXXXXXXXXX1",
+			},
+		},
+		{
+			ID: "3",
+			General: &jamf.ComputerGeneralSection{
+				Name:     "alpaca's macbook",
+				Platform: "Mac",
+			},
+			Hardware: &jamf.ComputerHardwareSection{
+				ModelIdentifier: "MacBookPro9,2",
+				SerialNumber:    "CXXXXXXXXXX2",
+			},
+		},
+	}
+	llamaComputer := inv[0]
+	alpacaComputer := inv[1]
+	api.SetInventory(inv)
+
+	tests := []struct {
+		name         string
+		req          *jamf.GetComputersInventoryByIDRequest
+		wantStatus   int // only for errors
+		wantComputer *jamf.ComputerInventory
+	}{
+		{
+			name: "ok with default sections",
+			req: &jamf.GetComputersInventoryByIDRequest{
+				ID: llamaComputer.ID,
+			},
+			wantComputer: &jamf.ComputerInventory{
+				ID:      llamaComputer.ID,
+				General: llamaComputer.General,
+			},
+		},
+		{
+			name: "ok with custom sections",
+			req: &jamf.GetComputersInventoryByIDRequest{
+				ID: alpacaComputer.ID,
+				Section: []string{
+					jamf.SectionGeneral,
+					jamf.SectionHardware,
+				},
+			},
+			wantComputer: alpacaComputer,
+		},
+		{
+			name: "not found",
+			req: &jamf.GetComputersInventoryByIDRequest{
+				ID: "404",
+			},
+			wantStatus: 404,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			got, err := client.GetComputersInventoryByID(ctx, test.req)
+			if test.wantStatus > 0 {
+				apiErr := &jamf.APIError{}
+				if !errors.As(err, &apiErr) || apiErr.StatusCode != test.wantStatus {
+					t.Errorf("GetComputersInventoryByID returned err=%q, want error with status=%v", err, test.wantStatus)
+				}
+				return
+			}
+
+			if diff := cmp.Diff(test.wantComputer, got); diff != "" {
+				t.Errorf("GetComputersInventoryID mismatch (-want +got)\n%s", diff)
 			}
 		})
 	}

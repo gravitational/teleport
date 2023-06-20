@@ -52,6 +52,16 @@ type GetComputersInventoryResponse struct {
 	Results    []*ComputerInventory `json:"results"`
 }
 
+// GetComputersInventoryByIDRequest is the request for
+// https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory-id.
+type GetComputersInventoryByIDRequest struct {
+	// ID is the computer inventory identifier.
+	ID string `json:"-"`
+	// Section is the slice of sections to query.
+	// If empty, the general section is returned.
+	Section []string `json:"-"`
+}
+
 // ComputerInventory is a computer inventory entry.
 // An inventory entry has many, many fields. Only the fields actively used by
 // Teleport are mapped.
@@ -118,7 +128,8 @@ type ComputerOperatingSystemSection struct {
 
 // GetComputersInventory returns paginated computer inventory records.
 // See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory.
-func (c *Client) GetComputersInventory(ctx context.Context, req *GetComputersInventoryRequest) (*GetComputersInventoryResponse, error) {
+func (c *Client) GetComputersInventory(
+	ctx context.Context, req *GetComputersInventoryRequest) (*GetComputersInventoryResponse, error) {
 	if req == nil {
 		return nil, trace.BadParameter("req required")
 	}
@@ -151,8 +162,33 @@ func (c *Client) GetComputersInventory(ctx context.Context, req *GetComputersInv
 	getReq.URL.RawQuery = q.Encode()
 
 	resp := &GetComputersInventoryResponse{}
-	if err := c.doAuthnJSONRequest(getReq, resp); err != nil {
+	return resp, trace.Wrap(c.doAuthnJSONRequest(getReq, resp))
+}
+
+// GetComputersInventoryByID returns a single computer.
+// See https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory-id.
+func (c *Client) GetComputersInventoryByID(
+	ctx context.Context, req *GetComputersInventoryByIDRequest) (*ComputerInventory, error) {
+	switch {
+	case req == nil:
+		return nil, trace.BadParameter("req required")
+	case req.ID == "":
+		// Don't query without an ID, the response is the same as
+		// listing/GetComputersInventory.
+		return nil, trace.BadParameter("id required")
+	}
+
+	q := make(url.Values)
+	for _, s := range req.Section {
+		q.Add("section", s)
+	}
+
+	getReq, err := http.NewRequestWithContext(ctx, http.MethodGet, c.endpoint("/v1/computers-inventory/"+req.ID), nil /* body */)
+	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return resp, nil
+	getReq.URL.RawQuery = q.Encode()
+
+	resp := &ComputerInventory{}
+	return resp, trace.Wrap(c.doAuthnJSONRequest(getReq, resp))
 }

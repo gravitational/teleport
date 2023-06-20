@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
+	"math"
 	"net/http"
 	"sort"
 	"strconv"
@@ -33,10 +34,11 @@ type API struct {
 	clock clockwork.Clock
 
 	// mu guards all fields below it
-	mu           sync.Mutex
-	users        []*User
-	inventory    []*jamf.ComputerInventory
-	issuedTokens map[string]*authToken // key is authToken.Token
+	mu                 sync.Mutex
+	users              []*User
+	inventory          []*jamf.ComputerInventory
+	issuedTokens       map[string]*authToken // key is authToken.Token
+	simulatePagingGaps bool
 }
 
 // Opts are the creation options for [API].
@@ -83,6 +85,16 @@ func (a *API) Handler(prefix string) http.Handler {
 	}
 }
 
+// SetSimulatePagingGaps enables simulation of paging gaps.
+// If set to true, listing devices on Jamf will return incomplete pages on most
+// requests.
+// Useful to test undue device deletions during inventory syncs.
+func (a *API) SetSimulatePagingGaps(b bool) {
+	a.mu.Lock()
+	a.simulatePagingGaps = b
+	a.mu.Unlock()
+}
+
 type rootHandler struct {
 	*API
 	prefix string
@@ -116,9 +128,49 @@ func (a *rootHandler) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	var handler http.HandlerFunc
 	switch req.Method {
 	case http.MethodGet:
-		if path == "/v1/computers-inventory" {
+		const computersInventory = "/v1/computers-inventory"
+		const computersInventorySlash = computersInventory + "/"
+
+		// GET /v1/computers-inventory
+		if path == computersInventory || path == computersInventorySlash {
 			handler = a.getComputersInventory
+			break // breaks from switch
 		}
+
+		// GET /v1/computers-inventory/{id}
+		if id := strings.TrimPrefix(path, computersInventorySlash); id != path {
+			n, err := strconv.ParseInt(id, 10, 64)
+			switch {
+			case err != nil && strings.Contains(id, "/"):
+				// Not found.
+				// Technically requests like '/v1/computers-inventory/99/' do work, but
+				// let's not encourage that.
+				break // breaks from switch
+			case err != nil: // "Regular" parsing errors.
+				a.replyError(w, errorResponse{
+					HTTPStatus: 400,
+					Errors: []*apiError{
+						{
+							Code:        "INVALID_ID",
+							Description: "id field must be string of positive numeric value or -1",
+							ID:          id,
+							Field:       "arg0",
+						},
+					},
+				})
+				return
+			case n > math.MaxInt32:
+				// Yep, this happens.
+				a.replyError(w, errorResponse{
+					HTTPStatus: 500,
+					Errors:     []*apiError{},
+				})
+				return
+			default:
+				handler = a.getComputersInventoryByID(id)
+			}
+		}
+
 	case http.MethodPost:
 		if path == "/v1/auth/keep-alive" {
 			handler = a.postAuthKeepAlive
@@ -379,6 +431,10 @@ func (a *API) getComputersInventory(w http.ResponseWriter, req *http.Request) {
 	}
 	inv := a.inventory[start:end]
 
+	if a.simulatePagingGaps && len(inv) > 0 {
+		inv = inv[1:]
+	}
+
 	// Copy and apply sections.
 	resp := make([]*jamf.ComputerInventory, 0, pageSize)
 	for _, c := range inv {
@@ -399,6 +455,49 @@ func (a *API) getComputersInventory(w http.ResponseWriter, req *http.Request) {
 		TotalCount: totalCount,
 		Results:    resp,
 	})
+}
+
+func (a *API) getComputersInventoryByID(id string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		// Validate "section" parameter.
+		q := r.URL.Query()
+		sections := q["section"]
+		if _, err := copySections(&jamf.ComputerInventory{}, sections); err != nil {
+			a.replyError(w, errorResponse{
+				HTTPStatus: 400,
+				Errors: []*apiError{
+					{
+						Code:        "INVALID_REQUEST_PARAMETER_VALUE",
+						Description: err.Error(),
+						ID:          "0",
+					},
+				},
+			})
+			return
+		}
+
+		a.mu.Lock()
+		defer a.mu.Unlock()
+		for _, c := range a.inventory {
+			if c != nil && c.ID == id {
+				// err safe to swallow, sections are validated above.
+				cp, _ := copySections(c, sections)
+				a.replyJSON(w, 200, cp)
+				return
+			}
+		}
+
+		a.replyError(w, errorResponse{
+			HTTPStatus: 404,
+			Errors: []*apiError{
+				{
+					Code:        "INVALID_ID",
+					Description: "computer with given id does not exist",
+					ID:          id,
+				},
+			},
+		})
+	}
 }
 
 func copySections(c *jamf.ComputerInventory, sections []string) (*jamf.ComputerInventory, error) {
