@@ -31,15 +31,5 @@ jobs:
         with:
           path: e
 
-      - name: Rust cargo cache
-        uses: actions/cache@v3
-        with:
-          path: |
-            /usr/local/cargo/registry
-            /usr/local/cargo/git
-            ${{ github.workspace }}/target
-          key: ${{ runner.os }}-cargo-lint-${{ hashFiles('**/Cargo.lock') }}
-          restore-keys: ${{ runner.os }}-cargo-lint-
-
       - name: Run linter
         run: make lint

@@ -37,20 +37,6 @@ jobs:
           echo "go-build=$(go env GOCACHE)" >> $GITHUB_OUTPUT
           echo "go-mod=$(go env GOMODCACHE)" >> $GITHUB_OUTPUT
 
-      - name: Go build cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-build }}
-          key: ${{ runner.os }}-go-build-unit-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-go-build-unit-
-
-      - name: Go mod cache
-        uses: actions/cache@v3
-        with:
-          path: ${{ steps.go-cache-paths.outputs.go-mod }}
-          key: ${{ runner.os }}-go-mod-unit-${{ hashFiles('**/go.sum') }}
-          restore-keys: ${{ runner.os }}-go-mod-unit-
-
       - name: Build
         run: |
           go build ${GITHUB_WORKSPACE}/e/tool/tctl
