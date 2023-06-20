@@ -34,9 +34,7 @@ func TestChat_PromptTokens(t *testing.T) {
 	tests := []struct {
 		name     string
 		messages []openai.ChatCompletionMessage
-
-		want    int
-		wantErr bool
+		want     int
 	}{
 		{
 			name:     "empty",
@@ -51,7 +49,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hello",
 				},
 			},
-			want: 44,
+			want: 632,
 		},
 		{
 			name: "system and user messages",
@@ -65,7 +63,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hi LLM.",
 				},
 			},
-			want: 44,
+			want: 640,
 		},
 		{
 			name: "tokenize our prompt",
@@ -79,7 +77,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Show me free disk space on localhost node.",
 				},
 			},
-			want: 44,
+			want: 843,
 		},
 	}
 
@@ -92,7 +90,6 @@ func TestChat_PromptTokens(t *testing.T) {
 				generateCommandResponse(),
 			}
 			server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
-
 			t.Cleanup(server.Close)
 
 			cfg := openai.DefaultConfig("secret-test-token")
@@ -110,7 +107,9 @@ func TestChat_PromptTokens(t *testing.T) {
 			require.NoError(t, err)
 			msg, ok := message.(interface{ UsedTokens() *model.TokensUsed })
 			require.True(t, ok)
-			require.Equal(t, tt.want, msg.UsedTokens().Completion)
+
+			usedTokens := msg.UsedTokens().Completion + msg.UsedTokens().Prompt
+			require.Equal(t, tt.want, usedTokens)
 		})
 	}
 }
@@ -123,7 +122,7 @@ func TestChat_Complete(t *testing.T) {
 		generateCommandResponse(),
 	}
 	server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
-	defer server.Close()
+	t.Cleanup(server.Close)
 
 	cfg := openai.DefaultConfig("secret-test-token")
 	cfg.BaseURL = server.URL + "/v1"
