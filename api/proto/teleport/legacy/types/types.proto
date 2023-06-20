@@ -5173,7 +5173,7 @@ message PluginSpecV1 {
     // Settings for device trust jamf plugin
     PluginJamfSettings jamf = 5;
     // Settings for the PagerDuty plugin
-    PluginPagerDutyAccessSettings pager_duty_access_plugin = 6;
+    PluginPagerDutySettings pager_duty = 6;
   }
 }
 
@@ -5199,14 +5199,14 @@ message PluginOpsgenieAccessSettings {
   string api_endpoint = 5;
 }
 
-message PluginPagerDutyAccessSettings {
+message PluginPagerDutySettings {
   option (gogoproto.equal) = true;
 
-  // PagerDutyUserEmail is the email address of the PagerDuty user that
-  // will be listed as the reporter source of incidents, comments, etc
+  // UserEmail is the email address of the PagerDuty user that will be
+  // listed as the reporter source of incidents, comments, etc
   // within PagerDuty. Should usually be the same user the API key
   // represents.
-  string pager_duty_user_email = 1;
+  string user_email = 1;
 }
 
 // Defines settings for the OpenAI plugin. Currently there are no settings.

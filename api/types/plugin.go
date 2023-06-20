@@ -185,11 +185,11 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
-	case *PluginSpecV1_PagerDutyAccessPlugin:
-		if settings.PagerDutyAccessPlugin == nil {
+	case *PluginSpecV1_PagerDuty:
+		if settings.PagerDuty == nil {
 			return trace.BadParameter("missing PagerDuty settings")
 		}
-		if err := settings.PagerDutyAccessPlugin.CheckAndSetDefaults(); err != nil {
+		if err := settings.PagerDuty.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -330,7 +330,7 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeJamf
 	case *PluginSpecV1_Opsgenie:
 		return PluginTypeOpsgenie
-	case *PluginSpecV1_PagerDutyAccessPlugin:
+	case *PluginSpecV1_PagerDuty:
 		return PluginTypePagerDuty
 	default:
 		return PluginTypeUnknown
@@ -385,8 +385,8 @@ func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 }
 
 // CheckAndSetDefaults validates and set the default PagerDuty values
-func (c *PluginPagerDutyAccessSettings) CheckAndSetDefaults() error {
-	if c.PagerDutyUserEmail == "" {
+func (c *PluginPagerDutySettings) CheckAndSetDefaults() error {
+	if c.UserEmail == "" {
 		return trace.BadParameter("pager_duty_user_email must be set")
 	}
 	return nil
