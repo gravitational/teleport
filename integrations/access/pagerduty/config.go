@@ -17,11 +17,10 @@ limitations under the License.
 package pagerduty
 
 import (
-	"strings"
-
 	"github.com/gravitational/trace"
-	"github.com/pelletier/go-toml"
 
+	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/logger"
 )
@@ -30,6 +29,15 @@ type Config struct {
 	Teleport  lib.TeleportConfig `toml:"teleport"`
 	Pagerduty PagerdutyConfig    `toml:"pagerduty"`
 	Log       logger.Config      `toml:"log"`
+
+	// Teleport is a handle to the client to use when communicating with
+	// the Teleport auth server. The PagerDuty app will create a GRPC-
+	// based client on startup if this is not set.
+	Client teleport.Client
+
+	// StatusSink receives any status updates from the plugin for
+	// further processing. Status updates will be ignored if not set.
+	StatusSink common.StatusSink
 }
 
 type PagerdutyConfig struct {
@@ -44,28 +52,6 @@ type PagerdutyConfig struct {
 
 const NotifyServiceDefaultAnnotation = "pagerduty_notify_service"
 const ServicesDefaultAnnotation = "pagerduty_services"
-
-// TODO(tcsc): re-plant back in `teleport-plugins`
-func LoadConfig(filepath string) (*Config, error) {
-	t, err := toml.LoadFile(filepath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	conf := &Config{}
-	if err := t.Unmarshal(conf); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	if strings.HasPrefix(conf.Pagerduty.APIKey, "/") {
-		conf.Pagerduty.APIKey, err = lib.ReadPassword(conf.Pagerduty.APIKey)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if err := conf.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return conf, nil
-}
 
 func (c *Config) CheckAndSetDefaults() error {
 	if err := c.Teleport.CheckAndSetDefaults(); err != nil {

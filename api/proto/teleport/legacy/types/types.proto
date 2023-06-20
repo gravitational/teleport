@@ -5207,6 +5207,9 @@ message PluginPagerDutySettings {
   // within PagerDuty. Should usually be the same user the API key
   // represents.
   string user_email = 1;
+
+  // APIEndpoint is the address of PagerDuty API.
+  string api_endpoint = 2;
 }
 
 // Defines settings for the OpenAI plugin. Currently there are no settings.

@@ -60,18 +60,6 @@ const (
 // Special kind of error that can be ignored.
 var errSkip = errors.New("")
 
-// AppSettings hold optional arguments to the PagerDuty plugin app.
-type AppSettings struct {
-	// Teleport is a handle to the client to use when communicating with
-	// the Teleport auth server. The PagerDuty app will create a GRPC-
-	// based client on startup if this is not set.
-	Teleport teleport.Client
-
-	// StatusSink receives any status updates from the plugin for
-	// further processing. Status updates will be ignored if not set.
-	StatusSink common.StatusSink
-}
-
 // App contains global application state of the PagerDuty plugin.
 type App struct {
 	conf Config
@@ -84,19 +72,12 @@ type App struct {
 	*lib.Process
 }
 
-// NewApp constructs a new PagerDuty App. This is the legacy app constructor
-// for use with the standalone PagerDuty plugin applications. New code should
-// use `NewAppWithSettings()` to enable new behavior.
+// NewApp constructs a new PagerDuty App.
 func NewApp(conf Config) (*App, error) {
-	return NewAppWith(conf, AppSettings{})
-}
-
-// NewAppWith constructs a new PagerDuty App, with various optional parameters.
-func NewAppWith(conf Config, settings AppSettings) (*App, error) {
 	app := &App{
 		conf:       conf,
-		teleport:   settings.Teleport,
-		statusSink: settings.StatusSink,
+		teleport:   conf.Client,
+		statusSink: conf.StatusSink,
 	}
 	app.mainJob = lib.NewServiceJob(app.run)
 

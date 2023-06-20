@@ -80,19 +80,13 @@ func NewPagerdutyClient(conf PagerdutyConfig, clusterName, webProxyAddr string, 
 		}
 	}
 
-	// APIEndpoint parameter is set only in tests
-	endPointURL := "https://api.pagerduty.com"
-	if conf.APIEndpoint != "" {
-		endPointURL = conf.APIEndpoint
-	}
-
 	client := resty.NewWithClient(&http.Client{
 		Timeout: pdHTTPTimeout,
 		Transport: &http.Transport{
 			MaxConnsPerHost:     pdMaxConns,
 			MaxIdleConnsPerHost: pdMaxConns,
 		}}).
-		SetBaseURL(endPointURL).
+		SetBaseURL(conf.APIEndpoint).
 		SetHeader("Accept", "application/vnd.pagerduty+json;version=2").
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Authorization", "Token token="+conf.APIKey).

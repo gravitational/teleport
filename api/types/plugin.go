@@ -386,8 +386,12 @@ func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 
 // CheckAndSetDefaults validates and set the default PagerDuty values
 func (c *PluginPagerDutySettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+
 	if c.UserEmail == "" {
-		return trace.BadParameter("pager_duty_user_email must be set")
+		return trace.BadParameter("user_email must be set")
 	}
 	return nil
 }
