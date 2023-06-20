@@ -1795,7 +1795,7 @@ func TestTerminalRouting(t *testing.T) {
 
 			// here we intentionally run a command where the output we're looking
 			// for is not present in the command itself
-			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+			_, err = io.WriteString(stream, testCommand+"\r\n")
 			require.NoError(t, err)
 			require.NoError(t, waitForOutput(stream, tt.output))
 		})
@@ -1954,7 +1954,7 @@ func TestTerminalRequireSessionMfa(t *testing.T) {
 			require.Nil(t, err)
 
 			// Test we can write.
-			_, err = io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+			_, err = io.WriteString(stream, testCommand+"\r\n")
 			require.Nil(t, err)
 			require.Nil(t, waitForOutput(stream, "teleport"))
 		})
@@ -7926,7 +7926,7 @@ func validateTerminalStream(t *testing.T, ws *websocket.Conn) {
 
 	// here we intentionally run a command where the output we're looking
 	// for is not present in the command itself
-	_, err := io.WriteString(stream, "echo txlxport | sed 's/x/e/g'\r\n")
+	_, err := io.WriteString(stream, testCommand+"\r\n")
 	require.NoError(t, err)
 	require.NoError(t, waitForOutput(stream, "teleport"))
 }

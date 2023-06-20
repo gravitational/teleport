@@ -28,6 +28,8 @@ export enum ServerMessageType {
   AssistThought = 'CHAT_THOUGHT_ASSISTANT',
 }
 
+export const ExecutionEnvelopeType = 'summary';
+
 export interface Conversation {
   id: string;
   title?: string;

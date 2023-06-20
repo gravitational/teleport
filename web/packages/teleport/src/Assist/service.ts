@@ -27,6 +27,8 @@ import { EventType } from 'teleport/lib/term/enums';
 
 import NodeService from 'teleport/services/nodes';
 
+import { ServerMessageType } from './types';
+
 import type {
   CommandResultPayload,
   CommandResultSummaryPayload,
@@ -44,7 +46,6 @@ import type {
   ServerMessage,
   SessionEvent,
 } from './types';
-import { ServerMessageType } from './types';
 
 export async function loadConversations(): Promise<Conversation[]> {
   const res: GetConversationsResponse = await api.get(

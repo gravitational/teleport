@@ -31,7 +31,11 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
-import { RawPayload, ServerMessageType } from 'teleport/Assist/types';
+import {
+  ExecutionEnvelopeType,
+  RawPayload,
+  ServerMessageType,
+} from 'teleport/Assist/types';
 
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 
@@ -421,7 +425,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           const data = JSON.parse(msg.payload) as RawPayload;
           const payload = atob(data.payload);
 
-          if (data.type === 'summary') {
+          if (data.type === ExecutionEnvelopeType) {
             dispatch({
               type: AssistStateActionType.AddCommandResultSummary,
               conversationId: state.conversations.selectedId,

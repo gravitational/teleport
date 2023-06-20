@@ -19,9 +19,9 @@ import styled from 'styled-components';
 
 import { CheckIcon } from 'design/SVGIcon';
 
-import type { ConversationMessage } from 'teleport/Assist/types';
 import {
   Author,
+  ConversationMessage,
   ResolvedServerMessage,
   ServerMessageType,
 } from 'teleport/Assist/types';

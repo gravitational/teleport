@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import styled, { keyframes } from 'styled-components';
+import styled from 'styled-components';
 
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';

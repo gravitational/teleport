@@ -168,7 +168,9 @@ type summaryBuffer struct {
 	buffer            map[string][]byte
 	remainingCapacity int
 	invalid           bool
-	mutex             sync.Mutex
+	// mutex protects all members of the struct and must be acquired before
+	// performing any read or write operation
+	mutex sync.Mutex
 }
 
 func (b *summaryBuffer) Write(node string, data []byte) {
@@ -187,13 +189,13 @@ func (b *summaryBuffer) Write(node string, data []byte) {
 	b.remainingCapacity -= len(data)
 }
 
-func (b *summaryBuffer) Export() map[string][]byte {
+// Export returns the buffer content and a whether the buffer overflowed.
+func (b *summaryBuffer) Export() (map[string][]byte, bool) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
-	if b.invalid || len(b.buffer) == 0 {
-		return nil
+	if b.invalid {
+		return nil, true
 	}
-	// By setting this, we guarantee no one can write to the buffer again.
 	b.invalid = true
-	return b.buffer
+	return b.buffer, false
 }

@@ -287,93 +287,111 @@ func (h *Handler) executeCommand(
 	runCommands(hosts, runCmd, h.log)
 
 	// Optionally try to compute the command summary.
-	if output := buffer.Export(); output != nil {
-		// Convert the map nodeId->output into a map nodeName->output
-		namedOutput := outputByName(hosts, output)
-
-		summary, err := h.summarizeOutput(namedOutput, clt, identity, req, ctx)
+	if output, overflow := buffer.Export(); !overflow || len(output) != 0 {
+		summaryReq := summaryRequest{
+			hosts:          hosts,
+			output:         output,
+			authClient:     clt,
+			identity:       identity,
+			executionID:    req.ExecutionID,
+			conversationID: req.ConversationID,
+			command:        req.Command,
+		}
+		err := h.computeAndSendSummary(ctx, &summaryReq, ws)
 		if err != nil {
-			h.log.Warn(err)
-			return nil, nil
-		}
-
-		// Add the summary message to the backend so it is persisted on chat
-		// reload.
-		messagePayload, err := json.Marshal(&assistlib.CommandExecSummary{
-			ExecutionID: req.ExecutionID,
-			Command:     req.Command,
-			Summary:     summary,
-		})
-		if err != nil {
-			h.log.Warn(err)
-			return nil, nil
-		}
-		summaryMessage := &assist.CreateAssistantMessageRequest{
-			ConversationId: req.ConversationID,
-			Username:       identity.TeleportUser,
-			Message: &assist.AssistantMessage{
-				Type:        string(assistlib.MessageKindCommandResultSummary),
-				CreatedTime: timestamppb.New(time.Now().UTC()),
-				Payload:     string(messagePayload),
-			},
-		}
-
-		err = clt.CreateAssistantMessage(ctx, summaryMessage)
-		if err != nil {
-			h.log.Warn(err)
-			return nil, nil
-		}
-
-		// Send the summary over the execution websocket to provide instant
-		// feedback to the user.
-		out := &outEnvelope{
-			Type:    envelopeTypeSummary,
-			Payload: []byte(summary),
-		}
-		data, err := json.Marshal(out)
-		if err != nil {
-			h.log.WithError(err).Error("failed to marshal error message")
-			return nil, nil
-		}
-		stream := NewWStream(ctx, ws, log, nil)
-		if _, writeErr := stream.Write(data); writeErr != nil {
-			log.WithError(writeErr).Warnf("Unable to send error to terminal: %v", err)
+			return nil, trace.Wrap(err)
 		}
 	}
 
 	return nil, nil
 }
 
+type summaryRequest struct {
+	hosts          []hostInfo
+	output         map[string][]byte
+	authClient     auth.ClientI
+	identity       srv.IdentityContext
+	executionID    string
+	conversationID string
+	command        string
+}
+
+func (h *Handler) computeAndSendSummary(
+	ctx context.Context,
+	req *summaryRequest,
+	ws WSConn,
+) error {
+	// Convert the map nodeId->output into a map nodeName->output
+	namedOutput := outputByName(req.hosts, req.output)
+
+	history, err := req.authClient.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
+		ConversationId: req.conversationID,
+		Username:       req.identity.TeleportUser,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	assistClient, err := assistlib.NewClient(ctx, req.authClient, h.cfg.ProxySettings, h.cfg.OpenAIConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	summary, err := assistClient.GenerateCommandSummary(ctx, history.GetMessages(), namedOutput)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Add the summary message to the backend so it is persisted on chat
+	// reload.
+	messagePayload, err := json.Marshal(&assistlib.CommandExecSummary{
+		ExecutionID: req.executionID,
+		Command:     req.command,
+		Summary:     summary,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	summaryMessage := &assist.CreateAssistantMessageRequest{
+		ConversationId: req.conversationID,
+		Username:       req.identity.TeleportUser,
+		Message: &assist.AssistantMessage{
+			Type:        string(assistlib.MessageKindCommandResultSummary),
+			CreatedTime: timestamppb.New(time.Now().UTC()),
+			Payload:     string(messagePayload),
+		},
+	}
+
+	err = req.authClient.CreateAssistantMessage(ctx, summaryMessage)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Send the summary over the execution websocket to provide instant
+	// feedback to the user.
+	out := &outEnvelope{
+		Type:    envelopeTypeSummary,
+		Payload: []byte(summary),
+	}
+	data, err := json.Marshal(out)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	stream := NewWStream(ctx, ws, log, nil)
+	_, err = stream.Write(data)
+	return trace.Wrap(err)
+}
+
 func outputByName(hosts []hostInfo, output map[string][]byte) map[string][]byte {
-	hostIDToName := make(map[string]string)
+	hostIDToName := make(map[string]string, len(hosts))
 	for _, host := range hosts {
 		hostIDToName[host.id] = host.hostName
 	}
-	namedOutput := make(map[string][]byte)
+	namedOutput := make(map[string][]byte, len(output))
 	for id, data := range output {
 		namedOutput[hostIDToName[id]] = data
 	}
 	return namedOutput
-}
-
-func (h *Handler) summarizeOutput(output map[string][]byte, clt auth.ClientI, identity srv.IdentityContext, req *CommandRequest, ctx context.Context) (string, error) {
-	// Get chat history
-	history, err := clt.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
-		ConversationId: req.ConversationID,
-		Username:       identity.TeleportUser,
-	})
-
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	client, err := assistlib.NewAssist(ctx, clt, h.cfg.ProxySettings, h.cfg.OpenAIConfig)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	commandSummary, err := client.GenerateCommandSummary(ctx, history.GetMessages(), output)
-	return commandSummary, trace.Wrap(err)
 }
 
 // runCommands runs the given command on the given hosts.

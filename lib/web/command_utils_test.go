@@ -1,3 +1,18 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 package web
 
 import (
@@ -9,10 +24,11 @@ import (
 
 func TestSummaryBuffer(t *testing.T) {
 	tests := []struct {
-		name     string
-		outputs  map[string][][]byte
-		capacity int
-		expected map[string][]byte
+		name             string
+		outputs          map[string][][]byte
+		capacity         int
+		expectedOutput   map[string][]byte
+		expectedOverflow bool
 	}{
 		{
 			name: "Single node",
@@ -24,9 +40,10 @@ func TestSummaryBuffer(t *testing.T) {
 				},
 			},
 			capacity: 9,
-			expected: map[string][]byte{
+			expectedOutput: map[string][]byte{
 				"node": []byte("foobarbaz"),
 			},
+			expectedOverflow: false,
 		},
 		{
 			name: "Single node overflow",
@@ -37,8 +54,9 @@ func TestSummaryBuffer(t *testing.T) {
 					[]byte("baz"),
 				},
 			},
-			capacity: 8,
-			expected: nil,
+			capacity:         8,
+			expectedOutput:   nil,
+			expectedOverflow: true,
 		},
 		{
 			name: "Multiple nodes",
@@ -60,11 +78,12 @@ func TestSummaryBuffer(t *testing.T) {
 				},
 			},
 			capacity: 30,
-			expected: map[string][]byte{
+			expectedOutput: map[string][]byte{
 				"node1": []byte("foobarbaz"),
 				"node2": []byte("bazbarfoo"),
 				"node3": []byte("bazbazbaz"),
 			},
+			expectedOverflow: false,
 		},
 		{
 			name: "Multiple nodes overflow",
@@ -85,14 +104,17 @@ func TestSummaryBuffer(t *testing.T) {
 					[]byte("baz"),
 				},
 			},
-			capacity: 25,
-			expected: nil,
+			capacity:         25,
+			expectedOutput:   nil,
+			expectedOverflow: true,
 		},
-		/*
-			{name: "Multiple nodes"},
-			{name: "No node"},
-			{name: "Multiple nodes overflow"},
-		*/
+		{
+			name:             "No output",
+			outputs:          nil,
+			capacity:         10,
+			expectedOutput:   map[string][]byte{},
+			expectedOverflow: false,
+		},
 	}
 	for _, tc := range tests {
 		tc := tc
@@ -111,7 +133,9 @@ func TestSummaryBuffer(t *testing.T) {
 				}()
 			}
 			wg.Wait()
-			require.Equal(t, tc.expected, buffer.Export())
+			output, overflow := buffer.Export()
+			require.Equal(t, tc.expectedOutput, output)
+			require.Equal(t, tc.expectedOverflow, overflow)
 
 		})
 	}

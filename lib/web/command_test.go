@@ -26,7 +26,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -39,11 +38,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/lib/ai/testutils"
 	assistlib "github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
@@ -51,7 +50,10 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-const testCommand = "echo txlxport | sed 's/x/e/g'"
+const (
+	testCommand = "echo txlxport | sed 's/x/e/g'"
+	testUser    = "foo"
+)
 
 func TestExecuteCommand(t *testing.T) {
 	t.Parallel()
@@ -63,7 +65,7 @@ func TestExecuteCommand(t *testing.T) {
 		OpenAIConfig:              &openAIConfig,
 	})
 
-	ws, _, err := s.makeCommand(t, s.authPack(t, "foo"), uuid.New())
+	ws, _, err := s.makeCommand(t, s.authPack(t, testUser), uuid.New())
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -82,15 +84,15 @@ func TestExecuteCommandHistory(t *testing.T) {
 		disableDiskBasedRecording: true,
 		OpenAIConfig:              &openAIConfig,
 	})
-	authPack := s.authPack(t, "foo")
+	authPack := s.authPack(t, testUser)
 
 	ctx := context.Background()
-	clt, err := s.server.NewClient(auth.TestUser("foo"))
+	clt, err := s.server.NewClient(auth.TestUser(testUser))
 	require.NoError(t, err)
 
 	// Create conversation, otherwise the command execution will not be saved
 	conversation, err := clt.CreateAssistantConversation(context.Background(), &assist.CreateAssistantConversationRequest{
-		Username:    "foo",
+		Username:    testUser,
 		CreatedTime: timestamppb.Now(),
 	})
 	require.NoError(t, err)
@@ -108,9 +110,8 @@ func TestExecuteCommandHistory(t *testing.T) {
 	// When command executes
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 
-	// Explicitly close the stream
-	err = stream.Close()
-	require.NoError(t, err)
+	// Close the stream if not already closed
+	_ = stream.Close()
 
 	// Then command execution history is saved
 	var messages *assist.GetAssistantMessagesResponse
@@ -118,7 +119,7 @@ func TestExecuteCommandHistory(t *testing.T) {
 	require.Eventually(t, func() bool {
 		messages, err = clt.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
 			ConversationId: conversationID.String(),
-			Username:       "foo",
+			Username:       testUser,
 		})
 		require.NoError(t, err)
 
@@ -151,15 +152,15 @@ func TestExecuteCommandSummary(t *testing.T) {
 		disableDiskBasedRecording: true,
 		OpenAIConfig:              &openAIConfig,
 	})
-	authPack := s.authPack(t, "foo")
+	authPack := s.authPack(t, testUser)
 
 	ctx := context.Background()
-	clt, err := s.server.NewClient(auth.TestUser("foo"))
+	clt, err := s.server.NewClient(auth.TestUser(testUser))
 	require.NoError(t, err)
 
 	// Create conversation, otherwise the command execution will not be saved
 	conversation, err := clt.CreateAssistantConversation(context.Background(), &assist.CreateAssistantConversationRequest{
-		Username:    "foo",
+		Username:    testUser,
 		CreatedTime: timestamppb.Now(),
 	})
 	require.NoError(t, err)
@@ -177,20 +178,15 @@ func TestExecuteCommandSummary(t *testing.T) {
 	// Wait for command execution to complete
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 
-	// Stream one more message, this should be the summary message
-	out := make([]byte, 100)
-	n, err := stream.Read(out)
-	require.NoError(t, err)
-
 	var env Envelope
-	err = json.Unmarshal(out[:n], &env)
+	dec := json.NewDecoder(stream)
+	err = dec.Decode(&env)
 	require.NoError(t, err)
 	require.Equal(t, envelopeTypeSummary, env.GetType())
 	require.NotEmpty(t, env.GetPayload())
 
-	// Explicitly close the stream
-	err = stream.Close()
-	require.NoError(t, err)
+	// Close the stream if not already closed
+	_ = stream.Close()
 
 	// Then command execution history is saved
 	var messages *assist.GetAssistantMessagesResponse
@@ -198,7 +194,7 @@ func TestExecuteCommandSummary(t *testing.T) {
 	require.Eventually(t, func() bool {
 		messages, err = clt.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
 			ConversationId: conversationID.String(),
-			Username:       "foo",
+			Username:       testUser,
 		})
 		require.NoError(t, err)
 
@@ -342,38 +338,8 @@ func Test_runCommands(t *testing.T) {
 }
 
 func mockOpenAISummary(t *testing.T) *httptest.Server {
-	var summaryHandler http.HandlerFunc
-	summaryHandler = func(w http.ResponseWriter, r *http.Request) {
-		req := &openai.ChatCompletionRequest{}
-		err := json.NewDecoder(r.Body).Decode(req)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-		}
-		resp := openai.ChatCompletionResponse{
-			ID:      strconv.Itoa(int(time.Now().Unix())),
-			Object:  "test-object",
-			Created: time.Now().Unix(),
-			Model:   req.Model,
-			Choices: []openai.ChatCompletionChoice{
-				{
-					Message: openai.ChatCompletionMessage{
-						Role:    openai.ChatMessageRoleAssistant,
-						Content: "This is the summary of the command.",
-						Name:    "",
-					},
-				},
-			},
-			Usage: openai.Usage{},
-		}
-
-		respBytes, err := json.Marshal(resp)
-		assert.NoError(t, err, "Marshal error")
-
-		_, err = w.Write(respBytes)
-		assert.NoError(t, err, "Write error")
-
-	}
-	server := httptest.NewServer(summaryHandler)
+	responses := []string{"This is the summary of the command."}
+	server := httptest.NewServer(testutils.GetTestHandlerFn(t, responses))
 	t.Cleanup(server.Close)
 	return server
 }

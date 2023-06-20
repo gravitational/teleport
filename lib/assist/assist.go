@@ -162,10 +162,7 @@ func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.
 			modelMessages = append(modelMessages, openai.ChatCompletionMessage{Role: role, Content: payload})
 		}
 	}
-	// Inject command output and final instructions
-	modelMessages = append(modelMessages, openai.ChatCompletionMessage{Role: openai.ChatMessageRoleUser, Content: model.ConversationCommandResult(output)})
-
-	return a.client.CommandSummary(ctx, modelMessages)
+	return a.client.CommandSummary(ctx, modelMessages, output)
 }
 
 // loadMessages loads the messages from the database.

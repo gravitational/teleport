@@ -16,7 +16,10 @@ limitations under the License.
 
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 var observationPrefix = "Observation: "
 var thoughtPrefix = "Thought: "
@@ -105,12 +108,12 @@ Okay, so what is the response to my last comment? If using information obtained 
 }
 
 func ConversationCommandResult(result map[string][]byte) string {
-	var message string
+	var message strings.Builder
 	for node, output := range result {
-		message += fmt.Sprintf(`Command ran on node "%s" and produced the following output:\n`, node)
-		message += string(output)
-		message += "\n"
+		message.WriteString(fmt.Sprintf(`Command ran on node "%s" and produced the following output:\n`, node))
+		message.WriteString(string(output))
+		message.WriteString("\n")
 	}
-	message += "Based on the chat history, extract relevant information out of the command output and write a summary."
-	return message
+	message.WriteString("Based on the chat history, extract relevant information out of the command output and write a summary.")
+	return message.String()
 }
