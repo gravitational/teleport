@@ -218,3 +218,80 @@ The filter\_rsql key applies a Jamf Pro API filter when querying for devices.
 Refer to
 https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory for the
 possible filter values.
+
+## Optional: Sync multiple sources
+
+When syncing inventory, Jamf service claims ownership of all synced devices.
+This can be verified by inspecting a device's `source` field:
+
+```yaml
+# tctl get device/mydevice
+kind: device
+metadata:
+  name: 20ec6373-9e8e-46e0-8f1c-47ad6b06a768
+spec:
+  asset_tag: mydevice
+  os_type: macos
+  # ...
+  source:         # Set during inventory sync
+    name: jamf    # Copied from jamf_service.name
+    origin: jamf  # Always "jamf" for Jamf service
+  update_time: "2023-06-21T19:44:40.40601Z"
+version: v1
+```
+
+Device ownership is important in a few situations, but it is particularly
+important when running "on\_missing=DELETE" syncs, as only the devices owned by
+the sync source are considered for deletion.
+
+If you want to run multiple Jamf sources you can simply run multiple Jamf
+services, each with its configuration and credentials. Just make sure that each
+service has a different "jamf\_service.name". For example:
+
+`teleport.yaml` - Service #1:
+
+```diff
+version: v3
+teleport:
+  proxy_server: teleport.example.com:443
+
+jamf_service:
+  enabled: true
++ name: jamf1
++ api_endpoint: https://tenant1.jamfcloud.com
++ username: tenant1
++ password_file: /var/lib/teleport/jamf1_password.txt
+
+auth_service:
+  enabled: false
+
+proxy_service:
+  enabled: false
+
+ssh_service:
+  enabled: false
+```
+
+`teleport.yaml` - Service #2:
+
+```diff
+version: v3
+teleport:
+  proxy_server: teleport.example.com:443
+
+jamf_service:
+  enabled: true
++ name: jamf2
++ api_endpoint: https://tenant2.jamfcloud.com
++ username: tenant2
++ password_file: /var/lib/teleport/jamf2_password.txt
+
+auth_service:
+  enabled: false
+
+proxy_service:
+  enabled: false
+
+ssh_service:
+  enabled: false
+```
