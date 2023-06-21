@@ -669,7 +669,7 @@ func TestPresets(t *testing.T) {
 		roleManager.AssertExpectations(t)
 
 		//
-		// Test #2 - popuulating an already-populated cluster
+		// Test #2 - populating an already-populated cluster
 		//
 		roleManager = newMockRoleManager(t)
 
