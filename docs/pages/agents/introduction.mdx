@@ -17,7 +17,7 @@ your infrastructure.
 Each Teleport agent can run one or more services.  A Teleport instance runs a
 service if it is enabled within the instance's configuration file. See the
 [Teleport Configuration
-Reference](../reference/configuration.mdx#enabling-teleport-services) for which
+Reference](../reference/config.mdx#enabling-teleport-services) for which
 services are enabled by default and how to enable a particular service.
 
 ### Agent pools
@@ -61,7 +61,7 @@ flowchart LR
 ```
 
 Read our guide for how to use Terraform to [deploy a pool of
-agents](agent-pool.mdx). 
+agents](deploy-agents-terraform.mdx). 
 
 ## Joining agents
 
@@ -77,16 +77,16 @@ There are two ways to enroll infrastructure resources with Teleport agents:
 
 1. **Static**: Edit an agent's configuration file to configure a specific
    infrastructure resource to proxy.
-1. **Dynamic**: Apply a [configuration
-   resource](../dynamic-resources/introduction.mdx) that configures a resource to
+2. **Dynamic**: Apply a [configuration
+   resource](../management/dynamic-resources.mdx) that configures a resource to
    proxy.
 
 The dynamic method allows Teleport to discover resources automatically.  The
 Discovery Service polls your cloud provider APIs and modifies dynamic
 infrastructure resources as required.
 
-[Read our guide](placeholder--please-add.mdx) to deploying dynamic resources
-with Terraform.
+[Read our guide](deploy-agents-terraform.mdx) to deploying a pool of agents
+via Terraform and enrolling infrastructure resources dynamically.
 
 To learn how to enroll resources via static configuration files, plus all the
 ways Teleport supports enrolling infrastructure, consult our guides to each of
