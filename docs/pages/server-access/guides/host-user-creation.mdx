@@ -158,6 +158,15 @@ that were created will remain on the system after the session ends.
 Should a Teleport SSH instance be restarted while a session is in progress, the user
 will be cleaned up at the next Teleport restart.
 
+## Troubleshooting
+
+### Unexpected shell
+
+Teleport will use the default shell which could be `SHELL=/bin/sh` when it creates the user.
+To use another shell such as `bash` or `zsh` update the default shell that should be set
+within `/etc/default/useradd`. The change will take impact after the user exits and 
+starts another session where the user is created.
+
 ## Next steps
 
 - Configure automatic user provisioning for [Database Access](../../database-access/rbac/configuring-auto-user-provisioning.mdx).
