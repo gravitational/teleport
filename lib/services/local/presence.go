@@ -238,6 +238,20 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 	return servers, nil
 }
 
+// GetNodeStream returns a stream of nodes in a namespace.
+func (s *PresenceService) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	startKey := backend.ExactKey(nodesPrefix, namespace)
+	items := backend.StreamRange(ctx, s, startKey, backend.RangeEnd(startKey), 50)
+	return stream.FilterMap(items, func(item backend.Item) (types.Server, bool) {
+		embedding, err := services.UnmarshalServer(item.Value, types.KindNode)
+		if err != nil {
+			s.log.Warnf("Skipping node at %s, failed to unmarshal: %v", item.Key, err)
+			return nil, false
+		}
+		return embedding, true
+	})
+}
+
 // UpsertNode registers node presence, permanently if TTL is 0 or for the
 // specified duration with second resolution if it's >= 1 second.
 func (s *PresenceService) UpsertNode(ctx context.Context, server types.Server) (*types.KeepAlive, error) {

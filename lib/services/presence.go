@@ -35,6 +35,12 @@ type NodesGetter interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
+// NodesStreamGetter is a service that gets nodes.
+type NodesStreamGetter interface {
+	// GetNodeStream returns a list of registered servers.
+	GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server]
+}
+
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
@@ -50,6 +56,9 @@ type Presence interface {
 
 	// NodesGetter gets nodes
 	NodesGetter
+
+	// NodesStreamGetter gets nodes as a stream
+	NodesStreamGetter
 
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error
