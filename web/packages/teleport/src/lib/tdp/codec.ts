@@ -21,7 +21,7 @@ import {
 
 import { arrayBufferToBase64 } from 'shared/utils/base64';
 
-import { RDPFastPathPDU } from 'teleport/ironrdp/pkg';
+import { RDPFastPathPDU } from 'teleport/ironrdp/pkg/ironrdp';
 
 // This is needed for tests until jsdom adds support for TextEncoder (https://github.com/jsdom/jsdom/issues/2524)
 window.TextEncoder = window.TextEncoder || TestTextEncoder;

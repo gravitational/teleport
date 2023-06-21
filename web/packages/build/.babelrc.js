@@ -46,6 +46,7 @@ module.exports = {
   env: {
     test: {
       presets: makePresets(true),
+      plugins: ['babel-plugin-transform-import-meta'],
     },
     development: {
       plugins: [
