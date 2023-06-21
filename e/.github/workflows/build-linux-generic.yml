@@ -43,10 +43,12 @@ on:
         # or booleans, and we need to pass an array if we're running on a self-hosted
         # builder.
         description: |
-          JSON-encoded tags for selecting the action runner to use when executing this
-          workflow. This allows callers to select self-hosted runners (e.g. for arm64)
-          or any of the github-supplied runners (e.g. ubuntu-latest) depending on the
-          build requirements.
+          JSON-encoded labels and groups for selecting the action runner to use when 
+          executing this workflow. This allows callers to select self-hosted runners
+          (e.g. for arm64) or any of the github-supplied runners (e.g. ubuntu-latest)
+          depending on the build requirements.
+
+          Example: `toJSON({"group": "prod", "labels": ["self-hosted", "X64"]})`
         required: true
         type: string        
     secrets:

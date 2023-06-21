@@ -19,10 +19,14 @@ jobs:
       matrix:
         include:
           - arch: arm
-            runner: ['self-hosted', 'linux', 'arm64']
+            runner: 
+              group: prod
+              labels: ['self-hosted', 'linux', 'arm64']
             platform: linux/arm/v7
           - arch: arm64
-            runner: ['self-hosted', 'linux', 'arm64']
+            runner: 
+              group: prod
+              labels: ['self-hosted', 'linux', 'arm64']
             platform: linux/arm64
           - arch: 386
             runner: ubuntu-latest

@@ -63,7 +63,9 @@ jobs:
         include:
           # Use the self-hosted arm64 builders for all arm64 matrix entries.
           - arch: 'arm64'
-            builder: ['self-hosted', 'linux', 'arm64']
+            builder:
+              group: prod
+              labels: ['self-hosted', 'linux', 'arm64']
     uses: ./.github/workflows/build-linux-generic.yml
     with:
       arch: ${{ matrix.arch }}
