@@ -152,3 +152,69 @@ CXXXXXXXXX4T macOS   not enrolled  dd032e90-bfb0-47d5-bce5-e57545f6788f
 CXXXXXXXXX5T macOS   not enrolled  bf189863-a94a-40dc-9013-d96f8dada2f1
 (...)
 ```
+
+## Optional: Customize the sync schedule
+
+When using the minimal configuration, described in the steps above, Jamf service
+utilizes a default sync schedule. It is possible to customize sync intervals, as
+well as the set of devices synced from Jamf by applying RSQL filters provided by
+the [Jamf Pro API](
+https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory).
+
+The default "inventory" configuration is roughly equivalent to the one below:
+
+```yaml
+jamf_service:
+  enabled: true
+  # ...
+  inventory:
+  - sync_period_partial: 6h
+    sync_period_full: 24h
+    on_missing: DELETE
+    filter_rsql: general.remoteManagement.managed==true
+```
+
+Unpacking the configuration, we have the following:
+
+**sync\_period\_\***
+
+- sync_period_partial: period for partial syncs. A partial sync attempts to
+  fetch new and modified devices, but won't scan the entire Jamf inventory.
+- sync_period_full: period for full syncs. A full sync scans the entire Jamf
+  inventory, processing new/modified devices and removals from Jamf.
+
+Both sync periods may be disabled by setting the period to `0` or `-1`. It is
+recommended to do a full sync with some regularity, so Teleport has the chance
+to fully synchronize both inventories.
+
+**on\_missing**
+
+The on\_missing key determines what to do with devices deleted from Jamf, but
+present in Teleport. The possible actions are:
+
+- `DELETE`: devices removed from Jamf are eventually removed from Teleport.
+  (Requires a full sync.)
+- `NOOP`: devices removed from Jamf are allowed to remain in the Teleport
+  inventory.
+
+Only devices synced by Jamf are susceptible to deletion in this manner. Devices
+written manually via `tctl devices add` or written by other sources won't be
+deleted.
+
+For immediate removal of unwanted devices first lock the device on Teleport,
+then remove it from Jamf:
+
+```code
+$ tctl devices lock --asset-tag=SERIAL_NUMBER --message='reason for locking'
+Created a lock with name "a2f1491c-4a3e-4daf-9c83-2fe931668076".
+```
+
+Manual removal via `tctl devices rm` is possible, but note that if the device is
+still in the Jamf inventory, it'll be recreated during the next sync.
+
+**filter\_rsql**
+
+The filter\_rsql key applies a Jamf Pro API filter when querying for devices.
+Refer to
+https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory for the
+possible filter values.
