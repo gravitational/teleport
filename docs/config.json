@@ -474,6 +474,12 @@
           "forScopes": [
             "enterprise",
             "cloud"
+          ],
+          "entries": [
+            {
+              "title": "Set Up Device Trust",
+              "slug": "/access-controls/device-trust/guide/"
+            }
           ]
         },
         {
@@ -2813,7 +2819,7 @@
     },
     {
       "source": "/access-controls/guides/device-trust/",
-      "destination": "/access-controls/device-trust/",
+      "destination": "/access-controls/device-trust/guide/",
       "permanent": true
     }
   ]
