@@ -27,5 +27,15 @@ resource "aws_instance" "teleport_agent" {
     proxy_service_address = var.proxy_service_address
     teleport_version      = var.teleport_version
   })
+
+  // The following two blocks adhere to security best practices.
+
+  metadata_options {
+    http_tokens   = "required"
+  }
+
+  root_block_device {
+    encrypted = true
+  }
 }
 
