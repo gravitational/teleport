@@ -304,7 +304,7 @@ func (h *Handler) handleForwardError(w http.ResponseWriter, req *http.Request, e
 	// done to have a consistent UX to when launching an application.
 	session, err := h.renewSession(req)
 	if err != nil {
-		if redirectErr := h.redirectToLauncher(w, req, launcherURLParams{}); redirectErr == nil {
+		if redirectErr := h.redirectToLauncher(w, req); redirectErr == nil {
 			return
 		}
 
@@ -549,13 +549,9 @@ func HasName(r *http.Request, proxyPublicAddrs []utils.NetAddr) (string, bool) {
 	}
 	// At this point, it is assumed the caller is requesting an application and
 	// not the proxy, redirect the caller to the application launcher.
-	u := url.URL{
-		Scheme:   "https",
-		Host:     proxyPublicAddrs[0].String(),
-		Path:     fmt.Sprintf("/web/launch/%s", raddr.Host()),
-		RawQuery: fmt.Sprintf("path=%s", url.QueryEscape(r.URL.Path)),
-	}
-	return u.String(), true
+
+	urlString := makeAppRedirectURL(r, proxyPublicAddrs[0].String(), raddr.Host())
+	return urlString, true
 }
 
 const (
@@ -565,3 +561,21 @@ const (
 	// SubjectCookieName is the name of the application session subject cookie.
 	SubjectCookieName = "__Host-grv_app_session_subject"
 )
+
+func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string) string {
+	// Preserve the app's URL path (URL parts after the app's hostname)
+	// as a query part. Append query that was originally part of the URL.
+	query := fmt.Sprintf("path=%s", url.QueryEscape(r.URL.Path))
+	if len(r.URL.RawQuery) > 0 {
+		query = fmt.Sprintf("%s&%s", query, r.URL.RawQuery)
+	}
+
+	u := url.URL{
+		Scheme:   "https",
+		Host:     proxyPublicAddr,
+		Path:     fmt.Sprintf("/web/launch/%s", hostname),
+		RawQuery: query,
+	}
+
+	return u.String()
+}
