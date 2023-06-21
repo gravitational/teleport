@@ -440,6 +440,10 @@ const (
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
 
+	// ClusterLabel is a label that identifies the current cluster when creating resources on another systems.
+	// Eg, when creating a resource in AWS, this label must be set as a Tag in the resource.
+	ClusterLabel = TeleportNamespace + "/cluster"
+
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
 
@@ -466,6 +470,13 @@ const (
 	// OriginOkta is an origin value indicating that the resource was
 	// created from the Okta service.
 	OriginOkta = "okta"
+
+	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
+	// created from the AWS OIDC Integration.
+	OriginIntegrationAWSOIDC = "integration_awsoidc"
+
+	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
+	IntegrationLabel = TeleportNamespace + "/integration"
 
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation
@@ -571,29 +582,21 @@ const (
 	// support one or more features enabled in that resource.
 	TeleportDowngradedLabel = TeleportInternalLabelPrefix + "downgraded"
 
-	// TeleportSystemResourceLabel marks a resource as being used internally by
-	// teleport itself, and should not be exposed to the cluster users or admins.
-	TeleportResourceTypeLabel = TeleportInternalLabelPrefix + "resource-type"
+	// TeleportInternalResourceType indicates the type of internal Teleport resource a resource is.
+	// Valid values are:
+	// - system: These resources will be automatically created and overwritten on startup. Users should
+	//           not change these resources.
+	// - preset: These resources will be created if they don't exist. Updates may be applied to them,
+	//           but user changes to these resources will be preserved.
+	TeleportInternalResourceType = TeleportInternalLabelPrefix + "resource-type"
 
-	// TeleportResourceRevision marks a teleport-managed resource with a reversion
-	// number to aid future migrations. Label value is expected to be a number.
-	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
-)
+	// SystemResource are resources that will be automatically created and overwritten on startup. Users
+	// should not change these resources.
+	SystemResource = "system"
 
-// TeleportResourceType defines the expected values of the `TeleportResourceTypeLabel`
-// label.
-type TeleportResourceType string
-
-const (
-	// TeleportResourceTypeSystem marks a resource as being required internally
-	// by teleport. Teleport may reset, edit or ortherwise modify this resource
-	// at will, and no attempt to preserve any user changes will be made.
-	TeleportResourceTypeSystem TeleportResourceType = "system"
-
-	// TeleportResourceTypePreset marks a resource that is created and managed by
-	// teleport, but is open for user modification. Teleport will attempt to preserve
-	// any user modifications when changing or updating the resource.
-	TeleportResourceTypePreset TeleportResourceType = "preset"
+	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
+	// to them, but user changes to these resources will be preserved.
+	PresetResource = "preset"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.

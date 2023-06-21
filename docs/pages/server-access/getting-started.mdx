@@ -133,7 +133,7 @@ configuration:
 Run the following command to create a user that can access the Teleport Web UI:
 
 ```code
-$ sudo tctl users add tele-admin --roles=editor,access --logins=root,ubuntu,ec2-user
+$ sudo tctl users add tele-admin --roles=editor,access,reviewer --logins=root,ubuntu,ec2-user
 ```
 
 This will generate an initial login link where you can create a password and set

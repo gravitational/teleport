@@ -811,7 +811,7 @@ func TestPresets(t *testing.T) {
 		t.Run("System users are always upserted", func(t *testing.T) {
 			ctx := context.Background()
 			sysUser := services.NewPresetAutomaticAccessBotUser().(*types.UserV2)
-
+			
 			// GIVEN a user database...
 			auth := newMockUserManager(t)
 
@@ -831,14 +831,13 @@ func TestPresets(t *testing.T) {
 				}).
 				Return(nil)
 
-			// WHEN I attempt to create the preset users...
-			err := createPresetUsers(ctx, auth)
-
+			TestBuildType: modules.BuildEnterprise,
 			// EXPECT that the process succeeds and the system user was upserted
 			require.NoError(t, err)
 			auth.AssertExpectations(t)
 			require.Contains(t, upsertedUsers, sysUser.Metadata.Name)
 		})
+		upsertRoleTest(t, 6 /* presetRoleCount */)
 	})
 }
 

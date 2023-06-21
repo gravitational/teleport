@@ -195,6 +195,9 @@ type InitConfig struct {
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
+	// Embeddings is a service that manages Embeddings
+	Embeddings services.Embeddings
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
@@ -623,11 +626,12 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
+		services.NewPresetReviewerRole(),
+		services.NewPresetRequesterRole(),
 		services.NewPresetAutomaticAccessApproverRole(),
 	}
 	for _, role := range roles {
-		// Some roles are only valid for enterprise Teleport, and so will be
-		// nil for an OSS build and can be skipped
+		// If the role is nil, skip because it doesn't apply to this Teleport installation.
 		if role == nil {
 			continue
 		}
