@@ -28,28 +28,22 @@ export const ConnectMyComputerIcon = forwardRef<
   ConnectMyComputerIconProps
 >((props, ref) => {
   return (
-    <Container ref={ref}>
-      <StyledButton
-        onClick={props.onClick}
-        kind="secondary"
-        size="small"
-        m="auto"
-        title="Open Connect My Computer"
-      >
-        <Wand fontSize={16} />
-      </StyledButton>
-    </Container>
+    <StyledButton
+      setRef={ref}
+      onClick={props.onClick}
+      kind="secondary"
+      size="small"
+      m="auto"
+      title="Open Connect My Computer"
+    >
+      <Wand fontSize={16} />
+    </StyledButton>
   );
 });
 
-const Container = styled.div`
-  position: relative;
-  display: inline-block;
-`;
-
 const StyledButton = styled(Button)`
   background: ${props => props.theme.colors.spotBackground[0]};
-  padding: 9px;
-  width: 30px;
-  height: 30px;
+  padding: 0;
+  width: ${props => props.theme.space[5]}px;
+  height: ${props => props.theme.space[5]}px;
 `;

@@ -61,12 +61,9 @@ const CentralContainer = styled(Flex).attrs({ gap: 3 })`
   max-width: calc(${props => props.theme.space[10]}px * 9);
 `;
 
-const JustifyLeft = styled.div`
-  display: flex;
-  justify-self: start;
+const JustifyLeft = styled(Flex).attrs({ gap: 3 })`
   align-items: center;
   height: 100%;
-  gap: 16px;
 `;
 
 const JustifyRight = styled.div`
