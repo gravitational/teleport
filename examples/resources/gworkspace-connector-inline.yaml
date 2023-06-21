@@ -29,7 +29,7 @@ spec:
      "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/teleport-service-account%40access-304316.iam.gserviceaccount.com"
     }
   issuer_url: https://accounts.google.com
-  redirect_url: https://<SELF-HOSTED-CLUSTER-URL:3080|TENANT-ID.teleport.sh>/v1/webapi/oidc/callback
+  redirect_url: https://<SELF-HOSTED-CLUSTER-URL|TENANT-ID.teleport.sh>/v1/webapi/oidc/callback
   scope:
   - openid
   - email
