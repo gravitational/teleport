@@ -761,6 +761,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// AWS OIDC Integration Actions
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
@@ -1113,6 +1114,7 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
 	as.LoadAllCAs = pingResp.LoadAllCAs
+	as.DefaultSessionTTL = authPreference.GetDefaultSessionTTL()
 
 	return as, nil
 }

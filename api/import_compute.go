@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,28 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-//go:build gofuzz
-// +build gofuzz
-
-package fuzz
+package api
 
 import (
-	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/lib/utils/parse"
+	_ "cloud.google.com/go/compute/metadata" // fix tidy issues with otel
 )
-
-func FuzzParseProxyJump(data []byte) int {
-	_, err := utils.ParseProxyJump(string(data))
-	if err != nil {
-		return 0
-	}
-	return 1
-}
-
-func FuzzNewExpression(data []byte) int {
-	_, err := parse.NewExpression(string(data))
-	if err != nil {
-		return 0
-	}
-	return 1
-}
