@@ -892,7 +892,6 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
-	bench.Flag("interval", "Interval between requests").Default("100ms").DurationVar(&cf.BenchInterval)
 	bench.Flag("export", "Export the latency profile").BoolVar(&cf.BenchExport)
 	bench.Flag("path", "Directory to save the latency profile to, default path is the current directory").Default(".").StringVar(&cf.BenchExportPath)
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
@@ -903,6 +902,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+	benchSSH.Flag("interval", "Interval between requests").Default("100ms").DurationVar(&cf.BenchInterval)
 
 	benchWeb := bench.Command("web", "Run Web benchmark tests").Hidden()
 	benchWebSSH := benchWeb.Command("ssh", "Run SSH benchmark tests").Hidden()
@@ -910,14 +910,17 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	benchWebSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchWebSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	benchWebSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+	benchWebSSH.Flag("interval", "Interval between requests").Default("100ms").DurationVar(&cf.BenchInterval)
 
 	benchWebSessions := benchWeb.Command("sessions", "Run session benchmark tests").Hidden()
 	benchWebSessions.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	benchWebSessions.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchWebSessions.Flag("max", "SSH port on a remote host").Short('p').IntVar(&cf.BenchMaxSessions)
+	benchWebSessions.Flag("interval", "Interval between requests").Default("500ms").DurationVar(&cf.BenchInterval)
 
 	var benchKubeOpts benchKubeOptions
 	benchKube := bench.Command("kube", "Run Kube benchmark tests").Hidden()
+	benchKube.Flag("interval", "Interval between requests").Default("100ms").DurationVar(&cf.BenchInterval)
 	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
 	benchListKube := benchKube.Command("ls", "Run a benchmark test to list Pods").Hidden()
 	benchListKube.Arg("kube_cluster", "Kubernetes cluster to use").Required().StringVar(&cf.KubernetesCluster)
