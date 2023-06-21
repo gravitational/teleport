@@ -347,7 +347,13 @@
         {
           "title": "Device Trust",
           "slug": "/access-controls/device-trust/",
-          "forScopes": ["enterprise", "cloud"]
+          "forScopes": ["enterprise", "cloud"],
+          "entries": [
+            {
+              "title": "Set Up Device Trust",
+              "slug": "/access-controls/device-trust/guide/"
+            }
+          ]
         },
         {
           "title": "Access Requests",
@@ -2507,7 +2513,7 @@
     },
     {
       "source": "/access-controls/guides/device-trust/",
-      "destination": "/access-controls/device-trust/",
+      "destination": "/access-controls/device-trust/guide/",
       "permanent": true
     }
   ]
