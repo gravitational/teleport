@@ -1,5 +1,19 @@
 # Changelog
 
+## 11.3.16 (06/21/23)
+
+* Desktop Access
+  * Fixed issue with "Run as different user" window freezing. [#27876](https://github.com/gravitational/teleport/pull/27876)
+* Tooling
+  * Updated Go to `1.20.5`. [#27862](https://github.com/gravitational/teleport/pull/27862)
+* Metrics
+  * Improved `backend_read_seconds` metric accuracy. [#27859](https://github.com/gravitational/teleport/pull/27859)
+* Machine ID
+  * Fixed secure write support detection on some systems. [#27783](https://github.com/gravitational/teleport/pull/27783)
+* Stability & Reliability
+  * Improved shutdown stability. [#27892](https://github.com/gravitational/teleport/pull/27892)
+  * Reduced thundering herd effect on proxy graceful shutdown. [#27789](https://github.com/gravitational/teleport/pull/27789)
+
 ## 11.3.15 (06/09/23)
 
 * Server Access
