@@ -203,8 +203,6 @@ func TestValidateCollectedData(t *testing.T) {
 // covered by TestS_CreateDeviceEnrollTokenUsingData or
 // TestS_CreateDeviceEnrollTokenUsingData_errors.
 func TestValidateCollectedDataAgainstDeviceStrict(t *testing.T) {
-	setMDMFeatureActive(t, true)
-
 	nowPB := timestamppb.Now()
 	dev := &devicepb.Device{
 		ApiVersion:   "v1",

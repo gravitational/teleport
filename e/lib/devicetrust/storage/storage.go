@@ -23,7 +23,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	"github.com/gravitational/teleport/lib/backend"
 )
 
@@ -205,27 +204,25 @@ func (s *S) createDevice(ctx context.Context, dev *devicepb.Device, createAsReso
 
 func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (deviceID string, storedDev *storedDevice) {
 	var storedSource *storedDeviceSource
-	var storedProfile *storedDeviceProfile
-	if dtent.MDMFeatureActive {
-		if d.Source != nil {
-			storedSource = &storedDeviceSource{
-				Name:   d.Source.Name,
-				Origin: int(d.Source.Origin),
-			}
+	if d.Source != nil {
+		storedSource = &storedDeviceSource{
+			Name:   d.Source.Name,
+			Origin: int(d.Source.Origin),
 		}
+	}
 
-		// Profiles have no required fields, but there's no point saving an empty
-		// profile so let's avoid that.
-		if (createAsResource && d.Profile != nil) || !isDeviceProfileEmpty(d.Profile) {
-			storedProfile = &storedDeviceProfile{
-				UpdateTime:        now,
-				ModelIdentifier:   d.Profile.ModelIdentifier,
-				OSVersion:         d.Profile.OsVersion,
-				OSBuild:           d.Profile.OsBuild,
-				OSUsernames:       d.Profile.OsUsernames,
-				JamfBinaryVersion: d.Profile.JamfBinaryVersion,
-				ExternalID:        d.Profile.ExternalId,
-			}
+	// Profiles have no required fields, but there's no point saving an empty
+	// profile so let's avoid that.
+	var storedProfile *storedDeviceProfile
+	if (createAsResource && d.Profile != nil) || !isDeviceProfileEmpty(d.Profile) {
+		storedProfile = &storedDeviceProfile{
+			UpdateTime:        now,
+			ModelIdentifier:   d.Profile.ModelIdentifier,
+			OSVersion:         d.Profile.OsVersion,
+			OSBuild:           d.Profile.OsBuild,
+			OSUsernames:       d.Profile.OsUsernames,
+			JamfBinaryVersion: d.Profile.JamfBinaryVersion,
+			ExternalID:        d.Profile.ExternalId,
 		}
 	}
 
@@ -279,7 +276,7 @@ func deviceToStored(d *devicepb.Device, now time.Time, createAsResource bool) (d
 	}
 
 	// Profile.
-	if updateTime := d.Profile.GetUpdateTime(); dtent.MDMFeatureActive && updateTime != nil {
+	if updateTime := d.Profile.GetUpdateTime(); updateTime != nil {
 		storedDev.Profile.UpdateTime = updateTime.AsTime()
 	}
 
@@ -1043,11 +1040,6 @@ func (s *S) RecordDeviceAuthnData(ctx context.Context, deviceID string, cd *devi
 }
 
 func (s *S) validateCollectedDataDrift(ctx context.Context, dev *devicepb.Device, cd *devicepb.DeviceCollectedData) error {
-	// Pre-MDM there's no data that can drift, it all must match exactly.
-	if !dtent.MDMFeatureActive {
-		return nil
-	}
-
 	stored, err := s.getDeviceCollectedData(ctx, dev.Id)
 	if err != nil {
 		return trace.Wrap(err)
@@ -1403,24 +1395,21 @@ func storedToDevice(deviceID string, sd *storedDevice) *devicepb.Device {
 
 func collectedDataToStored(cd *devicepb.DeviceCollectedData, origin collectedDataOrigin, recordTime time.Time, createAsResource bool) *storedCollectedData {
 	storedCD := &storedCollectedData{
-		Origin:                 origin,
-		CollectTime:            cd.CollectTime.AsTime(),
-		RecordTime:             recordTime,
-		OSType:                 int(cd.OsType),
-		SerialNumber:           cd.SerialNumber,
-		ReportedAssetTag:       cd.ReportedAssetTag,
-		SystemSerialNumber:     cd.SystemSerialNumber,
-		BaseBoardSerialNumber:  cd.BaseBoardSerialNumber,
-		TPMPlatformAttestation: tpmPlatformAttestationToStored(cd.TpmPlatformAttestation),
-	}
-
-	if dtent.MDMFeatureActive {
-		storedCD.ModelIdentifier = cd.ModelIdentifier
-		storedCD.OSVersion = cd.OsVersion
-		storedCD.OSBuild = cd.OsBuild
-		storedCD.OSUsername = cd.OsUsername
-		storedCD.JamfBinaryVersion = cd.JamfBinaryVersion
-		storedCD.MacOSEnrollmentProfiles = cd.MacosEnrollmentProfiles
+		Origin:                  origin,
+		CollectTime:             cd.CollectTime.AsTime(),
+		RecordTime:              recordTime,
+		OSType:                  int(cd.OsType),
+		SerialNumber:            cd.SerialNumber,
+		ModelIdentifier:         cd.ModelIdentifier,
+		OSVersion:               cd.OsVersion,
+		OSBuild:                 cd.OsBuild,
+		OSUsername:              cd.OsUsername,
+		JamfBinaryVersion:       cd.JamfBinaryVersion,
+		MacOSEnrollmentProfiles: cd.MacosEnrollmentProfiles,
+		ReportedAssetTag:        cd.ReportedAssetTag,
+		SystemSerialNumber:      cd.SystemSerialNumber,
+		BaseBoardSerialNumber:   cd.BaseBoardSerialNumber,
+		TPMPlatformAttestation:  tpmPlatformAttestationToStored(cd.TpmPlatformAttestation),
 	}
 
 	if !createAsResource {

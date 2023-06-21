@@ -13,7 +13,6 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	dtoss "github.com/gravitational/teleport/lib/devicetrust"
 )
 
@@ -89,15 +88,12 @@ func validateCollectedData(cd *devicepb.DeviceCollectedData, createAsResource bo
 		return trace.BadParameter("device serial number required")
 	case len(cd.SerialNumber) > maxDeviceSerialNumberLength:
 		return trace.BadParameter("device serial number exceeds %v characters", maxDeviceSerialNumberLength)
+	case len(cd.GetOsUsername()) > maxDataOSUsernameLength:
+		return trace.BadParameter("device OS username exceeds %v characters", maxDeviceSerialNumberLength)
 	}
 
-	if dtent.MDMFeatureActive {
-		if err := validateCollectedDataLike(cd.OsType, cd); err != nil {
-			return trace.Wrap(err)
-		}
-		if len(cd.GetOsUsername()) > maxDataOSUsernameLength {
-			return trace.BadParameter("device OS username exceeds %v characters", maxDeviceSerialNumberLength)
-		}
+	if err := validateCollectedDataLike(cd.OsType, cd); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := validateCollectedDataTPMPlatformAttestation(cd.TpmPlatformAttestation); err != nil {
@@ -243,10 +239,13 @@ func ValidateCollectedDataAgainstDevice(cd *devicepb.DeviceCollectedData, dev *d
 				dev.AssetTag, cd.SerialNumber))
 	}
 
-	if !dtent.MDMFeatureActive || dev.Profile == nil {
-		return nil
+	if dev.Profile != nil {
+		if err := validateDeviceProfileDrift(cd, dev.Profile); err != nil {
+			return trace.Wrap(err)
+		}
 	}
-	return trace.Wrap(validateDeviceProfileDrift(cd, dev.Profile))
+
+	return nil
 }
 
 func validateDeviceProfileDrift(cd *devicepb.DeviceCollectedData, profile *devicepb.DeviceProfile) error {
@@ -284,16 +283,15 @@ func ValidateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 		return trace.BadParameter("asset_tag exceeds %v characters", maxDeviceAssetTagLength)
 	}
 
-	if dtent.MDMFeatureActive {
-		if d.Source != nil {
-			if err := ValidateDeviceSource(d.Source); err != nil {
-				return trace.Wrap(err)
-			}
+	if d.Source != nil {
+		if err := ValidateDeviceSource(d.Source); err != nil {
+			return trace.Wrap(err)
 		}
-		if d.Profile != nil {
-			if err := validateDeviceProfile(d.OsType, d.Profile, createAsResource); err != nil {
-				return trace.Wrap(err)
-			}
+	}
+
+	if d.Profile != nil {
+		if err := validateDeviceProfile(d.OsType, d.Profile, createAsResource); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 
@@ -406,18 +404,17 @@ func validateDeviceForUpdate(updated, stored *devicepb.Device) error {
 			dtoss.FriendlyDeviceEnrollStatus(notEnrolled))
 	}
 
-	if dtent.MDMFeatureActive {
-		// Source is mutable.
-		if updated.Source != nil {
-			if err := ValidateDeviceSource(updated.Source); err != nil {
-				return trace.Wrap(err)
-			}
+	// Source is mutable.
+	if updated.Source != nil {
+		if err := ValidateDeviceSource(updated.Source); err != nil {
+			return trace.Wrap(err)
 		}
-		// Profile is mutable.
-		if updated.Profile != nil {
-			if err := validateDeviceProfile(updated.OsType, updated.Profile, false /* createAsResource */); err != nil {
-				return trace.Wrap(err)
-			}
+	}
+
+	// Profile is mutable.
+	if updated.Profile != nil {
+		if err := validateDeviceProfile(updated.OsType, updated.Profile, false /* createAsResource */); err != nil {
+			return trace.Wrap(err)
 		}
 	}
 

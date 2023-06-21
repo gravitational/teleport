@@ -13,7 +13,6 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	"github.com/gravitational/teleport/e/lib/devicetrust"
 	dtenv "github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/e/lib/jamf"
 	jamffake "github.com/gravitational/teleport/e/lib/jamf/fake"
@@ -80,18 +79,10 @@ func MustNew(opts *Opts) *E {
 
 // NewUsingT creates a new [E], automatically fails on errors and automatically
 // registers [E.Close] on cleanup.
-// If opts.DeviceTrustEnv is set, [NewUsingT] also sets the build type and the
-// MDM feature flag (with a cleanup).
+// If opts.DeviceTrustEnv is set, [NewUsingT] sets the build type to Enterprise.
 func NewUsingT(t *testing.T, opts *Opts) *E {
 	// Configure device trust settings?
 	if opts != nil && opts.DeviceTrustEnv {
-		// Enable MDM.
-		prev := devicetrust.MDMFeatureActive
-		t.Cleanup(func() {
-			devicetrust.MDMFeatureActive = prev
-		})
-		devicetrust.MDMFeatureActive = true
-
 		// Set build type.
 		modules.SetTestModules(t, &modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,

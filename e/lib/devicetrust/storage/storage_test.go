@@ -27,7 +27,6 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
-	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -259,11 +258,8 @@ func TestS_CreateDevice(t *testing.T) {
 	s := env.S
 	ctx := context.Background()
 
-	const dev1Tag = "A00AA0AAAA0A"
 	const resource1Tag = "AAA000000000"
 	const resource2Tag = "BBB000000000"
-	const resource3Tag = "DDD000000000"
-	const resource4Tag = "EEE000000000"
 
 	_, pubKeyDER := newKeyPair(t)
 
@@ -297,12 +293,10 @@ func TestS_CreateDevice(t *testing.T) {
 				SerialNumber: "ignored",                     // invalid
 			},
 		},
-		// Source is ignored if MDMFeatureActive is false.
 		Source: &devicepb.DeviceSource{
 			Name:   "myscript",
 			Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
 		},
-		// Profile is ignored if MDMFeatureActive is false.
 		Profile: &devicepb.DeviceProfile{
 			UpdateTime:        timestamppb.Now(),
 			ModelIdentifier:   "MacBookPro9,2",
@@ -314,16 +308,8 @@ func TestS_CreateDevice(t *testing.T) {
 		},
 	}
 
-	// Used for MDMFeatureActive tests.
-	resource4Dev := proto.Clone(resource1Dev).(*devicepb.Device)
-	resource4Dev.Id = "e22fb287-74fd-44de-957f-813682440a32"
-	resource4Dev.AssetTag = resource4Tag
-	// resource4Dev.Credential is the same as resource1Dev, but it doesn't matter.
-	resource4Dev.CollectedData = nil // not important for this scenario.
-
 	tests := []struct {
 		name             string
-		mdmFeatureActive bool
 		dev              *devicepb.Device
 		createAsResource bool
 		modifyWant       func(dev, want *devicepb.Device) // adjust want for `createAsResource` tests.
@@ -332,7 +318,26 @@ func TestS_CreateDevice(t *testing.T) {
 			name: "ok",
 			dev: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
-				AssetTag: dev1Tag,
+				AssetTag: "dev1",
+			},
+		},
+		{
+			name: "ok with source and profile",
+			dev: &devicepb.Device{
+				OsType:   devicepb.OSType_OS_TYPE_MACOS,
+				AssetTag: "dev2",
+				Source: &devicepb.DeviceSource{
+					Name:   "mysource",
+					Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
+				},
+				Profile: &devicepb.DeviceProfile{
+					ModelIdentifier:   "MacBookPro9,2",
+					OsVersion:         "13.2.1",
+					OsBuild:           "22D68",
+					OsUsernames:       []string{"admin", "alpaca"},
+					JamfBinaryVersion: "10.44.1",
+					ExternalId:        "99",
+				},
 			},
 		},
 		{
@@ -349,10 +354,6 @@ func TestS_CreateDevice(t *testing.T) {
 
 				// Ignored on pure Create/Update methods.
 				want.CollectedData = nil
-
-				// We don't want MDM-related fields, the feature is inactive here.
-				want.Source = nil
-				want.Profile = nil
 			},
 		},
 		{
@@ -363,47 +364,9 @@ func TestS_CreateDevice(t *testing.T) {
 			},
 			createAsResource: true,
 		},
-		{
-			name:             "MDM feature active",
-			mdmFeatureActive: true,
-			dev: &devicepb.Device{
-				OsType:   devicepb.OSType_OS_TYPE_MACOS,
-				AssetTag: resource3Tag,
-				Source: &devicepb.DeviceSource{
-					Name:   "mysource",
-					Origin: devicepb.DeviceOrigin_DEVICE_ORIGIN_API,
-				},
-				Profile: &devicepb.DeviceProfile{
-					ModelIdentifier:   "MacBookPro9,2",
-					OsVersion:         "13.2.1",
-					OsBuild:           "22D68",
-					OsUsernames:       []string{"admin", "alpaca"},
-					JamfBinaryVersion: "10.44.1",
-					ExternalId:        "99",
-				},
-			},
-		},
-		{
-			name:             "MDM feature active (as resource)",
-			mdmFeatureActive: true,
-			dev:              resource4Dev,
-			createAsResource: true,
-			modifyWant: func(dev *devicepb.Device, want *devicepb.Device) {
-				// Essentially everything copied fom dev.
-				want.Id = dev.Id
-				want.CreateTime = dev.CreateTime
-				want.UpdateTime = dev.UpdateTime
-				want.EnrollStatus = dev.EnrollStatus
-				want.Credential = dev.Credential
-				want.Source = dev.Source
-				want.Profile = dev.Profile
-			},
-		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			setMDMFeatureActive(t, test.mdmFeatureActive)
-
 			got, err := s.CreateDevice(ctx, test.dev, test.createAsResource)
 			if err != nil {
 				t.Fatalf("CreateDevice failed: %v", err)
@@ -437,20 +400,11 @@ func TestS_CreateDevice(t *testing.T) {
 				CreateTime:   got.CreateTime,
 				UpdateTime:   got.UpdateTime,
 				EnrollStatus: devicepb.DeviceEnrollStatus_DEVICE_ENROLL_STATUS_NOT_ENROLLED,
+				Source:       test.dev.Source,
+				Profile:      test.dev.Profile,
 			}
-			if test.mdmFeatureActive {
-				want.Source = test.dev.Source
-				want.Profile = test.dev.Profile
-				if want.Profile != nil {
-					want.Profile.UpdateTime = got.Profile.GetUpdateTime() // system-managed
-				}
-			} else {
-				if got.Source != nil {
-					t.Errorf("CreateDevice: got Source=%v, wanted nil (feature disabled)", got.Source)
-				}
-				if got.Profile != nil {
-					t.Errorf("CreateDevice: got Profile=%v, wanted nil (feature disabled)", got.Profile)
-				}
+			if want.Profile != nil {
+				want.Profile.UpdateTime = got.Profile.GetUpdateTime() // System-managed
 			}
 			if test.modifyWant != nil {
 				test.modifyWant(test.dev, want)
@@ -627,7 +581,6 @@ func TestS_CreateDevice_errors(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		mdmFeatureActive bool
 		createDev        func() *devicepb.Device
 		createAsResource bool
 		wantErr          string
@@ -803,8 +756,7 @@ func TestS_CreateDevice_errors(t *testing.T) {
 			assertErr:        trace.IsBadParameter,
 		},
 		{
-			name:             "source.name empty",
-			mdmFeatureActive: true,
+			name: "source.name empty",
 			createDev: func() *devicepb.Device {
 				d := proto.Clone(validDev).(*devicepb.Device)
 				d.Source = &devicepb.DeviceSource{
@@ -816,8 +768,7 @@ func TestS_CreateDevice_errors(t *testing.T) {
 			assertErr: trace.IsBadParameter,
 		},
 		{
-			name:             "source.origin unspecified",
-			mdmFeatureActive: true,
+			name: "source.origin unspecified",
 			createDev: func() *devicepb.Device {
 				d := proto.Clone(validDev).(*devicepb.Device)
 				d.Source = &devicepb.DeviceSource{
@@ -829,8 +780,7 @@ func TestS_CreateDevice_errors(t *testing.T) {
 			assertErr: trace.IsBadParameter,
 		},
 		{
-			name:             "profile.os_version macOS not a semver",
-			mdmFeatureActive: true,
+			name: "profile.os_version macOS not a semver",
 			createDev: func() *devicepb.Device {
 				p := proto.Clone(validProfile).(*devicepb.DeviceProfile)
 				p.OsVersion = "NOT A SEMVER"
@@ -844,8 +794,7 @@ func TestS_CreateDevice_errors(t *testing.T) {
 			assertErr: trace.IsBadParameter,
 		},
 		{
-			name:             "profile.os_usernames empty value",
-			mdmFeatureActive: true,
+			name: "profile.os_usernames empty value",
 			createDev: func() *devicepb.Device {
 				p := proto.Clone(validProfile).(*devicepb.DeviceProfile)
 				p.OsUsernames = []string{
@@ -862,8 +811,7 @@ func TestS_CreateDevice_errors(t *testing.T) {
 			assertErr: trace.IsBadParameter,
 		},
 		{
-			name:             "profile.jamf_binary_version not a semver",
-			mdmFeatureActive: true,
+			name: "profile.jamf_binary_version not a semver",
 			createDev: func() *devicepb.Device {
 				p := proto.Clone(validProfile).(*devicepb.DeviceProfile)
 				p.JamfBinaryVersion = "NOT A SEMVER"
@@ -878,8 +826,6 @@ func TestS_CreateDevice_errors(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			setMDMFeatureActive(t, test.mdmFeatureActive)
-
 			_, err := s.CreateDevice(ctx, test.createDev(), test.createAsResource)
 			assert.ErrorContains(t, err, test.wantErr, "CreateDevice error mismatch")
 			if !test.assertErr(err) {
@@ -924,11 +870,10 @@ func TestS_UpdateDevice(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		mdmFeatureActive bool
-		baseDev          *devicepb.Device // baseDevice is created if its ID is empty
-		update           func(stored *devicepb.Device) *devicepb.Device
-		assertUpdate     func(t *testing.T, base, updated *devicepb.Device)
+		name         string
+		baseDev      *devicepb.Device // baseDevice is created if its ID is empty
+		update       func(stored *devicepb.Device) *devicepb.Device
+		assertUpdate func(t *testing.T, base, updated *devicepb.Device)
 	}{
 		{
 			name: "noop",
@@ -987,8 +932,7 @@ func TestS_UpdateDevice(t *testing.T) {
 			},
 		},
 		{
-			name:             "set MDM fields",
-			mdmFeatureActive: true,
+			name: "set source and profile",
 			baseDev: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "mdmfields1",
@@ -1018,8 +962,7 @@ func TestS_UpdateDevice(t *testing.T) {
 			},
 		},
 		{
-			name:             "DeviceProfile.UpdateTime ignored for noop",
-			mdmFeatureActive: true,
+			name: "DeviceProfile.UpdateTime ignored for noop",
 			baseDev: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "mdmfields2",
@@ -1036,8 +979,7 @@ func TestS_UpdateDevice(t *testing.T) {
 			assertUpdate: assertNoop,
 		},
 		{
-			name:             "Added empty profile ignored",
-			mdmFeatureActive: true,
+			name: "Added empty profile ignored",
 			baseDev: &devicepb.Device{
 				OsType:   devicepb.OSType_OS_TYPE_MACOS,
 				AssetTag: "mdmfields3",
@@ -1054,8 +996,6 @@ func TestS_UpdateDevice(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			setMDMFeatureActive(t, test.mdmFeatureActive)
-
 			// Create baseDev, if necessary.
 			baseDev := test.baseDev
 			if baseDev.Id == "" {
@@ -1114,12 +1054,11 @@ func TestS_UpdateDevice_errors(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		deviceID         string
-		update           func(stored *devicepb.Device) *devicepb.Device
-		mdmFeatureActive bool
-		assertErr        func(err error) bool // defaults to trace.IsBadParameter
-		wantErr          string
+		name      string
+		deviceID  string
+		update    func(stored *devicepb.Device) *devicepb.Device
+		assertErr func(err error) bool // defaults to trace.IsBadParameter
+		wantErr   string
 	}{
 		{
 			name:      "deviceID is empty",
@@ -1240,8 +1179,7 @@ func TestS_UpdateDevice_errors(t *testing.T) {
 				}
 				return stored
 			},
-			mdmFeatureActive: true,
-			wantErr:          "source name",
+			wantErr: "source name",
 		},
 		{
 			name:     "profile is validated",
@@ -1252,14 +1190,11 @@ func TestS_UpdateDevice_errors(t *testing.T) {
 				}
 				return stored
 			},
-			mdmFeatureActive: true,
-			wantErr:          "jamf binary version",
+			wantErr: "jamf binary version",
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			setMDMFeatureActive(t, test.mdmFeatureActive)
-
 			_, err := s.UpdateDevice(ctx, test.deviceID, test.update)
 			if err == nil {
 				t.Fatal("UpdateDevice returned err=nil, want non=nil")
@@ -2421,7 +2356,7 @@ func TestS_DeviceCollectedData_crud(t *testing.T) {
 	})
 }
 
-func TestS_RecordDeviceAuthnData_mdmFields(t *testing.T) {
+func TestS_RecordDeviceAuthnData(t *testing.T) {
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -2429,69 +2364,114 @@ func TestS_RecordDeviceAuthnData_mdmFields(t *testing.T) {
 	clock := env.Clock
 	ctx := context.Background()
 
-	dev, _, err := createAndEnroll(ctx, s, &devicepb.Device{
-		OsType:   devicepb.OSType_OS_TYPE_MACOS,
-		AssetTag: "llama",
-	})
-	if err != nil {
-		t.Fatalf("createAndEnroll failed: %v", err)
+	nowAndAdvance := func() time.Time {
+		now := clock.Now()
+		clock.Advance(1 * time.Second)
+		return now
 	}
 
-	cd := &devicepb.DeviceCollectedData{
-		CollectTime:       timestamppb.New(clock.Now()),
-		OsType:            dev.OsType,
-		SerialNumber:      dev.AssetTag,
-		ModelIdentifier:   "MacBookPro14,3",
-		OsVersion:         "11.1",
-		OsBuild:           "11D11",
-		OsUsername:        "alpaca",
-		JamfBinaryVersion: "1",
-		MacosEnrollmentProfiles: `Enrolled via DEP: No
-MDM enrollment: Yes (User Approved)
-MDM server: https://example.com/mdm/ServerURL`,
+	// Create test devices.
+	var allDevs []*devicepb.Device
+	for _, dev := range []*devicepb.Device{
+		{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "mac",
+		},
+		{
+			OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
+			AssetTag: "win",
+		},
+	} {
+		created, _, err := createAndEnroll(ctx, s, dev)
+		if err != nil {
+			t.Fatalf("createAndEnroll(%q) failed: %v", dev.AssetTag, err)
+		}
+		allDevs = append(allDevs, created)
 	}
+	macDev := allDevs[0]
+	winDev := allDevs[1]
 
 	tests := []struct {
-		name             string
-		mdmFeatureActive bool
-		deviceID         string
-		cd               *devicepb.DeviceCollectedData
-		modifyWant       func(want *devicepb.DeviceCollectedData)
+		name     string
+		deviceID string
+		cd       *devicepb.DeviceCollectedData
 	}{
 		{
-			name:     "mdm feature disabled",
-			deviceID: dev.Id,
-			cd:       cd,
-			modifyWant: func(want *devicepb.DeviceCollectedData) {
-				want.ModelIdentifier = ""
-				want.OsVersion = ""
-				want.OsBuild = ""
-				want.OsUsername = ""
-				want.JamfBinaryVersion = ""
-				want.MacosEnrollmentProfiles = ""
+			name:     "minimal",
+			deviceID: macDev.Id,
+			cd: &devicepb.DeviceCollectedData{
+				CollectTime:  timestamppb.New(nowAndAdvance()),
+				OsType:       macDev.OsType,
+				SerialNumber: macDev.AssetTag,
 			},
 		},
 		{
-			name:             "all MDM fields",
-			mdmFeatureActive: true,
-			deviceID:         dev.Id,
-			cd:               cd,
-			modifyWant:       func(_ *devicepb.DeviceCollectedData) {},
+			name:     "MDM fields",
+			deviceID: macDev.Id,
+			cd: &devicepb.DeviceCollectedData{
+				CollectTime:       timestamppb.New(nowAndAdvance()),
+				OsType:            macDev.OsType,
+				SerialNumber:      macDev.AssetTag,
+				ModelIdentifier:   "MacBookPro14,3",
+				OsVersion:         "11.1",
+				OsBuild:           "11D11",
+				OsUsername:        "alpaca",
+				JamfBinaryVersion: "1",
+				MacosEnrollmentProfiles: `Enrolled via DEP: No
+MDM enrollment: Yes (User Approved)
+MDM server: https://example.com/mdm/ServerURL`,
+			},
+		},
+		{
+			name:     "TPM fields",
+			deviceID: winDev.Id,
+			cd: &devicepb.DeviceCollectedData{
+				CollectTime:  timestamppb.New(nowAndAdvance()),
+				OsType:       winDev.OsType,
+				SerialNumber: winDev.AssetTag,
+				TpmPlatformAttestation: &devicepb.TPMPlatformAttestation{
+					Nonce: []byte("fake-nonce"),
+					PlatformParameters: &devicepb.TPMPlatformParameters{
+						EventLog: []byte("fake-event-log"),
+						Quotes: []*devicepb.TPMQuote{
+							{
+								Quote:     []byte("fake-quote-0"),
+								Signature: []byte("fake-signature-0"),
+							},
+							{
+								Quote:     []byte("fake-quote-1"),
+								Signature: []byte("fake-signature-1"),
+							},
+						},
+						Pcrs: []*devicepb.TPMPCR{
+							{
+								Index:     0,
+								Digest:    []byte("fake-sha1-digest"),
+								DigestAlg: uint64(crypto.SHA1),
+							},
+							{
+								Index:     1,
+								Digest:    []byte("fake-sha256-digest"),
+								DigestAlg: uint64(crypto.SHA256),
+							},
+						},
+					},
+				},
+			},
 		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			setMDMFeatureActive(t, test.mdmFeatureActive)
-			cd := proto.Clone(test.cd).(*devicepb.DeviceCollectedData)
+			cd := test.cd
 
 			// Write a new collected data instance.
 			clock.Advance(1 * time.Second)
-			if err := s.RecordDeviceAuthnData(ctx, dev.Id, cd); err != nil {
+			if err := s.RecordDeviceAuthnData(ctx, test.deviceID, cd); err != nil {
 				t.Fatalf("RecordDeviceAuthnData failed: %v", err)
 			}
 
 			// Verify stored collected data.
-			stored, err := s.GetDeviceByID(ctx, dev.Id)
+			stored, err := s.GetDeviceByID(ctx, test.deviceID)
 			if err != nil {
 				t.Fatalf("GetDeviceByID failed: %v", err)
 			}
@@ -2502,7 +2482,6 @@ MDM server: https://example.com/mdm/ServerURL`,
 			// Last recorded entry must be the one above
 			got := stored.CollectedData[len(stored.CollectedData)-1]
 			want := cd
-			test.modifyWant(want)
 			want.RecordTime = got.RecordTime // System-managed
 			if diff := cmp.Diff(want, got, protocmp.Transform()); diff != "" {
 				t.Errorf("Collected data mismatch (-want +got)\n%s", diff)
@@ -2511,81 +2490,7 @@ MDM server: https://example.com/mdm/ServerURL`,
 	}
 }
 
-func TestS_RecordDeviceAuthnData_TPM(t *testing.T) {
-	env := mustNewEnv()
-	defer env.Close()
-
-	s := env.S
-	clock := env.Clock
-	ctx := context.Background()
-
-	dev, _, err := createAndEnroll(ctx, s, &devicepb.Device{
-		OsType:   devicepb.OSType_OS_TYPE_WINDOWS,
-		AssetTag: "llama",
-	})
-	if err != nil {
-		t.Fatalf("createAndEnroll failed: %v", err)
-	}
-
-	clock.Advance(1 * time.Second)
-	cd := &devicepb.DeviceCollectedData{
-		CollectTime:  timestamppb.New(clock.Now()),
-		OsType:       dev.OsType,
-		SerialNumber: dev.AssetTag,
-		TpmPlatformAttestation: &devicepb.TPMPlatformAttestation{
-			Nonce: []byte("fake-nonce"),
-			PlatformParameters: &devicepb.TPMPlatformParameters{
-				EventLog: []byte("fake-event-log"),
-				Quotes: []*devicepb.TPMQuote{
-					{
-						Quote:     []byte("fake-quote-0"),
-						Signature: []byte("fake-signature-0"),
-					},
-					{
-						Quote:     []byte("fake-quote-1"),
-						Signature: []byte("fake-signature-1"),
-					},
-				},
-				Pcrs: []*devicepb.TPMPCR{
-					{
-						Index:     0,
-						Digest:    []byte("fake-sha1-digest"),
-						DigestAlg: uint64(crypto.SHA1),
-					},
-					{
-						Index:     1,
-						Digest:    []byte("fake-sha256-digest"),
-						DigestAlg: uint64(crypto.SHA256),
-					},
-				},
-			},
-		},
-	}
-
-	if err := s.RecordDeviceAuthnData(ctx, dev.Id, cd); err != nil {
-		t.Fatalf("RecordDeviceAuthnData failed: %v", err)
-	}
-
-	// Verify stored collected data.
-	stored, err := s.GetDeviceByID(ctx, dev.Id)
-	if err != nil {
-		t.Fatalf("GetDeviceByID failed: %v", err)
-	}
-	if got, want := len(stored.CollectedData), 1; got < want {
-		t.Fatalf("GetDeviceByID: got %v collected data instances, want>=%v", got, want)
-	}
-
-	// Last recorded entry must be the one above
-	got := stored.CollectedData[len(stored.CollectedData)-1]
-	cd.RecordTime = got.RecordTime // System-managed
-	if diff := cmp.Diff(cd, got, protocmp.Transform()); diff != "" {
-		t.Errorf("Collected data mismatch (-want +got)\n%s", diff)
-	}
-}
-
 func TestS_RecordDeviceAuthnData_errors(t *testing.T) {
-	setMDMFeatureActive(t, true)
-
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -2873,8 +2778,6 @@ func collectedDataForDevice(dev *devicepb.Device) *devicepb.DeviceCollectedData 
 }
 
 func TestS_CreateDeviceEnrollTokenUsingData(t *testing.T) {
-	setMDMFeatureActive(t, true)
-
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -3003,8 +2906,6 @@ func TestS_CreateDeviceEnrollTokenUsingData(t *testing.T) {
 }
 
 func TestS_CreateDeviceEnrollTokenUsingData_errors(t *testing.T) {
-	setMDMFeatureActive(t, true)
-
 	env := mustNewEnv()
 	defer env.Close()
 
@@ -3351,12 +3252,6 @@ func diffDevices(want, got []*devicepb.Device) string {
 	sort.Slice(want, func(i, j int) bool { return want[i].Id < want[j].Id })
 	sort.Slice(got, func(i, j int) bool { return got[i].Id < got[j].Id })
 	return cmp.Diff(want, got, protocmp.Transform())
-}
-
-func setMDMFeatureActive(t *testing.T, active bool) {
-	prev := dtent.MDMFeatureActive
-	t.Cleanup(func() { dtent.MDMFeatureActive = prev })
-	dtent.MDMFeatureActive = active
 }
 
 // storageEnv groups the necessary components to test storage.

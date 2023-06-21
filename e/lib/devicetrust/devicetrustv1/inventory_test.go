@@ -36,8 +36,6 @@ type syncInventoryTest struct {
 }
 
 func TestService_SyncInventory(t *testing.T) {
-	setMDMFeatureActive(t, true)
-
 	env := testenv.MustNew()
 	defer env.Close()
 
@@ -683,8 +681,6 @@ func runSyncInventoryTests(t *testing.T, ctx context.Context, devices devicepb.D
 }
 
 func TestService_SyncInventory_audit(t *testing.T) {
-	setMDMFeatureActive(t, true)
-
 	emitter := &eventstest.MockEmitter{}
 	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
@@ -762,8 +758,6 @@ func TestService_SyncInventory_audit(t *testing.T) {
 }
 
 func TestService_SyncInventory_devicesToRemove(t *testing.T) {
-	setMDMFeatureActive(t, true)
-
 	emitter := &eventstest.MockEmitter{}
 	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
@@ -940,8 +934,6 @@ func TestService_SyncInventory_devicesToRemove(t *testing.T) {
 // TestService_SyncInventory_missingDevices tests missing devices aspects not
 // covered by TestService_SyncInventory.
 func TestService_SyncInventory_missingDevices(t *testing.T) {
-	setMDMFeatureActive(t, true)
-
 	env := testenv.MustNew()
 	defer env.Close()
 

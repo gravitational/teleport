@@ -29,7 +29,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	"github.com/gravitational/teleport/e/lib/devicetrust/devicetrustv1"
 	"github.com/gravitational/teleport/e/lib/devicetrust/testenv"
 	"github.com/gravitational/teleport/lib/authz"
@@ -39,8 +38,6 @@ import (
 )
 
 func TestService_authz(t *testing.T) {
-	setMDMFeatureActive(t, true)
-
 	authorizer := &fakeAuthorizer{}
 	env := testenv.MustNew(testenv.WithAuthorizer(authorizer))
 	defer env.Close()
@@ -738,10 +735,9 @@ func TestService_UpdateDevice(t *testing.T) {
 	}
 
 	tests := []struct {
-		name             string
-		mdmFeatureActive bool
-		req              *devicepb.UpdateDeviceRequest
-		assertDev        func(t *testing.T, updated *devicepb.Device)
+		name      string
+		req       *devicepb.UpdateDeviceRequest
+		assertDev func(t *testing.T, updated *devicepb.Device)
 	}{
 		{
 			name: "unenroll",
@@ -765,8 +761,7 @@ func TestService_UpdateDevice(t *testing.T) {
 			},
 		},
 		{
-			name:             "source and profile",
-			mdmFeatureActive: true,
+			name: "source and profile",
 			req: &devicepb.UpdateDeviceRequest{
 				Device: &devicepb.Device{
 					Id:      profileBase.Id,
@@ -800,7 +795,6 @@ func TestService_UpdateDevice(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			setMDMFeatureActive(t, test.mdmFeatureActive)
 			emitter.Reset()
 
 			updated, err := devices.UpdateDevice(ctx, test.req)
@@ -1662,8 +1656,6 @@ func TestService_CreateDeviceEnrollToken(t *testing.T) {
 }
 
 func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
-	setMDMFeatureActive(t, true)
-
 	// Prepare an authorizer and a set of users with the following powers:
 	// - adminUser: logged in and has all necessary verbs
 	// - endUser: logged in but has no device verbs
@@ -2005,9 +1997,6 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 	devices := env.DevicesClient
 	ctx := context.Background()
 
-	// Enable MDM fields and features like profile validation.
-	setMDMFeatureActive(t, true /* active */)
-
 	// Create a device with a profile for testing.
 	// This raises the bar that collected data has to meet.
 	dev, key, err := createAndEnroll(ctx, devices, &devicepb.Device{
@@ -2073,12 +2062,6 @@ func TestService_dataDriftErrorsRedacted(t *testing.T) {
 			}
 		})
 	}
-}
-
-func setMDMFeatureActive(t *testing.T, active bool) {
-	prev := dtent.MDMFeatureActive
-	t.Cleanup(func() { dtent.MDMFeatureActive = prev })
-	dtent.MDMFeatureActive = active
 }
 
 type wantEvent struct {

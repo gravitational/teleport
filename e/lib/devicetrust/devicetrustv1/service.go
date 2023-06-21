@@ -9,7 +9,6 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 
@@ -20,7 +19,6 @@ import (
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	dtent "github.com/gravitational/teleport/e/lib/devicetrust"
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
@@ -483,9 +481,7 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	autoEnrollEnabled := dtent.MDMFeatureActive &&
-		authPref.GetDeviceTrust() != nil &&
-		authPref.GetDeviceTrust().AutoEnroll
+	autoEnrollEnabled := authPref.GetDeviceTrust() != nil && authPref.GetDeviceTrust().AutoEnroll
 
 	// Verify access to the necessary verbs.
 	// It's possible to issue an enroll token without the verb if auto-enrollment
@@ -711,11 +707,6 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 }
 
 func (s *Service) SyncInventory(stream devicepb.DeviceTrustService_SyncInventoryServer) error {
-	if !dtent.MDMFeatureActive {
-		// Mimic gRPC error.
-		return status.Errorf(codes.Unimplemented, "method SyncInventory not implemented")
-	}
-
 	ctx := stream.Context()
 	if err := s.authorizeVerbs(ctx, types.KindDevice, []string{types.VerbCreate, types.VerbUpdate, types.VerbDelete}); err != nil {
 		return trace.Wrap(err)

@@ -516,6 +516,11 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 		}
 
 		group.Go(func() error {
+			// Note: this query is rather conservative and, because of it, we might
+			// keep around devices that would otherwise not show up in queries (for
+			// example, if further RSQL filters are applied).
+			// This seems OK for the moment, as devices can be removed by other means
+			// (such as `tctl devices rm`), but it is a point of attention.
 			computer, err := s.jamf.GetComputersInventoryByID(groupCtx, &jamf.GetComputersInventoryByIDRequest{
 				ID: id,
 				Section: []string{
@@ -527,7 +532,7 @@ func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.D
 			apiErr := &jamf.APIError{}
 			switch {
 			case errors.As(err, &apiErr) && apiErr.StatusCode == 404:
-				// Safe to remove, doesn't exist on Jamf.
+				s.logger.WithField("Device", dev).Debug("Marking unknown device for removal")
 				markForRemoval(dev)
 			case err != nil: // Unexpected error
 				s.logger.
