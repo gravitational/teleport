@@ -291,6 +291,32 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 	}
 }
 
+func TestSetIndexContentSecurityPolicyWithWasm(t *testing.T) {
+	t.Parallel()
+
+	expectedCspVals := map[string]string{
+		"default-src":     "'self'",
+		"base-uri":        "'self'",
+		"form-action":     "'self'",
+		"frame-ancestors": "'none'",
+		"object-src":      "'none'",
+		"script-src":      "'self' https://js.stripe.com 'wasm-unsafe-eval'",
+		"frame-src":       "https://js.stripe.com",
+		"style-src":       "'self' 'unsafe-inline'",
+		"img-src":         "'self' data: blob:",
+		"font-src":        "'self' data:",
+		"connect-src":     "'self' wss:",
+	}
+
+	h := make(http.Header)
+	SetIndexContentSecurityPolicyWithWasm(h)
+	actualCsp := h.Get("Content-Security-Policy")
+	for k, v := range expectedCspVals {
+		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
+		require.Contains(t, actualCsp, expectedCspSubString)
+	}
+}
+
 func TestSetAppLaunchContentSecurityPolicy(t *testing.T) {
 	t.Parallel()
 
@@ -343,4 +369,5 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
 		require.Contains(t, actualCsp, expectedCspSubString)
 	}
+
 }

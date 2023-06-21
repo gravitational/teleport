@@ -13,10 +13,10 @@
 // limitations under the License.
 import Logger from 'shared/libs/logger';
 
+import init, { init_wasm_log, FastPathProcessor } from 'teleport/ironrdp/pkg';
+
 import { WebsocketCloseCode, TermEvent } from 'teleport/lib/term/enums';
 import { EventEmitterWebAuthnSender } from 'teleport/lib/EventEmitterWebAuthnSender';
-
-import init, { init_wasm_log, FastPathProcessor } from 'teleport/ironrdp/pkg';
 
 import Codec, {
   MessageType,

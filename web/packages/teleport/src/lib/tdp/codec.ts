@@ -289,11 +289,6 @@ function toSharedDirectoryErrCode(errCode: number): SharedDirectoryErrCode {
   return errCode as SharedDirectoryErrCode;
 }
 
-// // | message type (29) | data_length uint32 | data []byte |
-// export type RDPFastPathPDU = {
-//   data: Uint8Array;
-// };
-
 // TdaCodec provides an api for encoding and decoding teleport desktop access protocol messages [1]
 // Buffers in TdaCodec are manipulated as DataView's [2] in order to give us low level control
 // of endianness (defaults to big endian, which is what we want), as opposed to using *Array
