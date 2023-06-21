@@ -217,24 +217,15 @@ infrastructure by registering a server with your Teleport Team cluster. From
 here, you can explore more of the documentation to see how to set up secure
 access for your infrastructure.
 
-### Register resources
+To enroll your infrastructure with Teleport, you deploy one or more Teleport
+**agents**, which proxy traffic to resources like servers, databases, Kubernetes
+clusters, cloud provider APIs, and Windows desktops.
 
-Read about how you can register resources in your infrastructure, including:
+You can use Terraform to declare a pool of Teleport agents and configure them to
+proxy your infrastructure. Read [Deploy Teleport Agents with
+Terraform](agents/deploy-agents-terraform.mdx).
 
-  - [Additional SSH servers](../server-access/introduction.mdx)
-  - [Cloud provider tools and internal web applications](../application-access/introduction.mdx)
-  - [Databases](../database-access/introduction.mdx)
-  - [Kubernetes clusters](../kubernetes-access/introduction.mdx)
-  - [Service accounts](../machine-id/introduction.mdx)
-  - [Windows desktops](../desktop-access/introduction.mdx)
-
-### Connect to your infrastructure
-
-Aside from `tsh` and the Web UI, you can also connect to Teleport with our
-desktop application, [Teleport
-Connect](../connect-your-client/teleport-connect.mdx).
-
-### Subscribe
+## Subscribe
 
 After you finish your free trial, Teleport Team will charge based on usage.
 Check the [pricing page](https://goteleport.com/pricing/) for detailed
