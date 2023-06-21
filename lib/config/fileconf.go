@@ -1695,7 +1695,7 @@ type Databases struct {
 	// Databases is a list of databases proxied by the service.
 	Databases []*Database `yaml:"databases"`
 	// ResourceMatchers match cluster database resources.
-	ResourceMatchers []DatabaseResourceMatcher `yaml:"resources,omitempty"`
+	ResourceMatchers []ResourceMatcher `yaml:"resources,omitempty"`
 	// AWSMatchers match AWS-hosted databases.
 	AWSMatchers []AWSMatcher `yaml:"aws,omitempty"`
 	// AzureMatchers match Azure hosted databases.
@@ -1704,12 +1704,6 @@ type Databases struct {
 
 // ResourceMatcher matches cluster resources.
 type ResourceMatcher struct {
-	// Labels match resource labels.
-	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
-}
-
-// DatabaseResourceMatcher matches database resources.
-type DatabaseResourceMatcher struct {
 	// Labels match resource labels.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 	// AWS contains AWS specific settings.
