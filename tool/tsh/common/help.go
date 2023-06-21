@@ -42,7 +42,7 @@ EXAMPLES:
 
 	// emptyNodesFooter is printed at the bottom of `tsh ls` when no results are returned for nodes.
 	emptyNodesFooter = `
-  Not seeing nodes? Either no nodes are available or roles for your user do not match to node labels.
+  Not seeing nodes? Either no nodes are available or your user's roles do not match the labels of at least one node.
 
   Check with your Teleport cluster administrator that your user's roles should have nodes available.
   `
