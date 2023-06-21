@@ -15,15 +15,13 @@
  */
 
 import React from 'react';
-import { render } from 'design/utils/testing';
-
+import { render, waitFor } from 'design/utils/testing';
 import { createMemoryHistory } from 'history';
 import { Router } from 'react-router';
 
 import { Route } from 'teleport/components/Router';
-
+import api from 'teleport/services/api';
 import cfg from 'teleport/config';
-
 import service from 'teleport/services/apps';
 
 import { AppLauncher } from './AppLauncher';
@@ -51,4 +49,76 @@ test('arn is url decoded', () => {
     publicAddr: 'test-app.test.teleport',
     arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
   });
+});
+
+const testCases = [
+  {
+    queryParams: '?path=%2F',
+    expectedPath: '/',
+  },
+  {
+    queryParams: '?path=%2Flogin',
+    expectedPath: '/login',
+  },
+  {
+    queryParams: '?path=%2Ffoo%2Fbar&fruit=apple&os=mac',
+    expectedPath: '/foo/bar?fruit=apple&os=mac',
+  },
+  {
+    queryParams: '?path=',
+    expectedPath: '/',
+  },
+  {
+    queryParams: '?path=&fruit=apple',
+    expectedPath: '/?fruit=apple',
+  },
+  {
+    queryParams:
+      '?path=%2Falerting%2Flist&search=state:pending%20type:recording%20health:error',
+    expectedPath:
+      '/alerting/list?search=state:pending+type:recording+health:error',
+  },
+];
+
+describe('app launcher path is properly formed', () => {
+  const realLocation = window.location;
+  const assignMock = jest.fn();
+
+  beforeEach(() => {
+    global.fetch = jest.fn(() => Promise.resolve({})) as jest.Mock;
+    jest.spyOn(api, 'get').mockResolvedValue({});
+    jest.spyOn(api, 'post').mockResolvedValue({});
+
+    delete window.location;
+    window.location = { ...realLocation, replace: assignMock };
+  });
+
+  afterEach(() => {
+    window.location = realLocation;
+    assignMock.mockClear();
+  });
+
+  test.each(testCases)(
+    '$queryParams',
+    async ({ queryParams, expectedPath }) => {
+      const launcherPath = `/web/launch/grafana.localhost${queryParams}`;
+      const mockHistory = createMemoryHistory({
+        initialEntries: [launcherPath],
+      });
+
+      render(
+        <Router history={mockHistory}>
+          <Route path={cfg.routes.appLauncher}>
+            <AppLauncher />
+          </Route>
+        </Router>
+      );
+
+      await waitFor(() =>
+        expect(window.location.replace).toHaveBeenCalledWith(
+          `https://grafana.localhost${expectedPath}`
+        )
+      );
+    }
+  );
 });

@@ -51,6 +51,7 @@ export function AppLauncher() {
 
       const session = await service.createAppSession(params);
 
+      // Setting cookie
       await fetch(`https://${fqdn}${port}/x-teleport-auth`, {
         method: 'POST',
         credentials: 'include',
@@ -66,6 +67,12 @@ export function AppLauncher() {
 
         if (!path.startsWith('/')) {
           path = `/${path}`;
+        }
+
+        queryParams.delete('path');
+        const originalQuery = queryParams.toString();
+        if (originalQuery) {
+          path += '?' + decodeURIComponent(originalQuery);
         }
       }
 
