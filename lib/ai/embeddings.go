@@ -81,17 +81,19 @@ func EmbeddingHashMatches(embedding *Embedding, hash Sha256Hash) bool {
 	return *(*Sha256Hash)(embedding.EmbeddedHash) == hash
 }
 
-// serializeNode converts a type.Server into text ready to be fed to an
+// SerializeNode converts a type.Server into text ready to be fed to an
 // embedding model. The YAML serialization function was chosen over JSON and
 // CSV as it provided better results.
-func serializeNode(node types.Server) ([]byte, error) {
+func SerializeNode(node types.Server) ([]byte, error) {
 	a := struct {
+		ID      string            `yaml:"id"`
 		Name    string            `yaml:"name"`
 		Kind    string            `yaml:"kind"`
 		SubKind string            `yaml:"subkind"`
 		Labels  map[string]string `yaml:"labels"`
 	}{
-		Name:    node.GetName(),
+		ID:      node.GetName(),
+		Name:    node.GetHostname(),
 		Kind:    types.KindNode,
 		SubKind: node.GetSubKind(),
 		Labels:  node.GetAllLabels(),
@@ -145,31 +147,34 @@ func (b *BatchReducer[T, V]) Finalize(ctx context.Context) (V, error) {
 
 // EmbeddingProcessorConfig is the configuration for EmbeddingProcessor.
 type EmbeddingProcessorConfig struct {
-	AIClient     Embedder
-	EmbeddingSrv Embeddings
-	NodeSrv      NodesStreamGetter
-	Log          logrus.FieldLogger
-	Jitter       retryutils.Jitter
+	AIClient      Embedder
+	EmbeddingSrv  Embeddings
+	EmbeddingsMap *SimpleRetriever
+	NodeSrv       NodesStreamGetter
+	Log           logrus.FieldLogger
+	Jitter        retryutils.Jitter
 }
 
 // EmbeddingProcessor is responsible for processing nodes, generating embeddings
 // and storing their the embeddings in the backend.
 type EmbeddingProcessor struct {
-	aiClient     Embedder
-	embeddingSrv Embeddings
-	nodeSrv      NodesStreamGetter
-	log          logrus.FieldLogger
-	jitter       retryutils.Jitter
+	aiClient      Embedder
+	embeddingSrv  Embeddings
+	embeddingsMap *SimpleRetriever
+	nodeSrv       NodesStreamGetter
+	log           logrus.FieldLogger
+	jitter        retryutils.Jitter
 }
 
 // NewEmbeddingProcessor returns a new EmbeddingProcessor.
 func NewEmbeddingProcessor(cfg *EmbeddingProcessorConfig) *EmbeddingProcessor {
 	return &EmbeddingProcessor{
-		aiClient:     cfg.AIClient,
-		embeddingSrv: cfg.EmbeddingSrv,
-		nodeSrv:      cfg.NodeSrv,
-		log:          cfg.Log,
-		jitter:       cfg.Jitter,
+		aiClient:      cfg.AIClient,
+		embeddingSrv:  cfg.EmbeddingSrv,
+		embeddingsMap: cfg.EmbeddingsMap,
+		nodeSrv:       cfg.NodeSrv,
+		log:           cfg.Log,
+		jitter:        cfg.Jitter,
 	}
 }
 
@@ -206,6 +211,10 @@ func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*nodeStrin
 
 // Run runs the EmbeddingProcessor.
 func (e *EmbeddingProcessor) Run(ctx context.Context, period time.Duration) error {
+	time.Sleep(10 * time.Second)
+	e.log.Debugf("embedding processor started")
+	e.process(ctx)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -229,7 +238,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 		embeddingsStream,
 		// On new node callback. Add the node to the batch.
 		func(node types.Server) error {
-			nodeData, err := serializeNode(node)
+			nodeData, err := SerializeNode(node)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -246,7 +255,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 		// On equal node callback. Check if the node's embedding hash matches
 		// the one in the backend. If not, add the node to the batch.
 		func(node types.Server, embedding *Embedding) error {
-			nodeData, err := serializeNode(node)
+			nodeData, err := SerializeNode(node)
 			if err != nil {
 				return trace.Wrap(err)
 			}
@@ -286,7 +295,30 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 
 	if err := e.upsertEmbeddings(ctx, vectors); err != nil {
 		e.log.Warnf("Failed to upsert embeddings: %v", err)
+
 	}
+
+	if err := e.updateMemIndex(ctx); err != nil {
+		e.log.Warnf("Failed to update memory index: %v", err)
+	}
+}
+
+func (e *EmbeddingProcessor) updateMemIndex(ctx context.Context) error {
+	embeddingsIndex := NewSimpleRetriever()
+	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx, types.KindNode)
+
+	for embeddingsStream.Next() {
+		embedding := embeddingsStream.Item()
+		embeddingsIndex.Insert(embedding.GetEmbeddedID(), embedding)
+	}
+
+	if err := embeddingsStream.Done(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	e.embeddingsMap.Swap(embeddingsIndex)
+
+	return nil
 }
 
 // upsertEmbeddings is a helper function that upserts the embeddings into the backend.

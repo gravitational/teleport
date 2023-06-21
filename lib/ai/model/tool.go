@@ -19,6 +19,10 @@ package model
 import (
 	"context"
 	"fmt"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/api/types"
+	log "github.com/sirupsen/logrus"
+	"strings"
 
 	"github.com/gravitational/trace"
 )
@@ -28,7 +32,7 @@ import (
 type Tool interface {
 	Name() string
 	Description() string
-	Run(ctx context.Context, input string) (string, error)
+	Run(ctx context.Context, input string) (*stepOutput, error)
 }
 type commandExecutionTool struct{}
 
@@ -61,13 +65,13 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (c *commandExecutionTool) Run(ctx context.Context, input string) (string, error) {
+func (c *commandExecutionTool) Run(ctx context.Context, input string) (*stepOutput, error) {
 	// This is stubbed because commandExecutionTool is handled specially.
 	// This is because execution of this tool breaks the loop and returns a command suggestion to the user.
 	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
 	//
 	// In addition, treating it as a Tool interface item simplifies the display and prompt assembly logic significantly.
-	return "", trace.NotImplemented("not implemented")
+	return nil, trace.NotImplemented("not implemented")
 }
 
 // parseInput is called in a special case if the planned tool is commandExecutionTool.
@@ -89,6 +93,84 @@ func (*commandExecutionTool) parseInput(input string) (*commandExecutionToolInpu
 		return nil, &invalidOutputError{
 			coarse: "command execution: missing nodes or labels",
 			detail: "at least one node or label must be specified",
+		}
+	}
+
+	return &output, nil
+}
+
+type embeddingRetrievalTool struct {
+	assistClient assist.AssistEmbeddingServiceClient
+	currentUser  string
+}
+
+type embeddingRetrievalToolInput struct {
+	Question string `json:"question"`
+}
+
+func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (*stepOutput, error) {
+	//inputCmd, outErr := e.parseInput(input)
+	//if outErr != nil {
+	//	return "", trace.Errorf(outErr.detail)
+	//}
+	log.Tracef("embedding retrieval input: %v", input)
+
+	resp, err := e.assistClient.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
+		Username:     e.currentUser,
+		Kind:         types.KindNode, // currently only node embeddings are supported
+		Limit:        10,
+		ContentQuery: input,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	sb := strings.Builder{}
+	for _, embedding := range resp.Embeddings {
+		sb.WriteString(embedding.Content)
+		sb.WriteString("\n")
+	}
+
+	log.Tracef("embedding retrieval: %v", sb.String())
+
+	if sb.Len() == 0 {
+		return &stepOutput{
+			finish: &agentFinish{
+				output: &Message{
+					Content: "Didn't find any nodes matching your query",
+				},
+			},
+		}, nil
+	}
+
+	return &stepOutput{observation: sb.String()}, nil
+}
+
+func (e *embeddingRetrievalTool) Name() string {
+	return "Nodes names and labels retrieval"
+}
+
+func (e *embeddingRetrievalTool) Description() string {
+	return fmt.Sprintf(`Ask about existing remote hosts to fetch node names or/and set of labels. Use this capability instead of guessing the names and labels.
+The input must be a JSON object with the following schema:
+%vjson
+{
+	"question": string \\ Question about the available remote hosts
+}
+%v
+`, "```", "```")
+}
+
+func (*embeddingRetrievalTool) parseInput(input string) (*embeddingRetrievalToolInput, *invalidOutputError) {
+	output, err := parseJSONFromModel[embeddingRetrievalToolInput](input)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(output.Question) == 0 {
+		return nil, &invalidOutputError{
+			coarse: "embedding retrieval: missing question",
+			detail: "question must be non-empty",
 		}
 	}
 

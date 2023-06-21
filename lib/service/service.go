@@ -1619,6 +1619,11 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
+	var openAIClient *ai.Client
+	if cfg.Auth.AssistAPIKey != "" {
+		openAIClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+	}
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1657,6 +1662,7 @@ func (process *TeleportProcess) initAuthService() error {
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
 		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+		OpenAIClient:            openAIClient,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1699,11 +1705,12 @@ func (process *TeleportProcess) initAuthService() error {
 	if cfg.Auth.AssistAPIKey != "" {
 		openAIClient := ai.NewClient(cfg.Auth.AssistAPIKey)
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
-			AIClient:     openAIClient,
-			EmbeddingSrv: authServer,
-			NodeSrv:      authServer,
-			Log:          log,
-			Jitter:       retryutils.NewFullJitter(),
+			AIClient:      openAIClient,
+			EmbeddingsMap: authServer.EmbeddingsMap,
+			EmbeddingSrv:  authServer,
+			NodeSrv:       authServer,
+			Log:           log,
+			Jitter:        retryutils.NewFullJitter(),
 		})
 
 		process.RegisterFunc("ai.embedding-processor", func() error {

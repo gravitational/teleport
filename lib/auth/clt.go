@@ -18,6 +18,7 @@ package auth
 
 import (
 	"context"
+	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"net"
 	"net/url"
 	"time"
@@ -732,6 +733,9 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	LoginRuleClient() loginrulepb.LoginRuleServiceClient
+
+	// EmbeddingClient returns a client to the Embedding gRPC service.
+	EmbeddingClient() assistpb.AssistEmbeddingServiceClient
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)

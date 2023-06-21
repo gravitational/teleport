@@ -18,6 +18,7 @@ package ai
 
 import (
 	"context"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
@@ -43,7 +44,7 @@ func NewClientFromConfig(config openai.ClientConfig) *Client {
 
 // NewChat creates a new chat. The username is set in the conversation context,
 // so that the AI can use it to personalize the conversation.
-func (client *Client) NewChat(username string) *Chat {
+func (client *Client) NewChat(assistClient assist.AssistEmbeddingServiceClient, username string) *Chat {
 	return &Chat{
 		client: client,
 		messages: []openai.ChatCompletionMessage{
@@ -55,6 +56,7 @@ func (client *Client) NewChat(username string) *Chat {
 		// Initialize a tokenizer for prompt token accounting.
 		// Cl100k is used by GPT-3 and GPT-4.
 		tokenizer: codec.NewCl100kBase(),
+		agent:     model.NewAgent(assistClient, username),
 	}
 }
 
