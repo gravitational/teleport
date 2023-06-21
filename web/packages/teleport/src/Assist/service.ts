@@ -27,7 +27,12 @@ import { EventType } from 'teleport/lib/term/enums';
 
 import NodeService from 'teleport/services/nodes';
 
-import { ServerMessageType } from './types';
+import {
+  GetSettingsResponse,
+  ServerMessageType,
+  Settings,
+  ViewMode,
+} from './types';
 
 import type {
   CommandResultPayload,
@@ -55,6 +60,25 @@ export async function loadConversations(): Promise<Conversation[]> {
     title: title || 'New Conversation',
     created: new Date(created_time),
   }));
+}
+
+export async function loadSettings(): Promise<Settings> {
+  const settings: GetSettingsResponse = await api.get(
+    cfg.api.assistSettingsPath
+  );
+
+  return {
+    preferredLogins: settings.preferred_logins,
+    viewMode: settings.view_mode,
+    sidebarVisible: settings.view_mode === ViewMode.PopupExpandedSidebarVisible,
+  };
+}
+
+export function updateSettings(settings: Settings): Promise<void> {
+  return api.put(cfg.api.assistSettingsPath, {
+    preferred_logins: settings.preferredLogins,
+    view_mode: settings.viewMode,
+  });
 }
 
 export async function resolveServerMessage(

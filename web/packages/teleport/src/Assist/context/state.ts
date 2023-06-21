@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ServerMessageType } from 'teleport/Assist/types';
+import { ServerMessageType, Settings, ViewMode } from 'teleport/Assist/types';
 
 import type {
   Conversation,
@@ -24,6 +24,13 @@ import type {
 } from 'teleport/Assist/types';
 
 export interface AssistState {
+  settings: {
+    loading: boolean;
+    error?: string;
+    preferredLogins: string[];
+    viewMode: ViewMode;
+    sidebarVisible: boolean;
+  };
   conversations: {
     selectedId: string | null;
     error?: string;
@@ -60,6 +67,9 @@ export enum AssistStateActionType {
   PromptMfa,
   DeleteConversation,
   UpdateConversationTitle,
+  ReplaceSettings,
+  ToggleSidebar,
+  SetSettingsError,
 }
 
 export interface ReplaceConversationsAction {
@@ -164,6 +174,21 @@ export interface UpdateConversationTitleAction {
   title: string;
 }
 
+export interface ReplaceSettingsAction {
+  type: AssistStateActionType.ReplaceSettings;
+  settings: Settings;
+}
+
+export interface ToggleSidebarAction {
+  type: AssistStateActionType.ToggleSidebar;
+  visible: boolean;
+}
+
+export interface SetSettingsErrorAction {
+  type: AssistStateActionType.SetSettingsError;
+  error: string;
+}
+
 export type AssistContextAction =
   | SetConversationsLoadingAction
   | ReplaceConversationsAction
@@ -181,7 +206,10 @@ export type AssistContextAction =
   | FinishCommandResultAction
   | PromptMfaAction
   | DeleteConversationAction
-  | UpdateConversationTitleAction;
+  | UpdateConversationTitleAction
+  | ReplaceSettingsAction
+  | ToggleSidebarAction
+  | SetSettingsErrorAction;
 
 export function reducer(
   state: AssistState,
@@ -238,6 +266,15 @@ export function reducer(
 
     case AssistStateActionType.UpdateConversationTitle:
       return updateConversationTitle(state, action);
+
+    case AssistStateActionType.ReplaceSettings:
+      return replaceSettings(state, action);
+
+    case AssistStateActionType.ToggleSidebar:
+      return toggleSidebar(state, action);
+
+    case AssistStateActionType.SetSettingsError:
+      return setSettingsError(state, action);
 
     default:
       return state;
@@ -605,7 +642,7 @@ export function promptMfa(
 export function deleteConversation(
   state: AssistState,
   action: DeleteConversationAction
-) {
+): AssistState {
   const conversations = state.conversations.data;
 
   const newSelectedId =
@@ -628,7 +665,7 @@ export function deleteConversation(
 export function updateConversationTitle(
   state: AssistState,
   action: UpdateConversationTitleAction
-) {
+): AssistState {
   const conversations = state.conversations.data;
 
   return {
@@ -645,6 +682,48 @@ export function updateConversationTitle(
 
         return conversation;
       }),
+    },
+  };
+}
+
+export function replaceSettings(
+  state: AssistState,
+  action: ReplaceSettingsAction
+): AssistState {
+  return {
+    ...state,
+    settings: {
+      loading: false,
+      preferredLogins: action.settings.preferredLogins,
+      viewMode: action.settings.viewMode,
+      sidebarVisible: action.settings.sidebarVisible,
+    },
+  };
+}
+
+export function toggleSidebar(
+  state: AssistState,
+  action: ToggleSidebarAction
+): AssistState {
+  return {
+    ...state,
+    settings: {
+      ...state.settings,
+      sidebarVisible: action.visible,
+    },
+  };
+}
+
+export function setSettingsError(
+  state: AssistState,
+  action: SetSettingsErrorAction
+): AssistState {
+  return {
+    ...state,
+    settings: {
+      ...state.settings,
+      loading: false,
+      error: action.error,
     },
   };
 }

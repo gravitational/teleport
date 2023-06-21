@@ -31,7 +31,7 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
-import { RawPayload, ServerMessageType } from 'teleport/Assist/types';
+import { RawPayload, ServerMessageType, ViewMode } from 'teleport/Assist/types';
 
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 
@@ -47,6 +47,7 @@ import type {
   ConversationMessage,
   ResolvedServerMessage,
   ServerMessage,
+  Settings,
 } from 'teleport/Assist/types';
 import type { AssistState } from 'teleport/Assist/context/state';
 
@@ -59,6 +60,8 @@ interface AssistContextValue {
   sendMfaChallenge: (data: WebauthnAssertionResponse) => void;
   selectedConversationMessages: ConversationMessage[];
   setSelectedConversationId: (conversationId: string) => Promise<void>;
+  toggleSidebar: (visible: boolean) => void;
+  updateSettings: (settings: Settings) => Promise<void>;
 }
 
 const AssistContext = createContext<AssistState & AssistContextValue>(null);
@@ -75,6 +78,12 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   const { clusterId } = useStickyClusterId();
 
   const [state, dispatch] = useReducer(reducer, {
+    settings: {
+      loading: true,
+      preferredLogins: [],
+      viewMode: ViewMode.Docked,
+      sidebarVisible: false,
+    },
     conversations: {
       loading: false,
       data: [],
@@ -103,6 +112,23 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       type: AssistStateActionType.ReplaceConversations,
       conversations,
     });
+  }
+
+  async function loadSettings() {
+    try {
+      const settings = await service.loadSettings();
+
+      dispatch({
+        type: AssistStateActionType.ReplaceSettings,
+        settings,
+      });
+    } catch (err) {
+      dispatch({
+        type: AssistStateActionType.SetSettingsError,
+        error:
+          'Failed to load settings. This session will use the default settings.',
+      });
+    }
   }
 
   function setupWebSocket(conversationId: string, initialMessage?: string) {
@@ -491,7 +517,24 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     });
   }
 
+  async function updateSettings(settings: Settings) {
+    await service.updateSettings(settings);
+
+    dispatch({
+      type: AssistStateActionType.ReplaceSettings,
+      settings,
+    });
+  }
+
+  function toggleSidebar(visible: boolean) {
+    dispatch({
+      type: AssistStateActionType.ToggleSidebar,
+      visible,
+    });
+  }
+
   useEffect(() => {
+    loadSettings();
     loadConversations();
   }, []);
 
@@ -517,6 +560,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
         sendMessage,
         sendMfaChallenge,
         setSelectedConversationId,
+        toggleSidebar,
+        updateSettings,
       }}
     >
       {props.children}

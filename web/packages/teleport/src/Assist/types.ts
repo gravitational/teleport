@@ -33,6 +33,24 @@ export interface Conversation {
   created: Date;
 }
 
+export enum ViewMode {
+  Docked = 1,
+  Popup = 2,
+  PopupExpanded = 3,
+  PopupExpandedSidebarVisible = 4,
+}
+
+export interface GetSettingsResponse {
+  preferred_logins: string[];
+  view_mode: ViewMode;
+}
+
+export interface Settings {
+  preferredLogins: string[];
+  viewMode: ViewMode;
+  sidebarVisible: boolean;
+}
+
 export interface GetConversationsResponse {
   conversations: [
     {

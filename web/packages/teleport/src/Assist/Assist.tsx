@@ -14,17 +14,20 @@
  * limitations under the License.
  */
 
-import React, { useEffect } from 'react';
+import React, { PropsWithChildren, useEffect, useState } from 'react';
 import styled, { keyframes } from 'styled-components';
-
-import { useLocalStorage } from 'shared/hooks/useLocalStorage';
 
 import { Header } from 'teleport/Assist/Header';
 import { ConversationHistory } from 'teleport/Assist/ConversationHistory';
-import { AssistContextProvider } from 'teleport/Assist/context/AssistContext';
+import {
+  AssistContextProvider,
+  useAssist,
+} from 'teleport/Assist/context/AssistContext';
 import { ConversationList } from 'teleport/Assist/ConversationList';
-import { KeysEnum } from 'teleport/services/localStorage';
 import { useLayout } from 'teleport/Main/LayoutContext';
+import { ViewMode } from 'teleport/Assist/types';
+import { Settings } from 'teleport/Assist/Settings';
+import { ErrorBanner, ErrorList } from 'teleport/Assist/ErrorBanner';
 
 interface AssistProps {
   onClose: () => void;
@@ -50,10 +53,9 @@ const slideIn = keyframes`
   }
 `;
 
-function variables(props: { viewMode: AssistViewMode }) {
+function variables(props: { viewMode: ViewMode }) {
   switch (props.viewMode) {
-    case AssistViewMode.Collapsed:
-    case AssistViewMode.CollapsedSidebarVisible:
+    case ViewMode.Popup:
       return {
         '--assist-gutter': '20px',
         '--assist-border-radius': '15px',
@@ -67,8 +69,8 @@ function variables(props: { viewMode: AssistViewMode }) {
         '--assist-bottom-padding': '5px',
       };
 
-    case AssistViewMode.Expanded:
-    case AssistViewMode.ExpandedSidebarVisible:
+    case ViewMode.PopupExpanded:
+    case ViewMode.PopupExpandedSidebarVisible:
       return {
         '--assist-gutter': '20px',
         '--assist-border-radius': '15px',
@@ -82,8 +84,7 @@ function variables(props: { viewMode: AssistViewMode }) {
         '--assist-bottom-padding': '5px',
       };
 
-    case AssistViewMode.Docked:
-    case AssistViewMode.DockedSidebarVisible:
+    case ViewMode.Docked:
       return {
         '--assist-gutter': '0',
         '--assist-border-radius': '0',
@@ -99,9 +100,23 @@ function variables(props: { viewMode: AssistViewMode }) {
   }
 }
 
-function sidebarVariables(props: { viewMode: AssistViewMode }) {
+function sidebarVariables(props: {
+  viewMode: ViewMode;
+  sidebarVisible: boolean;
+}) {
   switch (props.viewMode) {
-    case AssistViewMode.Collapsed:
+    case ViewMode.Popup:
+      if (props.sidebarVisible) {
+        return {
+          '--conversation-width': '550px',
+          '--conversation-list-width': '550px',
+          '--conversation-list-margin': '0',
+          '--command-input-width': '400px',
+          '--conversation-list-display': 'flex',
+          '--conversation-list-position': 'absolute',
+        };
+      }
+
       return {
         '--conversation-width': '555px',
         '--conversation-list-width': '550px',
@@ -112,17 +127,19 @@ function sidebarVariables(props: { viewMode: AssistViewMode }) {
         '--conversation-list-position': 'absolute',
       };
 
-    case AssistViewMode.CollapsedSidebarVisible:
-      return {
-        '--conversation-width': '550px',
-        '--conversation-list-width': '550px',
-        '--conversation-list-margin': '0',
-        '--command-input-width': '400px',
-        '--conversation-list-display': 'flex',
-        '--conversation-list-position': 'absolute',
-      };
+    case ViewMode.PopupExpanded:
+    case ViewMode.PopupExpandedSidebarVisible:
+      if (props.sidebarVisible) {
+        return {
+          '--conversation-list-margin': '0',
+          '--conversation-width': '900px',
+          '--conversation-list-width': '250px',
+          '--command-input-width': '600px',
+          '--conversation-list-display': 'flex',
+          '--conversation-list-position': 'static',
+        };
+      }
 
-    case AssistViewMode.Expanded:
       return {
         '--conversation-width': '1100px',
         '--conversation-list-width': '250px',
@@ -133,17 +150,18 @@ function sidebarVariables(props: { viewMode: AssistViewMode }) {
         '--conversation-list-position': 'absolute',
       };
 
-    case AssistViewMode.ExpandedSidebarVisible:
-      return {
-        '--conversation-list-margin': '0',
-        '--conversation-width': '850px',
-        '--conversation-list-width': '250px',
-        '--command-input-width': '600px',
-        '--conversation-list-display': 'flex',
-        '--conversation-list-position': 'static',
-      };
+    case ViewMode.Docked:
+      if (props.sidebarVisible) {
+        return {
+          '--conversation-width': '520px',
+          '--conversation-list-width': '520px',
+          '--conversation-list-margin': '0',
+          '--command-input-width': '380px',
+          '--conversation-list-display': 'flex',
+          '--conversation-list-position': 'absolute',
+        };
+      }
 
-    case AssistViewMode.Docked:
       return {
         '--conversation-width': '525px',
         '--conversation-list-width': '520px',
@@ -151,16 +169,6 @@ function sidebarVariables(props: { viewMode: AssistViewMode }) {
           'calc((var(--conversation-list-width) * -1) - 1px)',
         '--command-input-width': '380px',
         '--conversation-list-display': 'none',
-        '--conversation-list-position': 'absolute',
-      };
-
-    case AssistViewMode.DockedSidebarVisible:
-      return {
-        '--conversation-width': '520px',
-        '--conversation-list-width': '520px',
-        '--conversation-list-margin': '0',
-        '--command-input-width': '380px',
-        '--conversation-list-display': 'flex',
         '--conversation-list-position': 'absolute',
       };
   }
@@ -217,148 +225,181 @@ const AssistConversation = styled.div`
   height: 100%;
 `;
 
-const AssistContent = styled.div`
+const Content = styled.div`
   flex: 1;
   overflow-y: auto;
   overflow-x: hidden;
   display: flex;
+  position: relative;
 `;
 
-export enum AssistViewMode {
-  Collapsed = 'collapsed',
-  CollapsedSidebarVisible = 'collapsed-sidebar-visible',
-  Expanded = 'expanded',
-  ExpandedSidebarVisible = 'expanded-sidebar-visible',
-  Docked = 'docked',
-  DockedSidebarVisible = 'docked-sidebar-visible',
-}
-
-function isDocked(viewMode: AssistViewMode) {
-  return (
-    viewMode === AssistViewMode.Docked ||
-    viewMode === AssistViewMode.DockedSidebarVisible
-  );
-}
-
-function isSidebarVisible(viewMode: AssistViewMode) {
-  return (
-    viewMode === AssistViewMode.CollapsedSidebarVisible ||
-    viewMode === AssistViewMode.ExpandedSidebarVisible ||
-    viewMode === AssistViewMode.DockedSidebarVisible
-  );
-}
-
 export function Assist(props: AssistProps) {
-  const [viewMode, setViewMode] = useLocalStorage(
-    KeysEnum.ASSIST_VIEW_MODE,
-    AssistViewMode.Collapsed
+  return (
+    <AssistContextProvider>
+      <LoadSettingsWrapper>
+        <AssistContent onClose={props.onClose} />
+      </LoadSettingsWrapper>
+    </AssistContextProvider>
   );
+}
+
+function LoadSettingsWrapper(props: PropsWithChildren<unknown>) {
+  const { settings } = useAssist();
+
+  if (settings.loading) {
+    return null;
+  }
+
+  return <>{props.children}</>;
+}
+
+let errorIndex = 0;
+
+function getInitialErrors(
+  conversations: { error?: string },
+  settings: { error?: string }
+) {
+  const errors = [];
+
+  if (conversations.error) {
+    errors.push({
+      message: conversations.error,
+      index: errorIndex++,
+    });
+  }
+
+  if (settings.error) {
+    errors.push({
+      message: settings.error,
+      index: errorIndex++,
+    });
+  }
+
+  return errors;
+}
+
+function AssistContent(props: AssistProps) {
+  const { conversations, settings, toggleSidebar } = useAssist();
+
+  const [errors, setErrors] = useState<{ message: string; index: number }[]>(
+    getInitialErrors(conversations, settings)
+  );
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [debugMenuEnabled, setDebugMenuEnabled] = useState(false);
 
   const { hasDockedElement, setHasDockedElement } = useLayout();
 
   useEffect(() => {
-    if (!hasDockedElement && isDocked(viewMode)) {
+    if (!hasDockedElement && settings.viewMode === ViewMode.Docked) {
       setHasDockedElement(true);
     }
 
-    if (hasDockedElement && !isDocked(viewMode)) {
+    if (hasDockedElement && settings.viewMode !== ViewMode.Docked) {
       setHasDockedElement(false);
     }
-  }, [hasDockedElement, viewMode]);
+  }, [hasDockedElement, settings.viewMode]);
 
   function handleClick(e: React.MouseEvent<HTMLElement>) {
     e.stopPropagation();
   }
 
   function handleConversationSelect() {
-    if (viewMode === AssistViewMode.CollapsedSidebarVisible) {
-      setViewMode(AssistViewMode.Collapsed);
+    if (!settings.sidebarVisible) {
+      return;
     }
 
-    if (viewMode === AssistViewMode.DockedSidebarVisible) {
-      setViewMode(AssistViewMode.Docked);
+    if (
+      settings.viewMode === ViewMode.Popup ||
+      settings.viewMode === ViewMode.Docked
+    ) {
+      toggleSidebar(false);
     }
-  }
-
-  function handleExpand() {
-    switch (viewMode) {
-      case AssistViewMode.Collapsed:
-        setViewMode(AssistViewMode.Expanded);
-
-        break;
-
-      case AssistViewMode.CollapsedSidebarVisible:
-        setViewMode(AssistViewMode.ExpandedSidebarVisible);
-
-        break;
-
-      case AssistViewMode.Expanded:
-      case AssistViewMode.ExpandedSidebarVisible:
-        setViewMode(AssistViewMode.Collapsed);
-
-        break;
-    }
-  }
-
-  function handleDocking() {
-    switch (viewMode) {
-      case AssistViewMode.Collapsed:
-      case AssistViewMode.CollapsedSidebarVisible:
-      case AssistViewMode.Expanded:
-      case AssistViewMode.ExpandedSidebarVisible:
-        setViewMode(AssistViewMode.Docked);
-
-        break;
-
-      case AssistViewMode.Docked:
-      case AssistViewMode.DockedSidebarVisible:
-        setViewMode(AssistViewMode.Collapsed);
-
-        break;
-    }
-  }
-
-  function handleViewModeChange(viewMode: AssistViewMode) {
-    setViewMode(viewMode);
   }
 
   function handleClose() {
     props.onClose();
     setHasDockedElement(false);
 
-    if (viewMode === AssistViewMode.CollapsedSidebarVisible) {
-      setViewMode(AssistViewMode.Collapsed);
-    }
-
-    if (viewMode === AssistViewMode.DockedSidebarVisible) {
-      setViewMode(AssistViewMode.Docked);
+    if (
+      settings.sidebarVisible &&
+      settings.viewMode !== ViewMode.PopupExpandedSidebarVisible
+    ) {
+      toggleSidebar(false);
     }
   }
 
+  function handleToggleSidebar() {
+    toggleSidebar(!settings.sidebarVisible);
+  }
+
+  function handleDebugMenuToggle(enabled: boolean) {
+    if (process.env.NODE_ENV !== 'development') {
+      throw new Error('Debug menu is only available in development mode');
+    }
+
+    setDebugMenuEnabled(enabled);
+  }
+
+  function handleError(message: string) {
+    setErrors([...errors, { message, index: errorIndex++ }]);
+  }
+
+  function removeError(index: number) {
+    setErrors(errors.filter(error => error.index !== index));
+  }
+
+  if (settings.loading) {
+    return null;
+  }
+
+  const errorList = errors.map(error => (
+    <ErrorBanner key={error.index} onDismiss={() => removeError(error.index)}>
+      {error.message}
+    </ErrorBanner>
+  ));
+
   return (
-    <AssistContextProvider>
-      <Container onClick={handleClose} docked={isDocked(viewMode)}>
-        <AssistContainer onClick={handleClick} viewMode={viewMode}>
-          <Header
-            onClose={handleClose}
-            onExpand={handleExpand}
-            onViewModeChange={handleViewModeChange}
-            onDocking={handleDocking}
-            viewMode={viewMode}
-          />
-          <AssistContent>
-            {isSidebarVisible(viewMode) && (
-              <ConversationHistory
-                onConversationSelect={handleConversationSelect}
-                viewMode={viewMode}
-              />
-            )}
-            <AssistConversation>
-              <ConversationList viewMode={viewMode} />
-            </AssistConversation>
-          </AssistContent>
-        </AssistContainer>
-      </Container>
-    </AssistContextProvider>
+    <Container
+      onClick={handleClose}
+      docked={settings.viewMode === ViewMode.Docked}
+    >
+      {settingsOpen && (
+        <Settings
+          onClose={() => setSettingsOpen(false)}
+          debugMenuEnabled={debugMenuEnabled}
+          onDebugMenuToggle={handleDebugMenuToggle}
+        />
+      )}
+
+      <AssistContainer
+        onClick={handleClick}
+        viewMode={settings.viewMode}
+        sidebarVisible={settings.sidebarVisible}
+      >
+        <Header
+          onClose={handleClose}
+          onSettingsOpen={() => setSettingsOpen(true)}
+          onToggleSidebar={handleToggleSidebar}
+          sidebarVisible={settings.sidebarVisible}
+          viewMode={settings.viewMode}
+          onError={handleError}
+        />
+
+        <ErrorList>{errorList}</ErrorList>
+
+        <Content>
+          {settings.sidebarVisible && (
+            <ConversationHistory
+              onConversationSelect={handleConversationSelect}
+              viewMode={settings.viewMode}
+              onError={handleError}
+            />
+          )}
+          <AssistConversation>
+            <ConversationList viewMode={settings.viewMode} />
+          </AssistConversation>
+        </Content>
+      </AssistContainer>
+    </Container>
   );
 }

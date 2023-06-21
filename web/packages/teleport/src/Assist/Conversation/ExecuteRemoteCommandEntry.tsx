@@ -84,7 +84,7 @@ const InfoText = styled.span`
 export function ExecuteRemoteCommandEntry(
   props: ExecuteRemoteCommandEntryProps
 ) {
-  const { executeCommand } = useAssist();
+  const { executeCommand, settings } = useAssist();
 
   const [hasRan, setHasRan] = useState(false);
   const [command, setCommand] = useState(props.command);
@@ -105,7 +105,12 @@ export function ExecuteRemoteCommandEntry(
     try {
       const logins = await getLoginsForQuery(query, clusterId);
 
-      if (!selectedLogin || !logins.includes(selectedLogin)) {
+      const preferredLogin = logins.find(login =>
+        settings.preferredLogins.includes(login)
+      );
+      if (preferredLogin) {
+        setSelectedLogin(preferredLogin);
+      } else if (!selectedLogin || !logins.includes(selectedLogin)) {
         setSelectedLogin(logins[0]);
       }
 

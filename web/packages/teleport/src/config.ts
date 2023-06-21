@@ -232,6 +232,7 @@ const cfg = {
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
     assistConversationsPath: '/v1/webapi/assistant/conversations',
+    assistSettingsPath: '/v1/webapi/assistant/settings',
     assistSetConversationTitlePath:
       '/v1/webapi/assistant/conversations/:conversationId/title',
     assistGenerateSummaryPath: '/v1/webapi/assistant/title/summary',

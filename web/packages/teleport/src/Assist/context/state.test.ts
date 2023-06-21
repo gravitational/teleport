@@ -17,6 +17,7 @@
 import {
   ResolvedUserServerMessage,
   ServerMessageType,
+  ViewMode,
 } from 'teleport/Assist/types';
 
 import {
@@ -38,6 +39,12 @@ import type {
 } from './state';
 
 const defaultState: AssistState = {
+  settings: {
+    loading: false,
+    viewMode: ViewMode.Docked,
+    preferredLogins: [],
+    sidebarVisible: false,
+  },
   conversations: {
     loading: false,
     selectedId: null,
