@@ -154,7 +154,10 @@ export interface DocumentPtySession extends DocumentBase {
 
 export interface DocumentConnectMyComputerSetup extends DocumentBase {
   kind: 'doc.connect_my_computer_setup';
-  clusterUri: uri.ClusterUri;
+  // `DocumentConnectMyComputerSetup` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+  // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
+  // between a document and a cluster just by looking at the document fields.
+  rootClusterUri: uri.RootClusterUri;
 }
 
 export type DocumentTerminal =
@@ -200,10 +203,6 @@ export type CreateGatewayDocumentOpts = {
 
 export type CreateClusterDocumentOpts = {
   clusterUri: uri.ClusterUri;
-};
-
-export type CreateConnectMyComputerSetupDocumentOpts = {
-  clusterUri: uri.RootClusterUri;
 };
 
 export type CreateTshKubeDocumentOptions = {

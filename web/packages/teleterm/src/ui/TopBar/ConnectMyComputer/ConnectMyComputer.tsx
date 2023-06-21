@@ -36,9 +36,9 @@ export function ConnectMyComputer() {
   function openSetupDocument(): void {
     const documentService =
       appCtx.workspacesService.getActiveWorkspaceDocumentService();
-    const clusterUri = appCtx.workspacesService.getRootClusterUri();
+    const rootClusterUri = appCtx.workspacesService.getRootClusterUri();
     const document = documentService.createConnectMyComputerSetupDocument({
-      clusterUri,
+      rootClusterUri,
     });
     documentService.add(document);
     documentService.open(document.uri);

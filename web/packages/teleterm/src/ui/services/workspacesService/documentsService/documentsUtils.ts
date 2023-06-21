@@ -50,7 +50,7 @@ export function getResourceUri(
         leafClusterId: document.leafClusterId,
       });
     case 'doc.connect_my_computer_setup':
-      return document.clusterUri;
+      return document.rootClusterUri;
     case 'doc.blank':
       return undefined;
     default:

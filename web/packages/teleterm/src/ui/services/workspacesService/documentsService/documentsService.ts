@@ -15,12 +15,17 @@ limitations under the License.
 */
 
 import { unique } from 'teleterm/ui/utils/uid';
-import { DocumentUri, ServerUri, paths, routing } from 'teleterm/ui/uri';
+import {
+  DocumentUri,
+  ServerUri,
+  paths,
+  routing,
+  RootClusterUri,
+} from 'teleterm/ui/uri';
 
 import {
   CreateAccessRequestDocumentOpts,
   CreateClusterDocumentOpts,
-  CreateConnectMyComputerSetupDocumentOpts,
   CreateGatewayDocumentOpts,
   CreateTshKubeDocumentOptions,
   Document,
@@ -37,7 +42,10 @@ import {
 
 export class DocumentsService {
   constructor(
-    private getState: () => { documents: Document[]; location: string },
+    private getState: () => {
+      documents: Document[];
+      location: string;
+    },
     private setState: (
       draftState: (draft: { documents: Document[]; location: string }) => void
     ) => void
@@ -106,7 +114,9 @@ export class DocumentsService {
 
   createTshNodeDocument(
     serverUri: ServerUri,
-    params: { origin: DocumentOrigin }
+    params: {
+      origin: DocumentOrigin;
+    }
   ): DocumentTshNodeWithServerId {
     const { params: routingParams } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
@@ -183,15 +193,18 @@ export class DocumentsService {
     };
   }
 
-  createConnectMyComputerSetupDocument(
-    opts: CreateConnectMyComputerSetupDocumentOpts
-  ): DocumentConnectMyComputerSetup {
+  createConnectMyComputerSetupDocument(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+  }): DocumentConnectMyComputerSetup {
     const uri = routing.getDocUri({ docId: unique() });
     return {
       uri,
       kind: 'doc.connect_my_computer_setup',
       title: 'Connect My Computer',
-      clusterUri: opts.clusterUri,
+      rootClusterUri: opts.rootClusterUri,
     };
   }
 
@@ -277,7 +290,10 @@ export class DocumentsService {
 
   isActive(uri: string) {
     const location = this.getLocation();
-    return !!routing.parseUri(location, { exact: true, path: uri });
+    return !!routing.parseUri(location, {
+      exact: true,
+      path: uri,
+    });
   }
 
   add(doc: Document, position?: number) {
