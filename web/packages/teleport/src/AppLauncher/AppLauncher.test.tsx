@@ -76,7 +76,7 @@ const testCases = [
     queryParams:
       '?path=%2Falerting%2Flist&search=state:pending%20type:recording%20health:error',
     expectedPath:
-      '/alerting/list?search=state:pending+type:recording+health:error',
+      '/alerting/list?search=state:pending type:recording health:error',
   },
 ];
 
