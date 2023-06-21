@@ -23,7 +23,9 @@ jobs:
       contents: read
       packages: read
 
-    runs-on: ubuntu-22.04-32core
+    runs-on:
+      group: prod
+      labels: ['self-hosted', 'x64']
 
     container:
       image: ghcr.io/gravitational/teleport-buildbox:teleport14
@@ -101,7 +103,8 @@ jobs:
             -H "Authorization: Bearer ${GITHUB_TOKEN}" \
             -H "X-GitHub-Api-Version: 2022-11-28" \
             "${URL}" \
-            | sed -n 's/^.*"html_url":"\([^"]*\)".*$/logurl=\1\n/p' >> $GITHUB_OUTPUT
+            | sed -n 's/^.*"html_url":\s*"\([^"]*\)".*$/logurl=\1\n/p' \
+            | head -n 1 >> $GITHUB_OUTPUT
 
       - name: Send report to slack
         if: failure()
@@ -114,6 +117,9 @@ jobs:
             {
               "text": "*Flaky Test Daily Report*",
               "mrkdwn": true,
+              "parse": "none",
+              "unfurl_links": false,
+              "unfurl_media": false,
               "attachments": [
                 {
                   "color": "danger",
