@@ -1,9 +1,5 @@
 #!/bin/bash
 
-# Set some curl options so that temporary failures get retried
-# More info: https://ec.haxx.se/usingcurl-timeouts.html
-CURL_OPTS=(-L --retry 100 --retry-delay 0 --connect-timeout 10 --max-time 300)
-
 # Update packages
 dnf -y update
 
