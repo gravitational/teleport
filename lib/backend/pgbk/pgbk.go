@@ -113,8 +113,8 @@ func (b *Backend) retry(ctx context.Context, f func(*pgxpool.Pool) error) error 
 		return trace.Wrap(err)
 	}
 
-	for i := 1; i < 20; i++ {
-		err := f(b.pool)
+	for i := 1; i < 10; i++ {
+		err = f(b.pool)
 		if err == nil {
 			return nil
 		}
