@@ -54,8 +54,10 @@ type Service struct {
 	assist.UnimplementedAssistServiceServer
 	assist.UnimplementedAssistEmbeddingServiceServer
 
-	backend        services.Assistant
-	embeddings     *ai.SimpleRetriever
+	backend    services.Assistant
+	embeddings *ai.SimpleRetriever
+	// embedder is used to embed text into a vector.
+	// It can be nil if the OpenAI API key is not set.
 	embedder       ai.Embedder
 	authorizer     authz.Authorizer
 	log            *logrus.Entry
@@ -69,8 +71,6 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 		return nil, trace.BadParameter("backend is required")
 	case cfg.Embeddings == nil:
 		return nil, trace.BadParameter("embeddings is required")
-	case cfg.Embedder == nil:
-		return nil, trace.BadParameter("embedder is required")
 	case cfg.Authorizer == nil:
 		return nil, trace.BadParameter("authorizer is required")
 	case cfg.ResourceGetter == nil:
@@ -78,6 +78,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 	case cfg.Logger == nil:
 		cfg.Logger = logrus.WithField(trace.Component, "assist.service")
 	}
+	// Embedder can be nil is the OpenAI API key is not set.
 
 	return &Service{
 		backend:        cfg.Backend,
@@ -128,11 +129,13 @@ func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.Create
 }
 
 // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
-func (a *Service) IsAssistEnabled(ctx context.Context, req *assist.IsAssistEnabledRequest) (*assist.IsAssistEnabledResponse, error) {
+func (a *Service) IsAssistEnabled(ctx context.Context, _ *assist.IsAssistEnabledRequest) (*assist.IsAssistEnabledResponse, error) {
 	if a.embedder == nil {
+		// If the embedder is not configured, the assist is not enabled as we cannot compute embeddings.
 		return &assist.IsAssistEnabledResponse{Enabled: false}, nil
 	}
 
+	// Check if assist can use the backend.
 	return a.backend.IsAssistEnabled(ctx)
 }
 

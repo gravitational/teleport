@@ -234,7 +234,11 @@ type InitConfig struct {
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
 
-	OpenAIClient *ai.Client
+	// EmbeddingRetriever is a retriever for embeddings.
+	EmbeddingRetriever *ai.SimpleRetriever
+
+	// EmbeddingClient is a client that allows generating embeddings.
+	EmbeddingClient ai.Embedder
 }
 
 // Init instantiates and configures an instance of AuthServer

@@ -66,7 +66,7 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (c *commandExecutionTool) Run(ctx context.Context, input string) (*stepOutput, error) {
+func (c *commandExecutionTool) Run(_ context.Context, _ string) (*stepOutput, error) {
 	// This is stubbed because commandExecutionTool is handled specially.
 	// This is because execution of this tool breaks the loop and returns a command suggestion to the user.
 	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
@@ -110,10 +110,13 @@ type embeddingRetrievalToolInput struct {
 }
 
 func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (*stepOutput, error) {
-	//inputCmd, outErr := e.parseInput(input)
-	//if outErr != nil {
-	//	return "", trace.Errorf(outErr.detail)
-	//}
+	inputCmd, outErr := e.parseInput(input)
+	if outErr == nil {
+		// If we failed to parse the input, we can still send the payload for embedding retrieval.
+		// In most cases, we will still get some sensible results.
+		// If we parsed the input successfully, we should use the parsed input instead.
+		input = inputCmd.Question
+	}
 	log.Tracef("embedding retrieval input: %v", input)
 
 	resp, err := e.assistClient.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
@@ -135,6 +138,9 @@ func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (*stepOu
 	log.Tracef("embedding retrieval: %v", sb.String())
 
 	if sb.Len() == 0 {
+		// Either no nodes are connected, embedding process hasn't started yet, or
+		// the user doesn't have access to any resources.
+		// In any case, we should return a message to the user instead of keep trying.
 		return &stepOutput{
 			finish: &agentFinish{
 				output: &Message{

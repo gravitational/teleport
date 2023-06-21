@@ -5360,7 +5360,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	// Initialize and register the assist service.
 	assistSrv, err := assistv1.NewService(&assistv1.ServiceConfig{
 		Backend:        cfg.AuthServer.Services,
-		Embeddings:     cfg.AuthServer.EmbeddingsMap,
+		Embeddings:     cfg.AuthServer.embeddingsRetriever,
 		Embedder:       cfg.AuthServer.embedder,
 		Authorizer:     cfg.Authorizer,
 		ResourceGetter: cfg.AuthServer,

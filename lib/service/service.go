@@ -1628,10 +1628,12 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
-	var openAIClient *ai.Client
+	var embedderClient ai.Embedder
 	if cfg.Auth.AssistAPIKey != "" {
-		openAIClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+		embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
 	}
+
+	embeddingsRetriever := ai.NewSimpleRetriever()
 
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
@@ -1671,7 +1673,8 @@ func (process *TeleportProcess) initAuthService() error {
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
 		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
-		OpenAIClient:            openAIClient,
+		EmbeddingRetriever:      embeddingsRetriever,
+		EmbeddingClient:         embedderClient,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1711,11 +1714,11 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetLockWatcher(lockWatcher)
 
-	if cfg.Auth.AssistAPIKey != "" {
-		openAIClient := ai.NewClient(cfg.Auth.AssistAPIKey)
+	if embedderClient != nil {
+		log.Debugf("Starting embedding watcher")
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
-			AIClient:            openAIClient,
-			EmbeddingsRetriever: authServer.EmbeddingsMap,
+			AIClient:            embedderClient,
+			EmbeddingsRetriever: embeddingsRetriever,
 			EmbeddingSrv:        authServer,
 			NodeSrv:             authServer,
 			Log:                 log,

@@ -290,7 +290,6 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Assistant:               cfg.Assist,
 	}
 
-	embeddingsRetriever := ai.NewSimpleRetriever()
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
 	as := Server{
 		bk:                  cfg.Backend,
@@ -312,8 +311,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		fips:                cfg.FIPS,
 		loadAllCAs:          cfg.LoadAllCAs,
 		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
-		EmbeddingsMap:       embeddingsRetriever,
-		embedder:            cfg.OpenAIClient,
+		embeddingsRetriever: cfg.EmbeddingRetriever,
+		embedder:            cfg.EmbeddingClient,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -626,8 +625,8 @@ type Server struct {
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
 
-	EmbeddingsMap *ai.SimpleRetriever
-	embedder      ai.Embedder
+	embeddingsRetriever *ai.SimpleRetriever
+	embedder            ai.Embedder
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML

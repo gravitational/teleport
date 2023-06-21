@@ -221,7 +221,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 		return stepOutput{}, trace.Wrap(err)
 	}
 	output.action = action
-	return *output, nil // TODO: probably wrong!
+	return *output, nil
 }
 
 func (a *Agent) plan(ctx context.Context, state *executionState) (*agentAction, *agentFinish, error) {
