@@ -479,6 +479,10 @@
             {
               "title": "Set Up Device Trust",
               "slug": "/access-controls/device-trust/guide/"
+            },
+            {
+              "title": "Jamf Integration",
+              "slug": "/access-controls/device-trust/jamf-integration/"
             }
           ]
         },
