@@ -105,6 +105,10 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 		}
 	}()
 
+	if _, err := conn.Exec(ctx, "SET log_min_messages TO fatal", pgx.QueryExecModeExec); err != nil {
+		b.log.WithError(err).Debug("Failed to silence log messages for change feed session.")
+	}
+
 	slotUUID := uuid.New()
 	slotName := hex.EncodeToString(slotUUID[:])
 
