@@ -1,0 +1,34 @@
+name: Check Devbox
+run-name: Check Devbox - ${{ github.run_id }} - @${{ github.actor }}
+
+on:
+  pull_request:
+    paths:
+      - 'devbox.json'
+      - 'devbox.lock'
+      - 'build.assets/flake/**'
+  merge_group:
+    paths:
+      - 'devbox.json'
+      - 'devbox.lock'
+      - 'build.assets/flake/**'
+
+jobs:
+  check-devbox:
+    if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
+    name: Check Devbox
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Install devbox
+        run: curl -fsSL https://get.jetpack.io/devbox | FORCE=1 bash
+
+      - name: Install devbox dependencies
+        run: |
+          devbox install

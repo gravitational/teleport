@@ -1013,6 +1013,9 @@ type Auth struct {
 	// HostedPlugins configures the hosted plugins runtime.
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
+
+	// Assist is a set of options related to the Teleport Assist feature.
+	Assist *AssistOptions `yaml:"assist,omitempty"`
 }
 
 // PluginService represents the configuration for the plugin service.
@@ -2425,7 +2428,7 @@ type JamfService struct {
 	// ExitOnSync tells the service to exit immediately after the first sync.
 	ExitOnSync bool `yaml:"exit_on_sync,omitempty"`
 	// APIEndpoint is the Jamf Pro API endpoint.
-	// Example: "https://yourtenant.jamfcloud.com".
+	// Example: "https://yourtenant.jamfcloud.com/api".
 	APIEndpoint string `yaml:"api_endpoint,omitempty"`
 	// Username is the Jamf Pro API username.
 	Username string `yaml:"username,omitempty"`

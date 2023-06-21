@@ -73,6 +73,7 @@ func (f *FakeWindowsDevice) EnrollDeviceInit() (*devicepb.EnrollDeviceInit, erro
 
 func (f *FakeWindowsDevice) SolveTPMEnrollChallenge(
 	challenge *devicepb.TPMEnrollChallenge,
+	_ bool,
 ) (*devicepb.TPMEnrollChallengeResponse, error) {
 	// This extremely roughly mimics the actual TPM by using the values
 	// provided in the encrypted credential to produce an activation challenge

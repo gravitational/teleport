@@ -578,6 +578,11 @@
             "type": "array",
             "default": []
         },
+        "hostAliases": {
+            "$id": "#/properties/hostAliases",
+            "type": "array",
+            "default": []
+        },
         "imagePullPolicy": {
             "$id": "#/properties/imagePullPolicy",
             "type": "string",

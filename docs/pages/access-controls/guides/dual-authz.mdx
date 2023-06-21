@@ -117,13 +117,13 @@ Alice and Ivan are reviewers. They can approve requests for assuming role
 `dbadmin`. Bob is a DevOps engineer and can assume the `dbadmin` role if two members
 of the `reviewer` role approve the request.
 
-Create the following `dbadmin`, `reviewer` and `devops` roles:
+Create the following `dbadmin`, `dbreviewer` and `devops` roles:
 
 ```yaml
 kind: role
 version: v5
 metadata:
-  name: reviewer
+  name: dbreviewer
 spec:
   allow:
     review_requests:
@@ -157,8 +157,8 @@ The commands below create the local users Bob, Alice, and Ivan.
 
 ```code
 $ tctl users add bob@example.com --roles=devops
-$ tctl users add alice@example.com --roles=reviewer
-$ tctl users add ivan@example.com --roles=reviewer
+$ tctl users add alice@example.com --roles=dbreviewer
+$ tctl users add ivan@example.com --roles=dbreviewer
 ```
 
 ### Create an Access Request

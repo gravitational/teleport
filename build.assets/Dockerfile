@@ -301,7 +301,7 @@ RUN go install github.com/daixiang0/gci@v0.9.1
 
 # Install golangci-lint.
 # Keep the version below synced with devbox.json
-RUN TAG='v1.53.2' && \
+RUN TAG='v1.53.3' && \
     curl -fsSL "https://raw.githubusercontent.com/golangci/golangci-lint/$TAG/install.sh" | \
     sh -s -- -b "$(go env GOPATH)/bin" "$TAG"
 

@@ -1901,7 +1901,7 @@ func newUserGroup(t *testing.T, name, description, origin string) types.UserGrou
 		Labels: map[string]string{
 			types.OriginLabel: origin,
 		},
-	})
+	}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
 	return userGroup
 }
