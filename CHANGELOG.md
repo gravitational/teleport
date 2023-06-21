@@ -1,6 +1,27 @@
 # Changelog
 
+## 12.4.8 (06/21/23)
+
+* Web UI
+  * Added "Add SAML application" wizard to access management UI. [#27958](https://github.com/gravitational/teleport/pull/27958)
+* Helm Charts
+  * Updated `teleport-cluster` chart to use local auth server address in auth pod to prevent extra connections. [#27979](https://github.com/gravitational/teleport/pull/27979)
+* Server Access
+  * Fixed `tsh join` prompting for password when trying to join non-existent session. [#27973](https://github.com/gravitational/teleport/pull/27973)
+  * Fixed issue with `SSH_SESSION_WEBPROXY_ADDR` not being set for some sessions. [#27866](https://github.com/gravitational/teleport/pull/27866)
+* Stability & Reliability
+  * Improved shutdown stability. [#27888](https://github.com/gravitational/teleport/pull/27888)
+* Desktop Access
+  * Fixed issue with "Run as different user" window freezing. [#27875](https://github.com/gravitational/teleport/pull/27875)
+* CLI
+  * Added `--skip-confirm` flag to `tsh headless approve` command. [#27863](https://github.com/gravitational/teleport/pull/27863)
+* Tooling
+  * Updated Go to `1.20.5`. [#27861](https://github.com/gravitational/teleport/pull/27861)
+* Metrics
+  * Improved accuracy of `backend_read_seconds` metric. [#27858](https://github.com/gravitational/teleport/pull/27858)
+
 ## 12.4.7 (06/14/23)
+
 * CLI
   * Fix issue with Access Requests in headless mode. [#27136](https://github.com/gravitational/teleport/pull/27240)
   * `tctl get all` now fetches lock objects [#27295](https://github.com/gravitational/teleport/pull/27295)
