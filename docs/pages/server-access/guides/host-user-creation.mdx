@@ -145,14 +145,14 @@ $ echo $?
 ```
 
 When the user above logs in, the `nginxrestarter` user and any groups that do
-not already exist will be created on the host. The `nginxrestarter` user will be
-added to the `ubuntu`, `nginx` and `other` groups as specified in the
-`host_groups` field.
+not already exist are created on the host. The `nginxrestarter` user is added to
+the `ubuntu`, `nginx`, and `other` groups, as specified in the `host_groups`
+field.
 
-The Teleport SSH Service executes `useradd` in order to create new users on the
-host, and returns an error if it cannot find the `useradd` binary. It creates a
-new home directory based on the host user's name and adds the user to the groups
-specified in the Teleport user's roles.
+The Teleport SSH Service executes `useradd` to create new users on the host, and
+returns an error if it cannot find the `useradd` binary. The `useradd` command
+creates a new home directory with the name of the new host user and adds the
+user to the groups specified in the Teleport user's roles.
 
 Aside from specifying a home directory and groups, the SSH Service executes
 `useradd` with the system defaults. For example, it associates the user with the
