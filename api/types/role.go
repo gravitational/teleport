@@ -956,14 +956,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		}
 	}
 
-	modes := []CreateHostUserMode{
-		CreateHostUserMode_HOST_USER_MODE_UNDEFINED,
-		CreateHostUserMode_HOST_USER_MODE_OFF,
-		CreateHostUserMode_HOST_USER_MODE_DROP,
-		CreateHostUserMode_HOST_USER_MODE_KEEP,
-	}
-
-	if !slices.Contains(modes, r.Spec.Options.CreateHostUserMode) {
+	if _, ok := CreateHostUserMode_name[int32(r.Spec.Options.CreateHostUserMode)]; !ok {
 		return trace.BadParameter("invalid host user mode %q, expected one of off, drop or keep", r.Spec.Options.CreateHostUserMode)
 	}
 
@@ -1785,10 +1778,19 @@ func (h CreateHostUserMode) encode() (string, error) {
 }
 
 func (h *CreateHostUserMode) decode(val any) error {
-	valS, ok := val.(string)
-	if !ok {
+	var valS string
+	switch val := val.(type) {
+	case string:
+		valS = val
+	case bool:
+		if val {
+			return trace.BadParameter("create_host_user_mode cannot be true, got %v", val)
+		}
+		valS = createHostUserModeOffString
+	default:
 		return trace.BadParameter("bad value type %T, expected string", val)
 	}
+
 	switch valS {
 	case "":
 		*h = CreateHostUserMode_HOST_USER_MODE_UNDEFINED
