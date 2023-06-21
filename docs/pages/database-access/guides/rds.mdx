@@ -159,10 +159,12 @@ Assign `db_service.aws[0].regions` to a list of AWS region strings (e.g.,
 `"us-west-1"`) in which you would like the Teleport Database Service to discover
 databases.
 
-The Helm chart that we will  use to install the Teleport Database Service mounts
-a secret containing the join token we generated earlier to
-`/etc/teleport-secrets/auth-token`. The configuration above instructs the
-Database Service to search for its token there.
+Later in this guide, you will install a Helm chart to launch the Teleport
+Database Service. The chart creates a secret containing the join token you
+generatd earlier in this guide and mounts it at the path
+`/etc/teleport-secrets/auth-token` on the Database Service pod. The
+configuration above instructs the Database Service to search for its token
+there.
 
 </TabItem>
 </Tabs>
