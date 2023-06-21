@@ -72,7 +72,13 @@ export function AppLauncher() {
         queryParams.delete('path');
         const originalQuery = queryParams.toString();
         if (originalQuery) {
-          path += '?' + decodeURIComponent(originalQuery);
+          // Manually build the query since `searchParams.toString()`
+          // converts %20 to +
+          const queries = [];
+          for (const key of queryParams.keys()) {
+            queries.push(`${key}=${queryParams.get(key)}`);
+          }
+          path = `${path}?${queries.join('&')}`;
         }
       }
 
