@@ -331,16 +331,6 @@ func ValidateDeviceForCreate(d *devicepb.Device, createAsResource bool) error {
 		}
 	}
 
-	// CollectedData.
-	for i, cd := range d.CollectedData {
-		if err := validateCollectedData(cd, true /* createAsResource */); err != nil {
-			return trace.Wrap(err, "device collected_data[%v]", i)
-		}
-		if err := ValidateCollectedDataAgainstDevice(cd, d); err != nil {
-			return trace.Wrap(err, "device collected_data[%v]", i)
-		}
-	}
-
 	return nil
 }
 
