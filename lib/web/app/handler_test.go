@@ -737,3 +737,65 @@ func createAppServer(t *testing.T, publicAddr string) types.AppServer {
 	require.NoError(t, err)
 	return appServer
 }
+
+func TestMakeAppRedirectURL(t *testing.T) {
+	for _, test := range []struct {
+		name        string
+		reqURL      string
+		expectedURL string
+	}{
+		{
+			name:        "OK - no path",
+			reqURL:      "https://grafana.localhost",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=",
+		},
+		{
+			name:        "OK - with path",
+			reqURL:      "https://grafana.localhost/foo",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Ffoo",
+		},
+		{
+			name:        "OK - with multi path",
+			reqURL:      "https://grafana.localhost/foo/bar",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Ffoo%2Fbar",
+		},
+		{
+			name:        "OK - adds paths with ampersands",
+			reqURL:      "https://grafana.localhost/foo/this&/that",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Ffoo%2Fthis%26%2Fthat",
+		},
+		{
+			name:        "OK - adds root path",
+			reqURL:      "https://grafana.localhost/",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2F",
+		},
+		{
+			name:        "OK - adds query",
+			reqURL:      "https://grafana.localhost?foo=bar",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=&foo=bar",
+		},
+		{
+			name:        "OK - adds query with root path",
+			reqURL:      "https://grafana.localhost/?foo=bar",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2F&foo=bar",
+		},
+		{
+			name:        "OK - adds multi query with path",
+			reqURL:      "https://grafana.localhost/foo/bar?fruit=apple&os=mac",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Ffoo%2Fbar&fruit=apple&os=mac",
+		},
+		{
+			name:        "OK - real grafana query example",
+			reqURL:      "https://grafana.localhost/alerting/list?search=state:inactive%20type:alerting%20health:nodata",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Falerting%2Flist&search=state:inactive%20type:alerting%20health:nodata",
+		},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			req, err := http.NewRequest(http.MethodGet, test.reqURL, nil)
+			require.NoError(t, err)
+
+			urlStr := makeAppRedirectURL(req, "proxy.com", "grafana.localhost")
+			require.Equal(t, test.expectedURL, urlStr)
+		})
+	}
+}
