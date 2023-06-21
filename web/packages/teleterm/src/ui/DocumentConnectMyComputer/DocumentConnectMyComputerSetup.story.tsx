@@ -19,7 +19,7 @@ import React from 'react';
 import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup';
 
 export default {
-  title: 'Teleterm/DocumentConnectMyComputerSetup',
+  title: 'Teleterm/ConnectMyComputer/DocumentConnectMyComputerSetup',
 };
 
 export function Default() {
