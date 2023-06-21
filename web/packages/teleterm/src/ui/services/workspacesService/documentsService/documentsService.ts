@@ -42,10 +42,7 @@ import {
 
 export class DocumentsService {
   constructor(
-    private getState: () => {
-      documents: Document[];
-      location: string;
-    },
+    private getState: () => { documents: Document[]; location: string },
     private setState: (
       draftState: (draft: { documents: Document[]; location: string }) => void
     ) => void
@@ -114,9 +111,7 @@ export class DocumentsService {
 
   createTshNodeDocument(
     serverUri: ServerUri,
-    params: {
-      origin: DocumentOrigin;
-    }
+    params: { origin: DocumentOrigin }
   ): DocumentTshNodeWithServerId {
     const { params: routingParams } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
