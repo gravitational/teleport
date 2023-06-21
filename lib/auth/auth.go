@@ -5318,6 +5318,17 @@ func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assis
 	return trace.Wrap(a.Services.DeleteAssistantConversation(ctx, request))
 }
 
+// GetAssistantSettings returns the frontend settings for the assistant.
+func (a *Server) GetAssistantSettings(ctx context.Context, request *assist.GetAssistantSettingsRequest) (*assist.AssistantSettings, error) {
+	resp, err := a.Services.GetAssistantSettings(ctx, request)
+	return resp, trace.Wrap(err)
+}
+
+// UpdateAssistantSettings updates the frontend settings for the assistant.
+func (a *Server) UpdateAssistantSettings(ctx context.Context, request *assist.UpdateAssistantSettingsRequest) error {
+	return trace.Wrap(a.Services.UpdateAssistantSettings(ctx, request))
+}
+
 // CompareAndSwapHeadlessAuthentication performs a compare
 // and swap replacement on a headless authentication resource.
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {

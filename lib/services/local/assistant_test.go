@@ -173,4 +173,37 @@ func TestAssistantCRUD(t *testing.T) {
 		require.Len(t, conversations.Conversations, 1)
 		require.NotEqual(t, conversationID, conversations.Conversations[0].Id, "conversation was not deleted")
 	})
+
+	t.Run("retrieve initial settings", func(t *testing.T) {
+		req := &assist.GetAssistantSettingsRequest{
+			Username: username,
+		}
+		settings, err := identity.GetAssistantSettings(ctx, req)
+		require.NoError(t, err)
+
+		require.Len(t, settings.PreferredLogins, 0)
+		require.Equal(t, settings.ViewMode, assist.AssistantViewMode_ASSISTANT_VIEW_MODE_DOCKED)
+	})
+
+	t.Run("update settings", func(t *testing.T) {
+		req := &assist.UpdateAssistantSettingsRequest{
+			Username: username,
+			Settings: &assist.AssistantSettings{
+				PreferredLogins: []string{"foo", "bar"},
+				ViewMode:        assist.AssistantViewMode_ASSISTANT_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE,
+			},
+		}
+		err := identity.UpdateAssistantSettings(ctx, req)
+		require.NoError(t, err)
+
+		reqSettings := &assist.GetAssistantSettingsRequest{
+			Username: username,
+		}
+		settings, err := identity.GetAssistantSettings(ctx, reqSettings)
+		require.NoError(t, err)
+
+		require.Len(t, settings.PreferredLogins, 2)
+		require.Equal(t, settings.ViewMode, assist.AssistantViewMode_ASSISTANT_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE)
+		require.ElementsMatch(t, []string{"foo", "bar"}, settings.PreferredLogins)
+	})
 }

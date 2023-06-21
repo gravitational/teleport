@@ -3966,3 +3966,21 @@ func (c *Client) UpdateAssistantConversationInfo(ctx context.Context, in *assist
 	}
 	return nil
 }
+
+// GetAssistantSettings returns the frontend settings for the assistant.
+func (c *Client) GetAssistantSettings(ctx context.Context, in *assist.GetAssistantSettingsRequest) (*assist.AssistantSettings, error) {
+	resp, err := c.grpc.GetAssistantSettings(ctx, in)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return resp, nil
+}
+
+// UpdateAssistantSettings updates the frontend settings for the assistant.
+func (c *Client) UpdateAssistantSettings(ctx context.Context, in *assist.UpdateAssistantSettingsRequest) error {
+	_, err := c.grpc.UpdateAssistantSettings(ctx, in)
+	if err != nil {
+		return trail.FromGRPC(err)
+	}
+	return nil
+}

@@ -500,3 +500,76 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	return nil
 }
+
+// getAssistantSettings is a handler for GET /webapi/assistant/settings
+func (h *Handler) getAssistantSettings(_ http.ResponseWriter, r *http.Request,
+	p httprouter.Params, sctx *SessionContext,
+) (any, error) {
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	resp, err := authClient.GetAssistantSettings(r.Context(), &assistpb.GetAssistantSettingsRequest{
+		Username: sctx.GetUser(),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return settingsResponse(resp), nil
+}
+
+// settingsResponse creates a response for GET assistant settings.
+func settingsResponse(resp *assistpb.AssistantSettings) any {
+	type response struct {
+		PreferredLogins []string                   `json:"preferred_logins"`
+		ViewMode        assistpb.AssistantViewMode `json:"view_mode"`
+	}
+
+	jsonResp := &response{
+		PreferredLogins: make([]string, 0, len(resp.PreferredLogins)),
+		ViewMode:        resp.ViewMode,
+	}
+
+	for _, login := range resp.PreferredLogins {
+		jsonResp.PreferredLogins = append(jsonResp.PreferredLogins, login)
+	}
+
+	return jsonResp
+}
+
+// updateAssistantSettings is a handler for PUT /webapi/assistant/settings.
+func (h *Handler) updateAssistantSettings(_ http.ResponseWriter, r *http.Request,
+	p httprouter.Params, sctx *SessionContext,
+) (any, error) {
+	req := assistpb.AssistantSettings{}
+
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	updateSettings := &assistpb.UpdateAssistantSettingsRequest{
+		Username: sctx.GetUser(),
+		Settings: &req,
+	}
+
+	if err := authClient.UpdateAssistantSettings(r.Context(), updateSettings); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}

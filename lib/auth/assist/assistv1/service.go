@@ -95,3 +95,13 @@ func (a *Service) CreateAssistantMessage(ctx context.Context, req *assist.Create
 func (a *Service) IsAssistEnabled(ctx context.Context, req *assist.IsAssistEnabledRequest) (*assist.IsAssistEnabledResponse, error) {
 	return a.backend.IsAssistEnabled(ctx)
 }
+
+// GetAssistantSettings returns the frontend settings for the assistant.
+func (a *Service) GetAssistantSettings(ctx context.Context, req *assist.GetAssistantSettingsRequest) (*assist.AssistantSettings, error) {
+	return a.backend.GetAssistantSettings(ctx, req)
+}
+
+// UpdateAssistantSettings updates the frontend settings for the assistant.
+func (a *Service) UpdateAssistantSettings(ctx context.Context, req *assist.UpdateAssistantSettingsRequest) (*emptypb.Empty, error) {
+	return &emptypb.Empty{}, trace.Wrap(a.backend.UpdateAssistantSettings(ctx, req))
+}

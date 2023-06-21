@@ -792,6 +792,12 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Creates a new conversation - the conversation ID is returned in the response.
 	h.POST("/webapi/assistant/conversations", h.WithAuth(h.createAssistantConversation))
 
+	// Fetches the user's assist settings
+	h.GET("/webapi/assistant/settings", h.WithAuth(h.getAssistantSettings))
+
+	// Updates the user's assist settings
+	h.PUT("/webapi/assistant/settings", h.WithAuth(h.updateAssistantSettings))
+
 	// Deletes the given conversation.
 	h.DELETE("/webapi/assistant/conversations/:conversation_id", h.WithAuth(h.deleteAssistantConversation))
 

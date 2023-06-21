@@ -1540,4 +1540,5 @@ const (
 	attestationsPrefix          = "key_attestations"
 	assistantMessagePrefix      = "assistant_messages"
 	assistantConversationPrefix = "assistant_conversations"
+	assistantSettingsPrefix     = "assistant_settings"
 )

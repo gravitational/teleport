@@ -121,6 +121,41 @@ message DeleteAssistantConversationRequest {
   string username = 2;
 }
 
+// GetAssistantSettingsRequest is a request to get the frontend settings for the assistant.
+message GetAssistantSettingsRequest {
+  // username is the username of the owner of the settings to get.
+  string username = 1;
+}
+
+// AssistantViewMode is the way the assistant is displayed.
+enum AssistantViewMode {
+  ASSISTANT_VIEW_MODE_UNSPECIFIED = 0;
+  // DOCKED is the assistant is docked to the right hand side of the screen.
+  ASSISTANT_VIEW_MODE_DOCKED = 1;
+  // POPUP is the assistant is displayed as a popup.
+  ASSISTANT_VIEW_MODE_POPUP = 2;
+  // POPUP_EXPANDED is the assistant is displayed as a popup and expanded.
+  ASSISTANT_VIEW_MODE_POPUP_EXPANDED = 3;
+  // POPUP_EXPANDED_SIDEBAR_VISIBLE is the assistant is displayed as a popup and expanded with the sidebar visible.
+  ASSISTANT_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE = 4;
+}
+
+// AssistantSettings is a collection of different usability settings for the frontend.
+message AssistantSettings {
+  // PreferredLogins is an array of the logins a user would prefer to use when running a command, ordered by preference.
+  repeated string preferred_logins = 1;
+  // ViewMode is the way the assistant is displayed.
+  AssistantViewMode view_mode = 2;
+}
+
+// UpdateAssistantSettingsRequest is a request to update the frontend settings for the assistant.
+message UpdateAssistantSettingsRequest {
+  // settings is a collection of different usability settings for the frontend.
+  AssistantSettings settings = 1;
+  // username is the username of the owner of the settings to update.
+  string username = 2;
+}
+
 // AssistService is a service that provides an ability to communicate with the Teleport Assist.
 service AssistService {
   // CreateNewConversation creates a new conversation and returns the UUID of it.
@@ -143,4 +178,10 @@ service AssistService {
 
   // IsAssistEnabled returns true if the assist is enabled or not on the auth level.
   rpc IsAssistEnabled(IsAssistEnabledRequest) returns (IsAssistEnabledResponse);
+
+  // GetAssistantSettings returns the frontend settings for the assistant.
+  rpc GetAssistantSettings(GetAssistantSettingsRequest) returns (AssistantSettings);
+
+  // UpdateAssistantSettings updates the frontend settings for the assistant.
+  rpc UpdateAssistantSettings(UpdateAssistantSettingsRequest) returns (google.protobuf.Empty);
 }

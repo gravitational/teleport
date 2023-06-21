@@ -45,4 +45,10 @@ type Assistant interface {
 
 	// IsAssistEnabled returns true if the assist is enabled or not on the auth level.
 	IsAssistEnabled(ctx context.Context) (*assist.IsAssistEnabledResponse, error)
+
+	// GetAssistantSettings returns the frontend settings for the assistant.
+	GetAssistantSettings(ctx context.Context, req *assist.GetAssistantSettingsRequest) (*assist.AssistantSettings, error)
+
+	// UpdateAssistantSettings updates the frontend settings for the assistant.
+	UpdateAssistantSettings(ctx context.Context, req *assist.UpdateAssistantSettingsRequest) error
 }

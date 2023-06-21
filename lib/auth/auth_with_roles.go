@@ -6325,6 +6325,24 @@ func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, m
 	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
 }
 
+// GetAssistantSettings returns the frontend settings for the assistant.
+func (a *ServerWithRoles) GetAssistantSettings(ctx context.Context, req *assist.GetAssistantSettingsRequest) (*assist.AssistantSettings, error) {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbRead); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetAssistantSettings(ctx, req)
+}
+
+// UpdateAssistantSettings updates the frontend settings for the assistant.
+func (a *ServerWithRoles) UpdateAssistantSettings(ctx context.Context, req *assist.UpdateAssistantSettingsRequest) error {
+	if err := a.action(apidefaults.Namespace, types.KindAssistant, types.VerbUpdate); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpdateAssistantSettings(ctx, req)
+}
+
 // CloneHTTPClient creates a new HTTP client with the same configuration.
 func (a *ServerWithRoles) CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error) {
 	return nil, trace.NotImplemented("not implemented")

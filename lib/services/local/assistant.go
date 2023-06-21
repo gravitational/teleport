@@ -294,3 +294,92 @@ func (a *AssistService) IsAssistEnabled(ctx context.Context) (*assist.IsAssistEn
 	_, ok = sanitizer.Inner().(*etcdbk.EtcdBackend)
 	return &assist.IsAssistEnabledResponse{Enabled: !ok}, nil
 }
+
+// GetAssistantSettings returns the frontend settings for the assistant.
+func (a *AssistService) GetAssistantSettings(ctx context.Context, req *assist.GetAssistantSettingsRequest) (*assist.AssistantSettings, error) {
+	if req.Username == "" {
+		return nil, trace.BadParameter("missing username")
+	}
+
+	return a.upsertAssistantSettings(ctx, req.Username)
+}
+
+// UpdateAssistantSettings updates the frontend settings for the assistant.
+func (a *AssistService) UpdateAssistantSettings(ctx context.Context, req *assist.UpdateAssistantSettingsRequest) error {
+	if req.Username == "" {
+		return trace.BadParameter("missing username")
+	}
+	if req.Settings == nil {
+		return trace.BadParameter("missing settings")
+	}
+	if req.Settings.PreferredLogins == nil {
+		return trace.BadParameter("missing preferred logins")
+	}
+	if req.Settings.ViewMode == assist.AssistantViewMode_ASSISTANT_VIEW_MODE_UNSPECIFIED {
+		return trace.BadParameter("missing view mode")
+	}
+
+	item, err := a.createBackendItem(req.Username, req.Settings)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if _, err = a.Update(ctx, item); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// upsertAssistantSettings returns the frontend settings for the assistant, creating it in the backend if it does not
+// already exist.
+func (a *AssistService) upsertAssistantSettings(ctx context.Context, username string) (*assist.AssistantSettings, error) {
+	settingsKey := backend.Key(assistantSettingsPrefix, username)
+
+	existing, err := a.Get(ctx, settingsKey)
+	if err == nil {
+		var a assist.AssistantSettings
+		if err := json.Unmarshal(existing.Value, &a); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		return &a, nil
+	}
+
+	if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	settings := &assist.AssistantSettings{
+		PreferredLogins: make([]string, 0),
+		ViewMode:        assist.AssistantViewMode_ASSISTANT_VIEW_MODE_DOCKED,
+	}
+
+	item, err := a.createBackendItem(username, settings)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if _, err = a.Create(ctx, item); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return settings, nil
+}
+
+// createBackendItem creates a backend item for the given username and settings.
+func (a *AssistService) createBackendItem(username string, settings *assist.AssistantSettings) (backend.Item, error) {
+	settingsKey := backend.Key(assistantSettingsPrefix, username)
+
+	payload, err := json.Marshal(settings)
+	if err != nil {
+		return backend.Item{}, trace.Wrap(err)
+	}
+
+	item := backend.Item{
+		Key:   settingsKey,
+		Value: payload,
+	}
+
+	return item, nil
+}
