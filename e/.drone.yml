@@ -282,8 +282,7 @@ steps:
       - chown -R $UID:$GID /go
       - cd /go/src/github.com/gravitational/teleport
       - export VERSION=$(cat /go/.version.txt)
-      - make -C build.assets release-fips VERSION=$VERSION OS=$OS ARCH=$ARCH FIPS=$FIPS
-
+      - make -C build.assets release-amd64-centos7-fips
   - name: Send Slack notification
     image: plugins/slack
     settings:
@@ -623,6 +622,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 8f2af6b6fc3a97ab128e11e2c330bdda541d72416e85d1d542eb46cb7e31860f
+hmac: 9f2ef4a2d27ccb4f92abdb34133d815ca4e3451970458d50968563344d5fbbea
 
 ...
