@@ -445,19 +445,20 @@ func TestClusterName(t *testing.T) {
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
 }
 
+// keysIn fetches the keys present in an arbitrary map
+func keysIn[K comparable, V any](m map[K]V) []K {
+	result := make([]K, 0, len(m))
+	for k := range m {
+		result = append(result, k)
+	}
+	return result
+}
+
 // TestPresets tests behavior of presets
 func TestPresets(t *testing.T) {
 	ctx := context.Background()
 
-	roles := []types.Role{
-		services.NewPresetGroupAccessRole(),
-		services.NewPresetEditorRole(),
-		services.NewPresetAccessRole(),
-		services.NewPresetAuditorRole(),
-	}
-
 	presetRoleNames := []string{
-		teleport.PresetGroupAccessRoleName,
 		teleport.PresetEditorRoleName,
 		teleport.PresetAccessRoleName,
 		teleport.PresetAuditorRoleName,
@@ -655,7 +656,7 @@ func TestPresets(t *testing.T) {
 				r := args[1].(types.Role)
 				require.True(t, types.IsSystemResource(r))
 				require.Contains(t, expectedSystemRoles, r.GetName())
-				require.NotContains(t, createdSystemRoles, r.GetName())
+				require.NotContains(t, keysIn(createdSystemRoles), r.GetName())
 				createdSystemRoles[r.GetName()] = r
 			}).
 			Maybe().
@@ -663,8 +664,8 @@ func TestPresets(t *testing.T) {
 
 		err := createPresetRoles(ctx, roleManager)
 		require.NoError(t, err)
-		require.Len(t, createdPresets, len(expectedPresetRoles))
-		require.Len(t, createdSystemRoles, len(expectedSystemRoles))
+		require.ElementsMatch(t, keysIn(createdPresets), expectedPresetRoles)
+		require.ElementsMatch(t, keysIn(createdSystemRoles), expectedSystemRoles)
 		roleManager.AssertExpectations(t)
 
 		//
@@ -767,9 +768,15 @@ func TestPresets(t *testing.T) {
 			TestBuildType: modules.BuildEnterprise,
 		})
 
-		enterpriseRoles := append([]types.Role{
-			services.NewPresetAutomaticAccessApproverRole(),
-		}, roles...)
+		enterpriseRoleNames := append([]string{
+			teleport.PresetGroupAccessRoleName,
+			teleport.PresetRequesterRoleName,
+			teleport.PresetReviewerRoleName,
+		}, presetRoleNames...)
+
+		enterpriseSystemRoleNames := []string{
+			teleport.PresetAutomaticAccessApprovalRoleName,
+		}
 
 		enterpriseUsers := []types.User{
 			services.NewPresetAutomaticAccessBotUser(),
@@ -792,8 +799,8 @@ func TestPresets(t *testing.T) {
 			}
 
 			// Preset Roles were created
-			for _, role := range enterpriseRoles {
-				_, err := as.GetRole(ctx, role.GetName())
+			for _, role := range append(enterpriseRoleNames, enterpriseSystemRoleNames...) {
+				_, err := as.GetRole(ctx, role)
 				require.NoError(t, err)
 			}
 
@@ -805,13 +812,13 @@ func TestPresets(t *testing.T) {
 		})
 
 		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-			upsertRoleTest(t, presetRoleNames, []string{teleport.PresetAutomaticAccessApprovalRoleName})
+			upsertRoleTest(t, enterpriseRoleNames, enterpriseSystemRoleNames)
 		})
 
 		t.Run("System users are always upserted", func(t *testing.T) {
 			ctx := context.Background()
 			sysUser := services.NewPresetAutomaticAccessBotUser().(*types.UserV2)
-			
+
 			// GIVEN a user database...
 			auth := newMockUserManager(t)
 
@@ -831,13 +838,14 @@ func TestPresets(t *testing.T) {
 				}).
 				Return(nil)
 
-			TestBuildType: modules.BuildEnterprise,
+			// WHEN I attempt to create the preset users...
+			err := createPresetUsers(ctx, auth)
+
 			// EXPECT that the process succeeds and the system user was upserted
 			require.NoError(t, err)
 			auth.AssertExpectations(t)
 			require.Contains(t, upsertedUsers, sysUser.Metadata.Name)
 		})
-		upsertRoleTest(t, 6 /* presetRoleCount */)
 	})
 }
 

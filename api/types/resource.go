@@ -62,8 +62,8 @@ type Resource interface {
 // or preset.
 func IsSystemResource(r Resource) bool {
 	metadata := r.GetMetadata()
-	if t, ok := metadata.Labels[TeleportResourceTypeLabel]; ok {
-		return t == string(TeleportResourceTypeSystem)
+	if t, ok := metadata.Labels[TeleportInternalResourceType]; ok {
+		return t == SystemResource
 	}
 	return false
 }
