@@ -13,7 +13,7 @@
     "package-term": "yarn workspace @gravitational/teleterm package",
     "build-native-deps-for-term": "yarn workspace @gravitational/teleterm build-native-deps",
     "storybook": "start-storybook -p 9002 -c web/.storybook -s web/.storybook/public",
-    "test": "jest",
+    "test": "yarn build-wasm && yarn jest",
     "test-coverage": "jest --coverage && web/scripts/print-coverage-link.sh",
     "test-update-snapshot": "yarn test -- --updateSnapshot",
     "tdd": "jest --watch",
