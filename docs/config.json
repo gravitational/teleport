@@ -304,14 +304,6 @@
               ]
             },
             {
-              "title": "Device Trust (Preview)",
-              "slug": "/access-controls/guides/device-trust/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
-            },
-            {
               "title": "Headless WebAuthn (Preview)",
               "slug": "/access-controls/guides/headless/"
             },
@@ -474,6 +466,14 @@
                 "enterprise"
               ]
             }
+          ]
+        },
+        {
+          "title": "Device Trust",
+          "slug": "/access-controls/device-trust/",
+          "forScopes": [
+            "enterprise",
+            "cloud"
           ]
         },
         {
@@ -2809,6 +2809,11 @@
     {
       "source": "/choose-an-edition/teleport-cloud/",
       "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/device-trust/",
+      "destination": "/access-controls/device-trust/",
       "permanent": true
     }
   ]
