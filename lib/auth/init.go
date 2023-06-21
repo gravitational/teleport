@@ -628,7 +628,7 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		services.NewPresetAuditorRole(),
 		services.NewPresetReviewerRole(),
 		services.NewPresetRequesterRole(),
-		services.NewPresetAutomaticAccessApproverRole(),
+		services.NewSystemAutomaticAccessApproverRole(),
 	}
 	for _, role := range roles {
 		// If the role is nil, skip because it doesn't apply to this Teleport installation.
@@ -637,7 +637,7 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 		}
 
 		if types.IsSystemResource(role) {
-			// System resources * always* get reset on every auth startup
+			// System resources *always* get reset on every auth startup
 			if err := rm.UpsertRole(ctx, role); err != nil {
 				return trace.Wrap(err, "failed upserting system role %s", role.GetName())
 			}
@@ -672,9 +672,10 @@ func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 	return nil
 }
 
-// PresetUserManager contains the required User Management methods to
-// create a preset User.
-type PresetUserManager interface {
+// PresetUsers contains the required User Management methods to
+// create a preset User. Method names represent the appropriate
+// subset
+type PresetUsers interface {
 	// CreateUser creates a new user record based on the supplied `user` instance.
 	CreateUser(ctx context.Context, user types.User) error
 	// GetUser fetches a user from the repository by name, optionally fetching
@@ -686,9 +687,9 @@ type PresetUserManager interface {
 
 // createPresetUsers creates all of the required user presets. No attempt is
 // made to migrate any existing users to the lastest preset.
-func createPresetUsers(ctx context.Context, um PresetUserManager) error {
+func createPresetUsers(ctx context.Context, um PresetUsers) error {
 	users := []types.User{
-		services.NewPresetAutomaticAccessBotUser(),
+		services.NewSystemAutomaticAccessBotUser(),
 	}
 	for _, user := range users {
 		// Some users are only valid for enterprise Teleport, and so will be
@@ -698,7 +699,7 @@ func createPresetUsers(ctx context.Context, um PresetUserManager) error {
 		}
 
 		if types.IsSystemResource(user) {
-			// System resources * always* get reset on every auth startup
+			// System resources *always* get reset on every auth startup
 			if err := um.UpsertUser(user); err != nil {
 				return trace.Wrap(err, "failed upserting system user %s", user.GetName())
 			}

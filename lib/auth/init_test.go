@@ -445,7 +445,6 @@ func TestClusterName(t *testing.T) {
 	require.Equal(t, conf.ClusterName.GetClusterName(), cn.GetClusterName())
 }
 
-// keysIn fetches the keys present in an arbitrary map
 func keysIn[K comparable, V any](m map[K]V) []K {
 	result := make([]K, 0, len(m))
 	for k := range m {
@@ -669,7 +668,7 @@ func TestPresets(t *testing.T) {
 		roleManager.AssertExpectations(t)
 
 		//
-		// Test #2 - popuulating an already-populated cluster
+		// Test #2 - populating an already-populated cluster
 		//
 		roleManager = newMockRoleManager(t)
 
@@ -768,18 +767,18 @@ func TestPresets(t *testing.T) {
 			TestBuildType: modules.BuildEnterprise,
 		})
 
-		enterpriseRoleNames := append([]string{
+		enterprisePresetRoleNames := append([]string{
 			teleport.PresetGroupAccessRoleName,
 			teleport.PresetRequesterRoleName,
 			teleport.PresetReviewerRoleName,
 		}, presetRoleNames...)
 
 		enterpriseSystemRoleNames := []string{
-			teleport.PresetAutomaticAccessApprovalRoleName,
+			teleport.SystemAutomaticAccessApprovalRoleName,
 		}
 
 		enterpriseUsers := []types.User{
-			services.NewPresetAutomaticAccessBotUser(),
+			services.NewSystemAutomaticAccessBotUser(),
 		}
 
 		t.Run("EmptyCluster", func(t *testing.T) {
@@ -799,7 +798,7 @@ func TestPresets(t *testing.T) {
 			}
 
 			// Preset Roles were created
-			for _, role := range append(enterpriseRoleNames, enterpriseSystemRoleNames...) {
+			for _, role := range append(enterprisePresetRoleNames, enterpriseSystemRoleNames...) {
 				_, err := as.GetRole(ctx, role)
 				require.NoError(t, err)
 			}
@@ -812,12 +811,12 @@ func TestPresets(t *testing.T) {
 		})
 
 		t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-			upsertRoleTest(t, enterpriseRoleNames, enterpriseSystemRoleNames)
+			upsertRoleTest(t, enterprisePresetRoleNames, enterpriseSystemRoleNames)
 		})
 
 		t.Run("System users are always upserted", func(t *testing.T) {
 			ctx := context.Background()
-			sysUser := services.NewPresetAutomaticAccessBotUser().(*types.UserV2)
+			sysUser := services.NewSystemAutomaticAccessBotUser().(*types.UserV2)
 
 			// GIVEN a user database...
 			auth := newMockUserManager(t)
@@ -886,7 +885,7 @@ func (m *mockUserManager) UpsertUser(user types.User) error {
 	return args.Error(0)
 }
 
-var _ PresetUserManager = &mockUserManager{}
+var _ PresetUsers = &mockUserManager{}
 
 type mockRoleManager struct {
 	mock.Mock

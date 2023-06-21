@@ -29,7 +29,10 @@ import (
 	"github.com/gravitational/teleport/lib/modules"
 )
 
-func NewPresetAutomaticAccessApproverRole() types.Role {
+// NewSystemAutomaticAccessApproverRole creates a new Role that is allowed to
+// approve any Access Request. This is restricted to Teleport Enterprise, and
+// returns nil in non-Enterproise builds.
+func NewSystemAutomaticAccessApproverRole() types.Role {
 	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	if !enterprise {
 		return nil
@@ -38,7 +41,7 @@ func NewPresetAutomaticAccessApproverRole() types.Role {
 		Kind:    types.KindRole,
 		Version: types.V7,
 		Metadata: types.Metadata{
-			Name:        teleport.PresetAutomaticAccessApprovalRoleName,
+			Name:        teleport.SystemAutomaticAccessApprovalRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Approves any access request",
 			Labels: map[string]string{
@@ -57,7 +60,7 @@ func NewPresetAutomaticAccessApproverRole() types.Role {
 	return role
 }
 
-// NewPresetAutomaticAccessBotUser returns a new User that has (via the
+// NewSystemAutomaticAccessBotUser returns a new User that has (via the
 // the `PresetAutomaticAccessApprovalRoleName` role) the right to automatically
 // approve any access requests.
 //
@@ -66,7 +69,7 @@ func NewPresetAutomaticAccessApproverRole() types.Role {
 //   - Show up in user lists in WebUI
 //
 // TODO(tcsc): Implement/enforce above restrictions on this user
-func NewPresetAutomaticAccessBotUser() types.User {
+func NewSystemAutomaticAccessBotUser() types.User {
 	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	if !enterprise {
 		return nil
@@ -76,7 +79,7 @@ func NewPresetAutomaticAccessBotUser() types.User {
 		Kind:    types.KindUser,
 		Version: types.V2,
 		Metadata: types.Metadata{
-			Name:        teleport.PresetAccessApproverUserName,
+			Name:        teleport.SystemAccessApproverUserName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Used internally by Teleport to automatically approve access requests",
 			Labels: map[string]string{
@@ -85,7 +88,7 @@ func NewPresetAutomaticAccessBotUser() types.User {
 			},
 		},
 		Spec: types.UserSpecV2{
-			Roles: []string{teleport.PresetAutomaticAccessApprovalRoleName},
+			Roles: []string{teleport.SystemAutomaticAccessApprovalRoleName},
 		},
 	}
 	return user
