@@ -61,20 +61,19 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		clock = clockwork.NewRealClock()
 	}
 
+	ctx, cancel := context.WithCancel(ctx)
 	b := &Backend{
-		log:   log,
-		pool:  pool,
-		clock: clock,
+		log:    log,
+		pool:   pool,
+		buf:    backend.NewCircularBuffer(),
+		clock:  clock,
+		cancel: cancel,
 	}
 
 	if err := b.setupAndMigrate(ctx); err != nil {
 		b.Close()
 		return nil, trace.Wrap(err)
 	}
-
-	b.buf = backend.NewCircularBuffer()
-	ctx, cancel := context.WithCancel(context.Background())
-	b.cancel = cancel
 
 	b.wg.Add(1)
 	go b.backgroundExpiry(ctx)
@@ -98,6 +97,7 @@ type Backend struct {
 func (b *Backend) Close() error {
 	b.cancel()
 	b.wg.Wait()
+	b.buf.Close()
 	b.pool.Close()
 	return nil
 }
