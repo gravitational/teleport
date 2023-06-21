@@ -38,9 +38,9 @@ const Login = styled.div`
   display: flex;
   justify-content: space-between;
   background: ${p => p.theme.colors.spotBackground[0]};
-  width: 420px;
-  padding: 10px 15px;
   border-radius: 5px;
+  align-items: center;
+  padding: 0 80px 0 15px;
   overflow: hidden;
   user-select: none;
   cursor: grab;
@@ -51,15 +51,16 @@ const Login = styled.div`
 
 const DeleteButton = styled.div`
   cursor: pointer;
-  padding: 10px;
+  padding: 5px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${p => p.theme.colors.spotBackground[0]};
   position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  border-radius: 7px;
+  background: ${p => p.theme.colors.spotBackground[1]};
 
   &:hover {
     background: ${p => p.theme.colors.error.main};
@@ -80,6 +81,7 @@ const Loading = styled.div`
 
 const LoginContainer = styled.div`
   height: 50px;
+  width: inherit;
 `;
 
 function getLoginsForNodes(nodes: Node[]) {

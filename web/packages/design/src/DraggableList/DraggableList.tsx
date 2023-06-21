@@ -140,6 +140,7 @@ export function DraggableList(props: PropsWithChildren<DraggableListProps>) {
             style={{
               position: 'absolute',
               zIndex,
+              width: '100%',
               transform: to(
                 [width, height],
                 (x, y) => `translate3d(${x}px, ${y}px, 0)`
