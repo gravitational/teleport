@@ -184,6 +184,7 @@ func TestDeviceConversions_toAndFrom(t *testing.T) {
 			OsBuild:           "22D68",
 			OsUsernames:       []string{"admin", "llama"},
 			JamfBinaryVersion: "9.27",
+			ExternalId:        "99",
 		},
 	}
 
