@@ -18,12 +18,12 @@ package ai
 
 import (
 	"context"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	"github.com/tiktoken-go/tokenizer/codec"
 
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/lib/ai/model"
 )
 

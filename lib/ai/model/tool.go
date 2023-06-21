@@ -19,12 +19,13 @@ package model
 import (
 	"context"
 	"fmt"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
-	"github.com/gravitational/teleport/api/types"
-	log "github.com/sirupsen/logrus"
 	"strings"
 
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/api/types"
 )
 
 // Tool is an interface that allows the agent to interact with the outside world.

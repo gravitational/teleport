@@ -19,13 +19,14 @@ package model
 import (
 	"context"
 	"encoding/json"
-	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 )
 
 const (

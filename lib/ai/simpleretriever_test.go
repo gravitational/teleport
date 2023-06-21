@@ -41,7 +41,7 @@ func TestSimpleRetriever_GetRelevant(t *testing.T) {
 		for i := 0; i < testVectorDimension; i++ {
 			vec[i] = randGen.Float64()
 		}
-		// normalize vector, so the simiarity between two vectors is the dot product
+		// normalize vector, so the similarity between two vectors is the dot product
 		// between [0, 1]
 		return normalize(vec)
 	}
@@ -49,11 +49,11 @@ func TestSimpleRetriever_GetRelevant(t *testing.T) {
 	const testEmbeddingsSize = 100
 	points := make([]*Embedding, testEmbeddingsSize)
 	for i := 0; i < testEmbeddingsSize; i++ {
-		points[i] = NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector())
+		points[i] = NewEmbedding(types.KindNode, strconv.Itoa(i), generateVector(), [32]byte{})
 	}
 
 	// Create a query.
-	query := NewEmbedding(types.KindNode, "1", generateVector())
+	query := NewEmbedding(types.KindNode, "1", generateVector(), [32]byte{})
 
 	retriever := NewSimpleRetriever()
 

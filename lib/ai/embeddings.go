@@ -34,6 +34,9 @@ import (
 	streamutils "github.com/gravitational/teleport/lib/utils/stream"
 )
 
+// maxEmbeddingAPISize is the maximum number of entities that can be embedded in a single API call.
+const maxEmbeddingAPISize = 1000
+
 // Embeddings implements the minimal interface used by the Embedding processor.
 type Embeddings interface {
 	// GetEmbeddings returns all embeddings for a given kind.
@@ -92,7 +95,9 @@ func SerializeNode(node types.Server) ([]byte, error) {
 		SubKind string            `yaml:"subkind"`
 		Labels  map[string]string `yaml:"labels"`
 	}{
-		ID:      node.GetName(),
+		// Name is the resource UUID.
+		ID: node.GetName(),
+		// Create artificial Name file for the node "name". Using node.GetName() as Name seems to confuse the model.
 		Name:    node.GetHostname(),
 		Kind:    types.KindNode,
 		SubKind: node.GetSubKind(),
@@ -147,34 +152,34 @@ func (b *BatchReducer[T, V]) Finalize(ctx context.Context) (V, error) {
 
 // EmbeddingProcessorConfig is the configuration for EmbeddingProcessor.
 type EmbeddingProcessorConfig struct {
-	AIClient      Embedder
-	EmbeddingSrv  Embeddings
-	EmbeddingsMap *SimpleRetriever
-	NodeSrv       NodesStreamGetter
-	Log           logrus.FieldLogger
-	Jitter        retryutils.Jitter
+	AIClient            Embedder
+	EmbeddingSrv        Embeddings
+	EmbeddingsRetriever *SimpleRetriever
+	NodeSrv             NodesStreamGetter
+	Log                 logrus.FieldLogger
+	Jitter              retryutils.Jitter
 }
 
 // EmbeddingProcessor is responsible for processing nodes, generating embeddings
-// and storing their the embeddings in the backend.
+// and storing their embeddings in the backend.
 type EmbeddingProcessor struct {
-	aiClient      Embedder
-	embeddingSrv  Embeddings
-	embeddingsMap *SimpleRetriever
-	nodeSrv       NodesStreamGetter
-	log           logrus.FieldLogger
-	jitter        retryutils.Jitter
+	aiClient            Embedder
+	embeddingSrv        Embeddings
+	embeddingsRetriever *SimpleRetriever
+	nodeSrv             NodesStreamGetter
+	log                 logrus.FieldLogger
+	jitter              retryutils.Jitter
 }
 
 // NewEmbeddingProcessor returns a new EmbeddingProcessor.
 func NewEmbeddingProcessor(cfg *EmbeddingProcessorConfig) *EmbeddingProcessor {
 	return &EmbeddingProcessor{
-		aiClient:      cfg.AIClient,
-		embeddingSrv:  cfg.EmbeddingSrv,
-		embeddingsMap: cfg.EmbeddingsMap,
-		nodeSrv:       cfg.NodeSrv,
-		log:           cfg.Log,
-		jitter:        cfg.Jitter,
+		aiClient:            cfg.AIClient,
+		embeddingSrv:        cfg.EmbeddingSrv,
+		embeddingsRetriever: cfg.EmbeddingsRetriever,
+		nodeSrv:             cfg.NodeSrv,
+		log:                 cfg.Log,
+		jitter:              cfg.Jitter,
 	}
 }
 
@@ -210,15 +215,16 @@ func (e *EmbeddingProcessor) mapProcessFn(ctx context.Context, data []*nodeStrin
 }
 
 // Run runs the EmbeddingProcessor.
-func (e *EmbeddingProcessor) Run(ctx context.Context, period time.Duration) error {
-	time.Sleep(10 * time.Second)
-	e.log.Debugf("embedding processor started")
-	e.process(ctx)
-
+func (e *EmbeddingProcessor) Run(ctx context.Context, initialDelay, period time.Duration) error {
+	initTimer := time.NewTimer(initialDelay)
 	for {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
+		case <-initTimer.C:
+			// Stop the timer after the initial delay.
+			initTimer.Stop()
+			e.process(ctx)
 		case <-time.After(e.jitter(period)):
 			e.process(ctx)
 		}
@@ -227,8 +233,11 @@ func (e *EmbeddingProcessor) Run(ctx context.Context, period time.Duration) erro
 
 func (e *EmbeddingProcessor) process(ctx context.Context) {
 	batch := NewBatchReducer[*nodeStringPair, []*Embedding](e.mapProcessFn,
-		1000, // Max batch size allowed by OpenAI API,
+		maxEmbeddingAPISize, // Max batch size allowed by OpenAI API,
 	)
+
+	e.log.Debugf("embedding processor started")
+	defer e.log.Debugf("embedding processor finished")
 
 	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx, types.KindNode)
 	nodesStream := e.nodeSrv.GetNodeStream(ctx, defaults.Namespace)
@@ -272,7 +281,7 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 			}
 			return nil
 		},
-		// On compare keys callback. Compare the keys for iterration.
+		// On compare keys callback. Compare the keys for iteration.
 		func(node types.Server, embeddings *Embedding) int {
 			if node.GetName() == embeddings.GetName() {
 				return 0
@@ -303,20 +312,25 @@ func (e *EmbeddingProcessor) process(ctx context.Context) {
 	}
 }
 
+// updateMemIndex is a helper function that updates the in-memory index with the
+// latest embeddings. The new index is created and then swapped with the old one.
 func (e *EmbeddingProcessor) updateMemIndex(ctx context.Context) error {
 	embeddingsIndex := NewSimpleRetriever()
 	embeddingsStream := e.embeddingSrv.GetEmbeddings(ctx, types.KindNode)
 
 	for embeddingsStream.Next() {
 		embedding := embeddingsStream.Item()
-		embeddingsIndex.Insert(embedding.GetEmbeddedID(), embedding)
+		if !embeddingsIndex.Insert(embedding.GetEmbeddedID(), embedding) {
+			e.log.Warnf("Embeddings index is full, some resources can be missing")
+			break
+		}
 	}
 
 	if err := embeddingsStream.Done(); err != nil {
 		return trace.Wrap(err)
 	}
 
-	e.embeddingsMap.Swap(embeddingsIndex)
+	e.embeddingsRetriever.Swap(embeddingsIndex)
 
 	return nil
 }
