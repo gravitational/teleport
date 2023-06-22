@@ -102,6 +102,8 @@ message ResourceAccess {
   bool create = 4;
   // delete determines "delete" access
   bool delete = 5;
+  // use determines "use" access
+  bool use = 6;
 }
 
 // Features describes the auth servers features

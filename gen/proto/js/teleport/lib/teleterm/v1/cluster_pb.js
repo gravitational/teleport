@@ -1688,7 +1688,8 @@ proto.teleport.lib.teleterm.v1.ResourceAccess.toObject = function(includeInstanc
     read: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
     edit: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
     create: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
-    pb_delete: jspb.Message.getBooleanFieldWithDefault(msg, 5, false)
+    pb_delete: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+    use: jspb.Message.getBooleanFieldWithDefault(msg, 6, false)
   };
 
   if (includeInstance) {
@@ -1744,6 +1745,10 @@ proto.teleport.lib.teleterm.v1.ResourceAccess.deserializeBinaryFromReader = func
     case 5:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setDelete(value);
+      break;
+    case 6:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setUse(value);
       break;
     default:
       reader.skipField();
@@ -1806,6 +1811,13 @@ proto.teleport.lib.teleterm.v1.ResourceAccess.serializeBinaryToWriter = function
   if (f) {
     writer.writeBool(
       5,
+      f
+    );
+  }
+  f = message.getUse();
+  if (f) {
+    writer.writeBool(
+      6,
       f
     );
   }
@@ -1899,6 +1911,24 @@ proto.teleport.lib.teleterm.v1.ResourceAccess.prototype.getDelete = function() {
  */
 proto.teleport.lib.teleterm.v1.ResourceAccess.prototype.setDelete = function(value) {
   return jspb.Message.setProto3BooleanField(this, 5, value);
+};
+
+
+/**
+ * optional bool use = 6;
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.ResourceAccess.prototype.getUse = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 6, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.teleport.lib.teleterm.v1.ResourceAccess} returns this
+ */
+proto.teleport.lib.teleterm.v1.ResourceAccess.prototype.setUse = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 6, value);
 };
 
 

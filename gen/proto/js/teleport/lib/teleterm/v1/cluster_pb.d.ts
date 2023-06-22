@@ -236,6 +236,9 @@ export class ResourceAccess extends jspb.Message {
     getDelete(): boolean;
     setDelete(value: boolean): ResourceAccess;
 
+    getUse(): boolean;
+    setUse(value: boolean): ResourceAccess;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): ResourceAccess.AsObject;
@@ -254,6 +257,7 @@ export namespace ResourceAccess {
         edit: boolean,
         create: boolean,
         pb_delete: boolean,
+        use: boolean,
     }
 }
 
