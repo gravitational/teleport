@@ -413,8 +413,6 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     executeCommandWebSocket.current = new WebSocket(url);
     executeCommandWebSocket.current.binaryType = 'arraybuffer';
 
-    let sessionsEnded = 0;
-
     executeCommandWebSocket.current.onmessage = event => {
       const uintArray = new Uint8Array(event.data);
 
