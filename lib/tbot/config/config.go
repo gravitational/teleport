@@ -300,7 +300,7 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		}
 	}
 	// Check for outputs reusing the same destination. This is a deeply
-	// uncharted/unknown behaviour area. For now we'll emit a heavy warning,
+	// uncharted/unknown behavior area. For now we'll emit a heavy warning,
 	// in 15+ this will be an explicit area as outputs writing over one another
 	// is too complex to support.
 	for path, count := range destinationPaths {
