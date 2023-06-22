@@ -462,25 +462,17 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
 
         case MessageTypeEnum.SESSION_END:
-          // we don't know the nodeId of the session that ended, so we have to
-          // count the finished sessions and then mark them all as done once
-          // they've all finished
-          sessionsEnded += 1;
-
-          if (sessionsEnded === nodeIdToResultId.size) {
-            for (const nodeId of nodeIdToResultId.keys()) {
-              dispatch({
-                type: AssistStateActionType.FinishCommandResult,
-                conversationId: state.conversations.selectedId,
-                commandResultId: nodeIdToResultId.get(nodeId),
-              });
-            }
-
-            nodeIdToResultId.clear();
-
-            // TODO(ryan): move this to after the summary is sent once it's implemented
-            executeCommandWebSocket.current.close();
+          for (const nodeId of nodeIdToResultId.keys()) {
+            dispatch({
+              type: AssistStateActionType.FinishCommandResult,
+              conversationId: state.conversations.selectedId,
+              commandResultId: nodeIdToResultId.get(nodeId),
+            });
           }
+
+          nodeIdToResultId.clear();
+
+          executeCommandWebSocket.current.close();
 
           break;
       }
