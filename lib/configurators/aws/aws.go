@@ -1129,7 +1129,9 @@ func isTargetAWSAssumeRoleForDatabases(databases []*servicecfg.Database, targetA
 
 func isTargetAWSAssumeRoleForResourceMatchers(resourceMatchers []services.ResourceMatcher, targetARN string) bool {
 	for _, resourceMatcher := range resourceMatchers {
-		return resourceMatcher.AWS.AssumeRoleARN == targetARN
+		if resourceMatcher.AWS.AssumeRoleARN == targetARN {
+			return true
+		}
 	}
 	return false
 }

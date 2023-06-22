@@ -1679,15 +1679,22 @@ func TestIsTargetAssumeRole(t *testing.T) {
 		},
 		"target in resources": {
 			target: roleTarget,
-			resources: []services.ResourceMatcher{{
-				Labels: types.Labels{
-					"env": []string{"dev"},
+			resources: []services.ResourceMatcher{
+				{
+					Labels: types.Labels{
+						"env": []string{"prod"},
+					},
 				},
-				AWS: services.ResourceMatcherAWS{
-					AssumeRoleARN: roleTarget.String(),
-					ExternalID:    "external-id",
+				{
+					Labels: types.Labels{
+						"env": []string{"dev"},
+					},
+					AWS: services.ResourceMatcherAWS{
+						AssumeRoleARN: roleTarget.String(),
+						ExternalID:    "external-id",
+					},
 				},
-			}},
+			},
 			want: true,
 		},
 		"target is not a role": {
