@@ -66,7 +66,9 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 // UploadPart uploads part
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
 	start := time.Now()
-	defer func() { h.Infof("UploadPart(%v) part(%v) uploaded in %v.", upload.ID, partNumber, time.Since(start)) }()
+	defer func() {
+		h.Infof("UploadPart(upload %v) part(%v) session(%v) uploaded in %v.", upload.ID, partNumber, upload.SessionID, time.Since(start))
+	}()
 
 	// This upload exceeded maximum number of supported parts, error now.
 	if partNumber > s3manager.MaxUploadParts {
