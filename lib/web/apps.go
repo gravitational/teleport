@@ -21,6 +21,7 @@ package web
 import (
 	"context"
 	"net/http"
+	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -63,8 +64,22 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 	}
 
 	var apps types.Apps
+	appsToUserGroups := map[string]types.UserGroups{}
 	for _, server := range page.Resources {
 		apps = append(apps, server.GetApp())
+
+		userGroups := make(types.UserGroups, len(server.GetApp().GetUserGroups()))
+		for i, userGroupName := range server.GetApp().GetUserGroups() {
+			userGroup, err := clt.GetUserGroup(r.Context(), userGroupName)
+
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			userGroups[i] = userGroup
+		}
+		sort.Sort(userGroups)
+		appsToUserGroups[server.GetName()] = userGroups
 	}
 
 	return listResourcesGetResponse{
@@ -74,6 +89,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			AppClusterName:    site.GetName(),
 			Identity:          identity,
 			Apps:              apps,
+			AppsToUserGroups:  appsToUserGroups,
 		}),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,
