@@ -78,7 +78,7 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
 - Post successful completion of Replication DynamoDB and S3 proceed to Step 5/6.
 
 ## Step 5/6. Set up Teleport cluster in Secondary Region same as Step 3/6:
-- We will use  same (Primary Region cluster) `aws-values.yaml` & `aws-issuer.yaml` config files to install Teleport name space in Secondary Region (us-east-1) by changing the clusterName.
+- We will use the same `aws-values.yaml` & `aws-issuer.yaml` config files from the Primary region cluster to install the `teleport-cluster` Helm chart in the Secondary Region (`us-east-1`), by changing the `clusterName`.
   So that it will use same backend as defined in Primary Region (us-west-1) for DynamoDB and S3 buckets. 
   Once the Teleport Cluster in Secondary Region (us-east-1) is ready, you can check the SSO access by logging in via Secondary region (us-east-1) UI/tsh
   Configuration. SSO login will work fine from both the Primary (us-west-1) and Secondary (us-east-1) region Teleport clusters.
