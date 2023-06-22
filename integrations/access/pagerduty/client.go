@@ -136,11 +136,18 @@ func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 		}
 
 		if resp.IsError() {
-			result := resp.Error()
-			if result, ok := result.(*ErrorResult); ok {
-				return trace.Errorf("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
+			var details string
+			switch result := resp.Error().(type) {
+			case *ErrorResult:
+				details = fmt.Sprintf("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
+			default:
+				details = fmt.Sprintf("unknown error result %#v", result)
 			}
-			return trace.Errorf("unknown error result %#v", result)
+
+			if status.GetCode() == types.PluginStatusCode_UNAUTHORIZED {
+				return trace.AccessDenied(details)
+			}
+			return trace.Errorf(details)
 		}
 		return nil
 	}
