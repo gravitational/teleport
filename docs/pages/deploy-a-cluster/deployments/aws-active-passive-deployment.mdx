@@ -28,7 +28,7 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
   - Enable the us-west-1 (Active Region) DynamoDB table with global replication in the us-east-1 (Passive Region) to ensure cluster 
     state and audit logs are maintained in both regions.
   - DynamoDB [Global Replication Steps](https://aws.amazon.com/blogs/aws/new-convert-your-single-region-amazon-dynamodb-tables-to-global-tables/)
--  S3 buckets are for session recording storage.
+-  Two S3 buckets with cross-region replication enabled are used for session recording storage.
   - Enable cross-region replication on the S3 bucket to ensure objects are replicated between both the Active and 
     Passive regions.
   - S3 [Replication Steps](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html).
