@@ -1006,6 +1006,10 @@ type Auth struct {
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
 
+	// CommandExecutionWorkers determines the number of workers that will
+	// execute arbitrary remote commands on servers (e.g. through Assist) in parallel
+	CommandExecutionWorkers int64 `yaml:"command_execution_workers,omitempty"`
+
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
@@ -1044,7 +1048,8 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.ProxyListenerMode != empty.ProxyListenerMode ||
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
-		a.ProxyPingInterval != empty.ProxyPingInterval
+		a.ProxyPingInterval != empty.ProxyPingInterval ||
+		a.CommandExecutionWorkers != empty.CommandExecutionWorkers
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
