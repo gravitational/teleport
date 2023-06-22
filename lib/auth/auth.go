@@ -625,8 +625,11 @@ type Server struct {
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
 
+	// embeddingRetriever is a retriever used to retrieve embeddings from the backend.
 	embeddingsRetriever *ai.SimpleRetriever
-	embedder            ai.Embedder
+
+	// embedder is an embedder client used to generate embeddings.
+	embedder ai.Embedder
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML

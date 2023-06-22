@@ -17,6 +17,7 @@ package ai
 import (
 	"context"
 	"crypto/sha256"
+
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 

@@ -25,6 +25,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/emptypb"
 
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/ai"
@@ -163,7 +164,7 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 	queryEmbeddings := ai.NewEmbedding(msg.Kind, "", embeddings[0], [32]byte{})
 	documents := a.embeddings.GetRelevant(queryEmbeddings, int(msg.Limit), func(id string, embedding *ai.Embedding) bool {
 		// Run RBAC check on the embedded resource.
-		node, err := a.resourceGetter.GetNode(ctx, "default", embedding.GetEmbeddedID())
+		node, err := a.resourceGetter.GetNode(ctx, defaults.Namespace, embedding.GetEmbeddedID())
 		if err != nil {
 			a.log.Tracef("failed to get node %q: %v", embedding.GetName(), err)
 			return false
@@ -173,7 +174,7 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 
 	protoDocs := make([]*assist.EmbeddedDocument, 0, len(documents))
 	for _, doc := range documents {
-		node, err := a.resourceGetter.GetNode(ctx, "default", doc.GetEmbeddedID())
+		node, err := a.resourceGetter.GetNode(ctx, defaults.Namespace, doc.GetEmbeddedID())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
