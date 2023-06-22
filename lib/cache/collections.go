@@ -1252,7 +1252,7 @@ func (databaseExecutor) upsert(ctx context.Context, cache *Cache, resource types
 		// where the database stored on the backend is no longer valid given the
 		// Teleport version.
 		if trace.IsBadParameter(err) {
-			cache.Logger.Infof("Skipping database %q addition to cache due to validation errors. Solve the errors and update your database spec to get it on cache: %s", resource.GetName(), err)
+			cache.Logger.Infof("Adding database %q to cache was skipped due to validation errors. Please update your database spec accordingly: %s", resource.GetName(), err)
 			return nil
 		}
 
