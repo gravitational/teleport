@@ -2066,6 +2066,10 @@ func generateCert(a *Server, req certRequest, caType types.CertAuthType) (*proto
 	var sessionTTL time.Duration
 	var allowedLogins []string
 
+	if req.ttl == 0 {
+		req.ttl = time.Duration(authPref.GetDefaultSessionTTL())
+	}
+
 	// If the role TTL is ignored, do not restrict session TTL and allowed logins.
 	// The only caller setting this parameter should be "tctl auth sign".
 	// Otherwise, set the session TTL to the smallest of all roles and
