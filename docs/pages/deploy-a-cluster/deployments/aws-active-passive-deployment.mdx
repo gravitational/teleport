@@ -8,7 +8,7 @@ an automatic failover across multiple AWS regions. This architecture keeps Telep
 disruption during the event of an entire cloud provider region outage. While this example is for AWS, the 
 general architecture can apply to various cloud providers and self-hosted examples as well.
 
-In this architecture, the Auth and Proxy components and their networking components run parallelly in two 
+In this architecture, the Auth and Proxy components and their networking components run in parallel across two 
 different cloud regions. These components utilize a global DynamoDB storage backend for the cluster state and audit 
 logs, while a copied S3 bucket is used for session recordings. The Route53 DNS failover is the control point to switch 
 between the active and passive clusters during the event of a regional outage. This document mainly focuses on Kubernetes,
