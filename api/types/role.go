@@ -1765,7 +1765,7 @@ const (
 
 func (h CreateHostUserMode) encode() (string, error) {
 	switch h {
-	case CreateHostUserMode_HOST_USER_MODE_UNDEFINED:
+	case CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED:
 		return "", nil
 	case CreateHostUserMode_HOST_USER_MODE_OFF:
 		return createHostUserModeOffString, nil
@@ -1793,7 +1793,7 @@ func (h *CreateHostUserMode) decode(val any) error {
 
 	switch valS {
 	case "":
-		*h = CreateHostUserMode_HOST_USER_MODE_UNDEFINED
+		*h = CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED
 	case createHostUserModeOffString:
 		*h = CreateHostUserMode_HOST_USER_MODE_OFF
 	case createHostUserModeDropString:

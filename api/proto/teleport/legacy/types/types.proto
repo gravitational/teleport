@@ -2326,10 +2326,10 @@ message RoleSpecV6 {
 }
 
 // CreateHostUserMode determines whether host user creation should be
-// disabled or if host users should be cleaned up or remain after
+// disabled or if host users should be cleaned up or kept after
 // sessions end.
 enum CreateHostUserMode {
-  HOST_USER_MODE_UNDEFINED = 0;
+  HOST_USER_MODE_UNSPECIFIED = 0;
   // HOST_USER_MODE_OFF disables host user creation.
   HOST_USER_MODE_OFF = 1;
   // HOST_USER_MODE_DROP enables host user creation and deletes users at session end.

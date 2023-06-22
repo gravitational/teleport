@@ -853,7 +853,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 
 		createHostUserMode := role.GetOptions().CreateHostUserMode
 		createHostUser := role.GetOptions().CreateHostUser
-		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNDEFINED {
+		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 			createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_OFF
 			if createHostUser != nil && createHostUser.Value {
 				createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_DROP
@@ -866,7 +866,7 @@ func (a *accessChecker) HostUsers(s types.Server) (*HostUsersInfo, error) {
 			return nil, trace.AccessDenied("user is not allowed to create host users")
 		}
 
-		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNDEFINED {
+		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
 			mode = createHostUserMode
 		}
 		// prefer to use HostUserModeKeep over Drop if mode has already been set.

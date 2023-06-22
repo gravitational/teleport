@@ -241,7 +241,7 @@ func TestRootHostUsers(t *testing.T) {
 			require.NoError(t, err)
 		}
 
-		// this user should not be in the service group as it was created with mode remain.
+		// this user should not be in the service group as it was created with mode keep.
 		closer, err := users.CreateUser("teleport-user4", &services.HostUsersInfo{
 			Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
 		})
