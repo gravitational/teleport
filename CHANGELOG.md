@@ -1,5 +1,44 @@
 # Changelog
 
+## 13.1.2 (06/21/23)
+
+* Teleport Assist
+  * Introduced new Assist web UI. [#27791](https://github.com/gravitational/teleport/pull/27791)
+  * Improved OpenAI error handling. [#27935](https://github.com/gravitational/teleport/pull/27935)
+* Access
+  * Added `reviewer` and `requester` preset roles. [#28076](https://github.com/gravitational/teleport/pull/28076)
+* Teleport Connect
+  * Fixed issue with overlapping placeholder and keyboard shortcut in the search bar. [#28048](https://github.com/gravitational/teleport/pull/28048)
+  * Updated resource filter ordering in the search bar. [#28034](https://github.com/gravitational/teleport/pull/28034)
+* Helm Charts
+  * Updated `teleport-cluster` chart to use local auth server address in auth pod to prevent extra connections. [#27980](https://github.com/gravitational/teleport/pull/27980)
+  * Added support for `hostAlias` in `teleport-kube-agent` chart. [#27880](https://github.com/gravitational/teleport/pull/27880)
+* Server Access
+  * Fixed issue with `tsh` prompting for a password when joining invalid sessions. [#27974](https://github.com/gravitational/teleport/pull/27974)
+  * Fixed issue with `SSH_SESSION_WEBPROXY_ADDR` not being set for some sessions. [#27865](https://github.com/gravitational/teleport/pull/27865)
+* Device Trust
+  * Updated `tsh` to prompt user for privilege elevation during TPM enrollment. [#27959](https://github.com/gravitational/teleport/pull/27959)
+* Web UI
+  * Added "Add SAML application" wizard to access management UI. [#27949](https://github.com/gravitational/teleport/pull/27949)
+* Database Access
+  * Added support for OpenSearch auto-discovery. [#27942](https://github.com/gravitational/teleport/pull/27942)
+* IP Pinning
+  * Fixed issue with SSO logins via web UI not working when IP pinning is enabled. [#27896](https://github.com/gravitational/teleport/pull/27896)
+* Stability & Reliability
+  * Improved shutdown stability. [#27887](https://github.com/gravitational/teleport/pull/27887)
+* Desktop Access
+  * Fixed issue with "Run as different user" window freezing. [#27874](https://github.com/gravitational/teleport/pull/27874)
+* CLI
+  * Added `--skip-confirm` flag to `tsh headless approve` command. [#27864](https://github.com/gravitational/teleport/pull/27864)
+* Tooling
+  * Updated Go to `1.20.5`. [#27860](https://github.com/gravitational/teleport/pull/27860)
+* Metrics
+  * Improved `backend_read_seconds` metric accuracy. [#27857](https://github.com/gravitational/teleport/pull/27857)
+* TLS Routing
+  * Fixed issue with ALPN handshake test not respecting `HTTPS_PROXY`. [#27810](https://github.com/gravitational/teleport/pull/27810)
+* Okta
+  * Updated Okta access requests to display app/group names instead of IDs. [#27803](https://github.com/gravitational/teleport/pull/27803)
+
 ## 13.1.1 (06/14/23)
 
 * Access
