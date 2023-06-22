@@ -1,30 +1,12 @@
 ---
-title: "Device Trust (Preview)"
+title: Set Up Device Trust (Preview)
 description: Learn how to use and enforce trusted devices with Teleport
 videoBanner: gBQyj_X1LVw
 ---
 
 <Admonition type="warning">
 Device Trust is currently in Preview mode.
-
-Device Trust requires Teleport Enterprise v12+.
 </Admonition>
-
-Device Trust allows Teleport admins to enforce the use of trusted devices.
-Resources protected by the device mode "required" will enforce the use of a
-trusted device, in addition to establishing the user's identity and enforcing
-the necessary roles. Furthermore, users using a trusted device leave audit
-trails that include the device's information.
-
-The device trust preview works on macOS and Windows devices and supports the
-following Teleport features:
-
-- SSH access enforcement
-- Database access enforcement
-- Kubernetes access enforcement
-
-Support for other operating systems and access features is planned for upcoming
-Teleport versions.
 
 ## Concepts
 
@@ -76,7 +58,6 @@ layer of protection.
   - A signed and notarized `tsh` binary for enrollment.
     [Download the macOS tsh installer](../../installation.mdx#macos).
   - A Teleport version newer than v12.0.0.
-  
 - To enroll a Windows device, you need:
   - A device that includes a TPM with 2.0 support.
   - `tsh` installed on the device. [Download the Windows tsh installer](../../installation.mdx#windows-tsh-client-only).
@@ -430,7 +411,7 @@ leaf clusters.
 Role-based configuration enforces trusted device access at the role level. It
 can be configured with the `spec.options.device_trust_mode` (`required`,
 `optional`, `off`) option and applies to the resources in its `allow` rules. It
-works similar to [`require_session_mfa`](./per-session-mfa.mdx).
+works similar to [`require_session_mfa`](../guides/per-session-mfa.mdx).
 
 To enforce authenticated device checks for a specific role, update the role with the following:
 
@@ -463,8 +444,8 @@ trusted device.
 
 ## Optional: Locking a device
 
-Similar to [session and identity locking](./locking.mdx), a device can be locked
-using `tctl lock`.
+Similar to [session and identity locking](../guides/locking.mdx), a device can
+be locked using `tctl lock`.
 
 Locking blocks certificate issuance and ongoing or future accesses originating
 from a locked device. Locking a device only works if device trust is enabled and
