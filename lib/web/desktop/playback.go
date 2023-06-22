@@ -253,7 +253,11 @@ func (pp *Player) streamSessionEvents(ctx context.Context, cancel context.Cancel
 			}
 			switch e := evt.(type) {
 			case *apievents.DesktopRecording:
+				if len(e.Message) > 0 {
+					pp.log.Debugf("found DesktopRecording event in stream with TDP message type: %v", e.Message[0])
+				}
 				if e.DelayMilliseconds > lastDelay {
+					pp.log.Debugf("e.DelayMilliseconds > lastDelay, sleeping for %v milliseconds", e.DelayMilliseconds-lastDelay)
 					// TODO(zmb3): replace with time.After so we can cancel
 					time.Sleep(time.Duration(scaleDelay(e.DelayMilliseconds-lastDelay)) * time.Millisecond)
 					lastDelay = e.DelayMilliseconds
