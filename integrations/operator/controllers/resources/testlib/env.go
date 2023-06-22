@@ -117,11 +117,12 @@ func defaultTeleportServiceConfig(t *testing.T) (*helpers.TeleInstance, string) 
 	role, err := types.NewRole(roleName, types.RoleSpecV6{
 		Allow: types.RoleConditions{
 			Rules: []types.Rule{
-				types.NewRule("role", unrestricted),
-				types.NewRule("user", unrestricted),
-				types.NewRule("auth_connector", unrestricted),
-				types.NewRule("login_rule", unrestricted),
-				types.NewRule("token", unrestricted),
+				types.NewRule(types.KindRole, unrestricted),
+				types.NewRule(types.KindUser, unrestricted),
+				types.NewRule(types.KindAuthConnector, unrestricted),
+				types.NewRule(types.KindLoginRule, unrestricted),
+				types.NewRule(types.KindToken, unrestricted),
+				types.NewRule(types.KindOktaImportRule, unrestricted),
 			},
 		},
 	})
@@ -206,6 +207,9 @@ func (s *TestSetup) StartKubernetesOperator(t *testing.T) {
 	require.NoError(t, err)
 
 	err = resources.NewProvisionTokenReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
+	require.NoError(t, err)
+
+	err = resources.NewOktaImportRuleReconciler(s.K8sClient, clientAccessor).SetupWithManager(k8sManager)
 	require.NoError(t, err)
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
