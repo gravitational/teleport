@@ -312,6 +312,9 @@ func (h *APIHandler) Close() error {
 // to set.
 var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
 
+// regex for the recordings endpoint /web/cluster/:clusterId/session/:sid
+var recordingRe = regexp.MustCompile(`^/web/cluster/[^/]+/session/[^/]+$`)
+
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	const apiPrefix = "/" + teleport.WebAPIVersion
@@ -479,6 +482,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 			httplib.SetNoCacheHeaders(w.Header())
 
 			isDesktopSession := desktopSessionRe.MatchString(r.URL.Path)
+			isRecording := recordingRe.MatchString(r.URL.Path)
 
 			// app access needs to make a CORS fetch request, so we only set the default CSP on that page
 			if strings.HasPrefix(r.URL.Path, "/web/launch/") {
@@ -487,7 +491,7 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 				applicationURL := "https://" + parts[3] + ":*"
 
 				httplib.SetAppLaunchContentSecurityPolicy(w.Header(), applicationURL)
-			} else if isDesktopSession {
+			} else if isDesktopSession || isRecording {
 				httplib.SetIndexContentSecurityPolicyWithWasm(w.Header())
 			} else {
 				httplib.SetIndexContentSecurityPolicy(w.Header())
