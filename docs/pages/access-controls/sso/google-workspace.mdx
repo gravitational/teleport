@@ -188,14 +188,14 @@ the resulting JSON file.
 
 Later, we will make this JSON available to the Teleport Auth Server via the
 OIDC Connector configuration, either by referencing a local file or pasting the
-JSON into the configuration YAML. If you plan to take the first approach, you
-will need to upload the JSON to the Auth Server.
+JSON into the `tctl` command creating the connector. If you plan to take the
+first approach, you will need to upload the JSON to the Auth Server.
 
 <Admonition type="note">
 Teleport requires the service account JSON to be available to all Teleport Auth
 Server hosts when deploying Teleport in a High Availability configuration.
-Unless you paste the JSON into the OIDC Connector configuration, you will need
-to upload the JSON file to all Auth Server hosts.
+For distributed / HA or cloud deployments, we suggest providing the JSON when
+creating the connector resource.
 </Admonition>
 
 ### Configure domain-wide delegation
@@ -221,45 +221,11 @@ Create the OIDC connector resource using `tctl`. We will explain how to choose
 values for fields within the resource spec below:
 
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self Hosted">
+<TabItem scope={["oss", "enterprise", "cloud"]} label="Embedded JSON">
 
-```code
-$ tctl sso configure oidc --preset google --id <CLIENT-ID> \
---secret <CLIENT-SECRET> \
---google-acc-uri <PATH/TO/SERVICE-ACCOUNT-KEY>.json \
---claims-to-roles groups,auditor@example.com,auditor \
---claims-to-roles groups,teleport-developers@example.com,access \
---google-admin=<GOOGLE-WORKSPACE-ADMIN-EMAIL> > gworkspace-connector.yaml
-```
-
-The file created will resemble:
-
-```yaml
-kind: oidc
-metadata:
-  name: google
-spec:
-  claims_to_roles:
-  - claim: groups
-    roles:
-    - auditor
-    value: auditor@example.com
-  - claim: groups
-    roles:
-    - access
-    value: teleport-developers@example.com
-  client_id: CLIENT-ID
-  client_secret: CLIENT-SECRET
-  display: Google
-  google_admin_email: <GOOGLE-WORKSPACE-ADMIN-EMAIL>
-  google_service_account_uri: /PATH/TO/SERVICE-ACCOUNT-KEY.json
-  issuer_url: https://accounts.google.com
-  redirect_url: https://teleport.example.com/v1/webapi/oidc/callback
-version: v3
-```
-
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
+Use this method to define the service account JSON in the connector resource.
+This method doesn't require providing the JSON file to the host(s) running the
+Auth service.
 
 ```code
 $ tctl sso configure oidc --preset google --id CLIENT-ID \
@@ -304,6 +270,48 @@ spec:
     }
   issuer_url: https://accounts.google.com
   redirect_url: https://example.teleport.sh:443/v1/webapi/oidc/callback
+version: v3
+```
+
+</TabItem>
+<TabItem scope={["oss", "enterprise"]} label="Uploaded JSON file">
+
+Use this method for single self-hosted Teleport Auth instances, or when you can
+easily and reliably make the JSON file available to all hosts running the Auth
+service.
+
+```code
+$ tctl sso configure oidc --preset google --id <CLIENT-ID> \
+--secret <CLIENT-SECRET> \
+--google-acc-uri <PATH/TO/SERVICE-ACCOUNT-KEY>.json \
+--claims-to-roles groups,auditor@example.com,auditor \
+--claims-to-roles groups,teleport-developers@example.com,access \
+--google-admin=<GOOGLE-WORKSPACE-ADMIN-EMAIL> > gworkspace-connector.yaml
+```
+
+The file created will resemble:
+
+```yaml
+kind: oidc
+metadata:
+  name: google
+spec:
+  claims_to_roles:
+  - claim: groups
+    roles:
+    - auditor
+    value: auditor@example.com
+  - claim: groups
+    roles:
+    - access
+    value: teleport-developers@example.com
+  client_id: CLIENT-ID
+  client_secret: CLIENT-SECRET
+  display: Google
+  google_admin_email: <GOOGLE-WORKSPACE-ADMIN-EMAIL>
+  google_service_account_uri: /PATH/TO/SERVICE-ACCOUNT-KEY.json
+  issuer_url: https://accounts.google.com
+  redirect_url: https://teleport.example.com/v1/webapi/oidc/callback
 version: v3
 ```
 
