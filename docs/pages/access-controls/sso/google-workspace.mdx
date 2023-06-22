@@ -322,14 +322,22 @@ version: v3
   type="tip"
   title="Copy/Paste Tip"
 >
-  Be sure to remove < > brackets around tokens in the sample configuration above. For example, replace `<GOOGLE-WORKSPACE-ADMIN-EMAIL>` with `admin@yourdomain.com`.
+  Be sure to remove < > brackets around tokens in the sample configuration above.
+  For example, replace `<GOOGLE-WORKSPACE-ADMIN-EMAIL>` with `admin@yourdomain.com`.
 </Admonition>
 
-The email that you set for `google_admin_email` **must** be the email address of a user that has permission to list all groups, users, and group membership in your Google Workspace account. This user will generally need super admin or group admin privileges.
+The email that you set for `google_admin_email` **must** be the email address of
+a user that has permission to list all groups, users, and group membership in
+your Google Workspace account. This user will generally need super admin or group
+admin privileges.
 
-Do not use the email of the service account for `google_admin_email`. The configuration display will look the same, but the service account will not have the required domain-wide delegation.
+Do not use the email of the service account for `google_admin_email`. The
+configuration display will look the same, but the service account will not have
+the required domain-wide delegation.
 
-The `client_id` field must be the unique ID number captured from the Google Cloud Platform UI. An indicator that this is misconfigured is if you see "invalid Google Workspace credentials for scopes [...]" in your log.
+The `client_id` field must be the unique ID number captured from the Google Cloud
+Platform UI. An indicator that this is misconfigured is if you see "invalid Google
+Workspace credentials for scopes [...]" in your log.
 
 Test the connector:
 
@@ -348,15 +356,18 @@ $ tctl create -f gworkspace-connector.yaml
 ```
 
 <Details title="Upgrading from Teleport < 8.1.2?">
-If you have a configured connector from a version of Teleport older than 8.1.2, you can upgrade your connector from `v2` to `v3`:
+If you have a configured connector from a version of Teleport older than 8.1.2,
+you can upgrade your connector from `v2` to `v3`:
 
 First, fetch the connector data:
+
 ```code
 $ umask 077
 $ tctl get --with-secrets oidc/connectorname > connector.yaml
 ```
 
-Next, edit `connector.yaml` to change the version number from `v2` to `v3`, and then update the connector:
+Next, edit `connector.yaml` to change the version number from `v2` to `v3`, and
+then update the connector:
 
 ```code
 $ tctl create -f connector.yaml
@@ -402,4 +413,3 @@ automatically in a browser).
 - [Google Workspace Cloud Identity API](https://cloud.google.com/identity)
 - [Google Workspace Directory API](https://developers.google.com/admin-sdk/directory)
 - [How nested Google Workspace groups work](https://support.google.com/a/answer/167100?hl=en)
-
