@@ -821,10 +821,6 @@ func (a *Server) runPeriodicOperations() {
 		Duration: defaults.PrometheusScrapeInterval,
 		Jitter:   retryutils.NewSeventhJitter(),
 	})
-	editorHearbeatTicker := interval.New(interval.Config{
-		Duration: time.Second * 10, // TODO: constant
-		Jitter:   retryutils.NewSeventhJitter(),
-	})
 	missedKeepAliveCount := 0
 	defer ticker.Stop()
 	defer heartbeatCheckTicker.Stop()
@@ -913,8 +909,6 @@ func (a *Server) runPeriodicOperations() {
 			a.syncReleaseAlerts(ctx, true)
 		case <-localReleaseCheck.Next():
 			a.syncReleaseAlerts(ctx, false)
-		case <-editorHearbeatTicker.Next():
-			a.emitEditorHeartbeat(ctx)
 		}
 	}
 }
@@ -1092,27 +1086,6 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 			log.Warnf("Failed to delete %s alert: %v", secAlertID, err)
 		}
 	}
-}
-
-func (a *Server) emitEditorHeartbeat(ctx context.Context) {
-	fmt.Println("emitEditorHeartbeat")
-	users, err := a.GetUsers(false)
-	if err != nil {
-		log.Errorf("failed getting users during editor heartbeat: %v.", err)
-	}
-
-	var editors []string
-	for _, u := range users {
-		for _, role := range u.GetRoles() {
-			if role == teleport.PresetEditorRoleName {
-				editors = append(editors, u.GetMetadata().Name)
-				break
-			}
-		}
-	}
-
-	// TODO: add new event type and submit
-	// a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{})
 }
 
 // makeUpgradeSuggestionMsg generates an upgrade suggestion alert msg if one is
