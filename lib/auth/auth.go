@@ -914,7 +914,7 @@ func (a *Server) runPeriodicOperations() {
 		case <-localReleaseCheck.Next():
 			a.syncReleaseAlerts(ctx, false)
 		case <-editorHearbeatTicker.Next():
-			a.emitRolesHeartbeat(ctx)
+			a.emitEditorHeartbeat(ctx)
 		}
 	}
 }
@@ -1094,21 +1094,23 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 	}
 }
 
-func (a *Server) emitRolesHeartbeat(ctx context.Context) {
-	fmt.Println("emitRolesHeartbeat")
+func (a *Server) emitEditorHeartbeat(ctx context.Context) {
+	fmt.Println("emitEditorHeartbeat")
 	users, err := a.GetUsers(false)
 	if err != nil {
 		log.Errorf("failed getting users during editor heartbeat: %v.", err)
 	}
 
-	var roleMapping = make(map[string][]string)
+	var editors []string
 	for _, u := range users {
 		for _, role := range u.GetRoles() {
-			roleMapping[role] = append(roleMapping[role], u.GetMetadata().Name)
+			if role == teleport.PresetEditorRoleName {
+				editors = append(editors, u.GetMetadata().Name)
+				break
+			}
 		}
 	}
 
-	fmt.Printf("role mapping: %+v\n", roleMapping)
 	// TODO: add new event type and submit
 	// a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{})
 }
