@@ -34,7 +34,7 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
   - S3 [Replication Steps](https://docs.aws.amazon.com/AmazonS3/latest/userguide/replication.html).
   - Make sure proper IAM permissions are in place for the successful [Replication of 
   S3 buckets](https://docs.aws.amazon.com/AmazonS3/latest/userguide/setting-repl-config-perm-overview.html).
-- Configure the Teleport cluster Route53 records to use the 
+- Configure the Route53 DNS records pointed to the Teleport Cluster to use the 
   [Failover Routing Policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive) 
   with the active cluster loadbalancer as the primary record and the passive cluster loadbalancer as the secondary record.
   - Use health checks to determine Teleport cluster availability. Route53 will automatically send the traffic to the 
