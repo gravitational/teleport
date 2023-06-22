@@ -38,8 +38,8 @@ architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-d
   [Failover Routing Policy](https://docs.aws.amazon.com/Route53/latest/DeveloperGuide/dns-failover-types.html#dns-failover-types-active-passive) 
   with the Active cluster's load balancer as the primary record and the Passive cluster's load balancer as the secondary record.
   - Use health checks to determine Teleport cluster availability. Route53 will automatically send the traffic to the 
-    passive cluster during the event of a regional outage and it will automatically routes the traffic back to the active 
-    cluster once the Active cluster when health checks report a normal state.
+    Passive cluster in the event of an outage in the Active region. It will then automatically route the traffic back to the Active 
+    cluster once the Active cluster's health checks report a normal state.
 
 ### Advantages of this deployment architecture
 
