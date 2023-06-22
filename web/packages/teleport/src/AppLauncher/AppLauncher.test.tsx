@@ -26,32 +26,43 @@ import service from 'teleport/services/apps';
 
 import { AppLauncher } from './AppLauncher';
 
-const testCases = [
+const testCases: { name: string; query: string; expectedPath: string }[] = [
   {
-    queryParams: '?path=%2F',
+    name: 'no path or query',
+    query: '?path=',
+    expectedPath: '',
+  },
+  {
+    name: 'root path',
+    query: '?path=%2F',
     expectedPath: '/',
   },
   {
-    queryParams: '?path=%2Flogin',
-    expectedPath: '/login',
+    name: 'with multi path',
+    query: '?path=%2Ffoo%2Fbar',
+    expectedPath: '/foo/bar',
   },
   {
-    queryParams: '?path=%2Ffoo%2Fbar&fruit=apple&os=mac',
-    expectedPath: '/foo/bar?fruit=apple&os=mac',
+    name: 'with only query',
+    query: '?path=&query=foo%3Dbar',
+    expectedPath: '?foo=bar',
   },
   {
-    queryParams: '?path=',
-    expectedPath: '/',
+    name: 'with duplicate query key path',
+    query: '?path=foo&query=foo%3Dbar%26path%3Dtest1%26path%3Dtest',
+    expectedPath: '/foo?foo=bar&path=test1&path=test',
   },
   {
-    queryParams: '?path=&fruit=apple',
-    expectedPath: '/?fruit=apple',
+    name: 'with query and root path',
+    query: '?path=%2F&query=foo%3Dbar%26baz%3Dqux%26fruit%3Dapple',
+    expectedPath: '/?foo=bar&baz=qux&fruit=apple',
   },
   {
-    queryParams:
-      '?path=%2Falerting%2Flist&search=state:pending%20type:recording%20health:error',
+    name: 'queries with spaces',
+    query:
+      '?path=%2Falerting%2Flist&query=search%3Dstate%3Ainactive%2520type%3Aalerting%2520health%3Anodata',
     expectedPath:
-      '/alerting/list?search=state:pending type:recording health:error',
+      '/alerting/list?search=state:inactive%20type:alerting%20health:nodata',
   },
 ];
 
@@ -73,29 +84,26 @@ describe('app launcher path is properly formed', () => {
     assignMock.mockClear();
   });
 
-  test.each(testCases)(
-    '$queryParams',
-    async ({ queryParams, expectedPath }) => {
-      const launcherPath = `/web/launch/grafana.localhost${queryParams}`;
-      const mockHistory = createMemoryHistory({
-        initialEntries: [launcherPath],
-      });
+  test.each(testCases)('$name', async ({ query, expectedPath }) => {
+    const launcherPath = `/web/launch/grafana.localhost${query}`;
+    const mockHistory = createMemoryHistory({
+      initialEntries: [launcherPath],
+    });
 
-      render(
-        <Router history={mockHistory}>
-          <Route path={cfg.routes.appLauncher}>
-            <AppLauncher />
-          </Route>
-        </Router>
-      );
+    render(
+      <Router history={mockHistory}>
+        <Route path={cfg.routes.appLauncher}>
+          <AppLauncher />
+        </Route>
+      </Router>
+    );
 
-      await waitFor(() =>
-        expect(window.location.replace).toHaveBeenCalledWith(
-          `https://grafana.localhost${expectedPath}`
-        )
-      );
-    }
-  );
+    await waitFor(() =>
+      expect(window.location.replace).toHaveBeenCalledWith(
+        `https://grafana.localhost${expectedPath}`
+      )
+    );
+  });
 
   test('arn is url decoded', () => {
     jest.spyOn(service, 'createAppSession');
