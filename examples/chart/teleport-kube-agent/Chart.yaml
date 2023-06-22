@@ -1,4 +1,4 @@
-.version: &version "14.0.0-dev-wasm2"
+.version: &version "14.0.0-dev-wasm3"
 
 name: teleport-kube-agent
 apiVersion: v2
