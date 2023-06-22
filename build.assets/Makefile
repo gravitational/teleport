@@ -234,11 +234,23 @@ CONNECT_VERSION := $(BUILDBOX_VERSION)-dev
 endif
 
 #
+# Builds a Docker buildbox for Linux Connect builds
+#
+.PHONY:buildbox-connect
+buildbox-connect:
+	if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_CONNECT) 2>&1 >/dev/null; then docker pull $(BUILDBOX_CONNECT) || true; fi; \
+	DOCKER_BUILDKIT=1 docker build \
+		--build-arg NODE_VERSION=$(NODE_VERSION) \
+		--cache-from $(BUILDBOX_CONNECT) \
+		--tag $(BUILDBOX_CONNECT) -f Dockerfile-connect . ;
+
+#
 # Builds Teleport Connect inside the buildbox container.
 #
 .PHONY:teleterm
-teleterm: buildbox
-	docker run $(DOCKERFLAGS) $(NOROOT) $(BUILDBOX) \
+teleterm: buildbox-connect
+	# Always run this image as user 1000, as the Node base image assumes that.
+	docker run $(DOCKERFLAGS) -u 1000:1000 $(BUILDBOX_CONNECT) \
 		bash -c "cd $(SRCDIR) && export CONNECT_TSH_BIN_PATH=\$$PWD/../teleport/build/tsh && yarn install --frozen-lockfile && yarn build-term && yarn package-term -c.extraMetadata.version=$(CONNECT_VERSION)"
 
 # Builds webassets inside Docker.
