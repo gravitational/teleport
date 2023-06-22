@@ -29,6 +29,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const xForwardedForHeader = "X-Forwarded-For"
+
 // NewXForwardedForMiddleware is an HTTP middleware that overwrites client
 // source address if X-Forwarded-For is set.
 //
@@ -36,24 +38,25 @@ import (
 // used for ALPN connection upgrades or Websocket connections.
 func NewXForwardedForMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		clientSrcAddr, err := parseXForwardedForHeaders(r.RemoteAddr, r.Header.Values("X-Forwarded-For"))
-		if err != nil {
-			// Skip updating client source address if no X-Forwarded-For is
-			// present. For example, the request may come from an internal
-			// network or the load balancer itself.
-			if trace.IsNotFound(err) {
-				next.ServeHTTP(w, r)
-				return
-			}
+		clientSrcAddr, err := parseXForwardedForHeaders(r.RemoteAddr, r.Header.Values(xForwardedForHeader))
+		switch {
+		// Skip updating client source address if no X-Forwarded-For is
+		// present. For example, the request may come from an internal
+		// network or the load balancer itself.
+		case trace.IsNotFound(err):
+			next.ServeHTTP(w, r)
 
+		// Reject the request on error.
+		case err != nil:
 			trace.WriteError(w, err)
-			return
-		}
 
-		next.ServeHTTP(
-			responseWriterWithClientSrcAddr(w, clientSrcAddr),
-			requestWithClientSrcAddr(r, clientSrcAddr),
-		)
+		// Serve with updated client source address.
+		default:
+			next.ServeHTTP(
+				responseWriterWithClientSrcAddr(w, clientSrcAddr),
+				requestWithClientSrcAddr(r, clientSrcAddr),
+			)
+		}
 	})
 }
 
@@ -131,7 +134,11 @@ type responseWriterWithRemoteAddr struct {
 
 // Hijack returns a net.Conn with provided remoteAddr.
 func (r *responseWriterWithRemoteAddr) Hijack() (net.Conn, *bufio.ReadWriter, error) {
-	conn, buffer, err := r.ResponseWriter.(http.Hijacker).Hijack()
+	hijacker, ok := r.ResponseWriter.(http.Hijacker)
+	if !ok {
+		return nil, nil, trace.BadParameter("provided ResponseWriter is not a hijacker")
+	}
+	conn, buffer, err := hijacker.Hijack()
 	if err != nil {
 		return conn, buffer, trace.Wrap(err)
 	}
