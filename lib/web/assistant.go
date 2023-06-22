@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
@@ -250,7 +251,7 @@ type generateAssistantTitleRequest struct {
 	Message string `json:"message"`
 }
 
-// generateAssistantTitle is a handler for POST /webapi/assistant/conversations/:conversation_id/generate_title.
+// generateAssistantTitle is a handler for POST /webapi/assistant/title/summary.
 func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	_ httprouter.Params, sctx *SessionContext,
 ) (any, error) {
@@ -281,6 +282,21 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 
 	conversationInfo := &conversationInfo{
 		Title: titleSummary,
+	}
+
+	// We only want to emmit
+	if modules.GetModules().Features().Cloud {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			class, err := client.ClassifyMessage(ctx, req.Message, assist.MessageClasses)
+			if err != nil {
+				return
+			}
+			h.log.Debugf("message classified as '%s'", class)
+			// TODO(shaka): emit event here to report the message class
+		}()
+
 	}
 
 	return conversationInfo, nil
