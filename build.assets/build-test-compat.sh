@@ -71,12 +71,11 @@ function run_docker {
   distro=$1
   binary=$(basename $2)
 
-  container=$(docker create $distro /tmp/$binary "${@:3}")
+  container=$(docker create -v "$2:/tmp/$binary" $distro /tmp/$binary "${@:3}")
   # I *want* the variable below expanded now, so disabling lint
   # shellcheck disable=SC2064
   trap "docker rm $container > /dev/null" RETURN
 
-  docker cp $2 $container:/tmp/$binary
   docker start $container > /dev/null
   test_result=$(docker wait $container)
 
