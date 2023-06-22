@@ -230,6 +230,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Embeddings == nil {
+		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend)
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -279,6 +282,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService:   cfg.SessionTrackerService,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		Integrations:            cfg.Integrations,
+		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
@@ -394,6 +398,7 @@ type Services struct {
 	services.Integrations
 	services.Okta
 	services.Assistant
+	services.Embeddings
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -3726,6 +3731,10 @@ func (a *Server) NewWebSession(ctx context.Context, req types.NewWebSessionReque
 	user, err := a.GetUser(req.User, false)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+	if req.LoginIP == "" {
+		// TODO(antonam): consider turning this into error after all use cases are covered (before v14.0 testplan)
+		log.Debug("Creating new web session without login IP specified.")
 	}
 	clusterName, err := a.GetClusterName()
 	if err != nil {

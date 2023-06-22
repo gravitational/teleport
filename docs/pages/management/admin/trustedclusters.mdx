@@ -240,7 +240,7 @@ You can create a join token using the `tctl` tool.
 
 First, log out of all clusters and log in to the root cluster.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```code
 $ tsh logout
@@ -256,6 +256,22 @@ $ tsh login --user=myuser --proxy=rootcluster.example.com
 ```
 
 </ScopedBlock>
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ tsh logout
+$ tsh login --user=myuser --proxy=rootcluster.example.com
+> Profile URL:        https://rootcluster.example.com:443
+  Logged in as:       myuser
+  Cluster:            rootcluster.example.com
+  Roles:              access, auditor, editor, reviewer
+  Logins:             root
+  Kubernetes:         enabled
+  Valid until:        2022-04-29 03:07:22 -0400 EDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
@@ -263,7 +279,7 @@ $ tsh login --user=myuser --proxy=myrootclustertenant.teleport.sh
 > Profile URL:        https://rootcluster.teleport.sh:443
   Logged in as:       myuser
   Cluster:            rootcluster.teleport.sh
-  Roles:              access, auditor, editor
+  Roles:              access, auditor, editor, reviewer
   Logins:             root
   Kubernetes:         enabled
   Valid until:        2022-04-29 03:07:22 -0400 EDT [valid for 12h0m0s]

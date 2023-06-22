@@ -148,7 +148,7 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		}
 	case *PluginSpecV1_Jamf:
 		// Check Jamf settings.
-		if settings.Jamf != nil {
+		if settings.Jamf == nil {
 			return trace.BadParameter("missing Jamf settings")
 		}
 		if err := settings.Jamf.CheckAndSetDefaults(); err != nil {
