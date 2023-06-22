@@ -26,31 +26,6 @@ import service from 'teleport/services/apps';
 
 import { AppLauncher } from './AppLauncher';
 
-test('arn is url decoded', () => {
-  jest.spyOn(service, 'createAppSession');
-
-  const launcherPath =
-    '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess';
-  const mockHistory = createMemoryHistory({
-    initialEntries: [launcherPath],
-  });
-
-  render(
-    <Router history={mockHistory}>
-      <Route path={cfg.routes.appLauncher}>
-        <AppLauncher />
-      </Route>
-    </Router>
-  );
-
-  expect(service.createAppSession).toHaveBeenCalledWith({
-    fqdn: 'test-app.test.teleport',
-    clusterId: 'test.teleport',
-    publicAddr: 'test-app.test.teleport',
-    arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
-  });
-});
-
 const testCases = [
   {
     queryParams: '?path=%2F',
@@ -121,4 +96,29 @@ describe('app launcher path is properly formed', () => {
       );
     }
   );
+
+  test('arn is url decoded', () => {
+    jest.spyOn(service, 'createAppSession');
+
+    const launcherPath =
+      '/web/launch/test-app.test.teleport/test.teleport/test-app.test.teleport/arn:aws:iam::joe123:role%2FEC2FullAccess';
+    const mockHistory = createMemoryHistory({
+      initialEntries: [launcherPath],
+    });
+
+    render(
+      <Router history={mockHistory}>
+        <Route path={cfg.routes.appLauncher}>
+          <AppLauncher />
+        </Route>
+      </Router>
+    );
+
+    expect(service.createAppSession).toHaveBeenCalledWith({
+      fqdn: 'test-app.test.teleport',
+      clusterId: 'test.teleport',
+      publicAddr: 'test-app.test.teleport',
+      arn: 'arn:aws:iam::joe123:role/EC2FullAccess',
+    });
+  });
 });
