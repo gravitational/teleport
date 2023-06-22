@@ -467,21 +467,10 @@ $ tsh ssh server1
 ERROR: ssh: rejected: administratively prohibited (lock targeting Device:"(=devicetrust.device_id=)" is in force)
 ```
 
+## Optional: Enable auto-enrollment
+
+Refer to the [auto-enrollment guide](./auto-enrollment.mdx).
+
 ## Troubleshooting
 
-### "binary missing signature or entitlements" on `tsh device enroll`
-
-A signed and notarized `tsh` binary is necessary to enroll and use a a trusted
-device. [Download the macOS tsh installer](../../installation.mdx#macos) to fix
-the problem.
-
-### "unauthorized device" errors using a trusted device
-
-A signed and notarized `tsh` binary is necessary to use a trusted device. Make
-sure to download and use the
-[macOS tsh installer](../../installation.mdx#macos).
-
-A trusted device needs to be registered and enrolled before it is recognized by
-Teleport as such. Follow the [registration](#step-12-register-a-trusted-device)
-and [enrollment steps](#step-22-enroll-a-trusted-device) and make sure to `tsh
-logout` and `tsh login` after enrollment is done.
+(!docs/pages/includes/device-trust/auto-enroll-troubleshooting.mdx!)

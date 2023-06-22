@@ -1,0 +1,80 @@
+---
+title: Set Up Auto-Enrollment (Preview)
+description: Set Up Automatic Enrollment for Registered Devices
+---
+
+Auto-enrollment allows `tsh` to automatically enroll devices already registered
+in Teleport during the user's login. The registration may be
+[manual](./guide.mdx#step-12-register-a-trusted-device) or performed using an
+integration, like the [Jamf integration](./jamf-integration.mdx).
+
+The `tsh` prerequisites for regular enrollment, as described below, still apply.
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+(!docs/pages/includes/device-trust/prereqs.mdx!)
+
+## Step 1/2. Enable auto-enrollment
+
+Enable auto-enrollment in your cluster settings:
+
+<Tabs dropDownCaption="Teleport Deployment">
+<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise Cloud" >
+Modify the dynamic config resource using `tctl edit cluster_auth_preference`:
+
+```diff
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  # ...
+  device_trust:
+    mode: "required"
++   auto_enroll: true
+```
+
+</TabItem>
+<TabItem label="Static Config" options="Self-Hosted">
+Edit the Auth Server's `teleport.yaml` file and restart:
+
+```diff
+auth_service:
+  authentication:
+    # ...
+    device_trust:
++     auto_enroll: true
+```
+
+</TabItem>
+</Tabs>
+
+## Step 2/2. Login using a registered device
+
+Using a device previously registered in Teleport, logout and login again:
+
+```code
+$ tsh logout
+$ tsh login --proxy=teleport.example.com --user=alice
+All users logged out.
+Enter password for Teleport user alice:
+Tap any security key
+Detected security key tap
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       alice
+  Cluster:            teleport.example.com
+  Roles:              access, editor
+  Logins:             alice
+  Kubernetes:         enabled
+  Valid until:        2023-06-23 02:47:05 -0300 -03 [valid for 12h0m0s]
+  Extensions:         teleport-device-asset-tag, teleport-device-credential-id, teleport-device-id
+```
+
+The presence of the **teleport-device-\*** extensions shows that the device was
+successfully enrolled and authenticated.
+
+## Troubleshooting
+
+(!docs/pages/includes/device-trust/auto-enroll-troubleshooting.mdx!)

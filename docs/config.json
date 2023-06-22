@@ -481,6 +481,10 @@
               "slug": "/access-controls/device-trust/guide/"
             },
             {
+              "title": "Set Up Auto-Enrollment",
+              "slug": "/access-controls/device-trust/auto-enrollment/"
+            },
+            {
               "title": "Jamf Integration",
               "slug": "/access-controls/device-trust/jamf-integration/"
             }
