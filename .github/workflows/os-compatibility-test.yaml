@@ -18,7 +18,12 @@ jobs:
   build:
     name: OS Compatibility Build
     if: ${{ !startsWith(github.head_ref, 'dependabot/') }}
-    runs-on: ubuntu-22.04-16core
+    runs-on:
+      group: prod
+      labels:
+        - self-hosted
+        - x64
+        - linux
 
     permissions:
       contents: read
@@ -38,6 +43,8 @@ jobs:
 
       - name: Run make
         run: |
+          apt update
+          apt install -y make # Required on self-hosted runners
           make binaries
 
       - name: Upload binaries
@@ -49,7 +56,12 @@ jobs:
   test-compat:
     needs: build
     name: OS Compatibility Test
-    runs-on: ubuntu-latest
+    runs-on:
+      group: prod
+      labels:
+        - self-hosted
+        - x64
+        - linux
 
     permissions:
       contents: read
