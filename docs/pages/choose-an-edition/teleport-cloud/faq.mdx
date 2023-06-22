@@ -135,8 +135,8 @@ The ability to download recordings for offline viewing will be available in a fu
 
 ### Will Teleport be automatically upgraded with each release?
 
-Teleport Cloud follows the Teleport [Production
-readiness](../../upcoming-releases.mdx) guidelines.
+Teleport Cloud follows the Teleport [Upcoming
+Releases](../../upcoming-releases.mdx) timelines.
 
 - Major version upgrades for customer Auth and Proxy Servers occur after the
   first minor release (for example (=teleport.major_version=).1.0) of Teleport.
@@ -144,6 +144,9 @@ readiness](../../upcoming-releases.mdx) guidelines.
   becoming available.
 - After the first minor release, subsequent minor and patch upgrades typically
   occur within a week.
+- Your Teleport tenant will NOT be automatically upgraded to the next major version if any
+  Teleport agents connected to the cluster are not compatible (> 1 major version behind).
+  Once corrected, Teleport will upgrade at the next scheduled maintenance window.
 
 ### Are upgrades times configurable for my Teleport Enterprise Cloud tenant?
 
