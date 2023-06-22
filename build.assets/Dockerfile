@@ -167,6 +167,7 @@ RUN apt-get -y update && \
     tee /etc/apt/sources.list.d/docker.list > /dev/null && \
     apt-get update && \
     apt-get install -y docker-ce-cli && \
+    if [ "$BUILDARCH" = "arm64" ]; then apt-get install -y binaryen; fi && \
     pip3 --no-cache-dir install yamllint && \
     dpkg-reconfigure locales && \
     apt-get -y clean && \
