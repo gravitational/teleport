@@ -1114,6 +1114,19 @@ destinations:
 `,
 			wantError: `multiple potential output types detected, cannot determine correct type`,
 		},
+		{
+			name: "v2 config without version field",
+			input: `
+outputs:
+  - type: identity
+    destination:
+      type: memory
+  - type: identity
+    destination:
+      type: memory
+`,
+			wantError: "config has been detected as potentially v1, but includes the v2 outputs field",
+		},
 	}
 
 	for _, tt := range tests {

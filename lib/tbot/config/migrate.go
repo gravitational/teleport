@@ -370,9 +370,18 @@ type configV1 struct {
 
 	Destinations  []configV1Destination `yaml:"destinations"`
 	StorageConfig *storageConfigV1      `yaml:"storage"`
+
+	// This field doesn't exist in V1, but, it exists here so we can detect
+	// a scenario where for some reason we're trying to migrate a V2 config
+	// that's missing the version header.
+	Outputs []any `yaml:"outputs"`
 }
 
 func (c *configV1) migrate() (*BotConfig, error) {
+	if len(c.Outputs) > 0 {
+		return nil, trace.BadParameter("config has been detected as potentially v1, but includes the v2 outputs field")
+	}
+
 	var storage *StorageConfig
 	var err error
 	if c.StorageConfig != nil {
