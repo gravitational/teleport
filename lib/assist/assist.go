@@ -58,10 +58,12 @@ const (
 	MessageKindError MessageType = "CHAT_MESSAGE_ERROR"
 )
 
+// PluginGetter is the minimal interface used by the chat to interact with the plugins service in the backend.
 type PluginGetter interface {
 	PluginsClient() pluginsv1.PluginServiceClient
 }
 
+// AssistantService is the minimal interface used by the chat to interact with the Assist service in the backend.
 type AssistantService interface {
 	// GetAssistantMessages returns all messages with given conversation ID.
 	GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error)
@@ -77,8 +79,8 @@ type Assist struct {
 	clock clockwork.Clock
 }
 
-// NewAssist creates a new Assist client.
-func NewAssist(ctx context.Context, proxyClient PluginGetter,
+// NewClient creates a new Assist client.
+func NewClient(ctx context.Context, proxyClient PluginGetter,
 	proxySettings any, openaiCfg *openai.ClientConfig) (*Assist, error) {
 
 	client, err := getAssistantClient(ctx, proxyClient, proxySettings, openaiCfg)
@@ -209,8 +211,8 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 	// write the user message to persistent storage and the chat structure
 	c.chat.Insert(openai.ChatMessageRoleUser, userInput)
 
+	// Do not write empty messages to the database.
 	if userInput != "" {
-		// Do not write empty messages to the database.
 		if err := c.assistService.CreateAssistantMessage(ctx, &assist.CreateAssistantMessageRequest{
 			Message: &assist.AssistantMessage{
 				Type:        string(MessageKindUserMessage),

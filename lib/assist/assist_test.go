@@ -52,7 +52,7 @@ func TestChatComplete(t *testing.T) {
 
 	// And a chat client.
 	ctx := context.Background()
-	client, err := NewAssist(ctx, &mockPluginGetter{}, &apiKeyMock{}, &cfg)
+	client, err := NewClient(ctx, &mockPluginGetter{}, &apiKeyMock{}, &cfg)
 	require.NoError(t, err)
 
 	// And a test auth server.
@@ -79,7 +79,7 @@ func TestChatComplete(t *testing.T) {
 		require.True(t, chat.IsNewConversation())
 	})
 
-	t.Run("new conversation is not complete", func(t *testing.T) {
+	t.Run("the first message is the hey message", func(t *testing.T) {
 		// The first message is the welcome message.
 		_, err = chat.ProcessComplete(ctx, func(kind MessageType, payload []byte, createdTime time.Time) error {
 			require.Equal(t, MessageKindAssistantMessage, kind)
@@ -89,7 +89,7 @@ func TestChatComplete(t *testing.T) {
 		require.NoError(t, err)
 	})
 
-	t.Run("new conversation is not complete", func(t *testing.T) {
+	t.Run("command should be returned in the response", func(t *testing.T) {
 		// The second message is the command response.
 		_, err = chat.ProcessComplete(ctx, func(kind MessageType, payload []byte, createdTime time.Time) error {
 			require.Equal(t, MessageKindCommand, kind)
