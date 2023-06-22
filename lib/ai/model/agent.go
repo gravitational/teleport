@@ -119,13 +119,14 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 		}
 
 		if output.finish != nil {
-			log.Tracef("agent finished with output: %v", output.finish.output)
+			log.Tracef("agent finished with output: %#v", output.finish.output)
 			switch v := output.finish.output.(type) {
 			case *Message:
 				v.TokensUsed = tokensUsed
 				return v, nil
 			case *StreamingMessage:
 				v.TokensUsed = tokensUsed
+				return v, nil
 			case *CompletionCommand:
 				v.TokensUsed = tokensUsed
 				return v, nil
@@ -367,7 +368,7 @@ func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, erro
 		}
 	}
 
-	log.Debugf("received planning output: \"%v\"", text)
+	log.Tracef("received planning output: \"%v\"", text)
 	if outputString, found := strings.CutPrefix(text, "<FINAL RESPONSE>"); found {
 		return nil, &agentFinish{output: &Message{Content: outputString}}, nil
 	}

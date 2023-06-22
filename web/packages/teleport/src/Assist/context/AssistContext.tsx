@@ -167,11 +167,9 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
 
         case ServerMessageType.AssistPartialMessage: {
-          const payload = JSON.parse(data.payload);
-
           dispatch({
             type: AssistStateActionType.AddPartialMessage,
-            message: payload.content,
+            message: data.payload,
             conversationId,
           });
 

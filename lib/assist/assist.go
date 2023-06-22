@@ -328,6 +328,33 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		if err := onMessage(MessageKindAssistantMessage, []byte(message.Content), c.assist.clock.Now().UTC()); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case *model.StreamingMessage:
+		tokensUsed = message.TokensUsed
+		var text string
+		defer onMessage(MessageKindAssistantPartialFinalize, nil, c.assist.clock.Now().UTC())
+		for part := range message.Parts {
+			text += part
+
+			if err := onMessage(MessageKindAssistantPartialMessage, []byte(part), c.assist.clock.Now().UTC()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		// write an assistant message to memory and persistent storage
+		c.chat.Insert(openai.ChatMessageRoleAssistant, text)
+		protoMsg := &assist.CreateAssistantMessageRequest{
+			ConversationId: c.ConversationID,
+			Username:       c.Username,
+			Message: &assist.AssistantMessage{
+				Type:        string(MessageKindAssistantMessage),
+				Payload:     text,
+				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+			},
+		}
+
+		if err := c.authClient.CreateAssistantMessage(ctx, protoMsg); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case *model.CompletionCommand:
 		tokensUsed = message.TokensUsed
 		payload := commandPayload{
