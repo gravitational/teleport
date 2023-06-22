@@ -20,12 +20,16 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"regexp"
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
@@ -873,7 +877,10 @@ func TestJoinScript(t *testing.T) {
 		mockGetProxyServers: func() ([]types.Server, error) {
 			return []types.Server{
 				&types.ServerV2{
-					Spec: types.ServerSpecV2{PublicAddrs: []string{"test-host:12345678"}},
+					Spec: types.ServerSpecV2{
+						PublicAddrs: []string{"test-host:12345678"},
+						Version:     teleport.Version,
+					},
 				},
 			}, nil
 		},
@@ -926,10 +933,20 @@ func TestJoinScript(t *testing.T) {
 	})
 
 	t.Run("using repo", func(t *testing.T) {
-		t.Run("installUpdater set to true, list of packages must include updater package", func(t *testing.T) {
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true}, m)
+		t.Run("installUpdater is true", func(t *testing.T) {
+			currentStableCloudVersion := "v99.1.1"
+
+			httpTestServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, r.URL.Path, "/v1/stable/cloud/version")
+				w.WriteHeader(http.StatusOK)
+				w.Write([]byte(currentStableCloudVersion))
+			}))
+			defer httpTestServer.Close()
+
+			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: true, automaticUpgradesVersionBaseURL: httpTestServer.URL}, m)
 			require.NoError(t, err)
 
+			// list of packages must include the updater
 			require.Contains(t, script, ""+
 				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
 				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
@@ -939,11 +956,14 @@ func TestJoinScript(t *testing.T) {
 				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
 				"    fi\n",
 			)
+			// Repo channel is stable/cloud
+			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
+			// TELEPORT_VERSION is the one provided by https://updates.releases.teleport.dev/v1/stable/cloud/version
+			require.Contains(t, script, "TELEPORT_VERSION='99.1.1'")
 		})
-		t.Run("installUpdater set to false, list of packages must not include updater package", func(t *testing.T) {
+		t.Run("installUpdater is false", func(t *testing.T) {
 			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, installUpdater: false}, m)
 			require.NoError(t, err)
-
 			require.Contains(t, script, ""+
 				"    PACKAGE_LIST=${TELEPORT_PACKAGE_PIN_VERSION}\n"+
 				"    # (warning): This expression is constant. Did you forget the $ on a variable?\n"+
@@ -953,19 +973,12 @@ func TestJoinScript(t *testing.T) {
 				"        PACKAGE_LIST+=\" ${TELEPORT_UPDATER_PIN_VERSION}\"\n"+
 				"    fi\n",
 			)
-		})
-		t.Run("using stable/cloud channel", func(t *testing.T) {
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: true}, m)
-			require.NoError(t, err)
-			require.Contains(t, script, "REPO_CHANNEL='stable/cloud'")
-		})
-		t.Run("not hard-coding a particular channel", func(t *testing.T) {
-			script, err := getJoinScript(context.Background(), scriptSettings{token: validToken, stableCloudChannelRepo: false}, m)
-			require.NoError(t, err)
+			// Default based on current version is used instead
 			require.Contains(t, script, "REPO_CHANNEL=''")
+			// Current version must be used
+			require.Contains(t, script, fmt.Sprintf("TELEPORT_VERSION='%s'", teleport.Version))
 		})
 	})
-
 }
 
 func TestAutomaticUpgrades(t *testing.T) {
