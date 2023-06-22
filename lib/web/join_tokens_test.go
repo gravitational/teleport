@@ -982,10 +982,10 @@ func TestJoinScript(t *testing.T) {
 }
 
 func TestAutomaticUpgrades(t *testing.T) {
-	t.Run("enterprise and automatic upgrades enabled", func(t *testing.T) {
+	t.Run("cloud and automatic upgrades enabled", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
+				Cloud:             true,
 				AutomaticUpgrades: true,
 			},
 		})
@@ -993,10 +993,10 @@ func TestAutomaticUpgrades(t *testing.T) {
 		got := automaticUpgrades(*modules.GetModules().Features().ToProto())
 		require.True(t, got)
 	})
-	t.Run("enterprise but automatic upgrades disabled", func(t *testing.T) {
+	t.Run("cloud but automatic upgrades disabled", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
+				Cloud:             true,
 				AutomaticUpgrades: false,
 			},
 		})
@@ -1005,12 +1005,12 @@ func TestAutomaticUpgrades(t *testing.T) {
 		require.False(t, got)
 	})
 
-	// There's no `teleport-updater` (oss) package yet, so even if automatic upgrades are enabled it must return false.
-	t.Run("automatic upgrades enabled but build is OSS", func(t *testing.T) {
+	t.Run("automatic upgrades enabled but is not cloud", func(t *testing.T) {
 		modules.SetTestModules(t, &modules.TestModules{
 			TestBuildType: modules.BuildEnterprise,
 			TestFeatures: modules.Features{
-				AutomaticUpgrades: false,
+				Cloud:             false,
+				AutomaticUpgrades: true,
 			},
 		})
 

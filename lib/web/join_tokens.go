@@ -392,8 +392,10 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 	// By default, it will use `stable/v<majorVersion>`, eg stable/v12
 	repoChannel := ""
 
-	// For Teleport Cloud installations with AutomaticUpgrades enabled, use the `stable/cloud` repo channel and get version from
-	// https://updates.releases.teleport.dev/v1/stable/cloud/version
+	// The install script will install the updater (teleport-ent-updater) for Cloud customers enrolled in Automatic Upgrades.
+	// The repo channel used must be `stable/cloud` which has the available packages for the Cloud Customer's agents.
+	// It pins the teleport version to the one specified by https://updates.releases.teleport.dev/v1/stable/cloud/version
+	// This ensures the initial installed version is the same as the `teleport-ent-updater` would install.
 	if settings.installUpdater {
 		repoChannel = stableCloudChannelRepo
 		cloudStableVersion, err := automaticupgrades.Version(ctx, settings.automaticUpgradesVersionBaseURL)
@@ -401,7 +403,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 			return "", trace.Wrap(err)
 		}
 
-		// cloudStabelVersion has vX.Y.Z format, however the script expects the version to not include the `v`
+		// cloudStableVersion has vX.Y.Z format, however the script expects the version to not include the `v`
 		version = strings.TrimPrefix(cloudStableVersion, "v")
 	}
 

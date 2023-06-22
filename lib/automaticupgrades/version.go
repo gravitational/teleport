@@ -32,8 +32,8 @@ const (
 	// stableCloudVersionBaseURL is the base URL for the server that returns the current stable/cloud version.
 	stableCloudVersionBaseURL = "https://updates.releases.teleport.dev"
 
-	// stableCloudVersionURL is the URL that returns the current stable/cloud version.
-	stableCloudVersionURL = "/v1/stable/cloud/version"
+	// stableCloudVersionPath is the URL path that returns the current stable/cloud version.
+	stableCloudVersionPath = "/v1/stable/cloud/version"
 )
 
 // Version returns the version that should be used for installing Teleport Services
@@ -44,7 +44,7 @@ func Version(ctx context.Context, baseURL string) (string, error) {
 		baseURL = stableCloudVersionBaseURL
 	}
 
-	fullURL, err := url.JoinPath(baseURL, stableCloudVersionURL)
+	fullURL, err := url.JoinPath(baseURL, stableCloudVersionPath)
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
