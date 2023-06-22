@@ -24,12 +24,14 @@ import { Connections } from './Connections';
 import { Clusters } from './Clusters';
 import { Identity } from './Identity';
 import { AdditionalActions } from './AdditionalActions';
+import { ConnectMyComputer } from './ConnectMyComputer';
 
 export function TopBar() {
   return (
     <Grid>
       <JustifyLeft>
         <Connections />
+        <ConnectMyComputer />
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
@@ -59,9 +61,7 @@ const CentralContainer = styled(Flex).attrs({ gap: 3 })`
   max-width: calc(${props => props.theme.space[10]}px * 9);
 `;
 
-const JustifyLeft = styled.div`
-  display: flex;
-  justify-self: start;
+const JustifyLeft = styled(Flex).attrs({ gap: 3 })`
   align-items: center;
   height: 100%;
 `;
