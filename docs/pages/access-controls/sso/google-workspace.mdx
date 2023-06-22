@@ -228,8 +228,8 @@ This method doesn't require providing the JSON file to the host(s) running the
 Auth service.
 
 ```code
-$ tctl sso configure oidc --preset google --id CLIENT-ID \
---secret CLIENT-SECRET \
+$ tctl sso configure oidc --preset google --id <CLIENT-ID> \
+--secret <CLIENT-SECRET> \
 --claims-to-roles groups,auditor@example.com,auditor \
 --claims-to-roles groups,teleport-developers@example.com,access \
 --google-admin=<GOOGLE-WORKSPACE-ADMIN-EMAIL> \
@@ -257,8 +257,8 @@ spec:
     roles:
     - access
     value: teleport-developers@example.com
-  client_id: CLIENT-ID.apps.googleusercontent.com
-  client_secret: CLIENT-SECRET
+  client_id: <CLIENT-ID>
+  client_secret: <CLIENT-SECRET>
   display: Google
   google_admin_email: <GOOGLE-WORKSPACE-ADMIN-EMAIL>
   google_service_account: |2-
@@ -305,8 +305,8 @@ spec:
     roles:
     - access
     value: teleport-developers@example.com
-  client_id: CLIENT-ID
-  client_secret: CLIENT-SECRET
+  client_id: <CLIENT-ID>
+  client_secret: <CLIENT-SECRET>
   display: Google
   google_admin_email: <GOOGLE-WORKSPACE-ADMIN-EMAIL>
   google_service_account_uri: /PATH/TO/SERVICE-ACCOUNT-KEY.json
