@@ -89,7 +89,7 @@ type executionState struct {
 
 // PlanAndExecute runs the agent with a given input until it arrives at a text answer it is satisfied
 // with or until it times out.
-func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage, progressUpdates chan<- AgentAction) (any, error) {
+func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage, progressUpdates chan<- *AgentAction) (any, error) {
 	log.Trace("entering agent think loop")
 	iterations := 0
 	start := time.Now()
@@ -113,7 +113,7 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 			return nil, trace.Errorf("timeout: agent took too long to finish")
 		}
 
-		output, err := a.takeNextStep(ctx, state)
+		output, err := a.takeNextStep(ctx, state, progressUpdates)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -154,7 +154,7 @@ type stepOutput struct {
 	observation string
 }
 
-func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOutput, error) {
+func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progressUpdates chan<- *AgentAction) (stepOutput, error) {
 	log.Trace("agent entering takeNextStep")
 	defer log.Trace("agent exiting takeNextStep")
 
@@ -179,9 +179,13 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 
 	// If finish is set, the agent is done and did not call upon any tool.
 	if finish != nil {
+		close(progressUpdates)
 		log.Trace("agent picked finish, returning")
 		return stepOutput{finish: finish}, nil
 	}
+
+	// If action is set, the agent is not done and called upon a tool.
+	progressUpdates <- action
 
 	var tool Tool
 	for _, candidate := range a.tools {
