@@ -436,3 +436,17 @@ func TestIsUserARN(t *testing.T) {
 		})
 	}
 }
+
+func FuzzParseSigV4(f *testing.F) {
+	f.Add("")
+	f.Add("Authorization: AWS4-HMAC-SHA256 " +
+		"Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, " +
+		"SignedHeaders=host;range;x-amz-date, " +
+		"Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024")
+
+	f.Fuzz(func(t *testing.T, str string) {
+		require.NotPanics(t, func() {
+			_, _ = ParseSigV4(str)
+		})
+	})
+}

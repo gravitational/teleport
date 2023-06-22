@@ -551,6 +551,11 @@ func (b *Bot) renewOutputs(
 		}
 		defer impersonatedClient.Close()
 
+		b.log.WithFields(logrus.Fields{
+			"identity": describeTLSIdentity(b.log, impersonatedIdentity),
+			"output":   output,
+		}).Debug("Fetched identity for output.")
+
 		// Create a destination provider to bundle up all the dependencies that
 		// a destination template might need to render.
 		dp := &outputProvider{
@@ -564,8 +569,7 @@ func (b *Bot) renewOutputs(
 		}
 
 		b.log.WithFields(logrus.Fields{
-			"output":   output,
-			"identity": describeTLSIdentity(b.log, impersonatedIdentity),
+			"output": output,
 		}).Info("Generated output.")
 	}
 

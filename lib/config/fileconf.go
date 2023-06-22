@@ -1013,6 +1013,9 @@ type Auth struct {
 	// HostedPlugins configures the hosted plugins runtime.
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
+
+	// Assist is a set of options related to the Teleport Assist feature.
+	Assist *AssistOptions `yaml:"assist,omitempty"`
 }
 
 // PluginService represents the configuration for the plugin service.
@@ -1201,6 +1204,9 @@ type AuthenticationConfig struct {
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
+
+	// DefaultSessionTTL is the default cluster max session ttl
+	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1243,6 +1249,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowPasswordless: a.Passwordless,
 		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
+		DefaultSessionTTL: a.DefaultSessionTTL,
 	})
 }
 

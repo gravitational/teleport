@@ -66,7 +66,8 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 				getSSHVersion: func() (*semver.Version, error) {
 					return semver.New(tc.Version), nil
 				},
-				destPath: dest.Path,
+				executablePathGetter: fakeGetExecutablePath,
+				destPath:             dest.Path,
 			}
 
 			err = tmpl.render(context.Background(), mockBot, ident, dest)

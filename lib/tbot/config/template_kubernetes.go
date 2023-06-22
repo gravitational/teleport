@@ -41,7 +41,8 @@ import (
 const defaultKubeconfigPath = "kubeconfig.yaml"
 
 type templateKubernetes struct {
-	clusterName string
+	clusterName          string
+	executablePathGetter executablePathGetter
 }
 
 func (t *templateKubernetes) name() string {
@@ -88,7 +89,7 @@ func getKubeProxyHostPort(authPong *proto.PingResponse, proxyPong *webclient.Pin
 
 // generateKubeConfig creates a Kubernetes config object with the given cluster
 // config.
-func generateKubeConfig(ks *kubernetesStatus, destPath string) (*clientcmdapi.Config, error) {
+func generateKubeConfig(ks *kubernetesStatus, destPath string, executablePath string) (*clientcmdapi.Config, error) {
 	config := clientcmdapi.NewConfig()
 
 	// Implementation note: tsh/kube.go generates a kubeconfig with all
@@ -123,14 +124,10 @@ func generateKubeConfig(ks *kubernetesStatus, destPath string) (*clientcmdapi.Co
 	execArgs := []string{"kube", "credentials",
 		fmt.Sprintf("--destination-dir=%s", destPath),
 	}
-	binaryPath, err := getExecutablePath()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 		Exec: &clientcmdapi.ExecConfig{
 			APIVersion: "client.authentication.k8s.io/v1beta1",
-			Command:    binaryPath,
+			Command:    executablePath,
 			Args:       execArgs,
 		},
 	}
@@ -206,7 +203,12 @@ func (t *templateKubernetes) render(
 		status.tlsServerName = serverName
 	}
 
-	cfg, err := generateKubeConfig(status, destinationDir.Path)
+	executablePath, err := t.executablePathGetter()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg, err := generateKubeConfig(status, destinationDir.Path, executablePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
