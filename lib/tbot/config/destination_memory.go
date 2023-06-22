@@ -78,7 +78,7 @@ func (dm *DestinationMemory) Read(name string) ([]byte, error) {
 }
 
 func (dm *DestinationMemory) String() string {
-	return "memory"
+	return DestinationMemoryType
 }
 
 func (dm *DestinationMemory) TryLock() (func() error, error) {

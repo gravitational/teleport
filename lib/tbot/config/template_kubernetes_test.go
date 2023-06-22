@@ -40,7 +40,8 @@ func TestTemplateKubernetesRender(t *testing.T) {
 	k8sCluster := "example"
 	mockBot := newMockProvider(cfg)
 	tmpl := templateKubernetes{
-		clusterName: k8sCluster,
+		clusterName:          k8sCluster,
+		executablePathGetter: fakeGetExecutablePath,
 	}
 
 	dest := &DestinationDirectory{

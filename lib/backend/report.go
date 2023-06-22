@@ -442,7 +442,7 @@ var (
 	requests = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
 			Name: teleport.MetricBackendRequests,
-			Help: "Number of write requests to the backend",
+			Help: "Number of requests to the backend (reads, writes, and keepalives)",
 		},
 		[]string{teleport.ComponentLabel, teleport.TagReq, teleport.TagRange},
 	)

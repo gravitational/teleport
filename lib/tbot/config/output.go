@@ -65,7 +65,7 @@ type Output interface {
 }
 
 // ListSubdirectories lists all subdirectories that will be used by the given
-// templates.. Primarily used for on-the-fly directory creation.
+// templates. Primarily used for on-the-fly directory creation.
 func listSubdirectories(templates []template) ([]string, error) {
 	// Note: currently no standard identity.Artifacts create subdirs. If that
 	// ever changes, we'll need to adapt this to ensure we initialize them
@@ -88,6 +88,9 @@ func listSubdirectories(templates []template) ([]string, error) {
 // the destination. This *hack* allows us to have the bot.Destination as a
 // field directly on an Output without needing a struct to wrap it for
 // polymorphic unmarshaling.
+//
+// If there's no destination in the provided yaml node, then this will return
+// nil, nil.
 func extractOutputDestination(node *yaml.Node) (bot.Destination, error) {
 	for i, subNode := range node.Content {
 		if subNode.Value == "destination" {

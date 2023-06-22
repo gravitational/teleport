@@ -151,4 +151,6 @@ func newClientKey(ident *identity.Identity, hostCAs []types.CertAuthority) (*cli
 	}, nil
 }
 
-var getExecutablePath = os.Executable
+// executablePathGetter is a function that returns the path of the current
+// executable.
+type executablePathGetter = func() (string, error)

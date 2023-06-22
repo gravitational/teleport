@@ -179,7 +179,7 @@ Reference](../../reference/cli.mdx#tsh-global-flags) page.
 
 Once a WebAuthn device is registered, the user will be prompted for it on login:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```code
 $ tsh login --proxy=example.com
@@ -197,6 +197,24 @@ $ tsh login --proxy=example.com
 
 </ScopedBlock>
 
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ tsh login --proxy=example.com
+# Enter password for Teleport user codingllama:
+# Tap any security key or enter a code from a OTP device:
+# > Profile URL:        https://example.com
+#   Logged in as:       codingllama
+#   Cluster:            example.com
+#   Roles:              access, editor, reviewer
+#   Logins:             codingllama
+#   Kubernetes:         enabled
+#   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
+#   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</ScopedBlock>
+
 <ScopedBlock scope={["cloud"]}>
 
 ```code
@@ -206,7 +224,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 # > Profile URL:        https://mytenant.teleport.sh
 #   Logged in as:       codingllama
 #   Cluster:            mytenant.teleport.sh
-#   Roles:              access, editor
+#   Roles:              access, editor, reviewer
 #   Logins:             codingllama
 #   Kubernetes:         enabled
 #   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]

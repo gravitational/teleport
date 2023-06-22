@@ -293,8 +293,10 @@ func TestPublisherConsumer(t *testing.T) {
 	fS3 := newFakeS3manager()
 	fq := newFakeQueue()
 	p := &publisher{
-		snsPublisher: fq,
-		uploader:     fS3,
+		PublisherConfig: PublisherConfig{
+			SNSPublisher: fq,
+			Uploader:     fS3,
+		},
 	}
 
 	smallEvent := &apievents.AppCreate{

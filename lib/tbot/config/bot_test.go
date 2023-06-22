@@ -50,12 +50,10 @@ const (
 	mockRemoteClusterName = "tele.aperture.labs"
 )
 
-// override getExecutablePath for tests to ensure rendered configs have the
-// same value on all systems
-func init() {
-	getExecutablePath = func() (string, error) {
-		return "/path/to/tbot", nil
-	}
+// fakeGetExecutablePath can be injected into outputs to ensure they output the
+// same path in tests across multiple systems.
+func fakeGetExecutablePath() (string, error) {
+	return "/path/to/tbot", nil
 }
 
 // mockProvider is a minimal Bot impl that can be used in tests

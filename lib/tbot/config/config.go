@@ -286,9 +286,29 @@ func (conf *BotConfig) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
+	destinationPaths := map[string]int{}
 	for _, output := range conf.Outputs {
 		if err := output.CheckAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
+		}
+
+		// This check currently only handles directory destinations, but we'll
+		// need to create a more polymorphic way of doing this when we introduce
+		// more destination types.
+		directoryDestination, ok := output.GetDestination().(*DestinationDirectory)
+		if ok {
+			destinationPaths[directoryDestination.Path]++
+		}
+	}
+	// Check for outputs reusing the same destination. This is a deeply
+	// uncharted/unknown behavior area. For now we'll emit a heavy warning,
+	// in 15+ this will be an explicit area as outputs writing over one another
+	// is too complex to support.
+	for path, count := range destinationPaths {
+		if count > 1 {
+			log.WithField("path", path).Error(
+				"Multiple outputs reusing the same destination path. This can produce unusable results. In Teleport 15.0, this will be a fatal error.",
+			)
 		}
 	}
 

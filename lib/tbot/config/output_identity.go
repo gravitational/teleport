@@ -19,6 +19,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/gravitational/trace"
 	"gopkg.in/yaml.v3"
@@ -58,8 +59,9 @@ func (o *IdentityOutput) templates() []template {
 	return []template{
 		&templateTLSCAs{},
 		&templateSSHClient{
-			getSSHVersion: openssh.GetSystemSSHVersion,
-			destPath:      o.destPath,
+			getSSHVersion:        openssh.GetSystemSSHVersion,
+			executablePathGetter: os.Executable,
+			destPath:             o.destPath,
 		},
 		&templateIdentity{},
 	}

@@ -25,7 +25,6 @@ import {
 import { FileTransferContainer } from './FileTransferContainer';
 
 interface FileTransferProps {
-  backgroundColor?: string;
   transferHandlers: TransferHandlers;
   // errorText is any general error that isn't related to a specific transfer
   errorText?: string;
@@ -85,7 +84,6 @@ export function FileTransfer(props: FileTransferProps) {
         <FileTransferDialog
           errorText={props.errorText}
           openedDialog={openedDialog}
-          backgroundColor={props.backgroundColor}
           transferHandlers={props.transferHandlers}
           onCloseDialog={handleCloseDialog}
         />
@@ -95,10 +93,7 @@ export function FileTransfer(props: FileTransferProps) {
 }
 
 export function FileTransferDialog(
-  props: Pick<
-    FileTransferProps,
-    'transferHandlers' | 'backgroundColor' | 'errorText'
-  > & {
+  props: Pick<FileTransferProps, 'transferHandlers' | 'errorText'> & {
     openedDialog: FileTransferDialogDirection;
     onCloseDialog(isAnyTransferInProgress: boolean): void;
   }
@@ -135,7 +130,6 @@ export function FileTransferDialog(
       openedDialog={props.openedDialog}
       files={filesStore.files}
       onCancel={filesStore.cancel}
-      backgroundColor={props.backgroundColor}
       onClose={handleClose}
       onAddUpload={handleAddUpload}
       onAddDownload={handleAddDownload}

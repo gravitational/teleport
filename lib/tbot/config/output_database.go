@@ -36,7 +36,7 @@ const DatabaseOutputType = "database"
 // formats or paths to be used.
 type DatabaseFormat string
 
-var (
+const (
 	// UnspecifiedDatabaseFormat is the unset value and the default. This
 	// should work for most databases.
 	UnspecifiedDatabaseFormat DatabaseFormat = ""
@@ -52,14 +52,14 @@ var (
 	// This outputs `cockroach/node.key`, `cockroach/node.crt` and
 	// `cockroach/ca.crt`.
 	CockroachDatabaseFormat DatabaseFormat = "cockroach"
-
-	databaseFormats = []DatabaseFormat{
-		UnspecifiedDatabaseFormat,
-		TLSDatabaseFormat,
-		MongoDatabaseFormat,
-		CockroachDatabaseFormat,
-	}
 )
+
+var databaseFormats = []DatabaseFormat{
+	UnspecifiedDatabaseFormat,
+	TLSDatabaseFormat,
+	MongoDatabaseFormat,
+	CockroachDatabaseFormat,
+}
 
 // DatabaseOutput produces credentials which can be used to connect to a
 // database through teleport.
