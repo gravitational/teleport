@@ -1,11 +1,11 @@
 /**
- * Copyright 2023 Gravitational, Inc
+ * Copyright 2023 Gravitational, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,14 +14,17 @@
  * limitations under the License.
  */
 
-declare module '*.png';
-declare module '*.svg';
-declare module '*.jpg';
-declare module '*.gif';
-declare module '*.ico';
-declare module '*.yaml?raw';
+import type { AssistUserPreferences } from 'teleport/Assist/types';
 
-// Subset is like Partial<T> but it works on nested objects.
-type Subset<K> = {
-  [attr in keyof K]?: K[attr] extends object ? Subset<K[attr]> : K[attr];
-};
+export enum ThemePreference {
+  Light = 1,
+  Dark = 2,
+}
+
+export interface UserPreferences {
+  theme: ThemePreference;
+  assist: AssistUserPreferences;
+}
+
+export type UserPreferencesSubset = Subset<UserPreferences>;
+export type GetUserPreferencesResponse = UserPreferences;

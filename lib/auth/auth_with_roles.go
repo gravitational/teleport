@@ -46,6 +46,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -6343,6 +6344,24 @@ func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, m
 	}
 
 	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
+}
+
+// GetUserPreferences returns the user preferences for a given user.
+func (a *ServerWithRoles) GetUserPreferences(ctx context.Context, req *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.UserPreferences, error) {
+	if err := a.currentUserAction(req.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return a.authServer.GetUserPreferences(ctx, req)
+}
+
+// UpsertUserPreferences creates or updates user preferences for a given username.
+func (a *ServerWithRoles) UpsertUserPreferences(ctx context.Context, req *userpreferencespb.UpsertUserPreferencesRequest) error {
+	if err := a.currentUserAction(req.Username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return a.authServer.UpsertUserPreferences(ctx, req)
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.
