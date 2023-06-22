@@ -131,7 +131,7 @@ version: v2
 Relogin to fetch updated certificates:
 
 ```code
-$ tsh logout; tsh login --proxy=example.com --user=alice
+$ tsh logout; tsh login --proxy=teleport.example.com --user=alice
 ```
 
 Before you can enroll the device, you need to register it. To register
@@ -225,7 +225,8 @@ command printed by `tctl devices enroll`:
 $ tsh device enroll --token=(=devicetrust.enroll_token=)
 Device "(=devicetrust.asset_tag=)"/macOS enrolled
 
-$ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificates
+$ tsh logout
+$ tsh login --proxy=teleport.example.com --user=alice # fetch new certificates
 ```
 
 <Admonition type="warning" title="Windows">
@@ -353,7 +354,7 @@ spec:
   type: local
   second_factor: "on"
   webauthn:
-    rp_id: example.com
+    rp_id: teleport.example.com
   device_trust:
 +   mode: "required" # add this line
 ```
@@ -381,7 +382,7 @@ auth_service:
     type: local
     second_factor: "on"
     webauthn:
-      rp_id: example.com
+      rp_id: teleport.example.com
     device_trust:
 +     mode: "required" # add this line
 ```
