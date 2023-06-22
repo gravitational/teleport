@@ -58,13 +58,13 @@ const (
 	MessageKindError MessageType = "CHAT_MESSAGE_ERROR"
 )
 
-// PluginGetter is the minimal interface used by the chat to interact with the plugins service in the backend.
+// PluginGetter is the minimal interface used by the chat to interact with the plugin service in the backend.
 type PluginGetter interface {
 	PluginsClient() pluginsv1.PluginServiceClient
 }
 
-// AssistantService is the minimal interface used by the chat to interact with the Assist service in the backend.
-type AssistantService interface {
+// MessageService is the minimal interface used by the chat to interact with the Assist message service in the backend.
+type MessageService interface {
 	// GetAssistantMessages returns all messages with given conversation ID.
 	GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error)
 
@@ -99,7 +99,7 @@ type Chat struct {
 	assist *Assist
 	chat   *ai.Chat
 	// assistService is the auth server client.
-	assistService AssistantService
+	assistService MessageService
 	// ConversationID is the ID of the conversation.
 	ConversationID string
 	// Username is the username of the user who started the chat.
@@ -107,7 +107,7 @@ type Chat struct {
 }
 
 // NewChat creates a new Assist chat.
-func (a *Assist) NewChat(ctx context.Context, assistService AssistantService,
+func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
 	conversationID string, username string,
 ) (*Chat, error) {
 	aichat := a.client.NewChat(username)
