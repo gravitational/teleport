@@ -567,7 +567,7 @@ func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string) strin
 	// as a query part. Append query that was originally part of the URL.
 	query := fmt.Sprintf("path=%s", url.QueryEscape(r.URL.Path))
 	if len(r.URL.RawQuery) > 0 {
-		query = fmt.Sprintf("%s&%s", query, r.URL.RawQuery)
+		query = fmt.Sprintf("%s&query=%s", query, url.QueryEscape(r.URL.RawQuery))
 	}
 
 	u := url.URL{

@@ -63,22 +63,14 @@ export function AppLauncher() {
 
       let path = '';
       if (queryParams.has('path')) {
-        path = decodeURIComponent(queryParams.get('path'));
+        path = queryParams.get('path');
 
-        if (!path.startsWith('/')) {
+        if (path && !path.startsWith('/')) {
           path = `/${path}`;
         }
 
-        queryParams.delete('path');
-        const originalQuery = queryParams.toString();
-        if (originalQuery) {
-          // Manually build the query since `searchParams.toString()`
-          // converts %20 to +
-          const queries = [];
-          for (const key of queryParams.keys()) {
-            queries.push(`${key}=${queryParams.get(key)}`);
-          }
-          path = `${path}?${queries.join('&')}`;
+        if (queryParams.has('query')) {
+          path += '?' + queryParams.get('query');
         }
       }
 
