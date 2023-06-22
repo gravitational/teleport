@@ -1246,9 +1246,20 @@ func (databaseExecutor) getAll(ctx context.Context, cache *Cache, loadSecrets bo
 
 func (databaseExecutor) upsert(ctx context.Context, cache *Cache, resource types.Database) error {
 	if err := cache.databasesCache.CreateDatabase(ctx, resource); err != nil {
+		// Skip databases that failed to be validated to avoid stopping cache
+		// backend events consumption (which can lead to an invalid cache
+		// state). This case can happen during Teleport upgrades/downgrades,
+		// where the database stored on the backend is no longer valid given the
+		// Teleport version.
+		if trace.IsBadParameter(err) {
+			cache.Logger.Infof("Skipping database %q addition to cache due to validation errors. Solve the errors and update your database spec to get it on cache: %s", resource.GetName(), err)
+			return nil
+		}
+
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
 		}
+
 		return trace.Wrap(cache.databasesCache.UpdateDatabase(ctx, resource))
 	}
 
