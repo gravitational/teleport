@@ -15,7 +15,13 @@ limitations under the License.
 */
 
 import { unique } from 'teleterm/ui/utils/uid';
-import { DocumentUri, ServerUri, paths, routing } from 'teleterm/ui/uri';
+import {
+  DocumentUri,
+  ServerUri,
+  paths,
+  routing,
+  RootClusterUri,
+} from 'teleterm/ui/uri';
 
 import {
   CreateAccessRequestDocumentOpts,
@@ -25,6 +31,7 @@ import {
   Document,
   DocumentAccessRequests,
   DocumentCluster,
+  DocumentConnectMyComputerSetup,
   DocumentGateway,
   DocumentGatewayCliClient,
   DocumentOrigin,
@@ -181,6 +188,21 @@ export class DocumentsService {
     };
   }
 
+  createConnectMyComputerSetupDocument(opts: {
+    // URI of the root cluster could be passed to the `DocumentsService`
+    // constructor and then to the document, instead of being taken from the parameter.
+    // However, we decided not to do so because other documents are based only on the provided parameters.
+    rootClusterUri: RootClusterUri;
+  }): DocumentConnectMyComputerSetup {
+    const uri = routing.getDocUri({ docId: unique() });
+    return {
+      uri,
+      kind: 'doc.connect_my_computer_setup',
+      title: 'Connect My Computer',
+      rootClusterUri: opts.rootClusterUri,
+    };
+  }
+
   openNewTerminal(opts: { rootClusterId: string; leafClusterId?: string }) {
     const doc = ((): Document => {
       const activeDocument = this.getActive();
@@ -263,7 +285,10 @@ export class DocumentsService {
 
   isActive(uri: string) {
     const location = this.getLocation();
-    return !!routing.parseUri(location, { exact: true, path: uri });
+    return !!routing.parseUri(location, {
+      exact: true,
+      path: uri,
+    });
   }
 
   add(doc: Document, position?: number) {
