@@ -41,6 +41,12 @@ type Message struct {
 	Content string
 }
 
+// StreamingMessage represents a new message that is being streamed from the LLM.
+type StreamingMessage struct {
+	*TokensUsed
+	Parts <-chan string
+}
+
 // Label represents a label returned by OpenAI's completion API.
 type Label struct {
 	Key   string `json:"key"`
