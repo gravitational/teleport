@@ -17,7 +17,7 @@ spec:
   google_admin_email: <GOOGLE-WORKSPACE-ADMIN-EMAIL>
   google_service_account_uri: file:///var/lib/teleport/gworkspace-creds.json
   issuer_url: https://accounts.google.com
-  redirect_url: https://<CLUSTER_URL>/v1/webapi/oidc/callback
+  redirect_url: https://<SELF-HOSTED-CLUSTER-URL|TENANT-ID.teleport.sh>/v1/webapi/oidc/callback
   scope:
   - openid
   - email
