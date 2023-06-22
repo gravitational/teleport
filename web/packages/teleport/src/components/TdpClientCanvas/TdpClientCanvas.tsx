@@ -29,7 +29,8 @@ import type { TdpClient } from 'teleport/lib/tdp';
 export default function TdpClientCanvas(props: Props) {
   const {
     tdpCli,
-    tdpCliInit = false,
+    tdpCliConnect = false,
+    tdpCliScreenSpec,
     tdpCliOnPngFrame,
     tdpCliOnBmpFrame,
     tdpCliOnClipboardData,
@@ -123,7 +124,7 @@ export default function TdpClientCanvas(props: Props) {
     if (tdpCli && tdpCliOnClientScreenSpec) {
       const canvas = canvasRef.current;
       const _tdpCliOnClientScreenSpec = (spec: ClientScreenSpec) => {
-        tdpCliOnClientScreenSpec(canvas, spec);
+        tdpCliOnClientScreenSpec(tdpCli, canvas, spec);
       };
       tdpCli.on(
         TdpClientEvent.TDP_CLIENT_SCREEN_SPEC,
@@ -298,20 +299,25 @@ export default function TdpClientCanvas(props: Props) {
 
   // Call init after all listeners have been registered
   useEffect(() => {
-    if (tdpCli && tdpCliInit) {
-      tdpCli.init();
+    if (tdpCli && tdpCliConnect) {
+      tdpCli.connect(tdpCliScreenSpec);
       return () => {
         tdpCli.shutdown();
       };
     }
-  }, [tdpCli, tdpCliInit]);
+  }, [tdpCli, tdpCliConnect]);
 
   return <canvas style={{ ...style }} ref={canvasRef} />;
 }
 
 export type Props = {
-  tdpCli?: TdpClient;
-  tdpCliInit?: boolean;
+  tdpCli: TdpClient;
+  // tdpCliConnect determines whether the TdpClientCanvas
+  // will try to connect to the server.
+  tdpCliConnect?: boolean;
+  // tdpCliScreenSpec will be passed to tdpCli.connect() if
+  // tdpCliConnect is true.
+  tdpCliScreenSpec?: ClientScreenSpec;
   tdpCliOnPngFrame?: (
     ctx: CanvasRenderingContext2D,
     pngFrame: PngFrame
@@ -326,6 +332,7 @@ export type Props = {
   tdpCliOnWsClose?: () => void;
   tdpCliOnWsOpen?: () => void;
   tdpCliOnClientScreenSpec?: (
+    cli: TdpClient,
     canvas: HTMLCanvasElement,
     spec: ClientScreenSpec
   ) => void;

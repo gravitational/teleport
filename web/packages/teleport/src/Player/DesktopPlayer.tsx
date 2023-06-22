@@ -20,7 +20,7 @@ import { Indicator, Box, Alert } from 'design';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import cfg from 'teleport/config';
-import { PlayerClient, PlayerClientEvent } from 'teleport/lib/tdp';
+import { PlayerClient, PlayerClientEvent, TdpClient } from 'teleport/lib/tdp';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 import TdpClientCanvas from 'teleport/components/TdpClientCanvas';
 
@@ -68,7 +68,7 @@ export const DesktopPlayer = ({
 
       <TdpClientCanvas
         tdpCli={playerClient}
-        tdpCliInit={true}
+        tdpCliConnect={true}
         tdpCliOnPngFrame={tdpCliOnPngFrame}
         tdpCliOnBmpFrame={tdpCliOnBitmapFrame}
         tdpCliOnClientScreenSpec={tdpCliOnClientScreenSpec}
@@ -133,27 +133,33 @@ const useDesktopPlayer = ({
   };
 
   const tdpCliOnClientScreenSpec = (
+    cli: TdpClient,
     canvas: HTMLCanvasElement,
     spec: ClientScreenSpec
   ) => {
+    const { width, height } = spec;
+
+    // Initialize the FastPathProcessor with this recording's screen dimensions.
+    cli.initFastPathProcessor({ width, height });
+
     const styledPlayer = canvas.parentElement;
     const progressBar = styledPlayer.children.namedItem('progressBarDesktop');
 
     const fullWidth = styledPlayer.clientWidth;
     const fullHeight = styledPlayer.clientHeight - progressBar.clientHeight;
-    const originalAspectRatio = spec.width / spec.height;
+    const originalAspectRatio = width / height;
     const currentAspectRatio = fullWidth / fullHeight;
 
     if (originalAspectRatio > currentAspectRatio) {
       // Use the full width of the screen and scale the height.
-      canvas.style.height = `${(fullWidth * spec.height) / spec.width}px`;
+      canvas.style.height = `${(fullWidth * height) / width}px`;
     } else if (originalAspectRatio < currentAspectRatio) {
       // Use the full height of the screen and scale the width.
-      canvas.style.width = `${(fullHeight * spec.width) / spec.height}px`;
+      canvas.style.width = `${(fullHeight * width) / height}px`;
     }
 
-    canvas.width = spec.width;
-    canvas.height = spec.height;
+    canvas.width = width;
+    canvas.height = height;
 
     setAttempt({ status: 'success' });
   };

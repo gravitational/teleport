@@ -119,7 +119,7 @@ export function DesktopSession(props: State) {
 
   if (errorDialog.open) {
     return (
-      <Session {...props} initTdpCli={false} displayCanvas={false}>
+      <Session {...props} connectTdpCli={false} displayCanvas={false}>
         <Dialog
           dialogCss={() => ({ width: '484px' })}
           onClose={onDialogClose}
@@ -153,10 +153,10 @@ export function DesktopSession(props: State) {
   if (showAnotherSessionActiveDialog) {
     // Don't start the TDP connection until the user confirms they're ok
     // with potentially killing another user's connection.
-    const initTdpCli = false;
+    const connectTdpCli = false;
 
     return (
-      <Session {...props} initTdpCli={initTdpCli} displayCanvas={false}>
+      <Session {...props} connectTdpCli={connectTdpCli} displayCanvas={false}>
         <Dialog
           dialogCss={() => ({ width: '484px' })}
           onClose={() => {}}
@@ -193,7 +193,7 @@ export function DesktopSession(props: State) {
 
   if (disconnected) {
     return (
-      <Session {...props} initTdpCli={false} displayCanvas={false}>
+      <Session {...props} connectTdpCli={false} displayCanvas={false}>
         <Box textAlign="center" m={10}>
           <Text>Session successfully disconnected</Text>
         </Box>
@@ -205,10 +205,10 @@ export function DesktopSession(props: State) {
     // We don't know whether another session for this desktop is active while the
     // fetchAttempt is still processing, so hold off on starting a TDP connection
     // until that information is available.
-    const initTdpCli = fetchAttempt.status !== 'processing';
+    const connectTdpCli = fetchAttempt.status !== 'processing';
 
     return (
-      <Session {...props} initTdpCli={initTdpCli} displayCanvas={false}>
+      <Session {...props} connectTdpCli={connectTdpCli} displayCanvas={false}>
         <Box textAlign="center" m={10}>
           <Indicator />
         </Box>
@@ -216,7 +216,7 @@ export function DesktopSession(props: State) {
     );
   }
 
-  return <Session {...props} initTdpCli={true} displayCanvas={true} />;
+  return <Session {...props} connectTdpCli={true} displayCanvas={true} />;
 }
 
 function Session({
@@ -242,7 +242,8 @@ function Session({
   onMouseUp,
   onMouseWheelScroll,
   onContextMenu,
-  initTdpCli,
+  connectTdpCli,
+  screenSpec,
   displayCanvas,
   clipboardSharingEnabled,
   onShareDirectory,
@@ -295,7 +296,8 @@ function Session({
           flex: 1, // ensures the canvas fills available screen space
         }}
         tdpCli={tdpClient}
-        tdpCliInit={initTdpCli}
+        tdpCliConnect={connectTdpCli}
+        tdpCliScreenSpec={screenSpec}
         tdpCliOnPngFrame={onPngFrame}
         tdpCliOnBmpFrame={onBitmapFrame}
         tdpCliOnClipboardData={onClipboardData}
@@ -318,6 +320,6 @@ function Session({
 type Props = State & {
   // Determines whether the tdp client that's passed to the TdpClientCanvas
   // should be initialized.
-  initTdpCli: boolean;
+  connectTdpCli: boolean;
   displayCanvas: boolean;
 };

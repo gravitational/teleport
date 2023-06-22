@@ -65,7 +65,7 @@ export default function useTdpClientCanvas(props: Props) {
       .replace(':width', width.toString())
       .replace(':height', height.toString());
 
-    setTdpClient(new TdpClient(addr, width, height));
+    setTdpClient(new TdpClient(addr));
   }, [clusterId, username, desktopName]);
 
   const syncCanvasSizeToDisplaySize = (canvas: HTMLCanvasElement) => {
@@ -260,6 +260,7 @@ export default function useTdpClientCanvas(props: Props) {
 
   return {
     tdpClient,
+    screenSpec: getDisplaySize(),
     onPngFrame,
     onBitmapFrame,
     onTdpError,

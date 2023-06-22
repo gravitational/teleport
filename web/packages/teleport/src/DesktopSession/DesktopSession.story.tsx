@@ -29,7 +29,7 @@ export default {
 
 const fakeClient = () => {
   const client = new TdpClient('wss://socketAddr.gov');
-  client.init = () => {}; // Don't actually try to connect to a websocket.
+  client.connect = async () => {}; // Don't actually try to connect to a websocket.
   return client;
 };
 
@@ -59,6 +59,8 @@ const props: State = {
   setDirectorySharingState: () => {},
   onShareDirectory: () => {},
   onPngFrame: () => {},
+  onBitmapFrame: () => {},
+  screenSpec: { width: 0, height: 0 },
   onTdpError: () => {},
   onTdpWarning: () => {},
   onKeyDown: () => {},
@@ -119,7 +121,7 @@ export const InvalidProcessingState = () => (
 
 export const ConnectedSettingsFalse = () => {
   const client = fakeClient();
-  client.init = () => {
+  client.connect = async () => {
     client.emit(TdpClientEvent.TDP_PNG_FRAME);
   };
 
@@ -141,7 +143,7 @@ export const ConnectedSettingsFalse = () => {
 
 export const ConnectedSettingsTrue = () => {
   const client = fakeClient();
-  client.init = () => {
+  client.connect = async () => {
     client.emit(TdpClientEvent.TDP_PNG_FRAME);
   };
 
@@ -232,7 +234,7 @@ export const AnotherSessionActive = () => (
 
 export const Warnings = () => {
   const client = fakeClient();
-  client.init = () => {
+  client.connect = async () => {
     client.emit(TdpClientEvent.TDP_PNG_FRAME);
   };
 

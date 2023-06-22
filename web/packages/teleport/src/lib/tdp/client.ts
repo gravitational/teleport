@@ -83,37 +83,43 @@ export default class Client extends EventEmitterWebAuthnSender {
   protected socket: WebSocket | undefined;
   private socketAddr: string;
   private sdManager: SharedDirectoryManager;
-  private fastPathProcessor: FastPathProcessor;
+  private fastPathProcessor?: FastPathProcessor;
 
   private logger = Logger.create('TDPClient');
 
-  constructor(socketAddr: string, width: number, height: number) {
+  // TODO(isaiah): width/height are optional -- include them when the client itself should determine the screen size such as in a desktop session.
+  // Leave them undefined when the server should set the screen size, such as when the client is being used for recording playback.
+  //
+  constructor(socketAddr: string) {
     super();
     this.socketAddr = socketAddr;
     this.codec = new Codec();
     this.sdManager = new SharedDirectoryManager();
-
-    // select the wasm log level
-    let wasmLogLevel = LogType.OFF;
-    if (import.meta.env.MODE === 'development') {
-      wasmLogLevel = LogType.TRACE;
-    }
-
-    // init initializes the wasm module into memory
-    init().then(() => {
-      init_wasm_log(wasmLogLevel);
-      this.fastPathProcessor = new FastPathProcessor(width, height);
-    });
   }
 
   // Connect to the websocket and register websocket event handlers.
-  init() {
+  // Include a screen spec in cases where the client should determine the screen size
+  // (e.g. in a desktop session) in order to automatically send it to the server and
+  // start the session. Leave the screen spec undefined in cases where the server determines
+  // the screen size (e.g. in a recording playback session). In that case, the client will
+  // set the internal screen size when it receives the screen spec from the server
+  // (see PlayerClient.handleClientScreenSpec).
+  async connect(spec?: ClientScreenSpec) {
+    await this.initWasm();
+
+    if (spec) {
+      this.initFastPathProcessor(spec);
+    }
+
     this.socket = new WebSocket(this.socketAddr);
     this.socket.binaryType = 'arraybuffer';
 
     this.socket.onopen = () => {
       this.logger.info('websocket is open');
       this.emit(TdpClientEvent.WS_OPEN);
+      if (spec) {
+        this.sendClientScreenSpec(spec);
+      }
     };
 
     this.socket.onmessage = async (ev: MessageEvent) => {
@@ -135,6 +141,21 @@ export default class Client extends EventEmitterWebAuthnSender {
 
       this.emit(TdpClientEvent.WS_CLOSE);
     };
+  }
+
+  private async initWasm() {
+    // select the wasm log level
+    let wasmLogLevel = LogType.OFF;
+    if (import.meta.env.MODE === 'development') {
+      wasmLogLevel = LogType.TRACE;
+    }
+
+    await init();
+    init_wasm_log(wasmLogLevel);
+  }
+
+  initFastPathProcessor(spec: ClientScreenSpec) {
+    this.fastPathProcessor = new FastPathProcessor(spec.width, spec.height);
   }
 
   // processMessage should be await-ed when called,
@@ -271,6 +292,13 @@ export default class Client extends EventEmitterWebAuthnSender {
   }
 
   handleRDPFastPathPDU(buffer: ArrayBuffer) {
+    if (!this.fastPathProcessor) {
+      this.handleError(
+        new Error("fastPathProcessor isn't initialized yet"),
+        TdpClientEvent.CLIENT_ERROR
+      );
+    }
+
     let rdpFastPathPDU = this.codec.decodeRDPFastPathPDU(buffer);
 
     this.fastPathProcessor.process(
@@ -508,8 +536,10 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  sendUsername(username: string) {
-    this.send(this.codec.encodeUsername(username));
+  // todo(isaiah)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  sendClientScreenSpec(spec: ClientScreenSpec) {
+    // this.send(this.codec.encodeClientScreenSpec(spec));
   }
 
   sendMouseMove(x: number, y: number) {
