@@ -90,8 +90,7 @@ function ButtonClose(props: { onClick(): void }) {
 }
 
 const Container = styled.div`
-  background: ${props =>
-    props.backgroundColor || props.theme.colors.levels.surface};
+  background: ${props => props.theme.colors.levels.surface};
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   box-sizing: border-box;
   border-radius: ${props => props.theme.radii[2]}px;
