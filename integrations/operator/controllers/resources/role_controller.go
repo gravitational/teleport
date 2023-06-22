@@ -21,15 +21,19 @@ import (
 	"fmt"
 
 	"github.com/gravitational/trace"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	ctrl "sigs.k8s.io/controller-runtime"
 	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	ctrllog "sigs.k8s.io/controller-runtime/pkg/log"
 
 	"github.com/gravitational/teleport/api/types"
 	v5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	v6 "github.com/gravitational/teleport/integrations/operator/apis/resources/v6"
 	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
@@ -38,6 +42,12 @@ const teleportRoleKind = "TeleportRole"
 // TODO(for v12): Have the Role controller to use the generic Teleport reconciler
 // This means we'll have to move back to a statically typed client.
 // This will require removing the crdgen hack, fixing TeleportRole JSON serialization
+
+var TeleportRoleGVKV6 = schema.GroupVersionKind{
+	Group:   v6.GroupVersion.Group,
+	Version: v6.GroupVersion.Version,
+	Kind:    teleportRoleKind,
+}
 
 var TeleportRoleGVKV5 = schema.GroupVersionKind{
 	Group:   v5.GroupVersion.Group,
@@ -68,12 +78,44 @@ func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
 	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context.
 	// TODO: (Check how to handle multiple versions)
-	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
+	log := ctrllog.FromContext(ctx).WithValues("namespacedname", req.NamespacedName)
+
+	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV6)
+	err := r.Get(ctx, req.NamespacedName, obj)
+	switch {
+	case apierrors.IsNotFound(err):
+		log.Info("not found")
+		return ctrl.Result{}, nil
+	case err != nil:
+		log.Error(err, "failed to get resource")
+		return ctrl.Result{}, trace.Wrap(err)
+	case getAPIVersionFromManagedFields(obj) == v6.GroupVersion.String():
+		obj = GetUnstructuredObjectFromGVK(TeleportRoleGVKV6)
+	case getAPIVersionFromManagedFields(obj) == v5.GroupVersion.String():
+		obj = GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
+	default:
+		return ctrl.Result{}, trace.Errorf("unknown api version %s", getAPIVersionFromManagedFields(obj))
+	}
+
 	return ResourceBaseReconciler{
 		Client:         r.Client,
 		DeleteExternal: r.Delete,
 		UpsertExternal: r.Upsert,
 	}.Do(ctx, req, obj)
+}
+
+// getAPIVersionFromManagedFields returns the API version of the object from the managed fields.
+// If the object does not have any managed fields, it returns the API version of the object.
+// This is required because if the object version differs from the requested version,
+// the object will not be converted properly and everything will be stored in the
+// managed fields.
+func getAPIVersionFromManagedFields(obj *unstructured.Unstructured) string {
+	for _, field := range obj.GetManagedFields() {
+		if field.APIVersion != "" {
+			return field.APIVersion
+		}
+	}
+	return obj.GetAPIVersion()
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -84,7 +126,7 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
 	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context
 	// TODO: (Check how to handle multiple versions)
-	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
+	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV6)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(obj).
 		Complete(r)
@@ -104,7 +146,17 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	if !ok {
 		return fmt.Errorf("failed to convert Object into resource object: %T", obj)
 	}
-	k8sResource := &v5.TeleportRole{}
+	// We need to convert the unstructured object into a typed TeleportRole object.
+	// We check the API version to determine which TeleportRole object to use.
+	var k8sResource role
+	switch u.GetAPIVersion() {
+	case v6.GroupVersion.String():
+		k8sResource = &v6.TeleportRole{}
+	case v5.GroupVersion.String():
+		k8sResource = &v5.TeleportRole{}
+	default:
+		return fmt.Errorf("unknown api version: %s", u.GetAPIVersion())
+	}
 
 	// If an error happens we want to put it in status.conditions before returning.
 	err := runtime.DefaultUnstructuredConverter.FromUnstructuredWithValidation(
@@ -158,6 +210,13 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 
 	// We update the status conditions on exit
 	return trace.Wrap(r.Status().Update(ctx, k8sResource))
+}
+
+// role is an interface that all TeleportRole versions implement.
+type role interface {
+	StatusConditions() *[]metav1.Condition
+	ToTeleport() types.Role
+	kclient.Object
 }
 
 func (r *RoleReconciler) AddTeleportResourceOrigin(resource types.Role) {

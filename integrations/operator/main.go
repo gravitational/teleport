@@ -40,6 +40,7 @@ import (
 	resourcesv2 "github.com/gravitational/teleport/integrations/operator/apis/resources/v2"
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
+	resourcesv6 "github.com/gravitational/teleport/integrations/operator/apis/resources/v6"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	sidecar2 "github.com/gravitational/teleport/integrations/operator/sidecar"
 )
@@ -51,7 +52,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
+	utilruntime.Must(resourcesv6.AddToScheme(scheme))
 	utilruntime.Must(resourcesv5.AddToScheme(scheme))
 	utilruntime.Must(resourcesv3.AddToScheme(scheme))
 	utilruntime.Must(resourcesv2.AddToScheme(scheme))
