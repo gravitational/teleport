@@ -16,11 +16,18 @@
 
 import path from 'path';
 
-import { app, BrowserWindow, Menu, Rectangle, screen } from 'electron';
+import {
+  app,
+  BrowserWindow,
+  Menu,
+  Rectangle,
+  screen,
+  nativeTheme,
+} from 'electron';
 
 import { FileStorage } from 'teleterm/services/fileStorage';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
-import theme from 'teleterm/ui/ThemeProvider/theme';
+import { darkTheme, lightTheme } from 'teleterm/ui/ThemeProvider/theme';
 
 type WindowState = Rectangle;
 
@@ -47,13 +54,16 @@ export class WindowsManager {
   }
 
   createWindow(): void {
+    const activeTheme = nativeTheme.shouldUseDarkColors
+      ? darkTheme
+      : lightTheme;
     const windowState = this.getWindowState();
     const window = new BrowserWindow({
       x: windowState.x,
       y: windowState.y,
       width: windowState.width,
       height: windowState.height,
-      backgroundColor: theme.colors.levels.sunken,
+      backgroundColor: activeTheme.colors.levels.sunken,
       minWidth: 400,
       minHeight: 300,
       show: false,
@@ -86,6 +96,12 @@ export class WindowsManager {
 
     window.webContents.on('context-menu', (_, props) => {
       this.popupUniversalContextMenu(window, props);
+    });
+
+    nativeTheme.on('updated', () => {
+      window.webContents.send('main-process-native-theme-update', {
+        shouldUseDarkColors: nativeTheme.shouldUseDarkColors,
+      });
     });
 
     window.webContents.session.setPermissionRequestHandler(
@@ -131,12 +147,12 @@ export class WindowsManager {
       return;
     }
 
-    // What follows is a special focus handler for windows.
-    //
-    // On Windows, app.focus() doesn't work as expected so instead we call win.focus().
-    // If the window is minimized, win.focus() will bring it to the front and give it focus.
-    // If the window is not minimized but simply covered by other another window, win.focus() will
+    // On Windows, app.focus() doesn't work the same as on the other platforms.
+    // If the window is minimized, app.focus() will bring it to the front and give it focus.
+    // If the window is not minimized but simply covered by other another window, app.focus() will
     // flash the icon of Connect in the task bar.
+    // To make things even more complicated, the app behaves like that only when it is packaged.
+    // When it is in dev mode, it seems to work correctly (it is brought to the front every time).
     //
     // Ideally, we'd like the not minimized window to receive focus too. We considered two
     // workarounds to bring focus to a window that's not minimized:
@@ -155,21 +171,20 @@ export class WindowsManager {
     //
     // https://github.com/electron/electron/issues/2867#issuecomment-1080573240
     //
-    // I don't understand why calling win.focus() on a minimized window gives it focus in the
+    // I don't understand why calling app.focus() on a minimized window gives it focus in the
     // first place. In theory it shouldn't work, see the links below:
     //
     // https://stackoverflow.com/a/72620653/742872
     // https://devblogs.microsoft.com/oldnewthing/20090220-00/?p=19083
     // https://github.com/electron/electron/issues/2867#issuecomment-142480964
     // https://github.com/electron/electron/issues/2867#issuecomment-142511956
-    if (this.settings.platform === 'win32') {
-      this.window.focus();
-      return;
-    }
 
     app.dock?.bounce('informational');
+
     // app.focus() alone doesn't un-minimize the window if the window is minimized.
-    this.window.show();
+    if (this.window.isMinimized()) {
+      this.window.restore();
+    }
     app.focus({ steal: true });
   }
 

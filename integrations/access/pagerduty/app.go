@@ -31,6 +31,8 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
+	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
 	"github.com/gravitational/teleport/integrations/lib/credentials"
@@ -58,20 +60,27 @@ const (
 // Special kind of error that can be ignored.
 var errSkip = errors.New("")
 
-// App contains global application state.
+// App contains global application state of the PagerDuty plugin.
 type App struct {
 	conf Config
 
-	apiClient *client.Client
-	pagerduty Pagerduty
-	mainJob   lib.ServiceJob
+	teleport   teleport.Client
+	pagerduty  Pagerduty
+	statusSink common.StatusSink
+	mainJob    lib.ServiceJob
 
 	*lib.Process
 }
 
+// NewApp constructs a new PagerDuty App.
 func NewApp(conf Config) (*App, error) {
-	app := &App{conf: conf}
+	app := &App{
+		conf:       conf,
+		teleport:   conf.Client,
+		statusSink: conf.StatusSink,
+	}
 	app.mainJob = lib.NewServiceJob(app.run)
+
 	return app, nil
 }
 
@@ -98,14 +107,14 @@ func (a *App) run(ctx context.Context) error {
 	var err error
 
 	log := logger.Get(ctx)
-	log.Infof("Starting Teleport Access PagerDuty Plugin %s:%s", Version, Gitref)
+	log.Infof("Starting Teleport Access PagerDuty Plugin")
 
 	if err = a.init(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
 	watcherJob := watcherjob.NewJob(
-		a.apiClient,
+		a.teleport,
 		watcherjob.Config{
 			Watch:            types.Watch{Kinds: []types.WatchKind{types.WatchKind{Kind: types.KindAccessRequest}}},
 			EventFuncTimeout: handlerTimeout,
@@ -150,17 +159,19 @@ func (a *App) init(ctx context.Context) error {
 		pong proto.PingResponse
 	)
 
-	bk := grpcbackoff.DefaultConfig
-	bk.MaxDelay = grpcBackoffMaxDelay
-	if a.apiClient, err = client.New(ctx, client.Config{
-		Addrs:       a.conf.Teleport.GetAddrs(),
-		Credentials: a.conf.Teleport.Credentials(),
-		DialOpts: []grpc.DialOption{
-			grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
-			grpc.WithReturnConnectionError(),
-		},
-	}); err != nil {
-		return trace.Wrap(err)
+	if a.teleport == nil {
+		bk := grpcbackoff.DefaultConfig
+		bk.MaxDelay = grpcBackoffMaxDelay
+		if a.teleport, err = client.New(ctx, client.Config{
+			Addrs:       a.conf.Teleport.GetAddrs(),
+			Credentials: a.conf.Teleport.Credentials(),
+			DialOpts: []grpc.DialOption{
+				grpc.WithConnectParams(grpc.ConnectParams{Backoff: bk, MinConnectTimeout: initTimeout}),
+				grpc.WithReturnConnectionError(),
+			},
+		}); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	if pong, err = a.checkTeleportVersion(ctx); err != nil {
@@ -171,7 +182,7 @@ func (a *App) init(ctx context.Context) error {
 	if pong.ServerFeatures.AdvancedAccessWorkflows {
 		webProxyAddr = pong.ProxyPublicAddr
 	}
-	a.pagerduty, err = NewPagerdutyClient(a.conf.Pagerduty, pong.ClusterName, webProxyAddr)
+	a.pagerduty, err = NewPagerdutyClient(a.conf.Pagerduty, pong.ClusterName, webProxyAddr, a.statusSink)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -188,7 +199,8 @@ func (a *App) init(ctx context.Context) error {
 func (a *App) checkTeleportVersion(ctx context.Context) (proto.PingResponse, error) {
 	log := logger.Get(ctx)
 	log.Debug("Checking Teleport server version")
-	pong, err := a.apiClient.Ping(ctx)
+
+	pong, err := a.teleport.Ping(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			return pong, trace.Wrap(err, "server version must be at least %s", minServerVersion)
@@ -324,16 +336,18 @@ func (a *App) getOnCallServiceNames(req types.AccessRequest) ([]string, error) {
 }
 
 func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bool, error) {
+	log := logger.Get(ctx)
+
 	serviceName, err := a.getNotifyServiceName(req)
 	if err != nil {
-		logger.Get(ctx).Debugf("Skipping the notification: %s", err)
+		log.Debugf("Skipping the notification: %s", err)
 		return false, trace.Wrap(errSkip)
 	}
 
 	ctx, _ = logger.WithField(ctx, "pd_service_name", serviceName)
 	service, err := a.pagerduty.FindServiceByName(ctx, serviceName)
 	if err != nil {
-		return false, trace.Wrap(err)
+		return false, trace.Wrap(err, "finding pagerduty service %s", serviceName)
 	}
 
 	reqID := req.GetName()
@@ -352,12 +366,12 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 		return PluginData{RequestData: reqData}, true
 	})
 	if err != nil {
-		return isNew, trace.Wrap(err)
+		return isNew, trace.Wrap(err, "updating plugin data")
 	}
 
 	if isNew {
 		if err = a.createIncident(ctx, service.ID, reqID, reqData); err != nil {
-			return isNew, trace.Wrap(err)
+			return isNew, trace.Wrap(err, "creating PagerDuty incident")
 		}
 	}
 
@@ -503,7 +517,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 		}
 	}
 
-	if _, err := a.apiClient.SubmitAccessReview(ctx, types.AccessReviewSubmission{
+	if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 		RequestID: req.GetName(),
 		Review: types.AccessReview{
 			ProposedState: types.RequestState_APPROVED,
@@ -519,7 +533,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 			log.Debug("Already reviewed the request")
 			return nil
 		}
-		return trace.Wrap(err)
+		return trace.Wrap(err, "submitting access request")
 	}
 
 	log.Info("Successfully submitted a request approval")
@@ -606,7 +620,7 @@ func (a *App) modifyPluginData(ctx context.Context, reqID string, fn func(data *
 
 // getPluginData loads a plugin data for a given access request. It returns nil if it's not found.
 func (a *App) getPluginData(ctx context.Context, reqID string) (*PluginData, error) {
-	dataMaps, err := a.apiClient.GetPluginData(ctx, types.PluginDataFilter{
+	dataMaps, err := a.teleport.GetPluginData(ctx, types.PluginDataFilter{
 		Kind:     types.KindAccessRequest,
 		Resource: reqID,
 		Plugin:   pluginName,
@@ -627,7 +641,7 @@ func (a *App) getPluginData(ctx context.Context, reqID string) (*PluginData, err
 
 // updatePluginData updates an existing plugin data or sets a new one if it didn't exist.
 func (a *App) updatePluginData(ctx context.Context, reqID string, data PluginData, expectData PluginData) error {
-	return a.apiClient.UpdatePluginData(ctx, types.PluginDataUpdateParams{
+	return a.teleport.UpdatePluginData(ctx, types.PluginDataUpdateParams{
 		Kind:     types.KindAccessRequest,
 		Resource: reqID,
 		Plugin:   pluginName,

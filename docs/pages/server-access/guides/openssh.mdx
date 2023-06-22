@@ -75,7 +75,7 @@ authenticate the `sshd` host using the host certificate you generated earlier.
 
 First, make sure you have logged in to your Teleport cluster:
 
-<ScopedBlock scope={["oss","enterprise"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```code
 $ tsh status
@@ -90,6 +90,21 @@ $ tsh status
 ```
 
 </ScopedBlock>
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ tsh status
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       myuser
+  Cluster:            teleport.example.com
+  Roles:              access, auditor, editor, reviewer, host-certifier
+  Logins:             ubuntu, root
+  Kubernetes:         enabled
+  Valid until:        2022-05-06 22:54:01 -0400 EDT [valid for 11h53m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
@@ -97,7 +112,7 @@ $ tsh status
 > Profile URL:        https://mytenant.teleport.sh:443
   Logged in as:       myuser
   Cluster:            mytenant.teleport.sh
-  Roles:              access, auditor, editor, host-certifier
+  Roles:              access, auditor, editor, reviewer, host-certifier
   Logins:             ubuntu, root
   Kubernetes:         enabled
   Valid until:        2022-05-06 22:54:01 -0400 EDT [valid for 11h53m0s]

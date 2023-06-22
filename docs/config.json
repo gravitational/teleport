@@ -975,18 +975,34 @@
         {
           "title": "Protect Okta Applications and Groups (Preview)",
           "slug": "/application-access/okta/",
+          "forScopes": [
+            "enterprise",
+            "cloud"
+          ],
           "entries": [
             {
               "title": "Okta Service",
-              "slug": "/application-access/okta/guide/"
+              "slug": "/application-access/okta/guide/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "Architecture",
-              "slug": "/application-access/okta/architecture/"
+              "slug": "/application-access/okta/architecture/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "Reference",
-              "slug": "/application-access/okta/reference/"
+              "slug": "/application-access/okta/reference/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             }
           ]
         },
@@ -1697,7 +1713,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.1.0",
+      "version": "13.1.1",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
