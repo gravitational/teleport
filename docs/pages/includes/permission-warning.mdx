@@ -12,8 +12,10 @@
     numbered < `1024` (e.g. `443`).
   - Follow the "Principle of Least Privilege" (PoLP). Don't give users
     permissive roles when giving them more restrictive roles will do instead.
-    For example, don't assign users the built-in `access,editor` roles which give
-    them permissions to access and edit all cluster resources.
+    For example, don't assign users the built-in `access,editor` roles, which give
+    them permissions to access and edit all cluster resources. Instead, define 
+    RBAC roles with the minimum required permissions for each user and configure
+    Access Requests for elevated permissions.
   - When joining a Teleport resource service (e.g., the Database Service or
     Application Service) to a cluster, save the invitation token to a file.
     Otherwise, the token will be visible when examining the `teleport` command
