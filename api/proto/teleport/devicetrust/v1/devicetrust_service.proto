@@ -554,18 +554,11 @@ message SyncInventoryStart {
   // by this RPC.
   DeviceSource source = 1;
 
-  // TODO(codingllama): Delete deprecated fields once they are unused.
+  reserved 2; // SyncInventoryMode mode
+  reserved "mode";
 
-  // Mode of syncing.
-  // Deprecated: Use `track_missing_devices` instead.
-  SyncInventoryMode mode = 2 [deprecated = true];
-
-  // Action for devices missing from the external inventory, but present in
-  // Teleport.
-  // Only executed if mode is FULL and external_sync_successful is set to true
-  // in the SyncInventoryEnd message.
-  // Deprecated: Use `track_missing_devices` instead.
-  SyncInventoryDeviceAction on_missing_action = 3 [deprecated = true];
+  reserved 3; // SyncInventoryDeviceAction on_missing_action
+  reserved "on_missing_action";
 
   // If true, the server keeps track of the devices upserted during the sync.
   // After receiving the [SyncInventoryEnd] message, the server informs the
@@ -575,41 +568,11 @@ message SyncInventoryStart {
   bool track_missing_devices = 4;
 }
 
-// Mode of sync for SyncInventory.
-enum SyncInventoryMode {
-  SYNC_INVENTORY_MODE_UNSPECIFIED = 0;
-
-  // Partial inventory sync; not all devices in the external inventory are sent
-  // to the stream.
-  // Partial sync precludes inventory cleanup.
-  SYNC_INVENTORY_MODE_PARTIAL = 1;
-
-  // Full inventory sync; all devices in the external inventory must be sent to
-  // the stream.
-  // Full sync allows for handling of missing devices.
-  SYNC_INVENTORY_MODE_FULL = 2;
-}
-
-// Device action for SyncInventory.
-// Typically triggered at the end of FULL syncs..
-enum SyncInventoryDeviceAction {
-  SYNC_INVENTORY_DEVICE_ACTION_UNSPECIFIED = 0;
-
-  // Noop is a no-action.
-  SYNC_INVENTORY_DEVICE_ACTION_NOOP = 1;
-
-  // Deletes the device if the action condition is met.
-  SYNC_INVENTORY_DEVICE_ACTION_DELETE = 2;
-}
-
 // SyncInventoryEnd ends the inventory sync, signaling that no more
 // SyncInventoryDevices messages will be sent by the client.
 message SyncInventoryEnd {
-  // True if the external sync was fully successful (for example, all reads from
-  // an MDM API were successful).
-  // If false the sync's on_missing_action is skipped.
-  // Deprecated: Use [SyncInventoryStart.track_missing_devices] instead.
-  bool external_sync_successful = 1 [deprecated = true];
+  reserved 1; // bool external_sync_successful
+  reserved "external_sync_successful";
 }
 
 // SyncInventoryDevices transports devices to add/update/remove.
