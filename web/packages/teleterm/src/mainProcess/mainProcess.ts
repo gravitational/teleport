@@ -16,6 +16,7 @@
 
 import { ChildProcess, fork, spawn, exec } from 'child_process';
 import path from 'path';
+import os from 'os';
 import fs from 'fs/promises';
 
 import { promisify } from 'util';
@@ -146,7 +147,7 @@ export default class MainProcess {
 
   initAgentProcess() {
     const agentProcess = spawn(
-      '~/Library/Caches/Teleport Connect/teleport/teleport',
+      `${os.homedir}/Library/Caches/Teleport Connect/teleport/teleport`,
       ['version'],
       {
         windowsHide: true,
@@ -213,7 +214,10 @@ export default class MainProcess {
         this.settings.sharedProcess.requestedNetworkAddress,
         this.sharedProcess
       ),
-    ]).then(([tsh, shared]) => ({ tsh, shared }));
+    ]).then(([tsh, shared]) => ({
+      tsh,
+      shared,
+    }));
   }
 
   private _initIpc() {
@@ -351,7 +355,12 @@ export default class MainProcess {
       },
       {
         role: 'help',
-        submenu: [{ label: 'Learn More', click: openDocsUrl }],
+        submenu: [
+          {
+            label: 'Learn More',
+            click: openDocsUrl,
+          },
+        ],
       },
     ];
 
@@ -363,7 +372,10 @@ export default class MainProcess {
       {
         role: 'help',
         submenu: [
-          { label: 'Learn More', click: openDocsUrl },
+          {
+            label: 'Learn More',
+            click: openDocsUrl,
+          },
           { role: 'about' },
         ],
       },
