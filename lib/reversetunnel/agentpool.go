@@ -66,7 +66,7 @@ type ServerHandler interface {
 	HandleConnection(conn net.Conn)
 }
 
-type newAgentFunc func(context.Context, *track.Tracker, track.Lease) (Agent, error)
+type newAgentFunc func(context.Context, *track.Tracker, *track.Lease) (Agent, error)
 
 // AgentPool manages a pool of reverse tunnel agents.
 type AgentPool struct {
@@ -132,8 +132,6 @@ type AgentPoolConfig struct {
 	// This means the tunnel strategy should be ignored and tls routing is determined
 	// by the remote cluster.
 	IsRemoteCluster bool
-	// DisableCreateHostUser disables host user creation on a node.
-	DisableCreateHostUser bool
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
@@ -198,7 +196,6 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 		AgentPoolConfig: config,
 		active:          newAgentStore(),
 		events:          make(chan Agent),
-		wg:              sync.WaitGroup{},
 		backoff:         retry,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentReverseTunnelAgent,
@@ -218,7 +215,6 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	pool.tracker.Start()
 
 	return pool, nil
 }
@@ -251,7 +247,6 @@ func (p *AgentPool) Count() int {
 // Start starts the agent pool in the background.
 func (p *AgentPool) Start() error {
 	p.log.Debugf("Starting agent pool %s.%s...", p.HostUUID, p.Cluster)
-	p.tracker.Start()
 
 	p.wg.Add(1)
 	go func() {
@@ -289,7 +284,7 @@ func (p *AgentPool) run() error {
 
 // connectAgent connects a new agent and processes any agent events blocking until a
 // new agent is connected or an error occurs.
-func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan track.Lease, events <-chan Agent) (Agent, error) {
+func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan *track.Lease, events <-chan Agent) (Agent, error) {
 	lease, err := p.waitForLease(ctx, leases, events)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -327,13 +322,22 @@ func (p *AgentPool) updateRuntimeConfig(ctx context.Context) error {
 	}
 
 	p.runtimeConfig.update(ctx, netConfig, p.Resolver)
-	p.log.Debugf("Runtime config: tunnel_strategy: %v connection_count: %v", p.runtimeConfig.tunnelStrategyType, p.runtimeConfig.connectionCount)
+
+	restrictConnectionCount := p.runtimeConfig.restrictConnectionCount()
+	connectionCount := p.runtimeConfig.getConnectionCount()
+
+	p.log.Debugf("Runtime config: restrict_connection_count: %v connection_count: %v", restrictConnectionCount, connectionCount)
+
+	if restrictConnectionCount {
+		p.tracker.SetConnectionCount(connectionCount)
+	} else {
+		p.tracker.SetConnectionCount(0)
+	}
 
 	return nil
 }
 
-// processEvents handles all events in the queue. Unblocking when a new agent
-// is required.
+// processEvents handles all events in the queue.
 func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) error {
 	// Processes any queued events without blocking.
 	for {
@@ -353,69 +357,15 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 		return trace.Wrap(err)
 	}
 
-	p.disconnectAgents()
-	if p.isAgentRequired() {
-		return nil
-	}
-
-	// Continue to process new events until an agent is required.
-	for {
-		p.log.Debugf("Processing events...")
-		select {
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		case agent := <-events:
-			p.handleEvent(ctx, agent)
-
-			err := p.updateRuntimeConfig(ctx)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			p.disconnectAgents()
-			if p.isAgentRequired() {
-				return nil
-			}
-		}
-	}
-}
-
-// isAgentRequired returns true if a new agent is required.
-func (p *AgentPool) isAgentRequired() bool {
-	if !p.runtimeConfig.restrictConnectionCount() {
-		return true
-	}
-
-	return p.active.len() < p.runtimeConfig.getConnectionCount()
-}
-
-// disconnectAgents handles disconnecting agents that are no longer required.
-func (p *AgentPool) disconnectAgents() {
-	if !p.runtimeConfig.restrictConnectionCount() {
-		return
-	}
-
-	for {
-		agent, ok := p.active.poplen(p.runtimeConfig.connectionCount)
-		if !ok {
-			p.updateConnectedProxies()
-			return
-		}
-
-		p.log.Debugf("Disconnecting agent %s.", agent)
-		go func() {
-			agent.Stop()
-			p.wg.Done()
-		}()
-	}
+	return nil
 }
 
 // waitForLease processes events while waiting to acquire a lease.
-func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan track.Lease, events <-chan Agent) (track.Lease, error) {
+func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan *track.Lease, events <-chan Agent) (*track.Lease, error) {
 	for {
 		select {
 		case <-ctx.Done():
-			return track.Lease{}, trace.Wrap(ctx.Err())
+			return nil, trace.Wrap(ctx.Err())
 		case lease := <-leases:
 			return lease, nil
 		case agent := <-events:
@@ -470,7 +420,7 @@ func (p *AgentPool) getStateCallback(agent Agent) AgentStateCallback {
 }
 
 // newAgent creates a new agent instance.
-func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease track.Lease) (Agent, error) {
+func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease *track.Lease) (Agent, error) {
 	addr, _, err := p.Resolver(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)

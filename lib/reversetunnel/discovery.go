@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/reversetunnel/track"
 )
 
 // discoveryRequest is the minimal structure that can be exchanged as JSON as a
@@ -69,6 +70,18 @@ func (r discoveryRequest) ProxyNames() []string {
 	}
 
 	return names
+}
+
+func (r discoveryRequest) TrackProxies() []track.Proxy {
+	tp := make([]track.Proxy, 0, len(r.Proxies))
+	for _, p := range r.Proxies {
+		tp = append(tp, track.Proxy{
+			ID:         p.Metadata.Name,
+			Group:      p.ProxyGroupID,
+			Generation: p.ProxyGroupGeneration,
+		})
+	}
+	return tp
 }
 
 func (r discoveryRequest) String() string {

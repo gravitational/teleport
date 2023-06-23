@@ -23,11 +23,7 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-
-	"github.com/gravitational/teleport/lib/utils/workpool"
 )
-
-type Lease = workpool.Lease
 
 const (
 	// DefaultProxyExpiry is the default amount of time a tracker will attempt
@@ -40,9 +36,6 @@ type Config struct {
 	// ProxyExpiry is the duration an entry will be held since the last
 	// successful connection to, or message about, a given proxy.
 	ProxyExpiry time.Duration
-	// TickRate is the rate at which expired entries are cleared from
-	// the cache of known proxies.
-	TickRate time.Duration
 	// ClusterName is the name of the tracked cluster.
 	ClusterName string
 }
@@ -52,268 +45,281 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.ProxyExpiry < 1 {
 		c.ProxyExpiry = DefaultProxyExpiry
 	}
-	if c.TickRate < 1 {
-		c.TickRate = 30 * time.Second
-	}
 	if c.ClusterName == "" {
 		return trace.BadParameter("missing ClusterName in track.Config")
 	}
 	return nil
 }
 
-// Tracker is a helper for tracking proxies located behind reverse tunnels
-// and triggering agent spawning as needed.  Tracker wraps a workpool.Pool
-// instance and manages a cache of proxies which *may* exist.  As proxies are
-// discovered, or old proxies expire, the target counts are automatically updated
-// for the associated address in the workpool.  Agents can attempt to "claim"
-// exclusivity for a given proxy, ensuring that multiple agents are not run
-// against the same proxy.
 type Tracker struct {
-	Config
-	mu     sync.Mutex
-	wp     *workpool.Pool
-	sets   *proxySet
-	cancel context.CancelFunc
+	proxyExpiry   time.Duration
+	clusterSuffix string
+
+	leaseC chan *Lease
+
+	mu   sync.Mutex
+	cond chan struct{}
+
+	connectionCount int
+
+	inflight int
+	claimed  map[string]struct{}
+	tracked  map[string]Proxy
+}
+
+type Proxy struct {
+	ID         string
+	Group      string
+	Generation string
+
+	expiry time.Time
+}
+
+type Lease struct {
+	id int
+
+	mu sync.Mutex
+	t  *Tracker
+	k  string
 }
 
 // New configures a new tracker instance.
-func New(ctx context.Context, c Config) (*Tracker, error) {
-	if err := c.CheckAndSetDefaults(); err != nil {
+func New(ctx context.Context, cfg Config) (*Tracker, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	ctx, cancel := context.WithCancel(ctx)
 	t := &Tracker{
-		Config: c,
-		wp:     workpool.NewPool(ctx),
-		cancel: cancel,
+		proxyExpiry:   cfg.ProxyExpiry,
+		clusterSuffix: "." + cfg.ClusterName,
+		leaseC:        make(chan *Lease),
+		cond:          make(chan struct{}, 1),
+		claimed:       make(map[string]struct{}),
+		tracked:       make(map[string]Proxy),
 	}
 	go t.run(ctx)
 	return t, nil
 }
 
+func (t *Tracker) Acquire() <-chan *Lease {
+	return t.leaseC
+}
+
 func (t *Tracker) run(ctx context.Context) {
-	ticker := time.NewTicker(t.TickRate)
-	defer ticker.Stop()
+	expiryTicker := time.NewTicker(t.proxyExpiry / 4)
+	defer expiryTicker.Stop()
+
+	newLeaseID := 1
+	newLease := &Lease{
+		id: newLeaseID,
+		t:  t,
+	}
+
 	for {
+		leaseC := t.leaseC
+		if !t.canSpawn() {
+			leaseC = nil
+		}
 		select {
-		case <-ticker.C:
-			t.tick()
+		case leaseC <- newLease:
+			newLeaseID++
+			newLease = &Lease{
+				id: newLeaseID,
+				t:  t,
+			}
+
+			t.mu.Lock()
+			t.inflight++
+			t.mu.Unlock()
+
 		case <-ctx.Done():
 			return
+
+		case <-t.cond:
+		case <-expiryTicker.C:
 		}
 	}
 }
 
-// Acquire grants access to the Acquire channel of the
-// embedded work group.
-func (t *Tracker) Acquire() <-chan Lease {
-	return t.wp.Acquire()
+func (t *Tracker) canSpawn() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	now := time.Now()
+	for k, v := range t.tracked {
+		if v.expiry.Before(now) {
+			delete(t.tracked, k)
+		}
+	}
+
+	if t.inflight == 0 && (len(t.claimed) == 0 || len(t.tracked) == 0) {
+		return true
+	}
+
+	desiredGen := make(map[string]string, 8)
+	for _, v := range t.tracked {
+		if v.Generation > desiredGen[v.Group] {
+			desiredGen[v.Group] = v.Generation
+		}
+	}
+
+	desired := make(map[string]struct{}, len(t.tracked))
+	for k, v := range t.tracked {
+		if desiredGen[v.Group] == v.Generation {
+			desired[k] = struct{}{}
+		}
+	}
+
+	desiredClaimed := 0
+	for k := range t.claimed {
+		if _, ok := desired[k]; ok {
+			desiredClaimed++
+		}
+	}
+	desiredUnclaimed := len(desired) - desiredClaimed
+
+	if t.connectionCount == 0 {
+		return desiredUnclaimed > 0
+	}
+
+	return t.connectionCount > desiredClaimed
+}
+
+func (t *Tracker) notify() {
+	select {
+	case t.cond <- struct{}{}:
+	default:
+	}
 }
 
 // TrackExpected starts/refreshes tracking for expected proxies.  Called by
 // agents when gossip messages are received.
-func (t *Tracker) TrackExpected(proxies ...string) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-
-	if t.sets == nil {
-		return
-	}
-	now := time.Now()
-	for _, name := range proxies {
-		t.sets.markSeen(now, name)
-	}
-	count := len(t.sets.proxies)
-	if count < 1 {
-		count = 1
-	}
-	t.wp.Set(uint64(count))
-}
-
-// Start starts tracking for specified proxy address.
-func (t *Tracker) Start() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	t.getOrCreate()
-}
-
-// Stop stops tracking for specified proxy address.
-func (t *Tracker) Stop() {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.sets == nil {
+func (t *Tracker) TrackExpected(proxies ...Proxy) {
+	if len(proxies) == 0 {
 		return
 	}
 
-	t.sets = nil
-	t.wp.Set(0)
-}
-
-// StopAll permanently deactivates this tracker and cleans
-// up all background goroutines.
-func (t *Tracker) StopAll() {
-	t.cancel()
-}
-
-func (t *Tracker) tick() {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.sets == nil {
-		return
-	}
+	t.notify()
 
-	cutoff := time.Now().Add(-1 * t.ProxyExpiry)
-	if t.sets.expire(cutoff) > 0 {
-		count := len(t.sets.proxies)
-		if count < 1 {
-			count = 1
-		}
-		t.wp.Set(uint64(count))
+	expiry := time.Now().Add(t.proxyExpiry)
+	for _, p := range proxies {
+		p.expiry = expiry
+		t.tracked[p.ID] = p
 	}
 }
 
-func (t *Tracker) getOrCreate() *proxySet {
-	if t.sets == nil {
-		t.sets = newProxySet(t.ClusterName)
-		t.wp.Set(1)
-	}
-
-	return t.sets
-}
-
-// Claim attempts to claim a lease based on the given principals returning a
-// function to unclaim and if the claim was successful.
-func (t *Tracker) Claim(principals ...string) (unclaim func(), ok bool) {
-	if ok := t.claim(principals...); !ok {
-		return nil, false
-	}
-	return func() { t.release(principals...) }, true
-}
-
-func (t *Tracker) claim(principals ...string) (ok bool) {
+func (t *Tracker) SetConnectionCount(connectionCount int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.sets == nil {
+	t.notify()
+
+	t.connectionCount = connectionCount
+}
+
+func (l *Lease) Claim(principals ...string) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.t == nil || l.k != "" {
 		return false
 	}
-	return t.sets.claim(principals...)
-}
 
-func (t *Tracker) release(principals ...string) {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.sets == nil {
-		return
-	}
-
-	t.sets.release(principals...)
-}
-
-// IsClaimed returns true if the proxy identified by the given principals is
-// already claimed by some other agent at the time of the call. Keep in mind
-// that a return value of false doesn't imply that a subsequent call to Claim is
-// guaranteed to succeed, as other goroutines might claim the same proxy between
-// IsClaimed and Claim.
-func (t *Tracker) IsClaimed(principals ...string) bool {
-	t.mu.Lock()
-	defer t.mu.Unlock()
-	if t.sets == nil {
+	k := l.t.claim(principals)
+	if k == "" {
 		return false
 	}
-	return t.sets.isClaimed(principals...)
-}
 
-type entry struct {
-	lastSeen time.Time
-	claimed  bool
-}
-
-func newProxySet(clusterName string) *proxySet {
-	return &proxySet{
-		clusterName: clusterName,
-		proxies:     make(map[string]entry),
-	}
-}
-
-type proxySet struct {
-	clusterName string
-	proxies     map[string]entry
-}
-
-func (p *proxySet) claim(principals ...string) (ok bool) {
-	proxy := p.resolveName(principals)
-	e, ok := p.proxies[proxy]
-	if !ok {
-		p.proxies[proxy] = entry{
-			claimed: true,
-		}
-		return true
-	}
-	if e.claimed {
-		return false
-	}
-	e.claimed = true
-	p.proxies[proxy] = e
+	l.k = k
 	return true
 }
 
-func (p *proxySet) release(principals ...string) {
-	proxy := p.resolveName(principals)
-	p.proxies[proxy] = entry{
-		lastSeen: time.Now(),
+func (t *Tracker) claim(principals []string) string {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	k := t.resolveNameLocked(principals)
+	if k == "" {
+		return ""
 	}
+
+	if _, ok := t.claimed[k]; ok {
+		return ""
+	}
+
+	t.notify()
+	t.claimed[k] = struct{}{}
+	t.inflight--
+
+	return k
 }
 
-func (p *proxySet) isClaimed(principals ...string) bool {
-	proxy := p.resolveName(principals)
-	return p.proxies[proxy].claimed
+func (t *Tracker) IsClaimed(principals ...string) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	k := t.resolveNameLocked(principals)
+	if k == "" {
+		return false
+	}
+
+	_, ok := t.claimed[k]
+	return ok
 }
 
-func (p *proxySet) markSeen(t time.Time, proxy string) {
-	e, ok := p.proxies[proxy]
-	if !ok {
-		p.proxies[proxy] = entry{
-			lastSeen: t,
-		}
+func (l *Lease) Release() {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.t == nil {
 		return
 	}
-	if e.lastSeen.After(t) {
-		return
-	}
-	e.lastSeen = t
-	p.proxies[proxy] = e
+
+	l.t.release(l.k)
+	l.t = nil
 }
 
-func (p *proxySet) expire(cutoff time.Time) (removed int) {
-	for name, entry := range p.proxies {
-		if entry.claimed {
-			continue
-		}
-		if entry.lastSeen.Before(cutoff) {
-			delete(p.proxies, name)
-			removed++
-		}
+func (l *Lease) IsReleased() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	return l.t == nil
+}
+
+func (t *Tracker) release(id string) {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.notify()
+
+	if id == "" {
+		t.inflight--
+	} else {
+		delete(t.claimed, id)
 	}
-	return
+}
+
+func (l *Lease) ID() int {
+	return l.id
 }
 
 // resolveName tries to extract the UUID of the proxy as that's the
 // only unique identifier in the list of principals.
-func (p *proxySet) resolveName(principals []string) string {
+func (t *Tracker) resolveNameLocked(principals []string) string {
+	if len(principals) == 0 {
+		return ""
+	}
+
 	// check if we're already using one of these principals.
 	for _, name := range principals {
-		if _, ok := p.proxies[name]; ok {
+		if _, ok := t.tracked[name]; ok {
+			return name
+		}
+		if _, ok := t.claimed[name]; ok {
 			return name
 		}
 	}
-	// default to using the first principal
-	name := principals[0]
-	// if we have a `.<cluster-name>` suffix, remove it.
-	if strings.HasSuffix(name, p.clusterName) {
-		t := strings.TrimSuffix(name, p.clusterName)
-		if strings.HasSuffix(t, ".") {
-			name = strings.TrimSuffix(t, ".")
-		}
-	}
+
+	// default to using the first principal without the `.<cluster-name>` suffix, if any
+	name, _ := strings.CutSuffix(principals[0], t.clusterSuffix)
 	return name
 }
