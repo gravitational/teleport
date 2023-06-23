@@ -1483,6 +1483,7 @@ func TestExtractTargetConfig(t *testing.T) {
 	role4 := "arn:aws:iam::123456789012:role/role-4"
 	role5 := "arn:aws:iam::123456789012:role/role-5"
 	role6 := "arn:aws:iam::123456789012:role/role-6"
+	role7 := "arn:aws:iam::123456789012:role/role-7"
 	roleTarget, err := awslib.IdentityFromArn("arn:aws:iam::123456789012:role/target-role")
 	require.NoError(t, err)
 
@@ -1579,11 +1580,15 @@ func TestExtractTargetConfig(t *testing.T) {
 						// matcher without assume role should be added to matchers
 						{Types: []string{services.AWSMatcherElastiCache}},
 					},
+					ResourceMatchers: []services.ResourceMatcher{
+						// dynamic resources' assume role should be added.
+						{Labels: types.Labels{"env": []string{"dev"}}, AWS: services.ResourceMatcherAWS{AssumeRoleARN: role7}},
+					},
 				},
 			},
 			want: targetConfig{
 				identity:        roleTarget,
-				assumesAWSRoles: []string{role1, role2, role3, role4, role6},
+				assumesAWSRoles: []string{role1, role2, role3, role4, role6, role7},
 				databases:       []*servicecfg.Database{{Name: "db3"}},
 				awsMatchers: []types.AWSMatcher{
 					{Types: []string{services.AWSMatcherElastiCache}},
@@ -1651,6 +1656,7 @@ func TestIsTargetAssumeRole(t *testing.T) {
 		flags     configurators.BootstrapFlags
 		matchers  []types.AWSMatcher
 		databases []*servicecfg.Database
+		resources []services.ResourceMatcher
 		want      bool
 	}{
 		"target in matchers": {
@@ -1669,6 +1675,26 @@ func TestIsTargetAssumeRole(t *testing.T) {
 					AssumeRoleARN: roleTarget.String(),
 				},
 			}},
+			want: true,
+		},
+		"target in resources": {
+			target: roleTarget,
+			resources: []services.ResourceMatcher{
+				{
+					Labels: types.Labels{
+						"env": []string{"prod"},
+					},
+				},
+				{
+					Labels: types.Labels{
+						"env": []string{"dev"},
+					},
+					AWS: services.ResourceMatcherAWS{
+						AssumeRoleARN: roleTarget.String(),
+						ExternalID:    "external-id",
+					},
+				},
+			},
 			want: true,
 		},
 		"target is not a role": {
@@ -1693,7 +1719,7 @@ func TestIsTargetAssumeRole(t *testing.T) {
 	}
 	for name, tt := range tests {
 		t.Run(name, func(t *testing.T) {
-			got := isTargetAWSAssumeRole(tt.flags, tt.matchers, tt.databases, tt.target)
+			got := isTargetAWSAssumeRole(tt.flags, tt.matchers, tt.databases, tt.resources, tt.target)
 			require.Equal(t, tt.want, got)
 		})
 	}

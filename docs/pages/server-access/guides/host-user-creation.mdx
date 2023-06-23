@@ -128,6 +128,7 @@ ssh_service:
 
 When you connect to a remote Node via `tsh`, and host user creation is enabled, the
 Teleport SSH Service will automatically create a user on the host:
+
 ```code
 $ tsh login
 $ tsh ssh nginxrestarter@develnode
@@ -142,13 +143,25 @@ $ echo $?
 # 1
 ```
 
-When logging in, the `nginxrestarter` user and any groups that do not already exist
-will be created on the host. The `nginxrestarter` user will be added to the `ubuntu`,
-`nginx` and `other` groups as specified in the `host_groups` field.
+When the user above logs in, the `nginxrestarter` user and any groups that do
+not already exist are created on the host. The `nginxrestarter` user is added to
+the `ubuntu`, `nginx`, and `other` groups, as specified in the `host_groups`
+field.
 
-A file will also be created in `/etc/sudoers.d` with the contents of the
-`host_sudoers` file written with one entry per line, each prefixed with the username
-of the user that has logged in.
+The Teleport SSH Service executes `useradd` to create new users on the host, and
+returns an error if it cannot find the `useradd` binary. The `useradd` command
+creates a new home directory with the name of the new host user and adds the
+user to the groups specified in the Teleport user's roles.
+
+Aside from specifying a home directory and groups, the SSH Service executes
+`useradd` with the system defaults. For example, it associates the user with the
+default login shell for the host, which you can specify by setting the `SHELL`
+field in `/etc/default/useradd`. See the `useradd` manual for your system for a
+full description of the default behavior.
+
+The Teleport SSH Service also creates a file in `/etc/sudoers.d` with the
+contents of the `host_sudoers` file written with one entry per line, each
+prefixed with the username of the user that has logged in.
 
 The session can then proceed as usual, however once the SSH session ends, the user
 will be automatically removed and their home directory will be deleted. Files owned

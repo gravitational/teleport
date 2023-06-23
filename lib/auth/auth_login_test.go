@@ -826,7 +826,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, attempts, "Want at least one failed login attempt")
 
-			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
 
 			// Start a goroutine to catch the headless authentication attempt and update with test case values.
