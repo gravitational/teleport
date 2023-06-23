@@ -74,20 +74,16 @@ steps:
       - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Send Slack notification
-    image: plugins/slack
+    image: plugins/slack:1.4.1
     settings:
+      template: |-
+        *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
     when:
-      status: [failure]
+      status:
+        - failure
 
 services:
   - name: Start Docker
@@ -177,20 +173,16 @@ steps:
       - make -C build.assets release OS=$OS ARCH=$ARCH
 
   - name: Send Slack notification
-    image: plugins/slack
+    image: plugins/slack:1.4.1
     settings:
+      template: |-
+        *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
     when:
-      status: [failure]
+      status:
+        - failure
 
 services:
   - name: Start Docker
@@ -284,20 +276,16 @@ steps:
       - export VERSION=$(cat /go/.version.txt)
       - make -C build.assets release-amd64-centos7-fips
   - name: Send Slack notification
-    image: plugins/slack
+    image: plugins/slack:1.4.1
     settings:
+      template: |-
+        *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
     when:
-      status: [failure]
+      status:
+        - failure
 
 services:
   - name: Start Docker
@@ -387,20 +375,16 @@ steps:
       - make -C build.assets release-windows-unsigned OS=$OS ARCH=$ARCH
 
   - name: Send Slack notification
-    image: plugins/slack
+    image: plugins/slack:1.4.1
     settings:
+      template: |-
+        *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
     when:
-      status: [failure]
+      status:
+        - failure
 
 services:
   - name: Start Docker
@@ -490,20 +474,16 @@ steps:
       - make -C build.assets release-arm
 
   - name: Send Slack notification
-    image: plugins/slack
+    image: plugins/slack:1.4.1
     settings:
+      template: |-
+        *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
     when:
-      status: [failure]
+      status:
+        - failure
 
 services:
   - name: Start Docker
@@ -593,20 +573,16 @@ steps:
       - make -C build.assets release-arm64
 
   - name: Send Slack notification
-    image: plugins/slack
+    image: plugins/slack:1.4.1
     settings:
+      template: |-
+        *✘ Failed:* `{{ build.event }}` / `${DRONE_STAGE_NAME}` / <{{ build.link }}|Build: #{{ build.number }}>
+        Author: <https://github.com/{{ build.author }}|{{ build.author }}> Repo: <https://github.com/{{ repo.owner }}/{{ repo.name }}/|{{ repo.owner }}/{{ repo.name }}> Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ build.branch }}> Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
       webhook:
         from_secret: SLACK_WEBHOOK_DEV_TELEPORT
-      template: |
-        *{{#success build.status}}✔{{ else }}✘{{/success}} {{ uppercasefirst build.status }}: Build #{{ build.number }}* (type: `{{ build.event }}`)
-        `${DRONE_STAGE_NAME}` artifact build failed.
-        *Warning:* This is a genuine failure to build the Teleport binary from `{{ build.branch }}` (likely due to a bad merge or commit) and should be investigated immediately.
-        Commit: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commit/{{ build.commit }}|{{ truncate build.commit 8 }}>
-        Branch: <https://github.com/{{ repo.owner }}/{{ repo.name }}/commits/{{ build.branch }}|{{ repo.owner }}/{{ repo.name }}:{{ build.branch }}>
-        Author: <https://github.com/{{ build.author }}|{{ build.author }}>
-        <{{ build.link }}|Visit Drone build page ↗>
     when:
-      status: [failure]
+      status:
+        - failure
 
 services:
   - name: Start Docker
@@ -622,6 +598,6 @@ volumes:
 
 ---
 kind: signature
-hmac: 9f2ef4a2d27ccb4f92abdb34133d815ca4e3451970458d50968563344d5fbbea
+hmac: 986b5ef93dc836a77eb09ab6f174301735dcab184e17b8a9d9bd5d002a937ea9
 
 ...
