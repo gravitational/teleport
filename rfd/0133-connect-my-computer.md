@@ -488,16 +488,24 @@ flag should be sufficient. CMC in itself is not going to be considered a cluster
 #### Access to the node
 
 The biggest concern is of course that Connect My Computer enables the user to grant access to their
-own machine as the system user that they regularly use, potentially exposing sensitive data. This is
-not a concern when connecting any other SSH node to the cluster, as usually those server nodes are
-understood as shared computers.
+own machine as the system user that they regularly use, potentially exposing sensitive data. Since
+the device is treated as a regular node, any cluster user with sufficient permissions (editing roles
+and role lists) is able to gain access to the node, unbeknowst to the user running Connect My
+Computer.
+
+This is not a concern when connecting a regular SSH server to the cluster, as usually those server
+nodes are understood as shared computers.
 
 Connect My Computer is targeted at hobbyists, people who just set up their Cloud cluster. The UI for
 Connect My Computer will not be accessible if the user doesn't have permission to create join
 tokens. As long as the administrators of more populated clusters follow the principle of least
 privilege, Connect My Computer won't be available to users who are not able to add new nodes to the
-cluster anyway. The UI of Connect My Computer should also make it absolutely clear as to what is
-going to happen. It won't be a single button the user can click by mistake.
+cluster. The UI of Connect My Computer should also make it absolutely clear as to what is going to
+happen. It won't be a single button that the user can click by mistake.
+
+Accordingly, we assume that the MVP of Connect My Computer is going to be used in highly trusted
+environments. Most further developments of this feature will require reinforcing the security of it.
+[Mike Jensen composed a list of potential ideas](https://github.com/gravitational/teleport/pull/27815#discussion_r1238756710) as to how this could be achieved.
 
 We did consider using some kind of an ephemeral user account for the agent. However, eventually we
 want to allow the user to share a link to a shell session on their device, ala
