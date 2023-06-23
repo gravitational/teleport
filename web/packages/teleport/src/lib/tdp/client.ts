@@ -536,10 +536,9 @@ export default class Client extends EventEmitterWebAuthnSender {
     );
   }
 
-  // todo(isaiah)
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   sendClientScreenSpec(spec: ClientScreenSpec) {
-    // this.send(this.codec.encodeClientScreenSpec(spec));
+    this.send(this.codec.encodeClientScreenSpec(spec));
+    this.emit(TdpClientEvent.TDP_CLIENT_SCREEN_SPEC, spec);
   }
 
   sendMouseMove(x: number, y: number) {

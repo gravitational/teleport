@@ -54,16 +54,12 @@ export default function useTdpClientCanvas(props: Props) {
   const latestClipboardDigest = useRef('');
 
   useEffect(() => {
-    const { width, height } = getDisplaySize();
-
     const addr = cfg.api.desktopWsAddr
       .replace(':fqdn', getHostName())
       .replace(':clusterId', clusterId)
       .replace(':desktopName', desktopName)
       .replace(':token', getAccessToken())
-      .replace(':username', username)
-      .replace(':width', width.toString())
-      .replace(':height', height.toString());
+      .replace(':username', username);
 
     setTdpClient(new TdpClient(addr));
   }, [clusterId, username, desktopName]);

@@ -30,7 +30,6 @@ import (
 	"math/rand"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -55,7 +54,7 @@ import (
 	"github.com/gravitational/teleport/lib/web/scripts"
 )
 
-// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>&width=<width>&height=<height>
+// GET /webapi/sites/:site/desktops/:desktopName/connect?access_token=<bearer_token>&username=<username>
 func (h *Handler) desktopConnectHandle(
 	w http.ResponseWriter,
 	r *http.Request,
@@ -81,12 +80,6 @@ func (h *Handler) desktopConnectHandle(
 
 	return nil, nil
 }
-
-const (
-	// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/cbe1ed0a-d320-4ea5-be5a-f2eb6e032853#Appendix_A_45
-	maxRDPScreenWidth  = 8192
-	maxRDPScreenHeight = 8192
-)
 
 func (h *Handler) createDesktopConnection(
 	w http.ResponseWriter,
@@ -120,23 +113,8 @@ func (h *Handler) createDesktopConnection(
 	if username == "" {
 		return sendTDPError(trace.BadParameter("missing username"))
 	}
-	width, err := strconv.Atoi(q.Get("width"))
-	if err != nil {
-		return sendTDPError(trace.BadParameter("width missing or invalid"))
-	}
-	height, err := strconv.Atoi(q.Get("height"))
-	if err != nil {
-		return sendTDPError(trace.BadParameter("height missing or invalid"))
-	}
 
-	if width > maxRDPScreenWidth || height > maxRDPScreenHeight {
-		return sendTDPError(trace.BadParameter(
-			"screen size of %d x %d is greater than the maximum allowed by RDP (%d x %d)",
-			width, height, maxRDPScreenWidth, maxRDPScreenHeight,
-		))
-	}
-
-	log.Debugf("Attempting to connect to desktop using username=%v, width=%v, height=%v\n", username, width, height)
+	log.Debugf("Attempting to connect to desktop using username=%v\n", username)
 
 	// Pick a random Windows desktop service as our gateway.
 	// When agent mode is implemented in the service, we'll have to filter out
@@ -202,10 +180,6 @@ func (h *Handler) createDesktopConnection(
 
 	tdpConn := tdp.NewConn(serviceConnTLS)
 	err = tdpConn.WriteMessage(tdp.ClientUsername{Username: username})
-	if err != nil {
-		return sendTDPError(err)
-	}
-	err = tdpConn.WriteMessage(tdp.ClientScreenSpec{Width: uint32(width), Height: uint32(height)})
 	if err != nil {
 		return sendTDPError(err)
 	}
