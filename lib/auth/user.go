@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -77,7 +78,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 		log.WithError(err).Warn("Failed to emit user create event.")
 	}
 
-	s.emitEditorChangeEvent([]string{}, user.GetRoles())
+	s.emitEditorChangeEvent(user.GetName(), []string{}, user.GetRoles())
 
 	return nil
 }
@@ -116,7 +117,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
 
-	s.emitEditorChangeEvent(prevUser.GetRoles(), user.GetRoles())
+	s.emitEditorChangeEvent(user.GetName(), prevUser.GetRoles(), user.GetRoles())
 
 	return nil
 }
@@ -163,7 +164,7 @@ func (s *Server) UpsertUser(user types.User) error {
 	if prevUser != nil {
 		prevRoles = prevUser.GetRoles()
 	}
-	s.emitEditorChangeEvent(prevRoles, user.GetRoles())
+	s.emitEditorChangeEvent(user.GetName(), prevRoles, user.GetRoles())
 
 	return nil
 }
@@ -199,7 +200,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
 
-	s.emitEditorChangeEvent(existing.GetRoles(), new.GetRoles())
+	s.emitEditorChangeEvent(new.GetName(), existing.GetRoles(), new.GetRoles())
 
 	return nil
 }
@@ -244,13 +245,13 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 		log.WithError(err).Warn("Failed to emit user delete event.")
 	}
 
-	s.emitEditorChangeEvent([]string{}, prevUser.GetRoles())
+	s.emitEditorChangeEvent(user, []string{}, prevUser.GetRoles())
 
 	return nil
 }
 
 // emitEditorChangeEvent emits an editor change event if the editor role was added or removed
-func (s *Server) emitEditorChangeEvent(prevRoles, newRoles []string) error {
+func (s *Server) emitEditorChangeEvent(username string, prevRoles, newRoles []string) {
 	var prevEditor bool
 	for _, r := range prevRoles {
 		if r == teleport.PresetEditorRoleName {
@@ -269,17 +270,18 @@ func (s *Server) emitEditorChangeEvent(prevRoles, newRoles []string) error {
 
 	// don't emit event if editor role wasn't added/removed
 	if prevEditor == newEditor {
-		return nil
+		return
 	}
 
-	eventType := "granted" // TODO constants
+	eventType := prehogv1alpha.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED
 	if prevEditor {
-		eventType = "removed"
+		eventType = prehogv1alpha.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED
 	}
 
 	fmt.Printf("event type: %s\n", eventType)
 
-	// TODO new event type
-	s.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{})
-	return nil
+	s.AnonymizeAndSubmit(&usagereporter.EditorChangeEvent{
+		UserName: username,
+		Status:   eventType,
+	})
 }
