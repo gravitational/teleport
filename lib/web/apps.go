@@ -27,6 +27,8 @@ import (
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client"
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -63,23 +65,37 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
+	userGroups, err := apiclient.GetAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
+		ResourceType:     types.KindUserGroup,
+		Namespace:        apidefaults.Namespace,
+		UseSearchAsRoles: true,
+	})
+	if err != nil {
+		h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
+	}
+
+	userGroupLookup := make(map[string]types.UserGroup, len(userGroups))
+	for _, userGroup := range userGroups {
+		userGroupLookup[userGroup.GetName()] = userGroup
+	}
+
 	var apps types.Apps
 	appsToUserGroups := map[string]types.UserGroups{}
 	for _, server := range page.Resources {
 		apps = append(apps, server.GetApp())
 
-		userGroups := make(types.UserGroups, len(server.GetApp().GetUserGroups()))
+		ugs := make(types.UserGroups, len(server.GetApp().GetUserGroups()))
 		for i, userGroupName := range server.GetApp().GetUserGroups() {
-			userGroup, err := clt.GetUserGroup(r.Context(), userGroupName)
-
-			if err != nil {
-				return nil, trace.Wrap(err)
+			userGroup := userGroupLookup[userGroupName]
+			if userGroup == nil {
+				h.log.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+				continue
 			}
 
-			userGroups[i] = userGroup
+			ugs[i] = userGroup
 		}
-		sort.Sort(userGroups)
-		appsToUserGroups[server.GetName()] = userGroups
+		sort.Sort(ugs)
+		appsToUserGroups[server.GetName()] = ugs
 	}
 
 	return listResourcesGetResponse{
