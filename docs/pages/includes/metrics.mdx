@@ -104,6 +104,7 @@
 
 | Name | Type | Component | Description |
 | - | - | - | - |
+| `process_state` | gauge | Teleport | State of the teleport process: 0 - ok, 1 - recovering, 2 - degraded, 3 - starting. |
 | `certificate_mismatch_total` | counter | Teleport | Number of SSH server login failures due to a certificate mismatch. |
 | `reversetunnel_connected_proxies` | gauge | Teleport | Number of known proxies being sought. |
 | `rx` | counter | Teleport | Number of bytes received during an SSH connection. |
