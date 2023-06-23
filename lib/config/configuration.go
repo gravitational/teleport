@@ -1313,6 +1313,9 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Kube.ResourceMatchers {
+		if matcher.AWS.AssumeRoleARN != "" {
+			return trace.NotImplemented("assume_role_arn is not supported for kube resource matchers")
+		}
 		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
@@ -1352,6 +1355,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Databases.ResourceMatchers = append(cfg.Databases.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
+					ExternalID:    matcher.AWS.ExternalID,
+				},
 			})
 	}
 	for _, matcher := range fc.Databases.AWSMatchers {
@@ -1512,6 +1519,9 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	// Configure resource watcher selectors if present.
 	for _, matcher := range fc.Apps.ResourceMatchers {
+		if matcher.AWS.AssumeRoleARN != "" {
+			return trace.NotImplemented("assume_role_arn is not supported for app resource matchers")
+		}
 		cfg.Apps.ResourceMatchers = append(cfg.Apps.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
