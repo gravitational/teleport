@@ -1378,6 +1378,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
 			LocalConnectorName: localConnectorName,
 			PrivateKeyPolicy:   cap.GetPrivateKeyPolicy(),
+			MOTD:               cap.GetMessageOfTheDay(),
 		}
 	}
 
