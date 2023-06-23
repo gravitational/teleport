@@ -139,6 +139,10 @@ func onAfterPagerDutyResponse(sink common.StatusSink) resty.ResponseMiddleware {
 			var details string
 			switch result := resp.Error().(type) {
 			case *ErrorResult:
+				// Do we have a formatted PagerDuty API error response? We set
+				// an empty `ErrorResult` in the pre-request hook, and if the
+				// HTTP server returns an error, the `resty` middleware will
+				// attempt to unmarshal the error response into it.
 				details = fmt.Sprintf("http error code=%v, err_code=%v, message=%v, errors=[%v]", resp.StatusCode(), result.Code, result.Message, strings.Join(result.Errors, ", "))
 			default:
 				details = fmt.Sprintf("unknown error result %#v", result)
