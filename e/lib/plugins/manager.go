@@ -318,10 +318,22 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 	// as they are long-running ("indefinitely") jobs.
 	go func() {
 		if err := delegate(); err != nil {
-			// Stopping by request is not an error,
-			// watcher already logs an error once when stopped.
-			if !errors.Is(err, context.Canceled) && err.Error() != "watcher closed" {
-				log.WithError(err).Error("plugin instance delegate failed")
+			var accessDenied *trace.AccessDeniedError
+
+			switch {
+			case errors.Is(err, context.Canceled) || err.Error() == "watcher closed":
+				// Stopping by request is not an error, and watcher already logs an
+				// error once when stopped.
+				break
+
+			case errors.As(err, &accessDenied):
+				// Authentication failed for some reason. Let's at least hint to
+				// the user what the problem might be.
+				log.Error("Plugin instance delegate failed due to authentication error.")
+				statusSink.Emit(ctx, types.PluginStatusV1{Code: types.PluginStatusCode_UNAUTHORIZED})
+
+			default:
+				log.WithError(err).Error("Plugin instance delegate failed.")
 				statusSink.Emit(pluginCtx, types.PluginStatusV1{Code: types.PluginStatusCode_OTHER_ERROR})
 			}
 		}
