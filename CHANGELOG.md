@@ -1,5 +1,11 @@
 # Changelog
 
+## 12.4.10 (06/23/23)
+
+* Web UI
+  * Fixed issue with message of the day not being displayed in web UI in enterprise releases. [#28242](https://github.com/gravitational/teleport/pull/28242)
+  * Ensured that the Web UI does not make calls to Stripe for self-hosted customers. [teleport.e#1723](https://github.com/gravitational/teleport.e/pull/1723)
+
 ## 12.4.9 (06/23/23)
 
 * Web UI
