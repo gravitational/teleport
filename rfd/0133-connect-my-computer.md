@@ -16,6 +16,12 @@ state: draft
 Connect My Computer (further abbreviated as CMC) enables the user of Teleport Connect to add the
 device running Teleport Connect to the cluster as an SSH node.
 
+The MVP achieves that by downloading the teleport binary, creating the relevant role and the join
+token and then starting the agent from within the Electron app. Since the device is added as a
+regular node, this poses a security concern of enabling any cluster user with sufficient permissions
+to log into the device running Connect My Computer. This and other concerns are addressed in [the
+Security section](#security).
+
 The goal of this RFD is to gather feedback on the core of Connect My Computer, that is managing the
 node agent running on the same device as Connect. Decisions on how to drive the users toward this
 feature, such as adding a Discover tile or deep linking from the Web UI to Connect, are not covered
