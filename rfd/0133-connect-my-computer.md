@@ -127,8 +127,8 @@ The MVP will not verify the checksum of the downloaded archive.
 
 The version of the agent that Connect uses always matches the version of Connect. If Connect detects
 that the combination of the agent version and the cluster version breaks [the compatibility promise](https://goteleport.com/docs/faq/#version-compatibility),
-it shows a warning on the setup page and the status page, informing about lack of support and
-recommending an upgrade or a downgrade.
+it shows an error on the setup page and the status page informing about lack of support,
+recommends an upgrade or a downgrade and prohibits the user from starting the agent.
 
 As such, CMC is considered to be supported only when Connect is on the same major version or one
 major version behind the cluster.
@@ -140,25 +140,21 @@ This is how the UI behaves depending on the version differences:
 
 * If the agent is on the same version as the cluster, everything's okay and Connect doesn't show any
   extra information.
-* If the agent is two major versions or more _behind_ the cluster, Connect shows a warning on the
+* If the agent is two major versions or more _behind_ the cluster, Connect shows an error on the
   setup page and the status page explaining that servers do not support clients that are more than
-  one major version behind, links to `https://goteleport.com/docs/faq/#version-compatibility` and
-  recommends _an upgrade_ of Connect.
+  one major version behind, links to `https://goteleport.com/docs/faq/#version-compatibility`,
+  recommends _an upgrade_ of Connect and prohibits the user from starting the agent.
    * Examples: Connect v11.0.0 & cluster v13.1.1, Connect v10.3.16 & cluster v12.0.1.
-* If the agent is one major version or more _ahead of_ the cluster, Connect shows a warning on the
+* If the agent is one major version or more _ahead of_ the cluster, Connect shows an error on the
   setup page and the status page explaining that servers do not support clients that are on a newer
-  major version, links to `https://goteleport.com/docs/faq/#version-compatibility` and recommends _a
-  downgrade_ of Connect.
+  major version, links to `https://goteleport.com/docs/faq/#version-compatibility`, recommends _a
+  downgrade_ of Connect and prohibits the user from starting the agent.
    * Examples: Connect v14.0.0 & cluster v13.1.1, Connect v10.3.16 & cluster v9.3.26.
 * If the agent is on a supported client version that is older than the cluster version, Connect
-  shows an informational message only on the status page recommending an upgrade, similar to [how
+  shows an informational message (on the status page only) recommending an upgrade, similar to [how
   the Web UI does it](https://github.com/gravitational/teleport/blob/12204708e71704a8073a6ee5d2b2358db23071c1/lib/auth/auth.go#L1101-L1103),
   and links to the download page.
    * Examples: Connect v13.1.0 & cluster v13.1.1, Connect v12.0.0 & cluster v13.1.0.
-
-It's important that the warnings are shown indeed as warnings and not as errors – we don't want to
-stop the user from running the agent, we just want to explain the compatibility promise and that
-Connect My Computer might not work properly with that setup.
 
 <details>
 <summary>A matrix of Connect & cluster version considerations</summary>
@@ -368,8 +364,8 @@ start CMC on the next launch.
 
 The subsequent launches of the agent follow a similar logic to that of the agent launch during the
 setup. The only difference is that on subsequent launches Connect doesn’t have to generate the
-config file and the join token. Instead, it can verify that the agent binary exists and then attempt
-to launch it.
+config file and the join token. Instead, it can verify that the agent binary exists, verify the
+versions and then attempt to launch the agent.
 
 After launching the agent, Connect flips a per-workspace flag `autoStart` to `true`. This means that
 if the user closes the app while the agent is running, on the next app launch Connect is going to
