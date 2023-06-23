@@ -697,6 +697,7 @@
     "tcpip",
     "tcpout",
     "tctl",
+    "teleadmins",
     "telenode",
     "teleportauditlogssofailed",
     "teleportdemo",
