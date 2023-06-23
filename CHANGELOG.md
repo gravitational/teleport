@@ -1,5 +1,10 @@
 # Changelog
 
+## 12.4.9 (06/23/23)
+
+* Web UI
+  * Ensured message of the day is displayed by web UI. [#27923](https://github.com/gravitational/teleport/pull/27923)
+
 ## 12.4.8 (06/21/23)
 
 * Web UI
