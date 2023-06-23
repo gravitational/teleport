@@ -94,7 +94,7 @@ type Config struct {
 	WriteTargetValue float64 `json:"write_target_value,omitempty"`
 
 	// OnDemand sets on-demand capacity to the DynamoDB tables
-	OnDemand bool `json:"on_demand,omitempty"`
+	OnDemand *bool `json:"on_demand,omitempty"`
 }
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
@@ -105,18 +105,23 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("DynamoDB: table_name is not specified")
 	}
 
-	if cfg.OnDemand && cfg.EnableAutoScaling {
+	if cfg.OnDemand == nil {
+		t := true
+		cfg.OnDemand = &t
+	}
+
+	if *cfg.OnDemand && cfg.EnableAutoScaling {
 		return trace.BadParameter("DynamoDB: both auto_scaling and on_demand can not both be enabled")
 	}
 
-	if cfg.OnDemand && (cfg.ReadCapacityUnits != 0 || cfg.WriteCapacityUnits != 0) {
+	if *cfg.OnDemand && (cfg.ReadCapacityUnits != 0 || cfg.WriteCapacityUnits != 0) {
 		return trace.BadParameter("DynamoDB: read_capacity_units and write_capacity_units must both be 0 when on_demand=true")
 	}
 
-	if cfg.ReadCapacityUnits == 0 && !cfg.OnDemand {
+	if cfg.ReadCapacityUnits == 0 && !*cfg.OnDemand {
 		cfg.ReadCapacityUnits = DefaultReadCapacityUnits
 	}
-	if cfg.WriteCapacityUnits == 0 && !cfg.OnDemand {
+	if cfg.WriteCapacityUnits == 0 && !*cfg.OnDemand {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
 	if cfg.BufferSize == 0 {
@@ -668,7 +673,7 @@ func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableSt
 func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey string) error {
 	var pThroughput *dynamodb.ProvisionedThroughput
 	var billingMode *string
-	if b.OnDemand {
+	if *b.OnDemand {
 		billingMode = aws.String(dynamodb.BillingModePayPerRequest)
 	} else {
 		pThroughput = &dynamodb.ProvisionedThroughput{
