@@ -114,20 +114,22 @@ func (e EventMapping) String() string {
 	return fmt.Sprintf("EventMapping(in=%v, out=%v)", e.In, e.Out)
 }
 
-func (e EventMapping) matches(currentEvent string, m map[string]Event) bool {
+// matches returns nil if the event mapping has been satisfied, or an error
+// indicating why it is not yet satisfied.
+func (e EventMapping) matches(currentEvent string, m map[string]Event) error {
 	// existing events that have been fired should match
 	for _, in := range e.In {
 		if _, ok := m[in]; !ok {
-			return false
+			return fmt.Errorf("still waiting for %v", in)
 		}
 	}
 	// current event that is firing should match one of the expected events
 	for _, in := range e.In {
 		if currentEvent == in {
-			return true
+			return nil
 		}
 	}
-	return false
+	return fmt.Errorf("%v fired but does not match", currentEvent)
 }
 
 // LocalSupervisor is a Teleport's implementation of the Supervisor interface.
@@ -392,7 +394,7 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 	}()
 
 	for _, m := range s.eventMappings {
-		if m.matches(event.Name, s.events) {
+		if err := m.matches(event.Name, s.events); err == nil {
 			mappedEvent := Event{Name: m.Out}
 			s.events[mappedEvent.Name] = mappedEvent
 			go func(e Event) {
@@ -406,6 +408,8 @@ func (s *LocalSupervisor) BroadcastEvent(event Event) {
 				"in":  event.String(),
 				"out": m.String(),
 			}).Debug("Broadcasting mapped event.")
+		} else {
+			s.log.Debugf("Teleport not yet ready: %v", err)
 		}
 	}
 }
