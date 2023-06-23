@@ -60,7 +60,8 @@ func (chat *Chat) Complete(ctx context.Context, userInput string) (any, error) {
 	// if the chat is empty, return the initial response we predefine instead of querying GPT-4
 	if len(chat.messages) == 1 {
 		return &model.Message{
-			Content: model.InitialAIResponse,
+			Content:    model.InitialAIResponse,
+			TokensUsed: &model.TokensUsed{},
 		}, nil
 	}
 

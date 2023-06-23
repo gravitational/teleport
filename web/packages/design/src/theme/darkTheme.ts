@@ -150,19 +150,19 @@ const colors = {
 
   terminal: {
     foreground: '#F1F2F4',
-    background: '#010B1C', // bgTerminal
+    background: '#0C143D', // sunken
     selectionBackground: 'rgba(255, 255, 255, 0.18)',
     cursor: '#FFF',
-    cursorAccent: '#010B1C',
+    cursorAccent: '#0C143D',
     red: '#FF6257',
     green: '#00BFA6',
     yellow: '#FFAB00',
     blue: '#009EFF',
     magenta: '#9F85FF',
     cyan: '#00D3F0',
-    brightWhite: lighten('#010B1C', 0.89),
-    white: lighten('#010B1C', 0.78),
-    brightBlack: lighten('#010B1C', 0.61),
+    brightWhite: lighten('#0C143D', 0.89),
+    white: lighten('#0C143D', 0.78),
+    brightBlack: lighten('#0C143D', 0.61),
     black: '#000',
     brightRed: '#FF948D',
     brightGreen: '#2EFFD5',
