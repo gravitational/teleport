@@ -17,6 +17,7 @@ package usagereporter
 import (
 	"testing"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
@@ -249,6 +250,112 @@ func TestConvertUsageEvent(t *testing.T) {
 			got := usageEvent.Anonymize(anonymizer)
 
 			require.Equal(t, tt.expected, &got)
+		})
+	}
+}
+
+func TestEmitEditorChangeEvent(t *testing.T) {
+	tt := []struct {
+		name           string
+		username       string
+		prevRoles      []string
+		newRoles       []string
+		expectedStatus prehogv1a.EditorChangeStatus
+	}{
+		{
+			name:           "Role is granted to user",
+			username:       "user1",
+			prevRoles:      []string{"role1", "role2"},
+			newRoles:       []string{"role1", "role2", teleport.PresetEditorRoleName},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED,
+		},
+		{
+			name:           "Role is removed from user",
+			username:       "user2",
+			prevRoles:      []string{"role1", "role2", teleport.PresetEditorRoleName},
+			newRoles:       []string{"role1", "role2"},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED,
+		},
+		{
+			name:      "Role remains the same",
+			username:  "user3",
+			prevRoles: []string{"role1", "role2", teleport.PresetEditorRoleName},
+			newRoles:  []string{"role1", "role2", teleport.PresetEditorRoleName},
+		},
+		{
+			name:      "Role is not granted or removed",
+			username:  "user4",
+			prevRoles: []string{"role1", "role2"},
+			newRoles:  []string{"role1", "role2"},
+		},
+		{
+			name:           "User is granted the editor role but had other roles",
+			username:       "user5",
+			prevRoles:      []string{"role1", "role2"},
+			newRoles:       []string{"role1", "role2", teleport.PresetEditorRoleName},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED,
+		},
+		{
+			name:           "User is removed from the editor role but still has other roles",
+			username:       "user6",
+			prevRoles:      []string{"role1", "role2", teleport.PresetEditorRoleName},
+			newRoles:       []string{"role1", "role2"},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED,
+		},
+		{
+			name:           "No previous roles, editor role granted",
+			username:       "user7",
+			prevRoles:      nil,
+			newRoles:       []string{teleport.PresetEditorRoleName},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED,
+		},
+		{
+			name:           "Only had editor role, role removed",
+			username:       "user8",
+			prevRoles:      []string{teleport.PresetEditorRoleName},
+			newRoles:       nil,
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED,
+		},
+		{
+			name:      "Nil roles",
+			username:  "user9",
+			prevRoles: nil,
+			newRoles:  nil,
+		},
+		{
+			name:           "Granted multiple roles, including editor",
+			username:       "user10",
+			prevRoles:      []string{"role1", "role2"},
+			newRoles:       []string{"role1", "role2", "role3", teleport.PresetEditorRoleName},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED,
+		},
+		{
+			name:           "Removed from multiple roles, including editor",
+			username:       "user11",
+			prevRoles:      []string{"role1", "role2", "role3", teleport.PresetEditorRoleName},
+			newRoles:       []string{"role1", "role2"},
+			expectedStatus: prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			var submittedEvents []Anonymizable
+			mockSubmit := func(a ...Anonymizable) {
+				submittedEvents = append(submittedEvents, a...)
+			}
+
+			EmitEditorChangeEvent(tc.username, tc.prevRoles, tc.newRoles, mockSubmit)
+
+			if tc.expectedStatus == prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED || tc.expectedStatus == prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED {
+				require.NotEmpty(t, submittedEvents)
+				event, ok := submittedEvents[0].(*EditorChangeEvent)
+				require.True(t, ok, "event is not of type *EditorChangeEvent")
+				require.Equal(t, tc.expectedStatus, event.Status)
+				require.Equal(t, tc.username, event.UserName)
+			} else {
+				require.Empty(t, submittedEvents, "No event should have been submitted")
+			}
 		})
 	}
 }

@@ -25,13 +25,11 @@ package auth
 import (
 	"context"
 
-	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
-	prehogv1alpha "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
@@ -77,7 +75,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 		log.WithError(err).Warn("Failed to emit user create event.")
 	}
 
-	go s.emitEditorChangeEvent(user.GetName(), []string{}, user.GetRoles())
+	go usagereporter.EmitEditorChangeEvent(user.GetName(), []string{}, user.GetRoles(), s.AnonymizeAndSubmit)
 
 	return nil
 }
@@ -116,7 +114,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
 
-	go s.emitEditorChangeEvent(user.GetName(), prevUser.GetRoles(), user.GetRoles())
+	go usagereporter.EmitEditorChangeEvent(user.GetName(), prevUser.GetRoles(), user.GetRoles(), s.AnonymizeAndSubmit)
 
 	return nil
 }
@@ -163,7 +161,7 @@ func (s *Server) UpsertUser(user types.User) error {
 	if prevUser != nil {
 		prevRoles = prevUser.GetRoles()
 	}
-	go s.emitEditorChangeEvent(user.GetName(), prevRoles, user.GetRoles())
+	go usagereporter.EmitEditorChangeEvent(user.GetName(), prevRoles, user.GetRoles(), s.AnonymizeAndSubmit)
 
 	return nil
 }
@@ -199,7 +197,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
 
-	go s.emitEditorChangeEvent(new.GetName(), existing.GetRoles(), new.GetRoles())
+	go usagereporter.EmitEditorChangeEvent(new.GetName(), existing.GetRoles(), new.GetRoles(), s.AnonymizeAndSubmit)
 
 	return nil
 }
@@ -244,41 +242,7 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 		log.WithError(err).Warn("Failed to emit user delete event.")
 	}
 
-	go s.emitEditorChangeEvent(user, prevUser.GetRoles(), []string{})
+	go usagereporter.EmitEditorChangeEvent(user, prevUser.GetRoles(), []string{}, s.AnonymizeAndSubmit)
 
 	return nil
-}
-
-// emitEditorChangeEvent emits an editor change event if the editor role was added or removed.
-func (s *Server) emitEditorChangeEvent(username string, prevRoles, newRoles []string) {
-	var prevEditor bool
-	for _, r := range prevRoles {
-		if r == teleport.PresetEditorRoleName {
-			prevEditor = true
-			break
-		}
-	}
-
-	var newEditor bool
-	for _, r := range newRoles {
-		if r == teleport.PresetEditorRoleName {
-			newEditor = true
-			break
-		}
-	}
-
-	// don't emit event if editor role wasn't added/removed
-	if prevEditor == newEditor {
-		return
-	}
-
-	eventType := prehogv1alpha.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED
-	if prevEditor {
-		eventType = prehogv1alpha.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED
-	}
-
-	s.AnonymizeAndSubmit(&usagereporter.EditorChangeEvent{
-		UserName: username,
-		Status:   eventType,
-	})
 }

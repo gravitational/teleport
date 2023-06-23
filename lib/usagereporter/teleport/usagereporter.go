@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/bufbuild/connect-go"
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -218,4 +219,38 @@ var _ UsageReporter = DiscardUsageReporter{}
 // AnonymizeAndSubmit implements [UsageReporter]
 func (DiscardUsageReporter) AnonymizeAndSubmit(...Anonymizable) {
 	// do nothing
+}
+
+// EmitEditorChangeEvent emits an editor change event if the editor role was added or removed.
+func EmitEditorChangeEvent(username string, prevRoles, newRoles []string, submit func(...Anonymizable)) {
+	var prevEditor bool
+	for _, r := range prevRoles {
+		if r == teleport.PresetEditorRoleName {
+			prevEditor = true
+			break
+		}
+	}
+
+	var newEditor bool
+	for _, r := range newRoles {
+		if r == teleport.PresetEditorRoleName {
+			newEditor = true
+			break
+		}
+	}
+
+	// don't emit event if editor role wasn't added/removed
+	if prevEditor == newEditor {
+		return
+	}
+
+	eventType := prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED
+	if prevEditor {
+		eventType = prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED
+	}
+
+	submit(&EditorChangeEvent{
+		UserName: username,
+		Status:   eventType,
+	})
 }
