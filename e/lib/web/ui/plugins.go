@@ -59,6 +59,8 @@ func pluginDetails(p types.Plugin) string {
 			return fmt.Sprintf(`Teleport access requests will show up as alerts in schedule %q`, settings.Opsgenie.DefaultSchedules[0])
 		}
 		return "Teleport access requests will be created in the Opsgenie schedule indicated by opsgenie_notify_services annotation on the access request"
+	case *types.PluginSpecV1_PagerDuty:
+		return fmt.Sprintf(`Incidents will be created by PagerDuty user %q`, settings.PagerDuty.UserEmail)
 	default:
 		return ""
 	}

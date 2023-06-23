@@ -24,7 +24,6 @@ import (
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/web"
-	"github.com/gravitational/teleport/lib/web/app"
 )
 
 var slackAuthBaseURL = "https://slack.com/oauth/v2/authorize"
@@ -162,66 +161,12 @@ func (p *Plugin) getAvailablePluginTypesHandle(w http.ResponseWriter, r *http.Re
 //   - For non-OAuth plugins: it creates plugin and responds with plugin status.
 func (p *Plugin) createPluginHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, sessCtx *web.SessionContext) (interface{}, error) {
 	pluginType := r.FormValue("type")
-
-	switch pluginType {
-	case types.PluginTypeSlack:
-		// Set cookie info
-		cookie := pluginOnboardingCookie{}
-		cookie.Name = r.FormValue("name")
-		cookie.Slack = &pluginOnboardingParamsSlack{
-			FallbackChannel: r.FormValue("fallback_channel"),
-		}
-		cookie.EventID = r.FormValue("event_id")
-		if err := setPluginOnboardingCookie(&cookie, w); err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		url, err := p.getPluginProviderAuthURL(r.Context(), sessCtx, r, pluginType, cookie.State)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		err = app.MetaRedirect(w, url)
-		if err != nil {
-			p.Log.WithError(err).Warn("Failed to issue a redirect.")
-			return nil, trace.Wrap(err)
-		}
-		return nil, nil
-
-	// Static plugins
-	case types.PluginTypeJamf, types.PluginTypeOkta, types.PluginTypeOpsgenie:
-
-		var pluginReq *pluginspb.CreatePluginRequest
-		switch pluginType {
-		case types.PluginTypeJamf:
-			pluginReq = createJamfPluginRequest(r.Form)
-			// TODO(sshah):
-			//  1.	Create plugin static credential
-			// 	2.	Create plugin
-		case types.PluginTypeOkta:
-			pluginReq = p.createOktaPluginRequest(r.Form)
-		case types.PluginTypeOpsgenie:
-			pluginReq = p.createOpsgeniePluginRequest(r.Form)
-		}
-
-		pluginsClt, err := getPluginClientFromSessionContext(sessCtx)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		_, err = pluginsClt.CreatePlugin(r.Context(), pluginReq)
-		if err != nil {
-			p.Log.WithError(err).Errorf("Failed to %s plugin", pluginType)
-			return nil, trace.Wrap(err)
-		}
-
-		resp, err := ui.NewPlugin(pluginReq.Plugin)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		return resp, nil
-	default:
-		return nil, trace.BadParameter("unknown plugin type")
+	pd, ok := pluginDescriptors[types.PluginType(pluginType)]
+	if !ok {
+		return nil, trace.BadParameter("unknown plugin type: %q", pluginType)
 	}
+
+	return pd.HandleInstallRequest(r.Context(), sessCtx, w, r, p)
 }
 
 func (p *Plugin) getPluginsHandle(w http.ResponseWriter, r *http.Request, params httprouter.Params, ctx *web.SessionContext) (interface{}, error) {
@@ -277,6 +222,11 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 		return nil, trace.BadParameter("empty type")
 	}
 
+	pd, ok := pluginDescriptors[types.PluginType(typ)]
+	if !ok {
+		return nil, trace.BadParameter("unknown plugin type: %q", typ)
+	}
+
 	// Where to finally redirect the user with either the success status,
 	// or an error from the 3rd party provider.
 	// Internal errors (such as "bad state", or CreatePlugin() failure)
@@ -326,18 +276,12 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 		},
 	}
 
-	switch typ {
-	case types.PluginTypeSlack:
-		if cookie.Slack == nil {
-			return nil, trace.BadParameter("slack info missing")
+	if err = pd.TranslateCallbackCookie(&req.Plugin.Spec, cookie); err != nil {
+		if trace.IsNotImplemented(err) {
+			// preserves old behavior
+			return nil, trace.BadParameter("unknown plugin type")
 		}
-		req.Plugin.Spec.Settings = &types.PluginSpecV1_SlackAccessPlugin{
-			SlackAccessPlugin: &types.PluginSlackAccessSettings{
-				FallbackChannel: cookie.Slack.FallbackChannel,
-			},
-		}
-	default:
-		return nil, trace.BadParameter("unknown plugin type")
+		return nil, trace.Wrap(err)
 	}
 
 	pluginsClt, err := getPluginClientFromSessionContext(ctx)
@@ -361,38 +305,6 @@ func (p *Plugin) pluginCallbackHandle(w http.ResponseWriter, r *http.Request, pa
 	}.Encode()
 	http.Redirect(w, r, destURL.String(), http.StatusFound)
 	return nil, nil
-}
-
-func (p *Plugin) getPluginProviderAuthURL(ctx context.Context, sctx *web.SessionContext, r *http.Request, typ string, state string) (string, error) {
-	meta, err := p.getPluginTypeMeta(ctx, sctx, typ)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	callbackURL := p.getPluginCallbackURL(r, typ)
-
-	switch typ {
-	case types.PluginTypeSlack:
-		var scopes = []string{
-			"chat:write",
-			"users:read",
-			"users:read.email",
-		}
-
-		uri, err := url.Parse(slackAuthBaseURL)
-		if err != nil {
-			return "", trace.Wrap(err)
-		}
-		uri.RawQuery = url.Values{
-			"scope":        {strings.Join(scopes, ",")},
-			"client_id":    {meta.OauthClientId},
-			"redirect_uri": {callbackURL},
-			"state":        {state},
-		}.Encode()
-		return uri.String(), nil
-	default:
-		return "", trace.BadParameter("unknown plugin type")
-	}
 }
 
 func (p *Plugin) getPluginTypeMeta(ctx context.Context, sctx *web.SessionContext, typ string) (*pluginspb.PluginType, error) {
@@ -439,112 +351,6 @@ func (p *Plugin) getPluginCallbackURL(r *http.Request, typ string) string {
 	return uri.String()
 }
 
-// createJamfPluginRequest creates Jamf plugin request
-func createJamfPluginRequest(req url.Values) *pluginspb.CreatePluginRequest {
-	return &pluginspb.CreatePluginRequest{
-		Plugin: &types.PluginV1{
-			SubKind: types.PluginSubkindMDM,
-			Metadata: types.Metadata{
-				Labels: map[string]string{
-					plugins.HostedPluginLabel: "true",
-				},
-				Name: types.PluginTypeJamf,
-			},
-			Spec: types.PluginSpecV1{
-				Settings: &types.PluginSpecV1_Jamf{
-					Jamf: &types.PluginJamfSettings{
-						JamfSpec: &types.JamfSpecV1{
-							ApiEndpoint: req.Get("apiEndpoint"),
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-// createOktaPluginRequest creates Okta plugin request from the given form data.
-func (p *Plugin) createOktaPluginRequest(form url.Values) *pluginspb.CreatePluginRequest {
-	orgURL := form.Get("orgURL")
-	apiToken := form.Get("apiToken")
-
-	return &pluginspb.CreatePluginRequest{
-		Plugin: &types.PluginV1{
-			SubKind: types.PluginSubkindAccess,
-			Metadata: types.Metadata{
-				Labels: map[string]string{
-					plugins.HostedPluginLabel: "true",
-				},
-				Name: types.PluginTypeOkta,
-			},
-			Spec: types.PluginSpecV1{
-				Settings: &types.PluginSpecV1_Okta{
-					Okta: &types.PluginOktaSettings{
-						OrgUrl: orgURL,
-					},
-				},
-			},
-		},
-		StaticCredentials: &types.PluginStaticCredentialsV1{
-			ResourceHeader: types.ResourceHeader{
-				Metadata: types.Metadata{
-					Labels: map[string]string{
-						"okta/org-url": orgURL,
-					},
-					Name: types.PluginTypeOkta,
-				},
-			},
-			Spec: &types.PluginStaticCredentialsSpecV1{
-				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: apiToken,
-				},
-			},
-		},
-	}
-}
-
-// createOpsgeniePluginRequest creates Opsgenie plugin from the given form data.
-func (p *Plugin) createOpsgeniePluginRequest(form url.Values) *pluginspb.CreatePluginRequest {
-	apiEndpoint := form.Get("apiEndpoint")
-	apiKey := form.Get("apiKey")
-	scheduleName := form.Get("scheduleName")
-
-	return &pluginspb.CreatePluginRequest{
-		Plugin: &types.PluginV1{
-			SubKind: types.PluginSubkindAccess,
-			Metadata: types.Metadata{
-				Labels: map[string]string{
-					plugins.HostedPluginLabel: "true",
-				},
-				Name: types.PluginTypeOpsgenie,
-			},
-			Spec: types.PluginSpecV1{
-				Settings: &types.PluginSpecV1_Opsgenie{
-					Opsgenie: &types.PluginOpsgenieAccessSettings{
-						DefaultSchedules: []string{scheduleName},
-						ApiEndpoint:      apiEndpoint,
-					},
-				},
-			},
-		},
-		StaticCredentials: &types.PluginStaticCredentialsV1{
-			ResourceHeader: types.ResourceHeader{
-				Metadata: types.Metadata{
-					Labels: map[string]string{
-						"opsgenie/api-endpoint": apiEndpoint,
-					},
-					Name: types.PluginTypeOpsgenie,
-				},
-			},
-			Spec: &types.PluginStaticCredentialsSpecV1{
-				Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
-					APIToken: apiKey,
-				},
-			},
-		},
-	}
-}
-
 // getPluginClientFromSessionContext will return the plugin client from a given session context.
 func getPluginClientFromSessionContext(sessCtx *web.SessionContext) (pluginspb.PluginServiceClient, error) {
 	clt, err := sessCtx.GetClient()
@@ -553,4 +359,23 @@ func getPluginClientFromSessionContext(sessCtx *web.SessionContext) (pluginspb.P
 	}
 
 	return clt.PluginsClient(), nil
+}
+
+func installPlugin(ctx context.Context, sessCtx *web.SessionContext, req *pluginspb.CreatePluginRequest, plugin *Plugin) (*ui.Plugin, error) {
+
+	pluginsClt, err := getPluginClientFromSessionContext(sessCtx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	_, err = pluginsClt.CreatePlugin(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	uiPlugin, err := ui.NewPlugin(req.Plugin)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return uiPlugin, nil
 }

@@ -22,6 +22,21 @@ const (
 	assistCredentialName = "openai-default"
 )
 
+// getStaticPlugins returns the list of integrations that use an API key
+// (or some other static-secret based, non-OpenID-workflow method) to
+// authenticate with their remote services. These are considered
+// "always available" for installation as they do not require any
+// system-level configuration in order to interact with their remote
+// services, and can be created dynamically just from resources in the
+// cluster's back-end data store.
+func getStaticPlugins() []types.PluginType {
+	return []types.PluginType{
+		types.PluginTypeOkta,
+		types.PluginTypeOpsgenie,
+		types.PluginTypePagerDuty,
+	}
+}
+
 // ServiceConfig holds configuration options for the plugins gRPC service.
 type ServiceConfig struct {
 	Authorizer                     authz.Authorizer
@@ -305,8 +320,15 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 		return nil, trace.Wrap(err)
 	}
 
+	staticPlugins := getStaticPlugins()
+
 	resp := &pluginspb.GetAvailablePluginTypesResponse{
-		PluginTypes: make([]*pluginspb.PluginType, 0, len(s.pluginAuthorizers.Authorizers)),
+		PluginTypes: make([]*pluginspb.PluginType, 0,
+			len(s.pluginAuthorizers.Authorizers)+len(staticPlugins)),
+	}
+
+	for _, typ := range staticPlugins {
+		resp.PluginTypes = append(resp.PluginTypes, &pluginspb.PluginType{Type: string(typ)})
 	}
 
 	for typ, a := range s.pluginAuthorizers.Authorizers {
@@ -315,12 +337,6 @@ func (s *Service) GetAvailablePluginTypes(ctx context.Context, req *pluginspb.Ge
 			OauthClientId: a.ClientID,
 		})
 	}
-
-	staticPlugins := []*pluginspb.PluginType{
-		{Type: string(types.PluginTypeOkta)},
-		{Type: string(types.PluginTypeOpsgenie)},
-	}
-	resp.PluginTypes = append(resp.PluginTypes, staticPlugins...)
 
 	return resp, nil
 }

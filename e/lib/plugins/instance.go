@@ -15,6 +15,7 @@ import (
 
 // instanceDependencies is a container for dependencies of a plugin instance.
 type instanceDependencies struct {
+	lifetime          context.Context
 	authorizer        oauth.Authorizer
 	client            teleport.Client
 	store             storage.Store
@@ -27,6 +28,11 @@ type instanceDependencies struct {
 
 // instanceFactory takes plugin spec and its dependencies,
 // and returns a function that runs the plugin instance.
+//
+// The ctx argument is intended to be only used for managing
+// cancellation within the life of the factory call. Lifetime
+// management of the resulting plugin should use the context
+// supplied by `deps.lifetime`
 type instanceFactory func(ctx context.Context, plugin *types.PluginV1, deps instanceDependencies) (func() error, error)
 
 // instance represents a single plugin instance.

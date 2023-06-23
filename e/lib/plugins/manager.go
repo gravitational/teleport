@@ -63,9 +63,10 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 
 	if cfg.Factories == nil {
 		cfg.Factories = map[types.PluginType]instanceFactory{
-			types.PluginTypeOkta:     oktaInstanceFactory,
-			types.PluginTypeSlack:    slackInstanceFactory,
-			types.PluginTypeOpsgenie: opsgenieInstanceFactory,
+			types.PluginTypeOkta:      oktaInstanceFactory,
+			types.PluginTypeSlack:     slackInstanceFactory,
+			types.PluginTypeOpsgenie:  opsgenieInstanceFactory,
+			types.PluginTypePagerDuty: pagerDutyInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {
@@ -283,8 +284,9 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 	statusSink := newStatusSink(m.plugins, plugin.GetName(), string(plugin.GetType()))
 
 	log := m.log.WithFields(logrus.Fields{
-		"plugin_name": plugin.GetName(),
-		"plugin_type": plugin.GetType(),
+		trace.Component: plugin.GetName(),
+		"plugin_name":   plugin.GetName(),
+		"plugin_type":   plugin.GetType(),
 	})
 
 	staticCreds, err := m.getStaticCredentials(ctx, plugin)
@@ -292,7 +294,12 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		return trace.Wrap(err)
 	}
 
+	// Use Background() here for now, no connection to event loop's context.
+	// We rely on cancel() being called correctly in all codepaths.
+	// TODO(justinas): reconsider
+	pluginCtx, cancel := context.WithCancel(context.Background())
 	deps := instanceDependencies{
+		lifetime:          pluginCtx,
 		authorizer:        authorizer,
 		client:            m.teleportClient,
 		store:             store,
@@ -301,11 +308,6 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 		staticCredentials: staticCreds,
 		log:               log,
 	}
-
-	// Use Background() here for now, no connection to event loop's context.
-	// We rely on cancel() being called correctly in all codepaths.
-	// TODO(justinas): reconsider
-	ctx, cancel := context.WithCancel(context.Background())
 	delegate, err := factory(ctx, plugin, deps)
 	if err != nil {
 		cancel()
@@ -320,7 +322,7 @@ func (m *Manager) startInstance(ctx context.Context, plugin *types.PluginV1) err
 			// watcher already logs an error once when stopped.
 			if !errors.Is(err, context.Canceled) && err.Error() != "watcher closed" {
 				log.WithError(err).Error("plugin instance delegate failed")
-				statusSink.Emit(ctx, types.PluginStatusV1{Code: types.PluginStatusCode_OTHER_ERROR})
+				statusSink.Emit(pluginCtx, types.PluginStatusV1{Code: types.PluginStatusCode_OTHER_ERROR})
 			}
 		}
 	}()
@@ -361,11 +363,8 @@ func (m *Manager) getStaticCredentials(ctx context.Context, plugin types.Plugin)
 // NeedsOAuth returns true if the plugin needs OAuth.
 func NeedsOAuth(plugin types.Plugin) bool {
 	switch plugin.GetType() {
-	case types.PluginTypeOpsgenie:
-		return false
-	case types.PluginTypeOkta:
-		return false
+	case types.PluginTypeSlack:
+		return true
 	}
-
-	return true
+	return false
 }

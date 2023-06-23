@@ -58,7 +58,7 @@ func opsgenieInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps i
 
 	app := common.NewApp(pc, plugin.GetName())
 	return func() error {
-		err := app.Run(ctx)
+		err := app.Run(deps.lifetime)
 		return trace.Wrap(err)
 	}, nil
 }

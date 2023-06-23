@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jonboulle/clockwork"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client"
@@ -132,6 +133,8 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, mem.Close()) })
 
+	testLog := logrus.WithField("test", t.Name())
+
 	authorizers := NewAuthorizerSet()
 	authorizers.Add(types.PluginTypeSlack, &Authorizer{
 		Authorizer: &fakeAuthorizer{},
@@ -142,19 +145,19 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 	require.NoError(t, err)
 	events := &fakeEvents{}
 
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	managerCtx, managerCancel := context.WithCancel(context.Background())
+	defer managerCancel()
 
 	// Add in any provided static credentials
 	for _, staticCred := range staticCreds {
-		require.NoError(t, pluginStaticCredentialsService.CreatePluginStaticCredentials(ctx, staticCred))
+		require.NoError(t, pluginStaticCredentialsService.CreatePluginStaticCredentials(managerCtx, staticCred))
 	}
 
 	var instanceStarted, instanceStopped int64
-	makeInstanceDelegate := func(ctx context.Context) func() error {
+	makeInstanceDelegate := func(deps instanceDependencies) func() error {
 		return func() error {
 			atomic.AddInt64(&instanceStarted, 1)
-			<-ctx.Done()
+			<-deps.lifetime.Done()
 			atomic.AddInt64(&instanceStopped, 1)
 			return nil
 		}
@@ -177,9 +180,10 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 				for _, cred := range deps.staticCredentials {
 					staticRefs[cred.GetName()] = cred.GetStaticLabels()
 				}
-				return makeInstanceDelegate(ctx), nil
+				return makeInstanceDelegate(deps), nil
 			},
 		},
+		Log: testLog,
 
 		// the following are not used in the test
 		TeleportClient: &client.Client{},
@@ -189,13 +193,14 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 	manager, err := NewManager(cfg)
 	require.NoError(t, err)
 
-	go manager.Run(ctx)
+	go manager.Run(managerCtx)
 
 	// Wait for manager to subscribe to events
 	require.Eventually(t, func() bool {
 		return events.numWatchers() == 1
 	}, time.Second, time.Second/100)
 
+	testLog.Info("Sending plugin start event")
 	// 1) Create plugin: start
 	events.send(types.Event{
 		Type:     types.OpPut,

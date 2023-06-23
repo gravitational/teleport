@@ -360,5 +360,8 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 		{
 			Type: types.PluginTypeOpsgenie,
 		},
+		{
+			Type: types.PluginTypePagerDuty,
+		},
 	}, resp.PluginTypes)
 }

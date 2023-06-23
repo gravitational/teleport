@@ -282,27 +282,6 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
         >
           <a
             class="c16 c9"
-            data-testid="tile-pagerduty"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <img
-              class="c10 c11"
-              src="file_stub"
-            />
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-              >
-                PagerDuty
-              </div>
-            </div>
-          </a>
-          <a
-            class="c16 c9"
             data-testid="tile-email"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
             rel="noreferrer"
@@ -733,27 +712,6 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
         >
           <a
             class="c18 c9"
-            data-testid="tile-pagerduty"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <img
-              class="c10 c11"
-              src="file_stub"
-            />
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-              >
-                PagerDuty
-              </div>
-            </div>
-          </a>
-          <a
-            class="c18 c9"
             data-testid="tile-email"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
             rel="noreferrer"
@@ -1166,6 +1124,32 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
             </div>
           </a>
           <a
+            class="c9"
+            data-testid="tile-pagerduty"
+            disabled=""
+            href="/web/integrations/new/pagerduty"
+          >
+            <img
+              class="c10 c11"
+              src="file_stub"
+            />
+            <div
+              class="c12"
+            >
+              <div
+                class="c13"
+              >
+                PagerDuty
+              </div>
+            </div>
+            <div
+              class="c14"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </a>
+          <a
             class="c15"
             data-testid="tile-aws-oidc"
             href="/web/integrations/new/aws-oidc"
@@ -1235,27 +1219,6 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
         <div
           class="c8"
         >
-          <a
-            class="c18 c15"
-            data-testid="tile-pagerduty"
-            href="https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty"
-            rel="noreferrer"
-            target="_blank"
-          >
-            <img
-              class="c10 c11"
-              src="file_stub"
-            />
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-              >
-                PagerDuty
-              </div>
-            </div>
-          </a>
           <a
             class="c18 c15"
             data-testid="tile-email"

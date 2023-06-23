@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
+import { Link } from 'design';
 import { Text } from 'design';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
@@ -321,8 +322,101 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     type: 'pagerduty',
     name: 'PagerDuty',
     icon: pagerdutyIcon,
-    url: 'https://github.com/gravitational/teleport-plugins/tree/master/access/pagerduty',
-    hosted: false,
+    url: 'https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/',
+    hosted: true,
+    fullName: 'PagerDuty Alerts',
+    Description: () => (
+      <Text>
+        <p>
+          A Teleport integration with PagerDuty allows your team to treat
+          Teleport permission requests as Pagerduty incidents, and provides
+          Pagerduty special actions to approve or deny permission requests.
+        </p>
+      </Text>
+    ),
+    permissions: [
+      {
+        category: 'Users',
+        permissions: [
+          {
+            title: 'Read',
+            description: 'Query user IDs to determine on-call user.',
+          },
+        ],
+      },
+      {
+        category: 'Incidents',
+        permissions: [
+          {
+            title: 'Read',
+            description: 'Monitor Teleport-created Incidents',
+          },
+          {
+            title: 'Write',
+            description: 'Create, Comment on, and Resolve Incidents',
+          },
+        ],
+      },
+      {
+        category: 'On-Call Schedules',
+        permissions: [
+          {
+            title: 'Read',
+            description: 'Reads On-Call schedules to determine on-call user.',
+          },
+        ],
+      },
+    ],
+    FormMixin: () => {
+      const [token, setToken] = useState('');
+      const [email, setEmail] = useState('');
+      return (
+        <>
+          <FieldInput
+            width="500px"
+            label="PagerDuty User Email"
+            name="email" // must be the same name as expected by the backend as form value
+            rule={requiredField('PagerDuty User Email Required')}
+            value={email}
+            onChange={e => setEmail(e.target.value)}
+            placeholder="root@example.com"
+            toolTipContent="Email address of PagerDuty user to sign incidents"
+            mb={3}
+          />
+          <FieldInput
+            width="500px"
+            label="PagerDuty API Key"
+            name="apiKey" // must be the same name as expected by the backend as form value
+            rule={requiredField('API Key Required')}
+            value={token}
+            type="password"
+            onChange={e => setToken(e.target.value)}
+            placeholder="abc-def...-123"
+            toolTipContent="API Key is used to access the PagerDuty REST API"
+            mb={3}
+          />
+        </>
+      );
+    },
+    NextSteps: () => {
+      return (
+        <Text>
+          <p>
+            Be sure to configure the `pagerduty_notify_service` and
+            `pagerduty_services` annotations in the Teleport roles you want
+            PagerDuty to manage.
+          </p>
+          <p>
+            For more infomation, consult the <em>Define RBAC Resources</em>{' '}
+            section of the Teleport{' '}
+            <Link href="https://goteleport.com/docs/access-controls/access-request-plugins/ssh-approval-pagerduty/#step-28-define-rbac-resources">
+              Access Requests with PagerDuty
+            </Link>{' '}
+            guide.
+          </p>
+        </Text>
+      );
+    },
   },
   {
     type: 'email',

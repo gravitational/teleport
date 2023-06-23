@@ -21,6 +21,7 @@ import (
 func TestOktaInstanceFactory(t *testing.T) {
 	t.Parallel()
 
+	// GIVEN a running Teleport Cluster...
 	clock := clockwork.NewFakeClock()
 	cfg := servicecfg.MakeDefaultConfig()
 	var err error
@@ -38,9 +39,9 @@ func TestOktaInstanceFactory(t *testing.T) {
 
 	process, err := service.NewTeleport(cfg)
 	require.NoError(t, err)
-
 	require.NoError(t, process.Start())
 
+	// WHEN I try to create an Okta plugin instance inside that cluster...
 	plugin := types.NewPluginV1(types.Metadata{
 		Name: "okta",
 	}, types.PluginSpecV1{
@@ -60,8 +61,11 @@ func TestOktaInstanceFactory(t *testing.T) {
 	},
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	startFunc, err := oktaInstanceFactory(ctx, plugin, instanceDependencies{
+	factoryCtx, factoryCancel := context.WithCancel(context.Background())
+	pluginLifetime, pluginCancel := context.WithCancel(context.Background())
+
+	startFunc, err := oktaInstanceFactory(factoryCtx, plugin, instanceDependencies{
+		lifetime:      pluginLifetime,
 		log:           logrus.NewEntry(logrus.New()),
 		parentProcess: process,
 		staticCredentials: []types.PluginStaticCredentials{
@@ -80,6 +84,9 @@ func TestOktaInstanceFactory(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
+	// make sure that anything holding a reference to the wrong context is
+	// terminated with extreme prejudice
+	factoryCancel()
 
 	startErr := make(chan error, 1)
 	go func() {
@@ -89,11 +96,15 @@ func TestOktaInstanceFactory(t *testing.T) {
 	readyEvent := services.EventWithComponents(services.OktaReady, "okta", fmt.Sprintf("%d", clock.Now().Unix()))
 	closeEvent := services.EventWithComponents(services.OktaStopped, "okta", fmt.Sprintf("%d", clock.Now().Unix()))
 
+	// EXPECT that the plugin process emits a `ready` event
 	_, err = process.WaitForEventTimeout(5*time.Second, readyEvent)
 	require.NoError(t, err)
 
-	cancel()
+	// WHEN I terminate the plugin
+	pluginCancel()
 
+	// EXPECT that the plugin process emits a `close` event and eventually
+	// terminmates
 	_, err = process.WaitForEventTimeout(5*time.Second, closeEvent)
 	require.NoError(t, err)
 

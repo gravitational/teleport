@@ -66,6 +66,18 @@ func TestCreatePluginHandle(t *testing.T) {
 			},
 			expectedResp: "some-schedule-name",
 		},
+		{
+			name:     "PagerDuty plugin",
+			endpoint: webPack.clt.Endpoint("enterprise", "plugin"),
+			request: url.Values{
+				"type":        {"pagerduty"},
+				"apiEndPoint": {"https://www.some-apiendoint.com"},
+				"apiKey":      {"some-api-key"},
+				"email":       {"root@example.com"},
+				"csrf_token":  {webPack.csrfToken},
+			},
+			expectedResp: "root@example.com",
+		},
 	}
 
 	for _, tc := range testCases {

@@ -37,8 +37,8 @@ func slackInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps inst
 
 	app := common.NewApp(pc, plugin.GetName())
 	return func() error {
-		go tokenProvider.RefreshLoop(ctx)
-		err := app.Run(ctx)
+		go tokenProvider.RefreshLoop(deps.lifetime)
+		err := app.Run(deps.lifetime)
 		return trace.Wrap(err)
 	}, nil
 }

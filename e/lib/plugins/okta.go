@@ -28,10 +28,10 @@ func oktaInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps insta
 	}
 
 	return func() error {
-		closeEvent := services.InitOktaPlugin(ctx, deps.parentProcess, oktaSpec.OrgUrl, staticToken, plugin.GetName())
+		closeEvent := services.InitOktaPlugin(deps.lifetime, deps.parentProcess, oktaSpec.OrgUrl, staticToken, plugin.GetName())
 
 		// wait for the calling context to finish before doing anything else.
-		<-ctx.Done()
+		<-deps.lifetime.Done()
 
 		// Wait 5 seconds for the close event.
 		eventCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
