@@ -32,6 +32,7 @@ import {
 } from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
+import { prepareAgent } from 'teleterm/mainProcess/prepareAgent';
 
 if (app.requestSingleInstanceLock()) {
   initializeApp();
@@ -127,7 +128,7 @@ async function initializeApp(): Promise<void> {
     windowsManager.focusWindow();
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
     if (mainProcess.settings.dev) {
       // allow restarts on F6
       globalShortcut.register('F6', () => {
@@ -139,6 +140,8 @@ async function initializeApp(): Promise<void> {
     enableWebHandlersProtection();
 
     windowsManager.createWindow();
+    await prepareAgent(windowsManager.getWindow());
+    mainProcess.initAgentProcess();
   });
 
   // Limit navigation capabilities to reduce the attack surface.

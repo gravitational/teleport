@@ -144,6 +144,33 @@ export default class MainProcess {
     });
   }
 
+  initAgentProcess() {
+    const agentProcess = spawn(
+      '~/Library/Caches/Teleport Connect/teleport/teleport',
+      ['version'],
+      {
+        windowsHide: true,
+        env: {
+          ...process.env,
+        },
+      }
+    );
+    agentProcess.stdout.on('data', data => {
+      this.logger.info(`Agent started: ${data}`);
+      this.windowsManager
+        .getWindow()
+        .webContents.send('agent-start', `Agent started: ${data}`);
+    });
+
+    agentProcess.stderr.on('data', data => {
+      this.logger.error(`Agent failed: ${data}`);
+    });
+
+    agentProcess.on('close', code => {
+      this.logger.info(`Agent process exited with code ${code}`);
+    });
+  }
+
   private _initSharedProcess() {
     this.sharedProcess = fork(
       path.join(__dirname, 'sharedProcess.js'),

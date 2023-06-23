@@ -82,6 +82,11 @@ export type MainProcessClient = {
   ) => {
     cleanup: () => void;
   };
+  subscribeToAgentStart: (
+    listener: (value: string) => void
+  ) => {
+    cleanup: () => void;
+  };
 };
 
 export type ChildProcessAddresses = {

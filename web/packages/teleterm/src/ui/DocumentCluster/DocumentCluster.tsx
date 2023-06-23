@@ -36,6 +36,11 @@ export default function Container(props: DocumentProps) {
   const [clusterCtx] = useState(
     () => new ClusterCtx(appCtx, clusterUri, props.doc.uri)
   );
+  const [agentStatus, setAgentStatus] = useState<string>('Loading agent');
+
+  useEffect(() => {
+    appCtx.mainProcessClient.subscribeToAgentStart(setAgentStatus);
+  }, []);
 
   useEffect(() => {
     // because we don't wait for the leaf clusters to fetch before we show them
@@ -54,13 +59,13 @@ export default function Container(props: DocumentProps) {
   return (
     <ClusterContextProvider value={clusterCtx}>
       <Document visible={props.visible}>
-        <Cluster />
+        <Cluster agentStatus={agentStatus} />
       </Document>
     </ClusterContextProvider>
   );
 }
 
-export function Cluster() {
+export function Cluster(props: { agentStatus?: string }) {
   const clusterCtx = useClusterContext();
   const state = clusterCtx.useState();
 
@@ -83,6 +88,7 @@ export function Cluster() {
 
   return (
     <Layout mx="auto" px={5} pt={2} height="100%">
+      <Text>{props.agentStatus}</Text>
       <ClusterResources />
     </Layout>
   );

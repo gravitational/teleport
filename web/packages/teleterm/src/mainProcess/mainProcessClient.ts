@@ -68,5 +68,14 @@ export default function createMainProcessClient(): MainProcessClient {
         cleanup: () => ipcRenderer.removeListener(channel, onThemeChange),
       };
     },
+    subscribeToAgentStart: listener => {
+      const onChange = (_, value: string) =>
+        listener(value);
+      const channel = 'agent-start';
+      ipcRenderer.addListener(channel, onChange);
+      return {
+        cleanup: () => ipcRenderer.removeListener(channel, onChange),
+      };
+    },
   };
 }
