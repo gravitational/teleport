@@ -75,7 +75,7 @@ db_service:
   {{- end }}
 
   # Matchers for registering AWS-hosted databases.
-  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions}}
+  {{- if or .RDSDiscoveryRegions .RDSProxyDiscoveryRegions .RedshiftDiscoveryRegions .RedshiftServerlessDiscoveryRegions .ElastiCacheDiscoveryRegions .MemoryDBDiscoveryRegions .OpenSearchDiscoveryRegions}}
   aws:
   {{- else }}
   # For more information about AWS auto-discovery:
@@ -84,6 +84,7 @@ db_service:
   # Redshift: https://goteleport.com/docs/database-access/guides/postgres-redshift/
   # Redshift Serverless: https://goteleport.com/docs/database-access/guides/postgres-redshift-serverless/
   # ElastiCache/MemoryDB: https://goteleport.com/docs/database-access/guides/redis-aws/
+  # OpenSearch: https://goteleport.com/docs/database-access/guides/aws-opensearch/
   #
   # aws:
   #   # Database types. Valid options are:
@@ -93,7 +94,8 @@ db_service:
   #   # 'redshift-serverless' - discovers and registers AWS Redshift Serverless databases.
   #   # 'elasticache' - discovers and registers AWS ElastiCache Redis databases.
   #   # 'memorydb' - discovers and registers AWS MemoryDB Redis databases.
-  # - types: ["rds", "rdsproxy","redshift", "redshift-serverless", "elasticache", "memorydb"]
+  #   # 'opensearch' - discovers and registers AWS OpenSearch domains.
+  # - types: ["rds", "rdsproxy", "redshift", "redshift-serverless", "elasticache", "memorydb", "opensearch"]
   #   # AWS regions to register databases from.
   #   regions: ["us-west-1", "us-east-2"]
   #   # AWS resource tags to match when registering databases.
@@ -182,6 +184,21 @@ db_service:
     # AWS regions to register databases from.
     regions:
     {{- range .MemoryDBDiscoveryRegions }}
+    - "{{ . }}"
+    {{- end }}
+    # AWS resource tags to match when registering databases.
+    tags:
+    {{- range $name, $value := .AWSTags }}
+      "{{ $name }}": "{{ $value }}"
+    {{- end }}
+  {{- end }}
+  {{- if .OpenSearchDiscoveryRegions }}
+  # OpenSearch databases auto-discovery.
+  # For more information about OpenSearch auto-discovery: https://goteleport.com/docs/database-access/guides/aws-opensearch/
+  - types: ["opensearch"]
+    # AWS regions to register databases from.
+    regions:
+    {{- range .OpenSearchDiscoveryRegions }}
     - "{{ . }}"
     {{- end }}
     # AWS resource tags to match when registering databases.
@@ -488,6 +505,17 @@ db_service:
   #     memorydb:
   #       # MemoryDB cluster name.
   #       cluster_name: my-memorydb
+  # # OpenSearch database static configuration.
+  # - name: opensearch
+  #   description: AWS OpenSearch domain configuration example.
+  #   protocol: opensearch
+  #   # Database connection endpoint. Must be reachable from Database service.
+  #   uri: search-my-domain-xxxxxx.us-east-1.es.amazonaws.com:443
+  #   # AWS specific configuration.
+  #   aws:
+  #     # Region the database is deployed in.
+  #     region: us-east-1
+  #     account_id: "123456789000"
   # # Self-hosted static configuration.
   # - name: self-hosted
   #   description: Self-hosted database configuration.
@@ -573,6 +601,9 @@ type DatabaseSampleFlags struct {
 	// MemoryDBDiscoveryRegions is a list of regions the MemoryDB
 	// auto-discovery is configured.
 	MemoryDBDiscoveryRegions []string
+	// OpenSearchDiscoveryRegions is a list of regions the OpenSearch
+	// auto-discovery is configured.
+	OpenSearchDiscoveryRegions []string
 	// AWSTags is the list of the AWS resource tags used for AWS discoveries.
 	AWSTags map[string]string
 	// AWSRawTags is the "raw" list of AWS resource tags used for AWS discoveries.
