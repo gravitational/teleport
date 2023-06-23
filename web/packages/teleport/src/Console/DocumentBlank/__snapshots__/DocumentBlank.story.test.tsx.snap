@@ -1,7 +1,7 @@
 // Jest Snapshot v1, https://goo.gl/fbAQLP
 
 exports[`render DocumentBlank 1`] = `
-.c4 {
+.c5 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -27,16 +27,16 @@ exports[`render DocumentBlank 1`] = `
   padding: 0px 24px;
 }
 
-.c4:hover,
-.c4:focus {
+.c5:hover,
+.c5:focus {
   background: #B29DFF;
 }
 
-.c4:active {
+.c5:active {
   background: #C5B6FF;
 }
 
-.c4:disabled {
+.c5:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
   cursor: auto;
@@ -48,7 +48,6 @@ exports[`render DocumentBlank 1`] = `
   color: #FFFFFF;
   margin-bottom: 40px;
   margin-top: 72px;
-  color: #01172C;
   font-size: 256px;
 }
 
@@ -57,7 +56,6 @@ exports[`render DocumentBlank 1`] = `
   margin: -16px;
   height: 100%;
   width: 100%;
-  background-color: #010B1C;
   display: flex;
 }
 
@@ -75,6 +73,10 @@ exports[`render DocumentBlank 1`] = `
   flex-direction: column;
 }
 
+.c4 {
+  color: rgba(255,255,255,0.13);
+}
+
 <div
   class="c0"
   height="100%"
@@ -83,18 +85,17 @@ exports[`render DocumentBlank 1`] = `
 >
   <div
     class="c1"
-    style="overflow: auto; background: rgb(1, 11, 28); display: flex; position: relative;"
+    style="overflow: auto; display: flex; position: relative;"
   >
     <div
       class="c2"
     >
       <span
-        class="c3 icon icon-terminal "
-        color="#01172C"
+        class="c3 icon icon-terminal c4"
         font-size="256px"
       />
       <button
-        class="c4"
+        class="c5"
         kind="primary"
       >
         Start a New Session

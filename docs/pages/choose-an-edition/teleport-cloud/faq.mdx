@@ -35,8 +35,7 @@ related information on the [Teleport Trust Portal](https://trust.goteleport.com)
 
 ### How do you store passwords?
 
-Password hashes are generated using
-[Golang's bcrypt](https://pkg.go.dev/golang.org/x/crypto/bcrypt).
+Password hashes are generated using [bcrypt](https://pkg.go.dev/golang.org/x/crypto/bcrypt).
 
 ### Do you encrypt data at rest?
 
@@ -61,9 +60,9 @@ Enterprise Cloud.
 
 We do not have plans to offer support for inbound connection IP allowlists.
 
-We believe mTLS with strong user and [device
-identity](../../access-controls/guides/device-trust.mdx) provides the best
-available security for client authentication.
+We believe mTLS with strong user and [device identity](
+../../access-controls/device-trust/guide.mdx) provides the best available
+security for client authentication.
 
 For customers that require IP-based control for compliance purposes, we do
 support IP Pinning. For more information see `pin_source_ip` in our [Teleport
@@ -135,8 +134,8 @@ The ability to download recordings for offline viewing will be available in a fu
 
 ### Will Teleport be automatically upgraded with each release?
 
-Teleport Cloud follows the Teleport [Production
-readiness](../../upcoming-releases.mdx) guidelines.
+Teleport Cloud follows the Teleport [Upcoming
+Releases](../../upcoming-releases.mdx) timelines.
 
 - Major version upgrades for customer Auth and Proxy Servers occur after the
   first minor release (for example (=teleport.major_version=).1.0) of Teleport.
@@ -144,6 +143,8 @@ readiness](../../upcoming-releases.mdx) guidelines.
   becoming available.
 - After the first minor release, subsequent minor and patch upgrades typically
   occur within a week.
+- Your Teleport tenant will NOT be automatically upgraded to the next major version if any
+  Teleport agents connected to the cluster are not compatible (> 1 major version behind).
 
 ### Are upgrades times configurable for my Teleport Enterprise Cloud tenant?
 
@@ -299,5 +300,3 @@ address traffic to any individual software instance within the cluster.
 ### How do I set up recovery codes for my account so I don't lose access?
 
 We have a [short step-by-step guide](https://github.com/gravitational/teleport/discussions/12379) on setting up recovery codes.
-
-

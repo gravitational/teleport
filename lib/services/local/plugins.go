@@ -158,6 +158,22 @@ func (s *PluginsService) ListPlugins(ctx context.Context, limit int, startKey st
 	return plugins, nextKey, nil
 }
 
+// HasPluginType will return true if a plugin of the given type is registered.
+func (s *PluginsService) HasPluginType(ctx context.Context, pluginType types.PluginType) (bool, error) {
+	plugins, err := s.GetPlugins(ctx, false)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+
+	for _, plugin := range plugins {
+		if plugin.GetType() == pluginType {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 // SetPluginCredentials implements services.Plugins
 func (s *PluginsService) SetPluginCredentials(ctx context.Context, name string, creds types.PluginCredentials) error {
 	return s.updateAndSwap(ctx, name, func(p types.Plugin) error {

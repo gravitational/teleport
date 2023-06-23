@@ -28,6 +28,7 @@ export default function makeApp(json: any): App {
     clusterId = '',
     fqdn = '',
     awsConsole = false,
+    friendlyName = '',
   } = json;
 
   const canCreateUrl = fqdn && clusterId && publicAddr;
@@ -66,5 +67,6 @@ export default function makeApp(json: any): App {
     awsConsole,
     isCloudOrTcpEndpoint: isTcp || isCloud,
     addrWithProtocol,
+    friendlyName,
   };
 }

@@ -32,14 +32,16 @@ import (
 // NewPresetEditorRole returns a new pre-defined role for cluster
 // editors who can edit cluster configuration resources.
 func NewPresetEditorRole() types.Role {
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetEditorRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Edit cluster configuration",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
@@ -93,8 +95,6 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindClusterAlert, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
-				// By default, allow editors to approve any user group access requests.
-				ReviewRequests: defaultAllowAccessReviewConditions(enterprise)[teleport.PresetEditorRoleName],
 			},
 		},
 	}
@@ -104,14 +104,16 @@ func NewPresetEditorRole() types.Role {
 // NewPresetAccessRole creates a role for users who are allowed to initiate
 // interactive sessions.
 func NewPresetAccessRole() types.Role {
-	enterprise := modules.GetModules().BuildType() == modules.BuildEnterprise
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAccessRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Access cluster resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
@@ -135,7 +137,7 @@ func NewPresetAccessRole() types.Role {
 				DatabaseRoles:         []string{teleport.TraitInternalDBRolesVariable},
 				KubernetesResources: []types.KubernetesResource{
 					{
-						Kind:      types.KindKubePod,
+						Kind:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
 					},
@@ -151,8 +153,6 @@ func NewPresetAccessRole() types.Role {
 					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					// Please see defaultAllowRules when adding a new rule.
 				},
-				// By default, allow users with the access role to request any user group.
-				Request: defaultAllowAccessRequestConditions(enterprise)[teleport.PresetAccessRoleName],
 			},
 		},
 	}
@@ -172,11 +172,14 @@ func NewPresetAccessRole() types.Role {
 func NewPresetAuditorRole() types.Role {
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
-		Version: types.V6,
+		Version: types.V7,
 		Metadata: types.Metadata{
 			Name:        teleport.PresetAuditorRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Review cluster events and replay sessions",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
 		},
 		Spec: types.RoleSpecV6{
 			Options: types.RoleOptions{
@@ -202,9 +205,67 @@ func NewPresetAuditorRole() types.Role {
 	return role
 }
 
+// NewPresetReviewerRole returns a new pre-defined role for reviewer. The
+// reviewer will be able to review all access requests.
+func NewPresetReviewerRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetReviewerRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Review access requests",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				ReviewRequests: defaultAllowAccessReviewConditions(true)[teleport.PresetReviewerRoleName],
+			},
+		},
+	}
+	return role
+}
+
+// NewPresetRequesterRole returns a new pre-defined role for requester. The
+// requester will be able to request all resources.
+func NewPresetRequesterRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
+	role := &types.RoleV6{
+		Kind:    types.KindRole,
+		Version: types.V6,
+		Metadata: types.Metadata{
+			Name:        teleport.PresetRequesterRoleName,
+			Namespace:   apidefaults.Namespace,
+			Description: "Request all resources",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
+		},
+		Spec: types.RoleSpecV6{
+			Allow: types.RoleConditions{
+				Request: defaultAllowAccessRequestConditions(true)[teleport.PresetRequesterRoleName],
+			},
+		},
+	}
+	return role
+}
+
 // NewPresetGroupAccessRole returns a new pre-defined role for group access -
 // a role used for requesting and reviewing user group access.
 func NewPresetGroupAccessRole() types.Role {
+	if modules.GetModules().BuildType() != modules.BuildEnterprise {
+		return nil
+	}
+
 	role := &types.RoleV6{
 		Kind:    types.KindRole,
 		Version: types.V6,
@@ -212,6 +273,9 @@ func NewPresetGroupAccessRole() types.Role {
 			Name:        teleport.PresetGroupAccessRoleName,
 			Namespace:   apidefaults.Namespace,
 			Description: "Have access to all user groups",
+			Labels: map[string]string{
+				types.TeleportInternalResourceType: types.PresetResource,
+			},
 		},
 		Spec: types.RoleSpecV6{
 			Allow: types.RoleConditions{
@@ -226,8 +290,25 @@ func NewPresetGroupAccessRole() types.Role {
 			},
 		},
 	}
-	role.SetLogins(types.Allow, []string{"no-login-" + uuid.New().String()})
 	return role
+}
+
+// bootstrapRoleMetadataLabels are metadata labels that will be applied to each role.
+// These are intended to add labels for older roles that didn't previously have them.
+func bootstrapRoleMetadataLabels() map[string]map[string]string {
+	return map[string]map[string]string{
+		teleport.PresetAccessRoleName: {
+			types.TeleportInternalResourceType: types.PresetResource,
+		},
+		teleport.PresetEditorRoleName: {
+			types.TeleportInternalResourceType: types.PresetResource,
+		},
+		teleport.PresetAuditorRoleName: {
+			types.TeleportInternalResourceType: types.PresetResource,
+		},
+		// Group access, reviewer and requester are intentionally not added here as there may be
+		// existing customer defined roles that have these labels.
+	}
 }
 
 // defaultAllowRules has the Allow rules that should be set as default when
@@ -281,8 +362,9 @@ func defaultAllowLabels() map[string]types.RoleConditions {
 func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.AccessRequestConditions {
 	if enterprise {
 		return map[string]*types.AccessRequestConditions{
-			teleport.PresetAccessRoleName: {
+			teleport.PresetRequesterRoleName: {
 				SearchAsRoles: []string{
+					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
 				},
 			},
@@ -297,11 +379,13 @@ func defaultAllowAccessRequestConditions(enterprise bool) map[string]*types.Acce
 func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.AccessReviewConditions {
 	if enterprise {
 		return map[string]*types.AccessReviewConditions{
-			teleport.PresetEditorRoleName: {
+			teleport.PresetReviewerRoleName: {
 				PreviewAsRoles: []string{
+					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
 				},
 				Roles: []string{
+					teleport.PresetAccessRoleName,
 					teleport.PresetGroupAccessRoleName,
 				},
 			},
@@ -315,6 +399,34 @@ func defaultAllowAccessReviewConditions(enterprise bool) map[string]*types.Acces
 // Only attributes whose resources are not already defined (either allowing or denying) are added.
 func AddRoleDefaults(role types.Role) (types.Role, error) {
 	changed := false
+
+	// Role labels
+	defaultRoleLabels, ok := bootstrapRoleMetadataLabels()[role.GetName()]
+	if ok {
+		metadata := role.GetMetadata()
+
+		if metadata.Labels == nil {
+			metadata.Labels = make(map[string]string, len(defaultRoleLabels))
+		}
+		for label, value := range defaultRoleLabels {
+			if _, ok := metadata.Labels[label]; !ok {
+				metadata.Labels[label] = value
+				changed = true
+			}
+		}
+
+		if changed {
+			role.SetMetadata(metadata)
+		}
+	}
+
+	// Check if the role has a TeleportInternalResourceType attached. We do this after setting the role metadata
+	// labels because we set the role metadata labels for roles that have been well established (access,
+	// editor, auditor) that may not already have this label set, but we don't set it for newer roles
+	// (group-access, reviewer, requester) that may have customer definitions.
+	if role.GetMetadata().Labels[types.TeleportInternalResourceType] != types.PresetResource {
+		return nil, trace.AlreadyExists("not modifying user created role")
+	}
 
 	// Resource Rules
 	defaultRules, ok := defaultAllowRules()[role.GetName()]

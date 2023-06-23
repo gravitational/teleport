@@ -25,6 +25,15 @@ import (
 )
 
 func FuzzParseProxySubsys(f *testing.F) {
+	f.Add("")
+	f.Add("proxy:")
+	f.Add("proxy:@")
+	f.Add("proxy:foo@bar")
+	f.Add("proxy:host:22")
+	f.Add("proxy:@clustername")
+	f.Add("proxy:host:22@clustername")
+	f.Add("proxy:host:22@namespace@clustername")
+
 	f.Fuzz(func(t *testing.T, request string) {
 		server := &Server{
 			hostname:  "redhorse",

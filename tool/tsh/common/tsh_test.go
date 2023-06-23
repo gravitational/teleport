@@ -788,7 +788,7 @@ func TestMakeClient(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, localUser, tc.Config.HostLogin)
-	require.Equal(t, apidefaults.CertDuration, tc.Config.KeyTTL)
+	require.Equal(t, time.Duration(0), tc.Config.KeyTTL)
 
 	// specific configuration
 	conf.MinsToLive = 5
@@ -2495,7 +2495,7 @@ func TestEnvFlags(t *testing.T) {
 				Headless: false,
 			},
 			envMap: map[string]string{
-				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
 				teleport.SSHTeleportUser:        "alice",
 				teleport.SSHTeleportClusterName: "root-cluster",
 			},
@@ -2508,7 +2508,7 @@ func TestEnvFlags(t *testing.T) {
 				Headless: true,
 			},
 			envMap: map[string]string{
-				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
 				teleport.SSHTeleportUser:        "alice",
 				teleport.SSHTeleportClusterName: "root-cluster",
 			},
@@ -2524,7 +2524,7 @@ func TestEnvFlags(t *testing.T) {
 				AuthConnector: constants.HeadlessConnector,
 			},
 			envMap: map[string]string{
-				teleport.SSHSessionWebproxyAddr: "proxy.example.com",
+				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
 				teleport.SSHTeleportUser:        "alice",
 				teleport.SSHTeleportClusterName: "root-cluster",
 			},
@@ -2543,7 +2543,7 @@ func TestEnvFlags(t *testing.T) {
 				SiteName: "root-cluster",
 			},
 			envMap: map[string]string{
-				teleport.SSHSessionWebproxyAddr: "other.example.com",
+				teleport.SSHSessionWebProxyAddr: "other.example.com",
 				teleport.SSHTeleportUser:        "bob",
 				teleport.SSHTeleportClusterName: "leaf-cluster",
 			},
@@ -3434,6 +3434,7 @@ func TestSerializeDatabases(t *testing.T) {
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
+        "opensearch": {},
         "rdsproxy": {},
         "redshift_serverless": {}
       },
@@ -3461,6 +3462,7 @@ func TestSerializeDatabases(t *testing.T) {
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
+        "opensearch": {},
         "rdsproxy": {},
         "redshift_serverless": {}
       },

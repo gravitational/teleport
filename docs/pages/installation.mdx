@@ -35,8 +35,8 @@ running Teleport on UNIX variants other than Linux \[1].
 | macOS v10.13+  (High Sierra)| yes | yes | yes | yes | yes |
 | Windows 10+ (rev. 1607) \[4] | no | no | yes | yes | no |
 
-\[1] *Teleport is written in Go and it's possible to build it on
-any OS supported by the [Golang toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
+\[1] *Teleport is written in Go and many of these system requirements are due to the requirements
+of the [Go toolchain](https://github.com/golang/go/wiki/MinimumRequirements)*.
 
 \[2] *`tsh` is a Command Line Client (CLI) and Teleport Connect is a Graphical User Interface (GUI) desktop client. See
   [Using Teleport Connect](connect-your-client/teleport-connect.mdx) for usage and installation*.
@@ -136,8 +136,10 @@ chart.
 
 ## macOS
 
-<Tabs dropdownCaption="Teleport Edition">
-<TabItem label="Installer" options="Open Source" scope="oss">
+<Tabs dropdownView dropdownCaption="Teleport Edition">
+<TabItem label="Open Source" scope="oss">
+  <Tabs>
+  <TabItem label="Teleport package" >
   You can download one of the following .pkg installers for macOS:
 
   |Link|Binaries|
@@ -160,7 +162,7 @@ chart.
   ```
 
 </TabItem>
-<TabItem label="Homebrew" options="Open Source">
+<TabItem label="Homebrew">
 
   <Notice type="danger">
 
@@ -200,9 +202,16 @@ chart.
   against `tsh version` and `tctl version`.
 
 </TabItem>
-<TabItem label="Installer " options="Enterprise,Cloud"  scope={["enterprise", "cloud"]}>
+</Tabs>
+</TabItem>
+<TabItem label="Enterprise" scope="enterprise">
 
 (!docs/pages/includes/enterprise/install-macos.mdx!)
+
+</TabItem>
+<TabItem label="Cloud" scope="cloud">
+
+(!docs/pages/includes/cloud/install-macos.mdx!)
 
 </TabItem>
 </Tabs>

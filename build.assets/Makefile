@@ -20,7 +20,7 @@ OS ?= linux
 ARCH ?= amd64
 
 # Sync with devbox.json.
-GOLANG_VERSION ?= go1.20.4
+GOLANG_VERSION ?= go1.20.5
 
 # Sync with devbox.json.
 NODE_VERSION ?= 16.18.1
@@ -33,7 +33,7 @@ LIBPCSCLITE_VERSION ?= 1.9.9-teleport
 
 # Sync any version changes below with devbox.json.
 # Protogen related versions.
-BUF_VERSION ?= 1.20.0
+BUF_VERSION ?= 1.21.0
 # Keep in sync with api/proto/buf.yaml (and buf.lock)
 GOGO_PROTO_TAG ?= v1.3.2
 NODE_GRPC_TOOLS_VERSION ?= 1.12.4
@@ -58,7 +58,6 @@ include grpcbox.mk
 # target. The other solution was to remove the 'buildbox' dependency from the 'release' target, but this would
 # make it harder to run `make -C build.assets release` locally as the buildbox would not automatically be built.
 BUILDBOX_NAME=$(BUILDBOX)
-BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
 
 DOCSBOX=ghcr.io/gravitational/docs
 
@@ -161,20 +160,7 @@ buildbox:
 # Builds a Docker buildbox for FIPS
 #
 .PHONY:buildbox-fips
-buildbox-fips:
-	if [[ "$(BUILDBOX_FIPS_NAME)" == "$(BUILDBOX_FIPS)" ]]; then \
-		if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_FIPS) || true; fi; \
-		docker build \
-			--build-arg UID=$(UID) \
-			--build-arg GID=$(GID) \
-			--build-arg BUILDARCH=$(RUNTIME_ARCH) \
-			--build-arg GOLANG_VERSION=$(GOLANG_VERSION) \
-			--build-arg NODE_VERSION=$(NODE_VERSION) \
-			--build-arg RUST_VERSION=$(RUST_VERSION) \
-			--build-arg LIBBPF_VERSION=$(LIBBPF_VERSION) \
-			--cache-from $(BUILDBOX_FIPS) \
-			--tag $(BUILDBOX_FIPS) -f Dockerfile-fips . ; \
-	fi
+buildbox-fips: buildbox-centos7-fips
 
 #
 # Builds a Docker buildbox for CentOS 7 builds
@@ -225,20 +211,6 @@ buildbox-arm: buildbox
 		--cache-from $(BUILDBOX) \
 		--cache-from $(BUILDBOX_ARM) \
 		--tag $(BUILDBOX_ARM) -f Dockerfile-arm .
-
-#
-# Builds a Docker buildbox for ARMv7/ARM64 FIPS builds
-# ARM buildboxes use a regular Teleport buildbox as a base which already has a user
-# with the correct UID and GID created, so those arguments are not needed here.
-#
-.PHONY:buildbox-arm-fips
-buildbox-arm-fips: buildbox-fips
-	@if [[ $${DRONE} == "true" ]] && ! docker inspect --type=image $(BUILDBOX_ARM_FIPS) 2>&1 >/dev/null; then docker pull $(BUILDBOX_ARM_FIPS) || true; fi;
-	docker build \
-		--build-arg BUILDBOX_VERSION=$(BUILDBOX_VERSION) \
-		--cache-from $(BUILDBOX_FIPS) \
-		--cache-from $(BUILDBOX_ARM_FIPS) \
-		--tag $(BUILDBOX_ARM_FIPS) -f Dockerfile-arm-fips .
 
 CONNECT_VERSION ?= $(VERSION)
 ifeq ($(CONNECT_VERSION),)
@@ -428,8 +400,7 @@ release-amd64:
 	$(MAKE) release ARCH=amd64 FIDO2=yes
 
 .PHONY: release-amd64-fips
-release-amd64-fips:
-	$(MAKE) release-fips ARCH=amd64 FIPS=yes BUILDBOX_FIPS_NAME=$(BUILDBOX_FIPS)
+release-amd64-fips: release-amd64-centos7-fips
 
 .PHONY: release-386
 release-386:
@@ -463,9 +434,9 @@ release-arm64: buildbox-arm
 # CI should not use this target, it should use named Makefile targets like release-amd64-fips.
 #
 .PHONY:release-fips
-release-fips: buildbox-fips
+release-fips: buildbox-centos7-fips
 	@if [ -z ${VERSION} ]; then echo "VERSION is not set"; exit 1; fi
-	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_FIPS_NAME) \
+	docker run $(DOCKERFLAGS) -i $(NOROOT) $(BUILDBOX_CENTOS7_FIPS) \
 		/usr/bin/make -C e release -e ADDFLAGS="$(ADDFLAGS)" OS=$(OS) ARCH=$(ARCH) RUNTIME=$(GOLANG_VERSION) FIPS=yes VERSION=$(VERSION) GITTAG=v$(VERSION) REPRODUCIBLE=yes
 
 #

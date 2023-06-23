@@ -31,11 +31,9 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
-	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	pluginsv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/ai/model"
-	"github.com/gravitational/teleport/lib/auth"
 )
 
 // MessageType is a type of the Assist message.
@@ -60,6 +58,20 @@ const (
 	MessageKindError MessageType = "CHAT_MESSAGE_ERROR"
 )
 
+// PluginGetter is the minimal interface used by the chat to interact with the plugin service in the backend.
+type PluginGetter interface {
+	PluginsClient() pluginsv1.PluginServiceClient
+}
+
+// MessageService is the minimal interface used by the chat to interact with the Assist message service in the backend.
+type MessageService interface {
+	// GetAssistantMessages returns all messages with given conversation ID.
+	GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error)
+
+	// CreateAssistantMessage adds the message to the backend.
+	CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error
+}
+
 // Assist is the Teleport Assist client.
 type Assist struct {
 	client *ai.Client
@@ -67,8 +79,8 @@ type Assist struct {
 	clock clockwork.Clock
 }
 
-// NewAssist creates a new Assist client.
-func NewAssist(ctx context.Context, proxyClient auth.ClientI,
+// NewClient creates a new Assist client.
+func NewClient(ctx context.Context, proxyClient PluginGetter,
 	proxySettings any, openaiCfg *openai.ClientConfig) (*Assist, error) {
 
 	client, err := getAssistantClient(ctx, proxyClient, proxySettings, openaiCfg)
@@ -86,8 +98,8 @@ func NewAssist(ctx context.Context, proxyClient auth.ClientI,
 type Chat struct {
 	assist *Assist
 	chat   *ai.Chat
-	// authClient is the auth server client.
-	authClient auth.ClientI
+	// assistService is the auth server client.
+	assistService MessageService
 	// ConversationID is the ID of the conversation.
 	ConversationID string
 	// Username is the username of the user who started the chat.
@@ -95,7 +107,7 @@ type Chat struct {
 }
 
 // NewChat creates a new Assist chat.
-func (a *Assist) NewChat(ctx context.Context, authClient auth.ClientI,
+func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
 	conversationID string, username string,
 ) (*Chat, error) {
 	aichat := a.client.NewChat(username)
@@ -103,7 +115,7 @@ func (a *Assist) NewChat(ctx context.Context, authClient auth.ClientI,
 	chat := &Chat{
 		assist:         a,
 		chat:           aichat,
-		authClient:     authClient,
+		assistService:  assistService,
 		ConversationID: conversationID,
 		Username:       username,
 	}
@@ -123,7 +135,7 @@ func (a *Assist) GenerateSummary(ctx context.Context, message string) (string, e
 // loadMessages loads the messages from the database.
 func (c *Chat) loadMessages(ctx context.Context) error {
 	// existing conversation, retrieve old messages
-	messages, err := c.authClient.GetAssistantMessages(ctx, &assistpb.GetAssistantMessagesRequest{
+	messages, err := c.assistService.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
 		ConversationId: c.ConversationID,
 		Username:       c.Username,
 	})
@@ -149,7 +161,7 @@ func (c *Chat) IsNewConversation() bool {
 
 // getAssistantClient returns the OpenAI client created base on Teleport Plugin information
 // or the static token configured in YAML.
-func getAssistantClient(ctx context.Context, proxyClient auth.ClientI,
+func getAssistantClient(ctx context.Context, proxyClient PluginGetter,
 	proxySettings any, openaiCfg *openai.ClientConfig,
 ) (*ai.Client, error) {
 	apiKey, err := getOpenAITokenFromDefaultPlugin(ctx, proxyClient)
@@ -182,9 +194,11 @@ func getAssistantClient(ctx context.Context, proxyClient auth.ClientI,
 	return ai.NewClient(apiKey), nil
 }
 
+// onMessageFunc is a function that is called when a message is received.
+type onMessageFunc func(kind MessageType, payload []byte, createdTime time.Time) error
+
 // ProcessComplete processes the completion request and returns the number of tokens used.
-func (c *Chat) ProcessComplete(ctx context.Context,
-	onMessage func(kind MessageType, payload []byte, createdTime time.Time) error, userInput string,
+func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
 ) (*model.TokensUsed, error) {
 	var tokensUsed *model.TokensUsed
 
@@ -196,16 +210,20 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 
 	// write the user message to persistent storage and the chat structure
 	c.chat.Insert(openai.ChatMessageRoleUser, userInput)
-	if err := c.authClient.CreateAssistantMessage(ctx, &assistpb.CreateAssistantMessageRequest{
-		Message: &assistpb.AssistantMessage{
-			Type:        string(MessageKindUserMessage),
-			Payload:     userInput, // TODO(jakule): Sanitize the payload
-			CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
-		},
-		ConversationId: c.ConversationID,
-		Username:       c.Username,
-	}); err != nil {
-		return nil, trace.Wrap(err)
+
+	// Do not write empty messages to the database.
+	if userInput != "" {
+		if err := c.assistService.CreateAssistantMessage(ctx, &assist.CreateAssistantMessageRequest{
+			Message: &assist.AssistantMessage{
+				Type:        string(MessageKindUserMessage),
+				Payload:     userInput, // TODO(jakule): Sanitize the payload
+				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+			},
+			ConversationId: c.ConversationID,
+			Username:       c.Username,
+		}); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	switch message := message.(type) {
@@ -224,7 +242,7 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 			},
 		}
 
-		if err := c.authClient.CreateAssistantMessage(ctx, protoMsg); err != nil {
+		if err := c.assistService.CreateAssistantMessage(ctx, protoMsg); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -254,7 +272,7 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 			},
 		}
 
-		if err := c.authClient.CreateAssistantMessage(ctx, msg); err != nil {
+		if err := c.assistService.CreateAssistantMessage(ctx, msg); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
@@ -268,7 +286,7 @@ func (c *Chat) ProcessComplete(ctx context.Context,
 	return tokensUsed, nil
 }
 
-func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient auth.ClientI) (string, error) {
+func getOpenAITokenFromDefaultPlugin(ctx context.Context, proxyClient PluginGetter) (string, error) {
 	// Try retrieving credentials from the plugin resource first
 	openaiPlugin, err := proxyClient.PluginsClient().GetPlugin(ctx, &pluginsv1.GetPluginRequest{
 		Name:        "openai-default",

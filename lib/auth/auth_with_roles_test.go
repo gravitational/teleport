@@ -207,6 +207,10 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 			ctx := context.Background()
 			user, role, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"}, nil)
 			require.NoError(t, err)
+			authPref, err := srv.Auth().GetAuthPreference(ctx)
+			require.NoError(t, err)
+			authPref.SetDefaultSessionTTL(types.Duration(test.expiresIn))
+			srv.Auth().SetAuthPreference(ctx, authPref)
 
 			var id TestIdentity
 			if test.renewable {
@@ -3319,7 +3323,7 @@ func createUserGroup(t *testing.T, s *ServerWithRoles, name string, labels map[s
 	userGroup, err := types.NewUserGroup(types.Metadata{
 		Name:   name,
 		Labels: labels,
-	})
+	}, types.UserGroupSpecV1{})
 	require.NoError(t, err)
 	err = s.CreateUserGroup(context.Background(), userGroup)
 	require.NoError(t, err)
