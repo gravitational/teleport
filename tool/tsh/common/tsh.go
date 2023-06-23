@@ -892,7 +892,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	logout := app.Command("logout", "Delete a cluster certificate.")
 
 	// bench
-	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node.").Hidden()
+	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
@@ -901,14 +901,21 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 
-	benchSSH := bench.Command("ssh", "Run SSH benchmark test").Hidden()
+	benchSSH := bench.Command("ssh", "Run SSH benchmark tests").Hidden()
 	benchSSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	benchSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
-	benchSSH.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	benchSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+
+	benchWeb := bench.Command("web", "Run Web benchmark tests").Hidden()
+	benchWebSSH := benchWeb.Command("ssh", "Run SSH benchmark tests").Hidden()
+	benchWebSSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	benchWebSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	benchWebSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
+	benchWebSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+
 	var benchKubeOpts benchKubeOptions
-	benchKube := bench.Command("kube", "Run Kube benchmark test").Hidden()
+	benchKube := bench.Command("kube", "Run Kube benchmark tests").Hidden()
 	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
 	benchListKube := benchKube.Command("ls", "Run a benchmark test to list Pods").Hidden()
 	benchListKube.Arg("kube_cluster", "Kubernetes cluster to use").Required().StringVar(&cf.KubernetesCluster)
@@ -1188,6 +1195,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 				Random:  cf.BenchRandom,
 			},
 		)
+	case benchWebSSH.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.WebSSHBenchmark{
+				Command:  cf.RemoteCommand,
+				Random:   cf.BenchRandom,
+				Duration: cf.BenchDuration,
+			},
+		)
 	case benchListKube.FullCommand():
 		err = onBenchmark(
 			&cf,
@@ -1445,7 +1461,7 @@ func onVersion(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		utils.PrintVersion()
+		modules.GetModules().PrintVersion()
 		if proxyVersion != "" {
 			fmt.Printf("Proxy version: %s\n", proxyVersion)
 			fmt.Printf("Proxy: %s\n", proxyPublicAddr)
@@ -2268,7 +2284,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(listings) == 0 {
-		if _, err := fmt.Fprintln(cf.Stderr(), missingPrincipalsFooter); err != nil {
+		if _, err := fmt.Fprintln(cf.Stderr(), emptyNodesFooter); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2466,7 +2482,7 @@ func printNodes(nodes []types.Server, conf *CLIConf) error {
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(nodes) == 0 {
-		if _, err := fmt.Fprintln(conf.Stderr(), missingPrincipalsFooter); err != nil {
+		if _, err := fmt.Fprintln(conf.Stderr(), emptyNodesFooter); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3337,11 +3353,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	options, err := parseOptions(cf.Options)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// apply defaults
-	if cf.MinsToLive == 0 {
-		cf.MinsToLive = int32(apidefaults.CertDuration / time.Minute)
 	}
 
 	// split login & host

@@ -31,7 +31,7 @@ export default function ActionBar(props: Props) {
       >
         <MenuItem as={NavLink} to={cfg.routes.root}>
           <MenuItemIcon as={Icons.Home} mr="2" />
-          Main
+          Home
         </MenuItem>
         <MenuItem>
           <ButtonPrimary my={3} block onClick={props.onLogout}>

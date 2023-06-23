@@ -1,14 +1,12 @@
 {
   "packages": [
     "addlicense@1.0.0",
-    "bash",
     "bats@1.3.0",
     "github:nixos/nixpkgs/d7f28652048b3bed6a512542e62ea1a50691e349#buf",
     "clang@11.1.0",
     "gci@0.9.1",
-    "git",
-    "github:nixos/nixpkgs/757a0d107c238d031652a8c09d1f6bf1b6f523a3#go",
-    "github:nixos/nixpkgs/3a785fc61f9d2960970bdce4fa86eb634c86b9d6#golangci-lint",
+    "github:nixos/nixpkgs/deb3d80ae0ccafe4f19d3edf32e2eb7fda283978#go",
+    "github:nixos/nixpkgs/22540da6c19a41512dd6bc575858e1215baeb3f9#golangci-lint",
     "libiconvReal@1.16",
     "libfido2@1.13.0",
     "nodejs@16.18.1",
@@ -26,7 +24,9 @@
     "path:build.assets/flake#node-protoc-ts",
     "path:build.assets/flake#protoc-gen-gogo",
     "path:build.assets/flake#rust",
-    "path:build.assets/flake#yarn"
+    "path:build.assets/flake#yarn",
+    "bash@latest",
+    "git@latest"
   ],
   "shell": {
     "init_hook": [
@@ -35,6 +35,6 @@
     ]
   },
   "nixpkgs": {
-    "commit": "f91ee3065de91a3531329a674a45ddcb3467a650"
+    "commit": "b3f5bcf0be3e15226b0e9d698aa734ee098aa08f"
   }
 }
