@@ -15,16 +15,25 @@
  */
 
 /* eslint-disable @typescript-eslint/ban-ts-comment*/
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Flex, Text } from 'design';
 // @ts-ignore
 import { AccessRequestCheckoutButton } from 'e-teleterm/ui/StatusBar/AccessRequestCheckoutButton';
 
 import { useActiveDocumentClusterBreadcrumbs } from './useActiveDocumentClusterBreadcrumbs';
 import { ShareFeedback } from './ShareFeedback';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 
 export function StatusBar() {
   const clusterBreadcrumbs = useActiveDocumentClusterBreadcrumbs();
+  const appCtx = useAppContext();
+
+  const [agentStatus, setAgentStatus] = useState<string>('Loading agent');
+
+  useEffect(() => {
+    appCtx.mainProcessClient.subscribeToAgentStart(setAgentStatus);
+  }, []);
+
 
   return (
     <Flex
@@ -48,6 +57,11 @@ export function StatusBar() {
       >
         {clusterBreadcrumbs}
       </Text>
+      <Text color="text.slightlyMuted"
+          fontSize="14px"
+          css={`
+          white-space: nowrap;
+        `}>{agentStatus}</Text>
       <Flex gap={2} alignItems="center">
         <AccessRequestCheckoutButton />
         <ShareFeedback />
