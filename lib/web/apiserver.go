@@ -1702,20 +1702,20 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	// By default, it uses the stable/v<majorVersion> channel.
 	repoChannel := fmt.Sprintf("stable/%s", version)
 
-	// For Teleport Cloud installations, use the `stable/cloud` channel.
-	if feats.Cloud {
+	// If the updater must be installed, then change the repo to stable/cloud
+	// It must also install the version specified in
+	// https://updates.releases.teleport.dev/v1/stable/cloud/version
+	installUpdater := automaticUpgrades(h.ClusterFeatures)
+	if installUpdater {
 		repoChannel = stableCloudChannelRepo
 	}
-
-	// TODO(marco): remove BuildType check when teleport-upgrade (oss) package is available in apt/yum repos.
-	automaticUpgrades := feats.AutomaticUpgrades && modules.GetModules().BuildType() == modules.BuildEnterprise
 
 	tmpl := installers.Template{
 		PublicProxyAddr:   h.PublicProxyAddr(),
 		MajorVersion:      version,
 		TeleportPackage:   teleportPackage,
 		RepoChannel:       repoChannel,
-		AutomaticUpgrades: strconv.FormatBool(automaticUpgrades),
+		AutomaticUpgrades: strconv.FormatBool(installUpdater),
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
