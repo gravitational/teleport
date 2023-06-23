@@ -42,6 +42,8 @@ type Config struct {
 	TargetURI string
 	// TargetUser is the target user name
 	TargetUser string
+	// TargetGroups is a list of target groups
+	TargetGroups []string
 	// TargetSubresourceName points at a subresource of the remote resource, for example a database
 	// name on a database server. It is used only for generating the CLI command.
 	TargetSubresourceName string
@@ -58,6 +60,8 @@ type Config struct {
 	KeyPath string
 	// Insecure
 	Insecure bool
+	// ClusterName is the Teleport cluster name
+	ClusterName string
 	// WebProxyAddr
 	WebProxyAddr string
 	// Log is a component logger

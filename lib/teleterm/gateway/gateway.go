@@ -70,55 +70,25 @@ func New(cfg Config) (*Gateway, error) {
 
 	cfg.LocalPort = port
 
-	tlsCert, err := keys.LoadX509KeyPair(cfg.CertPath, cfg.KeyPath)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if err := checkCertSubject(tlsCert, cfg.RouteToDatabase()); err != nil {
-		return nil, trace.Wrap(err,
-			"database certificate check failed, try restarting the database connection")
-	}
-
-	localProxyConfig := alpn.LocalProxyConfig{
-		InsecureSkipVerify:      cfg.Insecure,
-		RemoteProxyAddr:         cfg.WebProxyAddr,
-		Listener:                listener,
-		ParentContext:           closeContext,
-		Certs:                   []tls.Certificate{tlsCert},
-		Clock:                   cfg.Clock,
-		ALPNConnUpgradeRequired: cfg.TLSRoutingConnUpgradeRequired,
-	}
-
-	localProxyMiddleware := &localProxyMiddleware{
-		log:     cfg.Log,
-		dbRoute: cfg.RouteToDatabase(),
-	}
-
-	if cfg.OnExpiredCert != nil {
-		localProxyConfig.Middleware = localProxyMiddleware
-	}
-
-	localProxy, err := alpn.NewLocalProxy(localProxyConfig,
-		alpn.WithDatabaseProtocol(cfg.Protocol),
-		alpn.WithClusterCAsIfConnUpgrade(closeContext, cfg.RootClusterCACertPoolFunc),
-	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
 	gateway := &Gateway{
 		cfg:          &cfg,
 		closeContext: closeContext,
 		closeCancel:  closeCancel,
-		localProxy:   localProxy,
 	}
 
-	if cfg.OnExpiredCert != nil {
-		localProxyMiddleware.onExpiredCert = func(ctx context.Context) error {
-			err := cfg.OnExpiredCert(ctx, gateway)
-			return trace.Wrap(err)
+	switch {
+	case uri.IsDB(cfg.TargetURI):
+		if err := gateway.makeLocalProxyForDB(listener); err != nil {
+			return nil, trace.Wrap(err)
 		}
+
+	case uri.IsKube(cfg.TargetURI):
+		if err := gateway.makeLocalProxiesForKube(listener); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+	default:
+		return nil, trace.NotImplemented("gateway not supported for %v", cfg.TargetURI)
 	}
 
 	ok = true
@@ -143,24 +113,46 @@ func NewWithLocalPort(gateway *Gateway, port string) (*Gateway, error) {
 func (g *Gateway) Close() error {
 	g.closeCancel()
 
-	if err := g.localProxy.Close(); err != nil {
-		return trace.Wrap(err)
+	var errs []error
+	if g.localProxy != nil {
+		errs = append(errs, g.localProxy.Close())
 	}
-
-	return nil
+	if g.forwardProxy != nil {
+		errs = append(errs, g.forwardProxy.Close())
+	}
+	return trace.NewAggregate(errs...)
 }
 
 // Serve starts the underlying ALPN proxy. Blocks until closeContext is canceled.
 func (g *Gateway) Serve() error {
 	g.cfg.Log.Info("Gateway is open.")
+	defer g.cfg.Log.Info("Gateway has closed.")
 
-	if err := g.localProxy.Start(g.closeContext); err != nil {
-		return trace.Wrap(err)
+	if g.forwardProxy != nil {
+		return trace.Wrap(g.serveWithForwardProxy())
 	}
+	return trace.Wrap(g.localProxy.Start(g.closeContext))
+}
 
-	g.cfg.Log.Info("Gateway has closed.")
+func (g *Gateway) serveWithForwardProxy() error {
+	errChan := make(chan error, 2)
+	go func() {
+		if err := g.forwardProxy.Start(); err != nil {
+			errChan <- err
+		}
+	}()
+	go func() {
+		if err := g.localProxy.Start(g.closeContext); err != nil {
+			errChan <- err
+		}
+	}()
 
-	return nil
+	select {
+	case err := <-errChan:
+		return trace.Wrap(err)
+	case <-g.closeContext.Done():
+		return nil
+	}
 }
 
 func (g *Gateway) URI() uri.ResourceURI {
@@ -236,20 +228,15 @@ func (g *Gateway) CLICommand() (*api.GatewayCLICommand, error) {
 	}, nil
 }
 
-// RouteToDatabase returns tlsca.RouteToDatabase based on the config of the gateway.
-//
-// The tlsca.RouteToDatabase.Database field is skipped, as it's an optional field and gateways can
-// change their Config.TargetSubresourceName at any moment.
-func (g *Gateway) RouteToDatabase() tlsca.RouteToDatabase {
-	return g.cfg.RouteToDatabase()
-}
-
 // ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and updates the cert of the running
 // local proxy. This is typically done after the cert is reissued and saved to disk.
 //
 // In the future, we're probably going to make this method accept the cert as an arg rather than
 // reading from disk.
 func (g *Gateway) ReloadCert() error {
+	if g.onNewCert == nil {
+		return nil
+	}
 	g.cfg.Log.Debug("Reloading cert")
 
 	tlsCert, err := keys.LoadX509KeyPair(g.cfg.CertPath, g.cfg.KeyPath)
@@ -257,14 +244,14 @@ func (g *Gateway) ReloadCert() error {
 		return trace.Wrap(err)
 	}
 
-	if err := checkCertSubject(tlsCert, g.RouteToDatabase()); err != nil {
-		return trace.Wrap(err,
-			"database certificate check failed, try restarting the database connection")
+	return trace.Wrap(g.onNewCert(tlsCert))
+}
+
+func (g *Gateway) onExpiredCert(ctx context.Context) error {
+	if g.cfg.OnExpiredCert == nil {
+		return nil
 	}
-
-	g.localProxy.SetCerts([]tls.Certificate{tlsCert})
-
-	return nil
+	return trace.Wrap(g.cfg.OnExpiredCert(ctx, g))
 }
 
 // checkCertSubject checks if the cert subject matches the expected db route.
@@ -290,8 +277,12 @@ func checkCertSubject(tlsCert tls.Certificate, dbRoute tlsca.RouteToDatabase) er
 //
 // In the future if Gateway becomes more complex it might be worthwhile to add an RWMutex to it.
 type Gateway struct {
-	cfg        *Config
-	localProxy *alpn.LocalProxy
+	cfg          *Config
+	localProxy   *alpn.LocalProxy
+	forwardProxy *alpn.ForwardProxy
+	// onNewCert is a callback function that updates the local proxy when TLS
+	// certificate is reissued.
+	onNewCert func(tls.Certificate) error
 	// closeContext and closeCancel are used to signal to any waiting goroutines
 	// that the local proxy is now closed and to release any resources.
 	closeContext context.Context

@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"path"
 	"testing"
 	"time"
 
@@ -31,6 +32,8 @@ import (
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport"
 
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -148,41 +151,33 @@ type KeyPairPaths struct {
 func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
 	t.Helper()
 
-	dir := t.TempDir()
-
 	ca := mustGenCACert(t)
 
-	tlsCert := mustGenCertSignedWithCA(t, ca, identity)
+	dir := t.TempDir()
+	certPath := path.Join(dir, "cert.pem")
+	keyPath := path.Join(dir, "key.pem")
 
+	MustGenCertSignedWithCAAndSaveToPaths(t, ca, identity, certPath, keyPath)
+	return KeyPairPaths{
+		CertPath: certPath,
+		KeyPath:  keyPath,
+	}
+}
+
+func MustGenCertSignedWithCAAndSaveToPaths(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity, certPath, keyPath string) {
+	t.Helper()
+
+	// Save the cert.
+	tlsCert := mustGenCertSignedWithCA(t, ca, identity)
+	pemCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tlsCert.Certificate[0]})
+	require.NoError(t, os.WriteFile(certPath, pemCert, teleport.FileMaskOwnerOnly))
+
+	// Save the private key.
 	privateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
 	require.True(t, ok, "Failed to cast tlsCert.PrivateKey")
 
-	// Save the cert.
-
-	certFile, err := os.CreateTemp(dir, "cert")
-	require.NoError(t, err)
-
-	pemCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tlsCert.Certificate[0]})
-
-	_, err = certFile.Write(pemCert)
-	require.NoError(t, err)
-	require.NoError(t, certFile.Close())
-
-	// Save the private key.
-
-	keyFile, err := os.CreateTemp(dir, "key")
-	require.NoError(t, err)
-
 	pemPrivateKey := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
-
-	_, err = keyFile.Write(pemPrivateKey)
-	require.NoError(t, err)
-	require.NoError(t, keyFile.Close())
-
-	return KeyPairPaths{
-		CertPath: certFile.Name(),
-		KeyPath:  keyFile.Name(),
-	}
+	require.NoError(t, os.WriteFile(keyPath, pemPrivateKey, teleport.FileMaskOwnerOnly))
 }
 
 func mustGenCACert(t *testing.T) *tlsca.CertAuthority {

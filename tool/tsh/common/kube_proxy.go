@@ -19,7 +19,6 @@ package common
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
 	"net"
@@ -39,11 +38,8 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/asciitable"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
-	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -202,17 +198,12 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 		return nil, trace.Wrap(err)
 	}
 
-	keyPem, err := utils.ReadPath(profile.KeyPath())
+	localClientKey, err := keys.LoadPrivateKey(profile.KeyPath())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	localClientKey, err := keys.ParsePrivateKey(keyPem)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	cas, err := createKubeLocalCAs(localClientKey, clusters.TeleportClusters())
+	cas, err := alpnproxy.CreateKubeLocalCAs(localClientKey, clusters.TeleportClusters())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -336,40 +327,6 @@ func (k *kubeLocalProxy) WriteKubeConfig() error {
 	}
 
 	return trace.Wrap(kubeconfig.Save(k.KubeConfigPath(), *k.kubeconfig))
-}
-
-func createKubeLocalCAs(userKey *keys.PrivateKey, teleportClusters []string) (map[string]tls.Certificate, error) {
-	cas := make(map[string]tls.Certificate)
-	for _, teleportCluster := range teleportClusters {
-		ca, err := createLocalCA(userKey, time.Now().Add(defaults.CATTL), common.KubeLocalProxyWildcardDomain(teleportCluster))
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		cas[teleportCluster] = ca
-	}
-	return cas, nil
-}
-
-func createLocalCA(key *keys.PrivateKey, validUntil time.Time, dnsNames ...string) (tls.Certificate, error) {
-	cert, err := tlsca.GenerateSelfSignedCAWithConfig(tlsca.GenerateCAConfig{
-		Entity: pkix.Name{
-			CommonName:   "localhost",
-			Organization: []string{"Teleport"},
-		},
-		Signer:      key,
-		DNSNames:    dnsNames,
-		IPAddresses: []net.IP{net.ParseIP(defaults.Localhost)},
-		TTL:         time.Until(validUntil),
-	})
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-
-	tlsCert, err := keys.X509KeyPair(cert, key.PrivateKeyPEM())
-	if err != nil {
-		return tls.Certificate{}, trace.Wrap(err)
-	}
-	return tlsCert, nil
 }
 
 func loadKubeUserCerts(ctx context.Context, tc *client.TeleportClient, clusters kubeconfig.LocalProxyClusters) (alpnproxy.KubeClientCerts, error) {

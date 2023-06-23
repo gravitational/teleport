@@ -29,6 +29,8 @@ var pathServers = urlpath.New("/clusters/:cluster/servers/:serverUUID")
 var pathLeafServers = urlpath.New("/clusters/:cluster/leaves/:leaf/servers/:serverUUID")
 var pathDbs = urlpath.New("/clusters/:cluster/dbs/:dbName")
 var pathLeafDbs = urlpath.New("/clusters/:cluster/leaves/:leaf/dbs/:dbName")
+var pathKubes = urlpath.New("/clusters/:cluster/kubes/:kubeName")
+var pathLeafKubes = urlpath.New("/clusters/:cluster/leaves/:leaf/kubes/:kubeName")
 
 // New creates an instance of ResourceURI
 func New(path string) ResourceURI {
@@ -111,6 +113,21 @@ func (r ResourceURI) GetDbName() string {
 	return ""
 }
 
+// GetKubeName extracts the kube name from r. Returns an empty string if path is not a kube URI.
+func (r ResourceURI) GetKubeName() string {
+	result, ok := pathKubes.Match(r.path)
+	if ok {
+		return result.Params["kubeName"]
+	}
+
+	result, ok = pathLeafKubes.Match(r.path)
+	if ok {
+		return result.Params["kubeName"]
+	}
+
+	return ""
+}
+
 // GetServerUUID extracts the server UUID from r. Returns an empty string if path is not a server URI.
 func (r ResourceURI) GetServerUUID() string {
 	result, ok := pathServers.Match(r.path)
@@ -176,4 +193,14 @@ func (r ResourceURI) AppendAccessRequest(id string) ResourceURI {
 // String returns string representation of the Resource URI
 func (r ResourceURI) String() string {
 	return r.path
+}
+
+// IsDB returns true if URI is a database resource.
+func IsDB(resourceURI string) bool {
+	return New(resourceURI).GetDbName() != ""
+}
+
+// IsDB returns true if URI is a kube resource.
+func IsKube(resourceURI string) bool {
+	return New(resourceURI).GetKubeName() != ""
 }

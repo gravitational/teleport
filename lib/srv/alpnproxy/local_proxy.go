@@ -161,6 +161,14 @@ func NewLocalProxy(cfg LocalProxyConfig, opts ...LocalProxyConfigOpt) (*LocalPro
 
 // Start starts the LocalProxy.
 func (l *LocalProxy) Start(ctx context.Context) error {
+	if l.cfg.HTTPMiddleware != nil {
+		return trace.Wrap(l.StartHTTPAccessProxy(ctx))
+	}
+	return trace.Wrap(l.start(ctx))
+}
+
+// start starts the LocalProxy for raw TCP or raw TLS (non-HTTP) connections.
+func (l *LocalProxy) start(ctx context.Context) error {
 	if l.cfg.Middleware != nil {
 		err := l.cfg.Middleware.OnStart(ctx, l)
 		if err != nil {
@@ -265,6 +273,9 @@ func (l *LocalProxy) makeHTTPReverseProxy(certs []tls.Certificate) *httputil.Rev
 			outReq.URL.Host = l.cfg.RemoteProxyAddr
 		},
 		ModifyResponse: func(response *http.Response) error {
+			// Ask the client to close the connection to avoid re-use.
+			response.Header.Add("Connection", "close")
+
 			errHeader := response.Header.Get(commonApp.TeleportAPIErrorHeader)
 			if errHeader != "" {
 				// TODO: find a cleaner way of formatting the error.
