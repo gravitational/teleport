@@ -31,6 +31,7 @@
   "shell": {
     "init_hook": [
       "export TELEPORT_DEVBOX=1",
+      "export PATH=\"$HOME/.cargo/bin:$PATH\"",
       "unset GOROOT"
     ]
   },

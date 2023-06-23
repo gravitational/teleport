@@ -208,15 +208,21 @@
             '';
           };
 
-          conditional = if pkgs.stdenv.isLinux then pkgs.stdenv.mkDerivation {
+          conditionalBuildInputs = if pkgs.stdenv.isLinux then [
+            bats
+            libbpf
+          ] else if pkgs.stdenv.isDarwin then [
+            pkgs.darwin.IOKit
+          ] else [
+            pkgs.hello # The derivation below will not work with an empty array, so this is a dummy package to fill it in.
+          ];
+
+          conditional = pkgs.stdenv.mkDerivation {
             name = "conditional";
             dontUnpack = true;
             dontBuild = true;
-            propagatedBuildInputs = [
-              bats
-              libbpf
-            ];
-          } else pkgs.hello;
+            propagatedBuildInputs = conditionalBuildInputs;
+          };
         in
         {
           packages = {
