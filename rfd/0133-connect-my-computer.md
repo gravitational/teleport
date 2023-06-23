@@ -510,6 +510,14 @@ As such, tying the autostart of the agent to being logged in to the cluster give
 control while also being easier to solve on the UI level – if the user can't access the UI to
 control the agent, the agent should not be running.
 
+##### systemd and similar tools
+
+The third principle is that since the feature allows access to _your_ device as _your_ system user,
+the agent should not run unattended. The moment you close Connect, the agent should stop.
+
+This is the reason why we don't use a tool like systemd to manage the lifecycle of the agent.
+Instead, the lifecycle of the agent is strictly tied to the lifecycle of the Electron app.
+
 ### Detecting breaking changes
 
 Many different parts of our infrastructure and codebase are involved in making CMC work. As such, we
