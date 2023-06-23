@@ -48,9 +48,9 @@ const testCases: { name: string; query: string; expectedPath: string }[] = [
     expectedPath: '?foo=bar',
   },
   {
-    name: 'with duplicate query key path',
-    query: '?path=foo&query=foo%3Dbar%26path%3Dtest1%26path%3Dtest',
-    expectedPath: '/foo?foo=bar&path=test1&path=test',
+    name: 'with query with same keys used to store the original path and query',
+    query: '?path=foo&query=foo%3Dbar%26query%3Dtest1%26path%3Dtest',
+    expectedPath: '/foo?foo=bar&query=test1&path=test',
   },
   {
     name: 'with query and root path',
@@ -58,11 +58,18 @@ const testCases: { name: string; query: string; expectedPath: string }[] = [
     expectedPath: '/?foo=bar&baz=qux&fruit=apple',
   },
   {
-    name: 'queries with spaces',
+    name: 'queries with encoded spaces',
     query:
       '?path=%2Falerting%2Flist&query=search%3Dstate%3Ainactive%2520type%3Aalerting%2520health%3Anodata',
     expectedPath:
       '/alerting/list?search=state:inactive%20type:alerting%20health:nodata',
+  },
+  {
+    name: 'queries with non-encoded spaces',
+    query:
+      '?path=%2Falerting+%2Flist&query=search%3Dstate%3Ainactive+type%3Aalerting+health%3Anodata',
+    expectedPath:
+      '/alerting /list?search=state:inactive type:alerting health:nodata',
   },
 ];
 
