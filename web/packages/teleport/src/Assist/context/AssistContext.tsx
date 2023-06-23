@@ -24,6 +24,7 @@ import React, {
   useRef,
 } from 'react';
 
+import type { AssistState } from 'teleport/Assist/context/state';
 import { AssistStateActionType, reducer } from 'teleport/Assist/context/state';
 
 import { convertServerMessages } from 'teleport/Assist/context/utils';
@@ -31,6 +32,11 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
+import type {
+  ConversationMessage,
+  ResolvedServerMessage,
+  ServerMessage,
+} from 'teleport/Assist/types';
 import {
   ExecutionEnvelopeType,
   RawPayload,
@@ -46,13 +52,6 @@ import {
 
 import * as service from '../service';
 import { resolveServerCommandMessage, resolveServerMessage } from '../service';
-
-import type {
-  ConversationMessage,
-  ResolvedServerMessage,
-  ServerMessage,
-} from 'teleport/Assist/types';
-import type { AssistState } from 'teleport/Assist/context/state';
 
 interface AssistContextValue {
   cancelMfaChallenge: () => void;
@@ -468,18 +467,20 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           sessionsEnded += 1;
 
           if (sessionsEnded === nodeIdToResultId.size) {
+            const message = proto.encodeCloseMessage();
+            const bytearray = new Uint8Array(message);
+
             for (const nodeId of nodeIdToResultId.keys()) {
               dispatch({
                 type: AssistStateActionType.FinishCommandResult,
                 conversationId: state.conversations.selectedId,
                 commandResultId: nodeIdToResultId.get(nodeId),
               });
+
+              executeCommandWebSocket.current.send(bytearray.buffer);
             }
 
             nodeIdToResultId.clear();
-
-            // TODO(ryan): move this to after the summary is sent once it's implemented
-            executeCommandWebSocket.current.close();
           }
 
           break;

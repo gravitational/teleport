@@ -286,7 +286,7 @@ func (h *Handler) executeCommand(
 
 	runCommands(hosts, runCmd, h.log)
 
-	// Optionally try to compute the command summary.
+	// Optionally, try to compute the command summary.
 	if output, overflow := buffer.Export(); !overflow || len(output) != 0 {
 		summaryReq := summaryRequest{
 			hosts:          hosts,
@@ -674,13 +674,10 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		return
 	}
 
-	// TODO: fix this, this hangs
-	/*
-		if err := t.stream.Close(); err != nil {
-			t.log.WithError(err).Error("Unable to send close event to web client.")
-			return
-		}
-	*/
+	if err := t.stream.Close(); err != nil {
+		t.log.WithError(err).Error("Unable to send close event to web client.")
+		return
+	}
 
 	t.log.Debug("Sent close event to web client.")
 }
