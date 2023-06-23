@@ -5168,14 +5168,17 @@ message PluginSlackAccessSettings {
 message PluginOpsgenieAccessSettings {
   option (gogoproto.equal) = true;
 
-  // Addr is the address of Opsgenie API.
-  string addr = 1;
+  reserved 1;
+  reserved "addr";
+
   // Priority to create Opsgenie alerts with
   string priority = 2;
   // List of tags to be added to alerts created in Opsgenie
   repeated string alert_tags = 3;
   // Default on-call schedules to check if none are provided in the access request annotations
   repeated string default_schedules = 4;
+  // APIEndpoint is the address of Opsgenie API.
+  string api_endpoint = 5;
 }
 
 // Defines settings for the OpenAI plugin. Currently there are no settings.
