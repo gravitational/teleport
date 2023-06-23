@@ -57,6 +57,7 @@ func NewSystemAutomaticAccessApproverRole() types.Role {
 			},
 		},
 	}
+	role.CheckAndSetDefaults()
 	return role
 }
 
@@ -91,6 +92,7 @@ func NewSystemAutomaticAccessBotUser() types.User {
 			Roles: []string{teleport.SystemAutomaticAccessApprovalRoleName},
 		},
 	}
+	user.CheckAndSetDefaults()
 	return user
 }
 
