@@ -182,6 +182,7 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			user, _, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"})
 			require.NoError(t, err)
+			ctx := context.Background()
 			authPref, err := srv.Auth().GetAuthPreference(ctx)
 			require.NoError(t, err)
 			authPref.SetDefaultSessionTTL(types.Duration(test.expiresIn))
