@@ -377,6 +377,24 @@ automatically start the agent on a successful login to the cluster. The flag is 
 if the user explicitly stops the agent through the UI – just closing the app will not change the
 flag state.
 
+#### Ensuring the agent is killed together with the Electron app
+
+It might happen that for whatever reason, the Electron app is killed. Without any further
+modifications, this would make the agent continue to run and breach one of the principles described
+in the Security section of this RFD – the lifecycle of the agent should be tied to the lifecycle of
+the app.
+
+To avoid that, we are going to extend the teleport binary so that the agent accepts the PID of the
+parent process through a hidden flag. The agent then periodically checks if its parent PID matches
+the parent PID passed through the flag.
+
+When the Electron app exits without stopping the agent first, [the OS re-parents the agent](https://en.wikipedia.org/wiki/Orphan_process)
+and thus the parent PID of the agent changes. The agent detects this change and shuts itself down.
+
+Here's [the general idea behind the implementation](https://stackoverflow.com/a/23587108/742872)
+along with a suggestion on how to make this work on Windows if we ever decide to bring Connect My
+Computer there.
+
 ### Agent maintenance
 
 #### Keeping the agent up to date
