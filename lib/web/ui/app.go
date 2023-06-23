@@ -48,7 +48,7 @@ type App struct {
 	// FriendlyName is a friendly name for the app.
 	FriendlyName string `json:"friendlyName,omitempty"`
 	// UserGroups is a list of associated user groups.
-	UserGroups []UserGroupAndDescription `json:"user_groups,omitempty"`
+	UserGroups []UserGroupAndDescription `json:"userGroups,omitempty"`
 }
 
 // UserGroupAndDescription is a user group name and its description.
