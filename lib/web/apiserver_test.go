@@ -2625,8 +2625,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.Contains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
 				"  PACKAGE_LIST=\"teleport jq\"\n"+
-				"  # shellcheck disable=SC2050\n"+
-				"  if [ \"false\" = \"true\" ]; then\n"+
+				"  if [[ \"false\" == \"true\" ]]; then\n"+
 				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-updater\"\n"+
 				"  fi",
 			)
@@ -2642,7 +2641,6 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			require.Contains(t, responseString, "stable/v")
 			require.Contains(t, responseString, ""+
 				"  PACKAGE_LIST=\"jq teleport\"\n"+
-				"  # shellcheck disable=SC2050\n"+
 				"  if [[ \"false\" == \"true\" ]]; then\n"+
 				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-updater\"\n"+
 				"  fi\n",
