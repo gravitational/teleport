@@ -23,6 +23,11 @@ import (
 )
 
 func FuzzParseRedisAddress(f *testing.F) {
+	f.Add("foo:1234")
+	f.Add(URIScheme + "://foo")
+	f.Add(URIScheme + "://foo:1234?mode=standalone")
+	f.Add(URIScheme + "://foo:1234?mode=cluster")
+
 	f.Fuzz(func(t *testing.T, addr string) {
 		require.NotPanics(t, func() {
 			ParseRedisAddress(addr)

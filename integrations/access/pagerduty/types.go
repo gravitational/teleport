@@ -195,3 +195,9 @@ type ListOnCallsResult struct {
 	PaginationResult
 	OnCalls []OnCall `json:"oncalls"`
 }
+
+// ListAbilitiesResult describes the output of the PagerDuty /abilities
+// API call.
+type ListAbilitiesResult struct {
+	Abilities []string `json:"abilities"`
+}
