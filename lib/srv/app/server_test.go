@@ -129,8 +129,8 @@ type suiteConfig struct {
 type fakeConnMonitor struct {
 }
 
-func (f fakeConnMonitor) MonitorConn(ctx context.Context, authCtx *auth.Context, conn net.Conn) (context.Context, error) {
-	return ctx, nil
+func (f fakeConnMonitor) MonitorConn(ctx context.Context, authCtx *auth.Context, conn net.Conn) (context.Context, net.Conn, error) {
+	return ctx, conn, nil
 }
 
 func SetUpSuite(t *testing.T) *Suite {

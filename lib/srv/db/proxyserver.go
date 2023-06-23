@@ -66,10 +66,10 @@ type ProxyServer struct {
 	log logrus.FieldLogger
 }
 
-// ConnMonitor monitors authorized connnections and terminates them when
+// ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConn(ctx context.Context, authCtx *auth.Context, conn net.Conn) (context.Context, error)
+	MonitorConn(ctx context.Context, authCtx *auth.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ProxyServerConfig is the proxy configuration.
@@ -468,7 +468,8 @@ func isReverseTunnelDownError(err error) bool {
 func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
 	// Wrap a client connection with a monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	ctx, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, proxyCtx.AuthContext, clientConn)
+	var err error
+	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, proxyCtx.AuthContext, clientConn)
 	if err != nil {
 		clientConn.Close()
 		serviceConn.Close()

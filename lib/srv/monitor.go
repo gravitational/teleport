@@ -118,18 +118,36 @@ func NewConnectionMonitor(cfg ConnectionMonitorConfig) (*ConnectionMonitor, erro
 	return &ConnectionMonitor{cfg: cfg}, nil
 }
 
+func getTrackingReadConn(conn net.Conn) (*TrackingReadConn, bool) {
+	type netConn interface {
+		NetConn() net.Conn
+	}
+
+	for {
+		if tconn, ok := conn.(*TrackingReadConn); ok {
+			return tconn, true
+		}
+
+		connGetter, ok := conn.(netConn)
+		if !ok {
+			return nil, false
+		}
+		conn = connGetter.NetConn()
+	}
+}
+
 // MonitorConn ensures that the provided [net.Conn] is allowed per cluster configuration
 // and security controls. If at any point during the lifetime of the connection the
 // cluster controls dictate that the connection is not permitted it will be closed and the
 // returned [context.Context] will be canceled.
-func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authCtx *auth.Context, conn net.Conn) (context.Context, error) {
+func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authCtx *auth.Context, conn net.Conn) (context.Context, net.Conn, error) {
 	authPref, err := c.cfg.AccessPoint.GetAuthPreference(ctx)
 	if err != nil {
-		return ctx, trace.Wrap(err)
+		return ctx, conn, trace.Wrap(err)
 	}
 	netConfig, err := c.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
 	if err != nil {
-		return ctx, trace.Wrap(err)
+		return ctx, conn, trace.Wrap(err)
 	}
 
 	identity := authCtx.Identity.GetIdentity()
@@ -137,15 +155,18 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authCtx *auth.Conte
 
 	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
 
-	monitorCtx, cancel := context.WithCancel(ctx)
-	tconn, err := NewTrackingReadConn(TrackingReadConnConfig{
-		Conn:    conn,
-		Clock:   c.cfg.Clock,
-		Context: monitorCtx,
-		Cancel:  cancel,
-	})
-	if err != nil {
-		return ctx, trace.Wrap(err)
+	tconn, ok := getTrackingReadConn(conn)
+	if !ok {
+		tctx, cancel := context.WithCancel(ctx)
+		tconn, err = NewTrackingReadConn(TrackingReadConnConfig{
+			Conn:    conn,
+			Clock:   c.cfg.Clock,
+			Context: tctx,
+			Cancel:  cancel,
+		})
+		if err != nil {
+			return ctx, conn, trace.Wrap(err)
+		}
 	}
 
 	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
@@ -166,10 +187,10 @@ func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authCtx *auth.Conte
 		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
 		MonitorCloseChannel:   c.cfg.MonitorCloseChannel,
 	}); err != nil {
-		return ctx, trace.Wrap(err)
+		return ctx, conn, trace.Wrap(err)
 	}
 
-	return monitorCtx, nil
+	return tconn.cfg.Context, tconn, nil
 }
 
 // MonitorConfig is a wiretap configuration
