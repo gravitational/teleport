@@ -1,5 +1,16 @@
 # Changelog
 
+## 13.1.3 (06/23/23)
+
+* Teleport Cloud
+  * Added Opsgenie hosted plugin. [#28098](https://github.com/gravitational/teleport/pull/28098)
+  * Fixed issue with the install script sometimes failing to install Teleport during Cloud upgrades. [#28208](https://github.com/gravitational/teleport/pull/28208)
+* Kubernetes Operator
+  * Added support for label expressions to Kubernetes operator. [#28156](https://github.com/gravitational/teleport/pull/28156)
+* Web UI
+  * Ensured message of the day is displayed in the web UI. [#27922](https://github.com/gravitational/teleport/pull/27922)
+  * Ensured that the Web UI does not make calls to Stripe for self-hosted customers. [teleport.e#1724](https://github.com/gravitational/teleport.e/pull/1724)
+
 ## 13.1.2 (06/21/23)
 
 * Teleport Assist
