@@ -562,9 +562,49 @@ const (
 	SubjectCookieName = "__Host-grv_app_session_subject"
 )
 
+// makeAppRedirectURL constructs a URL that will redirect the user to the
+// application launcher route in the web UI.
+//
+// Given app URL example: some-domain.com/arbitrary/path?foo=bar&baz=qux
+// The original requested URL will be separated into three parts:
+//   - hostname (or fqdn): some-domain.com
+//   - path (the URL parts after the app's hostname): arbitrary/path
+//   - query: foo=bar&baz=qux
+//
+// which will be constructed into a redirect URL using this form:
+//   - /web/launch/<fqdn>?path=<encoded path>&query=<encoded query>
+//
+// where the final result for the example URL will be:
+//   - /web/launch/some-domain.com?path=%2Farbitrary%2Fpath&query=foo%3Dbar%26baz%3Dqux
+//
+// The URL is formed this way to help isolate the `fqdn` param
+// from the rest of the URL.
+//
+// The original path and query cannot be formed as `web/launch/<original URL>`
+// because `web/launch` route can differ depending on how the user hits the app
+// endpoint:
+//  1. /web/launch/:fqdn/:clusterID/:publicAddr?/:arn?
+//     This route is formed when user clicks on the web UI's app launcher
+//     button from the application listing screen. The app can be directly
+//     resolved since we are able to determine the app's cluster name,
+//     public address, and AWS role name (if defined).
+//  2. /web/launch/<fqdn>?path=<encoded path>&query=<encoded query>
+//     This route is formed when a user hits the app endpoint outside of
+//     the web UI (clicking from a link or copy/pasta link), and the app will
+//     have to be resolved by the fqdn.
+//
+// Isolating the `fqdn` prevents confusing the rest of the param reserved for
+// clusterId, publicAddr, and arn (where the non-query param values are used to
+// create app session). The `web/launcher` will reconstruct the original
+// app URL when ready to redirect the user to the requested endpoint.
 func makeAppRedirectURL(r *http.Request, proxyPublicAddr, hostname string) string {
-	// Preserve the app's URL path (URL parts after the app's hostname)
-	// as a query part. Append query that was originally part of the URL.
+	// Note that r.URL.Path field is stored in decoded form where:
+	//  - `/%47%6f%2f` becomes `/Go/`
+	//  - `siema%20elo` becomes `siema elo`
+	// And QueryEscape() will encode spaces as `+`
+	//
+	// QueryEscape is used on the `r.URL.Path` since it is being placed
+	// into the query part of the URL.
 	query := fmt.Sprintf("path=%s", url.QueryEscape(r.URL.Path))
 	if len(r.URL.RawQuery) > 0 {
 		query = fmt.Sprintf("%s&query=%s", query, url.QueryEscape(r.URL.RawQuery))

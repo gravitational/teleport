@@ -770,9 +770,9 @@ func TestMakeAppRedirectURL(t *testing.T) {
 			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=&query=foo%3Dbar",
 		},
 		{
-			name:        "OK - add duplicate query key path",
-			reqURL:      "https://grafana.localhost?foo=bar&path=test1&path=test",
-			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=&query=foo%3Dbar%26path%3Dtest1%26path%3Dtest",
+			name:        "OK - add query with same keys used to store the original path and query",
+			reqURL:      "https://grafana.localhost?foo=bar&query=test1&path=test",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=&query=foo%3Dbar%26query%3Dtest1%26path%3Dtest",
 		},
 		{
 			name:        "OK - adds query with root path",
@@ -780,9 +780,14 @@ func TestMakeAppRedirectURL(t *testing.T) {
 			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2F&query=foo%3Dbar%26baz%3Dqux%26fruit%3Dapple",
 		},
 		{
-			name:        "OK - real grafana query example",
+			name:        "OK - real grafana query example (encoded spaces)",
 			reqURL:      "https://grafana.localhost/alerting/list?search=state:inactive%20type:alerting%20health:nodata",
 			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Falerting%2Flist&query=search%3Dstate%3Ainactive%2520type%3Aalerting%2520health%3Anodata",
+		},
+		{
+			name:        "OK - query with non-encoded spaces",
+			reqURL:      "https://grafana.localhost/alerting /list?search=state:inactive type:alerting health:nodata",
+			expectedURL: "https://proxy.com/web/launch/grafana.localhost?path=%2Falerting+%2Flist&query=search%3Dstate%3Ainactive+type%3Aalerting+health%3Anodata",
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
