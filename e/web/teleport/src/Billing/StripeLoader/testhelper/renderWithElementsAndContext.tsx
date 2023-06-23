@@ -1,5 +1,5 @@
 import React from 'react';
-import { loadStripe } from '@stripe/stripe-js';
+import { loadStripe } from '@stripe/stripe-js/pure';
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { render } from 'design/utils/testing';
 import { Elements } from '@stripe/react-stripe-js';

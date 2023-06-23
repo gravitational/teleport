@@ -43,7 +43,13 @@ export function MainE() {
     );
   }
 
+  const usageBased = cfg.oss.isUsageBasedBilling;
+
   const usageBasedUpgradeBanner = useMemo(() => {
+    if (!usageBased) {
+      return;
+    }
+
     return (
       <StripeLoader
         key={'stripe-upgrade'}
@@ -55,10 +61,10 @@ export function MainE() {
         )}
       />
     );
-  }, []);
+  }, [usageBased]);
 
   const billingBanners = [];
-  if (cfg.oss.isUsageBasedBilling) {
+  if (usageBased) {
     billingBanners.push(usageBasedUpgradeBanner);
   }
 
