@@ -24,7 +24,6 @@ package auth
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/trace"
@@ -78,7 +77,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 		log.WithError(err).Warn("Failed to emit user create event.")
 	}
 
-	s.emitEditorChangeEvent(user.GetName(), []string{}, user.GetRoles())
+	go s.emitEditorChangeEvent(user.GetName(), []string{}, user.GetRoles())
 
 	return nil
 }
@@ -117,7 +116,7 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
 
-	s.emitEditorChangeEvent(user.GetName(), prevUser.GetRoles(), user.GetRoles())
+	go s.emitEditorChangeEvent(user.GetName(), prevUser.GetRoles(), user.GetRoles())
 
 	return nil
 }
@@ -164,7 +163,7 @@ func (s *Server) UpsertUser(user types.User) error {
 	if prevUser != nil {
 		prevRoles = prevUser.GetRoles()
 	}
-	s.emitEditorChangeEvent(user.GetName(), prevRoles, user.GetRoles())
+	go s.emitEditorChangeEvent(user.GetName(), prevRoles, user.GetRoles())
 
 	return nil
 }
@@ -200,7 +199,7 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
 
-	s.emitEditorChangeEvent(new.GetName(), existing.GetRoles(), new.GetRoles())
+	go s.emitEditorChangeEvent(new.GetName(), existing.GetRoles(), new.GetRoles())
 
 	return nil
 }
@@ -245,12 +244,12 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 		log.WithError(err).Warn("Failed to emit user delete event.")
 	}
 
-	s.emitEditorChangeEvent(user, []string{}, prevUser.GetRoles())
+	go s.emitEditorChangeEvent(user, prevUser.GetRoles(), []string{})
 
 	return nil
 }
 
-// emitEditorChangeEvent emits an editor change event if the editor role was added or removed
+// emitEditorChangeEvent emits an editor change event if the editor role was added or removed.
 func (s *Server) emitEditorChangeEvent(username string, prevRoles, newRoles []string) {
 	var prevEditor bool
 	for _, r := range prevRoles {
@@ -277,8 +276,6 @@ func (s *Server) emitEditorChangeEvent(username string, prevRoles, newRoles []st
 	if prevEditor {
 		eventType = prehogv1alpha.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED
 	}
-
-	fmt.Printf("event type: %s\n", eventType)
 
 	s.AnonymizeAndSubmit(&usagereporter.EditorChangeEvent{
 		UserName: username,
