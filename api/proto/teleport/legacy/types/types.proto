@@ -5028,6 +5028,18 @@ message DatabaseResourceMatcher {
     (gogoproto.jsontag) = "labels",
     (gogoproto.customtype) = "Labels"
   ];
+  ResourceMatcherAWS AWS = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "aws"
+  ];
+}
+
+// ResourceMatcherAWS contains AWS specific settings for resource matcher.
+message ResourceMatcherAWS {
+  // AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
+  string AssumeRoleARN = 1 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+  // ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+  string ExternalID = 2 [(gogoproto.jsontag) = "external_id,omitempty"];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist
