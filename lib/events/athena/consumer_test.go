@@ -338,7 +338,7 @@ func TestSQSMessagesCollectorErrorsOnReceive(t *testing.T) {
 	gotNoOfCalls := mockReceiver.getNoOfCalls()
 	// We can't be sure that there will be equaly noOfCalls as expected,
 	// because they are process in async way, but anything within range x>= 0 && x< 1.5*expected is valid.
-	require.LessOrEqual(t, float64(gotNoOfCalls), 1.5*float64(expectedNoOfCalls), "receiveMessage got to many calls")
+	require.LessOrEqual(t, float64(gotNoOfCalls), 1.5*float64(expectedNoOfCalls), "receiveMessage got too many calls")
 	require.Greater(t, gotNoOfCalls, 0, "receiveMessage was not called at all")
 }
 
