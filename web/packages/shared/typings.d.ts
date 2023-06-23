@@ -20,3 +20,8 @@ declare module '*.jpg';
 declare module '*.gif';
 declare module '*.ico';
 declare module '*.yaml?raw';
+
+declare module "*.svg?react" {
+	const Component: React.FunctionComponent<React.SVGAttributes<SVGElement>>;
+	export default Component;
+}
