@@ -69,7 +69,7 @@ require (
 	github.com/go-resty/resty/v2 v2.7.0
 	github.com/go-webauthn/webauthn v0.5.0
 	github.com/gobuffalo/flect v1.0.2 // indirect
-	github.com/gocql/gocql v1.4.0
+	github.com/gocql/gocql v1.5.2
 	github.com/gofrs/flock v0.8.1
 	github.com/gogo/protobuf v1.3.2 // replaced
 	github.com/golang-jwt/jwt/v4 v4.5.0
