@@ -39,29 +39,18 @@ type Item struct {
 ```
 The key is in the format `name/type` to prevent name collisions across types. However, this makes the default sort a little weird where resource with UUID names will come first, even though they'll be displayed with a "friendly" name. Such as `Servers` being stored by a UUID but making the `Hostname` visible. This can change if we find a better way "on the fly" since it's only created when the auth service is started so, we aren't locked into anything in this regard. For now, we'll implement with `GetName()/GetKind()`
 
-`lib/web/ui.UnifiedResource` will be the shape of ALL returned resources from a unified resource request. Normally, every specific request type would use it's own `MakeServer`-esque struct, but with unified resources, it can be any kind so we have to accommodate. We could have used an empty interface slice (this is the way the items are sent over the wire anyway), but this provides a bit more safety and documentation so we'll roll with it. 
-```go
-// Unified Resource describes a unified resource for webapp
-type UnifiedResource struct {
-	// Kind is the resource kind
-	Kind string `json:"kind"`
+For the existing resource endpoints, we return a "ui" version of the resource. Because our list will be of multiple types, we will add the `Kind` field to our existing resource structs. In a vacuum, it's redundant. When listed together, this will allow our UI to differentiate between the different kinds
+```diff
+type Server struct {
++	// Kind is the kind of resource. Used to parse which kind in a list of unified resources in the UI
++	Kind string `json:"kind"`
+	// Tunnel indicates of this server is connected over a reverse tunnel.
+	Tunnel bool `json:"tunnel"`
 	// Name is this server name
-	Name string `json:"name"`
-	// Labels is this server list of labels
-	Labels []Label `json:"tags"`
-
-	// The fields below are supplied on for specific resources.
-
-	// Addr is the address of the Server and Desktop
-	Addr string `json:"addr"`
-	// SSHLogins is the list of logins this user can use on this server. This exists for Databases and Servers
-	SSHLogins []string `json:"sshLogins"`
-	// Logins is the list of logins this user can use on this desktop.
-	Logins []string `json:"logins"`
+	Name string `json:"id"`
+	// ...
 }
 ```
-(not exhaustive, just an example).
-We will include any field that is needed per resource and omit the rest. A small subset of fields will exist on every resource returned but due to the nature of the individual resource kinds, certain fields will only exist on it's relevant resource (such as `Addr`).  In reality, the UI doesn't really need many of the fields that are currently available on these resources for a unified view. When they are needed, they will still exists from their individual request types in `ListResources`. 
 
 ### The Watcher and Collector
 
