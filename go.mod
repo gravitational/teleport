@@ -7,7 +7,7 @@ require (
 	cloud.google.com/go/container v1.21.0
 	cloud.google.com/go/firestore v1.10.0
 	cloud.google.com/go/iam v1.1.0
-	cloud.google.com/go/kms v1.10.2
+	cloud.google.com/go/kms v1.12.1
 	cloud.google.com/go/storage v1.30.1
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.3.0
@@ -80,7 +80,7 @@ require (
 	github.com/google/go-tpm-tools v0.3.12
 	github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510
 	github.com/google/uuid v1.3.0
-	github.com/googleapis/gax-go/v2 v2.10.0
+	github.com/googleapis/gax-go/v2 v2.11.0
 	github.com/gorilla/websocket v1.5.0
 	github.com/gravitational/configure v0.0.0-20180808141939-c3428bd84c23
 	github.com/gravitational/form v0.0.0-20151109031454-c4048f792f70
