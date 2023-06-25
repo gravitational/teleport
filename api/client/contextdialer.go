@@ -192,8 +192,8 @@ func NewDialer(ctx context.Context, keepAlivePeriod, dialTimeout time.Duration, 
 		// Base direct dialer.
 		var dialer ContextDialer = netDialer
 
-		// TODO(greedy52) currently there is no use case where both cfg.proxyHeaderGetter
-		// and cfg.alpnConnUpgradeRequired are set.
+		// Currently there is no use case where both cfg.proxyHeaderGetter and
+		// cfg.alpnConnUpgradeRequired are set.
 		if cfg.proxyHeaderGetter != nil && cfg.alpnConnUpgradeRequired {
 			return nil, trace.NotImplemented("ALPN connection upgrade does not support multiplexer header")
 		}

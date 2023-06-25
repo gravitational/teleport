@@ -74,7 +74,7 @@ func parseXForwardedForHeaders(observedAddr string, xForwardedForHeaders []strin
 
 	case 1:
 		// Reject multiple IPs.
-		if _, _, multipleIPs := strings.Cut(xForwardedForHeaders[0], ","); multipleIPs {
+		if strings.Contains(xForwardedForHeaders[0], ",") {
 			return nil, trace.BadParameter("expect a single IP from X-Forwarded-For but got %v", xForwardedForHeaders)
 		}
 
