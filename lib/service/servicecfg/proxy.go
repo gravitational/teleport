@@ -137,10 +137,10 @@ type ProxyConfig struct {
 	// TODO: This key will be moved to a plugin once support for plugins is implemented.
 	AssistAPIKey string
 
-	// UseXForwardedFor enables the service to take client source IPs from the
-	// "X-Forwarded-For" headers for web APIs recevied from layer 7 load
+	// TrustXForwardedFor enables the service to take client source IPs from
+	// the "X-Forwarded-For" headers for web APIs recevied from layer 7 load
 	// balancers or reverse proxies.
-	UseXForwardedFor bool
+	TrustXForwardedFor bool
 }
 
 // WebPublicAddr returns the address for the web endpoint on this proxy that

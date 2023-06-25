@@ -5689,7 +5689,7 @@ func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint
 }
 
 func makeXForwardedForMiddleware(cfg *servicecfg.Config) utils.HTTPMiddleware {
-	if cfg.Proxy.UseXForwardedFor {
+	if cfg.Proxy.TrustXForwardedFor {
 		return web.NewXForwardedForMiddleware
 	}
 	return nil
