@@ -162,7 +162,7 @@ require (
 	golang.org/x/term v0.9.0
 	golang.org/x/text v0.10.0
 	golang.org/x/time v0.3.0
-	google.golang.org/api v0.126.0
+	google.golang.org/api v0.128.0
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/grpc v1.56.0
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
@@ -281,7 +281,7 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.2.4 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
