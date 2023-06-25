@@ -39,7 +39,7 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/athena v1.30.2
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.100.1
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.1
-	github.com/aws/aws-sdk-go-v2/service/glue v1.50.0
+	github.com/aws/aws-sdk-go-v2/service/glue v1.51.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.33.1
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.13
