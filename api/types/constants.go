@@ -506,6 +506,9 @@ const (
 	// discovered databases.
 	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
 
+	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
+	ReqAnnotationSchedulesLabel = "/schedules"
+
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
 	// CloudAzure identifies that a resource was discovered in Azure.
