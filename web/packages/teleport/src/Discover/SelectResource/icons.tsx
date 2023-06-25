@@ -39,6 +39,7 @@ import snowflake from './assets/snowflake.png';
 import k8s from './assets/kubernetes.png';
 import server from './assets/server.png';
 import application from './assets/application.png';
+import grafana from './assets/grafana.png';
 
 export const icons = {
   Apple: <Icons.Apple fontSize={22} />,
@@ -51,6 +52,7 @@ export const icons = {
   Ec2: <Image src={ec2} width="23.9px" height="24px" />,
   Eks: <Image src={eks} width="23.9px" height="24px" />,
   Gcp: <Image src={gcp} width="23.9px" height="24px" />,
+  Grafana: <Image src={grafana} width="23.9px" height="24px" />,
   Jenkins: <Image src={jenkins} width="23.9px" height="24px" />,
   Linux: <Image src={linux} width="23.9px" height="24px" />,
   Kube: <Image src={k8s} width="23.9px" height="24px" />,

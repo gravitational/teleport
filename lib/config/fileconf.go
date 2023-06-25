@@ -1013,6 +1013,9 @@ type Auth struct {
 	// HostedPlugins configures the hosted plugins runtime.
 	// This is currently Cloud-specific.
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
+
+	// Assist is a set of options related to the Teleport Assist feature.
+	Assist *AssistOptions `yaml:"assist,omitempty"`
 }
 
 // PluginService represents the configuration for the plugin service.
@@ -1201,6 +1204,9 @@ type AuthenticationConfig struct {
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
+
+	// DefaultSessionTTL is the default cluster max session ttl
+	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1243,6 +1249,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowPasswordless: a.Passwordless,
 		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
+		DefaultSessionTTL: a.DefaultSessionTTL,
 	})
 }
 
@@ -1706,6 +1713,18 @@ type Databases struct {
 type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+	// AWS contains AWS specific settings.
+	AWS ResourceMatcherAWS `yaml:"aws"`
+}
+
+// ResourceMatcherAWS contains AWS specific settings for resource matcher.
+type ResourceMatcherAWS struct {
+	// AssumeRoleARN is the AWS role to assume to before accessing the
+	// database.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS
+	// role across accounts.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // AWSMatcher matches AWS EC2 instances and AWS Databases
@@ -2430,7 +2449,7 @@ type JamfService struct {
 	// ExitOnSync tells the service to exit immediately after the first sync.
 	ExitOnSync bool `yaml:"exit_on_sync,omitempty"`
 	// APIEndpoint is the Jamf Pro API endpoint.
-	// Example: "https://yourtenant.jamfcloud.com".
+	// Example: "https://yourtenant.jamfcloud.com/api".
 	APIEndpoint string `yaml:"api_endpoint,omitempty"`
 	// Username is the Jamf Pro API username.
 	Username string `yaml:"username,omitempty"`

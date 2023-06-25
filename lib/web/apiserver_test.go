@@ -59,6 +59,7 @@ import (
 	"github.com/pquerna/otp/totp"
 	"github.com/sashabaranov/go-openai"
 	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	commonv1 "go.opentelemetry.io/proto/otlp/common/v1"
 	resourcev1 "go.opentelemetry.io/proto/otlp/resource/v1"
@@ -120,6 +121,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -234,7 +236,7 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = s.server.Auth().UpsertAuthServer(&types.ServerV2{
+	err = s.server.Auth().UpsertAuthServer(ctx, &types.ServerV2{
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -1632,7 +1634,7 @@ func isResizeEventEnvelope(e *Envelope) bool {
 func TestTerminalPing(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(time.Second))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1666,7 +1668,7 @@ func TestTerminalPing(t *testing.T) {
 
 	select {
 	case <-done:
-	case <-time.After(time.Minute):
+	case <-time.After(6 * time.Second):
 		t.Fatal("timeout waiting for ping")
 	}
 }
@@ -2537,43 +2539,43 @@ func TestPingAutomaticUpgrades(t *testing.T) {
 
 // TestInstallerRepoChannel ensures the returned installer script has the proper repo channel
 func TestInstallerRepoChannel(t *testing.T) {
-	s := newWebSuiteWithConfig(t, webSuiteConfig{
-		authPreferenceSpec: &types.AuthPreferenceSpecV2{
-			Type:         constants.Local,
-			SecondFactor: constants.SecondFactorOn,
-			Webauthn:     &types.Webauthn{RPID: "localhost"},
-		},
-	})
+	t.Run("cloud with automatic upgrades", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{
+				Cloud:             true,
+				AutomaticUpgrades: true,
+			},
+		})
 
-	wc := s.client(t)
-	t.Run("documented variables are injected", func(t *testing.T) {
-		// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
-		err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+
+		wc := s.client(t)
+		t.Run("documented variables are injected", func(t *testing.T) {
+			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
 echo {{ .PublicProxyAddr }}
 echo Teleport-{{ .MajorVersion }}
 echo Repository Channel: {{ .RepoChannel }}
 echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 		`))
-		require.NoError(t, err)
+			require.NoError(t, err)
 
-		re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "custom"), url.Values{})
-		require.NoError(t, err)
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "custom"), url.Values{})
+			require.NoError(t, err)
 
-		responseString := string(re.Bytes())
+			responseString := string(re.Bytes())
 
-		// Variables must be injected
-		require.Contains(t, responseString, "echo Teleport-v")
-		require.Contains(t, responseString, "echo Repository Channel: stable/v")
-		require.NotContains(t, responseString, "echo Repository Channel: stable/cloud")
-		require.Contains(t, responseString, "echo AutomaticUpgrades: false")
-	})
-	t.Run("cloud with automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{
-			TestBuildType: modules.BuildEnterprise,
-			TestFeatures: modules.Features{
-				Cloud:             true,
-				AutomaticUpgrades: true,
-			},
+			// Variables must be injected
+			require.Contains(t, responseString, "echo Teleport-v")
+			require.NotContains(t, responseString, "echo Repository Channel: stable/v")
+			require.Contains(t, responseString, "echo Repository Channel: stable/cloud")
+			require.Contains(t, responseString, "echo AutomaticUpgrades: true")
 		})
 
 		t.Run("default-installer", func(t *testing.T) {
@@ -2593,6 +2595,7 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 				"  fi",
 			)
 		})
+
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
 			require.NoError(t, err)
@@ -2611,19 +2614,53 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 			)
 		})
 	})
-	t.Run("cloud without automatic upgrades", func(t *testing.T) {
-		modules.SetTestModules(t, &modules.TestModules{TestFeatures: modules.Features{
-			Cloud:             true,
-			AutomaticUpgrades: false,
-		}})
 
+	t.Run("cloud without automatic upgrades", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestFeatures: modules.Features{
+				Cloud:             true,
+				AutomaticUpgrades: false,
+			},
+		})
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+
+		wc := s.client(t)
+
+		t.Run("documented variables are injected", func(t *testing.T) {
+			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
+	echo {{ .PublicProxyAddr }}
+	echo Teleport-{{ .MajorVersion }}
+	echo Repository Channel: {{ .RepoChannel }}
+	echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
+			`))
+			require.NoError(t, err)
+
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "custom"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// Variables must be injected
+			require.Contains(t, responseString, "echo Teleport-v")
+			require.Contains(t, responseString, "echo Repository Channel: stable/v")
+			require.NotContains(t, responseString, "echo Repository Channel: stable/cloud")
+			require.Contains(t, responseString, "echo AutomaticUpgrades: false")
+		})
 		t.Run("default-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
 			require.NoError(t, err)
 
 			responseString := string(re.Bytes())
 
-			require.Contains(t, responseString, "stable/cloud")
+			require.NotContains(t, responseString, "stable/cloud")
 		})
 		t.Run("default-agentless-installer", func(t *testing.T) {
 			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
@@ -2631,7 +2668,82 @@ echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
 
 			responseString := string(re.Bytes())
 
-			require.Contains(t, responseString, "stable/cloud")
+			require.NotContains(t, responseString, "stable/cloud")
+		})
+	})
+
+	t.Run("oss or enterprise with automatic upgrades", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildOSS,
+			TestFeatures: modules.Features{
+				Cloud:             false,
+				AutomaticUpgrades: true,
+			},
+		})
+
+		s := newWebSuiteWithConfig(t, webSuiteConfig{
+			authPreferenceSpec: &types.AuthPreferenceSpecV2{
+				Type:         constants.Local,
+				SecondFactor: constants.SecondFactorOn,
+				Webauthn:     &types.Webauthn{RPID: "localhost"},
+			},
+		})
+
+		wc := s.client(t)
+		t.Run("documented variables are injected", func(t *testing.T) {
+			// Variables documented here: https://goteleport.com/docs/server-access/guides/ec2-discovery/#step-67-optional-customize-the-default-installer-script
+			err := s.server.Auth().SetInstaller(s.ctx, types.MustNewInstallerV1("custom", `#!/usr/bin/env bash
+echo {{ .PublicProxyAddr }}
+echo Teleport-{{ .MajorVersion }}
+echo Repository Channel: {{ .RepoChannel }}
+echo AutomaticUpgrades: {{ .AutomaticUpgrades }}
+		`))
+			require.NoError(t, err)
+
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "custom"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// Variables must be injected
+			require.Contains(t, responseString, "echo Teleport-v")
+			require.Contains(t, responseString, "echo Repository Channel: stable/v")
+			require.NotContains(t, responseString, "echo Repository Channel: stable/cloud")
+			require.Contains(t, responseString, "echo AutomaticUpgrades: false")
+		})
+		t.Run("default-installer", func(t *testing.T) {
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-installer"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// The repo's channel to use is stable/cloud
+			require.NotContains(t, responseString, "stable/cloud")
+			require.Contains(t, responseString, "stable/v")
+			require.Contains(t, responseString, ""+
+				"  PACKAGE_LIST=\"teleport jq\"\n"+
+				"  # shellcheck disable=SC2050\n"+
+				"  if [ \"false\" = \"true\" ]; then\n"+
+				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-updater\"\n"+
+				"  fi",
+			)
+		})
+		t.Run("default-agentless-installer", func(t *testing.T) {
+			re, err := wc.Get(s.ctx, wc.Endpoint("webapi", "scripts", "installer", "default-agentless-installer"), url.Values{})
+			require.NoError(t, err)
+
+			responseString := string(re.Bytes())
+
+			// The repo's channel to use is stable/cloud
+			require.NotContains(t, responseString, "stable/cloud")
+			require.Contains(t, responseString, "stable/v")
+			require.Contains(t, responseString, ""+
+				"  PACKAGE_LIST=\"jq teleport\"\n"+
+				"  # shellcheck disable=SC2050\n"+
+				"  if [[ \"false\" == \"true\" ]]; then\n"+
+				"    PACKAGE_LIST=\"${PACKAGE_LIST} teleport-updater\"\n"+
+				"  fi\n",
+			)
 		})
 	})
 }
@@ -4318,6 +4430,7 @@ func TestGetWebConfig(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	// Set auth preference with passwordless.
+	const MOTD = "Welcome to cluster, your activity will be recorded."
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:          constants.Local,
 		SecondFactor:  constants.SecondFactorOptional,
@@ -4325,6 +4438,7 @@ func TestGetWebConfig(t *testing.T) {
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
+		MessageOfTheDay: MOTD,
 	})
 	require.NoError(t, err)
 	err = env.server.Auth().SetAuthPreference(ctx, ap)
@@ -4358,6 +4472,7 @@ func TestGetWebConfig(t *testing.T) {
 			PreferredLocalMFA:  constants.SecondFactorWebauthn,
 			LocalConnectorName: constants.PasswordlessConnector,
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
+			MOTD:               MOTD,
 		},
 		CanJoinSessions:   true,
 		ProxyClusterName:  env.server.ClusterName(),
@@ -4863,7 +4978,7 @@ func TestCreateAppSession(t *testing.T) {
 	rawCookie := *pack.cookies[0]
 	cookieBytes, err := hex.DecodeString(rawCookie.Value)
 	require.NoError(t, err)
-	var sessionCookie SessionCookie
+	var sessionCookie websession.Cookie
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	require.NoError(t, err)
 
@@ -5028,7 +5143,7 @@ func TestCreateAppSessionHealthCheckAppServer(t *testing.T) {
 	rawCookie := *pack.cookies[0]
 	cookieBytes, err := hex.DecodeString(rawCookie.Value)
 	require.NoError(t, err)
-	var sessionCookie SessionCookie
+	var sessionCookie websession.Cookie
 	err = json.Unmarshal(cookieBytes, &sessionCookie)
 	require.NoError(t, err)
 
@@ -5834,6 +5949,16 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 	env := newWebPack(t, 1)
 	nodeName := env.node.GetInfo().GetHostname()
 
+	// Wait for node to show up
+	require.Eventually(t, func() bool {
+		_, err := env.server.Auth().GetNode(ctx, apidefaults.Namespace, nodeName)
+		if trace.IsNotFound(err) {
+			return false
+		}
+		assert.NoError(t, err, "GetNode returned an unexpected error")
+		return true
+	}, 5*time.Second, 250*time.Millisecond)
+
 	for _, tt := range []struct {
 		name            string
 		teleportUser    string
@@ -5980,9 +6105,6 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 				ResourceKind: types.KindNode,
 				ResourceName: tt.resourceName,
 				SSHPrincipal: tt.nodeUser,
-				// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
-				// A value too low (eg 1s) will introduce test flakiness on some systems.
-				DialTimeout: 5 * time.Second,
 			})
 			require.NoError(t, err)
 			require.Equal(t, http.StatusOK, resp.Code())
@@ -6052,9 +6174,7 @@ func TestDiagnoseSSHConnection(t *testing.T) {
 		ResourceKind: types.KindNode,
 		ResourceName: nodeName,
 		SSHPrincipal: osUsername,
-		// Default is 30 seconds but since tests run locally, we can reduce this value to also improve test responsiveness
-		DialTimeout: 5 * time.Second,
-		MFAResponse: client.MFAChallengeResponse{TOTPCode: totpCode},
+		MFAResponse:  client.MFAChallengeResponse{TOTPCode: totpCode},
 	})
 	require.NoError(t, err)
 	require.Equal(t, http.StatusOK, resp.Code())
@@ -7331,7 +7451,7 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
-	err = server.Auth().UpsertAuthServer(&types.ServerV2{
+	err = server.Auth().UpsertAuthServer(ctx, &types.ServerV2{
 		Kind:    types.KindAuthServer,
 		Version: types.V2,
 		Metadata: types.Metadata{
@@ -8955,7 +9075,7 @@ func TestModeratedSession(t *testing.T) {
 	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
 
 	ctx := context.Background()
-	s := newWebSuite(t)
+	s := newWebSuiteWithConfig(t, webSuiteConfig{disableDiskBasedRecording: true})
 
 	peerRole, err := types.NewRole("moderated", types.RoleSpecV6{
 		Allow: types.RoleConditions{
@@ -9033,6 +9153,7 @@ func TestModeratedSessionWithMFA(t *testing.T) {
 	const RPID = "localhost"
 
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		disableDiskBasedRecording: true,
 		authPreferenceSpec: &types.AuthPreferenceSpecV2{
 			Type:           constants.Local,
 			ConnectorName:  constants.PasswordlessConnector,

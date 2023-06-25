@@ -87,6 +87,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
+	websession "github.com/gravitational/teleport/lib/web/session"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -760,6 +761,7 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// AWS OIDC Integration Actions
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
+	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
@@ -1112,6 +1114,7 @@ func getAuthSettings(ctx context.Context, authClient auth.ClientI) (webclient.Au
 		return webclient.AuthenticationSettings{}, trace.Wrap(err)
 	}
 	as.LoadAllCAs = pingResp.LoadAllCAs
+	as.DefaultSessionTTL = authPreference.GetDefaultSessionTTL()
 
 	return as, nil
 }
@@ -1396,6 +1399,7 @@ func (h *Handler) getWebConfig(w http.ResponseWriter, r *http.Request, p httprou
 			PreferredLocalMFA:  cap.GetPreferredLocalMFA(),
 			LocalConnectorName: localConnectorName,
 			PrivateKeyPolicy:   cap.GetPrivateKeyPolicy(),
+			MOTD:               cap.GetMessageOfTheDay(),
 		}
 	}
 
@@ -1697,20 +1701,20 @@ func (h *Handler) installer(w http.ResponseWriter, r *http.Request, p httprouter
 	// By default, it uses the stable/v<majorVersion> channel.
 	repoChannel := fmt.Sprintf("stable/%s", version)
 
-	// For Teleport Cloud installations, use the `stable/cloud` channel.
-	if feats.Cloud {
+	// If the updater must be installed, then change the repo to stable/cloud
+	// It must also install the version specified in
+	// https://updates.releases.teleport.dev/v1/stable/cloud/version
+	installUpdater := automaticUpgrades(h.ClusterFeatures)
+	if installUpdater {
 		repoChannel = stableCloudChannelRepo
 	}
-
-	// TODO(marco): remove BuildType check when teleport-upgrade (oss) package is available in apt/yum repos.
-	automaticUpgrades := feats.AutomaticUpgrades && modules.GetModules().BuildType() == modules.BuildEnterprise
 
 	tmpl := installers.Template{
 		PublicProxyAddr:   h.PublicProxyAddr(),
 		MajorVersion:      version,
 		TeleportPackage:   teleportPackage,
 		RepoChannel:       repoChannel,
-		AutomaticUpgrades: strconv.FormatBool(automaticUpgrades),
+		AutomaticUpgrades: strconv.FormatBool(installUpdater),
 	}
 	err = instTmpl.Execute(w, tmpl)
 	return nil, trace.Wrap(err)
@@ -1952,7 +1956,7 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 		return nil, trace.Wrap(err)
 	}
 
-	if err := SetSessionCookie(w, req.User, webSession.GetName()); err != nil {
+	if err := websession.SetCookie(w, req.User, webSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -1998,7 +2002,7 @@ func (h *Handler) logout(ctx context.Context, w http.ResponseWriter, sctx *Sessi
 	if err := sctx.Invalidate(ctx); err != nil {
 		return trace.Wrap(err)
 	}
-	ClearSession(w)
+	websession.ClearCookie(w)
 
 	return nil
 }
@@ -2038,7 +2042,7 @@ func (h *Handler) renewWebSession(w http.ResponseWriter, r *http.Request, params
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if err := SetSessionCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
+	if err := websession.SetCookie(w, newSession.GetUser(), newSession.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2125,7 +2129,7 @@ func (h *Handler) changeUserAuthentication(w http.ResponseWriter, r *http.Reques
 		h.log.WithError(err).Error("Failed to set passwordless as connector name.")
 	}
 
-	if err := SetSessionCookie(w, sess.GetUser(), sess.GetName()); err != nil {
+	if err := websession.SetCookie(w, sess.GetUser(), sess.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2346,7 +2350,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 	// Fetch user from session, user is empty for passwordless requests.
 	user := session.GetUser()
-	if err := SetSessionCookie(w, user, session.GetName()); err != nil {
+	if err := websession.SetCookie(w, user, session.GetName()); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -2691,16 +2695,23 @@ func (h *Handler) siteNodeConnect(
 	h.log.Debugf("New terminal request for server=%s, login=%s, sid=%s, websid=%s.",
 		req.Server, req.Login, sessionData.ID, sessionCtx.GetSessionID())
 
-	authAccessPoint, err := site.CachingAccessPoint()
-	if err != nil {
-		h.log.WithError(err).Debug("Unable to get auth access point.")
-		return nil, trace.Wrap(err)
-	}
+	keepAliveInterval := req.KeepAliveInterval
+	// Try to use the keep alive interval from the request.
+	// When it's not set or below a second, use the cluster's keep alive interval.
+	if keepAliveInterval < time.Second {
+		authAccessPoint, err := site.CachingAccessPoint()
+		if err != nil {
+			h.log.Debugf("Unable to get auth access point: %v", err)
+			return nil, trace.Wrap(err)
+		}
 
-	netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
-		return nil, trace.Wrap(err)
+		netConfig, err := authAccessPoint.GetClusterNetworkingConfig(ctx)
+		if err != nil {
+			h.log.WithError(err).Debug("Unable to fetch cluster networking config.")
+			return nil, trace.Wrap(err)
+		}
+
+		keepAliveInterval = netConfig.GetKeepAliveInterval()
 	}
 
 	terminalConfig := TerminalHandlerConfig{
@@ -2710,7 +2721,7 @@ func (h *Handler) siteNodeConnect(
 		LocalAuthProvider:  h.auth.accessPoint,
 		DisplayLogin:       displayLogin,
 		SessionData:        sessionData,
-		KeepAliveInterval:  netConfig.GetKeepAliveInterval(),
+		KeepAliveInterval:  keepAliveInterval,
 		ProxyHostPort:      h.ProxyHostPort(),
 		ProxyPublicAddr:    h.PublicProxyAddr(),
 		InteractiveCommand: req.InteractiveCommand,
@@ -3810,17 +3821,17 @@ func rateLimitRequest(r *http.Request, limiter *limiter.RateLimiter) error {
 // and bearer token
 func (h *Handler) AuthenticateRequest(w http.ResponseWriter, r *http.Request, checkBearerToken bool) (*SessionContext, error) {
 	const missingCookieMsg = "missing session cookie"
-	cookie, err := r.Cookie(CookieName)
+	cookie, err := r.Cookie(websession.CookieName)
 	if err != nil || (cookie != nil && cookie.Value == "") {
 		return nil, trace.AccessDenied(missingCookieMsg)
 	}
-	decodedCookie, err := DecodeCookie(cookie.Value)
+	decodedCookie, err := websession.DecodeCookie(cookie.Value)
 	if err != nil {
 		return nil, trace.AccessDenied("failed to decode cookie")
 	}
 	ctx, err := h.auth.getOrCreateSession(r.Context(), decodedCookie.User, decodedCookie.SID)
 	if err != nil {
-		ClearSession(w)
+		websession.ClearCookie(w)
 		return nil, trace.AccessDenied("need auth")
 	}
 	if checkBearerToken {
@@ -4015,7 +4026,7 @@ func SSOSetWebSessionAndRedirectURL(w http.ResponseWriter, r *http.Request, resp
 		}
 	}
 
-	if err := SetSessionCookie(w, response.Username, response.SessionName); err != nil {
+	if err := websession.SetCookie(w, response.Username, response.SessionName); err != nil {
 		return trace.Wrap(err)
 	}
 

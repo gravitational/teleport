@@ -268,7 +268,7 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := assist.NewAssist(r.Context(), h.cfg.ProxyClient,
+	client, err := assist.NewClient(r.Context(), h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -375,9 +375,10 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		closureReason := websocket.CloseNormalClosure
 		closureMsg := ""
 		if err != nil {
+			h.log.WithError(err).Error("Error in the Assistant loop")
 			_ = ws.WriteJSON(&assistantMessage{
 				Type:        assist.MessageKindError,
-				Payload:     err.Error(),
+				Payload:     "An error has occurred. Please try again later.",
 				CreatedTime: h.clock.Now().UTC().Format(time.RFC3339),
 			})
 			// Set server error code and message: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
@@ -409,7 +410,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	go startPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
 
-	assistClient, err := assist.NewAssist(ctx, h.cfg.ProxyClient,
+	assistClient, err := assist.NewClient(ctx, h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
 		return trace.Wrap(err)

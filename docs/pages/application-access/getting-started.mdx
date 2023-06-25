@@ -26,7 +26,9 @@ Let's connect to Grafana using Teleport in three steps:
 
 <Tabs>
 <TabItem label="Docker">
-- A Docker installation, which we will use to launch Grafana in a container. Alternatively, if you have another web application you'd like to protect with Teleport, you can use that instead.
+- A Docker installation, which we will use to launch Grafana in a container.
+  Alternatively, if you have another web application you'd like to protect with
+  Teleport, you can use that instead.
 </TabItem>
 <TabItem label="Kubernetes Cluster">
 
@@ -39,7 +41,9 @@ Let's connect to Grafana using Teleport in three steps:
 
 <Admonition type="tip" title="Not yet a Teleport user?">
 {/*lint ignore messaging*/}
-If you have not yet deployed the Auth Service and Proxy Service, you should follow one of our [getting started guides](../get-started.mdx) or try our Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon). 
+If you have not yet deployed the Auth Service and Proxy Service, you should
+follow one of our [getting started guides](../get-started.mdx) or try our
+Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon).
 </Admonition>
 
 <Admonition type="note" title="Application Access and DNS for Self-Hosted Clusters">
@@ -50,7 +54,7 @@ Teleport Cloud will automatically provide a subdomain and signed TLS certificate
 for your application under your tenant address.
 </Admonition>
 
-## 1/4 Generate a token
+## Step 1/4. Generate a token
 
 A join token is required to authorize a Teleport Application Service instance to
 join the cluster. Generate a short-lived join token and save it, for example,
@@ -78,9 +82,20 @@ Grafana can be launched in a Docker container with a single command:
 $ docker run -d -p 3000:3000 grafana/grafana
 ```
 
-## Step 3/4. Install and configure Teleport
-(!docs/pages/includes/permission-warning.mdx!)
+Next, we need to edit `/etc/grafana/grafana.ini` in the container. Under
+`[server]`, uncomment the `domain` key and set the value to your Teleport
+cluster domain, (e.g., `teleport.example.com`). Since there is no text editor
+installed in the container, we can do this with `sed`:
 
+```code
+$ docker exec -u 0 grafana sed -i 's/;domain = localhost/domain = teleport.example.com/g' /etc/grafana/grafana.ini
+```
+
+Replace `teleport.example.com` with your Teleport cluster domain.
+
+## Step 3/4. Install and configure Teleport
+
+(!docs/pages/includes/permission-warning.mdx!)
 
 ### Configure and Start Teleport
 
@@ -88,8 +103,9 @@ Install Teleport on the host where you will run the Teleport Application Service
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Create the Teleport Application Service configuration at `/etc/teleport.yaml`. Replace <Var name="teleport.example.com" /> with
-your Teleport Proxy Service address (`teleport.example.com`) or Teleport Cloud tenant (e.g. `mytenant.teleport.sh`).
+Create the Teleport Application Service configuration at `/etc/teleport.yaml`.
+Replace <Var name="teleport.example.com" /> with your Teleport Proxy Service
+address (`teleport.example.com`) or Teleport Cloud tenant (e.g. `mytenant.teleport.sh`).
 
 ```code
 $ sudo teleport configure \
@@ -101,9 +117,11 @@ $ sudo teleport configure \
   --app-uri=http://localhost:3000
 ```
   
-Make sure to update `--app-name` and `--app-uri` accordingly if you're using your own web application.
+Make sure to update `--app-name` and `--app-uri` accordingly if you're using your
+own web application.
 
-The `--token` flag points to the file on the Application Service host where we stored the token that we generated earlier.
+The `--token` flag points to the file on the Application Service host where we
+stored the token that we generated earlier.
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
 
@@ -150,6 +168,7 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
   --set "labels.env=dev" \
   --version (=teleport.version=)
 ```
+
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 Install the Teleport Kubernetes Service into your Kubernetes Cluster
@@ -171,35 +190,40 @@ $ helm install teleport-kube-agent teleport/teleport-kube-agent \
 ```
 </ScopedBlock>
 
-Make sure to update `apps[0].name` and `apps[0].uri` accordingly if you're using your own web application.
+Make sure to update `apps[0].name` and `apps[0].uri` accordingly if you're using
+your own web application.
 
 </TabItem>
 </Tabs>
 
 ### Create a user
 
-Next, let's create a user to access the application we've just connected. Teleport has a built-in role called `access` that allows users to access cluster resources. Create a local user assigned this role:
+Next, let's create a user to access the application we've just connected.
+Teleport has a built-in role called `access` that allows users to access
+cluster resources. Create a local user assigned this role:
 
 ```code
 $ tctl users add --roles=access alice
 ```
 
-The command will output a signup link. Use it to choose a password and set up a second factor. After that, it will take you to the Teleport Web UI.
+The command will output a signup link. Use it to choose a password and set up a
+second factor. After that, it will take you to the Teleport Web UI.
 
 ## Step 4/4. Access the application
 
 There are a couple of ways to access the proxied application.
 
-Log in to the Teleport Web UI at your Proxy Service address. All available applications are displayed on the Applications tab.
-Click Launch on the Grafana application tile to access it.
+Log in to the Teleport Web UI at your Proxy Service address. All available
+applications are displayed on the Applications tab. Click Launch on the Grafana
+application tile to access it.
 
-Alternatively call the application directly with its name as the sub-domain, e.g. `https://grafana.teleport.example.com`. 
-or `https://grafana.mytenant.teleport.sh` for a Teleport Cloud tenant. You will need to log in
-if you weren't already authenticated.
+Alternatively call the application directly with its name as the sub-domain,
+e.g. `https://grafana.teleport.example.com` or `https://grafana.mytenant.teleport.sh`
+for a Teleport Cloud tenant. You will need to log in if you weren't already authenticated.
 
 ## Next steps
 
-Dive deeper into the topics relevant to your Application Access use-case:
+Dive deeper into protecting applications with Teleport:
 
 - Learn in more detail about [connecting applications](./guides/connecting-apps.mdx).
 - Learn about integrating with [JWT tokens](./jwt/introduction.mdx) for auth.

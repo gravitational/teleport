@@ -6,7 +6,7 @@
       "resolved": "github:NixOS/nixpkgs/d3248619647234b5dc74a6921bcdf6dd8323eb22#addlicense",
       "version": "1.0.0"
     },
-    "bash": {
+    "bash@latest": {
       "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#bash"
     },
     "bats@1.3.0": {
@@ -24,7 +24,7 @@
       "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#gci",
       "version": "0.9.1"
     },
-    "git": {
+    "git@latest": {
       "resolved": "github:NixOS/nixpkgs/f91ee3065de91a3531329a674a45ddcb3467a650#git"
     },
     "libfido2@1.13.0": {
@@ -67,6 +67,11 @@
       "last_modified": "2023-02-28T22:11:13Z",
       "resolved": "github:NixOS/nixpkgs/995edc972ad3a1e291ac22d74b9610821357175f#yamllint",
       "version": "1.28.0"
+    },
+    "zlib@1.2.13": {
+      "last_modified": "2023-05-01T16:53:22Z",
+      "resolved": "github:NixOS/nixpkgs/8670e496ffd093b60e74e7fa53526aa5920d09eb#zlib",
+      "version": "1.2.13"
     }
   }
 }

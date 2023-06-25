@@ -173,6 +173,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 			OsBuild:           p.OsBuild,
 			OsUsernames:       p.OsUsernames,
 			JamfBinaryVersion: p.JamfBinaryVersion,
+			ExternalId:        p.ExternalId,
 		}
 	}
 
@@ -258,6 +259,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			OsBuild:           p.OsBuild,
 			OsUsernames:       p.OsUsernames,
 			JamfBinaryVersion: p.JamfBinaryVersion,
+			ExternalId:        p.ExternalId,
 		}
 	}
 
@@ -431,7 +433,8 @@ func ResourceDeviceAttestationTypeToString(
 ) string {
 	switch attestationType {
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED:
-		return "unspecified"
+		// Default to empty, so it doesn't show in non-TPM devices.
+		return ""
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB:
 		return "tpm_ekpub"
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT:

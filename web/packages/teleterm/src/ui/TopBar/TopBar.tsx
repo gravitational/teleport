@@ -24,12 +24,14 @@ import { Connections } from './Connections';
 import { Clusters } from './Clusters';
 import { Identity } from './Identity';
 import { AdditionalActions } from './AdditionalActions';
+import { ConnectMyComputer } from './ConnectMyComputer';
 
 export function TopBar() {
   return (
     <Grid>
       <JustifyLeft>
         <Connections />
+        <ConnectMyComputer />
       </JustifyLeft>
       <CentralContainer>
         <Clusters />
@@ -49,7 +51,6 @@ const Grid = styled(Flex).attrs({ gap: 3, py: 2, px: 3 })`
   height: 56px;
   align-items: center;
   justify-content: space-between;
-  z-index: 2; // minimally higher z-index than the one defined in StyledTabs, so that its drop-shadow doesn't cover the TopBar
 `;
 
 const CentralContainer = styled(Flex).attrs({ gap: 3 })`
@@ -60,9 +61,7 @@ const CentralContainer = styled(Flex).attrs({ gap: 3 })`
   max-width: calc(${props => props.theme.space[10]}px * 9);
 `;
 
-const JustifyLeft = styled.div`
-  display: flex;
-  justify-self: start;
+const JustifyLeft = styled(Flex).attrs({ gap: 3 })`
   align-items: center;
   height: 100%;
 `;

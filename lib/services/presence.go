@@ -36,6 +36,12 @@ type NodesGetter interface {
 	GetNodes(ctx context.Context, namespace string) ([]types.Server, error)
 }
 
+// NodesStreamGetter is a service that gets nodes.
+type NodesStreamGetter interface {
+	// GetNodeStream returns a list of registered servers.
+	GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server]
+}
+
 // Presence records and reports the presence of all components
 // of the cluster - Nodes, Proxies and SSH nodes
 type Presence interface {
@@ -52,6 +58,9 @@ type Presence interface {
 	// NodesGetter gets nodes
 	NodesGetter
 
+	// NodesStreamGetter gets nodes as a stream
+	NodesStreamGetter
+
 	// DeleteAllNodes deletes all nodes in a namespace.
 	DeleteAllNodes(ctx context.Context, namespace string) error
 
@@ -67,7 +76,7 @@ type Presence interface {
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertAuthServer(server types.Server) error
+	UpsertAuthServer(ctx context.Context, server types.Server) error
 
 	// DeleteAuthServer deletes auth server by name
 	DeleteAuthServer(name string) error

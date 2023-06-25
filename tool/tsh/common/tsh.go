@@ -452,6 +452,10 @@ type CLIConf struct {
 	// HeadlessAuthenticationID is the ID of a headless authentication.
 	HeadlessAuthenticationID string
 
+	// headlessSkipConfirm determines whether to provide a y/N
+	// confirmation prompt before prompting for MFA.
+	headlessSkipConfirm bool
+
 	// DTAuthnRunCeremony allows tests to override the default device
 	// authentication function.
 	// Defaults to [dtauthn.NewCeremony().Run].
@@ -525,13 +529,14 @@ func Main() {
 }
 
 const (
-	authEnvVar        = "TELEPORT_AUTH"
-	clusterEnvVar     = "TELEPORT_CLUSTER"
-	kubeClusterEnvVar = "TELEPORT_KUBE_CLUSTER"
-	loginEnvVar       = "TELEPORT_LOGIN"
-	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
-	proxyEnvVar       = "TELEPORT_PROXY"
-	headlessEnvVar    = "TELEPORT_HEADLESS"
+	authEnvVar                = "TELEPORT_AUTH"
+	clusterEnvVar             = "TELEPORT_CLUSTER"
+	kubeClusterEnvVar         = "TELEPORT_KUBE_CLUSTER"
+	loginEnvVar               = "TELEPORT_LOGIN"
+	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
+	proxyEnvVar               = "TELEPORT_PROXY"
+	headlessEnvVar            = "TELEPORT_HEADLESS"
+	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar               = "TELEPORT_SITE"
@@ -887,7 +892,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	logout := app.Command("logout", "Delete a cluster certificate.")
 
 	// bench
-	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node.").Hidden()
+	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
@@ -896,14 +901,21 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 
-	benchSSH := bench.Command("ssh", "Run SSH benchmark test").Hidden()
+	benchSSH := bench.Command("ssh", "Run SSH benchmark tests").Hidden()
 	benchSSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	benchSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
-	benchSSH.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	benchSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+
+	benchWeb := bench.Command("web", "Run Web benchmark tests").Hidden()
+	benchWebSSH := benchWeb.Command("ssh", "Run SSH benchmark tests").Hidden()
+	benchWebSSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	benchWebSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	benchWebSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
+	benchWebSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+
 	var benchKubeOpts benchKubeOptions
-	benchKube := bench.Command("kube", "Run Kube benchmark test").Hidden()
+	benchKube := bench.Command("kube", "Run Kube benchmark tests").Hidden()
 	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
 	benchListKube := benchKube.Command("ls", "Run a benchmark test to list Pods").Hidden()
 	benchListKube.Arg("kube_cluster", "Kubernetes cluster to use").Required().StringVar(&cf.KubernetesCluster)
@@ -975,8 +987,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Headless login approval
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
-	approve := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
-	approve.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
+	headlessApprove.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -1182,6 +1195,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 				Random:  cf.BenchRandom,
 			},
 		)
+	case benchWebSSH.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.WebSSHBenchmark{
+				Command:  cf.RemoteCommand,
+				Random:   cf.BenchRandom,
+				Duration: cf.BenchDuration,
+			},
+		)
 	case benchListKube.FullCommand():
 		err = onBenchmark(
 			&cf,
@@ -1328,10 +1350,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = deviceCmd.collect.run(&cf)
 	case deviceCmd.keyget.FullCommand():
 		err = deviceCmd.keyget.run(&cf)
+	case deviceCmd.activateCredential.FullCommand():
+		err = deviceCmd.activateCredential.run(&cf)
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])
-	case approve.FullCommand():
+	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
 	default:
 		// Handle commands that might not be available.
@@ -1437,7 +1461,7 @@ func onVersion(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		utils.PrintVersion()
+		modules.GetModules().PrintVersion()
 		if proxyVersion != "" {
 			fmt.Printf("Proxy version: %s\n", proxyVersion)
 			fmt.Printf("Proxy: %s\n", proxyPublicAddr)
@@ -2260,7 +2284,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(listings) == 0 {
-		if _, err := fmt.Fprintln(cf.Stderr(), missingPrincipalsFooter); err != nil {
+		if _, err := fmt.Fprintln(cf.Stderr(), emptyNodesFooter); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2458,7 +2482,7 @@ func printNodes(nodes []types.Server, conf *CLIConf) error {
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(nodes) == 0 {
-		if _, err := fmt.Fprintln(conf.Stderr(), missingPrincipalsFooter); err != nil {
+		if _, err := fmt.Fprintln(conf.Stderr(), emptyNodesFooter); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3331,11 +3355,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		return nil, trace.Wrap(err)
 	}
 
-	// apply defaults
-	if cf.MinsToLive == 0 {
-		cf.MinsToLive = int32(apidefaults.CertDuration / time.Minute)
-	}
-
 	// split login & host
 	hostLogin := cf.NodeLogin
 	hostUser := cf.UserHost
@@ -3586,6 +3605,14 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 
 	// avoid adding keys to agent when using an identity file.
 	if (cf.IdentityFileOut != "" || cf.IdentityFileIn != "") && c.AddKeysToAgent == client.AddKeysToAgentAuto {
+		c.AddKeysToAgent = client.AddKeysToAgentNo
+	}
+
+	// headless login produces short-lived MFA-verifed certs, which should never be added to the agent.
+	if cf.AuthConnector == constants.HeadlessConnector {
+		if cf.AddKeysToAgent == client.AddKeysToAgentYes || cf.AddKeysToAgent == client.AddKeysToAgentOnly {
+			log.Info("Skipping adding keys to agent for headless login")
+		}
 		c.AddKeysToAgent = client.AddKeysToAgentNo
 	}
 
@@ -4634,7 +4661,7 @@ func setEnvFlags(cf *CLIConf, getEnv envGetter) {
 	// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
 	if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
 		if cf.Proxy == "" {
-			cf.Proxy = getEnv(teleport.SSHSessionWebproxyAddr)
+			cf.Proxy = getEnv(teleport.SSHSessionWebProxyAddr)
 		}
 		if cf.Username == "" {
 			cf.Username = getEnv(teleport.SSHTeleportUser)
@@ -4826,7 +4853,7 @@ func onHeadlessApprove(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID)
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
 }
