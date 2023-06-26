@@ -2275,6 +2275,81 @@ func TestSSHHeadless(t *testing.T) {
 	}
 }
 
+func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	agentKeyring, _ := createAgent(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	user, err := user.Current()
+	require.NoError(t, err)
+
+	// Headless ssh should pass session mfa requirements
+	nodeAccess, err := types.NewRole("node-access", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"node-access"})
+
+	sshHostname := "test-ssh-host"
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(nodeAccess, alice), withConfig(func(cfg *servicecfg.Config) {
+		cfg.Hostname = sshHostname
+		cfg.SSH.Enabled = true
+		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	}))
+
+	proxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
+			},
+		},
+	}))
+
+	go func() {
+		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {
+			assert.ErrorIs(t, err, context.Canceled, "unexpected error from approveAllAccessRequests")
+		}
+		// Cancel the context, so Run calls don't block
+		cancel()
+	}()
+
+	err = Run(ctx, []string{
+		"ssh",
+		"-d",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--headless",
+		"--user", "alice",
+		"--add-keys-to-agent=yes",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, cliOption(func(cf *CLIConf) error {
+		cf.mockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	keys, err := agentKeyring.List()
+	require.NoError(t, err)
+	require.Empty(t, keys)
+}
+
 func TestFormatConnectCommand(t *testing.T) {
 	t.Parallel()
 
