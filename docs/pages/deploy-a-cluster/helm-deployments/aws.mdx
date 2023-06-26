@@ -18,7 +18,7 @@ cluster to Teleport.
 
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-prereqs.mdx!)
 
-## Choose a Kubernetes namespace and Helm release name
+### Choose a Kubernetes namespace and Helm release name
 
 <Admonition type="note">
   Before starting, setting your Kubernetes namespace and Helm release name here will
@@ -89,13 +89,17 @@ installation and setup of the AWS Load Balancer controller.
 
 You should be aware of these potential limitations when using Layer 7 load balancers with Teleport:
 
-- Connecting to Kubernetes clusters or databases at the command line via `tsh` requires the use
-  of the `tsh proxy kube` and `tsh proxy db` commands respectively. It is not possible to connect `kubectl`
-  directly to the Teleport Kubernetes listener in this mode.
-- The use of `tsh` v13 or higher is required.
+- Connecting to Kubernetes clusters at the command line requires the use of the `tsh proxy kube` or
+  `tsh kubectl` commands and `tsh proxy db`/`tsh db connect` commands respectively. It is not
+  possible to connect `kubectl` directly to Teleport listeners without the use of `tsh` as a proxy client
+  in this mode.
+- Connecting to databases at the command line requires the use of the `tsh proxy db` or `tsh db connect`
+  commands. It is not possible to connect database clients directly to Teleport listeners without the use of `tsh`
+  as a proxy client in this mode.
+- The use of Teleport and `tsh` v13 or higher is required.
 
 <Admonition type="warning">
-  This method requires that your cluster has a fully functional installation of the AWS Load Balancer
+  Using ACM with an ALB also requires that your cluster has a fully functional installation of the AWS Load Balancer
   controller with required IAM permissions. This guide provides more details below.
 </Admonition>
 
@@ -219,7 +223,7 @@ to provision your Teleport instances with TLS credentials.
   or already have a working installation of the AWS LB controller before continuing with these instructions. Failure to do this will result in an unusable Teleport cluster.
 </Admonition>
 
-To use ACM to handle TLS, add annotations to the chart values in the section below specifying
+To use ACM to handle TLS, we will add annotations to the chart values in the section below specifying
 the ACM certificate ARN to use, the port it should be served on and other ALB configuration
 parameters.
 
@@ -238,7 +242,7 @@ Use the following command to create your secret:
 $ kubectl -n <Var name="namespace" /> create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
 ```
 
-Edit your `aws-values.yaml` file to refer to the name of your secret:
+Edit your `aws-values.yaml` file (created below) to refer to the name of your secret:
 
 ```yaml
   tls:
