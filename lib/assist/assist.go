@@ -117,9 +117,10 @@ type Chat struct {
 
 // NewChat creates a new Assist chat.
 func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
-	conversationID string, username string,
+	embeddingServiceClient assist.AssistEmbeddingServiceClient,
+	conversationID, username string,
 ) (*Chat, error) {
-	aichat := a.client.NewChat(authClient.EmbeddingClient(), username)
+	aichat := a.client.NewChat(embeddingServiceClient, username)
 
 	chat := &Chat{
 		assist:                  a,

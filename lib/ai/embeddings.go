@@ -89,14 +89,11 @@ func EmbeddingHashMatches(embedding *Embedding, hash Sha256Hash) bool {
 // CSV as it provided better results.
 func SerializeNode(node types.Server) ([]byte, error) {
 	a := struct {
-		ID      string            `yaml:"id"`
 		Name    string            `yaml:"name"`
 		Kind    string            `yaml:"kind"`
 		SubKind string            `yaml:"subkind"`
 		Labels  map[string]string `yaml:"labels"`
 	}{
-		// Name is the resource UUID.
-		ID: node.GetName(),
 		// Create artificial Name file for the node "name". Using node.GetName() as Name seems to confuse the model.
 		Name:    node.GetHostname(),
 		Kind:    types.KindNode,
