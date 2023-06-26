@@ -205,6 +205,10 @@ const (
 	// ComponentWeb is a web server
 	ComponentWeb = "web"
 
+	// ComponentUnifiedResource is a cache of resources meant to be listed and displayed
+	// together in the web UI
+	ComponentUnifiedResource = "unified_resource"
+
 	// ComponentWebsocket is websocket server that the web client connects to.
 	ComponentWebsocket = "websocket"
 
