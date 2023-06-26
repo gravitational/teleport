@@ -286,6 +286,9 @@ func onPuttyConfig(cf *CLIConf) error {
 		}
 		return nil
 	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	// iterate over all the CAs
 	hostCAPublicKeys := make(map[string][]string)
 	for _, ca := range cas {
@@ -308,7 +311,9 @@ func onPuttyConfig(cf *CLIConf) error {
 				if err != nil {
 					return trace.Wrap(err)
 				}
-				hostCAPublicKeys[ca.GetName()] = append(hostCAPublicKeys[ca.GetName()], strings.TrimPrefix(strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostCABytes))), constants.SSHRSAType+" "))
+
+				hostCAPublicKey := strings.TrimPrefix(strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostCABytes))), constants.SSHRSAType+" ")
+				hostCAPublicKeys[ca.GetName()] = append(hostCAPublicKeys[ca.GetName()], hostCAPublicKey)
 			}
 		}
 	}
