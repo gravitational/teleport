@@ -1696,6 +1696,25 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetLockWatcher(lockWatcher)
 
+	unifiedResourceWatcher, err := services.NewUnifiedResourceWatcher(process.ExitContext(), services.UnifiedResourceWatcherConfig{
+		ResourceWatcherConfig: services.ResourceWatcherConfig{
+			Component:    teleport.ComponentUnifiedResource,
+			Log:          process.log.WithField(trace.Component, teleport.ComponentUnifiedResource),
+			Client:       authServer,
+			MaxStaleness: time.Minute,
+		},
+		NodesGetter:             authServer,
+		DatabaseServersGetter:   authServer,
+		AppServersGetter:        authServer,
+		WindowsDesktopGetter:    authServer,
+		KubernetesClusterGetter: authServer,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	authServer.SetUnifiedResourceWatcher(unifiedResourceWatcher)
+
 	if cfg.Auth.AssistAPIKey != "" {
 		log.Debugf("Starting embedding watcher")
 		openAIClient := ai.NewClient(cfg.Auth.AssistAPIKey)
