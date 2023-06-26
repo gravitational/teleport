@@ -21,6 +21,7 @@ import (
 	"strings"
 
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 
 	"github.com/gravitational/teleport/api/types"
 )
@@ -78,4 +79,17 @@ func (d awsTags) MatchesECSTags(resourceTags []ecsTypes.Tag) bool {
 	}
 
 	return true
+}
+
+// ForIAM returns the default tags using the expected type for IAM resources: [iamTypes.Tag]
+func (d awsTags) ForIAM() []iamTypes.Tag {
+	iamTags := make([]iamTypes.Tag, 0, len(d))
+	for k, v := range d {
+		k, v := k, v
+		iamTags = append(iamTags, iamTypes.Tag{
+			Key:   &k,
+			Value: &v,
+		})
+	}
+	return iamTags
 }

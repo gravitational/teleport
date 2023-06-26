@@ -296,84 +296,9 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (D
 // You can also use the role received as parameter (req.TaskRoleARN) to have an even stricter matching.
 // Eg of the identity ARN: "arn:aws:sts::0123456789012:assumed-role/<req.TaskRoleARN>/<abcd>"
 //
-// # Pre-requirement: TaskRole creation
-//
-// The req.TaskRoleARN Role must have permissions according to the Teleport Services being deployed.
-// Example for a DatabaseService:
-//
-//	{
-//	    "Version": "2012-10-17",
-//	    "Statement": [
-//	        {
-//	            "Effect": "Allow",
-//	            "Action": [
-//	                "iam:DeleteRolePolicy",
-//	                "iam:PutRolePolicy",
-//	                "iam:GetRolePolicy"
-//	            ],
-//	            "Resource": "arn:aws:iam::123456789012:role/<req.TaskRoleARN>"
-//	        },
-//	        {
-//	            "Effect": "Allow",
-//	            "Action": [
-//	                "rds:DescribeDBInstances",
-//	                "rds:ModifyDBInstance"
-//	            ],
-//	            "Resource": "*"
-//	        },
-//	        {
-//	            "Effect": "Allow",
-//	            "Action": "logs:*",
-//	            "Resource": "*"
-//	        }
-//	    ]
-//	}
-//
-// And the following Trust Policy
-//
-//	{
-//	    "Version": "2012-10-17",
-//	    "Statement": [
-//	        {
-//	            "Effect": "Allow",
-//	            "Principal": {
-//	                "Service": "ecs-tasks.amazonaws.com"
-//	            },
-//	            "Action": "sts:AssumeRole"
-//	        }
-//	    ]
-//	}
-//
-// # Pre-requirement: AWS OIDC Integration Role
-//
-// To deploy those services the AWS OIDC Integration Role requires the following policy:
-//
-//	{
-//	    "Version": "2012-10-17",
-//	    "Statement": [
-//	        {
-//	            "Effect": "Allow",
-//	            "Action": [
-//	                "ecs:CreateCluster",
-//	                "ecs:PutClusterCapacityProviders",
-//	                "ecs:DescribeClusters",
-//	                "ecs:RegisterTaskDefinition",
-//	                "ecs:CreateService",
-//	                "ecs:DescribeServices",
-//	                "ecs:UpdateService"
-//	            ],
-//	            "Resource": "*"
-//	        },
-//	        {
-//	            "Effect": "Allow",
-//	            "Action": [
-//	                "iam:PassRole"
-//	            ],
-//	            "Resource": "arn:aws:iam::123456789012:role/<req.TaskRoleARN>"
-//	        }
-//	    ]
-//	}
-//
+// # Pre-requirement: TaskRole and Integration Role
+// The required IAM Roles and Policies are described in [awsoidc.ConfigureDeployServiceIAM].
+
 // # Resource tagging
 //
 // Created resources have the following set of tags:
