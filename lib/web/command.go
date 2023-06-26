@@ -284,22 +284,9 @@ func (h *Handler) executeCommand(
 		return trace.Wrap(err)
 	}
 
-	// We want to send a session end event once, when nothing else will come
-	// through the websocket. We wait for all command exec to finish and the
-	// optional summary. Once the front-end gets this event it might also
-	// initiate a websocket close.
-	defer func() {
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketClose,
-		}
-		envelopeBytes, _ := proto.Marshal(envelope)
-		_ = ws.WriteMessage(websocket.BinaryMessage, envelopeBytes)
-	}()
-
 	runCommands(hosts, runCmd, h.log)
 
-	// Optionally try to compute the command summary.
+	// Optionally, try to compute the command summary.
 	if output, overflow := buffer.Export(); !overflow || len(output) != 0 {
 		summaryReq := summaryRequest{
 			hosts:          hosts,
@@ -686,6 +673,13 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		t.writeError(err)
 		return
 	}
+
+	if err := t.stream.Close(); err != nil {
+		t.log.WithError(err).Error("Unable to send close event to web client.")
+		return
+	}
+
+	t.log.Debug("Sent close event to web client.")
 }
 
 // connectToNodeWithMFA attempts to perform the mfa ceremony and then dial the

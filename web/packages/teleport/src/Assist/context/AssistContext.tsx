@@ -24,6 +24,7 @@ import React, {
   useRef,
 } from 'react';
 
+import type { AssistState } from 'teleport/Assist/context/state';
 import { AssistStateActionType, reducer } from 'teleport/Assist/context/state';
 
 import { convertServerMessages } from 'teleport/Assist/context/utils';
@@ -31,6 +32,11 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
+import type {
+  ConversationMessage,
+  ResolvedServerMessage,
+  ServerMessage,
+} from 'teleport/Assist/types';
 import {
   ExecutionEnvelopeType,
   RawPayload,
@@ -46,13 +52,6 @@ import {
 
 import * as service from '../service';
 import { resolveServerCommandMessage, resolveServerMessage } from '../service';
-
-import type {
-  ConversationMessage,
-  ResolvedServerMessage,
-  ServerMessage,
-} from 'teleport/Assist/types';
-import type { AssistState } from 'teleport/Assist/context/state';
 
 interface AssistContextValue {
   cancelMfaChallenge: () => void;
@@ -413,6 +412,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     executeCommandWebSocket.current = new WebSocket(url);
     executeCommandWebSocket.current.binaryType = 'arraybuffer';
 
+    let sessionsEnded = 0;
+
     executeCommandWebSocket.current.onmessage = event => {
       const uintArray = new Uint8Array(event.data);
 
@@ -460,17 +461,27 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
 
         case MessageTypeEnum.SESSION_END:
-          for (const nodeId of nodeIdToResultId.keys()) {
-            dispatch({
-              type: AssistStateActionType.FinishCommandResult,
-              conversationId: state.conversations.selectedId,
-              commandResultId: nodeIdToResultId.get(nodeId),
-            });
+          // we don't know the nodeId of the session that ended, so we have to
+          // count the finished sessions and then mark them all as done once
+          // they've all finished
+          sessionsEnded += 1;
+
+          if (sessionsEnded === nodeIdToResultId.size) {
+            const message = proto.encodeCloseMessage();
+            const bytearray = new Uint8Array(message);
+
+            for (const nodeId of nodeIdToResultId.keys()) {
+              dispatch({
+                type: AssistStateActionType.FinishCommandResult,
+                conversationId: state.conversations.selectedId,
+                commandResultId: nodeIdToResultId.get(nodeId),
+              });
+
+              executeCommandWebSocket.current.send(bytearray.buffer);
+            }
+
+            nodeIdToResultId.clear();
           }
-
-          nodeIdToResultId.clear();
-
-          executeCommandWebSocket.current.close();
 
           break;
       }
