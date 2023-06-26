@@ -34,7 +34,6 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
-
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -151,11 +150,11 @@ type KeyPairPaths struct {
 func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
 	t.Helper()
 
-	ca := mustGenCACert(t)
-
 	dir := t.TempDir()
 	certPath := path.Join(dir, "cert.pem")
 	keyPath := path.Join(dir, "key.pem")
+
+	ca := mustGenCACert(t)
 
 	MustGenCertSignedWithCAAndSaveToPaths(t, ca, identity, certPath, keyPath)
 	return KeyPairPaths{
@@ -167,15 +166,15 @@ func MustGenAndSaveCert(t *testing.T, identity tlsca.Identity) KeyPairPaths {
 func MustGenCertSignedWithCAAndSaveToPaths(t *testing.T, ca *tlsca.CertAuthority, identity tlsca.Identity, certPath, keyPath string) {
 	t.Helper()
 
-	// Save the cert.
 	tlsCert := mustGenCertSignedWithCA(t, ca, identity)
+	privateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
+	require.True(t, ok, "Failed to cast tlsCert.PrivateKey")
+
+	// Save the cert.
 	pemCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: tlsCert.Certificate[0]})
 	require.NoError(t, os.WriteFile(certPath, pemCert, teleport.FileMaskOwnerOnly))
 
 	// Save the private key.
-	privateKey, ok := tlsCert.PrivateKey.(*rsa.PrivateKey)
-	require.True(t, ok, "Failed to cast tlsCert.PrivateKey")
-
 	pemPrivateKey := pem.EncodeToMemory(&pem.Block{Type: "RSA PRIVATE KEY", Bytes: x509.MarshalPKCS1PrivateKey(privateKey)})
 	require.NoError(t, os.WriteFile(keyPath, pemPrivateKey, teleport.FileMaskOwnerOnly))
 }

@@ -236,7 +236,6 @@ func mockKubeAPIHandler() http.Handler {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/namespaces/default/pods", func(rw http.ResponseWriter, r *http.Request) {
 		rw.Header().Set("Content-Type", "application/json")
-		rw.Header().Set("Connection:", "close")
 		json.NewEncoder(rw).Encode(&v1.PodList{
 			TypeMeta: metav1.TypeMeta{
 				Kind:       "PodList",
