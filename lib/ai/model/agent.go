@@ -32,10 +32,11 @@ import (
 )
 
 const (
-	actionFinalAnswer = "Final Answer"
-	actionException   = "_Exception"
-	maxIterations     = 15
-	maxElapsedTime    = 5 * time.Minute
+	actionFinalAnswer   = "Final Answer"
+	actionException     = "_Exception"
+	maxIterations       = 15
+	maxElapsedTime      = 5 * time.Minute
+	finalResponseHeader = "<FINAL RESPONSE>"
 )
 
 // NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
@@ -251,7 +252,7 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, 
 	}
 
 	deltas := make(chan string)
-	completion := ""
+	completion := strings.Builder{}
 	go func() {
 		defer close(deltas)
 
@@ -266,12 +267,12 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, 
 
 			delta := response.Choices[0].Delta.Content
 			deltas <- delta
-			completion += delta
+			completion.WriteString(delta)
 		}
 	}()
 
 	action, finish, err := parsePlanningOutput(deltas)
-	state.tokensUsed.AddTokens(prompt, completion)
+	state.tokensUsed.AddTokens(prompt, completion.String())
 	return action, finish, trace.Wrap(err)
 }
 
@@ -357,12 +358,12 @@ func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, erro
 	for delta := range deltas {
 		text += delta
 
-		if strings.HasPrefix(text, "<FINAL RESPONSE>") {
+		if strings.HasPrefix(text, finalResponseHeader) {
 			parts := make(chan string)
 			go func() {
 				defer close(parts)
 
-				parts <- strings.TrimPrefix(text, "<FINAL RESPONSE>")
+				parts <- strings.TrimPrefix(text, finalResponseHeader)
 				for delta := range deltas {
 					parts <- delta
 				}
@@ -373,7 +374,7 @@ func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, erro
 	}
 
 	log.Tracef("received planning output: \"%v\"", text)
-	if outputString, found := strings.CutPrefix(text, "<FINAL RESPONSE>"); found {
+	if outputString, found := strings.CutPrefix(text, finalResponseHeader); found {
 		return nil, &agentFinish{output: &Message{Content: outputString}}, nil
 	}
 
