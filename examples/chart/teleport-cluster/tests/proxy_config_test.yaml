@@ -162,3 +162,15 @@ tests:
     asserts:
       - failedTemplate:
           errorMessage: "clusterName must not contain a colon, you can override the cluster's public address with publicAddr"
+
+  - it: generates a config with trustXForwardedFor enabled
+    set:
+      clusterName: "helm-test.example.com"
+      trustXForwardedFor: true
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml

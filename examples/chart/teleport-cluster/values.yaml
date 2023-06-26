@@ -286,6 +286,15 @@ podMonitor:
   # interval is the interval between two metrics scrapes. Defaults to 30s
   interval: 30s
 
+# Enables the Proxy service to take client source IPs from the
+# "X-Forwarded-For" headers for web APIs.
+#
+# WARNING: In order to prevent IP spoofing, it is important to ensure that the
+# Proxy service is placed behind a layer 7 load balancer or reverse proxy that
+# sets client IPs in the "X-Forwarded-For" headers. Requests with more than one
+# IPs will also be rejected.
+trustXForwardedFor: false
+
 ######################################################################
 # Persistence settings (only used in "standalone" and "scratch" modes)
 # NOTE: Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters

@@ -70,4 +70,7 @@ proxy_service:
     uri: {{ .Values.acmeURI }}
   {{- end }}
 {{- end }}
+{{- if .Values.trustXForwardedFor }}
+  trust_x_forwarded_for: {{ .Values.trustXForwardedFor }}
+{{- end }}
 {{- end -}}
