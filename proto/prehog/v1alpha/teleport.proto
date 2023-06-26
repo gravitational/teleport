@@ -555,6 +555,23 @@ message UIIntegrationEnrollCompleteEvent {
   IntegrationEnrollMetadata metadata = 1;
 }
 
+// EditorChangeEvent is an event that is emitted when a user role set changes resulting in
+// a editor role being added on removed
+message EditorChangeEvent {
+  // anonymized user name
+  string user_name = 1;
+  EditorChangeStatus status = 2;
+}
+
+// EditorChangeStatus is the possible values of an EditorChangeEvent event
+enum EditorChangeStatus {
+  EDITOR_CHANGE_STATUS_UNSPECIFIED = 0;
+  // Status when the editor role is granted
+  EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1;
+  // Status when the editor role is removed
+  EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2;
+}
+
 message SubmitEventRequest {
   // anonymized, 32 bytes (HMAC-SHA-256) encoded in base64
   //
@@ -628,6 +645,8 @@ message SubmitEventRequest {
 
     UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 44;
     UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 45;
+
+    EditorChangeEvent editor_change_event = 46;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
