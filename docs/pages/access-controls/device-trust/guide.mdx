@@ -1,36 +1,27 @@
 ---
-title: "Device Trust (Preview)"
+title: Set Up Device Trust (Preview)
 description: Learn how to use and enforce trusted devices with Teleport
 videoBanner: gBQyj_X1LVw
 ---
 
 <Admonition type="warning">
 Device Trust is currently in Preview mode.
-
-Device Trust requires Teleport Enterprise v12+.
 </Admonition>
-
-Device Trust allows Teleport admins to enforce the use of trusted devices.
-Resources protected by the device mode "required" will enforce the use of a
-trusted device, in addition to establishing the user's identity and enforcing
-the necessary roles. Furthermore, users using a trusted device leave audit
-trails that include the device's information.
-
-The device trust preview works only with macOS devices and supports the
-following Teleport features:
-
-- SSH access enforcement
-- Database access enforcement
-- Kubernetes access enforcement
-
-Support for other operating systems and access features is planned for upcoming
-Teleport versions.
 
 ## Concepts
 
-Device Trust uses the Secure Enclave in macOS devices to store a device private
-key. That key is used to solve device challenges issued by the Teleport Auth
-Server, proving the identity of the trusted device.
+Device Trust leverages dedicated secure hardware in devices to store sensitive
+credentials. The specific implementation varies between types of devices.
+
+On macOS devices, Device Trust uses the Secure Enclave in order to store a
+device private key. That key is used to solve device challenges issued by the
+Teleport Auth Server, proving the identity of the trusted device.
+
+On Windows devices, a Trusted Platform Module (TPM) is used to perform an
+attestation as to the state of the device. This attestation is signed by a
+private key that is also protected by the TPM. The signed attestation ensures
+that the Teleport Auth Server knows both the state of the device and that the
+request has come from the device.
 
 Device management is divided into two separate phases: inventory management and
 device enrollment.
@@ -63,9 +54,15 @@ layer of protection.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- A signed and notarized `tsh` binary for enrollment.
-  [Download the macOS tsh installer](../../installation.mdx#macos).
-- A macOS device to register and enroll.
+- To enroll a macOS device, you need:
+  - A signed and notarized `tsh` binary for enrollment.
+    [Download the macOS tsh installer](../../installation.mdx#macos).
+  - A Teleport version newer than v12.0.0.
+- To enroll a Windows device, you need:
+  - A device that includes a TPM with 2.0 support.
+  - `tsh` installed on the device. [Download the Windows tsh installer](../../installation.mdx#windows-tsh-client-only).
+  - Credentials for a user with administrator privileges for the device. This is only required during enrollment.
+  - A Teleport version newer than v13.1.2.
 
 ## Step 1/2. Register a trusted device
 
@@ -137,17 +134,58 @@ Relogin to fetch updated certificates:
 $ tsh logout; tsh login --proxy=example.com --user=alice
 ```
 
-Having the necessary permissions, let's add a device to the inventory. Replace
-the `$SERIAL` below with your macOS device serial number (visible under Apple ->
-"About This Mac" -> "Serial number", or use the command below).
+Before you can enroll the device, you need to register it. To register
+a device, you first need to determine its serial number.
+
+<Tabs>
+  <TabItem label="macOS">
+    The serial number of a macOS device can be determined in two ways.
+
+    Through the UI, visible under Apple -> "About This Mac" -> "Serial number".
+
+    Through the terminal:
+    ```code
+    $ ioreg -c IOPlatformExpertDevice -d 2 | grep -i IOPlatformSerialNumber | awk -F'"' '{print $4}'
+    (=devicetrust.asset_tag=)
+    ```
+  </TabItem>
+
+  <TabItem label="Windows">
+    Determining the serial number for a device running Windows is a little more
+    complicated than on macOS. This is because Windows devices can have multiple
+    serial numbers depending on the configuration made by the manufacturer.
+
+    Teleport will pick the first available value from the following:
+
+    - System asset tag
+    - System serial number
+    - Baseboard serial number
+
+    To find the value chosen by Teleport, run the following command:
+
+    ```code
+    $ tsh device collect
+    DeviceCollectedData {
+      ...
+      "serial_number": "(=devicetrust.asset_tag=)",
+      ...
+    }
+    ```
+  </TabItem>
+</Tabs>
+
+Replace the `$SERIAL` variable below with the serial number obtained from
+the device you wish to enroll and `$OS` with `macos` or `windows`, and execute
+the following command:
 
 ```code
-$ SERIAL="$(ioreg -c IOPlatformExpertDevice -d 2 | grep -i IOPlatformSerialNumber | awk -F'"' '{print $4}')"
-$ tctl devices add --os=macos --asset-tag="$SERIAL"
+$ export OS=macos
+$ export SERIAL="(=devicetrust.asset_tag=)"
+$ tctl devices add --os="$OS" --asset-tag="$SERIAL"
 Device (=devicetrust.asset_tag=)/macOS added to the inventory
 ```
 
-View registered devices:
+Use `tctl` to check that the device has been registered:
 
 ```code
 $ tctl devices ls
@@ -155,9 +193,6 @@ Asset Tag    OS    Enroll Status Device ID
 ------------ ----- ------------- ------------------------------------
 (=devicetrust.asset_tag=) macOS not enrolled  (=devicetrust.device_id=)
 ```
-
-A registered device is a device that Teleport knows about. Once a registered
-device is enrolled, it becomes a trusted device.
 
 <Admonition type="tip" title="Removing Devices">
 A device that is no longer in use may be removed using `tctl devices rm
@@ -170,8 +205,9 @@ A registered device becomes a trusted device after it goes through the
 enrollment ceremony. Enrollment exchanges an enrollment token, created by a
 device admin, for the opportunity to enroll the corresponding device.
 
-macOS enrollments are tied to the current user in the device. If the same device
-is handed to a new user, they will need to perform enrollment again.
+A device enrollment is specifically linked to the user who performed the
+enrollment. If the same device is handed to a new user, that user must enroll
+the device again.
 
 To create an enrollment token run the following command, where `--asset-tag` is
 the serial number of the device we want to enroll.
@@ -192,7 +228,90 @@ Device "(=devicetrust.asset_tag=)"/macOS enrolled
 $ tsh logout; tsh login --proxy=example.com --user=alice # fetch new certificates
 ```
 
+<Admonition type="warning" title="Windows">
+On Windows, the `tsh device enroll` command attempts to elevate to
+administrator privileges on the device. Privilege elevation is required to
+perform a TPM Credential Activation. This step is only required for
+enrollment and is not required on future device authentications.
+</Admonition>
+
 The device above is now a trusted device.
+
+## Recommended: Configuring a TPM EKCert CA allow-list
+
+This advice only applies to Device Trust on platforms that use TPMs. For now,
+this is just Windows.
+
+Some TPMs include a certificate—known as an EKCert—signed by the
+manufacturer's certificate authority (CA). This certificate allows a third party
+(such a Teleport cluster) to know that the TPM it is communicating with is
+legitimate. This significantly reduces the burden on the administrator to ensure
+that the device has not been tampered with prior to enrollment.
+
+By default, the Teleport cluster does not verify the EKCert. This is because
+not all TPMs include an EKCert, and it is not possible to verify an EKCert
+without knowledge of the manufacturer's CA. This verification is enabled by the
+inclusion of the Teleport configuration field called `ekcert_allowed_cas`.
+
+Once configured, only devices that include a TPM with an EKCert signed by a
+CA specified in the field will be able to enroll. Previously-enrolled devices
+will not be affected.
+
+To configure `ekcert_allowed_cas`, you must first obtain the CA certificate in
+PEM format from the manufacturer of the TPM included in your devices. This step
+varies from manufacturer to manufacturer.
+
+After you obtain the CA certificate in PEM format, there are two ways of
+configuring `ekcert_allowed_cas`:
+
+- Statically using the Teleport configuration file. This is the simplest
+  option, but is not possible for Teleport Cloud clusters and not recommended
+  for clusters in a highly available configuration.
+- Dynamically using `cluster_auth_preference` resource. This works with all
+  clusters and is the most flexible.
+
+<Tabs dropDownCaption="Teleport Deployment">
+<TabItem label="Dynamic Resources" options="Self-Hosted,Teleport Enterprise Cloud" >
+Modify the dynamic config resource using `tctl edit cluster_auth_preference`:
+
+```diff
+kind: cluster_auth_preference
+version: v2
+metadata:
+  name: cluster-auth-preference
+spec:
+  ...
+  device_trust:
+    mode: "required" # add this line
++    ekcert_allowed_cas:
++      # The CA is configured inline within the resource:
++      - |
++        -----BEGIN CERTIFICATE-----
++        --snip--
++        -----END CERTIFICATE-----
+```
+
+</TabItem>
+<TabItem label="Static Config" options="Self-Hosted">
+Edit the Auth Server's `teleport.yaml` file and restart:
+
+```diff
+auth_service:
+  authentication:
+    ...
+    device_trust:
++      ekcert_allowed_cas:
++      # The CA can be configured inline within the configuration file:
++      - |
++        -----BEGIN CERTIFICATE-----
++        --snip--
++        -----END CERTIFICATE-----
++      # Or, it can be configured in the configuration file using a path:
++      - /path/to/my/ekcert-ca.pem
+```
+
+</TabItem>
+</Tabs>
 
 ## Optional: Cluster-wide trusted device enforcement
 
@@ -292,7 +411,7 @@ leaf clusters.
 Role-based configuration enforces trusted device access at the role level. It
 can be configured with the `spec.options.device_trust_mode` (`required`,
 `optional`, `off`) option and applies to the resources in its `allow` rules. It
-works similar to [`require_session_mfa`](./per-session-mfa.mdx).
+works similar to [`require_session_mfa`](../guides/per-session-mfa.mdx).
 
 To enforce authenticated device checks for a specific role, update the role with the following:
 
@@ -325,8 +444,8 @@ trusted device.
 
 ## Optional: Locking a device
 
-Similar to [session and identity locking](./locking.mdx), a device can be locked
-using `tctl lock`.
+Similar to [session and identity locking](../guides/locking.mdx), a device can
+be locked using `tctl lock`.
 
 Locking blocks certificate issuance and ongoing or future accesses originating
 from a locked device. Locking a device only works if device trust is enabled and

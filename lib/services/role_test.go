@@ -6660,6 +6660,7 @@ func TestGetKubeResources(t *testing.T) {
 			},
 			clusterLabels: map[string]string{"env": "staging"},
 			expectAllowed: []types.KubernetesResource{podA, podB},
+			expectDenied:  []types.KubernetesResource{podA},
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
