@@ -520,6 +520,7 @@ func (a *App) tryApproveRequest(ctx context.Context, req types.AccessRequest) er
 	if _, err := a.teleport.SubmitAccessReview(ctx, types.AccessReviewSubmission{
 		RequestID: req.GetName(),
 		Review: types.AccessReview{
+			Author:        a.conf.TeleportUser,
 			ProposedState: types.RequestState_APPROVED,
 			Reason: fmt.Sprintf("Access requested by user %s (%s) which is on call in service(s) %s",
 				user.Name,
