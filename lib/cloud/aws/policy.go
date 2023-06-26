@@ -72,7 +72,9 @@ type Statement struct {
 	// Actions is a list of actions.
 	Actions SliceOrString `json:"Action"`
 	// Resources is a list of resources.
-	Resources SliceOrString `json:"Resource"`
+	Resources SliceOrString `json:"Resource,omitempty"`
+	// Principals is a list of principals.
+	Principals map[string]SliceOrString `json:"Principal,omitempty"`
 }
 
 // ensureResource ensures that the statement contains the specified resource.
@@ -318,7 +320,7 @@ func NewPolicies(partitionID string, accountID string, iamClient iamiface.IAMAPI
 // * `iam:DeletePolicyVersion`: wildcard ("*") or policy that will be created;
 // * `iam:CreatePolicyVersion`: wildcard ("*") or policy that will be created;
 func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
-	policyARN := fmt.Sprintf("arn:%s:iam::%s:policy/%s", p.partitionID, p.accountID, policy.Name)
+	policyARN := PolicyARN(p.partitionID, p.accountID, policy.Name)
 	encodedPolicyDocument, err := json.Marshal(policy.Document)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -494,6 +496,20 @@ func matchTag(policyTags []*iam.Tag, name, value string) bool {
 	}
 
 	return false
+}
+
+// PolicyARN returns the ARN representation of an AWS IAM Policy.
+func PolicyARN(partition, accountID, policy string) string {
+	return resourceARN(partition, accountID, "policy", policy)
+}
+
+// RoleARN returns the ARN representation of an AWS IAM Role.
+func RoleARN(partition, accountID, role string) string {
+	return resourceARN(partition, accountID, "role", role)
+}
+
+func resourceARN(partition, accountID, resourceType, resourceName string) string {
+	return fmt.Sprintf("arn:%s:iam::%s:%s/%s", partition, accountID, resourceType, resourceName)
 }
 
 const (

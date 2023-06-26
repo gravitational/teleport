@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,6 +35,15 @@ func TestDefaultTags(t *testing.T) {
 		"teleport.dev/origin":      "integration_awsoidc",
 	}
 	require.Equal(t, expectedTags, d)
+
+	t.Run("iam tags", func(t *testing.T) {
+		expectedIAMTags := []iamTypes.Tag{
+			{Key: stringPointer("teleport.dev/cluster"), Value: stringPointer("mycluster")},
+			{Key: stringPointer("teleport.dev/integration"), Value: stringPointer("myawsaccount")},
+			{Key: stringPointer("teleport.dev/origin"), Value: stringPointer("integration_awsoidc")},
+		}
+		require.ElementsMatch(t, expectedIAMTags, d.ForIAM())
+	})
 
 	t.Run("ecs tags", func(t *testing.T) {
 		expectedECSTags := []ecsTypes.Tag{

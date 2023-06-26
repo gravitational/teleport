@@ -109,10 +109,6 @@ func (a databaseActions) buildStatement(boundary bool) *awslib.Statement {
 var (
 	// defaultPolicyTags default list of tags present at the managed policies.
 	defaultPolicyTags = map[string]string{policyTeleportTagKey: policyTeleportTagValue}
-	// userBaseActions list of actions used when target is an user.
-	userBaseActions = []string{"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy"}
-	// roleBaseActions list of actions used when target is a role.
-	roleBaseActions = []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"}
 	// secretsManagerActions is a list of actions used for SecretsManager.
 	secretsManagerActions = []string{
 		"secretsmanager:DescribeSecret",
@@ -868,21 +864,20 @@ func isRDSProxyEndpoint(uri string) bool {
 // buildIAMEditStatements returns IAM statements necessary for the Teleport
 // agent to edit user/role permissions.
 func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error) {
-	statement := &awslib.Statement{
-		Effect:    awslib.EffectAllow,
-		Resources: []string{target.String()},
-	}
-
 	switch target.(type) {
 	case awslib.User, *awslib.User:
-		statement.Actions = userBaseActions
+		return []*awslib.Statement{
+			awslib.StatementForIAMEditUserPolicy(target.String()),
+		}, nil
+
 	case awslib.Role, *awslib.Role:
-		statement.Actions = roleBaseActions
+		return []*awslib.Statement{
+			awslib.StatementForIAMEditRolePolicy(target.String()),
+		}, nil
+
 	default:
 		return nil, trace.BadParameter("policies target must be an user or role, received %T", target)
 	}
-
-	return []*awslib.Statement{statement}, nil
 }
 
 // buildEC2AutoDiscoveryStatements returns IAM statements necessary for

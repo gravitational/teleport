@@ -193,6 +193,18 @@ type CommandLineFlags struct {
 	AdditionalPrincipals string
 	// Directory to store
 	DataDir string
+
+	// `teleport integration configure deployservice-iam` arguments
+	// IntegrationConfDeployServiceIAMCluster is the teleport cluster name.
+	IntegrationConfDeployServiceIAMCluster string
+	// IntegrationConfDeployServiceIAMIntegrationName is the integration name.
+	IntegrationConfDeployServiceIAMIntegrationName string
+	// IntegrationConfDeployServiceIAMRegion is the AWS Region used to set up the client.
+	IntegrationConfDeployServiceIAMRegion string
+	// IntegrationConfDeployServiceIAMIntegrationRole is the AWS Role associated with the Integration
+	IntegrationConfDeployServiceIAMIntegrationRole string
+	// IntegrationConfDeployServiceIAMTaskRole is the AWS Role to be used by the deployed service.
+	IntegrationConfDeployServiceIAMTaskRole string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)

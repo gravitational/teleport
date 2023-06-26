@@ -87,25 +87,108 @@ func TestSliceOrString(t *testing.T) {
 }
 
 func TestParsePolicyDocument(t *testing.T) {
-	policyDoc, err := ParsePolicyDocument(`{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Action": "rds-db:connect",
-	  "Resource": ["arn:aws:rds-db:us-west-1:12345:dbuser:id/*"]
-    }
-  ]
-}`)
-	require.NoError(t, err)
-	require.Equal(t, PolicyDocument{
-		Version: PolicyVersion,
-		Statements: []*Statement{{
-			Effect:    EffectAllow,
-			Actions:   SliceOrString{"rds-db:connect"},
-			Resources: SliceOrString{"arn:aws:rds-db:us-west-1:12345:dbuser:id/*"},
-		}},
-	}, *policyDoc)
+	t.Run("parse without principals", func(t *testing.T) {
+		policyDoc, err := ParsePolicyDocument(`{
+			"Version": "2012-10-17",
+			"Statement": [
+			  {
+				"Effect": "Allow",
+				"Action": "rds-db:connect",
+				"Resource": ["arn:aws:rds-db:us-west-1:12345:dbuser:id/*"]
+			  }
+			]
+		  }`)
+		require.NoError(t, err)
+		require.Equal(t, PolicyDocument{
+			Version: PolicyVersion,
+			Statements: []*Statement{{
+				Effect:    EffectAllow,
+				Actions:   SliceOrString{"rds-db:connect"},
+				Resources: SliceOrString{"arn:aws:rds-db:us-west-1:12345:dbuser:id/*"},
+			}},
+		}, *policyDoc)
+	})
+	t.Run("parse without resource", func(t *testing.T) {
+		policyDoc, err := ParsePolicyDocument(`{
+			"Version": "2012-10-17",
+			"Statement": [
+			  {
+				"Effect": "Allow",
+				"Action": "rds-db:connect",
+				"Principal": {
+					"Service": "ecs-tasks.amazonaws.com"
+				}
+			  }
+			]
+		  }`)
+		require.NoError(t, err)
+		require.Equal(t, PolicyDocument{
+			Version: PolicyVersion,
+			Statements: []*Statement{{
+				Effect:  EffectAllow,
+				Actions: SliceOrString{"rds-db:connect"},
+				Principals: map[string]SliceOrString{
+					"Service": {"ecs-tasks.amazonaws.com"},
+				},
+			}},
+		}, *policyDoc)
+	})
+}
+
+func TestMarshalPolicyDocument(t *testing.T) {
+	t.Run("marshal without principal", func(t *testing.T) {
+		doc := PolicyDocument{
+			Version: PolicyVersion,
+			Statements: []*Statement{{
+				Effect:    EffectAllow,
+				Actions:   SliceOrString{"rds-db:connect"},
+				Resources: SliceOrString{"arn:aws:rds-db:us-west-1:12345:dbuser:id/*"},
+			}},
+		}
+
+		docString, err := doc.Marshal()
+		require.NoError(t, err)
+
+		require.Equal(t, `{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "rds-db:connect",
+            "Resource": "arn:aws:rds-db:us-west-1:12345:dbuser:id/*"
+        }
+    ]
+}`, docString)
+	})
+
+	t.Run("marshal without resources", func(t *testing.T) {
+		doc := PolicyDocument{
+			Version: PolicyVersion,
+			Statements: []*Statement{{
+				Effect:  EffectAllow,
+				Actions: SliceOrString{"rds-db:connect"},
+				Principals: map[string]SliceOrString{
+					"Service": {"ecs-tasks.amazonaws.com"},
+				},
+			}},
+		}
+
+		docString, err := doc.Marshal()
+		require.NoError(t, err)
+
+		require.Equal(t, `{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "rds-db:connect",
+            "Principal": {
+                "Service": "ecs-tasks.amazonaws.com"
+            }
+        }
+    ]
+}`, docString)
+	})
 }
 
 // TestIAMPolicy verifies AWS IAM policy manipulations.
@@ -574,6 +657,43 @@ func TestAttachPolicyBoundary(t *testing.T) {
 			}
 
 			require.NoError(t, err)
+		})
+	}
+}
+
+func TestResourceARN(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		resourceType string
+		partition    string
+		accountID    string
+		resourceName string
+		expected     string
+	}{
+		{
+			name:         "role",
+			resourceType: "role",
+			partition:    "aws",
+			accountID:    "123456789012",
+			resourceName: "MyRole",
+			expected:     "arn:aws:iam::123456789012:role/MyRole",
+		},
+		{
+			name:         "policy",
+			resourceType: "policy",
+			partition:    "aws",
+			accountID:    "123456789012",
+			resourceName: "MyPolicy",
+			expected:     "arn:aws:iam::123456789012:policy/MyPolicy",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			switch tt.resourceType {
+			case "role":
+				require.Equal(t, tt.expected, RoleARN(tt.partition, tt.accountID, tt.resourceName))
+			case "policy":
+				require.Equal(t, tt.expected, PolicyARN(tt.partition, tt.accountID, tt.resourceName))
+			}
 		})
 	}
 }
