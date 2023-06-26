@@ -435,6 +435,8 @@ message BotCreateEvent {
   // join_method is the join method of the token associated with the bot on
   // creation.
   string join_method = 5;
+  // bot_name is the anonymised name of the bot.
+  string bot_name = 6;
 }
 
 message UICreateNewRoleClickEvent {

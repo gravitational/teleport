@@ -176,6 +176,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 		UserName:    authz.ClientUserMetadata(ctx).User,
 		BotUserName: resourceName,
 		RoleName:    resourceName,
+		BotName:     req.Name,
 		RoleCount:   int64(len(req.Roles)),
 		JoinMethod:  string(provisionToken.GetJoinMethod()),
 	})
