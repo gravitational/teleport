@@ -1017,6 +1017,43 @@ export namespace RoleCreateEvent {
     }
 }
 
+export class BotCreateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): BotCreateEvent;
+
+    getBotUserName(): string;
+    setBotUserName(value: string): BotCreateEvent;
+
+    getRoleName(): string;
+    setRoleName(value: string): BotCreateEvent;
+
+    getRoleCount(): number;
+    setRoleCount(value: number): BotCreateEvent;
+
+    getJoinMethod(): string;
+    setJoinMethod(value: string): BotCreateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): BotCreateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: BotCreateEvent): BotCreateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: BotCreateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): BotCreateEvent;
+    static deserializeBinaryFromReader(message: BotCreateEvent, reader: jspb.BinaryReader): BotCreateEvent;
+}
+
+export namespace BotCreateEvent {
+    export type AsObject = {
+        userName: string,
+        botUserName: string,
+        roleName: string,
+        roleCount: number,
+        joinMethod: string,
+    }
+}
+
 export class UICreateNewRoleClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UICreateNewRoleClickEvent;
@@ -1614,6 +1651,12 @@ export class SubmitEventRequest extends jspb.Message {
     setUiIntegrationEnrollCompleteEvent(value?: UIIntegrationEnrollCompleteEvent): SubmitEventRequest;
 
 
+    hasBotCreate(): boolean;
+    clearBotCreate(): void;
+    getBotCreate(): BotCreateEvent | undefined;
+    setBotCreate(value?: BotCreateEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1672,6 +1715,7 @@ export namespace SubmitEventRequest {
         assistCompletion?: AssistCompletionEvent.AsObject,
         uiIntegrationEnrollStartEvent?: UIIntegrationEnrollStartEvent.AsObject,
         uiIntegrationEnrollCompleteEvent?: UIIntegrationEnrollCompleteEvent.AsObject,
+        botCreate?: BotCreateEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1760,6 +1804,8 @@ export namespace SubmitEventRequest {
     UI_INTEGRATION_ENROLL_START_EVENT = 44,
 
     UI_INTEGRATION_ENROLL_COMPLETE_EVENT = 45,
+
+    BOT_CREATE = 46,
 
     }
 
@@ -1904,7 +1950,6 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34,
     DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35,
     DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
-    DISCOVER_RESOURCE_SAML_APPLICATION = 37,
 }
 
 export enum DiscoverStatus {
