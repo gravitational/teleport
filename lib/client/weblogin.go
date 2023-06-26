@@ -19,11 +19,15 @@ package client
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"crypto/x509"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net"
+	"net/http"
+	"net/http/cookiejar"
 	"net/url"
 	"os"
 	"os/exec"
@@ -45,6 +49,9 @@ import (
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/csrf"
+	websession "github.com/gravitational/teleport/lib/web/session"
 )
 
 const (
@@ -301,7 +308,7 @@ type SSHLoginHeadless struct {
 }
 
 // initClient creates a new client to the HTTPS web proxy.
-func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string) (*WebClient, *url.URL, error) {
+func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeaders map[string]string, opts ...roundtrip.ClientParam) (*WebClient, *url.URL, error) {
 	log := logrus.WithFields(logrus.Fields{
 		trace.Component: teleport.ComponentClient,
 	})
@@ -326,8 +333,16 @@ func initClient(proxyAddr string, insecure bool, pool *x509.CertPool, extraHeade
 		fmt.Fprintf(os.Stderr, "WARNING: You are using insecure connection to Teleport proxy %v\n", proxyAddr)
 	}
 
-	opt := roundtrip.HTTPClient(newClient(insecure, pool, extraHeaders))
-	clt, err := NewWebClient(proxyAddr, opt)
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	opts = append(opts,
+		roundtrip.HTTPClient(newClient(insecure, pool, extraHeaders)),
+		roundtrip.CookieJar(jar),
+	)
+	clt, err := NewWebClient(proxyAddr, opts...)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -657,4 +672,249 @@ func GetWebConfig(ctx context.Context, proxyAddr string, insecure bool) (*webcli
 	}
 
 	return &cfg, nil
+}
+
+// CreateWebSessionReq is a request for the web api to
+// initiate a new web session.
+type CreateWebSessionReq struct {
+	// User is the Teleport username.
+	User string `json:"user"`
+	// Pass is the password.
+	Pass string `json:"pass"`
+	// SecondFactorToken is the OTP.
+	SecondFactorToken string `json:"second_factor_token"`
+}
+
+// CreateWebSessionResponse is a response from the web api
+// to a [CreateWebSessionReq] request.
+type CreateWebSessionResponse struct {
+	// TokenType is token type (bearer)
+	TokenType string `json:"type"`
+	// Token value
+	Token string `json:"token"`
+	// TokenExpiresIn sets seconds before this token is not valid
+	TokenExpiresIn int `json:"expires_in"`
+	// SessionExpires is when this session expires.
+	SessionExpires time.Time `json:"sessionExpires,omitempty"`
+	// SessionInactiveTimeoutMS specifies how long in milliseconds
+	// a user WebUI session can be left idle before being logged out
+	// by the server. A zero value means there is no idle timeout set.
+	SessionInactiveTimeoutMS int `json:"sessionInactiveTimeout"`
+}
+
+// SSHAgentLoginWeb is used by tsh to fetch local user credentials via the web api.
+func SSHAgentLoginWeb(ctx context.Context, login SSHLoginDirect) (*WebClient, types.WebSession, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	token := make([]byte, 32)
+	if _, err := rand.Read(token); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	csrfToken := hex.EncodeToString(token)
+	resp, err := httplib.ConvertResponse(clt.RoundTrip(func() (*http.Response, error) {
+		var buf bytes.Buffer
+		if err := json.NewEncoder(&buf).Encode(&CreateWebSessionReq{
+			User:              login.User,
+			Pass:              login.Password,
+			SecondFactorToken: login.OTPToken,
+		}); err != nil {
+			return nil, err
+		}
+
+		req, err := http.NewRequestWithContext(ctx, "POST", clt.Endpoint("webapi", "sessions", "web"), &buf)
+		if err != nil {
+			return nil, err
+		}
+
+		cookie := &http.Cookie{
+			Name:  csrf.CookieName,
+			Value: csrfToken,
+		}
+
+		req.AddCookie(cookie)
+
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set(csrf.HeaderName, csrfToken)
+		return clt.HTTPClient().Do(req)
+	}))
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	session, err := GetSessionFromResponse(resp)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return clt, session, nil
+}
+
+// SSHAgentMFAWebSessionLogin requests a MFA challenge via the proxy web api.
+// If the credentials are valid, the proxy will return a challenge. We then
+// prompt the user to provide 2nd factor and pass the response to the proxy.
+func SSHAgentMFAWebSessionLogin(ctx context.Context, login SSHLoginMFA) (*WebClient, types.WebSession, error) {
+	clt, _, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	beginReq := MFAChallengeRequest{
+		User: login.User,
+		Pass: login.Password,
+	}
+	challengeJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "begin"), beginReq)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	challenge := &MFAAuthenticateChallenge{}
+	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Convert to auth gRPC proto challenge.
+	challengePB := &proto.MFAAuthenticateChallenge{}
+	if challenge.TOTPChallenge {
+		challengePB.TOTP = &proto.TOTPChallenge{}
+	}
+	if challenge.WebauthnChallenge != nil {
+		challengePB.WebauthnChallenge = wanlib.CredentialAssertionToProto(challenge.WebauthnChallenge)
+	}
+
+	respPB, err := PromptMFAChallenge(ctx, challengePB, login.ProxyAddr, &PromptMFAChallengeOpts{
+		AllowStdinHijack:        login.AllowStdinHijack,
+		AuthenticatorAttachment: login.AuthenticatorAttachment,
+		PreferOTP:               login.PreferOTP,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	challengeResp := AuthenticateWebUserRequest{
+		User: login.User,
+	}
+	// Convert back from auth gRPC proto response.
+	switch r := respPB.Response.(type) {
+	case *proto.MFAAuthenticateResponse_Webauthn:
+		challengeResp.WebauthnAssertionResponse = wanlib.CredentialAssertionResponseFromProto(r.Webauthn)
+	default:
+		// No challenge was sent, so we send back just username/password.
+	}
+
+	loginRespJSON, err := clt.PostJSON(ctx, clt.Endpoint("webapi", "mfa", "login", "finishsession"), challengeResp)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	session, err := GetSessionFromResponse(loginRespJSON)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	return clt, session, nil
+}
+
+// SSHAgentPasswordlessLoginWeb requests a passwordless MFA challenge via the proxy
+// web api.
+func SSHAgentPasswordlessLoginWeb(ctx context.Context, login SSHLoginPasswordless) (*WebClient, types.WebSession, error) {
+	webClient, webURL, err := initClient(login.ProxyAddr, login.Insecure, login.Pool, login.ExtraHeaders)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	challengeJSON, err := webClient.PostJSON(
+		ctx, webClient.Endpoint("webapi", "mfa", "login", "begin"),
+		&MFAChallengeRequest{
+			Passwordless: true,
+		})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	challenge := &MFAAuthenticateChallenge{}
+	if err := json.Unmarshal(challengeJSON.Bytes(), challenge); err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+	// Sanity check WebAuthn challenge.
+	switch {
+	case challenge.WebauthnChallenge == nil:
+		return nil, nil, trace.BadParameter("passwordless: webauthn challenge missing")
+	case challenge.WebauthnChallenge.Response.UserVerification == protocol.VerificationDiscouraged:
+		return nil, nil, trace.BadParameter("passwordless: user verification requirement too lax (%v)", challenge.WebauthnChallenge.Response.UserVerification)
+	}
+
+	stderr := login.StderrOverride
+	if stderr == nil {
+		stderr = os.Stderr
+	}
+
+	prompt := login.CustomPrompt
+	if prompt == nil {
+		prompt = wancli.NewDefaultPrompt(ctx, stderr)
+	}
+
+	mfaResp, _, err := promptWebauthn(ctx, webURL.String(), challenge.WebauthnChallenge, prompt, &wancli.LoginOpts{
+		User:                    login.User,
+		AuthenticatorAttachment: login.AuthenticatorAttachment,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	loginRespJSON, err := webClient.PostJSON(
+		ctx, webClient.Endpoint("webapi", "mfa", "login", "finishsession"),
+		&AuthenticateWebUserRequest{
+			User:                      login.User,
+			WebauthnAssertionResponse: wanlib.CredentialAssertionResponseFromProto(mfaResp.GetWebauthn()),
+		})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	webSession, err := GetSessionFromResponse(loginRespJSON)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return webClient, webSession, nil
+}
+
+// GetSessionFromResponse creates a [types.WebSession] if a cookie
+// named [websession.CookieName] is present in the provided [roundtrip.Response].
+func GetSessionFromResponse(resp *roundtrip.Response) (types.WebSession, error) {
+	var sess CreateWebSessionResponse
+	if err := json.Unmarshal(resp.Bytes(), &sess); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	cookies := resp.Cookies()
+
+	var sessionCookie *http.Cookie
+	for _, cookie := range cookies {
+		if cookie.Name == websession.CookieName {
+			sessionCookie = cookie
+			break
+		}
+	}
+
+	if sessionCookie == nil {
+		return nil, trace.BadParameter("no session cookie present")
+	}
+
+	cookie, err := websession.DecodeCookie(sessionCookie.Value)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	session, err := types.NewWebSession(cookie.SID, types.KindWebSession, types.WebSessionSpecV2{
+		User:               cookie.User,
+		BearerToken:        sess.Token,
+		BearerTokenExpires: time.Now().Add(time.Duration(sess.TokenExpiresIn) * time.Second),
+		Expires:            sess.SessionExpires,
+		LoginTime:          time.Now(),
+		IdleTimeout:        types.Duration(time.Duration(sess.SessionInactiveTimeoutMS) * time.Millisecond),
+	})
+	return session, trace.Wrap(err)
 }
