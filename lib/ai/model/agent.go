@@ -201,7 +201,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		action := &AgentAction{
 			Action: actionException,
 			Input:  observationPrefix + "Unknown tool",
-			log:    thoughtPrefix + "No tool with name " + action.Action + " exists.",
+			log:    fmt.Sprintf("%s No tool with name %s exists.", thoughtPrefix, action.Action)
 		}
 
 		return stepOutput{action: action, observation: action.Input}, nil
