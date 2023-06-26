@@ -38,7 +38,7 @@ import (
 // of a resource set being monitored. Used in conjunction with resourceWatcher.
 type resourceCollector interface {
 	// resourceKind specifies the resource kind to watch.
-	resourceKind() string
+	resourceKind() []types.WatchKind
 	// getResourcesAndUpdateCurrent is called when the resources should be
 	// (re-)fetched directly.
 	getResourcesAndUpdateCurrent(context.Context) error
@@ -260,7 +260,7 @@ func (p *resourceWatcher) watch() error {
 	watcher, err := p.Client.NewWatcher(p.ctx, types.Watch{
 		Name:            p.Component,
 		MetricComponent: p.Component,
-		Kinds:           []types.WatchKind{{Kind: p.collector.resourceKind()}},
+		Kinds:           p.collector.resourceKind(),
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -390,8 +390,8 @@ func (p *proxyCollector) GetCurrent() []types.Server {
 }
 
 // resourceKind specifies the resource kind to watch.
-func (p *proxyCollector) resourceKind() string {
-	return types.KindProxy
+func (p *proxyCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindProxy}}
 }
 
 // getResourcesAndUpdateCurrent is called when the resources should be
@@ -531,7 +531,7 @@ func NewLockWatcher(ctx context.Context, cfg LockWatcherConfig) (*LockWatcher, e
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit([]types.WatchKind{{Kind: collector.resourceKind()}})
+	collector.fanout.SetInit(collector.resourceKind())
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -629,8 +629,8 @@ func (p *lockCollector) GetCurrent() []types.Lock {
 }
 
 // resourceKind specifies the resource kind to watch.
-func (p *lockCollector) resourceKind() string {
-	return types.KindLock
+func (p *lockCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindLock}}
 }
 
 // initializationChan is used to check that the cache has done its initial
@@ -741,6 +741,10 @@ func lockMapValues(lockMap map[string]types.Lock) []types.Lock {
 	return locks
 }
 
+type DatabaseServersGetter interface {
+	GetDatabaseServers(context.Context, string, ...MarshalOption) ([]types.DatabaseServer, error)
+}
+
 // DatabaseWatcherConfig is a DatabaseWatcher configuration.
 type DatabaseWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
@@ -805,8 +809,8 @@ type databaseCollector struct {
 }
 
 // resourceKind specifies the resource kind to watch.
-func (p *databaseCollector) resourceKind() string {
-	return types.KindDatabase
+func (p *databaseCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindDatabase}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -881,6 +885,10 @@ func (p *databaseCollector) processEventAndUpdateCurrent(ctx context.Context, ev
 
 func (*databaseCollector) notifyStale() {}
 
+type AppServersGetter interface {
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
+}
+
 // AppWatcherConfig is an AppWatcher configuration.
 type AppWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
@@ -945,8 +953,8 @@ type appCollector struct {
 }
 
 // resourceKind specifies the resource kind to watch.
-func (p *appCollector) resourceKind() string {
-	return types.KindApp
+func (p *appCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindApp}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -1099,8 +1107,8 @@ func (k *kubeCollector) initializationChan() <-chan struct{} {
 }
 
 // resourceKind specifies the resource kind to watch.
-func (k *kubeCollector) resourceKind() string {
-	return types.KindKubernetesCluster
+func (k *kubeCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindKubernetesCluster}}
 }
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
@@ -1293,8 +1301,8 @@ func (k *kubeServerCollector) initializationChan() <-chan struct{} {
 }
 
 // resourceKind specifies the resource kind to watch.
-func (k *kubeServerCollector) resourceKind() string {
-	return types.KindKubeServer
+func (k *kubeServerCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindKubeServer}}
 }
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
@@ -1450,7 +1458,7 @@ func NewCertAuthorityWatcher(ctx context.Context, cfg CertAuthorityWatcherConfig
 	}
 	// Resource watcher require the fanout to be initialized before passing in.
 	// Otherwise, Emit() may fail due to a race condition mentioned in https://github.com/gravitational/teleport/issues/19289
-	collector.fanout.SetInit([]types.WatchKind{{Kind: collector.resourceKind()}})
+	collector.fanout.SetInit(collector.resourceKind())
 	watcher, err := newResourceWatcher(ctx, collector, cfg.ResourceWatcherConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1484,7 +1492,7 @@ func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityF
 	watch := types.Watch{
 		Kinds: []types.WatchKind{
 			{
-				Kind:   c.resourceKind(),
+				Kind:   types.KindCertAuthority,
 				Filter: filter.IntoMap(),
 			},
 		},
@@ -1505,8 +1513,8 @@ func (c *caCollector) Subscribe(ctx context.Context, filter types.CertAuthorityF
 }
 
 // resourceKind specifies the resource kind to watch.
-func (c *caCollector) resourceKind() string {
-	return types.KindCertAuthority
+func (c *caCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindCertAuthority}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -1768,8 +1776,8 @@ func (n *nodeCollector) NodeCount() int {
 }
 
 // resourceKind specifies the resource kind to watch.
-func (n *nodeCollector) resourceKind() string {
-	return types.KindNode
+func (n *nodeCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindNode}}
 }
 
 // getResourcesAndUpdateCurrent is called when the resources should be
@@ -1920,8 +1928,8 @@ type accessRequestCollector struct {
 }
 
 // resourceKind specifies the resource kind to watch.
-func (p *accessRequestCollector) resourceKind() string {
-	return types.KindAccessRequest
+func (p *accessRequestCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindAccessRequest}}
 }
 
 // isInitialized is used to check that the cache has done its initial
@@ -2083,8 +2091,8 @@ type oktaAssignmentCollector struct {
 }
 
 // resourceKind specifies the resource kind to watch.
-func (*oktaAssignmentCollector) resourceKind() string {
-	return types.KindOktaAssignment
+func (*oktaAssignmentCollector) resourceKind() []types.WatchKind {
+	return []types.WatchKind{{Kind: types.KindOktaAssignment}}
 }
 
 // initializationChan is used to check if the initial state sync has been completed.
