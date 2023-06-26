@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 type kubeCreds interface {
@@ -171,6 +172,7 @@ type dynamicCredsConfig struct {
 	checker              servicecfg.ImpersonationPermissionsChecker
 	clock                clockwork.Clock
 	initialRenewInterval time.Duration
+	resourceMatchers     []services.ResourceMatcher
 }
 
 func (d *dynamicCredsConfig) checkAndSetDefaults() error {
