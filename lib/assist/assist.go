@@ -268,7 +268,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 
 				payload, err := json.Marshal(update)
 				if err != nil {
-					log.WithError(err).Error("Failed to marshal progress update: %v", update)
+					log.WithError(err).Debug("Failed to marshal progress update: %v", update)
 					continue
 				}
 
