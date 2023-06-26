@@ -1655,3 +1655,21 @@ var LabelMatcherKinds = []string{
 	KindWindowsDesktopService,
 	KindUserGroup,
 }
+
+// IsEmpty will return true if the condition is empty.
+func (a AccessRequestConditions) IsEmpty() bool {
+	return len(a.Annotations) == 0 &&
+		len(a.ClaimsToRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.SearchAsRoles) == 0 &&
+		len(a.SuggestedReviewers) == 0 &&
+		len(a.Thresholds) == 0
+}
+
+// IsEmpty will return true if the condition is empty.
+func (a AccessReviewConditions) IsEmpty() bool {
+	return len(a.ClaimsToRoles) == 0 &&
+		len(a.PreviewAsRoles) == 0 &&
+		len(a.Roles) == 0 &&
+		len(a.Where) == 0
+}

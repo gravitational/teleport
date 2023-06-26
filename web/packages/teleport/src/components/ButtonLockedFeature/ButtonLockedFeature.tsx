@@ -79,5 +79,5 @@ const UnlockIcon = styled(Unlock)`
   color: inherit;
   font-weight: 500;
   font-size: 15px;
-  margin-right: 4px;
+  margin-right: 10px;
 `;

@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/suite"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -613,9 +614,7 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, types.Labels{types.Wildcard: []string{types.Wildcard}}, deniedDatabaseServiceLabels, "keeps the deny label for DatabaseService")
 	})
 
-	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
-		presetRoleCount := 3
-
+	upsertRoleTest := func(t *testing.T, presetRoleCount int) {
 		roleManager := &mockRoleManager{
 			roles: make(map[string]types.Role, presetRoleCount),
 		}
@@ -659,6 +658,17 @@ func TestPresets(t *testing.T) {
 		require.Equal(t, 1, roleManager.upsertRoleCallsCount, "unexpected call to UpsertRole")
 		require.Equal(t, presetRoleCount, roleManager.getRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.getRoleCallsCount)
 		require.Equal(t, presetRoleCount, roleManager.createRoleCallsCount, "unexpected number of calls to CreateRole, got %d calls", roleManager.createRoleCallsCount)
+	}
+
+	t.Run("Does not upsert roles if nothing changes", func(t *testing.T) {
+		upsertRoleTest(t, 3 /* presetRoleCount */)
+	})
+
+	t.Run("Does not upsert roles if nothing changes (enterprise)", func(t *testing.T) {
+		modules.SetTestModules(t, &modules.TestModules{
+			TestBuildType: modules.BuildEnterprise,
+		})
+		upsertRoleTest(t, 6 /* presetRoleCount */)
 	})
 }
 

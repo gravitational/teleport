@@ -431,6 +431,11 @@ message AWS {
   // AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
   // Set this field and ExternalID to enable access across AWS accounts.
   string AssumeRoleARN = 11 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+  // OpenSearch contains AWS OpenSearch specific metadata.
+  OpenSearch OpenSearch = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "opensearch,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -503,6 +508,16 @@ message RedshiftServerless {
   string EndpointName = 2 [(gogoproto.jsontag) = "endpoint_name,omitempty"];
   // WorkgroupID is the workgroup ID.
   string WorkgroupID = 3 [(gogoproto.jsontag) = "workgroup_id,omitempty"];
+}
+
+// OpenSearch contains AWS OpenSearch specific metadata.
+message OpenSearch {
+  // DomainName is the name of the domain.
+  string DomainName = 1 [(gogoproto.jsontag) = "domain_name,omitempty"];
+  // DomainID is the ID of the domain.
+  string DomainID = 2 [(gogoproto.jsontag) = "domain_id,omitempty"];
+  // EndpointType is the type of the endpoint.
+  string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -853,6 +868,8 @@ message AppSpecV3 {
   AppAWS AWS = 6 [(gogoproto.jsontag) = "aws,omitempty"];
   // Cloud identifies the cloud instance the app represents.
   string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
+  // UserGroups are a list of user group IDs that this app is associated with.
+  repeated string UserGroups = 8;
 }
 
 // App is a specific application that a server proxies.
@@ -2707,6 +2724,7 @@ message SessionJoinPolicy {
 
 // AccessRequestConditions is a matcher for allow/deny restrictions on
 // access-requests.
+// Please remember to update IsEmpty when updating this message.
 message AccessRequestConditions {
   // Roles is the name of roles which will match the request rule.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -2751,6 +2769,7 @@ message AccessRequestConditions {
 
 // AccessReviewConditions is a matcher for allow/deny restrictions on
 // access reviews.
+// Please remember to update IsEmpty when updating this message.
 message AccessReviewConditions {
   // Roles is the name of roles which may be reviewed.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles,omitempty"];
@@ -5149,14 +5168,17 @@ message PluginSlackAccessSettings {
 message PluginOpsgenieAccessSettings {
   option (gogoproto.equal) = true;
 
-  // Addr is the address of Opsgenie API.
-  string addr = 1;
+  reserved 1;
+  reserved "addr";
+
   // Priority to create Opsgenie alerts with
   string priority = 2;
   // List of tags to be added to alerts created in Opsgenie
   repeated string alert_tags = 3;
   // Default on-call schedules to check if none are provided in the access request annotations
   repeated string default_schedules = 4;
+  // APIEndpoint is the address of Opsgenie API.
+  string api_endpoint = 5;
 }
 
 // Defines settings for the OpenAI plugin. Currently there are no settings.
@@ -5444,6 +5466,18 @@ message UserGroupV1 {
     (gogoproto.jsontag) = "",
     (gogoproto.embed) = true
   ];
+
+  // Spec is the user group resource spec.
+  UserGroupSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// UserGroupSpecV1 is the specification of a user group.
+message UserGroupSpecV1 {
+  // Applications are a list of application IDs belonging to this user group.
+  repeated string Applications = 1;
 }
 
 // OktaImportRuleSpecV1 is a Okta import rule specification.
@@ -5712,8 +5746,8 @@ message JamfSpecV1 {
     (gogoproto.jsontag) = "sync_delay,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
-  // Jamf API endpoint.
-  // Example: "https://yourtenant.jamfcloud.com".
+  // Jamf Pro API endpoint.
+  // Example: "https://yourtenant.jamfcloud.com/api".
   // Required.
   string api_endpoint = 4 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
   // Jamf API username.

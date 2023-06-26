@@ -40,6 +40,7 @@ var (
 		services.AWSMatcherRedshiftServerless: {makeRedshiftServerlessFetcher},
 		services.AWSMatcherElastiCache:        {makeElastiCacheFetcher},
 		services.AWSMatcherMemoryDB:           {makeMemoryDBFetcher},
+		services.AWSMatcherOpenSearch:         {makeOpenSearchFetcher},
 	}
 
 	makeAzureFetcherFuncs = map[string][]makeAzureFetcherFunc{
@@ -204,6 +205,21 @@ func makeMemoryDBFetcher(ctx context.Context, clients cloud.AWSClients, region s
 		Region:     region,
 		Labels:     tags,
 		MemoryDB:   memorydb,
+		AssumeRole: assumeRole,
+	})
+}
+
+// makeOpenSearchFetcher returns OpenSearch fetcher for the provided region and tags.
+func makeOpenSearchFetcher(ctx context.Context, clients cloud.AWSClients, region string, tags types.Labels, assumeRole types.AssumeRole) (common.Fetcher, error) {
+	opensearch, err := clients.GetAWSOpenSearchClient(ctx, region, cloud.WithAssumeRole(assumeRole.RoleARN, assumeRole.ExternalID))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return newOpenSearchFetcher(openSearchFetcherConfig{
+		Region:     region,
+		Labels:     tags,
+		openSearch: opensearch,
 		AssumeRole: assumeRole,
 	})
 }

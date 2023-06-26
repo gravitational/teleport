@@ -111,7 +111,7 @@ Once hardware key support is enforced, affected users will be required to have t
 
 These users will be prompted to connect and touch their YubiKey on log in:
 
-<ScopedBlock scope={["oss","enterprise"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```code
 $ tsh login --user=dev --proxy=proxy.example.com:3080
@@ -129,6 +129,24 @@ $ tsh login --user=dev --proxy=proxy.example.com:3080
 
 </ScopedBlock>
 
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ tsh login --user=dev --proxy=proxy.example.com:3080
+# Enter password for Teleport user dev:
+# Tap your YubiKey
+# > Profile URL:        https://example.com
+#   Logged in as:       dev
+#   Cluster:            example.com
+#   Roles:              access, editor, reviewer
+#   Logins:             bjoerger
+#   Kubernetes:         enabled
+#   Valid until:        2022-10-11 01:53:44 -0700 PDT [valid for 8h0m0s]
+#   Extensions:         permit-X11-forwarding, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</ScopedBlock>
+
 <ScopedBlock scope={["cloud"]}>
 
 ```code
@@ -138,7 +156,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 # > Profile URL:        https://example.com
 #   Logged in as:       dev
 #   Cluster:            example.com
-#   Roles:              access, editor
+#   Roles:              access, editor, reviewer
 #   Logins:             bjoerger
 #   Kubernetes:         enabled
 #   Valid until:        2022-10-11 01:53:44 -0700 PDT [valid for 8h0m0s]

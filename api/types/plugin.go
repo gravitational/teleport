@@ -38,6 +38,8 @@ const (
 	PluginTypeOkta = "okta"
 	// PluginTypeJamf is the Jamf MDM plugin
 	PluginTypeJamf = "jamf"
+	// PluginTypeOpsgenie is the Opsgenie access request plugin
+	PluginTypeOpsgenie = "opsgenie"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -125,6 +127,21 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		bearer := p.Credentials.GetBearerToken()
 		if bearer == nil {
 			return trace.BadParameter("openai plugin must be used with the bearer token credential type")
+		}
+		if bearer.Token == "" {
+			return trace.BadParameter("Token must be specified")
+		}
+	case *PluginSpecV1_Opsgenie:
+		if settings.Opsgenie == nil {
+			return trace.BadParameter("settings must be set")
+		}
+		if err := settings.Opsgenie.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
+
+		bearer := p.Credentials.GetBearerToken()
+		if bearer == nil {
+			return trace.BadParameter("opsgenie plugin must be used with the bearer token credential type")
 		}
 		if bearer.Token == "" {
 			return trace.BadParameter("Token must be specified")
@@ -314,6 +331,14 @@ func (s *PluginOktaSettings) CheckAndSetDefaults() error {
 		return trace.BadParameter("org_url must be set")
 	}
 
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default values
+func (s *PluginOpsgenieAccessSettings) CheckAndSetDefaults() error {
+	if s.ApiEndpoint == "" {
+		return trace.BadParameter("opsgenie api endpoint url must be set")
+	}
 	return nil
 }
 

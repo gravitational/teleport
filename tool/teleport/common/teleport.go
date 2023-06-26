@@ -500,7 +500,7 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 			// by the systemd unit upgrader).
 			fmt.Printf("%s\n", teleport.Version)
 		} else {
-			utils.PrintVersion()
+			modules.GetModules().PrintVersion()
 		}
 	case dbConfigureCreate.FullCommand():
 		err = onDumpDatabaseConfig(dbConfigCreateFlags)
@@ -547,7 +547,7 @@ func onStatus() error {
 	sshClient := os.Getenv("SSH_CLIENT")
 	systemUser := os.Getenv("USER")
 	teleportUser := os.Getenv(teleport.SSHTeleportUser)
-	proxyAddr := os.Getenv(teleport.SSHSessionWebproxyAddr)
+	proxyAddr := os.Getenv(teleport.SSHSessionWebProxyAddr)
 	clusterName := os.Getenv(teleport.SSHTeleportClusterName)
 	hostUUID := os.Getenv(teleport.SSHTeleportHostUUID)
 	sid := os.Getenv(teleport.SSHSessionID)

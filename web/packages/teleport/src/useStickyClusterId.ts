@@ -20,6 +20,8 @@ import { useRef } from 'react';
 import { StickyCluster } from 'teleport/types';
 import cfg from 'teleport/config';
 
+// useStickyClusterId determines the current :clusterId in the URL.
+// When a route contains `:clusterId` it can refer to the root or the leaf cluster.
 export default function useStickyClusterId(): StickyCluster {
   // assign initial values where the default cluster is a proxy
   const stickyCluster = useRef({

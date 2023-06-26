@@ -40,10 +40,10 @@ EXAMPLES:
   For passwordless authentication use:
   $ tsh login --auth=passwordless`
 
-	// missingPrincipalsFooter is printed at the bottom of `tsh ls` when no results are returned.
-	missingPrincipalsFooter = `
-  Not seeing nodes? Your user may be missing Linux principals. If trying Teleport for the first time, follow this guide:
+	// emptyNodesFooter is printed at the bottom of `tsh ls` when no results are returned for nodes.
+	emptyNodesFooter = `
+  Not seeing nodes? Either no nodes are available or your user's roles do not match the labels of at least one node.
 
-https://goteleport.com/docs/getting-started/linux-server/#step-46-create-a-teleport-user-and-set-up-two-factor-authentication
+  Check with your Teleport cluster administrator that your user's roles should have nodes available.
   `
 )
