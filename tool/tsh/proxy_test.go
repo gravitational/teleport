@@ -666,7 +666,8 @@ func TestList(t *testing.T) {
 	}
 }
 
-func createAgent(t *testing.T) string {
+// create a new local agent key ring and serve it on $SSH_AUTH_SOCK for tests.
+func createAgent(t *testing.T) (agent.ExtendedAgent, string) {
 	t.Helper()
 
 	currentUser, err := user.Current()
@@ -692,7 +693,7 @@ func createAgent(t *testing.T) string {
 
 	t.Setenv(teleport.SSHAuthSock, teleAgent.Path)
 
-	return teleAgent.Path
+	return keyring, teleAgent.Path
 }
 
 func disableAgent(t *testing.T) {
@@ -781,10 +782,11 @@ func runOpenSSHCommand(t *testing.T, configFile string, sshConnString string, po
 	sshPath, err := exec.LookPath("ssh")
 	require.NoError(t, err)
 
+	_, agentPath := createAgent(t)
 	cmd := exec.Command(sshPath, ss...)
 	cmd.Env = []string{
 		fmt.Sprintf("%s=1", tshBinMainTestEnv),
-		fmt.Sprintf("SSH_AUTH_SOCK=%s", createAgent(t)),
+		fmt.Sprintf("SSH_AUTH_SOCK=%s", agentPath),
 		fmt.Sprintf("PATH=%s", filepath.Dir(sshPath)),
 		fmt.Sprintf("%s=%s", types.HomeEnvVar, os.Getenv(types.HomeEnvVar)),
 	}
