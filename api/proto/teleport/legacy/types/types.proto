@@ -2329,6 +2329,19 @@ message RoleSpecV6 {
   ];
 }
 
+// CreateHostUserMode determines whether host user creation should be
+// disabled or if host users should be cleaned up or kept after
+// sessions end.
+enum CreateHostUserMode {
+  HOST_USER_MODE_UNSPECIFIED = 0;
+  // HOST_USER_MODE_OFF disables host user creation.
+  HOST_USER_MODE_OFF = 1;
+  // HOST_USER_MODE_DROP enables host user creation and deletes users at session end.
+  HOST_USER_MODE_DROP = 2;
+  // HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
+  HOST_USER_MODE_KEEP = 3;
+}
+
 // RoleOptions is a set of role options
 message RoleOptions {
   // ForwardAgent is SSH agent forwarding.
@@ -2442,7 +2455,7 @@ message RoleOptions {
   // CreateHostUser allows users to be automatically created on a host
   BoolValue CreateHostUser = 20 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "create_host_user",
+    (gogoproto.jsontag) = "create_host_user,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
 
@@ -2486,6 +2499,10 @@ message RoleOptions {
     (gogoproto.jsontag) = "create_db_user",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // CreateHostUserMode allows users to be automatically created on a
+  // host when not set to off
+  CreateHostUserMode CreateHostUserMode = 28 [(gogoproto.jsontag) = "create_host_user_mode,omitempty"];
 }
 
 message RecordSession {
@@ -5015,6 +5032,18 @@ message DatabaseResourceMatcher {
     (gogoproto.jsontag) = "labels",
     (gogoproto.customtype) = "Labels"
   ];
+  ResourceMatcherAWS AWS = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "aws"
+  ];
+}
+
+// ResourceMatcherAWS contains AWS specific settings for resource matcher.
+message ResourceMatcherAWS {
+  // AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
+  string AssumeRoleARN = 1 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+  // ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+  string ExternalID = 2 [(gogoproto.jsontag) = "external_id,omitempty"];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist

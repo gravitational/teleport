@@ -1718,6 +1718,18 @@ type Databases struct {
 type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+	// AWS contains AWS specific settings.
+	AWS ResourceMatcherAWS `yaml:"aws"`
+}
+
+// ResourceMatcherAWS contains AWS specific settings for resource matcher.
+type ResourceMatcherAWS struct {
+	// AssumeRoleARN is the AWS role to assume to before accessing the
+	// database.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS
+	// role across accounts.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // AWSMatcher matches AWS EC2 instances and AWS Databases
