@@ -27,7 +27,7 @@ import (
 
 // WindowsDesktops defines an interface for managing Windows desktop hosts.
 type WindowsDesktops interface {
-	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
+	WindowsDesktopGetter
 	CreateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	UpdateWindowsDesktop(context.Context, types.WindowsDesktop) error
 	UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error
@@ -35,6 +35,10 @@ type WindowsDesktops interface {
 	DeleteAllWindowsDesktops(context.Context) error
 	ListWindowsDesktops(ctx context.Context, req types.ListWindowsDesktopsRequest) (*types.ListWindowsDesktopsResponse, error)
 	ListWindowsDesktopServices(ctx context.Context, req types.ListWindowsDesktopServicesRequest) (*types.ListWindowsDesktopServicesResponse, error)
+}
+
+type WindowsDesktopGetter interface {
+	GetWindowsDesktops(context.Context, types.WindowsDesktopFilter) ([]types.WindowsDesktop, error)
 }
 
 // MarshalWindowsDesktop marshals the WindowsDesktop resource to JSON.

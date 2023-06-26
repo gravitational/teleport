@@ -568,6 +568,10 @@ type Server struct {
 	// lockWatcher is a lock watcher, used to verify cert generation requests.
 	lockWatcher *services.LockWatcher
 
+	// unifiedResourceWatcher is used to watch and collect multiple resource kinds to be presented
+	// in a unified manner in the web UI.
+	unifiedResourceWatcher *services.UnifiedResourceWatcher
+
 	inventory *inventory.Controller
 
 	// githubOrgSSOCache is used to cache whether Github organizations use
@@ -714,6 +718,13 @@ func (a *Server) ResetLoginHooks() {
 // CloseContext returns the close context
 func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
+}
+
+// SetUnifiedResourceWatcher sets the unified resource watcher.
+func (a *Server) SetUnifiedResourceWatcher(unifiedResourceWatcher *services.UnifiedResourceWatcher) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.unifiedResourceWatcher = unifiedResourceWatcher
 }
 
 // SetLockWatcher sets the lock watcher.
