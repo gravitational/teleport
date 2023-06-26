@@ -238,7 +238,8 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 	callback := newCallback()
 	agent.stateCallback = callback.callback
 
-	agent.tracker.TrackExpected(track.Proxy{ID: claimedProxy}, track.Proxy{ID: "other-proxy"})
+	const sourceID = ""
+	agent.tracker.TrackExpected(sourceID, track.Proxy{ID: claimedProxy}, track.Proxy{ID: "other-proxy"})
 	lease := <-agent.tracker.Acquire()
 	lease.Claim(claimedProxy)
 	t.Cleanup(lease.Release)

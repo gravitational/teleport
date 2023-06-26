@@ -72,7 +72,8 @@ type Proxy struct {
 	Group      string
 	Generation string
 
-	expiry time.Time
+	expiry       time.Time
+	deleteSource string
 }
 
 type Lease struct {
@@ -177,6 +178,8 @@ func (t *Tracker) canSpawn() bool {
 	}
 	desiredUnclaimed := len(desired) - desiredClaimed
 
+	println("tracked:", len(t.tracked), "desired:", len(desired), "claimed:", len(t.claimed), "desiredClaimed:", desiredClaimed)
+
 	if t.connectionCount == 0 {
 		return desiredUnclaimed > 0
 	}
@@ -193,7 +196,7 @@ func (t *Tracker) notify() {
 
 // TrackExpected starts/refreshes tracking for expected proxies.  Called by
 // agents when gossip messages are received.
-func (t *Tracker) TrackExpected(proxies ...Proxy) {
+func (t *Tracker) TrackExpected(sourceID string, proxies ...Proxy) {
 	if len(proxies) == 0 {
 		return
 	}
@@ -205,7 +208,29 @@ func (t *Tracker) TrackExpected(proxies ...Proxy) {
 	expiry := time.Now().Add(t.proxyExpiry)
 	for _, p := range proxies {
 		p.expiry = expiry
+		p.deleteSource = ""
 		t.tracked[p.ID] = p
+	}
+
+	if sourceID == "" {
+		return
+	}
+
+	for k, v := range t.tracked {
+		if v.expiry == expiry {
+			continue
+		}
+
+		switch v.deleteSource {
+		case "":
+			println("tagging proxy for deletion", k, "source", sourceID)
+			v.deleteSource = sourceID
+			t.tracked[k] = v
+		case sourceID:
+		default:
+			println("deleting proxy", k, "source", sourceID)
+			delete(t.tracked, k)
+		}
 	}
 }
 
