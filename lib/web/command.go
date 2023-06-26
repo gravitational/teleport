@@ -281,7 +281,6 @@ func (h *Handler) executeCommand(
 // runCommands runs the given command on the given hosts.
 func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, numParallel int64, log logrus.FieldLogger) {
 	// Create a synchronization channel to limit the number of concurrent commands.
-	// The maximum number of concurrent commands is 30 - it is arbitrary.
 	syncChan := make(chan struct{}, numParallel)
 	// WaitGroup to wait for all commands to finish.
 	wg := sync.WaitGroup{}
