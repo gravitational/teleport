@@ -18,8 +18,6 @@ package app
 
 import (
 	"net/http"
-	"net/url"
-	"path"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -49,7 +47,7 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 		// If the caller fails to authenticate, redirect the caller to Teleport.
 		session, err := h.authenticate(r.Context(), r)
 		if err != nil {
-			if redirectErr := h.redirectToLauncher(w, r, launcherURLParams{}); redirectErr == nil {
+			if redirectErr := h.redirectToLauncher(w, r); redirectErr == nil {
 				return nil
 			}
 			return trace.Wrap(err)
@@ -63,7 +61,7 @@ func (h *Handler) withAuth(handler handlerAuthFunc) http.HandlerFunc {
 
 // redirectToLauncher redirects to the proxy web's app launcher if the public
 // address of the proxy is set.
-func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p launcherURLParams) error {
+func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request) error {
 	// The application launcher can only generate browser sessions (based on
 	// Cookies). Given this, we should only redirect to it when this format is
 	// already in use.
@@ -85,38 +83,9 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request, p l
 		return trace.Wrap(err)
 	}
 
-	urlPath := []string{"web", "launch", addr.Host()}
-	if p.clusterName != "" && p.publicAddr != "" {
-		urlPath = append(urlPath, p.clusterName, p.publicAddr)
-	}
-
-	urlQuery := url.Values{}
-	if p.stateToken != "" {
-		urlQuery.Add("state", p.stateToken)
-	}
-	if p.awsRole != "" {
-		urlQuery.Add("awsrole", p.awsRole)
-	}
-	if p.path != "" {
-		urlQuery.Add("path", p.path)
-	}
-
-	u := url.URL{
-		Scheme:   "https",
-		Host:     h.c.WebPublicAddr,
-		Path:     path.Join(urlPath...),
-		RawQuery: urlQuery.Encode(),
-	}
-	http.Redirect(w, r, u.String(), http.StatusFound)
+	urlString := makeAppRedirectURL(r, h.c.WebPublicAddr, addr.Host())
+	http.Redirect(w, r, urlString, http.StatusFound)
 	return nil
-}
-
-type launcherURLParams struct {
-	clusterName string
-	publicAddr  string
-	stateToken  string
-	awsRole     string
-	path        string
 }
 
 // makeRouterHandler creates a httprouter.Handle.
