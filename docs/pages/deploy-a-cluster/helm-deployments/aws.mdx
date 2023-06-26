@@ -39,7 +39,7 @@ cluster to Teleport.
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-## Step 2/6. Set up AWS IAM configuration
+## Step 3/7. Set up AWS IAM configuration
 
 For Teleport to be able to manage the DynamoDB tables, indexes, and the S3
 storage bucket it needs, you'll need to configure AWS IAM policies to allow
@@ -57,13 +57,14 @@ access.
 
 (!docs/pages/includes/s3-iam-policy.mdx!)
 
-## Step 3/6. Configure TLS certificates for Teleport
-
-The `teleport-cluster` chart can deploy either a Kubernetes `LoadBalancer` or Kubernetes `Ingress` to handle
-incoming connections to the Teleport Proxy Service.
+## Step 4/7. Configure TLS certificates for Teleport
 
 We now need to configure TLS certificates for Teleport to secure its
 communications and allow external clients to connect.
+
+Depending on the approach you use for provisioning TLS certificates, the `teleport-cluster` chart can
+deploy either a Kubernetes `LoadBalancer` or Kubernetes `Ingress` to handle incoming connections to
+the Teleport Proxy Service.
 
 ### Determining an approach
 
@@ -72,20 +73,19 @@ these options:
 
 #### Using `cert-manager`
 
-You can use [`cert-manager`](https://cert-manager.io/docs/) to provision and automatically renew TLS credentials
+You can use `cert-manager` to provision and automatically renew TLS credentials
 by completing ACME challenges via Let's Encrypt.
 
-This method uses a Kubernetes `LoadBalancer`, which will provision an underlying
-[AWS Network Load Balancer (NLB)](https://docs.aws.amazon.com/elasticloadbalancing/latest/network/introduction.html)
-to handle incoming traffic.
+This method uses a Kubernetes `LoadBalancer`, which will provision an underlying AWS Network Load
+Balancer (NLB) to handle incoming traffic.
 
 #### Using AWS Certificate Manager
 
 You can use AWS Certificate Manager to handle TLS termination with AWS-managed certificates.
 
-This method uses a Kubernetes `Ingress`, which can provision an underlying
-[AWS Application Load Balancer (ALB)](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/introduction.html)
-to handle incoming traffic if one does not already exist. It also requires the installation and setup of the [AWS Load Balancer controller](https://kubernetes-sigs.github.io/aws-load-balancer-controller).
+This method uses a Kubernetes `Ingress`, which can provision an underlying AWS Application Load
+Balancer (ALB) to handle incoming traffic if one does not already exist. It also requires the
+installation and setup of the AWS Load Balancer controller.
 
 You should be aware of these potential limitations when using Layer 7 load balancers with Teleport:
 
@@ -96,8 +96,7 @@ You should be aware of these potential limitations when using Layer 7 load balan
 
 <Admonition type="warning">
   This method requires that your cluster has a fully functional installation of the AWS Load Balancer
-  controller with required IAM permissions. This documentation links to AWS-managed documentation to provide
-  installation instructions below.
+  controller with required IAM permissions. This guide provides more details below.
 </Admonition>
 
 #### Using your own TLS credentials
@@ -220,47 +219,12 @@ to provision your Teleport instances with TLS credentials.
   or already have a working installation of the AWS LB controller before continuing with these instructions. Failure to do this will result in an unusable Teleport cluster.
 </Admonition>
 
-To use ACM to handle TLS, add annotations to the chart specifying the ACM
-certificate ARN to use, the port it should be served on and other ALB configuration
+To use ACM to handle TLS, add annotations to the chart values in the section below specifying
+the ACM certificate ARN to use, the port it should be served on and other ALB configuration
 parameters.
 
-Replace
-`arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece`
+Replace `arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece`
 with your actual ACM certificate ARN.
-
-Edit your `values.yaml` file to set values as follows:
-
-  ```yaml
-  ingress:
-    enabled: true
-    spec:
-      ingressClassName: alb
-  annotations:
-    ingress:
-      alb.ingress.kubernetes.io/target-type: ip
-      alb.ingress.kubernetes.io/backend-protocol: HTTPS
-      alb.ingress.kubernetes.io/scheme: internet-facing
-      alb.ingress.kubernetes.io/load-balancer-attributes: idle_timeout.timeout_seconds=350
-      alb.ingress.kubernetes.io/healthcheck-protocol: HTTPS
-      alb.ingress.kubernetes.io/success-codes: 200,301,302
-      # Replace with your AWS certificate ARN
-      alb.ingress.kubernetes.io/certificate-arn: "arn:aws:acm:us-east-1:1234567890:certificate/12345678-43c7-4dd1-a2f6-c495b91ebece"
-  ```
-
-To use an internal AWS application load balancer (as opposed to an internet-facing ALB), you should
-edit the `alb.ingress.kubernetes.io/scheme` annotation:
-
-  ```yaml
-    alb.ingress.kubernetes.io/scheme: internal
-  ```
-
-To automatically redirect HTTP requests on port 80 to HTTPS requests on port 443, you
-can also optionally provide these two values under `annotations.ingress`:
-
-  ```yaml
-    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
-    alb.ingress.kubernetes.io/ssl-redirect: '443'
-  ```
 
 </TabItem>
 <TabItem label="Your own TLS credentials">
@@ -274,7 +238,7 @@ Use the following command to create your secret:
 $ kubectl -n <Var name="namespace" /> create secret tls my-tls-secret --cert=/path/to/cert/file --key=/path/to/key/file
 ```
 
-Edit your `values.yaml` file to refer to the name of your secret:
+Edit your `aws-values.yaml` file to refer to the name of your secret:
 
 ```yaml
   tls:
@@ -284,7 +248,7 @@ Edit your `values.yaml` file to refer to the name of your secret:
 </TabItem>
 </Tabs>
 
-## Step 4/6. Set values to configure the cluster
+## Step 5/7. Set values to configure the cluster
 
 <ScopedBlock scope="enterprise">
 
@@ -364,6 +328,21 @@ annotations:
 podSecurityPolicy:
   enabled: false
 ```
+
+To use an internal AWS application load balancer (as opposed to an internet-facing ALB), you should
+edit the `alb.ingress.kubernetes.io/scheme` annotation:
+
+  ```yaml
+    alb.ingress.kubernetes.io/scheme: internal
+  ```
+
+To automatically redirect HTTP requests on port 80 to HTTPS requests on port 443, you
+can also optionally provide these two values under `annotations.ingress`:
+
+  ```yaml
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+  ```
 </TabItem>
 </Tabs>
 
@@ -399,6 +378,7 @@ podSecurityPolicy:
 ```yaml
 chartMode: aws
 clusterName: teleport.example.com                 # Name of your cluster. Use the FQDN you intend to configure in DNS below.
+proxyListenerMode: multiplex
 aws:
   region: us-west-2                               # AWS region
   backendTable: teleport-helm-backend             # DynamoDB table to use for the Teleport backend
@@ -428,6 +408,22 @@ annotations:
 podSecurityPolicy:
   enabled: false
 ```
+
+To use an internal AWS Application Load Balancer (as opposed to an internet-facing ALB), you should
+edit the `alb.ingress.kubernetes.io/scheme` annotation:
+
+  ```yaml
+    alb.ingress.kubernetes.io/scheme: internal
+  ```
+
+To automatically redirect HTTP requests on port 80 to HTTPS requests on port 443, you
+can also optionally provide these two values under `annotations.ingress`:
+
+  ```yaml
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: '443'
+  ```
+
 </TabItem>
 </Tabs>
 
@@ -458,7 +454,7 @@ pod/teleport-proxy-c6bf55cfc-w96d2   1/1     Running   0          22h
 pod/teleport-proxy-c6bf55cfc-z256w   1/1     Running   0          22h
 
 NAME                        TYPE           CLUSTER-IP     EXTERNAL-IP                         PORT(S)                                                                     AGE
-service/teleport            LoadBalancer   10.40.11.180   xxxxx.elb.us-east-1.amazonaws.com   443:30258/TCP,3023:31802/TCP,3026:32182/TCP,3024:30101/TCP,3036:30302/TCP   22h
+service/teleport            LoadBalancer   10.40.11.180   xxxxx.elb.us-east-1.amazonaws.com   443:30258/TCP                                                               22h
 service/teleport-auth       ClusterIP      10.40.8.251    <none>                              3025/TCP,3026/TCP                                                           22h
 service/teleport-auth-v11   ClusterIP      None           <none>                              <none>                                                                      22h
 service/teleport-auth-v12   ClusterIP      None           <none>                              <none>                                                                      22h
@@ -472,7 +468,7 @@ replicaset.apps/teleport-auth-57989d4cbd   2         2         2       22h
 replicaset.apps/teleport-proxy-c6bf55cfc   2         2         2       22h
 ```
 
-## Step 5/6. Set up DNS
+## Step 6/7. Set up DNS
 
 You'll need to set up a DNS `A` record for `teleport.example.com`. In our example, this record is an alias to an ELB.
 
