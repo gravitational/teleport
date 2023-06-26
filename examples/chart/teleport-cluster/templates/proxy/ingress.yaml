@@ -1,7 +1,7 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- if .Values.ingress.enabled -}}
   {{- if (not (eq .Values.proxyListenerMode "multiplex")) -}}
-    {{- fail "Cannot set ingress.enabled=true unless proxyListenerMode=multiplex" -}}
+    {{- fail "Use of an ingress requires TLS multiplexing to be enabled, so you must also set proxyListenerMode=multiplex - see https://goteleport.com/docs/architecture/tls-routing/" -}}
   {{- end -}}
 {{- $publicAddr := coalesce .Values.publicAddr (list .Values.clusterName) -}}
 {{- /* Trim ports from all public addresses if present */ -}}
