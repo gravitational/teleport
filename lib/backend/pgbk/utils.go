@@ -8,9 +8,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
-	"github.com/jackc/pgtype"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sirupsen/logrus"
 
@@ -85,7 +85,7 @@ func newLease(i backend.Item) *backend.Lease {
 
 func newRev() pgtype.UUID {
 	return pgtype.UUID{
-		Bytes:  uuid.New(),
-		Status: pgtype.Present,
+		Bytes: uuid.New(),
+		Valid: true,
 	}
 }
