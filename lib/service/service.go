@@ -1099,7 +1099,7 @@ func NewTeleport(cfg *Config) (*TeleportProcess, error) {
 	// run one upload completer per-process
 	// even in sync recording modes, since the recording mode can be changed
 	// at any time with dynamic configuration
-	process.RegisterFunc("common.upload", process.initUploaderService)
+	process.RegisterFunc("common.upload.init", process.initUploaderService)
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")
