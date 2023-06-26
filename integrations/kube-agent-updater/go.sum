@@ -492,8 +492,8 @@ github.com/sigstore/cosign/v2 v2.1.0 h1:MU8gTKScV4NY3uUw+PMKgp6f1ZDmEDfDm/gHbGPM
 github.com/sigstore/cosign/v2 v2.1.0/go.mod h1:6pkFfXT/M+FY70DK4QSYa7JAmJEgK4XxsPR69phC7t8=
 github.com/sigstore/rekor v1.2.2-0.20230530122220-67cc9e58bd23 h1:eZY7mQFcc0VvNr0fiAK3/n7kh73+T06KzBEIUYzFSDQ=
 github.com/sigstore/rekor v1.2.2-0.20230530122220-67cc9e58bd23/go.mod h1:h1tOLhldpfILtziWpUDgGBu0vulWk9Kh72t6XzBGJok=
-github.com/sigstore/sigstore v1.7.0 h1:0jLlzxX68LtirwSTWAwRPMKhulT0aWVLmFU5ofnbtYA=
-github.com/sigstore/sigstore v1.7.0/go.mod h1:0PmMzfJP2Y9+lugD0wer4e7TihR5tM7NcIs3bQNk5xg=
+github.com/sigstore/sigstore v1.7.1 h1:fCATemikcBK0cG4+NcM940MfoIgmioY1vC6E66hXxks=
+github.com/sigstore/sigstore v1.7.1/go.mod h1:0PmMzfJP2Y9+lugD0wer4e7TihR5tM7NcIs3bQNk5xg=
 github.com/sigstore/sigstore/pkg/signature/kms/aws v1.7.0 h1:fRv9grFx22NsmXTkfhF8/+UzqkrCND8JI/QfCpYjEnc=
 github.com/sigstore/sigstore/pkg/signature/kms/azure v1.7.0 h1:ST1G207w73d1t4nXHyXGM9LvRDjSQUtnANbkoGRaBi4=
 github.com/sigstore/sigstore/pkg/signature/kms/gcp v1.7.0 h1:rYJ7+nRDGxSneFcawUzYyVcRKvGrqqdMUbjZMLI6iCc=
