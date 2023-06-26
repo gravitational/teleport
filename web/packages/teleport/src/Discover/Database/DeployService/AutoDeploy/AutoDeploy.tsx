@@ -269,6 +269,7 @@ const CreateAccessRole = ({
       </Text>
       <Box mb={2}>
         <TextSelectCopyMulti
+          // TODO(lisa): replace with actual script when ready
           lines={[
             {
               text: '$ sudo bash -c "$(curl -fsSL https://kenny-r-test.teleport.sh/scripts/40884566df6fbdb02411364e641f78b2/set-up-aws-role.sh)"',
