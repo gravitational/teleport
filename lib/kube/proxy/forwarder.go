@@ -458,11 +458,21 @@ func (c *authContext) key() string {
 	return fmt.Sprintf("%v:%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeClusterName, c.certExpires.Unix(), c.Identity.GetIdentity().ActiveRequests)
 }
 
-func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
+func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesClusterMetadata {
+	var kubeUsers, kubeGroups []string
+
+	if impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(c.kubeUsers, c.kubeGroups, req.Header); err == nil {
+		kubeUsers = []string{impersonateUser}
+		kubeGroups = impersonateGroups
+	} else {
+		kubeUsers = utils.StringsSliceFromSet(c.kubeUsers)
+		kubeGroups = utils.StringsSliceFromSet(c.kubeGroups)
+	}
+
 	return apievents.KubernetesClusterMetadata{
 		KubernetesCluster: c.kubeClusterName,
-		KubernetesUsers:   utils.StringsSliceFromSet(c.kubeUsers),
-		KubernetesGroups:  utils.StringsSliceFromSet(c.kubeGroups),
+		KubernetesUsers:   kubeUsers,
+		KubernetesGroups:  kubeGroups,
 		KubernetesLabels:  c.kubeClusterLabels,
 	}
 }
@@ -998,7 +1008,7 @@ func (f *Forwarder) emitAuditEvent(ctx *authContext, req *http.Request, sess *cl
 		RequestPath:               req.URL.Path,
 		Verb:                      req.Method,
 		ResponseCode:              int32(status),
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 	}
 
 	r.populateEvent(event)
@@ -1583,7 +1593,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		SessionMetadata:           sessionMetadata,
 		UserMetadata:              ctx.eventUserMeta(),
 		ConnectionMetadata:        connectionMetdata,
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 		KubernetesPodMetadata:     eventPodMeta,
 
 		InitialCommand:   request.cmd,
@@ -1606,7 +1616,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		CommandMetadata: apievents.CommandMetadata{
 			Command: strings.Join(request.cmd, " "),
 		},
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 		KubernetesPodMetadata:     eventPodMeta,
 	}
 
@@ -1628,7 +1638,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 			Interactive:               false,
 			StartTime:                 sessionStart,
 			EndTime:                   f.cfg.Clock.Now().UTC(),
-			KubernetesClusterMetadata: ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
 			SessionRecording:          ctx.recordingConfig.GetMode(),
@@ -1966,7 +1976,7 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 		return nil
 	}
 
-	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(log, ctx.kubeUsers, ctx.kubeGroups, headers)
+	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(ctx.kubeUsers, ctx.kubeGroups, headers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -2002,7 +2012,7 @@ func copyImpersonationHeaders(dst, src http.Header) {
 // received in the `Impersonate-User` and `Impersonate-Groups` headers and the
 // allowed values. If the user didn't specify any user and groups to impersonate,
 // Teleport will use every group the user is allowed to impersonate.
-func computeImpersonatedPrincipals(log logrus.FieldLogger, kubeUsers, kubeGroups map[string]struct{}, headers http.Header) (string, []string, error) {
+func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, headers http.Header) (string, []string, error) {
 	var impersonateUser string
 	var impersonateGroups []string
 	for header, values := range headers {
@@ -2895,7 +2905,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 			allowedKubeUsers, allowedKubeGroups = fillDefaultKubePrincipalDetails(allowedKubeUsers, allowedKubeGroups, authCtx.User.GetName())
 
 			impersonatedUsers, impersonatedGroups, err := computeImpersonatedPrincipals(
-				f.log, utils.StringsSet(allowedKubeUsers), utils.StringsSet(allowedKubeGroups),
+				utils.StringsSet(allowedKubeUsers), utils.StringsSet(allowedKubeGroups),
 				req.Header,
 			)
 			if err != nil {
