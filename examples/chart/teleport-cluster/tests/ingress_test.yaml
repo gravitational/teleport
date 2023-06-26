@@ -9,7 +9,7 @@ tests:
       - hasDocuments:
           count: 0
 
-  - it: creates an Ingress when ingress.enabled=true
+  - it: creates an Ingress when ingress.enabled=true and proxyListenerMode=multiplex
     set:
       clusterName: teleport.example.com
       ingress:
@@ -20,6 +20,25 @@ tests:
           count: 1
       - isKind:
           of: Ingress
+
+  - it: fails to deploy and Ingress when ingress.enabled=true and proxyListenerMode is not set
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+    asserts:
+      - failedTemplate:
+          errorMessage: "Use of an ingress requires TLS multiplexing to be enabled, so you must also set proxyListenerMode=multiplex - see https://goteleport.com/docs/architecture/tls-routing/"
+
+  - it: fails to deploy and Ingress when ingress.enabled=true and proxyListenerMode=separate
+    set:
+      clusterName: teleport.example.com
+      ingress:
+        enabled: true
+      proxyListenerMode: separate
+    asserts:
+      - failedTemplate:
+          errorMessage: "Use of an ingress requires TLS multiplexing to be enabled, so you must also set proxyListenerMode=multiplex - see https://goteleport.com/docs/architecture/tls-routing/"
 
   - it: wears annotations when set
     set:

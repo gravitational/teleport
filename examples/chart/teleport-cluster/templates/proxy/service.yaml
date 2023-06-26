@@ -1,7 +1,9 @@
 {{- $proxy := mustMergeOverwrite (mustDeepCopy .Values) .Values.proxy -}}
 {{- $backendProtocol := ternary "ssl" "tcp" (hasKey $proxy.annotations.service "service.beta.kubernetes.io/aws-load-balancer-ssl-cert") -}}
-{{- /* Force override service type to ClusterIP if ingress.enabled=true and service.type=LoadBalancer */ -}}
-{{- $proxyServiceType := ternary "ClusterIP" (default "LoadBalancer" $proxy.service.type) (and (eq $proxy.service.type "LoadBalancer") $proxy.ingress.enabled) -}}
+{{- /* Fail early if proxy service type is set to LoadBalancer when ingress.enabled=true */ -}}
+{{- if and $proxy.ingress.enabled (eq $proxy.service.type "LoadBalancer") -}}
+  {{- fail "proxy.service.type must not be LoadBalancer when using an ingress - any load balancer should be provisioned by your ingress controller. Set proxy.service.type=ClusterIP instead" -}}
+{{- end -}}
 apiVersion: v1
 kind: Service
 metadata:
@@ -26,7 +28,7 @@ metadata:
     {{- end }}
   {{- end }}
 spec:
-  type: {{ $proxyServiceType }}
+  type: {{ $proxy.service.type }}
 {{- with $proxy.service.spec }}
   {{- toYaml . | nindent 2 }}
 {{- end }}
@@ -35,7 +37,7 @@ spec:
     port: 443
     targetPort: 3080
     protocol: TCP
-{{- if (and (ne $proxy.proxyListenerMode "multiplex") (not $proxy.ingress.enabled)) }}
+{{- if ne $proxy.proxyListenerMode "multiplex" }}
   - name: sshproxy
     port: 3023
     targetPort: 3023
