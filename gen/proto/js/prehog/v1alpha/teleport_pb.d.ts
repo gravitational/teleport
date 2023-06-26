@@ -1388,6 +1388,31 @@ export namespace UIIntegrationEnrollCompleteEvent {
     }
 }
 
+export class EditorChangeEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): EditorChangeEvent;
+
+    getStatus(): EditorChangeStatus;
+    setStatus(value: EditorChangeStatus): EditorChangeEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): EditorChangeEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: EditorChangeEvent): EditorChangeEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: EditorChangeEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): EditorChangeEvent;
+    static deserializeBinaryFromReader(message: EditorChangeEvent, reader: jspb.BinaryReader): EditorChangeEvent;
+}
+
+export namespace EditorChangeEvent {
+    export type AsObject = {
+        userName: string,
+        status: EditorChangeStatus,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1651,6 +1676,12 @@ export class SubmitEventRequest extends jspb.Message {
     setUiIntegrationEnrollCompleteEvent(value?: UIIntegrationEnrollCompleteEvent): SubmitEventRequest;
 
 
+    hasEditorChangeEvent(): boolean;
+    clearEditorChangeEvent(): void;
+    getEditorChangeEvent(): EditorChangeEvent | undefined;
+    setEditorChangeEvent(value?: EditorChangeEvent): SubmitEventRequest;
+
+
     hasBotCreate(): boolean;
     clearBotCreate(): void;
     getBotCreate(): BotCreateEvent | undefined;
@@ -1715,6 +1746,7 @@ export namespace SubmitEventRequest {
         assistCompletion?: AssistCompletionEvent.AsObject,
         uiIntegrationEnrollStartEvent?: UIIntegrationEnrollStartEvent.AsObject,
         uiIntegrationEnrollCompleteEvent?: UIIntegrationEnrollCompleteEvent.AsObject,
+        editorChangeEvent?: EditorChangeEvent.AsObject,
         botCreate?: BotCreateEvent.AsObject,
     }
 
@@ -1805,7 +1837,9 @@ export namespace SubmitEventRequest {
 
     UI_INTEGRATION_ENROLL_COMPLETE_EVENT = 45,
 
-    BOT_CREATE = 46,
+    EDITOR_CHANGE_EVENT = 46,
+
+    BOT_CREATE = 47,
 
     }
 
@@ -1984,4 +2018,10 @@ export enum IntegrationEnrollKind {
     INTEGRATION_ENROLL_KIND_OPSGENIE = 9,
     INTEGRATION_ENROLL_KIND_OKTA = 10,
     INTEGRATION_ENROLL_KIND_JAMF = 11,
+}
+
+export enum EditorChangeStatus {
+    EDITOR_CHANGE_STATUS_UNSPECIFIED = 0,
+    EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1,
+    EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2,
 }
