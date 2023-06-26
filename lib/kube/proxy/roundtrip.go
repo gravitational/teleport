@@ -152,21 +152,6 @@ func (s *SpdyRoundTripper) dial(url *url.URL) (net.Conn, error) {
 	return conn, nil
 }
 
-// copyImpersonationHeaders copies the impersonation headers from the source
-// request to the destination request.
-func copyImpersonationHeaders(dst, src http.Header) {
-	dst.Del(ImpersonateUserHeader)
-	dst.Del(ImpersonateGroupHeader)
-
-	for _, v := range src.Values(ImpersonateUserHeader) {
-		dst.Add(ImpersonateUserHeader, v)
-	}
-
-	for _, v := range src.Values(ImpersonateGroupHeader) {
-		dst.Add(ImpersonateGroupHeader, v)
-	}
-}
-
 // RoundTrip executes the Request and upgrades it. After a successful upgrade,
 // clients may call SpdyRoundTripper.Connection() to retrieve the upgraded
 // connection.
