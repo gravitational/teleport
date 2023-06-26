@@ -127,14 +127,20 @@ type HTTPMiddleware func(next http.Handler) http.Handler
 
 // ChainHTTPMiddlewares wraps an http.Handler with a list of middlewares. Inner
 // middlewares should be provided before outer middlewares.
-func ChainHTTPMiddlewares(next http.Handler, middlewares ...HTTPMiddleware) http.Handler {
+func ChainHTTPMiddlewares(handler http.Handler, middlewares ...HTTPMiddleware) http.Handler {
 	if len(middlewares) == 0 {
-		return next
+		return handler
 	}
 	apply := middlewares[0]
 	middlewares = middlewares[1:]
 	if apply != nil {
-		next = apply(next)
+		handler = apply(handler)
 	}
-	return ChainHTTPMiddlewares(next, middlewares...)
+	return ChainHTTPMiddlewares(handler, middlewares...)
+}
+
+// NoopHTTPMiddleware is a no-operation HTTPMiddleware that returns the
+// original handler.
+func NoopHTTPMiddleware(next http.Handler) http.Handler {
+	return next
 }

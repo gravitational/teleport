@@ -76,9 +76,8 @@ func TestChainHTTPMiddlewares(t *testing.T) {
 		baseHandler,
 		nil,
 		middleware2,
-		nil,
+		NoopHTTPMiddleware,
 		middleware4,
-		nil,
 	)
 
 	w := httptest.NewRecorder()

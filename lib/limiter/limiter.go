@@ -182,13 +182,13 @@ func (l *Limiter) WrapListener(ln net.Listener) *Listener {
 	return NewListener(ln, l.ConnectionsLimiter)
 }
 
-type handlerWraper interface {
+type handlerWrapper interface {
 	http.Handler
 	WrapHandle(http.Handler)
 }
 
 // MakeMiddleware creates an HTTP middleware that wraps provided handle.
-func MakeMiddleware(limiter handlerWraper) func(http.Handler) http.Handler {
+func MakeMiddleware(limiter handlerWrapper) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		limiter.WrapHandle(next)
 		return limiter

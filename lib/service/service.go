@@ -5692,5 +5692,5 @@ func makeXForwardedForMiddleware(cfg *servicecfg.Config) utils.HTTPMiddleware {
 	if cfg.Proxy.TrustXForwardedFor {
 		return web.NewXForwardedForMiddleware
 	}
-	return nil
+	return utils.NoopHTTPMiddleware
 }
