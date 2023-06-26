@@ -360,21 +360,6 @@ message UIIntegrationEnrollCompleteEvent {
   IntegrationEnrollMetadata metadata = 1;
 }
 
-// EditorChangeEvent is an event that is emitted when a user role set changes resulting in
-// a editor role being added on removed
-message EditorChangeEvent {
-  EditorChangeStatus status = 1;
-}
-
-// EditorChangeStatus is the possible values of an EditorChangeEvent event
-enum EditorChangeStatus {
-  EDITOR_CHANGE_STATUS_UNSPECIFIED = 0;
-  // Status when the editor role is granted
-  EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1;
-  // Status when the editor role is removed
-  EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2;
-}
-
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -410,7 +395,6 @@ message UsageEventOneOf {
     AssistCompletionEvent assist_completion = 30;
     UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 31;
     UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 32;
-    EditorChangeEvent editor_change_event = 33;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

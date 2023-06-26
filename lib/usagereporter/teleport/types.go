@@ -783,12 +783,6 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 			CompletionTokens: e.AssistCompletion.CompletionTokens,
 		}
 		return ret, nil
-	case *usageeventsv1.UsageEventOneOf_EditorChangeEvent:
-		ret := &EditorChangeEvent{
-			UserName: userMD.Username,
-			Status:   prehogv1a.EditorChangeStatus(e.EditorChangeEvent.GetStatus()),
-		}
-		return ret, nil
 	default:
 		return nil, trace.BadParameter("invalid usage event type %T", event.GetEvent())
 	}
