@@ -238,11 +238,6 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Device Trust (Preview)",
-              "slug": "/access-controls/guides/device-trust/",
-              "forScopes": ["enterprise", "cloud"]
-            },
-            {
               "title": "Headless WebAuthn (Preview)",
               "slug": "/access-controls/guides/headless/"
             },
@@ -346,6 +341,17 @@
               "title": "Kubernetes Operator",
               "slug": "/access-controls/login-rules/kubernetes/",
               "forScopes": ["enterprise"]
+            }
+          ]
+        },
+        {
+          "title": "Device Trust",
+          "slug": "/access-controls/device-trust/",
+          "forScopes": ["enterprise", "cloud"],
+          "entries": [
+            {
+              "title": "Set Up Device Trust",
+              "slug": "/access-controls/device-trust/guide/"
             }
           ]
         },
@@ -460,7 +466,7 @@
             {
               "title": "Via Azure",
               "slug": "/management/join-services-to-your-cluster/azure/"
-            },            
+            },
             {
               "title": "Joining Services via Kubernetes ServiceAccount",
               "slug": "/management/join-services-to-your-cluster/kubernetes/",
@@ -1058,7 +1064,7 @@
         {
           "title": "Getting Started",
           "slug": "/desktop-access/getting-started/",
-          "forScopes": ["enterprise", "cloud"]	
+          "forScopes": ["enterprise", "cloud"]
         },
         {
           "title": "Active Directory",
@@ -2503,6 +2509,11 @@
     {
       "source": "/adopters/",
       "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/device-trust/",
+      "destination": "/access-controls/device-trust/guide/",
       "permanent": true
     }
   ]

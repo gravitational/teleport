@@ -21,9 +21,61 @@ package httplib
 import (
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
+
+	"golang.org/x/exp/maps"
 )
+
+var defaultContentSecurityPolicy = map[string]string{
+	"default-src": "'self'",
+	// specify CSP directives not covered by `default-src`
+	"base-uri":        "'self'",
+	"form-action":     "'self'",
+	"frame-ancestors": "'none'",
+	// additional default restrictions
+	"object-src": "'none'",
+	// auto-pay plans in Cloud use stripe.com to manage billing information
+	"script-src": "'self' https://js.stripe.com",
+	"frame-src":  "https://js.stripe.com",
+	"img-src":    "'self' data: blob:",
+	"style-src":  "'self' 'unsafe-inline'",
+}
+
+var defaultFontSrc = map[string]string{"font-src": "'self' data:"}
+
+// combineCSPMaps combines multiple CSP maps into a single map.
+// When multiple of the input cspMaps have the same key, the
+// latter map's value takes precedence.
+func combineCSPMaps(cspMaps ...map[string]string) map[string]string {
+	combined := make(map[string]string)
+	for _, cspMap := range cspMaps {
+		maps.Copy(combined, cspMap)
+	}
+	return combined
+}
+
+// getContentSecurityPolicyString combines multiple CSP maps into a single
+// CSP string, alphabetically sorted by the directive key.
+// When multiple of the input cspMaps have the same key, the
+// latter map's value takes precedence.
+func getContentSecurityPolicyString(cspMaps ...map[string]string) string {
+	combined := combineCSPMaps(cspMaps...)
+
+	keys := make([]string, 0, len(combined))
+	for k := range combined {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	var cspStringBuilder strings.Builder
+	for _, k := range keys {
+		fmt.Fprintf(&cspStringBuilder, "%s %s; ", k, combined[k])
+	}
+
+	return strings.TrimSpace(cspStringBuilder.String())
+}
 
 // SetNoCacheHeaders tells proxies and browsers do not cache the content
 func SetNoCacheHeaders(h http.Header) {
@@ -63,51 +115,39 @@ func SetDefaultSecurityHeaders(h http.Header) {
 
 // SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
 func SetIndexContentSecurityPolicy(h http.Header) {
-	var cspValue = strings.Join([]string{
-		GetDefaultContentSecurityPolicy(),
-		// 'unsafe-inline' is required by CSS-in-JS to work
-		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data: blob:",
-		"font-src 'self' data:",
-		"connect-src 'self' wss:",
-	}, ";")
+	cspString := getContentSecurityPolicyString(
+		defaultContentSecurityPolicy,
+		defaultFontSrc,
+		map[string]string{
+			"connect-src": "'self' wss:",
+		},
+	)
 
-	h.Set("Content-Security-Policy", cspValue)
+	h.Set("Content-Security-Policy", cspString)
 }
 
 // SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
 func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
-	var cspValue = strings.Join([]string{
-		GetDefaultContentSecurityPolicy(),
-		// 'unsafe-inline' is required by CSS-in-JS to work
-		"style-src 'self' 'unsafe-inline'",
-		"img-src 'self' data: blob:",
-		"font-src 'self' data:",
-		fmt.Sprintf("connect-src 'self' %s", applicationURL),
-	}, ";")
+	cspString := getContentSecurityPolicyString(
+		defaultContentSecurityPolicy,
+		defaultFontSrc,
+		map[string]string{
+			"connect-src": "'self' " + applicationURL,
+		},
+	)
 
-	h.Set("Content-Security-Policy", cspValue)
+	h.Set("Content-Security-Policy", cspString)
 }
 
-// GetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
-func GetDefaultContentSecurityPolicy() string {
-	return strings.Join([]string{
-		"default-src 'self'",
-		// specify CSP directives not covered by `default-src`
-		"base-uri 'self'",
-		"form-action 'self'",
-		"frame-ancestors 'none'",
-		// additional default restrictions
-		"object-src 'none'",
-		// auto-pay plans in Cloud use stripe.com to manage billing information
-		"script-src 'self' https://js.stripe.com",
-		"frame-src https://js.stripe.com",
-	}, ";")
-}
+func SetRedirectPageContentSecurityPolicy(h http.Header, scriptSrc string) {
+	cspString := getContentSecurityPolicyString(
+		defaultContentSecurityPolicy,
+		map[string]string{
+			"script-src": "'" + scriptSrc + "'",
+		},
+	)
 
-// SetDefaultContentSecurityPolicy provides a starting Content Security Policy with safe defaults.
-func SetDefaultContentSecurityPolicy(h http.Header) {
-	h.Set("Content-Security-Policy", GetDefaultContentSecurityPolicy())
+	h.Set("Content-Security-Policy", cspString)
 }
 
 // SetWebConfigHeaders sets headers for webConfig.js
