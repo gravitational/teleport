@@ -320,6 +320,7 @@ func (u *BotCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 				UserName:    a.AnonymizeString(u.UserName),
 				RoleName:    a.AnonymizeString(u.RoleName),
 				BotUserName: a.AnonymizeString(u.BotUserName),
+				BotName:     a.AnonymizeString(u.BotName),
 				RoleCount:   u.RoleCount,
 				JoinMethod:  u.JoinMethod,
 			},

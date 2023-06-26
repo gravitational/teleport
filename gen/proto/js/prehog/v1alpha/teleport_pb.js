@@ -7834,7 +7834,8 @@ proto.prehog.v1alpha.BotCreateEvent.toObject = function(includeInstance, msg) {
     botUserName: jspb.Message.getFieldWithDefault(msg, 2, ""),
     roleName: jspb.Message.getFieldWithDefault(msg, 3, ""),
     roleCount: jspb.Message.getFieldWithDefault(msg, 4, 0),
-    joinMethod: jspb.Message.getFieldWithDefault(msg, 5, "")
+    joinMethod: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    botName: jspb.Message.getFieldWithDefault(msg, 6, "")
   };
 
   if (includeInstance) {
@@ -7890,6 +7891,10 @@ proto.prehog.v1alpha.BotCreateEvent.deserializeBinaryFromReader = function(msg, 
     case 5:
       var value = /** @type {string} */ (reader.readString());
       msg.setJoinMethod(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBotName(value);
       break;
     default:
       reader.skipField();
@@ -7952,6 +7957,13 @@ proto.prehog.v1alpha.BotCreateEvent.serializeBinaryToWriter = function(message, 
   if (f.length > 0) {
     writer.writeString(
       5,
+      f
+    );
+  }
+  f = message.getBotName();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
       f
     );
   }
@@ -8045,6 +8057,24 @@ proto.prehog.v1alpha.BotCreateEvent.prototype.getJoinMethod = function() {
  */
 proto.prehog.v1alpha.BotCreateEvent.prototype.setJoinMethod = function(value) {
   return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string bot_name = 6;
+ * @return {string}
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.getBotName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.BotCreateEvent} returns this
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.setBotName = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
 };
 
 

@@ -1033,6 +1033,9 @@ export class BotCreateEvent extends jspb.Message {
     getJoinMethod(): string;
     setJoinMethod(value: string): BotCreateEvent;
 
+    getBotName(): string;
+    setBotName(value: string): BotCreateEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): BotCreateEvent.AsObject;
@@ -1051,6 +1054,7 @@ export namespace BotCreateEvent {
         roleName: string,
         roleCount: number,
         joinMethod: string,
+        botName: string,
     }
 }
 
