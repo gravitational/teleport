@@ -48,7 +48,7 @@ message UIOnboardSetCredentialSubmitEvent {
 }
 
 // UIOnboardQuestionnaireSubmitEvent is a UI event sent during registration when
-// user submit their onboarding questionnaire.
+// the user submits their onboarding questionnaire.
 message UIOnboardQuestionnaireSubmitEvent {
   // The event username. Not extracted from identity as this is pre-registration.
   string username = 1;

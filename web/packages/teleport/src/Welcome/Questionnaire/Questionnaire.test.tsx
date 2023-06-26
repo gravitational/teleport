@@ -22,7 +22,7 @@ import { Questionnaire } from './Questionnaire';
 
 describe('questionnaire', () => {
   test('loads each question', () => {
-    render(<Questionnaire />);
+    render(<Questionnaire username="" />);
 
     expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
 

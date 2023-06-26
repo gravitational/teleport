@@ -607,7 +607,7 @@ func (m *UIOnboardSetCredentialSubmitEvent) GetUsername() string {
 }
 
 // UIOnboardQuestionnaireSubmitEvent is a UI event sent during registration when
-// user submit their onboarding questionnaire.
+// the user submits their onboarding questionnaire.
 type UIOnboardQuestionnaireSubmitEvent struct {
 	// The event username. Not extracted from identity as this is pre-registration.
 	Username             string   `protobuf:"bytes,1,opt,name=username,proto3" json:"username,omitempty"`
