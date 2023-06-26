@@ -144,7 +144,7 @@ authentication:
 # Teleport supports TLS routing. In this mode, all client connections are wrapped in TLS and multiplexed on one Teleport proxy port.
 # Default mode will not utilize TLS routing and operate in backwards-compatibility mode.
 #
-# To use an ingress, set proxyListenerMode=multiplex and set ingress.enabled=true.
+# To use an ingress, set proxyListenerMode=multiplex, ingress.enabled=true and service.type=ClusterIP
 #
 # Possible values are 'separate' and 'multiplex'
 proxyListenerMode: "separate"
@@ -519,8 +519,8 @@ rbac:
 
 # Options for the Teleport proxy service
 # This setting only applies to the proxy service. The teleport auth service is internal-only and always uses a ClusterIP.
-# To use an Ingress, leave this as-is and set ingress.enabled=true (which will automatically use a ClusterIP instead).
 # You can override the proxy's backend service to any service type (other than "LoadBalancer") here if really needed.
+# To use an Ingress, set service.type=ClusterIP and ingress.enabled=true
 service:
   type: LoadBalancer
   # Additional entries here will be added to the service spec.
@@ -528,12 +528,12 @@ service:
     # loadBalancerIP: "1.2.3.4"
 
 # Options for ingress
-# If you set ingress.enabled to true, service.type will automatically be set to "ClusterIP" to prevent additional
-# unnecessary load balancers being created.
+# If you set ingress.enabled to true, service.type MUST also be set to something other than "LoadBalancer" to prevent
+# additional unnecessary load balancers from being created. Ingress controllers should provision their own load balancer.
 ingress:
   enabled: false
   # Setting suppressAutomaticWildcards to true will not automatically add *.<clusterName> as a hostname served
-  # by the ingress. This may be desirable if you don't use Teleport Application Access.
+  # by the Ingress. This may be desirable if you don't use Teleport Application Access.
   suppressAutomaticWildcards: false
   # Additional entries here will be added to the ingress spec.
   spec: {}
