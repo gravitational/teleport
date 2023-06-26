@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -274,6 +275,30 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 		"form-action":     "'self'",
 		"frame-ancestors": "'none'",
 		"object-src":      "'none'",
+		"style-src":       "'self' 'unsafe-inline'",
+		"img-src":         "'self' data: blob:",
+		"font-src":        "'self' data:",
+		"connect-src":     "'self' wss:",
+	}
+
+	h := make(http.Header)
+	SetIndexContentSecurityPolicy(h, proto.Features{})
+	actualCsp := h.Get("Content-Security-Policy")
+	for k, v := range expectedCspVals {
+		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
+		require.Contains(t, actualCsp, expectedCspSubString)
+	}
+}
+
+func TestSetIndexContentSecurityPolicyForCloudUsageBased(t *testing.T) {
+	t.Parallel()
+
+	expectedCspVals := map[string]string{
+		"default-src":     "'self'",
+		"base-uri":        "'self'",
+		"form-action":     "'self'",
+		"frame-ancestors": "'none'",
+		"object-src":      "'none'",
 		"script-src":      "'self' https://js.stripe.com",
 		"frame-src":       "https://js.stripe.com",
 		"style-src":       "'self' 'unsafe-inline'",
@@ -283,7 +308,7 @@ func TestSetIndexContentSecurityPolicy(t *testing.T) {
 	}
 
 	h := make(http.Header)
-	SetIndexContentSecurityPolicy(h)
+	SetIndexContentSecurityPolicy(h, proto.Features{Cloud: true, IsUsageBased: true})
 	actualCsp := h.Get("Content-Security-Policy")
 	for k, v := range expectedCspVals {
 		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
@@ -300,8 +325,7 @@ func TestSetIndexContentSecurityPolicyWithWasm(t *testing.T) {
 		"form-action":     "'self'",
 		"frame-ancestors": "'none'",
 		"object-src":      "'none'",
-		"script-src":      "'self' https://js.stripe.com 'wasm-unsafe-eval'",
-		"frame-src":       "https://js.stripe.com",
+		"script-src":      "'wasm-unsafe-eval'",
 		"style-src":       "'self' 'unsafe-inline'",
 		"img-src":         "'self' data: blob:",
 		"font-src":        "'self' data:",
@@ -328,8 +352,6 @@ func TestSetAppLaunchContentSecurityPolicy(t *testing.T) {
 		"form-action":     "'self'",
 		"frame-ancestors": "'none'",
 		"object-src":      "'none'",
-		"script-src":      "'self' https://js.stripe.com",
-		"frame-src":       "https://js.stripe.com",
 		"style-src":       "'self' 'unsafe-inline'",
 		"img-src":         "'self' data: blob:",
 		"font-src":        "'self' data:",
@@ -356,7 +378,6 @@ func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
 		"form-action":     "'self'",
 		"frame-ancestors": "'none'",
 		"object-src":      "'none'",
-		"frame-src":       "https://js.stripe.com",
 		"style-src":       "'self' 'unsafe-inline'",
 		"img-src":         "'self' data: blob:",
 		"script-src":      fmt.Sprintf("'%s'", scriptSrc),

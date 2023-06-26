@@ -66,6 +66,12 @@ type TokensUsed struct {
 	Completion int
 }
 
+// UsedTokens returns the number of tokens used during a single invocation of the agent.
+// This method creates a convinient way to get TokensUsed from embedded structs.
+func (t *TokensUsed) UsedTokens() *TokensUsed {
+	return t
+}
+
 // newTokensUsed_Cl100kBase creates a new TokensUsed instance with a Cl100kBase tokenizer.
 // This tokenizer is used by GPT-3 and GPT-4.
 func newTokensUsed_Cl100kBase() *TokensUsed {

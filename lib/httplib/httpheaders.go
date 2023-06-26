@@ -25,46 +25,51 @@ import (
 	"strings"
 	"time"
 
-	"golang.org/x/exp/maps"
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
-const (
-	// auto-pay plans in Cloud use stripe.com to manage billing information
-	defaultScriptSrc = "'self' https://js.stripe.com"
-)
+type cspMap map[string][]string
 
-var defaultContentSecurityPolicy = map[string]string{
-	"default-src": "'self'",
+var defaultContentSecurityPolicy = cspMap{
+	"default-src": {"'self'"},
 	// specify CSP directives not covered by `default-src`
-	"base-uri":        "'self'",
-	"form-action":     "'self'",
-	"frame-ancestors": "'none'",
+	"base-uri":        {"'self'"},
+	"form-action":     {"'self'"},
+	"frame-ancestors": {"'none'"},
 	// additional default restrictions
-	"object-src": "'none'",
-	"script-src": defaultScriptSrc,
-	"frame-src":  "https://js.stripe.com",
-	"img-src":    "'self' data: blob:",
-	"style-src":  "'self' 'unsafe-inline'",
+	"object-src": {"'none'"},
+	"img-src":    {"'self'", "data:", "blob:"},
+	"style-src":  {"'self'", "'unsafe-inline'"},
 }
 
-var defaultFontSrc = map[string]string{"font-src": "'self' data:"}
+var defaultFontSrc = cspMap{"font-src": {"'self'", "data:"}}
+
+var stripeSecurityPolicy = cspMap{
+	// auto-pay plans in Cloud use stripe.com to manage billing information
+	"script-src": {"'self'", "https://js.stripe.com"},
+	"frame-src":  {"https://js.stripe.com"},
+}
 
 // combineCSPMaps combines multiple CSP maps into a single map.
-// When multiple of the input cspMaps have the same key, the
-// latter map's value takes precedence.
-func combineCSPMaps(cspMaps ...map[string]string) map[string]string {
-	combined := make(map[string]string)
+// When multiple of the input cspMaps have the same key, their
+// respective lists are concatenated.
+func combineCSPMaps(cspMaps ...cspMap) cspMap {
+	combinedMap := make(cspMap)
+
 	for _, cspMap := range cspMaps {
-		maps.Copy(combined, cspMap)
+		for key, value := range cspMap {
+			combinedMap[key] = append(combinedMap[key], value...)
+		}
 	}
-	return combined
+
+	return combinedMap
 }
 
 // getContentSecurityPolicyString combines multiple CSP maps into a single
 // CSP string, alphabetically sorted by the directive key.
-// When multiple of the input cspMaps have the same key, the
-// latter map's value takes precedence.
-func getContentSecurityPolicyString(cspMaps ...map[string]string) string {
+// When multiple of the input cspMaps have the same key, their
+// respective lists are concatenated.
+func getContentSecurityPolicyString(cspMaps ...cspMap) string {
 	combined := combineCSPMaps(cspMaps...)
 
 	keys := make([]string, 0, len(combined))
@@ -75,7 +80,11 @@ func getContentSecurityPolicyString(cspMaps ...map[string]string) string {
 
 	var cspStringBuilder strings.Builder
 	for _, k := range keys {
-		fmt.Fprintf(&cspStringBuilder, "%s %s; ", k, combined[k])
+		fmt.Fprintf(&cspStringBuilder, "%s", k)
+		for _, v := range combined[k] {
+			fmt.Fprintf(&cspStringBuilder, " %s", v)
+		}
+		fmt.Fprintf(&cspStringBuilder, "; ")
 	}
 
 	return strings.TrimSpace(cspStringBuilder.String())
@@ -117,31 +126,44 @@ func SetDefaultSecurityHeaders(h http.Header) {
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 }
 
-func getIndexContentSecurityPolicy() map[string]string {
+func getIndexContentSecurityPolicy(withStripe, withWasm bool) cspMap {
+	// todo(isaiah): withStripe, withWasm
 	return combineCSPMaps(
 		defaultContentSecurityPolicy,
 		defaultFontSrc,
-		map[string]string{
-			"connect-src": "'self' wss:",
+		cspMap{
+			"connect-src": {"'self'", "wss:"},
 		},
 	)
 }
 
-// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
-func SetIndexContentSecurityPolicy(h http.Header) {
-	cspString := getContentSecurityPolicyString(getIndexContentSecurityPolicy())
+func SetIndexContentSecurityPolicyWithWasm(h http.Header) {
+	// todo(isaiah): everything in SetIndexContentSecurityPolicy, either adding to a non-existent script-src key, or appending to it.
+	cspString := getContentSecurityPolicyString(
+		getIndexContentSecurityPolicy(true, true),
+		cspMap{
+			"script-src": {"'wasm-unsafe-eval'"},
+		},
+	)
 
 	h.Set("Content-Security-Policy", cspString)
 }
 
-func SetIndexContentSecurityPolicyWithWasm(h http.Header) {
-	cspString := getContentSecurityPolicyString(
-		getIndexContentSecurityPolicy(),
-		map[string]string{
-			"script-src": defaultScriptSrc + " 'wasm-unsafe-eval'",
-		},
-	)
+// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
+func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features) {
+	// todo(isaiah): adds connect-src to the defaultContentSecurityPolicy and defaultFontSrc which doesn't contain it.
+	cspMaps := []cspMap{
+		defaultContentSecurityPolicy,
+		defaultFontSrc,
+		{"connect-src": {"'self'", "wss:"}},
+	}
 
+	// // todo(isaiah): if cloud/usage based add stripeSecurityPolicy
+	if cfg.GetCloud() && cfg.GetIsUsageBased() {
+		cspMaps = append(cspMaps, stripeSecurityPolicy)
+	}
+
+	cspString := getContentSecurityPolicyString(cspMaps...)
 	h.Set("Content-Security-Policy", cspString)
 }
 
@@ -150,8 +172,8 @@ func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
 	cspString := getContentSecurityPolicyString(
 		defaultContentSecurityPolicy,
 		defaultFontSrc,
-		map[string]string{
-			"connect-src": "'self' " + applicationURL,
+		cspMap{
+			"connect-src": {"'self'", applicationURL},
 		},
 	)
 
@@ -161,8 +183,9 @@ func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
 func SetRedirectPageContentSecurityPolicy(h http.Header, scriptSrc string) {
 	cspString := getContentSecurityPolicyString(
 		defaultContentSecurityPolicy,
-		map[string]string{
-			"script-src": "'" + scriptSrc + "'",
+		// todo(isaiah): Doesn't need stripeSecurityPolicy, just adding script-src to the defaultContentSecurityPolicy which doesn't contain it.
+		cspMap{
+			"script-src": {"'" + scriptSrc + "'"},
 		},
 	)
 

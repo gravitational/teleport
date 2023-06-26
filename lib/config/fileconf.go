@@ -1204,6 +1204,9 @@ type AuthenticationConfig struct {
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
+
+	// DefaultSessionTTL is the default cluster max session ttl
+	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1246,6 +1249,7 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		AllowPasswordless: a.Passwordless,
 		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
+		DefaultSessionTTL: a.DefaultSessionTTL,
 	})
 }
 
@@ -1709,6 +1713,18 @@ type Databases struct {
 type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
+	// AWS contains AWS specific settings.
+	AWS ResourceMatcherAWS `yaml:"aws"`
+}
+
+// ResourceMatcherAWS contains AWS specific settings for resource matcher.
+type ResourceMatcherAWS struct {
+	// AssumeRoleARN is the AWS role to assume to before accessing the
+	// database.
+	AssumeRoleARN string `yaml:"assume_role_arn,omitempty"`
+	// ExternalID is an optional AWS external ID used to enable assuming an AWS
+	// role across accounts.
+	ExternalID string `yaml:"external_id,omitempty"`
 }
 
 // AWSMatcher matches AWS EC2 instances and AWS Databases
