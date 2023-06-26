@@ -68,7 +68,7 @@ func (cfg *UploadCompleterConfig) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing parameter ClusterName")
 	}
 	if cfg.Component == "" {
-		cfg.Component = teleport.ComponentAuth
+		cfg.Component = teleport.ComponentProcess
 	}
 	if cfg.CheckPeriod == 0 {
 		cfg.CheckPeriod = AbandonedUploadPollingRate
@@ -142,6 +142,7 @@ func (u *UploadCompleter) Serve(ctx context.Context) error {
 		Jitter:        retryutils.NewSeventhJitter(),
 	})
 	defer periodic.Stop()
+	u.log.Infof("upload completer will run every %v", u.cfg.CheckPeriod.String())
 
 	for {
 		select {
