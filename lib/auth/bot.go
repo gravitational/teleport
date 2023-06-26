@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"fmt"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"strconv"
 	"strings"
 	"time"
@@ -169,6 +170,15 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	if exp := provisionToken.Expiry(); !exp.IsZero() {
 		tokenTTL = time.Until(exp)
 	}
+
+	// Emit usage analytics event for bot creation.
+	s.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
+		UserName:    authz.ClientUserMetadata(ctx).User,
+		BotUserName: resourceName,
+		RoleName:    resourceName,
+		RoleCount:   int64(len(req.Roles)),
+		JoinMethod:  string(provisionToken.GetJoinMethod()),
+	})
 
 	return &proto.CreateBotResponse{
 		TokenID:    provisionToken.GetName(),

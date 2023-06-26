@@ -268,8 +268,6 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34;
   DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35;
   DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36;
-
-  DISCOVER_RESOURCE_SAML_APPLICATION = 37;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -421,6 +419,22 @@ message RoleCreateEvent {
   string user_name = 1;
   // anonymized
   string role_name = 2;
+}
+
+// BotCreateEvent is emitted when user creates a bot.
+message BotCreateEvent {
+  // user_name is the anonymized name of the user who created the bot
+  string user_name = 1;
+  // anonymized
+  string bot_user_name = 2;
+  // role_name is the anonymized name of the bot role that was created.
+  string role_name = 3;
+  // role_count is the number of roles that the bot role can impersonate on
+  // creation.
+  int64 role_count = 4;
+  // join_method is the join method of the token associated with the bot on
+  // creation.
+  string join_method = 5;
 }
 
 message UICreateNewRoleClickEvent {
@@ -628,6 +642,8 @@ message SubmitEventRequest {
 
     UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 44;
     UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 45;
+
+    BotCreateEvent bot_create = 46;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
