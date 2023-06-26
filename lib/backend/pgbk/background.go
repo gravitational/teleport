@@ -17,6 +17,14 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 )
 
+const (
+	changeFeedBatchSize = 1000
+	changeFeedInterval  = backend.DefaultPollStreamPeriod
+
+	expiryBatchSize = 1000
+	expiryInterval  = 30 * time.Second
+)
+
 func (b *Backend) backgroundExpiry(ctx context.Context) {
 	defer b.wg.Done()
 	defer b.log.Info("Exited expiry loop.")
@@ -25,13 +33,13 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 		// see DeleteRange; we run a tight loop here because it could be
 		// possible to have more than 1k new items expire every second, so we
 		// could end up not ever catching up
-		for i := 0; i < backend.DefaultRangeLimit/deleteBatchSize; i++ {
+		for i := 0; i < backend.DefaultRangeLimit/expiryBatchSize; i++ {
 			t0 := time.Now()
 			var n int64
 			if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 				tag, err := p.Exec(ctx,
 					"DELETE FROM kv WHERE key = ANY(ARRAY(SELECT key FROM kv WHERE expires IS NOT NULL AND expires <= $1 LIMIT $2))",
-					b.clock.Now().UTC(), deleteBatchSize,
+					b.clock.Now().UTC(), expiryBatchSize,
 				)
 				if err != nil {
 					return trace.Wrap(err)
@@ -58,7 +66,7 @@ func (b *Backend) backgroundExpiry(ctx context.Context) {
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(backend.DefaultPollStreamPeriod):
+		case <-time.After(expiryInterval):
 		}
 
 	}
@@ -85,14 +93,15 @@ func (b *Backend) backgroundChangeFeed(ctx context.Context) {
 	}
 }
 
-// runChangeFeed will connect to the database, start a change feed (for
-// Postgres, falling back to CockroachDB) and emit events. Assumes that b.buf is
-// not initialized but not closed, and will reset it before returning.
+// runChangeFeed will connect to the database, start a change feed and emit
+// events. Assumes that b.buf is not initialized but not closed, and will reset
+// it before returning.
 func (b *Backend) runChangeFeed(ctx context.Context) error {
 	poolConn, err := b.pool.Acquire(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
 	// we hijack the connection from the pool because the temporary replication
 	// slot is tied to the connection, so we want it to be cleaned up no matter
 	// what happens here
@@ -126,8 +135,13 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	defer b.buf.Reset()
 
 	for {
-		if err := b.pollChangeFeed(ctx, conn, slotName); err != nil {
+		n, err := b.pollChangeFeed(ctx, conn, slotName)
+		if err != nil {
 			return trace.Wrap(err)
+		}
+
+		if n >= changeFeedBatchSize {
+			continue
 		}
 
 		select {
@@ -138,30 +152,32 @@ func (b *Backend) runChangeFeed(ctx context.Context) error {
 	}
 }
 
-func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName string) error {
+func (b *Backend) pollChangeFeed(ctx context.Context, conn *pgx.Conn, slotName string) (int64, error) {
 	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
 	defer cancel()
 
 	t0 := time.Now()
 
 	rows, _ := conn.Query(ctx,
-		`SELECT
+		`WITH jdata AS (
+  SELECT
+    data::jsonb AS data
+  FROM pg_logical_slot_get_changes($1, NULL, $2,
+    'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')
+)
+SELECT
   data->>'action',
   decode(COALESCE(data->'columns'->0->>'value', data->'identity'->0->>'value'), 'hex'),
   decode(data->'columns'->1->>'value', 'hex'),
   (data->'columns'->2->>'value')::timestamp,
   (data->'columns'->3->>'value')::text
-FROM (
-  SELECT data::jsonb as data
-  FROM pg_logical_slot_get_changes($1::text, NULL, NULL,
-    'format-version', '2', 'add-tables', 'public.kv', 'include-transaction', 'false')
-) AS jdata;`, slotName)
+FROM jdata`, slotName, changeFeedBatchSize)
 
 	var action string
 	var key []byte
 	var value []byte
 	var expires zeronull.Timestamp
-	var rev zeronull.Text
+	var rev string
 	tag, err := pgx.ForEachRow(rows, []any{&action, &key, &value, &expires, &rev}, func() error {
 		switch action {
 		case "I", "U":
@@ -201,15 +217,17 @@ FROM (
 		}
 	})
 	if err != nil {
-		return trace.Wrap(err)
+		return 0, trace.Wrap(err)
 	}
 
-	if n := tag.RowsAffected(); n > 0 {
+	n := tag.RowsAffected()
+
+	if n > 0 {
 		b.log.WithFields(logrus.Fields{
 			"events":  n,
 			"elapsed": time.Since(t0).String(),
 		}).Debug("Fetched change feed events.")
 	}
 
-	return nil
+	return n, nil
 }

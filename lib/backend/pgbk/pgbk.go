@@ -389,8 +389,10 @@ func (b *Backend) Delete(ctx context.Context, key []byte) error {
 // DeleteRange implements backend.Backend
 func (b *Backend) DeleteRange(ctx context.Context, startKey []byte, endKey []byte) error {
 	// "DELETE FROM kv WHERE key BETWEEN $1 AND $2" but more complicated:
-	// logical decoding (before Postgres 13?) can become esponentially slow the
-	// bigger the transaction; thankfully, we can just limit our transactions to
+	// logical decoding can become really really slow if a transaction is big
+	// enough to spill on disk - max_changes_in_memory (4096) changes before
+	// Postgres 13, or logical_decoding_work_mem (64MiB) bytes of total size in
+	// Postgres 13 and later; thankfully, we can just limit our transactions to
 	// a small-ish number of affected rows (1000 seems to work ok) as we don't
 	// need atomicity here or in backgroundExpiry, which are the only two places
 	// in which we do transactions that affect more than one row
