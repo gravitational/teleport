@@ -43,6 +43,7 @@ import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
 import type { ResourceSpec } from './SelectResource';
+import type { AwsRdsDatabase } from 'teleport/services/integrations';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -470,6 +471,12 @@ export type DbMeta = BaseMeta & {
   // The enroll event expects num count of enrolled RDS's, update accordingly.
   db: Database;
   integrationName?: string;
+  selectedAwsRdsDb: AwsRdsDatabase;
+  // serviceDeployedMethod is a flag to determine if user opted to
+  // deploy database service automagically or manually.
+  // This flag will be undefined if user skipped deploying service
+  // (service already existed).
+  serviceDeployedMethod?: 'auto' | 'manual';
 };
 
 // KubeMeta describes the fields for a kube resource
