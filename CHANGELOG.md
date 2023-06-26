@@ -1,6 +1,38 @@
 # Changelog
 
+## 12.4.10 (06/23/23)
+
+* Web UI
+  * Fixed issue with message of the day not being displayed in web UI in enterprise releases. [#28242](https://github.com/gravitational/teleport/pull/28242)
+  * Ensured that the Web UI does not make calls to Stripe for self-hosted customers. [teleport.e#1723](https://github.com/gravitational/teleport.e/pull/1723)
+
+## 12.4.9 (06/23/23)
+
+* Web UI
+  * Ensured message of the day is displayed by web UI. [#27923](https://github.com/gravitational/teleport/pull/27923)
+
+## 12.4.8 (06/21/23)
+
+* Web UI
+  * Added "Add SAML application" wizard to access management UI. [#27958](https://github.com/gravitational/teleport/pull/27958)
+* Helm Charts
+  * Updated `teleport-cluster` chart to use local auth server address in auth pod to prevent extra connections. [#27979](https://github.com/gravitational/teleport/pull/27979)
+* Server Access
+  * Fixed `tsh join` prompting for password when trying to join non-existent session. [#27973](https://github.com/gravitational/teleport/pull/27973)
+  * Fixed issue with `SSH_SESSION_WEBPROXY_ADDR` not being set for some sessions. [#27866](https://github.com/gravitational/teleport/pull/27866)
+* Stability & Reliability
+  * Improved shutdown stability. [#27888](https://github.com/gravitational/teleport/pull/27888)
+* Desktop Access
+  * Fixed issue with "Run as different user" window freezing. [#27875](https://github.com/gravitational/teleport/pull/27875)
+* CLI
+  * Added `--skip-confirm` flag to `tsh headless approve` command. [#27863](https://github.com/gravitational/teleport/pull/27863)
+* Tooling
+  * Updated Go to `1.20.5`. [#27861](https://github.com/gravitational/teleport/pull/27861)
+* Metrics
+  * Improved accuracy of `backend_read_seconds` metric. [#27858](https://github.com/gravitational/teleport/pull/27858)
+
 ## 12.4.7 (06/14/23)
+
 * CLI
   * Fix issue with Access Requests in headless mode. [#27136](https://github.com/gravitational/teleport/pull/27240)
   * `tctl get all` now fetches lock objects [#27295](https://github.com/gravitational/teleport/pull/27295)
@@ -34,7 +66,7 @@
 * Performance & Scalability
   * Improved `tsh login` latency by fetching cluster alerts once. [#27111](https://github.com/gravitational/teleport/pull/27111)
 * Server Access
-  * Fixed issue with port forwarding configuraiton being cached in `tsh` profile. [#27207](https://github.com/gravitational/teleport/pull/27207)
+  * Fixed issue with port forwarding configuration being cached in `tsh` profile. [#27207](https://github.com/gravitational/teleport/pull/27207)
 * Tooling
   * Updated OpenSSL to `1.1.1u`. [#27113](https://github.com/gravitational/teleport/pull/27113)
 * Web UI
@@ -189,7 +221,7 @@ This release of Teleport contains multiple improvements and bug fixes.
   * Fixed issue where Github SSO would fail if a user is a part of more than 30 teams. [#25098](https://github.com/gravitational/teleport/pull/25098)
   * Fixed issue with `tsh login` with "required" hardware key policy returning "policy not met" error. [#24956](https://github.com/gravitational/teleport/pull/24956)
   * Improved device trust logging and error reporting. [#24912](https://github.com/gravitational/teleport/pull/24912)
-  * Detect and warn about RPID changes when using webautn. [#25289](https://github.com/gravitational/teleport/pull/25289)
+  * Detect and warn about RPID changes when using WebAuthn. [#25289](https://github.com/gravitational/teleport/pull/25289)
 * Access Management
   * Fixed issue with running install script on macOS for enterprise clusters. [#25076](https://github.com/gravitational/teleport/pull/25076)
 * Server Access
@@ -484,7 +516,7 @@ This release of Teleport contains a security fix as well as multiple improvement
 * Fixed issue with invalid role template namespaces leading to cluster lockouts. [#21573](https://github.com/gravitational/teleport/pull/21573)
 * Fixed issue with Teleport Connect failing to recognize logged in user sometimes. [#21467](https://github.com/gravitational/teleport/pull/21467)
 * Fixed issue with the back button not working in Web UI navigation. [#21236](https://github.com/gravitational/teleport/pull/21236)
-* Fixed issue with Web UI SSH player having scrollbars. [#20868](https://github.com/gravitational/teleport/pull/20868)
+* Fixed issue with Web UI SSH player having scroll bars. [#20868](https://github.com/gravitational/teleport/pull/20868)
 * Added support for `tsh request search --kind=pod` command. [#21456](https://github.com/gravitational/teleport/pull/21456)
 * Updated `tsh db configure create` to require flag for dynamic resources matching. [#21395](https://github.com/gravitational/teleport/pull/21395)
 * Improved reconnect stability after Database Service restart. [#21635](https://github.com/gravitational/teleport/pull/21635)
@@ -808,7 +840,7 @@ window.
 * Fixed issue with using desktop access with Windows 10. [#19504](https://github.com/gravitational/teleport/pull/19504)
 * Fixed issue with `session.start` events being overwritten by `session.exec` events. [#19497](https://github.com/gravitational/teleport/pull/19497)
 * Fixed issue with `tsh login --format kubernetes` not setting SNI info. [#19433](https://github.com/gravitational/teleport/pull/19433)
-* Fixed issue with websockets not working via app access if the upstream web server is using HTTP/2. [#19423](https://github.com/gravitational/teleport/pull/19423)
+* Fixed issue with WebSockets not working via app access if the upstream web server is using HTTP/2. [#19423](https://github.com/gravitational/teleport/pull/19423)
 * Fixed TLS routing in insecure mode. [#19410](https://github.com/gravitational/teleport/pull/19410)
 * Fixed issue with connecting to ElastiCache 7.0.4 in database access. [#19400](https://github.com/gravitational/teleport/pull/19400)
 * Fixed issue with SAML connector validation calling descriptor URL prior to authz checks. [#19317](https://github.com/gravitational/teleport/pull/19317)
@@ -1328,7 +1360,7 @@ order roles are received from the backend.
 
 ### Other improvements and fixes
 
-* Fixed issue with per-session MFA swallowing keypresses. [#13822](https://github.com/gravitational/teleport/pull/13822)
+* Fixed issue with per-session MFA swallowing key presses. [#13822](https://github.com/gravitational/teleport/pull/13822)
 * Fixed issue with `tsh db ls -R` now showing allowed users. [#13626](https://github.com/gravitational/teleport/pull/13626)
 * Fixed vertical and horizontal scroll in desktop access. [#13905](https://github.com/gravitational/teleport/pull/13905)
 * Fixed issue with invalid query filters forcing `tsh` relogin. [#13747](https://github.com/gravitational/teleport/pull/13747)
@@ -1387,7 +1419,7 @@ When setting up agent forwarding on the node, Teleport did not handle unix socke
 
 This could have given a potential attacker an opportunity to get Teleport to change arbitrary file permissions to the attacker’s user.
 
-### Websockets CSRF
+### WebSockets CSRF
 
 When handling websocket requests, Teleport did not verify that the provided Bearer token was generated for the correct user.
 
@@ -2900,7 +2932,7 @@ To mitigate this issue, upgrade and restart all Teleport proxy processes.
 
 This release of Teleport contains a bug fix.
 
-* Fixed a regression in certificate reissuance that could cause nodes to not start. [#3449](https://github.com/gravitational/teleport/pull/3449)
+* Fixed a regression in reissuing certificates that could cause nodes to not start. [#3449](https://github.com/gravitational/teleport/pull/3449)
 
 ## 4.2.5
 
@@ -3362,7 +3394,7 @@ Teleport 3.1.4 contains one new feature and two bug fixes.
 
 ## 3.1.3
 
-Teleport 3.1.3 contains two security fixs.
+Teleport 3.1.3 contains two security fixes.
 
 #### Bugfixes
 
@@ -3389,7 +3421,7 @@ Teleport 3.1.1 contains a security fix. We strongly encourage anyone running Tel
 This is a major Teleport release with a focus on backwards compatibility, stability, and bug fixes. Some of the improvements:
 
 * Added support for regular expressions in RBAC label keys and values. [#2161](https://github.com/gravitational/teleport/issues/2161)
-* Added support for configurable server side keep-alives. [#2334](https://github.com/gravitational/teleport/issues/2334)
+* Added support for configurable server side keepalives. [#2334](https://github.com/gravitational/teleport/issues/2334)
 * Added support for some `-o` to improve OpenSSH interoperability. [#2330](https://github.com/gravitational/teleport/issues/2330)
 * Added i386 binaries as well as binaries built with older version of Go to support legacy systems. [#2277](https://github.com/gravitational/teleport/issues/2277)
 * Added SOCKS5 support to `tsh`. [#1693](https://github.com/gravitational/teleport/issues/1693)
@@ -3408,7 +3440,7 @@ Teleport 3.0.5 contains a security fix.
 
 ## 3.0.4
 
-Teleport 3.0.4 contains two security fixs.
+Teleport 3.0.4 contains two security fixes.
 
 #### Bugfixes
 
@@ -3493,7 +3525,7 @@ Teleport 2.7.9 contains a security fix.
 
 ## 2.7.8
 
-Teleport 2.7.8 contains two security fixs.
+Teleport 2.7.8 contains two security fixes.
 
 #### Bugfixes
 

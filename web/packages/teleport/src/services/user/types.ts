@@ -77,6 +77,7 @@ export interface Acl {
   plugins: Access;
   integrations: AccessWithUse;
   assist: Access;
+  samlIdpServiceProvider: Access;
 }
 
 export interface User {

@@ -10,10 +10,13 @@ Teleport.
 
 ## Prerequisites
 
-- A GitHub organization with at least one team. <ScopedBlock scope="oss">This organization must not have external SSO set up, or Teleport
-will refuse to create the GitHub authentication connector.</ScopedBlock><ScopedBlock scope={["enterprise", "cloud"]}>This organization can be hosted
-from either GitHub Cloud or GitHub Enterprise Server.</ScopedBlock>
-- Teleport role with access to maintaining `github` resources for using `tctl` from the Desktop. This is available in the default `editor` role.
+- A GitHub organization with at least one team. <ScopedBlock scope="oss">This
+  organization must not have external SSO set up, or Teleport will refuse to
+  create the GitHub authentication connector.</ScopedBlock><ScopedBlock
+  scope={["enterprise", "cloud"]}>This organization can be hosted from either
+  GitHub Cloud or GitHub Enterprise Server.</ScopedBlock>
+- Teleport role with access to maintaining `github` resources for using `tctl`
+  from the Desktop. This is available in the default `editor` role.
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
@@ -32,6 +35,9 @@ https://PROXY_ADDRESS/v1/webapi/github/
 address of the Teleport Proxy Service</ScopedBlock><ScopedBlock
 scope="cloud">your Teleport Cloud tenant address</ScopedBlock>.
 
+The app must have the `read:org` scope in order to be able to read org and team
+membership details.
+
 Instructions for creating a GitHub OAuth app are available in [GitHub's
 documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app)
 
@@ -43,6 +49,7 @@ Create a client secret to use along with the client ID in the next step:
 
 Define a GitHub authentication connector using `tctl`. Update this example
 command with:
+
 - Your OAuth app's client ID and client secret created during the previous step.
 - The roles you want to map from your GitHub organization to Teleport roles.
   Roles are defined in the **Repository roles** section of your organization's

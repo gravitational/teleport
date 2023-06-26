@@ -1421,7 +1421,7 @@ func isResizeEventEnvelope(e *Envelope) bool {
 func TestTerminalPing(t *testing.T) {
 	t.Parallel()
 	s := newWebSuite(t)
-	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(500*time.Millisecond))
+	ws, _, err := s.makeTerminal(t, s.authPack(t, "foo"), withKeepaliveInterval(time.Second))
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, ws.Close()) })
 
@@ -1455,7 +1455,7 @@ func TestTerminalPing(t *testing.T) {
 
 	select {
 	case <-done:
-	case <-time.After(time.Minute):
+	case <-time.After(6 * time.Second):
 		t.Fatal("timeout waiting for ping")
 	}
 }
@@ -4067,6 +4067,7 @@ func TestGetWebConfig(t *testing.T) {
 	env := newWebPack(t, 1)
 
 	// Set auth preference with passwordless.
+	const MOTD = "Welcome to cluster, your activity will be recorded."
 	ap, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
 		Type:          constants.Local,
 		SecondFactor:  constants.SecondFactorOptional,
@@ -4074,6 +4075,7 @@ func TestGetWebConfig(t *testing.T) {
 		Webauthn: &types.Webauthn{
 			RPID: "localhost",
 		},
+		MessageOfTheDay: MOTD,
 	})
 	require.NoError(t, err)
 	err = env.server.Auth().SetAuthPreference(ctx, ap)
@@ -4107,6 +4109,7 @@ func TestGetWebConfig(t *testing.T) {
 			PreferredLocalMFA:  constants.SecondFactorWebauthn,
 			LocalConnectorName: constants.PasswordlessConnector,
 			PrivateKeyPolicy:   keys.PrivateKeyPolicyNone,
+			MOTD:               MOTD,
 		},
 		CanJoinSessions:   true,
 		ProxyClusterName:  env.server.ClusterName(),
