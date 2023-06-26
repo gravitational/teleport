@@ -28,7 +28,7 @@ metadata:
     {{- end }}
   {{- end }}
 spec:
-  type: {{ $proxy.service.type }}
+  type: {{ default "LoadBalancer" $proxy.service.type }}
 {{- with $proxy.service.spec }}
   {{- toYaml . | nindent 2 }}
 {{- end }}

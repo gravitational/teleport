@@ -743,8 +743,8 @@
                 "type": "boolean",
                 "default": false
             },
-            "suppressAutomaticWildcardHostname": {
-                "$id": "#/properties/ingress/suppressAutomaticWildcardHostname",
+            "suppressAutomaticWildcards": {
+                "$id": "#/properties/ingress/suppressAutomaticWildcards",
                 "type": "boolean",
                 "default": false
             },
