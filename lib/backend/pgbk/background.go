@@ -177,7 +177,7 @@ FROM jdata`, slotName, changeFeedBatchSize)
 	var key []byte
 	var value []byte
 	var expires zeronull.Timestamp
-	var rev string
+	var rev zeronull.Text
 	tag, err := pgx.ForEachRow(rows, []any{&action, &key, &value, &expires, &rev}, func() error {
 		switch action {
 		case "I", "U":
