@@ -64,7 +64,9 @@ message LoggedInUser {
 
 // ACL is the access control list of the user
 message ACL {
+  // sessions was replaced by recorded_sessions and active_sessions
   reserved 1;
+  reserved "sessions";
   // auth_connectors defines access to auth.connectors
   ResourceAccess auth_connectors = 2;
   // Roles defines access to roles
