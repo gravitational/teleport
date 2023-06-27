@@ -82,7 +82,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		pingResponse  proto.PingResponse
 		caps          *types.AccessCapabilities
 		authClusterID string
-		ACL           *api.ACL
+		acl           *api.ACL
 	)
 
 	err := addMetadataToRetryableError(ctx, func() error {
@@ -130,7 +130,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		roleSet := services.NewRoleSet(roles...)
 		userACL := services.NewUserACL(user, roleSet, *pingResponse.ServerFeatures, false)
 
-		ACL = &api.ACL{
+		acl = &api.ACL{
 			RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
 			ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
 			AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
@@ -157,7 +157,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		RequestableRoles:   caps.RequestableRoles,
 		Features:           pingResponse.ServerFeatures,
 		AuthClusterID:      authClusterID,
-		ACL:                ACL,
+		ACL:                acl,
 	}
 
 	return withDetails, nil
