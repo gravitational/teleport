@@ -56,9 +56,10 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []servicecfg.FileDescripto
 			},
 			WebAddr:    testenv.NewTCPListener(t, service.ListenerProxyWeb, &fds),
 			TunAddr:    testenv.NewTCPListener(t, service.ListenerProxyTunnel, &fds),
-			PublicAddr: []string{"proxy.example.com"},
+			PublicAddr: []string{"localhost"}, // ListenerProxyWeb port will be appended
 		},
 		Auth: config.Auth{
+			ClusterName: "localhost",
 			Service: config.Service{
 				EnabledFlag:   "true",
 				ListenAddress: testenv.NewTCPListener(t, service.ListenerAuth, &fds),
@@ -159,9 +160,13 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 	return bot
 }
 
-// MakeMemoryBotConfig creates a usable bot config from joining parameters. It
-// only writes artifacts to memory and can be further modified if desired.
-func MakeMemoryBotConfig(
+// DefaultBotConfig creates a usable bot config from joining parameters.
+// By default it:
+// - Has the outputs provided to it via the parameter `outputs`
+// - Runs in oneshot mode
+// - Uses a memory storage destination
+// - Does not verify Proxy WebAPI certificates
+func DefaultBotConfig(
 	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output,
 ) *botconfig.BotConfig {
 	t.Helper()
@@ -180,6 +185,9 @@ func MakeMemoryBotConfig(
 		},
 		Oneshot: true,
 		Outputs: outputs,
+		// Set Insecure so the bot will trust the Proxy's webapi default signed
+		// certs.
+		Insecure: true,
 	}
 
 	cfg.Onboarding.SetToken(botParams.TokenID)

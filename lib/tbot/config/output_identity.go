@@ -107,12 +107,12 @@ func (o *IdentityOutput) CheckAndSetDefaults() error {
 	if ok {
 		o.destPath = dest.Path
 	} else {
-		// If destDir is unset, we're not using a filesystem Destination and
+		// If destDir is unset, we're not using a filesystem destination and
 		// ssh_config will not be sensible. Log a note and bail early without
 		// writing ssh_config. (Future users of k8s secrets will need to bring
 		// their own config, we can't predict where paths will be in practice.)
 		log.Infof("Note: no ssh_config will be written for non-filesystem "+
-			"Destination %s.", o)
+			"destination %q.", o.Destination)
 	}
 
 	return nil

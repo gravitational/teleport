@@ -1,0 +1,5 @@
+type: application
+destination:
+  type: memory
+app_name: my-app
+specific_tls_naming: false
