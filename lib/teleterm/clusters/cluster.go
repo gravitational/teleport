@@ -131,18 +131,19 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		userACL := services.NewUserACL(user, roleSet, *pingResponse.ServerFeatures, false)
 
 		ACL = &api.ACL{
-			Sessions:        convertToAPIResourceAccess(userACL.ActiveSessions),
-			AuthConnectors:  convertToAPIResourceAccess(userACL.AuthConnectors),
-			Roles:           convertToAPIResourceAccess(userACL.Roles),
-			Users:           convertToAPIResourceAccess(userACL.Users),
-			TrustedClusters: convertToAPIResourceAccess(userACL.TrustedClusters),
-			Events:          convertToAPIResourceAccess(userACL.Events),
-			Tokens:          convertToAPIResourceAccess(userACL.Tokens),
-			Servers:         convertToAPIResourceAccess(userACL.Nodes),
-			Apps:            convertToAPIResourceAccess(userACL.AppServers),
-			Dbs:             convertToAPIResourceAccess(userACL.DBServers),
-			Kubeservers:     convertToAPIResourceAccess(userACL.KubeServers),
-			AccessRequests:  convertToAPIResourceAccess(userACL.AccessRequests),
+			RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
+			ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
+			AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
+			Roles:            convertToAPIResourceAccess(userACL.Roles),
+			Users:            convertToAPIResourceAccess(userACL.Users),
+			TrustedClusters:  convertToAPIResourceAccess(userACL.TrustedClusters),
+			Events:           convertToAPIResourceAccess(userACL.Events),
+			Tokens:           convertToAPIResourceAccess(userACL.Tokens),
+			Servers:          convertToAPIResourceAccess(userACL.Nodes),
+			Apps:             convertToAPIResourceAccess(userACL.AppServers),
+			Dbs:              convertToAPIResourceAccess(userACL.DBServers),
+			Kubeservers:      convertToAPIResourceAccess(userACL.KubeServers),
+			AccessRequests:   convertToAPIResourceAccess(userACL.AccessRequests),
 		}
 		return nil
 	})
