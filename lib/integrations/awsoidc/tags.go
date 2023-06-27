@@ -51,8 +51,8 @@ func DefaultResourceCreationTags(clusterName, integrationName string) awsTags {
 	}
 }
 
-// ForECS returns the default tags using the expected type for ECS resources: [ecsTypes.Tag]
-func (d awsTags) ForECS() []ecsTypes.Tag {
+// ToECSTags returns the default tags using the expected type for ECS resources: [ecsTypes.Tag]
+func (d awsTags) ToECSTags() []ecsTypes.Tag {
 	ecsTags := make([]ecsTypes.Tag, 0, len(d))
 	for k, v := range d {
 		k, v := k, v
@@ -81,8 +81,8 @@ func (d awsTags) MatchesECSTags(resourceTags []ecsTypes.Tag) bool {
 	return true
 }
 
-// ForIAM returns the default tags using the expected type for IAM resources: [iamTypes.Tag]
-func (d awsTags) ForIAM() []iamTypes.Tag {
+// ToIAMTags returns the default tags using the expected type for IAM resources: [iamTypes.Tag]
+func (d awsTags) ToIAMTags() []iamTypes.Tag {
 	iamTags := make([]iamTypes.Tag, 0, len(d))
 	for k, v := range d {
 		k, v := k, v

@@ -20,12 +20,13 @@ import (
 	"context"
 	"log"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/utils/aws"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 )
 
@@ -112,7 +113,7 @@ func (r *DeployServiceIAMConfigureRequest) CheckAndSetDefaults() error {
 		r.ResourceCreationTags = DefaultResourceCreationTags(r.Cluster, r.IntegrationName)
 	}
 
-	r.partitionID = aws.GetPartitionFromRegion(r.Region)
+	r.partitionID = awsutils.GetPartitionFromRegion(r.Region)
 
 	return nil
 }
@@ -187,7 +188,7 @@ func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigur
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.AccountID = *callerIdentity.Account
+		req.AccountID = aws.ToString(callerIdentity.Account)
 	}
 
 	if err := createBoundaryPolicyForTaskRole(ctx, clt, req); err != nil {
@@ -229,7 +230,7 @@ func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMCo
 	_, err = clt.CreatePolicy(ctx, &iam.CreatePolicyInput{
 		PolicyName:     &req.TaskRoleBoundaryPolicyName,
 		PolicyDocument: &taskRoleBoundaryPolicyDocument,
-		Tags:           req.ResourceCreationTags.ForIAM(),
+		Tags:           req.ResourceCreationTags.ToIAMTags(),
 	})
 	if err != nil {
 		if trace.IsAlreadyExists(awslib.ConvertIAMv2Error(err)) {
@@ -242,7 +243,7 @@ func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMCo
 	return nil
 }
 
-// createTaskRolecreates the TaskRole and sets up the Role Boundary and its Trust Relationship.
+// createTaskRole creates the TaskRole and sets up the Role Boundary and its Trust Relationship.
 func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	taskRoleAssumeRoleDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForECSTasksAssumeRole(),
@@ -257,7 +258,7 @@ func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, re
 		RoleName:                 &req.TaskRole,
 		AssumeRolePolicyDocument: &taskRoleAssumeRoleDocument,
 		PermissionsBoundary:      &policyARNForRoleBoundary,
-		Tags:                     req.ResourceCreationTags.ForIAM(),
+		Tags:                     req.ResourceCreationTags.ToIAMTags(),
 	})
 	if err != nil {
 		if trace.IsAlreadyExists(awslib.ConvertIAMv2Error(err)) {

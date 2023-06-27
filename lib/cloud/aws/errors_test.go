@@ -22,14 +22,11 @@ import (
 
 	awshttp "github.com/aws/aws-sdk-go-v2/aws/transport/http"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/aws/aws-sdk-go/aws"
 	smithyhttp "github.com/aws/smithy-go/transport/http"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 )
-
-func strPtr(s string) *string {
-	return &s
-}
 
 func TestConvertIAMv2Error(t *testing.T) {
 	for _, tt := range []struct {
@@ -45,7 +42,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 		{
 			name: "resource already exists",
 			inErr: &iamTypes.EntityAlreadyExistsException{
-				Message: strPtr("resource exists"),
+				Message: aws.String("resource exists"),
 			},
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsAlreadyExists(err), "expected trace.AlreadyExists error, got %v", err)
@@ -54,7 +51,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 		{
 			name: "resource already exists",
 			inErr: &iamTypes.NoSuchEntityException{
-				Message: strPtr("resource not found"),
+				Message: aws.String("resource not found"),
 			},
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsNotFound(err), "expected trace.NotFound error, got %v", err)
@@ -63,7 +60,7 @@ func TestConvertIAMv2Error(t *testing.T) {
 		{
 			name: "invalid policy document",
 			inErr: &iamTypes.MalformedPolicyDocumentException{
-				Message: strPtr("malformed document"),
+				Message: aws.String("malformed document"),
 			},
 			errCheck: func(tt require.TestingT, err error, i ...interface{}) {
 				require.True(tt, trace.IsBadParameter(err), "expected trace.BadParameter error, got %v", err)

@@ -377,7 +377,7 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceR
 				},
 			},
 		}},
-		Tags: req.ResourceCreationTags.ForECS(),
+		Tags: req.ResourceCreationTags.ToECSTags(),
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -405,7 +405,7 @@ func upsertCluster(ctx context.Context, clt DeployServiceClient, req DeployServi
 		createClusterResp, err := clt.CreateCluster(ctx, &ecs.CreateClusterInput{
 			ClusterName:       req.ClusterName,
 			CapacityProviders: requiredCapacityProviders,
-			Tags:              req.ResourceCreationTags.ForECS(),
+			Tags:              req.ResourceCreationTags.ToECSTags(),
 		})
 		if err != nil {
 			return nil, trace.Wrap(err)
@@ -579,7 +579,7 @@ func upsertService(ctx context.Context, clt DeployServiceClient, req DeployServi
 				Subnets:        req.SubnetIDs,
 			},
 		},
-		Tags:          req.ResourceCreationTags.ForECS(),
+		Tags:          req.ResourceCreationTags.ToECSTags(),
 		PropagateTags: ecsTypes.PropagateTagsService,
 	})
 	if err != nil {
