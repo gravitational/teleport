@@ -8,16 +8,16 @@ on:
         required: false
         type: string
         default: "gravitational/teleport"
-    
+
       oss-teleport-ref:
         description: |
             Git SHA, tag or branch of the revision of OSS teleport to build
         required: true
         type: string
 
-      source-tag:
+      release-source-tag:
         description: |
-          The semver version of Teleport that we're building for. If not set 
+          The semver version of Teleport that we're building for. If not set
           will be inferred form the `oss-teleport-ref` by assuming that it's
           a standard Teleport release tag in the form vX.Y.Z.
         type: string
@@ -63,7 +63,7 @@ jobs:
       - name: Parse Teleport version tag
         id: version
         env:
-          VERSION: ${{ inputs.source-tag || inputs.oss-teleport-ref }}
+          VERSION: ${{ inputs.release-source-tag || inputs.oss-teleport-ref }}
         run: |
           echo teleport=${VERSION#v} >> $GITHUB_OUTPUT
 
@@ -72,19 +72,19 @@ jobs:
         with:
           oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
           oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
-          edition: oss # We don't need teleport.e even when building enterprise AMI 
+          edition: oss # We don't need teleport.e even when building enterprise AMI
           repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
           repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
 
       - name: Determine Toolchain Versions and cache paths
         run: |
           echo GOLANG_VERSION=$(make --no-print-directory -C build.assets print-go-version | sed 's/^go//') >> $GITHUB_ENV
-      
+
       - name: Install Go
         uses: actions/setup-go@v4
         with:
           go-version: ${{ env.GOLANG_VERSION }}
-  
+
       - name: Assume promotion AWS role
         id: aws-login
         uses: aws-actions/configure-aws-credentials@v2
@@ -92,7 +92,7 @@ jobs:
           aws-region:  us-west-2
           role-to-assume: ${{ inputs.promotion-role-arn }}
           role-session-name: "gha-ami-promote-${{ github.run_number }}"
-          role-duration-seconds: 3600        
+          role-duration-seconds: 3600
 
       - name: Promote images
         working-directory: ./assets/aws
