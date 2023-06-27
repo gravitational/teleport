@@ -37,9 +37,16 @@ Let's look at this table:
 
 Let's add a new user to Teleport using the `tctl` tool:
 
+<ScopedBlock scope={["oss"]}>
 ```code
 $ tctl users add joe --logins=joe,root --roles=access,editor
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```code
+$ tctl users add joe --logins=joe,root --roles=access,editor,reviewer
+```
+</ScopedBlock>
 
 Teleport generates an auto-expiring token (with a TTL of one hour) and prints
 the token URL, which must be used before the TTL expires.

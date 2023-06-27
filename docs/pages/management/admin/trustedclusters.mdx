@@ -45,24 +45,25 @@ This guide will explain how to:
 <TabItem scope={["oss"]} label="Open Source">
 
 - Two running Teleport clusters. For details on how to set up your clusters, see
-  one of our [Getting Started](/docs/getting-started) guides.
+  our [Getting Started](../../get-started.mdx) guide.
 
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 
-  See [Installation](/docs/installation.mdx) for details.
+  See [Installation](../../installation.mdx) for details.
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a
-  Teleport Node in your cluster.
+  See [Joining Services to your Cluster](../join-services-to-your-cluster.mdx) for how to launch a
+  Teleport agent in your cluster.
 
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 
 - Two running Teleport clusters. For details on how to set up your clusters, see
-  our Enterprise [Getting Started](/docs/enterprise/getting-started) guide.
+  our Enterprise [Getting
+  Started](../../choose-an-edition/teleport-enterprise/introduction.mdx) guide.
 
 - (!docs/pages/includes/enterprise/tctl-tsh-prerequisite.mdx!)
 
@@ -80,8 +81,8 @@ This guide will explain how to:
   [sign up page](https://goteleport.com/signup/) to begin your free trial.
 
 - A second Teleport cluster, which will act as the leaf cluster. For details on
-how to set up this cluster, see one of our
-[Getting Started](/docs/getting-started) guides.
+how to set up this cluster, see our
+[Getting Started](../../get-started.mdx) guide.
 
   As an alternative, you can set up a second Teleport Cloud account.
 
@@ -240,7 +241,7 @@ You can create a join token using the `tctl` tool.
 
 First, log out of all clusters and log in to the root cluster.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```code
 $ tsh logout
@@ -256,6 +257,22 @@ $ tsh login --user=myuser --proxy=rootcluster.example.com
 ```
 
 </ScopedBlock>
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ tsh logout
+$ tsh login --user=myuser --proxy=rootcluster.example.com
+> Profile URL:        https://rootcluster.example.com:443
+  Logged in as:       myuser
+  Cluster:            rootcluster.example.com
+  Roles:              access, auditor, editor, reviewer
+  Logins:             root
+  Kubernetes:         enabled
+  Valid until:        2022-04-29 03:07:22 -0400 EDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
@@ -263,7 +280,7 @@ $ tsh login --user=myuser --proxy=myrootclustertenant.teleport.sh
 > Profile URL:        https://rootcluster.teleport.sh:443
   Logged in as:       myuser
   Cluster:            rootcluster.teleport.sh
-  Roles:              access, auditor, editor
+  Roles:              access, auditor, editor, reviewer
   Logins:             root
   Kubernetes:         enabled
   Valid until:        2022-04-29 03:07:22 -0400 EDT [valid for 12h0m0s]

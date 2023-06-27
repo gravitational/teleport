@@ -462,7 +462,16 @@ func TestConfigReading(t *testing.T) {
 			ResourceMatchers: []ResourceMatcher{
 				{
 					Labels: map[string]apiutils.Strings{
-						"*": {"*"},
+						"a": {"b"},
+					},
+				},
+				{
+					Labels: map[string]apiutils.Strings{
+						"c": {"d"},
+					},
+					AWS: ResourceMatcherAWS{
+						AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+						ExternalID:    "externalID123",
 					},
 				},
 			},
@@ -802,6 +811,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			LockingMode:           constants.LockingModeBestEffort,
 			AllowPasswordless:     types.NewBoolOption(true),
 			AllowHeadless:         types.NewBoolOption(true),
+			DefaultSessionTTL:     types.Duration(apidefaults.CertDuration),
 			IDP: &types.IdPOptions{
 				SAML: &types.IdPSAMLOptions{
 					Enabled: types.NewBoolOption(true),
@@ -817,6 +827,19 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 
 	require.True(t, cfg.Databases.Enabled)
+	require.Empty(t, cmp.Diff(cfg.Databases.ResourceMatchers,
+		[]services.ResourceMatcher{
+			{
+				Labels: map[string]apiutils.Strings{
+					"*": {"*"},
+				},
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+					ExternalID:    "externalID123",
+				},
+			},
+		},
+	))
 	require.Empty(t, cmp.Diff(cfg.Databases.AzureMatchers,
 		[]types.AzureMatcher{
 			{
@@ -1553,7 +1576,14 @@ func makeConfigFixture() string {
 	}
 	conf.Databases.ResourceMatchers = []ResourceMatcher{
 		{
-			Labels: map[string]apiutils.Strings{"*": {"*"}},
+			Labels: map[string]apiutils.Strings{"a": {"b"}},
+		},
+		{
+			Labels: map[string]apiutils.Strings{"c": {"d"}},
+			AWS: ResourceMatcherAWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+				ExternalID:    "externalID123",
+			},
 		},
 	}
 	conf.Databases.AWSMatchers = []AWSMatcher{
@@ -2302,6 +2332,24 @@ app_service:
       public_addr: "foo.example.com"
 `,
 			inComment: "config is missing internal address",
+			outError:  true,
+		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      public_addr: "foo.example.com"
+      uri: "http://127.0.0.1:8080"
+  resources:
+  - labels:
+      '*': '*'
+    aws:
+      assume_role_arn: "arn:aws:iam::123456789012:role/AppAccess"
+`,
+			inComment: "assume_role_arn is not supported",
 			outError:  true,
 		},
 	}
@@ -3938,6 +3986,113 @@ proxy_service:
 			}
 
 			require.Equal(t, tc.expectKey, cfg.Proxy.AssistAPIKey)
+		})
+	}
+}
+
+func TestApplyKubeConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		inputFileConfig   Kube
+		wantServiceConfig servicecfg.KubeConfig
+		wantError         bool
+	}{
+		{
+			name: "invalid listener address",
+			inputFileConfig: Kube{
+				Service: Service{
+					ListenAddress: "0.0.0.0:a",
+				},
+				KubeconfigFile: "path-to-kubeconfig",
+			},
+			wantError: true,
+		},
+		{
+			name: "assume_role_arn is not supported",
+			inputFileConfig: Kube{
+				Service: Service{
+					ListenAddress: "0.0.0.0:8888",
+				},
+				KubeconfigFile: "path-to-kubeconfig",
+				ResourceMatchers: []ResourceMatcher{
+					{
+						Labels: map[string]apiutils.Strings{"a": {"b"}},
+						AWS: ResourceMatcherAWS{
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/KubeAccess",
+							ExternalID:    "externalID123",
+						},
+					},
+				},
+			},
+			wantError: true,
+		},
+		{
+			name: "valid",
+			inputFileConfig: Kube{
+				Service: Service{
+					ListenAddress: "0.0.0.0:8888",
+				},
+				PublicAddr:      apiutils.Strings{"example.com", "example.with.port.com:4444"},
+				KubeconfigFile:  "path-to-kubeconfig",
+				KubeClusterName: "kube-name",
+				ResourceMatchers: []ResourceMatcher{{
+					Labels: map[string]apiutils.Strings{"a": {"b"}},
+				}},
+				StaticLabels: map[string]string{
+					"env":     "dev",
+					"product": "test",
+				},
+				DynamicLabels: []CommandLabel{{
+					Name:    "hostname",
+					Command: []string{"hostname"},
+					Period:  time.Hour,
+				}},
+			},
+			wantServiceConfig: servicecfg.KubeConfig{
+				ListenAddr:      utils.MustParseAddr("0.0.0.0:8888"),
+				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("example.com:3026"), *utils.MustParseAddr("example.with.port.com:4444")},
+				KubeconfigPath:  "path-to-kubeconfig",
+				KubeClusterName: "kube-name",
+				ResourceMatchers: []services.ResourceMatcher{
+					{
+						Labels: map[string]apiutils.Strings{"a": {"b"}},
+					},
+				},
+				StaticLabels: map[string]string{
+					"env":     "dev",
+					"product": "test",
+				},
+				DynamicLabels: services.CommandLabels{
+					"hostname": &types.CommandLabelV2{
+						Period:  types.Duration(time.Hour),
+						Command: []string{"hostname"},
+					},
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fc, err := ReadConfig(bytes.NewBufferString(NoServicesConfigString))
+			require.NoError(t, err)
+			fc.Kube = test.inputFileConfig
+			fc.Kube.EnabledFlag = "yes"
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = applyKubeConfig(fc, cfg)
+			if test.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.wantServiceConfig, cfg.Kube)
+			}
 		})
 	}
 }
