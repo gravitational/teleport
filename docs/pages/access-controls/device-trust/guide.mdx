@@ -314,8 +314,8 @@ by the `device_trust.mode` authentication setting:
 
 - `off` - disables device trust. Device authentication is not performed and
   device-aware audit logs are absent.
-- `optional` - enables device authentication and device-aware audit, but does not
-  require a trusted device to access resources.
+- `optional` - enables device authentication and device-aware audit, but does
+  not require a trusted device to access resources.
 - `required` - enables device authentication and device-aware audit.
   Additionally, it requires a trusted device for all SSH, Database and
   Kubernetes connections.
@@ -406,7 +406,8 @@ can be configured with the `spec.options.device_trust_mode` (`required`,
 `optional`, `off`) option and applies to the resources in its `allow` rules. It
 works similar to [`require_session_mfa`](../guides/per-session-mfa.mdx).
 
-To enforce authenticated device checks for a specific role, update the role with the following:
+To enforce authenticated device checks for a specific role, update the role with
+the following:
 
 ```diff
 kind: role
@@ -460,7 +461,8 @@ $ tctl lock --device (=devicetrust.device_id=) --ttl=12h
 Created a lock with name "5444970a-39a0-4814-968d-e58b4a8fa686".
 ```
 
-Now, if a user on that device tries to access an SSH server for example, Teleport will deny access:
+Now, if a user on that device tries to access an SSH server for example,
+Teleport will deny access:
 
 ```code
 $ tsh ssh server1

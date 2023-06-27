@@ -6,10 +6,10 @@ description: Sync your Jamf inventory into Teleport
 Device Trust Jamf integration lets you automatically sync your Jamf computer
 inventory into Teleport.
 
-The Teleport Jamf service is a distinct `teleport` process that periodically reads your
-computer inventory from Jamf and syncs it to Teleport. It performs both
-incremental (called "partial") and full syncs, as well as removals from Teleport
-if a computer is removed from Jamf.
+The Teleport Jamf service is a distinct `teleport` process that periodically
+reads your computer inventory from Jamf and syncs it to Teleport. It performs
+both incremental (called "partial") and full syncs, as well as removals from
+Teleport if a computer is removed from Jamf.
 
 Syncing devices from Jamf is an **inventory management** step, equivalent to
 automatically running the corresponding `tctl devices add` commands. If you want
@@ -29,8 +29,8 @@ and behavior.
 
 Create a readonly Jamf user for inventory sync.
 
-1. Access `https://yourtenant.jamfcloud.com/accounts.html`, replacing `yourtenant`
-   with your Jamf Pro account.
+1. Access `https://yourtenant.jamfcloud.com/accounts.html`, replacing
+   `yourtenant` with your Jamf Pro account.
 
 2. Create a new Standard Account with the following settings:
 
@@ -159,8 +159,8 @@ CXXXXXXXXX5T macOS   not enrolled  bf189863-a94a-40dc-9013-d96f8dada2f1
 
 When using the minimal configuration, described in the steps above, Jamf service
 utilizes a default sync schedule. It is possible to customize sync intervals, as
-well as the set of devices synced from Jamf, by applying RSQL filters provided by
-the [Jamf Pro API](
+well as the set of devices synced from Jamf, by applying RSQL filters provided
+by the [Jamf Pro API](
 https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory).
 
 The default "inventory" configuration is roughly equivalent to the one below:
@@ -178,7 +178,7 @@ jamf_service:
 
 Unpacking the configuration, we have the following keys:
 
-**sync\_period\_\***
+### `sync_period_*`
 
 - `sync_period_partial`: period for partial syncs. A partial sync attempts to
   fetch new and modified devices, but won't scan the entire Jamf inventory.
@@ -189,7 +189,7 @@ Both sync periods may be disabled by setting the period to `0` or `-1`. It is
 recommended to do a full sync with some regularity, so Teleport has the chance
 to fully synchronize both inventories.
 
-**on\_missing**
+### `on_missing`
 
 The `on_missing` key determines what to do with devices deleted from Jamf, but
 present in Teleport. The possible actions are:
@@ -214,7 +214,7 @@ Created a lock with name "a2f1491c-4a3e-4daf-9c83-2fe931668076".
 Manual removal via `tctl devices rm` is possible, but note that if the device is
 still in the Jamf inventory, it'll be recreated during the next sync.
 
-**filter\_rsql**
+### `filter_rsql`
 
 The `filter_rsql` key applies a Jamf Pro API filter when querying for devices.
 Refer to
