@@ -138,9 +138,9 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			return nil
 		}
 		return &BotJoinEvent{
-			BotName:            e.BotName,
-			JoinMethod:         e.Method,
-			ProvisionTokenName: e.TokenName,
+			BotName:       e.BotName,
+			JoinMethod:    e.Method,
+			JoinTokenName: e.TokenName,
 		}
 	}
 
