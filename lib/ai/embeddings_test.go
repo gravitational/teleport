@@ -65,7 +65,7 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	clock := clockwork.NewFakeClock()
 
 	// Test setup: crate a backend, presence service, the node watcher and
-	// the embeddings service
+	// the embeddings service.
 	bk, err := memory.New(memory.Config{
 		Context: ctx,
 		Clock:   clock,
@@ -77,16 +77,17 @@ func TestNodeEmbeddingGeneration(t *testing.T) {
 	embeddings := local.NewEmbeddingsService(bk)
 
 	processor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
-		AIClient:     &embedder,
-		EmbeddingSrv: embeddings,
-		NodeSrv:      presence,
-		Log:          utils.NewLoggerForTests(),
-		Jitter:       retryutils.NewSeventhJitter(),
+		AIClient:            &embedder,
+		EmbeddingSrv:        embeddings,
+		EmbeddingsRetriever: ai.NewSimpleRetriever(),
+		NodeSrv:             presence,
+		Log:                 utils.NewLoggerForTests(),
+		Jitter:              retryutils.NewSeventhJitter(),
 	})
 
 	done := make(chan struct{})
 	go func() {
-		err := processor.Run(ctx, 100*time.Millisecond)
+		err := processor.Run(ctx, 100*time.Millisecond, time.Second)
 		assert.ErrorIs(t, context.Canceled, err)
 		close(done)
 	}()

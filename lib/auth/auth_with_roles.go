@@ -318,6 +318,15 @@ func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
 	)
 }
 
+// EmbeddingClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) EmbeddingClient() assist.AssistEmbeddingServiceClient {
+	return assist.NewAssistEmbeddingServiceClient(
+		utils.NewGRPCDummyClientConnection("EmbeddingClient() should not be called on ServerWithRoles"),
+	)
+}
+
 // SAMLIdPClient allows ServerWithRoles to implement ClientI.
 // It should not be called through ServerWithRoles,
 // as it returns a dummy client that will always respond with "not implemented".
