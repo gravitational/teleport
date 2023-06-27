@@ -173,22 +173,35 @@ func TestExecuteCommandSummary(t *testing.T) {
 	ws, _, err := s.makeCommand(t, authPack, conversationID)
 	require.NoError(t, err)
 
-	stream := NewWStream(ctx, ws, utils.NewLoggerForTests(), nil)
+	// The current Assist execution relies on a hack that multiplexes multiple
+	// streams over a single one. This causes issues when a stream close as the
+	// single stream receiver will consider it should close. We work around by
+	// using a non-closing websocket and initiating a proper stream close.
+	// Then we reopen a new stream on the same websocket and continue reading
+	// the summary.
+	nonClosableWebsocket := &noopCloserWS{ws}
+	stream := NewWStream(ctx, nonClosableWebsocket, utils.NewLoggerForTests(), nil)
 
 	// Wait for command execution to complete
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 
+	// Stop the stream consumption
+	err = stream.Close()
+	require.NoError(t, err)
+
+	// Start a new stream and process the summary event
 	var env Envelope
+	stream = NewWStream(ctx, ws, utils.NewLoggerForTests(), nil)
 	dec := json.NewDecoder(stream)
 	err = dec.Decode(&env)
 	require.NoError(t, err)
 	require.Equal(t, envelopeTypeSummary, env.GetType())
 	require.NotEmpty(t, env.GetPayload())
 
-	// Close the stream if not already closed
+	// Close the stream, and the underlying websocket
 	_ = stream.Close()
 
-	// Then command execution history is saved
+	// Wait for the command execution history to be saved
 	var messages *assist.GetAssistantMessagesResponse
 	// Command execution history is saved in asynchronusly, so we need to wait for it.
 	require.Eventually(t, func() bool {
