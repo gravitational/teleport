@@ -53,9 +53,6 @@ func (c *storageConfigV1) migrate() (*StorageConfig, error) {
 	if err != nil {
 		return nil, trace.Wrap(err, "migrating destination mixin")
 	}
-	if dest == nil {
-		return nil, nil
-	}
 
 	return &StorageConfig{
 		Destination: dest,
