@@ -61,10 +61,10 @@ const (
 	connContextKey appServerContextKey = "teleport-connContextKey"
 )
 
-// ConnMonitor monitors authorized connnections and terminates them when
+// ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error)
+	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // Config is the configuration for an application server.
@@ -695,14 +695,26 @@ func (s *Server) HandleConnection(conn net.Conn) {
 }
 
 func (s *Server) handleConnection(conn net.Conn) (func(), error) {
-	// Proxy sends a X.509 client certificate to pass identity information,
-	// extract it and run authorization checks on it.
-	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, conn)
+	ctx, cancel := context.WithCancel(s.closeContext)
+	tc, err := srv.NewTrackingReadConn(srv.TrackingReadConnConfig{
+		Conn:    conn,
+		Clock:   s.c.Clock,
+		Context: ctx,
+		Cancel:  cancel,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	ctx := authz.ContextWithUser(s.closeContext, user)
+	// Proxy sends a X.509 client certificate to pass identity information,
+	// extract it and run authorization checks on it.
+	tlsConn, user, app, err := s.getConnectionInfo(s.closeContext, tc)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	ctx = authz.ContextWithUser(s.closeContext, user)
+	ctx = authz.ContextWithClientAddr(ctx, conn.RemoteAddr())
 	authCtx, _, err := s.authorizeContext(ctx)
 
 	// The behavior here is a little hard to track. To be clear here, if authorization fails
@@ -719,7 +731,7 @@ func (s *Server) handleConnection(conn net.Conn) (func(), error) {
 		}
 	} else {
 		// Monitor the connection an update the context.
-		ctx, err = s.c.ConnectionMonitor.MonitorConn(ctx, authCtx, conn)
+		ctx, _, err = s.c.ConnectionMonitor.MonitorConn(ctx, authCtx, tc)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
