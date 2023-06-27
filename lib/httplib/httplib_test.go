@@ -269,50 +269,91 @@ func TestMakeTracingHandler(t *testing.T) {
 func TestSetIndexContentSecurityPolicy(t *testing.T) {
 	t.Parallel()
 
-	expectedCspVals := map[string]string{
-		"default-src":     "'self'",
-		"base-uri":        "'self'",
-		"form-action":     "'self'",
-		"frame-ancestors": "'none'",
-		"object-src":      "'none'",
-		"style-src":       "'self' 'unsafe-inline'",
-		"img-src":         "'self' data: blob:",
-		"font-src":        "'self' data:",
-		"connect-src":     "'self' wss:",
-	}
-
-	h := make(http.Header)
-	SetIndexContentSecurityPolicy(h, proto.Features{})
-	actualCsp := h.Get("Content-Security-Policy")
-	for k, v := range expectedCspVals {
-		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
-		require.Contains(t, actualCsp, expectedCspSubString)
-	}
-}
-
-func TestSetIndexContentSecurityPolicyForCloudUsageBased(t *testing.T) {
-	t.Parallel()
-
-	expectedCspVals := map[string]string{
-		"default-src":     "'self'",
-		"base-uri":        "'self'",
-		"form-action":     "'self'",
-		"frame-ancestors": "'none'",
-		"object-src":      "'none'",
-		"script-src":      "'self' https://js.stripe.com",
-		"frame-src":       "https://js.stripe.com",
-		"style-src":       "'self' 'unsafe-inline'",
-		"img-src":         "'self' data: blob:",
-		"font-src":        "'self' data:",
-		"connect-src":     "'self' wss:",
-	}
-
-	h := make(http.Header)
-	SetIndexContentSecurityPolicy(h, proto.Features{Cloud: true, IsUsageBased: true})
-	actualCsp := h.Get("Content-Security-Policy")
-	for k, v := range expectedCspVals {
-		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
-		require.Contains(t, actualCsp, expectedCspSubString)
+	for _, tt := range []struct {
+		name            string
+		features        proto.Features
+		urlPath         string
+		expectedCspVals map[string]string
+	}{
+		{
+			name:     "default (no stripe or wasm)",
+			features: proto.Features{},
+			urlPath:  "/web/index.js",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss:",
+			},
+		},
+		{
+			name:     "for cloud based usage (with stripe, no wasm)",
+			features: proto.Features{Cloud: true, IsUsageBased: true},
+			urlPath:  "/web/index.js",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'self' https://js.stripe.com",
+				"frame-src":       "https://js.stripe.com",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss:",
+			},
+		},
+		{
+			name:     "for desktop session (no stripe, with wasm)",
+			features: proto.Features{},
+			urlPath:  "/web/cluster/:clusterId/desktops/:desktopName/:username",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'wasm-unsafe-eval'",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss:",
+			},
+		},
+		{
+			name:     "for cloud based usage & desktop session (with stripe, with wasm)",
+			features: proto.Features{Cloud: true, IsUsageBased: true},
+			urlPath:  "/web/cluster/:clusterId/desktops/:desktopName/:username",
+			expectedCspVals: map[string]string{
+				"default-src":     "'self'",
+				"base-uri":        "'self'",
+				"form-action":     "'self'",
+				"frame-ancestors": "'none'",
+				"object-src":      "'none'",
+				"script-src":      "'self' https://js.stripe.com 'wasm-unsafe-eval'",
+				"frame-src":       "https://js.stripe.com",
+				"style-src":       "'self' 'unsafe-inline'",
+				"img-src":         "'self' data: blob:",
+				"font-src":        "'self' data:",
+				"connect-src":     "'self' wss:",
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			h := make(http.Header)
+			SetIndexContentSecurityPolicy(h, tt.features, tt.urlPath)
+			actualCsp := h.Get("Content-Security-Policy")
+			for k, v := range tt.expectedCspVals {
+				expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
+				require.Contains(t, actualCsp, expectedCspSubString)
+			}
+		})
 	}
 }
 
