@@ -1,5 +1,3 @@
-//go:build windows
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -29,7 +27,8 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-// GetOrCreateRegistryKey loads or creates a registry key handle and passes it back
+// GetOrCreateRegistryKey loads or creates a registry key handle.
+// The key handle must be released with Close() when it is no longer needed.
 func GetOrCreateRegistryKey(name string) (registry.Key, error) {
 	reg, err := registry.OpenKey(registry.CURRENT_USER, name, registry.QUERY_VALUE|registry.CREATE_SUB_KEY|registry.SET_VALUE)
 	switch {

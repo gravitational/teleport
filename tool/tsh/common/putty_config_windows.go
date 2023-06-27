@@ -1,5 +1,3 @@
-//go:build windows
-
 /*
 Copyright 2022 Gravitational, Inc.
 
@@ -179,6 +177,7 @@ func addHostCAPublicKey(keyName string, publicKey string, hostname string) error
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer registryKey.Close()
 	hostList, _, err := registryKey.GetStringsValue("MatchHosts")
 	if err != nil {
 		// ERROR_FILE_NOT_FOUND is an acceptable error, meaning that the value does not already
@@ -192,7 +191,6 @@ func addHostCAPublicKey(keyName string, publicKey string, hostname string) error
 	if len(hostList) == 0 {
 		hostList = []string{}
 	}
-	defer registryKey.Close()
 
 	// add the new hostname to the existing hostList from the registry key (if one exists)
 	hostList = puttyhosts.AddHostToHostList(hostList, hostname)

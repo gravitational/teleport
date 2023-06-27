@@ -17,6 +17,7 @@ limitations under the License.
 package puttyhosts
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -30,7 +31,6 @@ func TestAddHostToHostList(t *testing.T) {
 		expected []string
 	}{
 		{
-			id: "test case 1",
 			hostList: []string{
 				"one.example.com",
 				"two.example.com",
@@ -41,7 +41,6 @@ func TestAddHostToHostList(t *testing.T) {
 			},
 		},
 		{
-			id: "test case 2",
 			hostList: []string{
 				"one",
 				"two",
@@ -54,7 +53,6 @@ func TestAddHostToHostList(t *testing.T) {
 			},
 		},
 		{
-			id: "test case 3",
 			hostList: []string{
 				"*.example.com",
 			},
@@ -64,7 +62,6 @@ func TestAddHostToHostList(t *testing.T) {
 			},
 		},
 		{
-			id: "test case 4",
 			hostList: []string{
 				"one.example.com",
 			},
@@ -74,7 +71,6 @@ func TestAddHostToHostList(t *testing.T) {
 			},
 		},
 		{
-			id: "test case 5",
 			hostList: []string{
 				"one.alpha.example.com",
 				"two.beta.example.com",
@@ -88,7 +84,6 @@ func TestAddHostToHostList(t *testing.T) {
 			},
 		},
 		{
-			id: "test case 6",
 			hostList: []string{
 				"one.alpha.example.com",
 				"two.beta.example.com",
@@ -102,7 +97,6 @@ func TestAddHostToHostList(t *testing.T) {
 			},
 		},
 		{
-			id: "test case 7",
 			hostList: []string{
 				"eggs.breakfast",
 				"bacon.breakfast",
@@ -116,7 +110,6 @@ func TestAddHostToHostList(t *testing.T) {
 			},
 		},
 		{
-			id: "test case 8",
 			hostList: []string{
 				"*.breakfast",
 				"*.lunch",
@@ -132,7 +125,6 @@ func TestAddHostToHostList(t *testing.T) {
 			},
 		},
 		{
-			id: "test case 9",
 			hostList: []string{
 				"one",
 				"two",
@@ -151,8 +143,10 @@ func TestAddHostToHostList(t *testing.T) {
 		},
 	}
 
-	for _, tt := range tests {
-		output := AddHostToHostList(tt.hostList, tt.hostname)
-		require.ElementsMatch(t, tt.expected, output, tt.id)
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("test case %d", i), func(t *testing.T) {
+			output := AddHostToHostList(tt.hostList, tt.hostname)
+			require.ElementsMatch(t, tt.expected, output)
+		})
 	}
 }
