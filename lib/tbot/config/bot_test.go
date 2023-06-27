@@ -50,6 +50,12 @@ const (
 	mockRemoteClusterName = "tele.aperture.labs"
 )
 
+// fakeGetExecutablePath can be injected into outputs to ensure they output the
+// same path in tests across multiple systems.
+func fakeGetExecutablePath() (string, error) {
+	return "/path/to/tbot", nil
+}
+
 // mockProvider is a minimal Bot impl that can be used in tests
 type mockProvider struct {
 	cfg               *BotConfig
