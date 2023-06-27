@@ -4,10 +4,10 @@ description: How to configure Teleport access using One Login as an SSO provider
 h1: Teleport Authentication with OneLogin
 ---
 
-This guide will explain how to configure [OneLogin](https://www.onelogin.com/) to issue
-Teleport credentials to specific groups of users. When used in combination with role
-based access control (RBAC) it allows SSH administrators to define policies
-like:
+This guide will explain how to configure [OneLogin](https://www.onelogin.com/)
+to issue Teleport credentials to specific groups of users. When used in
+combination with role based access control (RBAC) it allows SSH administrators
+to define policies like:
 
 - Only members of "DBA" group can connect to PostgreSQL databases.
 - Developers must never SSH into production servers.
@@ -15,8 +15,9 @@ like:
 
 ## Prerequisites
 
-- One Login account with admin access and users assigned to at least two groups.
-- Teleport role with access to maintaining `saml` resources.  This is available in the default `editor` role.
+- A One Login account with admin access, and users assigned to at least two groups.
+- Teleport role with access to maintaining `saml` resources.  This is available
+  in the default `editor` role.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
@@ -40,13 +41,13 @@ section:
 
 Set `Audience`, `Recipient` and `ACS (Consumer) URL Validator` to the same value:
 
-`https://teleport.example.com:3080/v1/webapi/saml/acs` where `teleport.example.com` is the
-public name of the teleport web proxy service:
+`https://teleport.example.com:3080/v1/webapi/saml/acs` where
+`teleport.example.com` is the public name of the teleport web proxy service:
 
 ![Configure SAML](../../../img/sso/onelogin/onelogin-saml-2.png)
 
-Teleport needs to assign groups to users. Configure the application with some parameters
-exposed as SAML attribute statements:
+Teleport needs to assign groups to users. Configure the application with some
+parameters exposed as SAML attribute statements:
 
 ![New Field](../../../img/sso/onelogin/onelogin-saml-3.png)
 
@@ -78,8 +79,8 @@ Write down this template as `onelogin-connector.yaml`:
 (!examples/resources/onelogin-connector.yaml!)
 ```
 
-Update the `acs` value with your public cluster URL and paste the SAML metadata that you
-previously downloaded in `entity_descriptor`.
+Update the `acs` value with your public cluster URL and paste the SAML metadata
+that you previously downloaded in `entity_descriptor`.
 
 Create the connector using `tctl` tool:
 
@@ -92,10 +93,10 @@ $ tctl create onelogin-connector.yaml
 We are going to create a new that'll use external username data from OneLogin
 to map to a host linux login.
 
-In the below role, Devs are only allowed to login to nodes labelled with `access: relaxed`
-Teleport label. Developers can log in as either `ubuntu` to a username that
-arrives in their assertions. Developers also do not have any rules needed to
-obtain admin access to Teleport.
+In the below role, Devs are only allowed to login to nodes labelled with
+`access: relaxed` Teleport label. Developers can log in as either `ubuntu` to a
+username that arrives in their assertions. Developers also do not have any
+rules needed to obtain admin access to Teleport.
 
 ```yaml
 kind: role
