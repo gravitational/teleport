@@ -127,7 +127,8 @@ generates tokens for the following Teleport services:
 ### Startup script
 
 Each EC2 instance runs a script on startup, which we configured above using the
-`user_data` field within the `aws_instance.teleport_agent` resource:
+`user_data` field within the `aws_instance.teleport_agent` resource
+(`examples/agent-pool-terraform/userdata.sh`):
 
 ```text
 (!examples/agent-pool-terraform/userdata.sh!)
@@ -137,16 +138,17 @@ This script installs Teleport Community Edition on the host, then writes a
 configuration file to the default location, `/etc/teleport.yaml`. The
 configuration file enables each Teleport service we associated with our token.
 
-So we you access hosts in the agent pool later, the configuration also adds the
-`role: agent-pool` label to the Teleport SSH Service on each instance.
+The configuration also adds the `role: agent-pool` label to the Teleport SSH
+Service on each instance. This will make it easier to access hosts in the agent
+pool later.
 
 Finally, the script restarts Teleport on the host to apply the new
 configuration.
 
 ### Input variables
 
-The Terraform configuration we show in this guide relies on the following
-inputs:
+The Terraform configuration we show in this guide relies on the following inputs
+(`examples/agent-pool-terraform/inputs.tf`):
 
 ```text
 (!examples/agent-pool-terraform/inputs.tf!)
@@ -197,8 +199,8 @@ $ sed -i "" "s/TELEPORT_VERSION/(=teleport.plugin.version=)/" provider.tf
 
 ## Step 3/3. Verify the deployment
 
-Make sure you have made your AWS credentials available to Terraform using the
-standard approach for your organization.
+Make sure your AWS credentials are available to Terraform using the standard
+approach for your organization.
 
 Apply the Terraform configuration:
 
@@ -220,14 +222,7 @@ ip-10-1-1-24.ec2.internal  ⟵ Tunnel   role=agent-pool
 ## Next step: Enroll infrastructure resources
 
 There are two ways to configure your agent pool to protect infrastructure
-resources with Teleport:
-
-- **Dynamic infrastructure resources:** You can declare additional Terraform
-  resources that represent resources in your infrastructure. Teleport agents
-  look up dynamic infrastructure resources from the Auth Service in order to
-  proxy user traffic.
-- **Static configuration settings:** Edit the configuration of each service to
-  point to specific resources in your infrastructure.
+resources with Teleport, which we describe below.
 
 ### Define dynamic resources in Terraform 
 
@@ -239,11 +234,14 @@ Teleport. The Teleport Terraform provider currently supports the following:
 |Application|`teleport_app`|
 |Database|`teleport_database`|
 
-To declare a dynamic resource with Terraform, add configuration blocks similar
-to the ones below. The Teleport Terraform provider creates these on the Auth
-Service backend, and the relevant Teleport services query them in order to proxy
-user traffic. For a full list of supported resources and fields, see the
-[Terraform provider reference](../reference/terraform-provider.mdx).
+To declare a dynamic resource with Terraform, add a configuration block similar
+to the ones below to a `*.tf` file in your `agent-pool-terraform` project
+directory. 
+
+The Teleport Terraform provider creates these on the Auth Service backend, and
+the relevant Teleport services query them in order to proxy user traffic. For a
+full list of supported resources and fields, see the [Terraform provider
+reference](../reference/terraform-provider.mdx).
 
 <Tabs>
 <TabItem label="Application">
@@ -251,12 +249,12 @@ user traffic. For a full list of supported resources and fields, see the
 ```text
 resource "teleport_app" "example" {
   metadata = {
-    name = "example"
+    name        = "example"
     description = "Test app"
     labels = {
-        // Teleport adds this label by default, so add it here to
-        // ensure a consistent state.
-        "teleport.dev/origin" = "dynamic"     
+      // Teleport adds this label by default, so add it here to
+      // ensure a consistent state.
+      "teleport.dev/origin" = "dynamic"
     }
   }
 
@@ -271,22 +269,21 @@ resource "teleport_app" "example" {
 
 ```text
 resource "teleport_database" "example" {
-    metadata = {
-        name = "example"
-        description = "Test database"
-        labels = {
-            // Teleport adds this label by default, so add it here to
-            // ensure a consistent state.
-            "teleport.dev/origin" = "dynamic"
-        }
+  metadata = {
+    name        = "example"
+    description = "Test database"
+    labels = {
+      // Teleport adds this label by default, so add it here to
+      // ensure a consistent state.
+      "teleport.dev/origin" = "dynamic"
     }
+  }
 
-    spec = {
-        protocol = "postgres"
-        uri = "localhost"
-    }
-}
-```
+  spec = {
+    protocol = "postgres"
+    uri      = "localhost"
+  }
+}```
 
 </TabItem>
 </Tabs>

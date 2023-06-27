@@ -29,9 +29,9 @@ In this setup, agents dial the Teleport Proxy Service in order to establish
 reverse SSH tunnels. While the Proxy Service remains open to the public internet
 via its HTTPS port, agents require no open ports or public address.
 
-The Teleport Proxy Service uses these reverse tunnels to forward traffic from
-clients to an available agent, and agents apply RBAC rules and forward the
-traffic to resources in your infrastructure.
+The Teleport Proxy Service uses these reverse tunnels to forward traffic in
+Teleport's supported protocols to an available agent. Agents apply RBAC
+rules and forward the traffic to resources in your infrastructure.
 
 ```mermaid
 %%{init: {"flowchart": {"curve": "linear"}}}%%
@@ -40,6 +40,7 @@ flowchart LR
   Clients--->proxy
   subgraph private["Private network"]
     db["Self-hosted database"]
+    app["Internal web application"]
     subgraph agent2["Teleport agent"]
       service3["Teleport Database Service"]
       service4["Teleport Application Service"]
@@ -54,6 +55,7 @@ flowchart LR
     ssh["SSH server"]
     agent1 -.-> kubernetes & ssh
     agent2 -.-> db
+    agent2 -.-> app
   end
 
   agent1 & agent2--Reverse tunnel---->proxy
