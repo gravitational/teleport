@@ -1725,7 +1725,7 @@ func (process *TeleportProcess) initAuthService() error {
 				return nil
 			}
 			log.Debugf("Starting embedding processor")
-			return embeddingProcessor.Run(process.ExitContext(), ai.EmbeddingPeriod)
+			return embeddingProcessor.Run(process.GracefulExitContext(), ai.EmbeddingPeriod)
 		})
 	}
 
