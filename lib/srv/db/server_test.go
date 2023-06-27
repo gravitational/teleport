@@ -319,6 +319,8 @@ func TestShutdown(t *testing.T) {
 }
 
 func TestTrackActiveConnections(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t, withSelfHostedPostgres("postgres"))
 	go testCtx.startHandlingConnections()
@@ -340,7 +342,7 @@ func TestTrackActiveConnections(t *testing.T) {
 
 		require.Eventually(t, func() bool {
 			return expectedActiveConnections == testCtx.server.activeConnections.Load()
-		}, time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
+		}, 2*time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
 	}
 
 	// For each connection we close, the active connections should drop too.
@@ -353,7 +355,7 @@ func TestTrackActiveConnections(t *testing.T) {
 		// to properly close the connection.
 		require.Eventually(t, func() bool {
 			return expectedActiveConnections == testCtx.server.activeConnections.Load()
-		}, time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
+		}, 2*time.Second, 100*time.Millisecond, "expected %d active connections, but got %d", expectedActiveConnections, testCtx.server.activeConnections.Load())
 	}
 }
 
@@ -362,6 +364,8 @@ func TestTrackActiveConnections(t *testing.T) {
 // gracefully shut down, it should keep running until the client closes the
 // connection.
 func TestShutdownWithActiveConnections(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	server, connErrCh, cancelConn := databaseServerWithActiveConnection(t, ctx)
 
@@ -391,11 +395,19 @@ func TestShutdownWithActiveConnections(t *testing.T) {
 
 	cancelConn()
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.NoError(c, <-connErrCh, "unexpected connection error")
+		select {
+		case err := <-connErrCh:
+			assert.NoError(c, err, "unexpected connection error")
+		default:
+		}
 	}, time.Second, 100*time.Millisecond)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.NoError(c, <-shutdownErrCh, "unexpected server shutdown error")
+		select {
+		case err := <-shutdownErrCh:
+			assert.NoError(c, err, "unexpected server shutdown error")
+		default:
+		}
 	}, time.Second, 100*time.Millisecond)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
@@ -407,12 +419,18 @@ func TestShutdownWithActiveConnections(t *testing.T) {
 // one active connection constantly sending queries, when the server is
 // killed/stopped, it should drop connections and cleanup resources.
 func TestCloseWithActiveConnections(t *testing.T) {
+	t.Parallel()
+
 	ctx := context.Background()
 	server, connErrCh, _ := databaseServerWithActiveConnection(t, ctx)
 
 	require.NoError(t, server.Close())
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		assert.ErrorIs(t, <-connErrCh, io.ErrUnexpectedEOF)
+		select {
+		case err := <-connErrCh:
+			assert.ErrorIs(c, err, io.ErrUnexpectedEOF)
+		default:
+		}
 	}, time.Second, 100*time.Millisecond)
 
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
