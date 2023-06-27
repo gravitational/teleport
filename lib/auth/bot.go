@@ -173,7 +173,7 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 
 	// Emit usage analytics event for bot creation.
 	s.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
-		UserName:    authz.ClientUserMetadata(ctx).User,
+		UserName:    authz.ClientUsername(ctx),
 		BotUserName: resourceName,
 		RoleName:    resourceName,
 		BotName:     req.Name,
