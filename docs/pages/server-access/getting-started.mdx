@@ -278,17 +278,22 @@ into a server using a third-party tool. Compare the two equivalent commands:
   </TabItem>
   <TabItem label="ssh">
 
+    To use the `ssh` client generate a SSH configuration file and postfix
+    the cluster name after the node name.
+
   <ScopedBlock scope={["oss", "enterprise"]}>
 
     ```code
-    $ ssh -J tele.example.com root@ip-172-31-41-144
+    $ tsh config > ssh_config_teleport
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.tele.example.com
     ```
 
    </ScopedBlock>
   <ScopedBlock scope={["cloud"]}>
 
     ```code
-    $ ssh -J mytenant.teleport.sh root@ip-172-31-41-144
+    $ tsh config > ssh_config_teleport
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.mytenant.teleport.sh
     ```
 
    </ScopedBlock>
