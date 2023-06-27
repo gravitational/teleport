@@ -1,6 +1,6 @@
 # Changelog
 
-## 13.1.4 (06/26/23)
+## 13.1.5 (06/27/23)
 
 * Teleport Cloud
   * Added Opsgenie hosted plugin. [#28098](https://github.com/gravitational/teleport/pull/28098)
@@ -39,6 +39,8 @@
   * Improved routing of connections between agents and Auth Servers when proxy
     peering is enabled
     [#28316](https://github.com/gravitational/teleport/pull/28316)
+  * Add a `max_session_ttl` option to Teleport's `cluster_auth_preference`
+    [#28130](https://github.com/gravitational/teleport/pull/28130)
 
 ## 13.1.2 (06/21/23)
 
