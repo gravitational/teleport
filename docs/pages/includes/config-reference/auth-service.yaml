@@ -238,6 +238,11 @@ auth_service:
           #   and Kubernetes connections.
           mode: optional # always "off" for OSS
 
+        # Determines the default time to live for user certificates
+        # issued by this auth server, defaults to 12 hours.  Examples:
+        # "14h30m", "1h" etc.
+        default_session_ttl: 12h
+
     # IP and the port to bind to. Other Teleport Nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client
     # certificates

@@ -811,6 +811,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			LockingMode:           constants.LockingModeBestEffort,
 			AllowPasswordless:     types.NewBoolOption(true),
 			AllowHeadless:         types.NewBoolOption(true),
+			DefaultSessionTTL:     types.Duration(apidefaults.CertDuration),
 			IDP: &types.IdPOptions{
 				SAML: &types.IdPSAMLOptions{
 					Enabled: types.NewBoolOption(true),
