@@ -39,6 +39,10 @@ type DiscoverEventData struct {
 	// event tp.ui.discover.database.enroll.rds
 	SelectedResourcesCount int `json:"selectedResourcesCount,omitempty"`
 
+	// ServiceDeployedMethod is the enum string value of the agent deployed method used.
+	// Value is only considered for the event 'tp.ui.discover.deployService'
+	ServiceDeployedMethod string `json:"serviceDeployedMethod,omitempty"`
+
 	// StepStatus is the Wizard step status result.
 	// Its possible values are the usageevents.DiscoverStepStatus proto enum values.
 	// Example: "DISCOVER_STATUS_SUCCESS"
@@ -116,11 +120,16 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 		}}, nil
 
 	case uiDiscoverDeployServiceEvent:
+		deployedMethodEnum, ok := usageeventsv1.UIDiscoverDeployServiceEvent_DeployedMethod_value[d.ServiceDeployedMethod]
+		if !ok {
+			return nil, trace.BadParameter("invalid deployed method %s", d.ServiceDeployedMethod)
+		}
 		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
 			UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
-				Metadata: metadata,
-				Resource: resource,
-				Status:   status,
+				Metadata:       metadata,
+				Resource:       resource,
+				Status:         status,
+				DeployedMethod: usageeventsv1.UIDiscoverDeployServiceEvent_DeployedMethod(deployedMethodEnum),
 			},
 		}}, nil
 

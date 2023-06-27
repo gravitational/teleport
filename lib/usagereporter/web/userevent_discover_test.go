@@ -114,6 +114,27 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 				},
 			}},
 		},
+		{
+			name:     uiDiscoverDeployServiceEvent + "/success_test_deployed_method_setting",
+			event:    uiDiscoverDeployServiceEvent,
+			errCheck: require.NoError,
+			req: DiscoverEventData{
+				ID:                    "someid",
+				Resource:              "DISCOVER_RESOURCE_SERVER",
+				StepStatus:            "DISCOVER_STATUS_SUCCESS",
+				ServiceDeployedMethod: "DEPLOYED_METHOD_AUTO",
+			},
+			expected: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
+				UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Resource: &usageeventsv1.DiscoverResourceMetadata{Resource: usageeventsv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status: &usageeventsv1.DiscoverStepStatus{
+						Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
+					},
+					DeployedMethod: usageeventsv1.UIDiscoverDeployServiceEvent_DEPLOYED_METHOD_AUTO,
+				},
+			}},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt

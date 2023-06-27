@@ -685,9 +685,10 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
 		ret := &UIDiscoverDeployServiceEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
-			Resource: discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
-			Status:   discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
+			Metadata:       discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
+			Resource:       discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
+			Status:         discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
+			DeployedMethod: prehogv1a.UIDiscoverDeployServiceEvent_DeployedMethod(e.UiDiscoverDeployServiceEvent.DeployedMethod),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)
