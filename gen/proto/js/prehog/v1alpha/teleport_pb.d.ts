@@ -648,8 +648,11 @@ export class UIDiscoverDeployServiceEvent extends jspb.Message {
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDeployServiceEvent;
 
-    getDeployedMethod(): UIDiscoverDeployServiceEvent.DeployedMethod;
-    setDeployedMethod(value: UIDiscoverDeployServiceEvent.DeployedMethod): UIDiscoverDeployServiceEvent;
+    getDeployMethod(): UIDiscoverDeployServiceEvent.DeployMethod;
+    setDeployMethod(value: UIDiscoverDeployServiceEvent.DeployMethod): UIDiscoverDeployServiceEvent;
+
+    getDeployType(): UIDiscoverDeployServiceEvent.DeployType;
+    setDeployType(value: UIDiscoverDeployServiceEvent.DeployType): UIDiscoverDeployServiceEvent;
 
 
     serializeBinary(): Uint8Array;
@@ -667,13 +670,20 @@ export namespace UIDiscoverDeployServiceEvent {
         metadata?: DiscoverMetadata.AsObject,
         resource?: DiscoverResourceMetadata.AsObject,
         status?: DiscoverStepStatus.AsObject,
-        deployedMethod: UIDiscoverDeployServiceEvent.DeployedMethod,
+        deployMethod: UIDiscoverDeployServiceEvent.DeployMethod,
+        deployType: UIDiscoverDeployServiceEvent.DeployType,
     }
 
-    export enum DeployedMethod {
-    DEPLOYED_METHOD_UNSPECIFIED = 0,
-    DEPLOYED_METHOD_AUTO = 1,
-    DEPLOYED_METHOD_MANUAL = 2,
+    export enum DeployMethod {
+    DEPLOY_METHOD_UNSPECIFIED = 0,
+    DEPLOY_METHOD_AUTO = 1,
+    DEPLOY_METHOD_MANUAL = 2,
+    }
+
+    export enum DeployType {
+    DEPLOY_TYPE_UNSPECIFIED = 0,
+    DEPLOY_TYPE_INSTALL_SCRIPT = 1,
+    DEPLOY_TYPE_AMAZON_ECS = 2,
     }
 
 }

@@ -373,19 +373,33 @@ message UIDiscoverDeployServiceEvent {
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
 
-  // DeployedMethod desribes the method used to deploy a service.
-  enum DeployedMethod {
+  // DeployMethod describes the method used to deploy a service.
+  enum DeployMethod {
     // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
     // so deploying step got skipped.
-    DEPLOYED_METHOD_UNSPECIFIED = 0;
+    DEPLOY_METHOD_UNSPECIFIED = 0;
     // DEPLOY_METHOD_AUTO means Teleport deployed a service for the user.
-    DEPLOYED_METHOD_AUTO = 1;
-    // DEPLOY_METHOD_MANUAL means user deployed service using their
-    // own instance using a Teleport download script.
-    DEPLOYED_METHOD_MANUAL = 2;
+    DEPLOY_METHOD_AUTO = 1;
+    // DEPLOY_METHOD_MANUAL means a user deployed a service by themselves.
+    DEPLOY_METHOD_MANUAL = 2;
   }
 
-  DeployedMethod deployed_method = 4;
+  DeployMethod deploy_method = 4;
+
+  // DeployType describes the type of deployment.
+  enum DeployType {
+    // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
+    // so deploying step got skipped.
+    DEPLOY_TYPE_UNSPECIFIED = 0;
+    // DEPLOY_TYPE_INSTALL_SCRIPT means service was deployed using an
+    // install script.
+    DEPLOY_TYPE_INSTALL_SCRIPT = 1;
+    // DEPLOY_TYPE_AMAZON_ECS means service was deployed using amazon's
+    // elastic container service.
+    DEPLOY_TYPE_AMAZON_ECS = 2;
+  }
+
+  DeployType deploy_type = 5;
 }
 
 // UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.

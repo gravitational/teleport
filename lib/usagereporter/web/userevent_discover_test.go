@@ -119,10 +119,13 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 			event:    uiDiscoverDeployServiceEvent,
 			errCheck: require.NoError,
 			req: DiscoverEventData{
-				ID:                    "someid",
-				Resource:              "DISCOVER_RESOURCE_SERVER",
-				StepStatus:            "DISCOVER_STATUS_SUCCESS",
-				ServiceDeployedMethod: "DEPLOYED_METHOD_AUTO",
+				ID:         "someid",
+				Resource:   "DISCOVER_RESOURCE_SERVER",
+				StepStatus: "DISCOVER_STATUS_SUCCESS",
+				ServiceDeploy: discoverServiceDeploy{
+					Method: "DEPLOY_METHOD_AUTO",
+					Type:   "DEPLOY_TYPE_AMAZON_ECS",
+				},
 			},
 			expected: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
 				UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
@@ -131,7 +134,8 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 					Status: &usageeventsv1.DiscoverStepStatus{
 						Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS,
 					},
-					DeployedMethod: usageeventsv1.UIDiscoverDeployServiceEvent_DEPLOYED_METHOD_AUTO,
+					DeployMethod: usageeventsv1.UIDiscoverDeployServiceEvent_DEPLOY_METHOD_AUTO,
+					DeployType:   usageeventsv1.UIDiscoverDeployServiceEvent_DEPLOY_TYPE_AMAZON_ECS,
 				},
 			}},
 		},

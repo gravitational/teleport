@@ -20,6 +20,14 @@ import (
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
 )
 
+// discoverServiceDeploy defines fields for enum string values
+// that describes how a service (agent) got deployed.
+// This struct is only considered for the event 'tp.ui.discover.deployService'
+type discoverServiceDeploy struct {
+	Method string `json:"method,omitempty"`
+	Type   string `json:"type,omitempty"`
+}
+
 // DiscoverEventData contains the required properties to create a Discover UsageEvent.
 type DiscoverEventData struct {
 	// ID is a unique ID per wizard session
@@ -39,9 +47,7 @@ type DiscoverEventData struct {
 	// event tp.ui.discover.database.enroll.rds
 	SelectedResourcesCount int `json:"selectedResourcesCount,omitempty"`
 
-	// ServiceDeployedMethod is the enum string value of the agent deployed method used.
-	// Value is only considered for the event 'tp.ui.discover.deployService'
-	ServiceDeployedMethod string `json:"serviceDeployedMethod,omitempty"`
+	ServiceDeploy discoverServiceDeploy `json:"serviceDeploy,omitempty"`
 
 	// StepStatus is the Wizard step status result.
 	// Its possible values are the usageevents.DiscoverStepStatus proto enum values.
@@ -120,16 +126,21 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 		}}, nil
 
 	case uiDiscoverDeployServiceEvent:
-		deployedMethodEnum, ok := usageeventsv1.UIDiscoverDeployServiceEvent_DeployedMethod_value[d.ServiceDeployedMethod]
+		deployMethodEnum, ok := usageeventsv1.UIDiscoverDeployServiceEvent_DeployMethod_value[d.ServiceDeploy.Method]
 		if !ok {
-			return nil, trace.BadParameter("invalid deployed method %s", d.ServiceDeployedMethod)
+			return nil, trace.BadParameter("invalid deployed method %s", d.ServiceDeploy.Method)
+		}
+		deployTypeEnum, ok := usageeventsv1.UIDiscoverDeployServiceEvent_DeployType_value[d.ServiceDeploy.Type]
+		if !ok {
+			return nil, trace.BadParameter("invalid deployed type %s", d.ServiceDeploy.Type)
 		}
 		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
 			UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{
-				Metadata:       metadata,
-				Resource:       resource,
-				Status:         status,
-				DeployedMethod: usageeventsv1.UIDiscoverDeployServiceEvent_DeployedMethod(deployedMethodEnum),
+				Metadata:     metadata,
+				Resource:     resource,
+				Status:       status,
+				DeployMethod: usageeventsv1.UIDiscoverDeployServiceEvent_DeployMethod(deployMethodEnum),
+				DeployType:   usageeventsv1.UIDiscoverDeployServiceEvent_DeployType(deployTypeEnum),
 			},
 		}}, nil
 

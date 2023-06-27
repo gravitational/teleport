@@ -25,6 +25,7 @@ import {
   DiscoverEventResource,
   DiscoverEventStatus,
   DiscoverServiceDeployMethod,
+  DiscoverServiceDeployType,
   userEventService,
 } from 'teleport/services/userEvent';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
@@ -146,7 +147,10 @@ describe('emitting events', () => {
           id,
           resource: DiscoverEventResource.Server,
           stepStatus: DiscoverEventStatus.Success,
-          serviceDeployedMethod: DiscoverServiceDeployMethod.Unspecified,
+          serviceDeploy: {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          },
         },
       })
     );
@@ -204,7 +208,10 @@ describe('emitting events', () => {
           id,
           resource: DiscoverEventResource.Server,
           stepStatus: DiscoverEventStatus.Success,
-          serviceDeployedMethod: DiscoverServiceDeployMethod.Unspecified,
+          serviceDeploy: {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          },
         },
       })
     );
@@ -258,7 +265,10 @@ describe('emitting events', () => {
           id,
           resource: DiscoverEventResource.Server,
           stepStatus: DiscoverEventStatus.Skipped,
-          serviceDeployedMethod: DiscoverServiceDeployMethod.Unspecified,
+          serviceDeploy: {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          },
         },
       })
     );
@@ -289,7 +299,10 @@ describe('emitting events', () => {
           stepStatusError: 'some error message',
           selectedResourcesCount: 0,
           autoDiscoverResourcesCount: 0,
-          serviceDeployedMethod: DiscoverServiceDeployMethod.Unspecified,
+          serviceDeploy: {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          },
         },
       })
     );
