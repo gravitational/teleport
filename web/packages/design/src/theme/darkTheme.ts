@@ -202,6 +202,15 @@ const colors = {
     brightCyan: dataVisualisationColors.tertiary.cyan,
   },
 
+  editor: {
+    abbey: dataVisualisationColors.tertiary.abbey,
+    purple: dataVisualisationColors.tertiary.purple,
+    cyan: dataVisualisationColors.tertiary.cyan,
+    picton: dataVisualisationColors.tertiary.picton,
+    sunflower: dataVisualisationColors.tertiary.sunflower,
+    caribbean: dataVisualisationColors.tertiary.caribbean,
+  },
+
   subtle: blueGrey[50],
   link: '#009EFF',
   bgTerminal: '#010B1C',
