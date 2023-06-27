@@ -22,9 +22,9 @@ import { Box } from 'design';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ListItem } from 'teleterm/ui/components/ListItem';
 
-import { ConnectMyComputerIcon } from './ConnectMyComputerIcon';
+import { NavigationMenuIcon } from './NavigationMenuIcon';
 
-export function ConnectMyComputer() {
+export function NavigationMenu() {
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const appCtx = useAppContext();
@@ -47,13 +47,13 @@ export function ConnectMyComputer() {
 
   return (
     <>
-      <ConnectMyComputerIcon onClick={togglePopover} ref={iconRef} />
+      <NavigationMenuIcon onClick={togglePopover} ref={iconRef} />
       <Popover
         open={isPopoverOpened}
         anchorEl={iconRef.current}
         anchorOrigin={{
           vertical: 'bottom',
-          horizontal: 'left',
+          horizontal: 'right',
         }}
         onClose={() => setIsPopoverOpened(false)}
       >
