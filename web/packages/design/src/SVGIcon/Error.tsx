@@ -1,5 +1,5 @@
 /*
-Copyright 2022 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,16 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import styled from 'styled-components';
+import React from 'react';
 
-// NOTE: This MainContainer component is imported in multiple places and then
-// modified using styled-components. If it's exported from the Main/index.ts
-// or included in the Main.tsx file there is a circular dependency that causes
-// odd issues around the MainContainer component being available at certain
-// times.
-export const MainContainer = styled.div`
-  display: flex;
-  flex: 1;
-  min-height: 0;
-  --sidebar-width: 256px;
-`;
+import { SVGIcon } from './SVGIcon';
+
+import type { SVGIconProps } from './common';
+
+export function ErrorIcon({ size = 24, fill }: SVGIconProps) {
+  return (
+    <SVGIcon fill={fill} size={size} viewBox="0 0 24 24">
+      <path d="M12.984 12.984v-6h-1.969v6h1.969zm0 4.032V15h-1.969v2.016h1.969zm-.984-15q4.125 0 7.055 2.93t2.93 7.055-2.93 7.055T12 21.986t-7.055-2.93-2.93-7.055 2.93-7.055T12 2.016z" />
+    </SVGIcon>
+  );
+}
