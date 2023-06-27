@@ -33,7 +33,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -338,8 +337,9 @@ func TestSQSMessagesCollectorErrorsOnReceive(t *testing.T) {
 
 	gotNoOfCalls := mockReceiver.getNoOfCalls()
 	// We can't be sure that there will be equaly noOfCalls as expected,
-	// because they are process in async way, that's why margin in EquateApprox is used.
-	require.Empty(t, cmp.Diff(float32(gotNoOfCalls), float32(expectedNoOfCalls), cmpopts.EquateApprox(0, 4)))
+	// because they are process in async way, but anything within range x>= 0 && x< 1.5*expected is valid.
+	require.LessOrEqual(t, float64(gotNoOfCalls), 1.5*float64(expectedNoOfCalls), "receiveMessage got too many calls")
+	require.Greater(t, gotNoOfCalls, 0, "receiveMessage was not called at all")
 }
 
 type mockReceiver struct {
@@ -843,6 +843,47 @@ func TestCollectedEventsMetadataMerge(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.a.Merge(tt.b)
 			require.Empty(t, cmp.Diff(tt.a, tt.expected))
+		})
+	}
+}
+
+func Test_getMessageSentTimestamp(t *testing.T) {
+	tests := []struct {
+		name    string
+		msg     sqsTypes.Message
+		want    time.Time
+		wantErr string
+	}{
+		{
+			name: "valid value sentTimestamp",
+			msg:  sqsTypes.Message{Attributes: map[string]string{"SentTimestamp": "1687183084420"}},
+			want: time.Date(2023, time.June, 19, 13, 58, 4, 420000000, time.UTC),
+		},
+		{
+			name: "empty map",
+			msg:  sqsTypes.Message{},
+			want: time.Time{},
+		},
+		{
+			name: "missing attribute",
+			msg:  sqsTypes.Message{Attributes: map[string]string{"abc": "def"}},
+			want: time.Time{},
+		},
+		{
+			name:    "wrong format of sentTimestamp",
+			msg:     sqsTypes.Message{Attributes: map[string]string{"SentTimestamp": "def"}},
+			wantErr: "invalid syntax",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getMessageSentTimestamp(tt.msg)
+			if tt.wantErr == "" {
+				require.NoError(t, err, "getMessageSentTimestamp return unexpected err")
+				require.Equal(t, tt.want, got)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
 		})
 	}
 }

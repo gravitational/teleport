@@ -627,7 +627,6 @@ func ReadConfigFromFile(filePath string, manualMigration bool) (*BotConfig, erro
 }
 
 type Version string
-
 var (
 	V1 Version = "v1"
 	V2 Version = "v2"

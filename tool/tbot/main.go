@@ -32,6 +32,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tbot"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
@@ -188,7 +189,7 @@ func Run(args []string, stdout io.Writer) error {
 }
 
 func onVersion() error {
-	utils.PrintVersion()
+	modules.GetModules().PrintVersion()
 	return nil
 }
 

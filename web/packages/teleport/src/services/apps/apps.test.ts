@@ -41,6 +41,7 @@ test('correct formatting of apps fetch response', async () => {
         awsConsole: false,
         isCloudOrTcpEndpoint: false,
         addrWithProtocol: 'https://app-name.example.com',
+        userGroups: [],
       },
       {
         id: 'cluster-id-cloud-app-cloud://some-addr',
@@ -57,6 +58,7 @@ test('correct formatting of apps fetch response', async () => {
         awsConsole: false,
         isCloudOrTcpEndpoint: true,
         addrWithProtocol: 'cloud://some-addr',
+        userGroups: [],
       },
       {
         id: 'cluster-id-tcp-app-tcp://some-addr',
@@ -73,6 +75,7 @@ test('correct formatting of apps fetch response', async () => {
         awsConsole: false,
         isCloudOrTcpEndpoint: true,
         addrWithProtocol: 'tcp://some-addr',
+        userGroups: [],
       },
     ],
     startKey: mockResponse.startKey,
