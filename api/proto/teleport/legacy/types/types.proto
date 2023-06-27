@@ -6025,3 +6025,135 @@ message GCPMatcher {
   // ProjectIDs are the GCP project ID where the resources are deployed.
   repeated string ProjectIDs = 4 [(gogoproto.jsontag) = "project_ids,omitempty"];
 }
+
+// AccessListV1 describes the basic building block of access grants, which are
+// similar to access requests but for longer lived permissions that need to be
+// regularly audited.
+message AccessListV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header for a resource.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec is the specification for the access list.
+  AccessListSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// AccessListSpecV1 is the specification for an access list.
+message AccessListSpecV1 {
+  // Description is a plaintext description of the access list.
+  string Description = 1 [(gogoproto.jsontag) = "description"];
+
+  // Owners is a list of owners of the access list.
+  repeated AccessListOwnerV1 Owners = 2 [(gogoproto.jsontag) = "owners"];
+
+  // Audit describes the frequency that this access list must be audited.
+  AccessListAuditV1 Audit = 3 [(gogoproto.jsontag) = "audit"];
+
+  // MembershipRequires describes the requirements for a user to be a member of the access list.
+  AccessListRequiresV1 MembershipRequires = 4 [(gogoproto.jsontag) = "membership_requires"];
+
+  // OwnershipRequires describes the requirements for a user to be an owner of the access list.
+  AccessListRequiresV1 OwnershipRequires = 5 [(gogoproto.jsontag) = "ownership_requires"];
+
+  // Grants describes the access granted by membership to this access list.
+  AccessListGrantsV1 Grants = 6 [(gogoproto.jsontag) = "grants"];
+
+  // Members describes the current members of the access list.
+  repeated AccessListMemberV1 Members = 7 [(gogoproto.jsontag) = "members"];
+
+  // RequestedMembership describes a list of users who have requested membership to the access list.
+  repeated AccessListMembershipRequestV1 RequestedMembership = 8 [(gogoproto.jsontag) = "requested_membership"];
+}
+
+// AccessListOwnerV1 is an owner of an access list.
+message AccessListOwnerV1 {
+  // Name is the username of the owner.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+
+  // Description is the plaintext description of the owner and why they are an owner.
+  string Description = 2 [(gogoproto.jsontag) = "description"];
+}
+
+// AccessListAuditV1 describes the audit configuration for an access list.
+message AccessListAuditV1 {
+  // Frequency is a string parseable by golang's time.ParseDuration that describes
+  // how often an access list must be audited.
+  string Frequency = 1 [(gogoproto.jsontag) = "frequency"];
+}
+
+// AccessListRequiresV1 describes a requirement section for an access list. A user must
+// meet the following criteria to obtain the specific access to the list.
+message AccessListRequiresV1 {
+  // Roles are the user roles that must be present for the user to obtain access.
+  repeated string Roles = 1 [(gogoproto.jsontag) = "roles"];
+
+  // Traits are the traits that must be present for the user to obtain access.
+  map<string, string> Traits = 2 [(gogoproto.jsontag) = "traits"];
+}
+
+// AccessListGrantsV1 describes what access is granted by membership to the access list.
+message AccessListGrantsV1 {
+  // Roles are the roles that are granted to users who are members of the access list.
+  repeated string Roles = 1 [(gogoproto.jsontag) = "roles"];
+
+  // Traits are the traits that are granted to users who are members of the access list.
+  map<string, string> Traits = 2 [(gogoproto.jsontag) = "traits"];
+}
+
+// AccessListMemberV1 describes a member of an access list.
+message AccessListMemberV1 {
+  // Name is the name of the member of the access list.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+
+  // Joined is when the user joined the access list.
+  google.protobuf.Timestamp Joined = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "joined"
+  ];
+
+  // Expires is when the user's membership to the access list expires.
+  google.protobuf.Timestamp Expires = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "expires"
+  ];
+
+  // Reason is the reason this user was added to the access list.
+  string Reason = 4 [(gogoproto.jsontag) = "reason"];
+
+  // AddedBy is the user that added this user to the access list.
+  string AddedBy = 5 [(gogoproto.jsontag) = "added_by"];
+}
+
+// AccessListMembershipRequestV1 describes a request for membership to an access list.
+message AccessListMembershipRequestV1 {
+  // Name is the name of the user who has requested membership to the access list.
+  string Name = 1 [(gogoproto.jsontag) = "name"];
+
+  // RequestedOn is when the membership was requested.
+  google.protobuf.Timestamp RequestedOn = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "requested_on"
+  ];
+
+  // Expires is when the user's proposed membership to the access list expires.
+  google.protobuf.Timestamp Expires = 3 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "expires"
+  ];
+
+  // Reason is the user's reason for requesting membership to the access list.
+  string Reason = 4 [(gogoproto.jsontag) = "reason"];
+}
