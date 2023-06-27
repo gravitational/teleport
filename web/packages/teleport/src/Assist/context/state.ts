@@ -60,6 +60,7 @@ export enum AssistStateActionType {
   PromptMfa,
   DeleteConversation,
   UpdateConversationTitle,
+  AddCommandResultSummary,
 }
 
 export interface ReplaceConversationsAction {
@@ -164,6 +165,14 @@ export interface UpdateConversationTitleAction {
   title: string;
 }
 
+export interface AddCommandResultSummaryAction {
+  type: AssistStateActionType.AddCommandResultSummary;
+  summary: string;
+  conversationId: string;
+  command: string;
+  executionId: string;
+}
+
 export type AssistContextAction =
   | SetConversationsLoadingAction
   | ReplaceConversationsAction
@@ -181,7 +190,8 @@ export type AssistContextAction =
   | FinishCommandResultAction
   | PromptMfaAction
   | DeleteConversationAction
-  | UpdateConversationTitleAction;
+  | UpdateConversationTitleAction
+  | AddCommandResultSummaryAction;
 
 export function reducer(
   state: AssistState,
@@ -238,6 +248,9 @@ export function reducer(
 
     case AssistStateActionType.UpdateConversationTitle:
       return updateConversationTitle(state, action);
+
+    case AssistStateActionType.AddCommandResultSummary:
+      return addCommandResultSummary(state, action);
 
     default:
       return state;
@@ -589,6 +602,35 @@ export function finishCommandResult(
   };
 }
 
+export function addCommandResultSummary(
+  state: AssistState,
+  action: AddCommandResultSummaryAction
+): AssistState {
+  const messages = new Map(state.messages.data);
+
+  let conversationMessages = messages.get(action.conversationId);
+
+  conversationMessages = [
+    ...conversationMessages,
+    {
+      type: ServerMessageType.CommandResultSummary,
+      created: new Date(),
+      executionId: action.executionId,
+      command: action.command,
+      summary: action.summary,
+    },
+  ];
+
+  messages.set(action.conversationId, conversationMessages);
+
+  return {
+    ...state,
+    messages: {
+      ...state.messages,
+      data: messages,
+    },
+  };
+}
 export function promptMfa(
   state: AssistState,
   action: PromptMfaAction

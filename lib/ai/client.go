@@ -77,3 +77,25 @@ func (client *Client) Summary(ctx context.Context, message string) (string, erro
 
 	return resp.Choices[0].Message.Content, nil
 }
+
+// CommandSummary creates a command summary based on the command output.
+// The message history is also passed to the model in order to keep context
+// and extract relevant information from the output.
+func (client *Client) CommandSummary(ctx context.Context, messages []openai.ChatCompletionMessage, output map[string][]byte) (string, error) {
+	messages = append(messages, openai.ChatCompletionMessage{
+		Role: openai.ChatMessageRoleUser, Content: model.ConversationCommandResult(output)})
+
+	resp, err := client.svc.CreateChatCompletion(
+		ctx,
+		openai.ChatCompletionRequest{
+			Model:    openai.GPT4,
+			Messages: messages,
+		},
+	)
+
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp.Choices[0].Message.Content, nil
+}
