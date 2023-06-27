@@ -30,7 +30,6 @@ import (
 	"net"
 	"net/http"
 	"path/filepath"
-	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -367,11 +366,21 @@ func (c *authContext) key() string {
 	return fmt.Sprintf("%v:%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeCluster, c.certExpires.Unix(), c.Identity.GetIdentity().ActiveRequests)
 }
 
-func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
+func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesClusterMetadata {
+	var kubeUsers, kubeGroups []string
+
+	if impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(c.kubeUsers, c.kubeGroups, req.Header); err == nil {
+		kubeUsers = []string{impersonateUser}
+		kubeGroups = impersonateGroups
+	} else {
+		kubeUsers = utils.StringsSliceFromSet(c.kubeUsers)
+		kubeGroups = utils.StringsSliceFromSet(c.kubeGroups)
+	}
+
 	return apievents.KubernetesClusterMetadata{
 		KubernetesCluster: c.kubeCluster,
-		KubernetesUsers:   utils.StringsSliceFromSet(c.kubeUsers),
-		KubernetesGroups:  utils.StringsSliceFromSet(c.kubeGroups),
+		KubernetesUsers:   kubeUsers,
+		KubernetesGroups:  kubeGroups,
 		KubernetesLabels:  c.kubeClusterLabels,
 	}
 }
@@ -1185,7 +1194,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		SessionMetadata:           sessionMetadata,
 		UserMetadata:              ctx.eventUserMeta(),
 		ConnectionMetadata:        connectionMetdata,
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 		KubernetesPodMetadata:     eventPodMeta,
 
 		InitialCommand:   request.cmd,
@@ -1208,7 +1217,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		CommandMetadata: apievents.CommandMetadata{
 			Command: strings.Join(request.cmd, " "),
 		},
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 		KubernetesPodMetadata:     eventPodMeta,
 	}
 
@@ -1230,7 +1239,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 			Interactive:               false,
 			StartTime:                 sessionStart,
 			EndTime:                   f.cfg.Clock.Now().UTC(),
-			KubernetesClusterMetadata: ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
 			SessionRecording:          ctx.recordingConfig.GetMode(),
@@ -1544,6 +1553,44 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 	if ctx.teleportCluster.isRemote {
 		return nil
 	}
+
+	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(ctx.kubeUsers, ctx.kubeGroups, headers)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	headers.Set(ImpersonateUserHeader, impersonateUser)
+
+	// Make sure to overwrite the exiting headers, instead of appending to
+	// them.
+	headers.Del(ImpersonateGroupHeader)
+	for _, group := range impersonateGroups {
+		headers.Add(ImpersonateGroupHeader, group)
+	}
+
+	return nil
+}
+
+// copyImpersonationHeaders copies the impersonation headers from the source
+// request to the destination request.
+func copyImpersonationHeaders(dst, src http.Header) {
+	dst.Del(ImpersonateUserHeader)
+	dst.Del(ImpersonateGroupHeader)
+
+	for _, v := range src.Values(ImpersonateUserHeader) {
+		dst.Add(ImpersonateUserHeader, v)
+	}
+
+	for _, v := range src.Values(ImpersonateGroupHeader) {
+		dst.Add(ImpersonateGroupHeader, v)
+	}
+}
+
+// computeImpersonatedPrincipals computes the intersection between the information
+// received in the `Impersonate-User` and `Impersonate-Groups` headers and the
+// allowed values. If the user didn't specify any user and groups to impersonate,
+// Teleport will use every group the user is allowed to impersonate.
+func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, headers http.Header) (string, []string, error) {
 	var impersonateUser string
 	var impersonateGroups []string
 	for header, values := range headers {
@@ -1553,10 +1600,10 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 		switch header {
 		case ImpersonateUserHeader:
 			if impersonateUser != "" {
-				return trace.AccessDenied("%v, user already specified to %q", ImpersonationRequestDeniedMessage, impersonateUser)
+				return "", nil, trace.AccessDenied("%v, user already specified to %q", ImpersonationRequestDeniedMessage, impersonateUser)
 			}
 			if len(values) == 0 || len(values) > 1 {
-				return trace.AccessDenied("%v, invalid user header %q", ImpersonationRequestDeniedMessage, values)
+				return "", nil, trace.AccessDenied("%v, invalid user header %q", ImpersonationRequestDeniedMessage, values)
 			}
 			// when Kubernetes go-client sends impersonated groups it also sends the impersonated user.
 			// The issue arrises when the impersonated user was not defined and the user want to just impersonate
@@ -1567,24 +1614,21 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 				continue
 			}
 			impersonateUser = values[0]
-
-			if _, ok := ctx.kubeUsers[impersonateUser]; !ok {
-				return trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
+			if _, ok := kubeUsers[impersonateUser]; !ok {
+				return "", nil, trace.AccessDenied("%v, user header %q is not allowed in roles", ImpersonationRequestDeniedMessage, impersonateUser)
 			}
 		case ImpersonateGroupHeader:
 			for _, group := range values {
-				if _, ok := ctx.kubeGroups[group]; !ok {
-					return trace.AccessDenied("%v, group header %q value is not allowed in roles", ImpersonationRequestDeniedMessage, group)
+				if _, ok := kubeGroups[group]; !ok {
+					return "", nil, trace.AccessDenied("%v, group header %q value is not allowed in roles", ImpersonationRequestDeniedMessage, group)
 				}
 				impersonateGroups = append(impersonateGroups, group)
 			}
 		default:
-			return trace.AccessDenied("%v, unsupported impersonation header %q", ImpersonationRequestDeniedMessage, header)
+			return "", nil, trace.AccessDenied("%v, unsupported impersonation header %q", ImpersonationRequestDeniedMessage, header)
 		}
 	}
-
 	impersonateGroups = apiutils.Deduplicate(impersonateGroups)
-
 	// By default, if no kubernetes_users is set (which will be a majority),
 	// user will impersonate themselves, which is the backwards-compatible behavior.
 	//
@@ -1602,41 +1646,28 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 	// link the user identity with the IAM role, for example `IAM#{{external.email}}`
 	//
 	if impersonateUser == "" {
-		switch len(ctx.kubeUsers) {
+		switch len(kubeUsers) {
 		// this is currently not possible as kube users have at least one
 		// user (user name), but in case if someone breaks it, catch here
 		case 0:
-			debug.PrintStack()
-			return trace.AccessDenied("assumed at least one user to be present")
+			return "", nil, trace.AccessDenied("assumed at least one user to be present")
 		// if there is deterministic choice, make it to improve user experience
 		case 1:
-			for user := range ctx.kubeUsers {
+			for user := range kubeUsers {
 				impersonateUser = user
 				break
 			}
 		default:
-			return trace.AccessDenied(
+			return "", nil, trace.AccessDenied(
 				"please select a user to impersonate, refusing to select a user due to several kubernetes_users set up for this user")
 		}
 	}
-
 	if len(impersonateGroups) == 0 {
-		for group := range ctx.kubeGroups {
+		for group := range kubeGroups {
 			impersonateGroups = append(impersonateGroups, group)
 		}
 	}
-
-	if !ctx.teleportCluster.isRemote {
-		headers.Set(ImpersonateUserHeader, impersonateUser)
-
-		// Make sure to overwrite the exiting headers, instead of appending to
-		// them.
-		headers.Del(ImpersonateGroupHeader)
-		for _, group := range impersonateGroups {
-			headers.Add(ImpersonateGroupHeader, group)
-		}
-	}
-	return nil
+	return impersonateUser, impersonateGroups, nil
 }
 
 // catchAll forwards all HTTP requests to the target k8s API server
@@ -1691,7 +1722,7 @@ func (f *Forwarder) catchAll(ctx *authContext, w http.ResponseWriter, req *http.
 		RequestPath:               req.URL.Path,
 		Verb:                      req.Method,
 		ResponseCode:              int32(rw.Status()),
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 	}
 	r := parseResourcePath(req.URL.Path)
 	if r.skipEvent {
