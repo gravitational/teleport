@@ -162,7 +162,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 	return withDetails, nil
 }
 
-func convertToApiResourceAccess(access services.ResourceAccess) *api.ResourceAccess {
+func convertToAPIResourceAccess(access services.ResourceAccess) *api.ResourceAccess {
 	return &api.ResourceAccess{
 		List:   access.List,
 		Read:   access.Read,

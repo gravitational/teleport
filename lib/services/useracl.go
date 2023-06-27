@@ -31,6 +31,8 @@ type ResourceAccess struct {
 	Use    bool `json:"use"`
 }
 
+// UserACL is derived from a user's role set and includes
+// information as to what features the user is allowed to use.
 type UserACL struct {
 	// RecordedSessions defines access to recorded sessions.
 	RecordedSessions ResourceAccess `json:"recordedSessions"`
@@ -112,6 +114,7 @@ func newAccess(roleSet RoleSet, ctx *Context, kind string) ResourceAccess {
 	}
 }
 
+// NewUserACL builds an ACL for a user based on their roles.
 func NewUserACL(user types.User, userRoles RoleSet, features proto.Features, desktopRecordingEnabled bool) UserACL {
 	ctx := &Context{User: user}
 	recordedSessionAccess := newAccess(userRoles, ctx, types.KindSession)
