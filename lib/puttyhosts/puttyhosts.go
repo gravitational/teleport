@@ -20,9 +20,16 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"text/template"
 
+	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 )
+
+type puttyProxyTelnetCommandArgs struct {
+	TSHPath string
+	Cluster string
+}
 
 func hostnameContainsDot(hostname string) bool {
 	return strings.Contains(hostname, ".")
@@ -127,4 +134,22 @@ var hostnameRegexp = regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*
 // illegal characters. It's not guaranteed to be perfect, just a simple sanity check.
 func NaivelyValidateHostname(hostname string) bool {
 	return hostnameRegexp.Match([]byte(hostname))
+}
+
+// FormatLocalCommandString replaces placeholders in a constant with actual values
+func FormatLocalCommandString(tshPath string, cluster string) (string, error) {
+	// PuTTY needs its paths to be double-escaped i.e. C:\\Users\\User\\tsh.exe
+	escapedTSHPath := strings.ReplaceAll(tshPath, `\`, `\\`)
+	// build the command using a template
+	templateString := "{{.TSHPath}} proxy ssh --cluster={{.Cluster}} --proxy=%proxyhost %user@%host:%port"
+	localCommandTemplate := template.Must(template.New("puttyProxyTelnetCommand").Parse(templateString))
+	var builder strings.Builder
+	err := localCommandTemplate.Execute(&builder, puttyProxyTelnetCommandArgs{
+		escapedTSHPath,
+		cluster,
+	})
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+	return builder.String(), nil
 }

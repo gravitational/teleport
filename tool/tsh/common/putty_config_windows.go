@@ -42,7 +42,6 @@ const puttyRegistrySSHHostCAsKey = puttyRegistryKey + `\SshHostCAs`
 
 // strings
 const puttyProtocol = `ssh`
-const puttyProxyTelnetCommand = `%tsh proxy ssh --cluster=%cluster --proxy=%proxyhost %user@%host:%port`
 
 // ints
 const puttyDefaultSSHPort = 3022
@@ -217,15 +216,6 @@ func addHostCAPublicKey(keyName string, publicKey string, hostname string) error
 	return nil
 }
 
-// formatLocalCommandString replaces placeholders in a constant with actual values
-func formatLocalCommandString(tshPath string, cluster string) string {
-	// replace the placeholder "%cluster" with the actual cluster name as passed to the function
-	clusterString := strings.ReplaceAll(puttyProxyTelnetCommand, "%cluster", cluster)
-	// PuTTY needs its paths to be double-escaped i.e. C:\\Users\\User\\tsh.exe
-	escapedTSHPath := strings.ReplaceAll(tshPath, `\`, `\\`)
-	return strings.ReplaceAll(clusterString, "%tsh", escapedTSHPath)
-}
-
 // onPuttyConfig handles the `tsh config putty` subcommand
 func onPuttyConfig(cf *CLIConf) error {
 	tc, err := makeClient(cf)
@@ -344,7 +334,10 @@ func onPuttyConfig(cf *CLIConf) error {
 	}
 
 	// format local command string (to run 'tsh proxy ssh')
-	localCommandString := formatLocalCommandString(cf.executablePath, proxyCommandClusterName)
+	localCommandString, err := puttyhosts.FormatLocalCommandString(cf.executablePath, proxyCommandClusterName)
+	if err != nil {
+		return trace.Wrap(err)
+	}
 
 	// add session to registry
 	if err := addPuTTYSession(proxyHost, tc.Config.Host, port, login, ppkFilePath, certificateFilePath, localCommandString, cf.LeafClusterName); err != nil {

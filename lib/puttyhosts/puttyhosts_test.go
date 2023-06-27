@@ -25,7 +25,6 @@ import (
 
 func TestAddHostToHostList(t *testing.T) {
 	var tests = []struct {
-		id       string
 		hostList []string
 		hostname string
 		expected []string
@@ -147,6 +146,38 @@ func TestAddHostToHostList(t *testing.T) {
 		t.Run(fmt.Sprintf("test case %d", i), func(t *testing.T) {
 			output := AddHostToHostList(tt.hostList, tt.hostname)
 			require.ElementsMatch(t, tt.expected, output)
+		})
+	}
+}
+
+func TestFormatLocalCommandString(t *testing.T) {
+	var tests = []struct {
+		TSHPath        string
+		clusterName    string
+		expectedOutput string
+	}{
+		{
+			TSHPath:        `C:\Users\Test\tsh.exe`,
+			clusterName:    `teleport.example.com`,
+			expectedOutput: `C:\\Users\\Test\\tsh.exe proxy ssh --cluster=teleport.example.com --proxy=%proxyhost %user@%host:%port`,
+		},
+		{
+			TSHPath:        `Z:\localdata\installation path with spaces\teleport\tsh-v13.1.3.exe`,
+			clusterName:    `long-cluster-name-that-isnt-an-fqdn`,
+			expectedOutput: `Z:\\localdata\\installation path with spaces\\teleport\\tsh-v13.1.3.exe proxy ssh --cluster=long-cluster-name-that-isnt-an-fqdn --proxy=%proxyhost %user@%host:%port`,
+		},
+		{
+			TSHPath:        `\\SERVER01\UNC\someotherpath\gravitational-teleport-tsh-embedded.exe`,
+			clusterName:    `bigcorp.co1fqdn01.ad.enterpriseydomain.local`,
+			expectedOutput: `\\\\SERVER01\\UNC\\someotherpath\\gravitational-teleport-tsh-embedded.exe proxy ssh --cluster=bigcorp.co1fqdn01.ad.enterpriseydomain.local --proxy=%proxyhost %user@%host:%port`,
+		},
+	}
+
+	for i, tt := range tests {
+		t.Run(fmt.Sprintf("test case %d", i), func(t *testing.T) {
+			output, err := FormatLocalCommandString(tt.TSHPath, tt.clusterName)
+			require.Equal(t, tt.expectedOutput, output)
+			require.NoError(t, err)
 		})
 	}
 }
