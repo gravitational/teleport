@@ -152,7 +152,7 @@ func (a *Service) GetAssistantEmbeddings(ctx context.Context, msg *assist.GetAss
 	}
 
 	// Call the openAI API to get the embeddings for the query.
-	embeddings, err := a.embedder.ComputeEmbeddings(ctx, []string{msg.ContentQuery})
+	embeddings, err := a.embedder.ComputeEmbeddings(ctx, []string{msg.Query})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

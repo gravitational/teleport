@@ -33,7 +33,7 @@ import (
 type Tool interface {
 	Name() string
 	Description() string
-	Run(ctx context.Context, input string) (*stepOutput, error)
+	Run(ctx context.Context, input string) (string, error)
 }
 type commandExecutionTool struct{}
 
@@ -66,13 +66,13 @@ The input must be a JSON object with the following schema:
 `, "```", "```")
 }
 
-func (c *commandExecutionTool) Run(_ context.Context, _ string) (*stepOutput, error) {
+func (c *commandExecutionTool) Run(_ context.Context, _ string) (string, error) {
 	// This is stubbed because commandExecutionTool is handled specially.
 	// This is because execution of this tool breaks the loop and returns a command suggestion to the user.
 	// It is still handled as a tool because testing has shown that the LLM behaves better when it is treated as a tool.
 	//
 	// In addition, treating it as a Tool interface item simplifies the display and prompt assembly logic significantly.
-	return nil, trace.NotImplemented("not implemented")
+	return "", trace.NotImplemented("not implemented")
 }
 
 // parseInput is called in a special case if the planned tool is commandExecutionTool.
@@ -109,7 +109,7 @@ type embeddingRetrievalToolInput struct {
 	Question string `json:"question"`
 }
 
-func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (*stepOutput, error) {
+func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (string, error) {
 	inputCmd, outErr := e.parseInput(input)
 	if outErr == nil {
 		// If we failed to parse the input, we can still send the payload for embedding retrieval.
@@ -120,13 +120,13 @@ func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (*stepOu
 	log.Tracef("embedding retrieval input: %v", input)
 
 	resp, err := e.assistClient.GetAssistantEmbeddings(ctx, &assist.GetAssistantEmbeddingsRequest{
-		Username:     e.currentUser,
-		Kind:         types.KindNode, // currently only node embeddings are supported
-		Limit:        10,
-		ContentQuery: input,
+		Username: e.currentUser,
+		Kind:     types.KindNode, // currently only node embeddings are supported
+		Limit:    10,
+		Query:    input,
 	})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return "", trace.Wrap(err)
 	}
 
 	sb := strings.Builder{}
@@ -140,17 +140,10 @@ func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (*stepOu
 	if sb.Len() == 0 {
 		// Either no nodes are connected, embedding process hasn't started yet, or
 		// the user doesn't have access to any resources.
-		// In any case, we should return a message to the user instead of keep trying.
-		return &stepOutput{
-			finish: &agentFinish{
-				output: &Message{
-					Content: "Didn't find any nodes matching your query",
-				},
-			},
-		}, nil
+		return "Didn't find any nodes matching your query", nil
 	}
 
-	return &stepOutput{observation: sb.String()}, nil
+	return sb.String(), nil
 }
 
 func (e *embeddingRetrievalTool) Name() string {

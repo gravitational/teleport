@@ -216,12 +216,11 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 
-	output, err := tool.Run(ctx, action.input)
+	runOut, err := tool.Run(ctx, action.input)
 	if err != nil {
 		return stepOutput{}, trace.Wrap(err)
 	}
-	output.action = action
-	return *output, nil
+	return stepOutput{action: action, observation: runOut}, nil
 }
 
 func (a *Agent) plan(ctx context.Context, state *executionState) (*agentAction, *agentFinish, error) {

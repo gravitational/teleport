@@ -123,10 +123,10 @@ message DeleteAssistantConversationRequest {
 
 // GetAssistantEmbeddingsRequest is a request to get embeddings.
 message GetAssistantEmbeddingsRequest {
-  // username is a username of the user who request the embeddings.
+  // username is a username of the user who requested the embeddings.
   string username = 1;
-  // contentQuery is the content that going to be used for similarity search.
-  string content_query = 2;
+  // query is the query used for similarity search.
+  string query = 2;
   // limit is the number of embeddings to return (also known as k).
   uint32 limit = 3;
   // kind is the kind of embeddings to return (ex, node).
@@ -146,6 +146,7 @@ message EmbeddedDocument {
 // GetAssistantEmbeddingsResponse is a response from the assistant service.
 message GetAssistantEmbeddingsResponse {
   // embeddings is the list of embeddings.
+  // The list is sorted by similarity score in descending order.
   repeated EmbeddedDocument embeddings = 1;
 }
 
