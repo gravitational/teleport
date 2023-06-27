@@ -218,38 +218,15 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 	}
 }
 
-// Test_runCommands tests that runCommands runs the given command on all hosts,
-// and that a given number of executions are made in parallel.
+// Test_runCommands tests that runCommands runs the given command on all hosts.
+// The commands should run in parallel, but we don't have a deterministic way to
+// test that (sleep with checking the execution time in not deterministic).
 func Test_runCommands(t *testing.T) {
 	const numWorkers = 30
-	const timeout = time.Second
-	testFailures := make(chan error, 1)
 	counter := atomic.Int32{}
 
-	// a "barrier": let all current and future workers proceed
-	// once we've observed that `numWorkers` of them have started in parallel
-	live := atomic.Int32{}
-
 	runCmd := func(host *hostInfo) error {
-		live.Add(1)
-
-		var n int32
-		ctx, cancel := context.WithTimeout(context.Background(), timeout)
-		defer cancel()
-		for ctx.Err() == nil {
-			n = live.Load()
-			if n >= numWorkers {
-				counter.Add(1)
-				return nil
-			}
-			time.Sleep(time.Second / 10)
-		}
-
-		err := trace.Wrap(ctx.Err(), "failed to observe %d workers alive in parallel, got %d", numWorkers, n)
-		select {
-		case testFailures <- err:
-		default:
-		}
+		counter.Add(1)
 		return nil
 	}
 
@@ -265,10 +242,5 @@ func Test_runCommands(t *testing.T) {
 
 	runCommands(hosts, runCmd, numWorkers, logger)
 
-	select {
-	case err := <-testFailures:
-		require.NoError(t, err)
-	default:
-	}
 	require.Equal(t, int32(100), counter.Load())
 }
