@@ -1714,7 +1714,7 @@ type ResourceMatcher struct {
 	// Labels match resource labels.
 	Labels map[string]apiutils.Strings `yaml:"labels,omitempty"`
 	// AWS contains AWS specific settings.
-	AWS ResourceMatcherAWS `yaml:"aws"`
+	AWS ResourceMatcherAWS `yaml:"aws,omitempty"`
 }
 
 // ResourceMatcherAWS contains AWS specific settings for resource matcher.
