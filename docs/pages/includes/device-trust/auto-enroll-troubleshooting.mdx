@@ -1,0 +1,18 @@
+### "binary missing signature or entitlements" on `tsh device enroll`
+
+A signed and notarized `tsh` binary is necessary to enroll and use a a trusted
+device. [Download the macOS tsh installer](../../installation.mdx#macos) to fix
+the problem.
+
+### "unauthorized device" errors using a trusted device
+
+A signed and notarized `tsh` binary is necessary to use a trusted device. Make
+sure to download and use the
+[macOS tsh installer](../../installation.mdx#macos).
+
+A trusted device needs to be registered and enrolled before it is recognized by
+Teleport as such. Follow the [registration](
+../../access-controls/device-trust/guide.mdx#step-12-register-a-trusted-device) and
+[enrollment](
+../../access-controls/device-trust/guide.mdx#step-22-enroll-a-trusted-device) steps
+and make sure to `tsh logout` and `tsh login` after enrollment is done.
