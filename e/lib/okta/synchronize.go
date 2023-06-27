@@ -179,10 +179,6 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 			return nil
 		}
 
-		for _, group := range groups {
-			groupsToAppsMapping[group] = append(groupsToAppsMapping[group], oktaApplication.Id)
-		}
-
 		apps, err := s.oktaAppToApp(oktaApplication, groups)
 		if err != nil {
 			s.log.Debugf("Error converting Okta app: %v", err)
@@ -191,6 +187,9 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 
 		for _, app := range apps {
 			newApps[app.GetName()] = app
+			for _, group := range groups {
+				groupsToAppsMapping[group] = append(groupsToAppsMapping[group], app.GetName())
+			}
 		}
 
 		return nil
