@@ -175,12 +175,22 @@ export type DiscoverEventData = DiscoverEventStepStatus & {
   // in the RDS enrollment screen for event
   // tp.ui.discover.database.enroll.rds
   selectedResourcesCount?: number;
+
+  // serviceDeployMethod is only considered for 'tp.ui.discover.deployService'
+  // event and describes how a agent got deployed.
+  serviceDeployedMethod?: DiscoverServiceDeployMethod;
 };
 
 export type DiscoverEventStepStatus = {
   stepStatus: DiscoverEventStatus;
   stepStatusError?: string;
 };
+
+export enum DiscoverServiceDeployMethod {
+  Unspecified = 'DEPLOY_METHOD_UNSPECIFIED',
+  Auto = 'DEPLOY_METHOD_AUTO',
+  Manual = 'DEPLOY_METHOD_MANUAL',
+}
 
 export enum CtaEvent {
   CTA_UNSPECIFIED = 0,
