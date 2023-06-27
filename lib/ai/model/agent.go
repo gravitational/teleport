@@ -20,6 +20,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"strings"
 	"time"
@@ -66,7 +67,7 @@ type AgentAction struct {
 	Input string `json:"input"`
 
 	// The log is either a direct tool response or a thought prompt correlated to the input.
-	log string
+	Log string `json:"log"`
 
 	// The reasoning is a string describing the reasoning behind the action.
 	Reasoning string `json:"reasoning"`
@@ -90,7 +91,7 @@ type executionState struct {
 
 // PlanAndExecute runs the agent with a given input until it arrives at a text answer it is satisfied
 // with or until it times out.
-func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage, progressUpdates chan<- *AgentAction) (any, error) {
+func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHistory []openai.ChatCompletionMessage, humanMessage openai.ChatCompletionMessage, progressUpdates func(*AgentAction)) (any, error) {
 	log.Trace("entering agent think loop")
 	iterations := 0
 	start := time.Now()
@@ -121,19 +122,12 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 
 		if output.finish != nil {
 			log.Tracef("agent finished with output: %#v", output.finish.output)
-			switch v := output.finish.output.(type) {
-			case *Message:
-				v.TokensUsed = tokensUsed
-				return v, nil
-			case *StreamingMessage:
-				v.TokensUsed = tokensUsed
-				return v, nil
-			case *CompletionCommand:
-				v.TokensUsed = tokensUsed
-				return v, nil
-			default:
-				return nil, trace.Errorf("invalid output type %T", v)
+			item, ok := output.finish.output.(interface{ SetUsed(data *TokensUsed) })
+			if !ok {
+				return nil, trace.Errorf("invalid output type %T", output.finish.output)
 			}
+
+			item.SetUsed(tokensUsed)
 		}
 
 		if output.action != nil {
@@ -155,7 +149,7 @@ type stepOutput struct {
 	observation string
 }
 
-func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progressUpdates chan<- *AgentAction) (stepOutput, error) {
+func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progressUpdates func(*AgentAction)) (stepOutput, error) {
 	log.Trace("agent entering takeNextStep")
 	defer log.Trace("agent exiting takeNextStep")
 
@@ -165,7 +159,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		action := &AgentAction{
 			Action: actionException,
 			Input:  observationPrefix + "Invalid or incomplete response",
-			log:    thoughtPrefix + err.Error(),
+			Log:    thoughtPrefix + err.Error(),
 		}
 
 		// The exception tool is currently a bit special, the observation is always equal to the input.
@@ -180,13 +174,12 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 
 	// If finish is set, the agent is done and did not call upon any tool.
 	if finish != nil {
-		close(progressUpdates)
 		log.Trace("agent picked finish, returning")
 		return stepOutput{finish: finish}, nil
 	}
 
 	// If action is set, the agent is not done and called upon a tool.
-	progressUpdates <- action
+	progressUpdates(action)
 
 	var tool Tool
 	for _, candidate := range a.tools {
@@ -201,7 +194,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		action := &AgentAction{
 			Action: actionException,
 			Input:  observationPrefix + "Unknown tool",
-			log:    fmt.Sprintf("%s No tool with name %s exists.", thoughtPrefix, action.Action)
+			Log:    fmt.Sprintf("%s No tool with name %s exists.", thoughtPrefix, action.Action),
 		}
 
 		return stepOutput{action: action, observation: action.Input}, nil
@@ -213,7 +206,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 			action := &AgentAction{
 				Action: actionException,
 				Input:  observationPrefix + "Invalid or incomplete response",
-				log:    thoughtPrefix + err.Error(),
+				Log:    thoughtPrefix + err.Error(),
 			}
 
 			return stepOutput{action: action, observation: action.Input}, nil
@@ -310,7 +303,7 @@ func (a *Agent) constructScratchpad(intermediateSteps []AgentAction, observation
 	for i, action := range intermediateSteps {
 		thoughts = append(thoughts, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleAssistant,
-			Content: action.log,
+			Content: action.Log,
 		}, openai.ChatCompletionMessage{
 			Role:    openai.ChatMessageRoleUser,
 			Content: conversationToolResponse(observations[i]),

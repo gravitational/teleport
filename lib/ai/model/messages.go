@@ -107,3 +107,8 @@ func (t *TokensUsed) AddTokens(prompt []openai.ChatCompletionMessage, completion
 	t.Completion = t.Completion + perRequest + len(completionTokens)
 	return err
 }
+
+// SetUsed sets the TokensUsed instance to the given data.
+func (t *TokensUsed) SetUsed(data *TokensUsed) {
+	*t = *data
+}

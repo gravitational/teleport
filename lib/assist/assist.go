@@ -21,6 +21,7 @@ package assist
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -251,31 +252,16 @@ type onMessageFunc func(kind MessageType, payload []byte, createdTime time.Time)
 func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
 ) (*model.TokensUsed, error) {
 	var tokensUsed *model.TokensUsed
-	progressUpdates := make(chan *model.AgentAction)
-	defer close(progressUpdates)
+	defer onMessage(MessageKindProgressUpdateFinalize, nil, c.assist.clock.Now().UTC())
 
-	go func() {
-		defer onMessage(MessageKindProgressUpdateFinalize, nil, c.assist.clock.Now().UTC())
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case update, open := <-progressUpdates:
-				if !open {
-					return
-				}
-
-				payload, err := json.Marshal(update)
-				if err != nil {
-					log.WithError(err).Debugf("Failed to marshal progress update: %v", update)
-					continue
-				}
-
-				onMessage(MessageKindProgressUpdate, payload, c.assist.clock.Now().UTC())
-			}
+	progressUpdates := func(update *model.AgentAction) {
+		payload, err := json.Marshal(update)
+		if err != nil {
+			log.WithError(err).Debugf("Failed to marshal progress update: %v", update)
 		}
-	}()
+
+		onMessage(MessageKindProgressUpdate, payload, c.assist.clock.Now().UTC())
+	}
 
 	// If data might have been inserted into the chat history, we want to
 	// refresh and get the latest data before querying the model.
@@ -334,10 +320,10 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		}
 	case *model.StreamingMessage:
 		tokensUsed = message.TokensUsed
-		var text string
+		var text strings.Builder
 		defer onMessage(MessageKindAssistantPartialFinalize, nil, c.assist.clock.Now().UTC())
 		for part := range message.Parts {
-			text += part
+			text.WriteString(part)
 
 			if err := onMessage(MessageKindAssistantPartialMessage, []byte(part), c.assist.clock.Now().UTC()); err != nil {
 				return nil, trace.Wrap(err)
@@ -345,13 +331,14 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		}
 
 		// write an assistant message to memory and persistent storage
-		c.chat.Insert(openai.ChatMessageRoleAssistant, text)
+		textS := text.String()
+		c.chat.Insert(openai.ChatMessageRoleAssistant, textS)
 		protoMsg := &assist.CreateAssistantMessageRequest{
 			ConversationId: c.ConversationID,
 			Username:       c.Username,
 			Message: &assist.AssistantMessage{
 				Type:        string(MessageKindAssistantMessage),
-				Payload:     text,
+				Payload:     textS,
 				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
 			},
 		}
