@@ -166,6 +166,12 @@ func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.
 	return a.client.CommandSummary(ctx, modelMessages, output)
 }
 
+// reloadMessages clears the chat history and reloads the messages from the database.
+func (c *Chat) reloadMessages(ctx context.Context) error {
+	c.chat.Clear()
+	return c.loadMessages(ctx)
+}
+
 // loadMessages loads the messages from the database.
 func (c *Chat) loadMessages(ctx context.Context) error {
 	// existing conversation, retrieve old messages
@@ -243,9 +249,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 	// If data might have been inserted into the chat history, we want to
 	// refresh and get the latest data before querying the model.
 	if c.potentiallyStaleHistory {
-		c.chat = c.assist.client.NewChat(c.Username)
-		err := c.loadMessages(ctx)
-		if err != nil {
+		if err := c.reloadMessages(ctx); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	}

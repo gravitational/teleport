@@ -78,3 +78,8 @@ func (chat *Chat) Complete(ctx context.Context, userInput string) (any, error) {
 
 	return response, nil
 }
+
+// Clear clears the conversation.
+func (chat *Chat) Clear() {
+	chat.messages = []openai.ChatCompletionMessage{}
+}
