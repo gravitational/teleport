@@ -115,4 +115,6 @@ message ResourceAccess {
 message Features {
   // AdvancedAccessWorkflows enables search-based access requests
   bool advanced_access_workflows = 1;
+  // IsUsageBasedBilling determines if the cloud user subscription is usage-based (pay-as-you-go).
+  bool is_usage_based_billing = 2;
 }

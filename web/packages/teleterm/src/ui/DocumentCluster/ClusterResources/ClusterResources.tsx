@@ -44,7 +44,7 @@ export default function ClusterResources() {
       <Flex pb={5} flexDirection="column">
         <Flex justifyContent="space-between">
           <SideNav mb={2} />
-          <ConnectMyComputerNavigationMenu />
+          <ConnectMyComputerNavigationMenu clusterUri={clusterCtx.clusterUri} />
         </Flex>
         <HorizontalSplit>
           {clusterCtx.isLocationActive('/resources/servers') && <Servers />}

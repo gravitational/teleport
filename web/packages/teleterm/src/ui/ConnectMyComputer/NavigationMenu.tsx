@@ -21,13 +21,23 @@ import { Box } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ListItem } from 'teleterm/ui/components/ListItem';
+import { ClusterUri } from 'teleterm/ui/uri';
 
 import { NavigationMenuIcon } from './NavigationMenuIcon';
+import { isConnectMyComputerPermittedForRootCluster } from './permissions';
 
-export function NavigationMenu() {
+interface NavigationMenuProps {
+  clusterUri: ClusterUri;
+}
+
+export function NavigationMenu(props: NavigationMenuProps) {
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const appCtx = useAppContext();
+  const cluster = appCtx.clustersService.findCluster(props.clusterUri);
+  const rootCluster = appCtx.clustersService.findRootClusterByResource(
+    props.clusterUri
+  );
 
   const togglePopover = useCallback(() => {
     setIsPopoverOpened(wasOpened => !wasOpened);
@@ -35,14 +45,27 @@ export function NavigationMenu() {
 
   function openSetupDocument(): void {
     const documentService =
-      appCtx.workspacesService.getActiveWorkspaceDocumentService();
-    const rootClusterUri = appCtx.workspacesService.getRootClusterUri();
+      appCtx.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
     const document = documentService.createConnectMyComputerSetupDocument({
-      rootClusterUri,
+      rootClusterUri: rootCluster.uri,
     });
     documentService.add(document);
     documentService.open(document.uri);
     setIsPopoverOpened(false);
+  }
+
+  if (cluster.leaf) {
+    return null;
+  }
+
+  if (
+    !isConnectMyComputerPermittedForRootCluster(
+      rootCluster,
+      appCtx.configService,
+      appCtx.mainProcessClient.getRuntimeSettings()
+    )
+  ) {
+    return null;
   }
 
   return (
