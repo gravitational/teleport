@@ -8,6 +8,10 @@ in Teleport during the user's login. The registration may be
 [manual](./guide.mdx#step-12-register-a-trusted-device) or performed using an
 integration, like the [Jamf integration](./jamf-integration.mdx).
 
+<Admonition type="warning">
+Device Trust is currently in Preview mode.
+</Admonition>
+
 The `tsh` prerequisites for regular enrollment, as described below, still apply.
 
 ## Prerequisites
@@ -38,7 +42,7 @@ spec:
 
 </TabItem>
 <TabItem label="Static Config" options="Self-Hosted">
-Edit the Auth Server's `teleport.yaml` file and restart:
+Edit the Auth Server's `teleport.yaml` file:
 
 ```diff
 auth_service:
@@ -47,6 +51,8 @@ auth_service:
     device_trust:
 +     auto_enroll: true
 ```
+
+After saving the changes, restart the Teleport service.
 
 </TabItem>
 </Tabs>

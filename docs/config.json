@@ -482,11 +482,19 @@
             },
             {
               "title": "Set Up Auto-Enrollment",
-              "slug": "/access-controls/device-trust/auto-enrollment/"
+              "slug": "/access-controls/device-trust/auto-enrollment/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "Jamf Integration",
-              "slug": "/access-controls/device-trust/jamf-integration/"
+              "slug": "/access-controls/device-trust/jamf-integration/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             }
           ]
         },

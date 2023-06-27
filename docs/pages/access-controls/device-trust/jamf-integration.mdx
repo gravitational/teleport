@@ -6,7 +6,7 @@ description: Sync your Jamf inventory into Teleport
 Device Trust Jamf integration lets you automatically sync your Jamf computer
 inventory into Teleport.
 
-Jamf service is a distinct `teleport` process that periodically reads your
+The Teleport Jamf service is a distinct `teleport` process that periodically reads your
 computer inventory from Jamf and syncs it to Teleport. It performs both
 incremental (called "partial") and full syncs, as well as removals from Teleport
 if a computer is removed from Jamf.
@@ -29,7 +29,7 @@ and behavior.
 
 Create a readonly Jamf user for inventory sync.
 
-1. Access https://yourtenant.jamfcloud.com/accounts.html, replacing "yourtenant"
+1. Access `https://yourtenant.jamfcloud.com/accounts.html`, replacing `yourtenant`
    with your Jamf Pro account.
 
 2. Create a new Standard Account with the following settings:
@@ -102,18 +102,18 @@ $ chown teleport /var/lib/teleport/jamf_password
 ## Step 3/4. Create a join token
 
 Jamf service requires an MDM token to write devices to Teleport.
-Create the token as shown below:
+On your local workstation, create the token as shown below:
 
 ```code
 $ tctl tokens add --type=mdm
 The invite token: 07c0565aa280595d7645b2964c36ebd1
 This token will expire in 30 minutes.
 
-Use this token to add an MDM service to Teleport.
+From the Jamf service host, use this token to add an MDM service to Teleport.
 
 > teleport start \
-   --token=07c0565aa280595d7645b2964c36ebd1 \
-   --ca-pin=sha256:4b32d9c54b2b3332019d5f0720b8f9a603de03ace07d308bcd743465eee1f200 \
+   --token=(=presets.tokens.second=) \
+   --ca-pin=(=presets.ca_pin=)\
    --config=/path/to/teleport.yaml
 ```
 
@@ -127,7 +127,7 @@ $ teleport start --config=/var/lib/teleport.yaml \
    --ca-pin=sha256:4b32d9c54b2b3332019d5f0720b8f9a603de03ace07d308bcd743465eee1f200
 ```
 
-The initial sync should happen in a few minutes:
+The initial sync should happen in a few minutes. You can confirm from the Teleport service logs:
 
 ```
 2023-06-21T17:26:40-03:00 INFO [JAMF:1]    Jamf service successfully started pid:25757.1 service/service.go:228
@@ -159,7 +159,7 @@ CXXXXXXXXX5T macOS   not enrolled  bf189863-a94a-40dc-9013-d96f8dada2f1
 
 When using the minimal configuration, described in the steps above, Jamf service
 utilizes a default sync schedule. It is possible to customize sync intervals, as
-well as the set of devices synced from Jamf by applying RSQL filters provided by
+well as the set of devices synced from Jamf, by applying RSQL filters provided by
 the [Jamf Pro API](
 https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory).
 
@@ -176,13 +176,13 @@ jamf_service:
     filter_rsql: general.remoteManagement.managed==true
 ```
 
-Unpacking the configuration, we have the following:
+Unpacking the configuration, we have the following keys:
 
 **sync\_period\_\***
 
-- sync_period_partial: period for partial syncs. A partial sync attempts to
+- `sync_period_partial`: period for partial syncs. A partial sync attempts to
   fetch new and modified devices, but won't scan the entire Jamf inventory.
-- sync_period_full: period for full syncs. A full sync scans the entire Jamf
+- `sync_period_full`: period for full syncs. A full sync scans the entire Jamf
   inventory, processing new/modified devices and removals from Jamf.
 
 Both sync periods may be disabled by setting the period to `0` or `-1`. It is
@@ -191,7 +191,7 @@ to fully synchronize both inventories.
 
 **on\_missing**
 
-The on\_missing key determines what to do with devices deleted from Jamf, but
+The `on_missing` key determines what to do with devices deleted from Jamf, but
 present in Teleport. The possible actions are:
 
 - `DELETE`: devices removed from Jamf are eventually removed from Teleport.
@@ -216,7 +216,7 @@ still in the Jamf inventory, it'll be recreated during the next sync.
 
 **filter\_rsql**
 
-The filter\_rsql key applies a Jamf Pro API filter when querying for devices.
+The `filter_rsql` key applies a Jamf Pro API filter when querying for devices.
 Refer to
 https://developer.jamf.com/jamf-pro/reference/get_v1-computers-inventory for the
 possible filter values.
