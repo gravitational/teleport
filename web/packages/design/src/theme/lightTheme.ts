@@ -198,6 +198,15 @@ const colors = {
     brightCyan: dataVisualisationColors.primary.cyan,
   },
 
+  editor: {
+    abbey: dataVisualisationColors.primary.abbey,
+    purple: dataVisualisationColors.primary.purple,
+    cyan: dataVisualisationColors.primary.cyan,
+    picton: dataVisualisationColors.primary.picton,
+    sunflower: dataVisualisationColors.primary.sunflower,
+    caribbean: dataVisualisationColors.primary.caribbean,
+  },
+
   subtle: blueGrey[50],
   link: '#0073BA',
   bgTerminal: '#010B1C',
@@ -205,6 +214,8 @@ const colors = {
   disabled: blueGrey[500],
   info: lightBlue[600],
   success: '#007D6B',
+
+  dataVisualisation: dataVisualisationColors,
 };
 
 const borders = [
