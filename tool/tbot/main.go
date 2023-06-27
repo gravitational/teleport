@@ -245,19 +245,23 @@ func onMigrate(
 	cf config.CLIConf,
 	stdout io.Writer,
 ) error {
+	if cf.ConfigPath == "" {
+		return trace.BadParameter("source config file must be provided with -c")
+	}
+
 	out := stdout
 	outPath := cf.ConfigureOutput
 	if outPath != "" {
+		if outPath == cf.ConfigPath {
+			return trace.BadParameter("migrated config output path should not be the same as the source config path")
+		}
+
 		f, err := os.Create(outPath)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		defer f.Close()
 		out = f
-	}
-
-	if cf.ConfigPath == "" {
-		return trace.BadParameter("source config file must be provided with -c")
 	}
 
 	// We do not want to load an existing configuration file as this will cause
