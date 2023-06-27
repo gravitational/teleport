@@ -344,6 +344,24 @@ message RoleCreateEvent {
   string role_name = 2;
 }
 
+// BotCreateEvent is emitted when user creates a bot.
+message BotCreateEvent {
+  // user_name is the anonymized name of the user who created the bot
+  string user_name = 1;
+  // anonymized
+  string bot_user_name = 2;
+  // role_name is the anonymized name of the bot role that was created.
+  string role_name = 3;
+  // role_count is the number of roles that the bot role can impersonate on
+  // creation.
+  int64 role_count = 4;
+  // join_method is the join method of the token associated with the bot on
+  // creation.
+  string join_method = 5;
+  // bot_name is the anonymised name of the bot.
+  string bot_name = 6;
+}
+
 message UICreateNewRoleClickEvent {
   //anonymized
   string user_name = 1;
@@ -385,6 +403,82 @@ message AgentMetadataEvent {
   string container_runtime = 9;
   string container_orchestrator = 10;
   string cloud_environment = 11;
+}
+
+// AssistCompletionEvent is an event that is emitted
+// when a single completion occurs in the Teleport Assist,
+// i.e. a user submits a prompt, and receives an answer from the Assist
+message AssistCompletionEvent {
+  // anonymized
+  string user_name = 1;
+
+  // ConversationId is the UUID that identifies a single Assist conversation
+  string conversation_id = 2;
+
+  // TotalTokens is the total amount of token used to satisfy this request
+  int64 total_tokens = 3;
+  // PromptTokens is the amount of estimated tokens used by the prompt
+  int64 prompt_tokens = 4;
+  // CompletionTokens is the amount of tokens that the completion response consists of
+  int64 completion_tokens = 5;
+}
+
+// IntegrationEnrollKind represents the types of integration that
+// can be enrolled.
+enum IntegrationEnrollKind {
+  INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0;
+  INTEGRATION_ENROLL_KIND_SLACK = 1;
+  INTEGRATION_ENROLL_KIND_AWS_OIDC = 2;
+  INTEGRATION_ENROLL_KIND_PAGERDUTY = 3;
+  INTEGRATION_ENROLL_KIND_EMAIL = 4;
+  INTEGRATION_ENROLL_KIND_JIRA = 5;
+  INTEGRATION_ENROLL_KIND_DISCORD = 6;
+  INTEGRATION_ENROLL_KIND_MATTERMOST = 7;
+  INTEGRATION_ENROLL_KIND_MS_TEAMS = 8;
+  INTEGRATION_ENROLL_KIND_OPSGENIE = 9;
+  INTEGRATION_ENROLL_KIND_OKTA = 10;
+  INTEGRATION_ENROLL_KIND_JAMF = 11;
+}
+
+// IntegrationEnrollMetadata contains common metadata
+// for Integration Enroll related events.
+message IntegrationEnrollMetadata {
+  // id is used as a unique identifier to correlate events within the
+  // same enroll wizard run.
+  string id = 1;
+  // kind identifies what type of integration the user clicked on to enroll.
+  IntegrationEnrollKind kind = 2;
+  // user_name is anonymized.
+  string user_name = 3;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// clicks on a integration to enroll.
+message UIIntegrationEnrollStartEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// completed enrolling an integration.
+message UIIntegrationEnrollCompleteEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
+// EditorChangeEvent is an event that is emitted when a user role set changes resulting in
+// a editor role being added on removed
+message EditorChangeEvent {
+  // anonymized user name
+  string user_name = 1;
+  EditorChangeStatus status = 2;
+}
+
+// EditorChangeStatus is the possible value of an EditorChangeEvent event status
+enum EditorChangeStatus {
+  EDITOR_CHANGE_STATUS_UNSPECIFIED = 0;
+  // Status when the editor role is granted
+  EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1;
+  // Status when the editor role is removed
+  EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2;
 }
 
 message SubmitEventRequest {
@@ -448,6 +542,15 @@ message SubmitEventRequest {
 
     UIDiscoverIntegrationAWSOIDCConnectEvent ui_discover_integration_aws_oidc_connect_event = 40;
     UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 41;
+
+    AssistCompletionEvent assist_completion = 43;
+
+    UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 44;
+    UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 45;
+
+    EditorChangeEvent editor_change_event = 46;
+
+    BotCreateEvent bot_create = 47;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
