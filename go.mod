@@ -48,6 +48,7 @@ require (
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/beevik/etree v1.2.0
 	github.com/bufbuild/connect-go v1.7.0
+	github.com/buildkite/bintest/v3 v3.1.1
 	github.com/coreos/go-oidc v2.1.0+incompatible // replaced
 	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.18
@@ -107,7 +108,6 @@ require (
 	github.com/julienschmidt/httprouter v1.3.0 // replaced
 	github.com/keys-pub/go-libfido2 v1.5.3-0.20220306005615-8ab03fb1ec27 // replaced
 	github.com/kyroy/kdtree v0.0.0-20200419114247-70830f883f1d
-	github.com/lox/bintest v2.0.0+incompatible
 	github.com/mailgun/lemma v0.0.0-20170619173223-4214099fb348
 	github.com/mailgun/timetools v0.0.0-20170619190023-f3a7b8ffff47
 	github.com/mailgun/ttlmap v0.0.0-20170619185759-c1c17f74874f
@@ -340,6 +340,7 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
+	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pingcap/errors v0.11.5-0.20201126102027-b0a155152ca3 // indirect
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
@@ -353,6 +354,7 @@ require (
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
+	github.com/sasha-s/go-deadlock v0.0.0-20180226215254-237a9547c8a5 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect

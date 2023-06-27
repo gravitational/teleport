@@ -27,7 +27,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/lox/bintest"
+	"github.com/buildkite/bintest/v3"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -50,24 +50,10 @@ func TestOneOffScript(t *testing.T) {
 		assert.NoError(t, mktempMock.Close())
 	}()
 
-	teleportMock, err := bintest.NewMock("teleport")
-	require.NoError(t, err)
-	defer func() {
-		assert.NoError(t, teleportMock.Close())
-	}()
-
-	teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
-	require.NoError(t, err)
-
-	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		http.ServeContent(w, req, "teleport-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
-	}))
-	defer func() { testServer.Close() }()
-
 	script, err := BuildScript(OneOffScriptParams{
 		BinUname:        unameMock.Path,
 		BinMktemp:       mktempMock.Path,
-		CDNBaseURL:      testServer.URL,
+		CDNBaseURL:      "dummyURL",
 		TeleportVersion: "v13.1.0",
 		TeleportArgs:    "version",
 	})
@@ -76,7 +62,31 @@ func TestOneOffScript(t *testing.T) {
 	t.Run("command can be executed", func(t *testing.T) {
 		// set up
 		testWorkingDir := t.TempDir()
+		require.NoError(t, os.Mkdir(testWorkingDir+"/bin/", 0o755))
 		scriptLocation := testWorkingDir + "/" + scriptName
+
+		teleportMock, err := bintest.NewMock(testWorkingDir + "/bin/teleport")
+		require.NoError(t, err)
+		defer func() {
+			assert.NoError(t, teleportMock.Close())
+		}()
+
+		teleportBinTarball, err := utils.CompressTarGzArchive([]string{"teleport/teleport"}, singleFileFS{file: teleportMock.Path})
+		require.NoError(t, err)
+
+		testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+			http.ServeContent(w, req, "teleport-v13.1.0-linux-amd64-bin.tar.gz", time.Now(), bytes.NewReader(teleportBinTarball.Bytes()))
+		}))
+		defer func() { testServer.Close() }()
+
+		script, err := BuildScript(OneOffScriptParams{
+			BinUname:        unameMock.Path,
+			BinMktemp:       mktempMock.Path,
+			CDNBaseURL:      testServer.URL,
+			TeleportVersion: "v13.1.0",
+			TeleportArgs:    "version",
+		})
+		require.NoError(t, err)
 
 		unameMock.Expect("-s").AndWriteToStdout("Linux")
 		unameMock.Expect("-m").AndWriteToStdout("x86_64")
@@ -96,7 +106,7 @@ func TestOneOffScript(t *testing.T) {
 		require.True(t, mktempMock.Check(t))
 		require.True(t, teleportMock.Check(t))
 
-		require.Contains(t, string(out), "> ./teleport/teleport version")
+		require.Contains(t, string(out), "> ./bin/teleport version")
 		require.Contains(t, string(out), teleportVersionOutput)
 	})
 

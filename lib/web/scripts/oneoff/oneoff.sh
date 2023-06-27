@@ -40,8 +40,10 @@ function main() {
     curl --show-error --fail --location --remote-name ${cdnBaseURL}/${tarballName}
     tar -xzf ${tarballName}
 
-    echo "> ./teleport/teleport ${teleportArgs}"
-    ./teleport/teleport ${teleportArgs}
+    mkdir -p ./bin
+    mv ./teleport/teleport ./bin/teleport
+    echo "> ./bin/teleport ${teleportArgs}"
+    ./bin/teleport ${teleportArgs}
 
     popd > /dev/null
 }
