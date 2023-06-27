@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 )
 
 const (
@@ -34,11 +36,17 @@ const (
 	maxElapsedTime    = 5 * time.Minute
 )
 
-// AssistAgent is a global instance of the Assist agent which defines the model responsible for the Assist feature.
-var AssistAgent = &Agent{
-	tools: []Tool{
-		&commandExecutionTool{},
-	},
+// NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
+func NewAgent(assistClient assist.AssistEmbeddingServiceClient, username string) *Agent {
+	return &Agent{
+		tools: []Tool{
+			&commandExecutionTool{},
+			&embeddingRetrievalTool{
+				assistClient: assistClient,
+				currentUser:  username,
+			},
+		},
+	}
 }
 
 // Agent is a model storing static state which defines some properties of the chat model.
@@ -208,7 +216,11 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 
-	return stepOutput{}, trace.NotImplemented("assist does not support non command execution tools yet")
+	runOut, err := tool.Run(ctx, action.input)
+	if err != nil {
+		return stepOutput{}, trace.Wrap(err)
+	}
+	return stepOutput{action: action, observation: runOut}, nil
 }
 
 func (a *Agent) plan(ctx context.Context, state *executionState) (*agentAction, *agentFinish, error) {

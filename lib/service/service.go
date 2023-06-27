@@ -257,6 +257,15 @@ const (
 	TeleportOKEvent = "TeleportOKEvent"
 )
 
+const (
+	// embeddingInitialDelay is the time to wait before the first embedding
+	// routine is started.
+	embeddingInitialDelay = 10 * time.Second
+	// embeddingPeriod is the time between two embedding routines.
+	// A seventh jitter is applied on the period.
+	embeddingPeriod = time.Hour
+)
+
 // Connector has all resources process needs to connect to other parts of the
 // cluster: client and identity.
 type Connector struct {
@@ -1618,6 +1627,13 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
+	var embedderClient ai.Embedder
+	if cfg.Auth.AssistAPIKey != "" {
+		embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+	}
+
+	embeddingsRetriever := ai.NewSimpleRetriever()
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1656,6 +1672,8 @@ func (process *TeleportProcess) initAuthService() error {
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
 		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+		EmbeddingRetriever:      embeddingsRetriever,
+		EmbeddingClient:         embedderClient,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1695,14 +1713,15 @@ func (process *TeleportProcess) initAuthService() error {
 	}
 	authServer.SetLockWatcher(lockWatcher)
 
-	if cfg.Auth.AssistAPIKey != "" {
-		openAIClient := ai.NewClient(cfg.Auth.AssistAPIKey)
+	if embedderClient != nil {
+		log.Debugf("Starting embedding watcher")
 		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
-			AIClient:     openAIClient,
-			EmbeddingSrv: authServer,
-			NodeSrv:      authServer,
-			Log:          log,
-			Jitter:       retryutils.NewFullJitter(),
+			AIClient:            embedderClient,
+			EmbeddingsRetriever: embeddingsRetriever,
+			EmbeddingSrv:        authServer,
+			NodeSrv:             authServer,
+			Log:                 log,
+			Jitter:              retryutils.NewFullJitter(),
 		})
 
 		process.RegisterFunc("ai.embedding-processor", func() error {
@@ -1724,7 +1743,7 @@ func (process *TeleportProcess) initAuthService() error {
 				return nil
 			}
 			log.Debugf("Starting embedding processor")
-			return embeddingProcessor.Run(process.ExitContext(), ai.EmbeddingPeriod)
+			return embeddingProcessor.Run(process.ExitContext(), embeddingInitialDelay, embeddingPeriod)
 		})
 	}
 

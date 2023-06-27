@@ -751,6 +751,12 @@ func (c *Client) TrustClient() trustpb.TrustServiceClient {
 	return trustpb.NewTrustServiceClient(c.conn)
 }
 
+// EmbeddingClient returns an unadorned Embedding client, using the underlying
+// Auth gRPC connection.
+func (c *Client) EmbeddingClient() assist.AssistEmbeddingServiceClient {
+	return assist.NewAssistEmbeddingServiceClient(c.conn)
+}
+
 // Ping gets basic info about the auth server.
 func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	rsp, err := c.grpc.Ping(ctx, &proto.PingRequest{})
@@ -3901,4 +3907,12 @@ func (c *Client) UpdateAssistantConversationInfo(ctx context.Context, in *assist
 		return trail.FromGRPC(err)
 	}
 	return nil
+}
+
+func (c *Client) GetAssistantEmbeddings(ctx context.Context, in *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error) {
+	result, err := c.EmbeddingClient().GetAssistantEmbeddings(ctx, in)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return result, nil
 }
