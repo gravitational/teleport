@@ -24,6 +24,8 @@ import {
   DiscoverEventResource,
   userEventService,
   DiscoverServiceDeployMethod,
+  DiscoverServiceDeploy,
+  DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
@@ -71,7 +73,7 @@ type CustomEventInput = {
   eventResourceName?: DiscoverEventResource;
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
-  serviceDeployedMethod?: DiscoverServiceDeployMethod;
+  serviceDeploy?: DiscoverServiceDeploy;
 };
 
 type DiscoverProviderProps = {
@@ -123,10 +125,18 @@ export function DiscoverProvider({
       const { id, currEventName } = eventState;
 
       const event = custom?.eventName || currEventName;
-      const isDeployEvent = event === DiscoverEvent.DeployService;
-      const deployedMethod =
-        custom?.serviceDeployedMethod ||
-        DiscoverServiceDeployMethod.Unspecified;
+
+      let serviceDeploy: DiscoverServiceDeploy;
+      if (event === DiscoverEvent.DeployService) {
+        if (custom?.serviceDeploy) {
+          serviceDeploy = custom.serviceDeploy;
+        } else {
+          serviceDeploy = {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          };
+        }
+      }
 
       userEventService.captureDiscoverEvent({
         event,
@@ -135,7 +145,7 @@ export function DiscoverProvider({
           resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
-          serviceDeployedMethod: isDeployEvent ? deployedMethod : undefined,
+          serviceDeploy,
           ...status,
         },
       });
@@ -399,7 +409,10 @@ export function DiscoverProvider({
       {
         autoDiscoverResourcesCount: 0,
         selectedResourcesCount: 0,
-        serviceDeployedMethod: DiscoverServiceDeployMethod.Unspecified,
+        serviceDeploy: {
+          method: DiscoverServiceDeployMethod.Unspecified,
+          type: DiscoverServiceDeployType.Unspecified,
+        },
       }
     );
   }
