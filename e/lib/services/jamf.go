@@ -37,7 +37,7 @@ func JamfRegister(cfg *servicecfg.Config) {
 // JamfInit registers the necessary critical functions for the Jamf service
 // within the [service.TeleportProcess].
 // Returns immediately.
-func JamfInit(process *service.TeleportProcess) error {
+func JamfInit(process *service.TeleportProcess, httpClient *http.Client) error {
 	if process == nil {
 		return trace.BadParameter("process required")
 	}
@@ -68,14 +68,17 @@ func JamfInit(process *service.TeleportProcess) error {
 			return trace.BadParameter("failed to acquire MDM credentials from Auth")
 		}
 
+		if httpClient == nil {
+			httpClient = &http.Client{
+				Timeout: 5 * time.Minute,
+			}
+		}
 		s, err := jamfservice.New(ctx, jamfservice.Opts{
 			Clock:         process.Clock,
 			Logger:        logger,
 			Config:        &process.Config.Jamf,
 			DevicesClient: conn.Client.DevicesClient(),
-			HTTPClient: &http.Client{
-				Timeout: 5 * time.Minute,
-			},
+			HTTPClient:    httpClient,
 		})
 		if err != nil {
 			return trace.Wrap(err)

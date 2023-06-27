@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"testing"
@@ -55,11 +54,7 @@ func TestNew_errors(t *testing.T) {
 			},
 		},
 		DevicesClient: env.DevicesClient,
-		HTTPClient:    http.DefaultClient,
-		NewJamfClient: func(ctx context.Context, opts jamf.ClientOpts) (*jamf.Client, error) {
-			opts.AllowPlainHTTP = true
-			return jamf.NewClient(ctx, opts)
-		},
+		HTTPClient:    env.HTTPClient,
 	}
 
 	canceled, cancel := context.WithCancel(ctx)
@@ -827,13 +822,7 @@ func serviceFromEnv(t *testing.T, env *testenv.E, modifyOpts func(opts *jamfserv
 			},
 		},
 		DevicesClient: env.DevicesClient,
-		HTTPClient: &http.Client{
-			Timeout: 1 * time.Minute,
-		},
-		NewJamfClient: func(ctx context.Context, opts jamf.ClientOpts) (*jamf.Client, error) {
-			opts.AllowPlainHTTP = true
-			return jamf.NewClient(ctx, opts)
-		},
+		HTTPClient:    env.HTTPClient,
 	}
 	if modifyOpts != nil {
 		modifyOpts(&opts)

@@ -99,13 +99,12 @@ func TestClient_authn(t *testing.T) {
 
 	t.Run(`try base URL with "/api" suffix`, func(t *testing.T) {
 		client, err := jamf.NewClient(ctx, jamf.ClientOpts{
-			Clock:          clock,
-			Logger:         env.Logger,
-			HTTPClient:     env.HTTPClient,
-			APIURL:         strings.TrimSuffix(env.APIEndpoint, "/api"),
-			Username:       testenv.DefaultUsers[0].Username,
-			Password:       testenv.DefaultUsers[0].Password,
-			AllowPlainHTTP: true,
+			Clock:      clock,
+			Logger:     env.Logger,
+			HTTPClient: env.HTTPClient,
+			APIURL:     strings.TrimSuffix(env.APIEndpoint, "/api"),
+			Username:   testenv.DefaultUsers[0].Username,
+			Password:   testenv.DefaultUsers[0].Password,
 		})
 		if err != nil {
 			t.Fatalf("NewClient returned err=%v, want nil", err)
@@ -115,13 +114,12 @@ func TestClient_authn(t *testing.T) {
 
 	t.Run("invalid credentials fail creation", func(t *testing.T) {
 		if _, err := jamf.NewClient(ctx, jamf.ClientOpts{
-			Clock:          clock,
-			Logger:         env.Logger,
-			HTTPClient:     env.HTTPClient,
-			APIURL:         env.APIEndpoint,
-			Username:       "invalid",
-			Password:       "not a password",
-			AllowPlainHTTP: true,
+			Clock:      clock,
+			Logger:     env.Logger,
+			HTTPClient: env.HTTPClient,
+			APIURL:     env.APIEndpoint,
+			Username:   "invalid",
+			Password:   "not a password",
 		}); err == nil {
 			t.Error("NewClient returned err=nil, wanted invalid credentials error")
 		}

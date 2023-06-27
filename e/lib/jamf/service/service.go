@@ -78,10 +78,6 @@ type Opts struct {
 	Config        *servicecfg.JamfConfig
 	DevicesClient devicepb.DeviceTrustServiceClient
 	HTTPClient    *http.Client
-
-	// NewJamfClient is the function used to create a new [jamf.Client].
-	// Defaults to [jamf.NewClient].
-	NewJamfClient func(context.Context, jamf.ClientOpts) (*jamf.Client, error)
 }
 
 // New creates a new [S] instance.
@@ -129,11 +125,7 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 	}
 
 	// Connect to the Jamf API and verify credentials.
-	newJamfClient := opts.NewJamfClient
-	if newJamfClient == nil {
-		newJamfClient = jamf.NewClient
-	}
-	jamfClient, err := newJamfClient(ctx, jamf.ClientOpts{
+	jamfClient, err := jamf.NewClient(ctx, jamf.ClientOpts{
 		Clock:      opts.Clock,
 		Logger:     opts.Logger,
 		HTTPClient: opts.HTTPClient,

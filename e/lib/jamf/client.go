@@ -47,11 +47,6 @@ type ClientOpts struct {
 	Username string
 	// Password for the Jamf API.
 	Password string
-
-	// AllowPlainHTTP allows the client to use "http" instead of "https".
-	// Do not use in production, credentials and tokens are exchanged in plain
-	// text when this is set.
-	AllowPlainHTTP bool
 }
 
 // NewClient creates a new Jamf API client.
@@ -79,11 +74,6 @@ func NewClient(ctx context.Context, opts ClientOpts) (*Client, error) {
 		Scheme: "https",
 		Host:   u.Host,
 		Path:   strings.TrimSuffix(u.Path, "/"),
-	}
-	// "http" is allowed for testing, it's not meant for production use.
-	// See [ClientOpts.AllowPlainHTTP].
-	if opts.AllowPlainHTTP && u.Scheme == "http" {
-		baseURL.Scheme = u.Scheme
 	}
 
 	logger := opts.Logger

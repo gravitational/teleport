@@ -2,12 +2,10 @@ package testenv
 
 import (
 	"context"
-	"errors"
 	"fmt"
-	"net"
 	"net/http"
+	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
@@ -31,27 +29,32 @@ type E struct {
 	Logger log.FieldLogger
 
 	// APIEndpoint for the fake Jamf API.
-	// Example: "http://localhost:12345/api".
+	// Example: "https://localhost:12345/api".
 	APIEndpoint string
+	API         *jamffake.API
 
-	API        *jamffake.API
-	Client     *jamf.Client
+	// Client is a [jamf.Client] with the correct TLS settings to access
+	// the Jamf API.
+	Client *jamf.Client
+
+	/// HTTPClient is a an [http.Client] with the correct TLS settings to access
+	// the Jamf API.
 	HTTPClient *http.Client
 
 	DevicesClient devicepb.DeviceTrustServiceClient
 
 	deviceEnv *dtenv.E
-	lis       net.Listener
-	server    *http.Server
+	server    *httptest.Server
 }
 
 // Close tears down the test environment.
 func (e *E) Close() error {
+	if e.HTTPClient != nil {
+		e.HTTPClient.CloseIdleConnections()
+	}
 	// e.server owns e.lis, if it exists.
 	if e.server != nil {
-		_ = e.server.Shutdown(context.Background())
-	} else if e.lis != nil {
-		_ = e.lis.Close()
+		e.server.Close()
 	}
 	if e.deviceEnv != nil {
 		e.deviceEnv.Close()
@@ -134,32 +137,17 @@ func New(opts *Opts) (*E, error) {
 		}
 	}()
 
-	var err error
-	e.lis, err = net.Listen("tcp", "localhost:")
-	if err != nil {
-		return nil, fmt.Errorf("listen: %w", err)
-	}
-
 	e.API = jamffake.New(&jamffake.Opts{
 		Clock: e.Clock,
 	})
 	e.API.SetUsers(DefaultUsers)
 
 	const prefix = "/api"
-	e.server = &http.Server{
-		Handler: e.API.Handler(prefix),
-	}
-	e.APIEndpoint = fmt.Sprintf("http://%v%v", e.lis.Addr().String(), prefix)
-	go func() {
-		if err := e.server.Serve(e.lis); !errors.Is(err, http.ErrServerClosed) {
-			// TODO(codingllama): Be more subtle?
-			panic(fmt.Sprintf("Serve returned unexpected error: %v", err))
-		}
-	}()
+	e.server = httptest.NewTLSServer(e.API.Handler(prefix))
+	e.APIEndpoint = fmt.Sprintf("%v%v", e.server.URL, prefix)
+	e.HTTPClient = e.server.Client()
 
-	e.HTTPClient = &http.Client{
-		Timeout: 10 * time.Second, // This should be long enough for testing.
-	}
+	var err error
 	e.Client, err = e.NewClient()
 	if err != nil {
 		return nil, fmt.Errorf("jamf client: %w", err)
@@ -182,13 +170,12 @@ func (e *E) MustNewClient() *jamf.Client {
 // credentials from [DefaultUsers].
 func (e *E) NewClient() (*jamf.Client, error) {
 	client, err := jamf.NewClient(context.Background(), jamf.ClientOpts{
-		Clock:          e.Clock,
-		Logger:         e.Logger,
-		HTTPClient:     e.HTTPClient,
-		APIURL:         e.APIEndpoint,
-		Username:       DefaultUsers[1].Username,
-		Password:       DefaultUsers[1].Password,
-		AllowPlainHTTP: true,
+		Clock:      e.Clock,
+		Logger:     e.Logger,
+		HTTPClient: e.HTTPClient,
+		APIURL:     e.APIEndpoint,
+		Username:   DefaultUsers[1].Username,
+		Password:   DefaultUsers[1].Password,
 	})
 	if err != nil {
 		return nil, err
