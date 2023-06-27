@@ -21,7 +21,6 @@ import (
 	"context"
 	"fmt"
 	"net"
-	"os"
 
 	"github.com/gravitational/trace"
 	"k8s.io/client-go/tools/clientcmd"
@@ -41,37 +40,19 @@ import (
 
 const defaultKubeconfigPath = "kubeconfig.yaml"
 
-type TemplateKubernetes struct {
-	Path string `yaml:"path,omitempty"`
-
-	// ClusterAddress may be used to override the k8s cluster address. It's
-	// resolved from Teleport's ping responses if unset.
-	ClusterAddress string `yaml:"cluster_addr,omitempty"`
-
-	getExecutablePath func() (string, error)
+type templateKubernetes struct {
+	clusterName          string
+	executablePathGetter executablePathGetter
 }
 
-func (t *TemplateKubernetes) CheckAndSetDefaults() error {
-	if t.Path == "" {
-		t.Path = defaultKubeconfigPath
-	}
-
-	if t.getExecutablePath == nil {
-		t.getExecutablePath = os.Executable
-	}
-
-	return nil
-}
-
-func (t *TemplateKubernetes) Name() string {
+func (t *templateKubernetes) name() string {
 	return TemplateKubernetesName
 }
 
-func (t *TemplateKubernetes) Describe(destination bot.Destination) []FileDescription {
+func (t *templateKubernetes) describe() []FileDescription {
 	return []FileDescription{
 		{
-			Name:  t.Path,
-			IsDir: false,
+			Name: defaultKubeconfigPath,
 		},
 	}
 }
@@ -108,13 +89,13 @@ func getKubeProxyHostPort(authPong *proto.PingResponse, proxyPong *webclient.Pin
 
 // generateKubeConfig creates a Kubernetes config object with the given cluster
 // config.
-func generateKubeConfig(t *TemplateKubernetes, ks *kubernetesStatus, destPath string) (*clientcmdapi.Config, error) {
+func generateKubeConfig(ks *kubernetesStatus, destPath string, executablePath string) (*clientcmdapi.Config, error) {
 	config := clientcmdapi.NewConfig()
 
 	// Implementation note: tsh/kube.go generates a kubeconfig with all
 	// available clusters. This isn't especially useful in Machine ID when
 	// there's _at most_ one cluster we have permission to access for this
-	// destination's set of certs, so instead of fetching all the k8s clusters
+	// Destination's set of certs, so instead of fetching all the k8s clusters
 	// and adding everything, we'll just stick with the single cluster name in
 	// our config file.
 	// Otherwise, we adapt this from lib/kube/kubeconfig/kubeconfig.go's
@@ -143,14 +124,10 @@ func generateKubeConfig(t *TemplateKubernetes, ks *kubernetesStatus, destPath st
 	execArgs := []string{"kube", "credentials",
 		fmt.Sprintf("--destination-dir=%s", destPath),
 	}
-	binaryPath, err := t.getExecutablePath()
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 	config.AuthInfos[contextName] = &clientcmdapi.AuthInfo{
 		Exec: &clientcmdapi.ExecConfig{
 			APIVersion: "client.authentication.k8s.io/v1beta1",
-			Command:    binaryPath,
+			Command:    executablePath,
 			Args:       execArgs,
 		},
 	}
@@ -165,31 +142,17 @@ func generateKubeConfig(t *TemplateKubernetes, ks *kubernetesStatus, destPath st
 	return config, nil
 }
 
-func (t *TemplateKubernetes) Render(
+func (t *templateKubernetes) render(
 	ctx context.Context,
 	bot provider,
 	identity *identity.Identity,
-	destination *DestinationConfig,
+	destination bot.Destination,
 ) error {
-	if destination.KubernetesCluster == nil {
-		dest, err := destination.GetDestination()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return trace.BadParameter("No Kubernetes cluster was configured for destination %s, cannot generate config", dest)
-	}
-
-	dest, err := destination.GetDestination()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Only destination dirs are supported right now, but we could be flexible
+	// Only Destination dirs are supported right now, but we could be flexible
 	// on this in the future if needed.
-	destinationDir, ok := dest.(*DestinationDirectory)
+	destinationDir, ok := destination.(*DestinationDirectory)
 	if !ok {
-		return trace.BadParameter("destination %s must be a directory", dest)
+		return trace.BadParameter("Destination %s must be a directory", destination)
 	}
 
 	// Ping the auth server and proxy to resolve connection addresses.
@@ -233,14 +196,19 @@ func (t *TemplateKubernetes) Render(
 		proxyAddr:             authPong.ProxyPublicAddr,
 		credentials:           key,
 		teleportClusterName:   authPong.ClusterName,
-		kubernetesClusterName: destination.KubernetesCluster.ClusterName,
+		kubernetesClusterName: t.clusterName,
 	}
 
 	if proxyPong.Proxy.TLSRoutingEnabled {
 		status.tlsServerName = serverName
 	}
 
-	cfg, err := generateKubeConfig(t, status, destinationDir.Path)
+	executablePath, err := t.executablePathGetter()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	cfg, err := generateKubeConfig(status, destinationDir.Path, executablePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -250,5 +218,5 @@ func (t *TemplateKubernetes) Render(
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(dest.Write(t.Path, yamlCfg))
+	return trace.Wrap(destination.Write(defaultKubeconfigPath, yamlCfg))
 }

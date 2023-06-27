@@ -19,10 +19,8 @@ package config
 import (
 	"context"
 	"fmt"
-	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 
 	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
@@ -36,12 +34,15 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
-// TemplateSSHClient contains parameters for the ssh_config config
+// templateSSHClient contains parameters for the ssh_config config
 // template
-type TemplateSSHClient struct {
-	ProxyPort         uint16 `yaml:"proxy_port"`
-	getSSHVersion     func() (*semver.Version, error)
-	getExecutablePath func() (string, error)
+type templateSSHClient struct {
+	getSSHVersion        func() (*semver.Version, error)
+	executablePathGetter executablePathGetter
+	// destPath controls whether or not to write the SSH config file.
+	// This is lets this be skipped on non-directory destinations where this
+	// doesn't make sense.
+	destPath string
 }
 
 const (
@@ -52,44 +53,25 @@ const (
 	knownHostsName = "known_hosts"
 )
 
-func (c *TemplateSSHClient) CheckAndSetDefaults() error {
-	if c.ProxyPort != 0 {
-		log.Warn("ssh_client's proxy_port parameter is deprecated and will be removed in a future release.")
-	}
-	if c.getSSHVersion == nil {
-		c.getSSHVersion = openssh.GetSystemSSHVersion
-	}
-	if c.getExecutablePath == nil {
-		c.getExecutablePath = os.Executable
-	}
-	return nil
-}
-
-func (c *TemplateSSHClient) Name() string {
+func (c *templateSSHClient) name() string {
 	return TemplateSSHClientName
 }
 
-func (c *TemplateSSHClient) Describe(destination bot.Destination) []FileDescription {
-	ret := []FileDescription{
+func (c *templateSSHClient) describe() []FileDescription {
+	fds := []FileDescription{
 		{
-			Name: "known_hosts",
+			Name: knownHostsName,
 		},
 	}
 
-	// Only include ssh_config if we're using a filesystem destination as
-	// otherwise ssh_config will not be sensible.
-	if _, ok := destination.(*DestinationDirectory); ok {
-		ret = append(ret, FileDescription{
-			Name: "ssh_config",
+	if c.destPath != "" {
+		fds = append(fds, FileDescription{
+			Name: sshConfigName,
 		})
 	}
 
-	return ret
+	return fds
 }
-
-// sshConfigUnsupportedWarning is used to ensure we don't spam log messages if
-// using non-filesystem backends.
-var sshConfigUnsupportedWarning sync.Once
 
 func getClusterNames(
 	bot provider, connectedClusterName string,
@@ -107,17 +89,12 @@ func getClusterNames(
 	return allClusterNames, nil
 }
 
-func (c *TemplateSSHClient) Render(
+func (c *templateSSHClient) render(
 	ctx context.Context,
 	bot provider,
 	_ *identity.Identity,
-	destination *DestinationConfig,
+	destination bot.Destination,
 ) error {
-	dest, err := destination.GetDestination()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	ping, err := bot.AuthPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
@@ -133,22 +110,7 @@ func (c *TemplateSSHClient) Render(
 		return trace.Wrap(err)
 	}
 
-	// Backend note: Prefer to use absolute paths for filesystem backends.
-	// If the backend is something else, use "". ssh_config will generate with
-	// paths relative to the destination. This doesn't work with ssh in
-	// practice so adjusting the config for impossible-to-determine-in-advance
-	// destination backends is left as an exercise to the user.
-	var destDir string
-	if dir, ok := dest.(*DestinationDirectory); ok {
-		destDir, err = filepath.Abs(dir.Path)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	} else {
-		destDir = ""
-	}
-
-	// We'll write known_hosts regardless of destination type, it's still
+	// We'll write known_hosts regardless of Destination type, it's still
 	// useful alongside a manually-written ssh_config.
 	knownHosts, err := fetchKnownHosts(
 		ctx,
@@ -160,31 +122,33 @@ func (c *TemplateSSHClient) Render(
 		return trace.Wrap(err)
 	}
 
-	if err := dest.Write(knownHostsName, []byte(knownHosts)); err != nil {
+	if err := destination.Write(knownHostsName, []byte(knownHosts)); err != nil {
 		return trace.Wrap(err)
 	}
 
-	// If destDir is unset, we're not using a filesystem destination and
-	// ssh_config will not be sensible. Log a note and bail early without
-	// writing ssh_config. (Future users of k8s secrets will need to bring
-	// their own config, we can't predict where paths will be in practice.)
-	if destDir == "" {
-		sshConfigUnsupportedWarning.Do(func() {
-			log.Infof("Note: no ssh_config will be written for non-filesystem "+
-				"destination %s.", dest)
-		})
+	if c.destPath == "" {
 		return nil
 	}
 
-	executablePath, err := c.getExecutablePath()
+	// Backend note: Prefer to use absolute paths for filesystem backends.
+	// If the backend is something else, use "". ssh_config will generate with
+	// paths relative to the Destination. This doesn't work with ssh in
+	// practice so adjusting the config for impossible-to-determine-in-advance
+	// Destination backends is left as an exercise to the user.
+	absDestPath, err := filepath.Abs(c.destPath)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	executablePath, err := c.executablePathGetter()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
 	var sshConfigBuilder strings.Builder
-	knownHostsPath := filepath.Join(destDir, knownHostsName)
-	identityFilePath := filepath.Join(destDir, identity.PrivateKeyKey)
-	certificateFilePath := filepath.Join(destDir, identity.SSHCertKey)
+	knownHostsPath := filepath.Join(absDestPath, knownHostsName)
+	identityFilePath := filepath.Join(absDestPath, identity.PrivateKeyKey)
+	certificateFilePath := filepath.Join(absDestPath, identity.SSHCertKey)
 
 	sshConf := openssh.NewSSHConfig(c.getSSHVersion, log)
 	if err := sshConf.GetSSHConfig(&sshConfigBuilder, &openssh.SSHConfigParameters{
@@ -196,12 +160,12 @@ func (c *TemplateSSHClient) Render(
 		ProxyHost:           proxyHost,
 		ProxyPort:           proxyPort,
 		ExecutablePath:      executablePath,
-		DestinationDir:      destDir,
+		DestinationDir:      absDestPath,
 	}); err != nil {
 		return trace.Wrap(err)
 	}
 
-	if err := dest.Write(sshConfigName, []byte(sshConfigBuilder.String())); err != nil {
+	if err := destination.Write(sshConfigName, []byte(sshConfigBuilder.String())); err != nil {
 		return trace.Wrap(err)
 	}
 

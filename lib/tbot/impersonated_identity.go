@@ -45,11 +45,11 @@ import (
 
 const renewalRetryLimit = 5
 
-func (b *Bot) renewDestinationsLoop(
+func (b *Bot) renewOutputsLoop(
 	ctx context.Context, reloadChan <-chan struct{},
 ) error {
 	b.log.Infof(
-		"Beginning destination renewal loop: ttl=%s interval=%s",
+		"Beginning output renewal loop: ttl=%s interval=%s",
 		b.cfg.CertificateTTL,
 		b.cfg.RenewalInterval,
 	)
@@ -61,11 +61,11 @@ func (b *Bot) renewDestinationsLoop(
 		var err error
 		for attempt := 1; attempt <= renewalRetryLimit; attempt++ {
 			b.log.Infof(
-				"Renewing destinations. Attempt %d of %d.",
+				"Renewing outputs. Attempt %d of %d.",
 				attempt,
 				renewalRetryLimit,
 			)
-			err = b.renewDestinations(ctx)
+			err = b.renewOutputs(ctx)
 			if err == nil {
 				break
 			}
@@ -75,7 +75,7 @@ func (b *Bot) renewDestinationsLoop(
 				backoffTime := time.Second * time.Duration(math.Pow(2, float64(attempt-1)))
 				backoffTime = jitter(backoffTime)
 				b.log.WithError(err).Warnf(
-					"Destination renewal attempt %d of %d failed. Retrying after %s.",
+					"Output renewal attempt %d of %d failed. Retrying after %s.",
 					attempt,
 					renewalRetryLimit,
 					backoffTime,
@@ -88,9 +88,9 @@ func (b *Bot) renewDestinationsLoop(
 			}
 		}
 		if err != nil {
-			b.log.Warnf("%d retry attempts exhausted renewing destinations. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, b.cfg.RenewalInterval)
+			b.log.Warnf("%d retry attempts exhausted renewing outputs. Waiting for next normal renewal cycle in %s.", renewalRetryLimit, b.cfg.RenewalInterval)
 		} else {
-			b.log.Infof("Renewed destinations. Next destination renewal in approximately %s.", b.cfg.RenewalInterval)
+			b.log.Infof("Renewed outputs. Next output renewal in approximately %s.", b.cfg.RenewalInterval)
 		}
 
 		select {
@@ -175,7 +175,7 @@ func (b *Bot) generateIdentity(
 	ctx context.Context,
 	client auth.ClientI,
 	currentIdentity *identity.Identity,
-	destCfg *config.DestinationConfig,
+	output config.Output,
 	defaultRoles []string,
 	configurator identityConfigurator,
 ) (*identity.Identity, error) {
@@ -192,10 +192,10 @@ func (b *Bot) generateIdentity(
 	}
 
 	var roleRequests []string
-	if len(destCfg.Roles) > 0 {
-		roleRequests = destCfg.Roles
+	if roles := output.GetRoles(); len(roles) > 0 {
+		roleRequests = roles
 	} else {
-		b.log.Debugf("Destination specified no roles, defaults will be requested: %v", defaultRoles)
+		b.log.Debugf("Output specified no roles, defaults will be requested: %v", defaultRoles)
 		roleRequests = defaultRoles
 	}
 
@@ -291,30 +291,30 @@ func getDatabase(ctx context.Context, client auth.ClientI, name string) (types.D
 	return databases[0], nil
 }
 
-func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, dbCfg *config.Database) (proto.RouteToDatabase, error) {
-	if dbCfg.Service == "" {
+func (b *Bot) getRouteToDatabase(ctx context.Context, client auth.ClientI, output *config.DatabaseOutput) (proto.RouteToDatabase, error) {
+	if output.Service == "" {
 		return proto.RouteToDatabase{}, nil
 	}
 
-	db, err := getDatabase(ctx, client, dbCfg.Service)
+	db, err := getDatabase(ctx, client, output.Service)
 	if err != nil {
 		return proto.RouteToDatabase{}, trace.Wrap(err)
 	}
 
-	username := dbCfg.Username
+	username := output.Username
 	if db.GetProtocol() == libdefaults.ProtocolMongoDB && username == "" {
 		// This isn't strictly a runtime error so killing the process seems
 		// wrong. We'll just loudly warn about it.
-		b.log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", dbCfg.Service)
+		b.log.Errorf("Database `username` field for %q is unset but is required for MongoDB databases.", output.Service)
 	} else if db.GetProtocol() == libdefaults.ProtocolRedis && username == "" {
 		// Per tsh's lead, fall back to the default username.
 		username = libdefaults.DefaultRedisUsername
 	}
 
 	return proto.RouteToDatabase{
-		ServiceName: dbCfg.Service,
+		ServiceName: output.Service,
 		Protocol:    db.GetProtocol(),
-		Database:    dbCfg.Database,
+		Database:    output.Database,
 		Username:    username,
 	}, nil
 }
@@ -348,12 +348,8 @@ func getApp(ctx context.Context, client auth.ClientI, appName string) (types.App
 	return apps[0], nil
 }
 
-func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client auth.ClientI, appCfg *config.App) (proto.RouteToApp, error) {
-	if appCfg.App == "" {
-		return proto.RouteToApp{}, trace.BadParameter("App name must be configured")
-	}
-
-	app, err := getApp(ctx, client, appCfg.App)
+func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity, client auth.ClientI, output *config.ApplicationOutput) (proto.RouteToApp, error) {
+	app, err := getApp(ctx, client, output.AppName)
 	if err != nil {
 		return proto.RouteToApp{}, trace.Wrap(err)
 	}
@@ -382,17 +378,17 @@ func (b *Bot) getRouteToApp(ctx context.Context, botIdentity *identity.Identity,
 }
 
 // generateImpersonatedIdentity generates an impersonated identity for a given
-// destination. It also returns a client that is authenticated with that
+// output. It also returns a client that is authenticated with that
 // impersonated identity.
 func (b *Bot) generateImpersonatedIdentity(
 	ctx context.Context,
 	botClient auth.ClientI,
 	botIdentity *identity.Identity,
-	destCfg *config.DestinationConfig,
+	output config.Output,
 	defaultRoles []string,
 ) (impersonatedIdentity *identity.Identity, impersonatedClient auth.ClientI, err error) {
 	impersonatedIdentity, err = b.generateIdentity(
-		ctx, botClient, botIdentity, destCfg, defaultRoles, nil,
+		ctx, botClient, botIdentity, output, defaultRoles, nil,
 	)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -414,8 +410,22 @@ func (b *Bot) generateImpersonatedIdentity(
 
 	// Now that we have an initial impersonated identity, we can use it to
 	// request any app/db/etc certs
-	if destCfg.Database != nil {
-		route, err := b.getRouteToDatabase(ctx, impersonatedClient, destCfg.Database)
+	switch output := output.(type) {
+	case *config.IdentityOutput:
+		if output.Cluster == "" {
+			return impersonatedIdentity, impersonatedClient, nil
+		}
+
+		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
+			req.RouteToCluster = output.Cluster
+		},
+		)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return routedIdentity, impersonatedClient, nil
+	case *config.DatabaseOutput:
+		route, err := b.getRouteToDatabase(ctx, impersonatedClient, output)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
@@ -424,58 +434,51 @@ func (b *Bot) generateImpersonatedIdentity(
 		// so we'll request the database access identity using the main bot
 		// identity (having gathered the necessary info for RouteToDatabase
 		// using the correct impersonated unroutedIdentity.)
-		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		b.log.Infof("Generated identity for database %q", destCfg.Database.Service)
+		b.log.Infof("Generated identity for database %q", output.Service)
 
 		return routedIdentity, impersonatedClient, nil
-	} else if destCfg.KubernetesCluster != nil {
+	case *config.KubernetesOutput:
 		// Note: the Teleport server does attempt to verify k8s cluster names
 		// and will fail to generate certs if the cluster doesn't exist or is
 		// offline.
-		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
-			req.KubernetesCluster = destCfg.KubernetesCluster.ClusterName
+		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
+			req.KubernetesCluster = output.KubernetesCluster
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		b.log.Infof("Generated identity for Kubernetes cluster %q", *destCfg.KubernetesCluster)
+		b.log.Infof("Generated identity for Kubernetes cluster %q", output.KubernetesCluster)
 
 		return routedIdentity, impersonatedClient, nil
-	} else if destCfg.App != nil {
-		routeToApp, err := b.getRouteToApp(ctx, botIdentity, impersonatedClient, destCfg.App)
+	case *config.ApplicationOutput:
+		routeToApp, err := b.getRouteToApp(ctx, botIdentity, impersonatedClient, output)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, output, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToApp = routeToApp
 		})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		b.log.Infof("Generated identity for app %q", *destCfg.App)
+		b.log.Infof("Generated identity for app %q", output.AppName)
 
 		return routedIdentity, impersonatedClient, nil
-	} else if destCfg.Cluster != "" {
-		routedIdentity, err := b.generateIdentity(ctx, botClient, impersonatedIdentity, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
-			req.RouteToCluster = destCfg.Cluster
-		},
-		)
-		if err != nil {
-			return nil, nil, trace.Wrap(err)
-		}
-		return routedIdentity, impersonatedClient, nil
+	case *config.SSHHostOutput:
+		return impersonatedIdentity, impersonatedClient, nil
+	default:
+		return nil, nil, trace.BadParameter("generateImpersonatedIdentity does not support output type (%T)", output)
 	}
-
-	return impersonatedIdentity, impersonatedClient, nil
 }
 
 // fetchDefaultRoles requests the bot's own role from the auth server and
@@ -490,8 +493,8 @@ func fetchDefaultRoles(ctx context.Context, roleGetter services.RoleGetter, botR
 	return conditions.Roles, nil
 }
 
-// renewDestinations performs a single renewal
-func (b *Bot) renewDestinations(
+// renewOutputs performs a single renewal
+func (b *Bot) renewOutputs(
 	ctx context.Context,
 ) error {
 	botIdentity := b.ident()
@@ -501,9 +504,9 @@ func (b *Bot) renewDestinations(
 	}
 	defer client.Close()
 
-	// create a cache shared across destinations so they don't hammer the auth
+	// create a cache shared across outputs so they don't hammer the auth
 	// server with similar requests
-	drc := &destinationRenewalCache{
+	drc := &outputRenewalCache{
 		client: client,
 	}
 
@@ -518,16 +521,16 @@ func (b *Bot) renewDestinations(
 	}
 
 	// Next, generate impersonated certs
-	for _, dest := range b.cfg.Destinations {
-		destImpl, err := dest.GetDestination()
-		if err != nil {
-			return trace.Wrap(err)
-		}
+	for _, output := range b.cfg.Outputs {
+		b.log.WithFields(logrus.Fields{
+			"output": output,
+		}).Info("Generating output.")
 
+		dest := output.GetDestination()
 		// Check the ACLs. We can't fix them, but we can warn if they're
 		// misconfigured. We'll need to precompute a list of keys to check.
 		// Note: This may only log a warning, depending on configuration.
-		if err := destImpl.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
+		if err := dest.Verify(identity.ListKeys(identity.DestinationKinds()...)); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -535,52 +538,49 @@ func (b *Bot) renewDestinations(
 		// ACLs are misconfigured, regardless of configuration.
 		// TODO: consider not making these a hard error? e.g. write other
 		// destinations even if this one is broken?
-		if err := identity.VerifyWrite(destImpl); err != nil {
-			return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
+		if err := identity.VerifyWrite(dest); err != nil {
+			return trace.Wrap(err, "testing output destination: %s", output)
 		}
 
 		impersonatedIdentity, impersonatedClient, err := b.generateImpersonatedIdentity(
-			ctx, client, botIdentity, dest, defaultRoles,
+			ctx, client, botIdentity, output, defaultRoles,
 		)
 		if err != nil {
-			return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
+			return trace.Wrap(err, "generating impersonated certs for output: %s", output)
 		}
 		defer impersonatedClient.Close()
 
-		b.log.Infof("Renewed destination certificates for %s, %s", destImpl, describeTLSIdentity(b.log, impersonatedIdentity))
-
-		if err := identity.SaveIdentity(impersonatedIdentity, destImpl, identity.DestinationKinds()...); err != nil {
-			return trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
-		}
+		b.log.WithFields(logrus.Fields{
+			"identity": describeTLSIdentity(b.log, impersonatedIdentity),
+			"output":   output,
+		}).Debug("Fetched identity for output.")
 
 		// Create a destination provider to bundle up all the dependencies that
 		// a destination template might need to render.
-		dp := &destinationProvider{
-			destinationRenewalCache: drc,
-			impersonatedClient:      impersonatedClient,
+		dp := &outputProvider{
+			outputRenewalCache: drc,
+			impersonatedClient: impersonatedClient,
+			cfg:                b.cfg,
 		}
 
-		for _, templateConfig := range dest.Configs {
-			template, err := templateConfig.GetConfigTemplate()
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			if err := template.Render(ctx, dp, impersonatedIdentity, dest); err != nil {
-				b.log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
-				return trace.Wrap(err)
-			}
+		if err := output.Render(ctx, dp, impersonatedIdentity); err != nil {
+			b.log.WithError(err).Warnf("Failed to render output %s", output)
+			return trace.Wrap(err, "rendering output: %s", output)
 		}
+
+		b.log.WithFields(logrus.Fields{
+			"output": output,
+		}).Info("Generated output.")
 	}
 
 	return nil
 }
 
-// destinationRenewalCache is used to cache information during a renewal to pass
-// to destinations. This prevents them all hammering the auth server with
+// outputRenewalCache is used to cache information during a renewal to pass
+// to outputs. This prevents them all hammering the auth server with
 // requests for the same information. This is shared between all of the
-// destinations.
-type destinationRenewalCache struct {
+// outputs.
+type outputRenewalCache struct {
 	client auth.ClientI
 
 	mu sync.Mutex
@@ -590,22 +590,10 @@ type destinationRenewalCache struct {
 	_proxyPong *webclient.PingResponse
 }
 
-// certAuthorities returns cached CAs of the given type.
-func (drc *destinationRenewalCache) certAuthorities(
-	caType types.CertAuthType,
-) []types.CertAuthority {
-	drc.mu.Lock()
-	defer drc.mu.Unlock()
-
-	return drc._cas[caType]
-}
-
-// GetCertAuthorities returns the possibly cached CAs of the given type and
-// requests them from the server if unavailable.
-func (drc *destinationRenewalCache) GetCertAuthorities(
+func (drc *outputRenewalCache) getCertAuthorities(
 	ctx context.Context, caType types.CertAuthType,
 ) ([]types.CertAuthority, error) {
-	if cas := drc.certAuthorities(caType); len(cas) > 0 {
+	if cas := drc._cas[caType]; len(cas) > 0 {
 		return cas, nil
 	}
 
@@ -614,9 +602,6 @@ func (drc *destinationRenewalCache) GetCertAuthorities(
 		return nil, trace.Wrap(err)
 	}
 
-	drc.mu.Lock()
-	defer drc.mu.Unlock()
-
 	if drc._cas == nil {
 		drc._cas = map[types.CertAuthType][]types.CertAuthority{}
 	}
@@ -624,10 +609,17 @@ func (drc *destinationRenewalCache) GetCertAuthorities(
 	return cas, nil
 }
 
-// AuthPing pings the auth server and returns the (possibly cached) response.
-func (drc *destinationRenewalCache) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
+// GetCertAuthorities returns the possibly cached CAs of the given type and
+// requests them from the server if unavailable.
+func (drc *outputRenewalCache) GetCertAuthorities(
+	ctx context.Context, caType types.CertAuthType,
+) ([]types.CertAuthority, error) {
 	drc.mu.Lock()
 	defer drc.mu.Unlock()
+	return drc.getCertAuthorities(ctx, caType)
+}
+
+func (drc *outputRenewalCache) authPing(ctx context.Context) (*proto.PingResponse, error) {
 	if drc._authPong != nil {
 		return drc._authPong, nil
 	}
@@ -641,19 +633,21 @@ func (drc *destinationRenewalCache) AuthPing(ctx context.Context) (*proto.PingRe
 	return &pong, nil
 }
 
-// ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
-// Note that it relies on the auth server being configured with a sane proxy
-// public address.
-func (drc *destinationRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+// AuthPing pings the auth server and returns the (possibly cached) response.
+func (drc *outputRenewalCache) AuthPing(ctx context.Context) (*proto.PingResponse, error) {
 	drc.mu.Lock()
 	defer drc.mu.Unlock()
+	return drc.authPing(ctx)
+}
+
+func (drc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingResponse, error) {
 	if drc._proxyPong != nil {
 		return drc._proxyPong, nil
 	}
 
 	// Note: this relies on the auth server's proxy address. We could
 	// potentially support some manual parameter here in the future if desired.
-	authPong, err := drc.AuthPing(ctx)
+	authPong, err := drc.authPing(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -671,37 +665,45 @@ func (drc *destinationRenewalCache) ProxyPing(ctx context.Context) (*webclient.P
 	return proxyPong, nil
 }
 
-// destinationProvider bundles the dependencies a template needs in order to
-// produce its output.
+// ProxyPing returns a (possibly cached) ping response from the Teleport proxy.
+// Note that it relies on the auth server being configured with a sane proxy
+// public address.
+func (drc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingResponse, error) {
+	drc.mu.Lock()
+	defer drc.mu.Unlock()
+	return drc.proxyPing(ctx)
+}
+
+// outputProvider bundles the dependencies an output needs in order to render.
 // It provides a handy point for controlling what templates are allowed to call
 // and how they are allowed to call them. This makes ensuring that they call
 // RPCs with the correct identity much easier.
-type destinationProvider struct {
-	// we embed the cache shared across all destinations to provide access to
+type outputProvider struct {
+	// we embed the cache shared across all outputs to provide access to
 	// non-identity specific methods like `AuthPing`.
-	*destinationRenewalCache
+	*outputRenewalCache
 	// impersonatedClient is a client using the impersonated identity configured
-	// for that destination.
+	// for that output.
 	impersonatedClient auth.ClientI
 	cfg                *config.BotConfig
 }
 
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
-func (dp *destinationProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
-	return dp.impersonatedClient.GetRemoteClusters(opts...)
+func (op *outputProvider) GetRemoteClusters(opts ...services.MarshalOption) ([]types.RemoteCluster, error) {
+	return op.impersonatedClient.GetRemoteClusters(opts...)
 }
 
 // GenerateHostCert uses the impersonatedClient to call GenerateHostCert.
-func (dp *destinationProvider) GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
-	return dp.impersonatedClient.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
+func (op *outputProvider) GenerateHostCert(ctx context.Context, key []byte, hostID, nodeName string, principals []string, clusterName string, role types.SystemRole, ttl time.Duration) ([]byte, error) {
+	return op.impersonatedClient.GenerateHostCert(ctx, key, hostID, nodeName, principals, clusterName, role, ttl)
 }
 
 // GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
-func (dp *destinationProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
-	return dp.impersonatedClient.GetCertAuthority(ctx, id, loadKeys)
+func (op *outputProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
+	return op.impersonatedClient.GetCertAuthority(ctx, id, loadKeys)
 }
 
 // Config returns the bots config.
-func (dp *destinationProvider) Config() *config.BotConfig {
-	return dp.cfg
+func (op *outputProvider) Config() *config.BotConfig {
+	return op.cfg
 }

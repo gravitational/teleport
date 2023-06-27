@@ -162,7 +162,7 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 // MakeMemoryBotConfig creates a usable bot config from joining parameters. It
 // only writes artifacts to memory and can be further modified if desired.
 func MakeMemoryBotConfig(
-	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, destinations []*botconfig.DestinationConfig,
+	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output,
 ) *botconfig.BotConfig {
 	t.Helper()
 
@@ -176,12 +176,10 @@ func MakeMemoryBotConfig(
 			JoinMethod: botParams.JoinMethod,
 		},
 		Storage: &botconfig.StorageConfig{
-			DestinationMixin: botconfig.DestinationMixin{
-				Memory: &botconfig.DestinationMemory{},
-			},
+			Destination: &botconfig.DestinationMemory{},
 		},
-		Oneshot:      true,
-		Destinations: destinations,
+		Oneshot: true,
+		Outputs: outputs,
 	}
 
 	cfg.Onboarding.SetToken(botParams.TokenID)

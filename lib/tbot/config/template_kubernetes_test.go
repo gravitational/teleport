@@ -37,34 +37,25 @@ func TestTemplateKubernetesRender(t *testing.T) {
 	cfg, err := newTestConfig("example.com")
 	require.NoError(t, err)
 
-	mockBot := newMockProvider(cfg)
-	template := TemplateKubernetes{
-		getExecutablePath: func() (string, error) {
-			return "tbot", nil
-		},
-	}
-	require.NoError(t, template.CheckAndSetDefaults())
-
 	k8sCluster := "example"
-	dest := &DestinationConfig{
-		DestinationMixin: DestinationMixin{
-			Directory: &DestinationDirectory{
-				Path:     dir,
-				Symlinks: botfs.SymlinksInsecure,
-				ACLs:     botfs.ACLOff,
-			},
-		},
-		KubernetesCluster: &KubernetesCluster{
-			ClusterName: k8sCluster,
-		},
+	mockBot := newMockProvider(cfg)
+	tmpl := templateKubernetes{
+		clusterName:          k8sCluster,
+		executablePathGetter: fakeGetExecutablePath,
+	}
+
+	dest := &DestinationDirectory{
+		Path:     dir,
+		Symlinks: botfs.SymlinksInsecure,
+		ACLs:     botfs.ACLOff,
 	}
 
 	ident := getTestIdent(t, "bot-test", kubernetesRequest(k8sCluster))
 
-	err = template.Render(context.Background(), mockBot, ident, dest)
+	err = tmpl.render(context.Background(), mockBot, ident, dest)
 	require.NoError(t, err)
 
-	kubeconfigBytes, err := os.ReadFile(filepath.Join(dir, template.Path))
+	kubeconfigBytes, err := os.ReadFile(filepath.Join(dir, defaultKubeconfigPath))
 	require.NoError(t, err)
 
 	kubeconfigBytes = bytes.ReplaceAll(kubeconfigBytes, []byte(dir), []byte("/test/dir"))
