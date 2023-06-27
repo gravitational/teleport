@@ -1735,6 +1735,13 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "allow_headless,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // DefaultSessionTTL is the TTL to use for user certs when
+  // an explicit TTL is not requested.
+  int64 DefaultSessionTTL = 16 [
+    (gogoproto.jsontag) = "default_session_ttl,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // U2F defines settings for U2F device.
