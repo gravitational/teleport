@@ -240,14 +240,23 @@ func createOrReplaceBot(ctx context.Context, opts Options, authClient auth.Clien
 	if err != nil {
 		return "", trace.Wrap(err)
 	}
+
+	// If the bot already exists, we remove it and its role.
+	// Else, we still check if the role is here. We expect an error (Not Found).
+	// If there's no error, there's a leftover role and we need to remove it to
+	// recover, else the bot creation will fail and the operator be stuck.
+	botRoleName := fmt.Sprintf("bot-%s", opts.Name)
 	if botPresent {
 		if err := authClient.DeleteBot(ctx, opts.Name); err != nil {
 			return "", trace.Wrap(err)
 		}
-		if err := authClient.DeleteRole(ctx, fmt.Sprintf("bot-%s", opts.Name)); err != nil {
+		if err := authClient.DeleteRole(ctx, botRoleName); err != nil {
 			return "", trace.Wrap(err)
 		}
-
+	} else if _, err := authClient.GetRole(ctx, botRoleName); err == nil {
+		if err := authClient.DeleteRole(ctx, botRoleName); err != nil {
+			return "", trace.Wrap(err)
+		}
 	}
 	response, err := authClient.CreateBot(ctx, &proto.CreateBotRequest{
 		Name:  opts.Name,
