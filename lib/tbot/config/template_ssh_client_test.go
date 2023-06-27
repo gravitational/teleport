@@ -53,29 +53,24 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 			cfg, err := newTestConfig("example.com")
 			require.NoError(t, err)
 
+			// ident is passed in, but not used.
+			var ident *identity.Identity
+			dest := &DestinationDirectory{
+				Path:     dir,
+				Symlinks: botfs.SymlinksInsecure,
+				ACLs:     botfs.ACLOff,
+			}
+
 			mockBot := newMockProvider(cfg)
-			template := TemplateSSHClient{
-				ProxyPort: 1337,
+			tmpl := templateSSHClient{
 				getSSHVersion: func() (*semver.Version, error) {
 					return semver.New(tc.Version), nil
 				},
-				getExecutablePath: func() (string, error) {
-					return "/path/to/tbot", nil
-				},
-			}
-			// ident is passed in, but not used.
-			var ident *identity.Identity
-			dest := &DestinationConfig{
-				DestinationMixin: DestinationMixin{
-					Directory: &DestinationDirectory{
-						Path:     dir,
-						Symlinks: botfs.SymlinksInsecure,
-						ACLs:     botfs.ACLOff,
-					},
-				},
+				executablePathGetter: fakeGetExecutablePath,
+				destPath:             dest.Path,
 			}
 
-			err = template.Render(context.Background(), mockBot, ident, dest)
+			err = tmpl.render(context.Background(), mockBot, ident, dest)
 			require.NoError(t, err)
 
 			replaceTestDir := func(b []byte) []byte {
