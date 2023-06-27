@@ -315,6 +315,7 @@ func parsePlanningOutput(text string) (*agentAction, *agentFinish, error) {
 	log.Tracef("received planning output: \"%v\"", text)
 	response, err := parseJSONFromModel[planOutput](text)
 	if err != nil {
+		log.WithError(err).Trace("failed to parse planning output")
 		return nil, nil, trace.Wrap(err)
 	}
 
