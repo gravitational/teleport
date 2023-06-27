@@ -32,6 +32,12 @@ jamf_service:
   # Default is '0'.
   sync_delay: 0
 
+  # If `true` the Teleport process runs all Jamf syncs immediately and exits as
+  # soon as they are done. Implies `sync_delay=-1`.
+  # Useful for cron-like executions of Jamf syncs.
+  # Default is `false`.
+  exit_on_sync: false
+
   # Inventory sync entries.
   # Each entry corresponds to its own sync schedule and may have different
   # filters and intervals.
