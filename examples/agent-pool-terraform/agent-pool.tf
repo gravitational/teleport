@@ -31,7 +31,7 @@ resource "aws_instance" "teleport_agent" {
   // The following two blocks adhere to security best practices.
 
   metadata_options {
-    http_tokens   = "required"
+    http_tokens = "required"
   }
 
   root_block_device {
