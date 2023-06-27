@@ -19,7 +19,6 @@ package auth
 import (
 	"context"
 	"fmt"
-	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"strconv"
 	"strings"
 	"time"
@@ -36,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
