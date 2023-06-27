@@ -2460,7 +2460,22 @@ func (f *Forwarder) removeKubeDetails(name string) {
 // KubeProxy services or remote clusters are automatically forwarded to
 // the final destination.
 func (f *Forwarder) isLocalKubeCluster(sess *clusterSession) bool {
-	return !sess.authContext.teleportCluster.isRemote && f.cfg.KubeServiceType == KubeService
+	switch f.cfg.KubeServiceType {
+	case KubeService:
+		// Kubernetes service is always local.
+		return true
+	case LegacyProxyService:
+		// remote clusters are always forwarded to the final destination.
+		if sess.authContext.teleportCluster.isRemote {
+			return false
+		}
+		// Legacy proxy service is local only if the kube cluster name matches
+		// with clusters served by this agent.
+		_, err := f.findKubeDetailsByClusterName(sess.authContext.kubeClusterName)
+		return err == nil
+	default:
+		return false
+	}
 }
 
 // listPods forwards the pod list request to the target server, captures
