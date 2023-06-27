@@ -167,7 +167,26 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			},
 		},
 	}
-
+	validateEKSToken := func(token string) error {
+		if token == "" {
+			return trace.BadParameter("missing bearer token")
+		}
+		tokens := strings.Split(token, ".")
+		if len(tokens) != 2 {
+			return trace.BadParameter("invalid bearer token")
+		}
+		if tokens[0] != "k8s-aws-v1" {
+			return trace.BadParameter("token must start with k8s-aws-v1")
+		}
+		dec, err := base64.RawStdEncoding.DecodeString(tokens[1])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if string(dec) != u.String() {
+			return trace.BadParameter("invalid token payload")
+		}
+		return nil
+	}
 	type args struct {
 		cluster             types.KubeCluster
 		client              dynamicCredsClient
@@ -183,28 +202,9 @@ func Test_DynamicKubeCreds(t *testing.T) {
 		{
 			name: "aws eks cluster without assume role",
 			args: args{
-				cluster: awsKube,
-				client:  getAWSClientRestConfig(cloudclients, fakeClock, nil),
-				validateBearerToken: func(token string) error {
-					if token == "" {
-						return trace.BadParameter("missing bearer token")
-					}
-					tokens := strings.Split(token, ".")
-					if len(tokens) != 2 {
-						return trace.BadParameter("invalid bearer token")
-					}
-					if tokens[0] != "k8s-aws-v1" {
-						return trace.BadParameter("token must start with k8s-aws-v1")
-					}
-					dec, err := base64.RawStdEncoding.DecodeString(tokens[1])
-					if err != nil {
-						return trace.Wrap(err)
-					}
-					if string(dec) != u.String() {
-						return trace.BadParameter("invalid token payload")
-					}
-					return nil
-				},
+				cluster:             awsKube,
+				client:              getAWSClientRestConfig(cloudclients, fakeClock, nil),
+				validateBearerToken: validateEKSToken,
 			},
 			wantAddr: "api.eks.us-west-2.amazonaws.com:443",
 		},
@@ -223,26 +223,7 @@ func Test_DynamicKubeCreds(t *testing.T) {
 						},
 					},
 				}),
-				validateBearerToken: func(token string) error {
-					if token == "" {
-						return trace.BadParameter("missing bearer token")
-					}
-					tokens := strings.Split(token, ".")
-					if len(tokens) != 2 {
-						return trace.BadParameter("invalid bearer token")
-					}
-					if tokens[0] != "k8s-aws-v1" {
-						return trace.BadParameter("token must start with k8s-aws-v1")
-					}
-					dec, err := base64.RawStdEncoding.DecodeString(tokens[1])
-					if err != nil {
-						return trace.Wrap(err)
-					}
-					if string(dec) != u.String() {
-						return trace.BadParameter("invalid token payload")
-					}
-					return nil
-				},
+				validateBearerToken: validateEKSToken,
 			},
 			wantAddr: "api.eks.us-west-2.amazonaws.com:443",
 		},
