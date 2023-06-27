@@ -260,6 +260,7 @@ func TestBotConfig_YAML(t *testing.T) {
 			},
 		},
 	}
+
 	testYAML(t, tests)
 }
 
