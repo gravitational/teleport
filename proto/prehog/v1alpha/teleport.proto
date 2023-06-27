@@ -346,6 +346,24 @@ message RoleCreateEvent {
   string role_name = 2;
 }
 
+// BotCreateEvent is emitted when user creates a bot.
+message BotCreateEvent {
+  // user_name is the anonymized name of the user who created the bot
+  string user_name = 1;
+  // anonymized
+  string bot_user_name = 2;
+  // role_name is the anonymized name of the bot role that was created.
+  string role_name = 3;
+  // role_count is the number of roles that the bot role can impersonate on
+  // creation.
+  int64 role_count = 4;
+  // join_method is the join method of the token associated with the bot on
+  // creation.
+  string join_method = 5;
+  // bot_name is the anonymised name of the bot.
+  string bot_name = 6;
+}
+
 message UICreateNewRoleClickEvent {
   //anonymized
   string user_name = 1;
@@ -466,6 +484,23 @@ message UIIntegrationEnrollCompleteEvent {
   IntegrationEnrollMetadata metadata = 1;
 }
 
+// EditorChangeEvent is an event that is emitted when a user role set changes resulting in
+// a editor role being added on removed
+message EditorChangeEvent {
+  // anonymized user name
+  string user_name = 1;
+  EditorChangeStatus status = 2;
+}
+
+// EditorChangeStatus is the possible value of an EditorChangeEvent event status
+enum EditorChangeStatus {
+  EDITOR_CHANGE_STATUS_UNSPECIFIED = 0;
+  // Status when the editor role is granted
+  EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1;
+  // Status when the editor role is removed
+  EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2;
+}
+
 message SubmitEventRequest {
   // anonymized
   string cluster_name = 1;
@@ -534,6 +569,10 @@ message SubmitEventRequest {
 
     UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 44;
     UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 45;
+
+    EditorChangeEvent editor_change_event = 46;
+
+    BotCreateEvent bot_create = 47;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
