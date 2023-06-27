@@ -61,6 +61,7 @@ goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent', n
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDatabaseRegisterEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDeployServiceEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployedMethod', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent', null, global);
@@ -5286,7 +5287,8 @@ proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.toObject = function(includeIns
   var f, obj = {
     metadata: (f = msg.getMetadata()) && proto.prehog.v1alpha.DiscoverMetadata.toObject(includeInstance, f),
     resource: (f = msg.getResource()) && proto.prehog.v1alpha.DiscoverResourceMetadata.toObject(includeInstance, f),
-    status: (f = msg.getStatus()) && proto.prehog.v1alpha.DiscoverStepStatus.toObject(includeInstance, f)
+    status: (f = msg.getStatus()) && proto.prehog.v1alpha.DiscoverStepStatus.toObject(includeInstance, f),
+    deployedMethod: jspb.Message.getFieldWithDefault(msg, 4, 0)
   };
 
   if (includeInstance) {
@@ -5337,6 +5339,10 @@ proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.deserializeBinaryFromReader = 
       var value = new proto.prehog.v1alpha.DiscoverStepStatus;
       reader.readMessage(value,proto.prehog.v1alpha.DiscoverStepStatus.deserializeBinaryFromReader);
       msg.setStatus(value);
+      break;
+    case 4:
+      var value = /** @type {!proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployedMethod} */ (reader.readEnum());
+      msg.setDeployedMethod(value);
       break;
     default:
       reader.skipField();
@@ -5391,8 +5397,24 @@ proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.serializeBinaryToWriter = func
       proto.prehog.v1alpha.DiscoverStepStatus.serializeBinaryToWriter
     );
   }
+  f = message.getDeployedMethod();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      4,
+      f
+    );
+  }
 };
 
+
+/**
+ * @enum {number}
+ */
+proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployedMethod = {
+  DEPLOYED_METHOD_UNSPECIFIED: 0,
+  DEPLOYED_METHOD_AUTO: 1,
+  DEPLOYED_METHOD_MANUAL: 2
+};
 
 /**
  * optional DiscoverMetadata metadata = 1;
@@ -5502,6 +5524,24 @@ proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.prototype.clearStatus = functi
  */
 proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.prototype.hasStatus = function() {
   return jspb.Message.getField(this, 3) != null;
+};
+
+
+/**
+ * optional DeployedMethod deployed_method = 4;
+ * @return {!proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployedMethod}
+ */
+proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.prototype.getDeployedMethod = function() {
+  return /** @type {!proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployedMethod} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {!proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.DeployedMethod} value
+ * @return {!proto.prehog.v1alpha.UIDiscoverDeployServiceEvent} returns this
+ */
+proto.prehog.v1alpha.UIDiscoverDeployServiceEvent.prototype.setDeployedMethod = function(value) {
+  return jspb.Message.setProto3EnumField(this, 4, value);
 };
 
 

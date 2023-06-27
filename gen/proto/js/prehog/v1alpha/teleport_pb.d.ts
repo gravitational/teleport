@@ -648,6 +648,9 @@ export class UIDiscoverDeployServiceEvent extends jspb.Message {
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDeployServiceEvent;
 
+    getDeployedMethod(): UIDiscoverDeployServiceEvent.DeployedMethod;
+    setDeployedMethod(value: UIDiscoverDeployServiceEvent.DeployedMethod): UIDiscoverDeployServiceEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDeployServiceEvent.AsObject;
@@ -664,7 +667,15 @@ export namespace UIDiscoverDeployServiceEvent {
         metadata?: DiscoverMetadata.AsObject,
         resource?: DiscoverResourceMetadata.AsObject,
         status?: DiscoverStepStatus.AsObject,
+        deployedMethod: UIDiscoverDeployServiceEvent.DeployedMethod,
     }
+
+    export enum DeployedMethod {
+    DEPLOYED_METHOD_UNSPECIFIED = 0,
+    DEPLOYED_METHOD_AUTO = 1,
+    DEPLOYED_METHOD_MANUAL = 2,
+    }
+
 }
 
 export class UIDiscoverDatabaseRegisterEvent extends jspb.Message { 

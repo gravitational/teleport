@@ -227,6 +227,20 @@ message UIDiscoverDeployServiceEvent {
   DiscoverMetadata metadata = 1;
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
+
+  // DeployedMethod desribes the method used to deploy a service.
+  enum DeployedMethod {
+    // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
+    // so deploying step got skipped.
+    DEPLOYED_METHOD_UNSPECIFIED = 0;
+    // DEPLOY_METHOD_AUTO means Teleport deployed a service for the user.
+    DEPLOYED_METHOD_AUTO = 1;
+    // DEPLOY_METHOD_MANUAL means user deployed service using their
+    // own instance using a Teleport download script.
+    DEPLOYED_METHOD_MANUAL = 2;
+  }
+
+  DeployedMethod deployed_method = 4;
 }
 
 // UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
