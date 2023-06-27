@@ -1,15 +1,15 @@
 ---
-title: SSH Authentication with One Login as an SSO provider
-description: How to configure SSH access using One Login as an SSO provider
-h1: SSH Authentication with OneLogin
+title: Teleport Authentication with One Login as an SSO provider
+description: How to configure Teleport access using One Login as an SSO provider
+h1: Teleport Authentication with OneLogin
 ---
 
 This guide will explain how to configure [OneLogin](https://www.onelogin.com/) to issue
-SSH credentials to specific groups of users. When used in combination with role
+Teleport credentials to specific groups of users. When used in combination with role
 based access control (RBAC) it allows SSH administrators to define policies
 like:
 
-- Only members of "DBA" group can SSH into machines running PostgreSQL.
+- Only members of "DBA" group can connect to PostgreSQL databases.
 - Developers must never SSH into production servers.
 - ... and many others.
 
@@ -142,4 +142,3 @@ automatically in a browser).
 ## Troubleshooting
 
 (!docs/pages/includes/sso/loginerrortroubleshooting.mdx!)
-
