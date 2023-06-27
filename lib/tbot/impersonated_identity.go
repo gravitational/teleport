@@ -508,6 +508,7 @@ func (b *Bot) renewOutputs(
 	// server with similar requests
 	drc := &outputRenewalCache{
 		client: client,
+		cfg:    b.cfg,
 	}
 
 	// Determine the default role list based on the bot role. The role's
@@ -560,7 +561,6 @@ func (b *Bot) renewOutputs(
 		dp := &outputProvider{
 			outputRenewalCache: drc,
 			impersonatedClient: impersonatedClient,
-			cfg:                b.cfg,
 		}
 
 		if err := output.Render(ctx, dp, impersonatedIdentity); err != nil {
@@ -583,7 +583,8 @@ func (b *Bot) renewOutputs(
 type outputRenewalCache struct {
 	client auth.ClientI
 
-	mu sync.Mutex
+	cfg *config.BotConfig
+	mu  sync.Mutex
 	// These are protected by getter/setters with mutex locks
 	_cas       map[types.CertAuthType][]types.CertAuthority
 	_authPong  *proto.PingResponse
@@ -655,6 +656,7 @@ func (drc *outputRenewalCache) proxyPing(ctx context.Context) (*webclient.PingRe
 	proxyPong, err := webclient.Ping(&webclient.Config{
 		Context:   ctx,
 		ProxyAddr: authPong.ProxyPublicAddr,
+		Insecure:  drc.cfg.Insecure,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -674,6 +676,11 @@ func (drc *outputRenewalCache) ProxyPing(ctx context.Context) (*webclient.PingRe
 	return drc.proxyPing(ctx)
 }
 
+// Config returns the bots config.
+func (op *outputRenewalCache) Config() *config.BotConfig {
+	return op.cfg
+}
+
 // outputProvider bundles the dependencies an output needs in order to render.
 // It provides a handy point for controlling what templates are allowed to call
 // and how they are allowed to call them. This makes ensuring that they call
@@ -685,7 +692,6 @@ type outputProvider struct {
 	// impersonatedClient is a client using the impersonated identity configured
 	// for that output.
 	impersonatedClient auth.ClientI
-	cfg                *config.BotConfig
 }
 
 // GetRemoteClusters uses the impersonatedClient to call GetRemoteClusters.
@@ -701,9 +707,4 @@ func (op *outputProvider) GenerateHostCert(ctx context.Context, key []byte, host
 // GetCertAuthority uses the impersonatedClient to call GetCertAuthority.
 func (op *outputProvider) GetCertAuthority(ctx context.Context, id types.CertAuthID, loadKeys bool) (types.CertAuthority, error) {
 	return op.impersonatedClient.GetCertAuthority(ctx, id, loadKeys)
-}
-
-// Config returns the bots config.
-func (op *outputProvider) Config() *config.BotConfig {
-	return op.cfg
 }

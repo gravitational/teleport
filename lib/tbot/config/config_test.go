@@ -207,11 +207,12 @@ func TestDestinationFromURI(t *testing.T) {
 	}
 }
 
-func TestBotConfig_MarshalYAML(t *testing.T) {
-	tests := []struct {
-		name string
-		in   BotConfig
-	}{
+// TestBotConfig_YAML ensures that as a whole YAML marshaling and unmarshaling
+// of the config works as expected. Avoid testing exhaustive cases here and
+// prefer the Output YAML tests for testing the intricacies of marshaling and
+// unmarshaling specific objects.
+func TestBotConfig_YAML(t *testing.T) {
+	tests := []testYAMLCase[BotConfig]{
 		{
 			name: "standard config",
 			in: BotConfig{
@@ -260,6 +261,15 @@ func TestBotConfig_MarshalYAML(t *testing.T) {
 		},
 	}
 
+	testYAML(t, tests)
+}
+
+type testYAMLCase[T any] struct {
+	name string
+	in   T
+}
+
+func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			b := bytes.NewBuffer(nil)
@@ -271,8 +281,17 @@ func TestBotConfig_MarshalYAML(t *testing.T) {
 				golden.Set(t, b.Bytes())
 			}
 			require.Equal(
-				t, string(golden.Get(t)), b.String(),
+				t,
+				string(golden.Get(t)),
+				b.String(),
+				"results of marshal did not match golden file, rerun tests with GOLDEN_UPDATE=1",
 			)
+
+			// Now test unmarshalling to see if we get the same object back
+			decoder := yaml.NewDecoder(b)
+			var unmarshalled T
+			require.NoError(t, decoder.Decode(&unmarshalled))
+			require.Equal(t, unmarshalled, tt.in, "unmarshalling did not result in same object as input")
 		})
 	}
 }

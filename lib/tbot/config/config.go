@@ -264,6 +264,10 @@ type BotConfig struct {
 	// ReloadCh allows a channel to be injected into the bot to trigger a
 	// renewal.
 	ReloadCh <-chan struct{} `yaml:"-"`
+
+	// Insecure configures the bot to blindly trust the certificates offered by
+	// the auth server. Used for tests.
+	Insecure bool `yaml:"-"`
 }
 
 func (conf *BotConfig) CipherSuites() []uint16 {
