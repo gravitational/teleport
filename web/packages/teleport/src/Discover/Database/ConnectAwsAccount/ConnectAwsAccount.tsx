@@ -110,6 +110,7 @@ export function ConnectAwsAccount() {
           <Flex minHeight="215px" mt={3}>
             <TextEditor
               readOnly={true}
+              bg="levels.deep"
               data={[{ content: integrationRWEAndDbCU, type: 'yaml' }]}
             />
           </Flex>
