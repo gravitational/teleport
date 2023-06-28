@@ -208,8 +208,9 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 func (s *Server) DeleteUser(ctx context.Context, user string) error {
 	prevUser, err := s.GetUser(user, false)
 	if err != nil && !trace.IsNotFound(err) {
-		// don't return error here, upsert may still succeed
-		log.WithError(err).Warn("Failed getting user during upsert")
+		// don't return error here, delete may still succeed
+		log.WithError(err).Warn("Failed getting user during delete operation")
+		prevUser = nil
 	}
 
 	role, err := s.Services.GetRole(ctx, services.RoleNameForUser(user))
