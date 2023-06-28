@@ -21,9 +21,9 @@ but the same concepts apply to Virtual Machines/EC2 instances.
 architecture](../../../img/deploy-a-cluster/aws-multi-region-active-passive-ha-deployment.png)
 
 ### Key Components
-- Two sets of Teleport Auth and Proxy components are deployed in separate regions. In this example, the us-west-1 (Primary)
+- Two ReplicaSets of Teleport Auth and Proxy components are deployed in separate regions. In this example, the us-west-1 (Primary)
   region Teleport cluster is the Active cluster, and the us-east-1 (Secondary) region Teleport cluster is the Passive cluster.
-- All teleport cluster components are deployed as autoscaling groups in both regions.
+- All teleport cluster components are deployed as ReplicaSets in both regions.
 - DynamoDB is used for cluster state and audit log storage.
   - Enable the us-west-1 (Active Region) DynamoDB table with global replication in the us-east-1 (Passive Region) to ensure cluster 
     state and audit logs are maintained in both regions.
