@@ -31,7 +31,7 @@ since it must execute these commands in order to create transient users:
 First, create a role with `create_host_user_mode` set to `drop` or `keep`.
 
 Setting the option to `drop` will create transient users that are deleted once the
-session ends, setting it to `keep` will create permanent users on the host at
+session ends. Setting it to `keep` will create permanent users on the host at
 login time.
 
 The following role specification will allow users to log in as `nginxrestarter` on
@@ -80,11 +80,11 @@ of the Linux distribution being used. See [User/Group Name Syntax](https://syste
 When a Teleport user accesses an SSH Service instance, Teleport checks each of the
 user's roles that match the instance. If at least one role matches the instance
 but does not specify `create_host_user_mode` to be either `keep` or `drop`,
-automatic user creation will be disabled. Roles that do not match the Node will
+automatic user creation will be disabled. Roles that do not match the server will
 not be checked.
 
 If multiple roles match where one might specify `keep` and another `drop`,
-teleport will default to `keep`, retaining the user on the node after the session
+Teleport will default to `keep`, retaining the user on the server after the session
 ends.
 
 </Admonition>
