@@ -101,8 +101,9 @@ class TextEditor extends React.Component {
   }
 
   render() {
+    const { bg = 'levels.sunken' } = this.props;
     return (
-      <StyledTextEditor>
+      <StyledTextEditor bg={bg}>
         <div ref={e => (this.ace_viewer = e)} />
       </StyledTextEditor>
     );

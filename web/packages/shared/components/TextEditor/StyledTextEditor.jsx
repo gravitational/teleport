@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import styled from 'styled-components';
+import { color } from 'design/system';
 
 const StyledTextEditor = styled.div`
   overflow: hidden;
@@ -23,7 +24,8 @@ const StyledTextEditor = styled.div`
   display: flex;
   position: relative;
   border: none;
-  background-color: ${props => props.theme.colors.levels.sunken};
+
+  ${color};
 
   > .ace_editor {
     position: absolute;
@@ -35,14 +37,12 @@ const StyledTextEditor = styled.div`
 
   // Theme based on Tomorrow Night Blue theme
   .ace-teleport {
-    background-color: ${props => props.theme.colors.levels.sunken};
     color: ${props => props.theme.colors.text.main};
   }
 
   /* Editor gutter contains of line numbers and annotation marks. */
 
   .ace-teleport .ace_gutter {
-    background-color: ${props => props.theme.colors.levels.sunken};
     color: ${props => props.theme.colors.text.muted};
   }
 
