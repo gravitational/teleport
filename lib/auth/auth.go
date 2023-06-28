@@ -5247,31 +5247,35 @@ func (a *Server) GetLicense(ctx context.Context) (string, error) {
 	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
 }
 
-// GetHeadlessAuthentication returns a headless authentication from the backend by name.
-// If it does not yet exist, a stub will be created to signal the login process to upsert
-// login details. This method will wait for the updated headless authentication and return it.
-func (a *Server) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	// Try to create a stub if it doesn't already exist, then wait for full login details.
-	if _, err := a.Services.CreateHeadlessAuthenticationStub(ctx, name); err != nil && !trace.IsAlreadyExists(err) {
-		return nil, trace.Wrap(err)
-	}
-
-	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, name)
+// GetHeadlessAuthenticationFromWatcher gets a headless authentication from the headless
+// authentication watcher.
+func (a *Server) GetHeadlessAuthenticationFromWatcher(ctx context.Context, username, name string) (*types.HeadlessAuthentication, error) {
+	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, username, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	defer sub.Close()
 
-	waitCtx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
-	defer cancel()
-
-	// wait for the headless authentication to be updated with valid login details
-	// by the login process. If the headless authentication is already updated,
-	// Wait will return it immediately.
-	headlessAuthn, err := a.headlessAuthenticationWatcher.WaitForUpdate(waitCtx, sub, func(ha *types.HeadlessAuthentication) (bool, error) {
+	// Wait for the login process to insert the headless authentication resource into the backend.
+	// If it already exists and passes the condition, WaitForUpdate will return it immediately.
+	headlessAuthn, err := sub.WaitForUpdate(ctx, func(ha *types.HeadlessAuthentication) (bool, error) {
 		return services.ValidateHeadlessAuthentication(ha) == nil, nil
 	})
 	return headlessAuthn, trace.Wrap(err)
+}
+
+// CreateHeadlessAuthenticationStub creates a headless authentication stub for the user
+// that will expire after the standard callback timeout.
+func (a *Server) CreateHeadlessAuthenticationStub(ctx context.Context, username string) error {
+	// Create the stub. If it already exists, update its expiration.
+	expires := a.clock.Now().Add(defaults.CallbackTimeout)
+	stub, err := types.NewHeadlessAuthentication(username, services.HeadlessAuthenticationUserStubID, expires)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.Services.UpsertHeadlessAuthentication(ctx, stub)
+	return trace.Wrap(err)
 }
 
 // GetAssistantMessages returns all messages with given conversation ID.

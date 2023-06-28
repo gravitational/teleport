@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import { fonts } from './fonts';
-import { getContrastRatio } from './utils/colorManipulator';
+import { darken, getContrastRatio } from './utils/colorManipulator';
 import { lightBlue, blueGrey, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
@@ -142,6 +142,30 @@ const colors = {
     selected: 'rgba(255, 255, 255, 0.2)',
     disabled: 'rgba(255, 255, 255, 0.3)',
     disabledBackground: 'rgba(255, 255, 255, 0.12)',
+  },
+
+  terminal: {
+    foreground: '#000',
+    background: '#F1F2F4', // levels.sunken
+    selectionBackground: 'rgba(0, 0, 0, 0.18)',
+    cursor: '#000',
+    cursorAccent: '#F1F2F4',
+    red: '#9D0A00',
+    green: '#005742',
+    yellow: '#704B00',
+    blue: '#004B89',
+    magenta: '#3D1BB2',
+    cyan: '#015C6E',
+    brightWhite: darken('#F1F2F4', 0.55),
+    white: darken('#F1F2F4', 0.68),
+    brightBlack: darken('#F1F2F4', 0.8),
+    black: '#000',
+    brightRed: '#BF372E',
+    brightGreen: '#007562',
+    brightYellow: '#8F5F00',
+    brightBlue: '#006BB8',
+    brightMagenta: '#5531D4',
+    brightCyan: '#007282',
   },
 
   subtle: blueGrey[50],
