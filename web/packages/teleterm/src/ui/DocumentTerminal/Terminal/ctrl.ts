@@ -15,19 +15,19 @@ limitations under the License.
 */
 
 import 'xterm/css/xterm.css';
-import { IDisposable, Terminal } from 'xterm';
+import { IDisposable, ITheme, Terminal } from 'xterm';
 import { FitAddon } from 'xterm-addon-fit';
 import { debounce } from 'shared/utils/highbar';
 
 import { IPtyProcess } from 'teleterm/sharedProcess/ptyHost';
 import Logger from 'teleterm/logger';
-import theme from 'teleterm/ui/ThemeProvider/theme';
 
 const WINDOW_RESIZE_DEBOUNCE_DELAY = 200;
 
 type Options = {
   el: HTMLElement;
   fontSize: number;
+  theme: ITheme;
 };
 
 export default class TtyTerminal {
@@ -61,9 +61,8 @@ export default class TtyTerminal {
       fontFamily: this.el.style.fontFamily,
       fontSize: this.options.fontSize,
       scrollback: 5000,
-      theme: {
-        background: theme.colors.levels.sunken,
-      },
+      minimumContrastRatio: 4.5, // minimum for WCAG AA compliance
+      theme: this.options.theme,
       windowOptions: {
         setWinSizeChars: true,
       },

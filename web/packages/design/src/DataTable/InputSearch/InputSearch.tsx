@@ -56,10 +56,7 @@ const ChildWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props =>
-    props.theme.name === 'dark'
-      ? props.theme.colors.spotBackground[0]
-      : props.theme.colors.spotBackground[0]};
+  background: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 200px;
 `;
 
