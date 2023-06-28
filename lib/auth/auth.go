@@ -3867,8 +3867,19 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 	// Look for user groups and associated applications to the request.
 	requestedResourceIDs := req.GetRequestedResourceIDs()
 	var additionalResources []types.ResourceID
+
+	var userGroups []types.ResourceID
 	existingApps := map[string]struct{}{}
 	for _, resource := range requestedResourceIDs {
+		switch resource.Kind {
+		case types.KindApp:
+			existingApps[resource.Name] = struct{}{}
+		case types.KindUserGroup:
+			userGroups = append(userGroups, resource)
+		}
+	}
+
+	for _, resource := range userGroups {
 		if resource.Kind != types.KindUserGroup {
 			continue
 		}
