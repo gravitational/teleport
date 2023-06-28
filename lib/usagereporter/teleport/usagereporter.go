@@ -223,21 +223,8 @@ func (DiscardUsageReporter) AnonymizeAndSubmit(...Anonymizable) {
 
 // EmitEditorChangeEvent emits an editor change event if the editor role was added or removed.
 func EmitEditorChangeEvent(username string, prevRoles, newRoles []string, submit func(...Anonymizable)) {
-	var prevEditor bool
-	for _, r := range prevRoles {
-		if r == teleport.PresetEditorRoleName {
-			prevEditor = true
-			break
-		}
-	}
-
-	var newEditor bool
-	for _, r := range newRoles {
-		if r == teleport.PresetEditorRoleName {
-			newEditor = true
-			break
-		}
-	}
+	prevEditor := slices.Contains(prevRoles, teleport.PresetEditorRoleName)
+	newEditor := slices.Contains(newRoles, teleport.PresetEditorRoleName)
 
 	// don't emit event if editor role wasn't added/removed
 	if prevEditor == newEditor {
