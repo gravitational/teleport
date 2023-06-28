@@ -17,6 +17,7 @@ syntax = "proto3";
 package types;
 
 import "gogoproto/gogo.proto";
+import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/types/wrappers/wrappers.proto";
@@ -6053,29 +6054,33 @@ message AccessListSpecV1 {
   string Description = 1 [(gogoproto.jsontag) = "description"];
 
   // Owners is a list of owners of the access list.
-  repeated AccessListOwnerV1 Owners = 2 [(gogoproto.jsontag) = "owners"];
+  repeated AccessListOwner Owners = 2 [(gogoproto.jsontag) = "owners"];
 
   // Audit describes the frequency that this access list must be audited.
-  AccessListAuditV1 Audit = 3 [(gogoproto.jsontag) = "audit"];
+  AccessListAudit Audit = 3 [(gogoproto.jsontag) = "audit"];
 
   // MembershipRequires describes the requirements for a user to be a member of the access list.
-  AccessListRequiresV1 MembershipRequires = 4 [(gogoproto.jsontag) = "membership_requires"];
+  // For a membership to an access list to be effective, the user must meet the requirements of
+  // MembershipRequires and must be in the members list.
+  AccessListRequires MembershipRequires = 4 [(gogoproto.jsontag) = "membership_requires"];
 
   // OwnershipRequires describes the requirements for a user to be an owner of the access list.
-  AccessListRequiresV1 OwnershipRequires = 5 [(gogoproto.jsontag) = "ownership_requires"];
+  // For ownership of an access list to be effective, the user must meet the requirements of
+  // OwnershipRequires and must be in the owners list.
+  AccessListRequires OwnershipRequires = 5 [(gogoproto.jsontag) = "ownership_requires"];
 
   // Grants describes the access granted by membership to this access list.
-  AccessListGrantsV1 Grants = 6 [(gogoproto.jsontag) = "grants"];
+  AccessListGrants Grants = 6 [(gogoproto.jsontag) = "grants"];
 
   // Members describes the current members of the access list.
-  repeated AccessListMemberV1 Members = 7 [(gogoproto.jsontag) = "members"];
+  repeated AccessListMember Members = 7 [(gogoproto.jsontag) = "members"];
 
   // RequestedMembership describes a list of users who have requested membership to the access list.
-  repeated AccessListMembershipRequestV1 RequestedMembership = 8 [(gogoproto.jsontag) = "requested_membership"];
+  repeated AccessListMembershipRequest RequestedMembership = 8 [(gogoproto.jsontag) = "requested_membership"];
 }
 
 // AccessListOwnerV1 is an owner of an access list.
-message AccessListOwnerV1 {
+message AccessListOwner {
   // Name is the username of the owner.
   string Name = 1 [(gogoproto.jsontag) = "name"];
 
@@ -6083,16 +6088,16 @@ message AccessListOwnerV1 {
   string Description = 2 [(gogoproto.jsontag) = "description"];
 }
 
-// AccessListAuditV1 describes the audit configuration for an access list.
-message AccessListAuditV1 {
+// AccessListAudit describes the audit configuration for an access list.
+message AccessListAudit {
   // Frequency is a string parseable by golang's time.ParseDuration that describes
   // how often an access list must be audited.
-  string Frequency = 1 [(gogoproto.jsontag) = "frequency"];
+  google.protobuf.Duration Frequency = 1 [(gogoproto.jsontag) = "frequency"];
 }
 
-// AccessListRequiresV1 describes a requirement section for an access list. A user must
+// AccessListRequires describes a requirement section for an access list. A user must
 // meet the following criteria to obtain the specific access to the list.
-message AccessListRequiresV1 {
+message AccessListRequires {
   // Roles are the user roles that must be present for the user to obtain access.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles"];
 
@@ -6100,8 +6105,8 @@ message AccessListRequiresV1 {
   map<string, string> Traits = 2 [(gogoproto.jsontag) = "traits"];
 }
 
-// AccessListGrantsV1 describes what access is granted by membership to the access list.
-message AccessListGrantsV1 {
+// AccessListGrants describes what access is granted by membership to the access list.
+message AccessListGrants {
   // Roles are the roles that are granted to users who are members of the access list.
   repeated string Roles = 1 [(gogoproto.jsontag) = "roles"];
 
@@ -6109,8 +6114,8 @@ message AccessListGrantsV1 {
   map<string, string> Traits = 2 [(gogoproto.jsontag) = "traits"];
 }
 
-// AccessListMemberV1 describes a member of an access list.
-message AccessListMemberV1 {
+// AccessListMember describes a member of an access list.
+message AccessListMember {
   // Name is the name of the member of the access list.
   string Name = 1 [(gogoproto.jsontag) = "name"];
 
@@ -6135,8 +6140,8 @@ message AccessListMemberV1 {
   string AddedBy = 5 [(gogoproto.jsontag) = "added_by"];
 }
 
-// AccessListMembershipRequestV1 describes a request for membership to an access list.
-message AccessListMembershipRequestV1 {
+// AccessListMembershipRequest describes a request for membership to an access list.
+message AccessListMembershipRequest {
   // Name is the name of the user who has requested membership to the access list.
   string Name = 1 [(gogoproto.jsontag) = "name"];
 
