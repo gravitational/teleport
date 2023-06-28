@@ -19,20 +19,13 @@ package common
 import (
 	"fmt"
 	"net"
-	"strings"
 	"syscall"
 
-	"github.com/gravitational/trace"
-	"golang.org/x/crypto/ssh"
-
-	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/profile"
-	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keypaths"
-	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/puttyhosts"
-	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils/registry"
+	"github.com/gravitational/trace"
 )
 
 // the key should not include HKEY_CURRENT_USER
@@ -168,8 +161,8 @@ func addPuTTYSession(proxyHostname string, hostname string, port int, login stri
 }
 
 // addHostCAPublicKey adds a host CA to the registry with a set of space-separated hostnames
-func addHostCAPublicKey(keyName string, publicKey string, hostname string) error {
-	registryKeyName := fmt.Sprintf(`%v\%v`, puttyRegistrySSHHostCAsKey, keyName)
+func addHostCAPublicKey(registryHostCAStruct puttyhosts.HostCAPublicKeyForRegistry) error {
+	registryKeyName := fmt.Sprintf(`%v\%v`, puttyRegistrySSHHostCAsKey, registryHostCAStruct.KeyName)
 
 	// get the subkey with the host CA key name
 	registryKey, err := registry.GetOrCreateRegistryKey(registryKeyName)
@@ -192,13 +185,13 @@ func addHostCAPublicKey(keyName string, publicKey string, hostname string) error
 	}
 
 	// add the new hostname to the existing hostList from the registry key (if one exists)
-	hostList = puttyhosts.AddHostToHostList(hostList, hostname)
+	hostList = puttyhosts.AddHostToHostList(hostList, registryHostCAStruct.Hostname)
 
 	// write strings to subkey
 	if err := registry.WriteMultiString(registryKey, "MatchHosts", hostList); err != nil {
 		return trace.Wrap(err)
 	}
-	if err := registry.WriteString(registryKey, "PublicKey", publicKey); err != nil {
+	if err := registry.WriteString(registryKey, "PublicKey", registryHostCAStruct.PublicKey); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -261,71 +254,30 @@ func onPuttyConfig(cf *CLIConf) error {
 	ppkFilePath := keypaths.PPKFilePath(keysDir, proxyHost, tc.Config.Username)
 	certificateFilePath := keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, rootClusterName)
 
-	// if a leaf cluster is requested, we need to check whether we can find it while running the CA loop below
-	wantLeaf := cf.LeafClusterName != ""
-	leafExists := false
-
-	// get all CAs for the cluster (including trusted clusters)
-	var cas []types.CertAuthority
-	err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-		cas, err = clt.GetCertAuthorities(cf.Context, types.HostCA, false /* exportSecrets */)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		return nil
-	})
-	if err != nil {
-		return trace.Wrap(err)
+	targetClusterName := rootClusterName
+	if cf.LeafClusterName != "" {
+		targetClusterName = cf.LeafClusterName
 	}
-	// iterate over all the CAs
-	hostCAPublicKeys := make(map[string][]string)
-	for _, ca := range cas {
-		// if this is either the root or the requested leaf cluster, process it
-		if ca.GetName() == rootClusterName || (wantLeaf && ca.GetName() == cf.LeafClusterName) {
-			// if we've found the requested leaf cluster, mark that we've found it
-			if ca.GetName() == cf.LeafClusterName {
-				leafExists = true
-			}
-			for i, key := range ca.GetTrustedSSHKeyPairs() {
-				log.Debugf("%v CA [%v]: %v", ca.GetName(), i, key)
-				kh, err := sshutils.MarshalKnownHost(sshutils.KnownHost{
-					Hostname:      ca.GetClusterName(),
-					AuthorizedKey: key.PublicKey,
-				})
-				if err != nil {
-					return trace.Wrap(err)
-				}
-				_, _, hostCABytes, _, _, err := ssh.ParseKnownHosts([]byte(kh))
-				if err != nil {
-					return trace.Wrap(err)
-				}
 
-				hostCAPublicKey := strings.TrimPrefix(strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostCABytes))), constants.SSHRSAType+" ")
-				hostCAPublicKeys[ca.GetName()] = append(hostCAPublicKeys[ca.GetName()], hostCAPublicKey)
-			}
-		}
-	}
+	var hostCAPublicKeys map[string][]string
+	hostCAPublicKeys, err = puttyhosts.ProcessHostCAPublicKeys(tc, cf.Context, targetClusterName)
+
 	// update the cert path if a leaf cluster was requested
 	proxyCommandClusterName := rootClusterName
-	if wantLeaf {
+	if cf.LeafClusterName != "" {
 		// if we haven't found the requested leaf cluster, error out
-		if !leafExists {
+		if _, ok := hostCAPublicKeys[cf.LeafClusterName]; !ok {
 			return trace.NotFound("Cannot find registered leaf cluster %q. Use the leaf cluster name as it appears in the output of `tsh clusters`.", cf.LeafClusterName)
 		}
 		proxyCommandClusterName = cf.LeafClusterName
-		certificateFilePath = keypaths.SSHCertPath(keysDir, proxyHost, tc.Config.Username, cf.LeafClusterName)
 	}
 
-	// add all host CA public keys for cluster
-	for cluster, hostCAs := range hostCAPublicKeys {
-		keyName := fmt.Sprintf(`TeleportHostCA-%v`, cluster)
-		for i, publicKey := range hostCAs {
-			// append indices to entries if we have multiple public keys for a CA
-			if len(hostCAs) > 1 {
-				keyName = fmt.Sprintf(`%v-%d`, keyName, i)
-			}
+	// format all the applicable host CAs into an intermediate data struct that can be added to the registry
+	addToRegistry := puttyhosts.FormatHostCAPublicKeysForRegistry(hostCAPublicKeys, hostname)
 
-			if err := addHostCAPublicKey(keyName, publicKey, hostname); err != nil {
+	for cluster, values := range addToRegistry {
+		for i, registryPublicKeyStruct := range values {
+			if err := addHostCAPublicKey(registryPublicKeyStruct); err != nil {
 				log.Errorf("Failed to add host CA key for %v: %T", cluster, err)
 				return trace.Wrap(err)
 			}
@@ -346,7 +298,7 @@ func onPuttyConfig(cf *CLIConf) error {
 	}
 
 	// handle leaf clusters
-	if wantLeaf {
+	if cf.LeafClusterName != "" {
 		fmt.Printf("Added PuTTY session for %v [leaf:%v,proxy:%v]\n", userHostString, cf.LeafClusterName, proxyHost)
 		return nil
 	}

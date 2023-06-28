@@ -17,18 +17,32 @@ limitations under the License.
 package puttyhosts
 
 import (
+	"context"
 	"fmt"
 	"regexp"
 	"strings"
 	"text/template"
 
 	"github.com/gravitational/trace"
+	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/sshutils"
 )
 
-type puttyProxyTelnetCommandArgs struct {
+type PuttyProxyTelnetCommandArgs struct {
 	TSHPath string
 	Cluster string
+}
+
+type HostCAPublicKeyForRegistry struct {
+	KeyName   string
+	PublicKey string
+	Hostname  string
 }
 
 func hostnameContainsDot(hostname string) bool {
@@ -131,7 +145,7 @@ func AddHostToHostList(hostList []string, hostname string) []string {
 var hostnameRegexp = regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]).)*([A-Za-z0-9]|[A-Za-z0-9][A-Za-z0-9-]*[A-Za-z0-9])$")
 
 // NaivelyValidateHostname checks the provided hostname against a naive regex to ensure it doesn't contain obviously
-// illegal characters. It's not guaranteed to be perfect, just a simple sanity check.
+// illegal characters. It's not guaranteed to be perfect, just a simple sanity check. It returns true when the hostname validates.
 func NaivelyValidateHostname(hostname string) bool {
 	return hostnameRegexp.Match([]byte(hostname))
 }
@@ -144,7 +158,7 @@ func FormatLocalCommandString(tshPath string, cluster string) (string, error) {
 	templateString := "{{.TSHPath}} proxy ssh --cluster={{.Cluster}} --proxy=%proxyhost %user@%host:%port"
 	localCommandTemplate := template.Must(template.New("puttyProxyTelnetCommand").Parse(templateString))
 	var builder strings.Builder
-	err := localCommandTemplate.Execute(&builder, puttyProxyTelnetCommandArgs{
+	err := localCommandTemplate.Execute(&builder, PuttyProxyTelnetCommandArgs{
 		escapedTSHPath,
 		cluster,
 	})
@@ -152,4 +166,75 @@ func FormatLocalCommandString(tshPath string, cluster string) (string, error) {
 		return "", trace.Wrap(err)
 	}
 	return builder.String(), nil
+}
+
+// getAllHostCAs queries the root cluster for its host CAs
+func getAllHostCAs(tc *client.TeleportClient, cfContext context.Context) ([]types.CertAuthority, error) {
+	var err error
+	// get all CAs for the cluster (including trusted clusters)
+	var cas []types.CertAuthority
+	err = tc.WithRootClusterClient(cfContext, func(clt auth.ClientI) error {
+		cas, err = clt.GetCertAuthorities(cfContext, types.HostCA, false /* exportSecrets */)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return cas, nil
+}
+
+// ProcessHostCAPublicKeys gets all the host CAs that the passed client can load (which will be a root cluster and any connected leaf clusters),
+// iterates over them to find any host CAs which map to the requested root or leaf cluster and builds a map containing [targetClusterName]->[]CAs.
+// These host CA public keys are then ultimately written to the registry so that PuTTY can validate host keys against them when connecting.
+func ProcessHostCAPublicKeys(tc *client.TeleportClient, cfContext context.Context, clusterName string) (map[string][]string, error) {
+	// iterate over all the CAs
+	hostCAPublicKeys := make(map[string][]string)
+	hostCAs, err := getAllHostCAs(tc, cfContext)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	for _, ca := range hostCAs {
+		// if this is either the root or the requested leaf cluster, process it
+		if ca.GetName() == clusterName {
+			for _, key := range ca.GetTrustedSSHKeyPairs() {
+				kh, err := sshutils.MarshalKnownHost(sshutils.KnownHost{
+					Hostname:      ca.GetClusterName(),
+					AuthorizedKey: key.PublicKey,
+				})
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+				_, _, hostCABytes, _, _, err := ssh.ParseKnownHosts([]byte(kh))
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				hostCAPublicKey := strings.TrimPrefix(strings.TrimSpace(string(ssh.MarshalAuthorizedKey(hostCABytes))), constants.SSHRSAType+" ")
+				hostCAPublicKeys[ca.GetName()] = append(hostCAPublicKeys[ca.GetName()], hostCAPublicKey)
+			}
+		}
+	}
+	return hostCAPublicKeys, nil
+}
+
+// FormatHostCAPublicKeysFoRegistry formats a map of clusterNames -> []CAs into a platform-agnostic intermediate
+// struct format. This format is passed into functions which write to the Windows registry.
+func FormatHostCAPublicKeysForRegistry(hostCAPublicKeys map[string][]string, hostname string) map[string][]HostCAPublicKeyForRegistry {
+	registryOutput := make(map[string][]HostCAPublicKeyForRegistry)
+	// add all host CA public keys for cluster
+	for cluster, hostCAs := range hostCAPublicKeys {
+		baseKeyName := fmt.Sprintf(`TeleportHostCA-%v`, cluster)
+		for i, publicKey := range hostCAs {
+			// append indices to entries if we have multiple public keys for a CA
+			keyName := baseKeyName
+			if len(hostCAs) > 1 {
+				keyName = fmt.Sprintf(`%v-%d`, baseKeyName, i)
+			}
+			registryOutput[cluster] = append(registryOutput[cluster], HostCAPublicKeyForRegistry{keyName, publicKey, hostname})
+		}
+	}
+	return registryOutput
 }
