@@ -242,7 +242,7 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 		log.WithError(err).Warn("Failed to emit user delete event.")
 	}
 
-	go usagereporter.EmitEditorChangeEvent(user, prevUser.GetRoles(), []string{}, s.AnonymizeAndSubmit)
+	go usagereporter.EmitEditorChangeEvent(user, prevUser.GetRoles(), nil, s.AnonymizeAndSubmit)
 
 	return nil
 }
