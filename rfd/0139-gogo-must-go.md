@@ -97,14 +97,49 @@ Serializing the objects in the backend as the gRPC wire format has a number of b
 - Allows us to remove gogoproto extensions without affecting backend storage.
 - Allows us to utilize fields in the backend more efficiently and store larger objects.
 
-The primary disadvantage here is that manually examining the backend is more difficult as
-the stored values will no longer be human readable.
+The disadvantages here:
+
+- Manually examining the backend is more difficult as the stored values will no longer be
+  human readable.
+- For support cases we will occasionally need to perform surgery in the backend, which
+  requires manual editing of objects. This will be significantly more difficult with the
+  backend serialized in the wire format.
+
+##### Write custom storage objects for the backend
+
+Rather than use gRPC's wire format or serialized JSON format, we should consider writing
+a storage object format. This has a number of benefits:
+
+- The backend continues to be easy to read and modify.
+- We decouple our protobuf definitions from our storage representation, which makes changes
+  to the frontend less impactful.
+- This can be done without making any changes to the proto definitions.
+- It gives us more control over storage representation.
+- It makes migration easier, as we can easily maintain multiple versions of an object within
+  the Teleport codebase.
+
+The downsides:
+
+- It adds to the boilerplate necessary for an object.
 
 ##### Write custom marshalers for objects
 
 In order to keep our user facing representations of the objects, we will need to write
 custom JSON and YAML marshalers for our objects. This may be time intensive but not overall
 a significant amount of work.
+
+#### Embedding types (removing `gogoproto.embed`)
+
+We heavily use `gogoproto.embed` for generating objects with a consistent structure or interface.
+We particularly use these with our `kind`, `version`, and `metadata` fields. This will be
+difficult to mitigate without some heavy lifting. As such, I recommend the custom storage object
+format listed above and the addition of `FromV*` functions in order to convert protobuf objects
+into this object. For example:
+
+```go
+  accessRequest := accessrequest.FromV1Proto(request.AccessRequest)
+  user := user.FromV6Proto(request.User)
+```
 
 #### Casting types (removing `gogoproto.casttype`)
 
@@ -116,11 +151,127 @@ casts or conversions within go code. We will have to take on this conversion wor
 ##### `gogoproto.nullable`
 
 We will need to remove the `gogoproto.nullable` tags, which overall shouldn't be a huge impact.
-We should migrate to using `optional` as defined [here](https://protobuf.dev/programming-guides/proto3/#field-labels).
+We will need to rely on our `CheckAndSetDefaults` functions, which should generally handle this
+today.
 
 ##### `gogoproto.stdtime`
 
 We will need to migrate to using `timestamppb` directly instead of relying on gogo's `stdtime` tag.
+
+### Proposed solution
+
+#### Create internal objects
+
+Currently, in `api/types` we define a large number of interfaces that are subsequently used to wrap
+our protobuf created messages in a nicer, more user friendly way, abstracting away much of the protobuf
+bits and pieces.
+
+We should break this relationship and create actual internal objects for our interfaces. From here, we
+should use conversion functions to translate between protobuf messages and our internal objects.
+
+It's imperative that these objects are compatible with the current JSON/YAML representations in Teleport.
+That is, the objects that are in Teleport today should unmarshal properly into our new internal objects.
+
+All objects should remain in `api/types` as they do today. (Open question: should this be the case? Should
+we relocate objects?)
+
+##### Example
+
+Let's take `UserGroup` as an example, as it's a very simple message. `UserGroup`'s interface as it is
+currently defined in `api/types`:
+
+```go
+// UserGroup specifies an externally sourced group.
+type UserGroup interface {
+	ResourceWithLabels
+
+	// GetApplications will return a list of application IDs associated with the user group.
+	GetApplications() []string
+	// SetApplications will set the list of application IDs associated with the user group.
+	SetApplications([]string)
+}
+```
+
+For this message, I propose we create an internal implementation for the above interface, along
+with a builder to completely abstract the internal representation of the user group object:
+
+```go
+type UserGroupBuilder struct {
+  applications []string
+}
+
+func NewUserGroupBuilder() *UserGroupBuilder {
+  return &UserGroupBuilder{}
+}
+
+func (u *UserGroupBuilder) Applications(applications []string) *UserGroupBuilder {
+  u.applications = applications
+  return u
+}
+
+func (u *UserGroupBuilder) Build() (UserGroup, error) {
+  ug := &userGroupImpl{
+    spec: &userGroupSpec{
+      applications: u.applications
+    }
+  }
+  
+  if err := ug.CheckAndSetDefaults(); err != nil {
+    return nil, trace.Wrap(err)
+  }
+
+  return ug, nil
+}
+
+type userGroupSpec struct {
+  Applications []string `json:"applications" yaml:"applications"`
+}
+
+type userGroupImpl struct {
+  // ResourceHeader will contain the version, kind, and metadata fields.
+  ResourceHeader
+
+  Spec *userGroupSpec `json:"spec" yaml:"spec"`
+}
+
+func (u *userGroupImpl) CheckAndSetDefaults() error {
+  ...
+}
+
+func (u *userGroupImpl) GetApplications() string {
+  return u.Spec.Applications
+}
+
+func (u *userGroupImpl) SetApplications(applications []string) {
+  u.Spec.Applications = applications
+}
+...
+```
+
+To go between the protobuf message and the internal implementation, we should have:
+
+```go
+func FromV1(msg proto.UserGroupV1) (types.UserGroup, error) {
+  return NewUserGroupBuilder().
+    Applications(msg.GetApplications()).
+    Build()
+}
+```
+
+##### Strategy
+
+We would need to do this object by object, adding in tests to ensure that marshaling
+is not broken between the current messages and the new structs.
+
+I recommend the following path:
+
+1. Create the new implementation object as described above.
+2. Write tests that verify that the current messages marshal/unmarshal properly into
+   the new object. This will require creating message conversion functions as well.
+3. Replace existing references to the object with the new builder.
+4. The `gogoproto` extensions on the original message are now largely irrelevant, and
+   can be removed. This will likely require changes to the conversion functions
+   mentioned above.
 
 ### UX
 
