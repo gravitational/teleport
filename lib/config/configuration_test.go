@@ -3439,7 +3439,7 @@ func TestApplyConfig_JamfService(t *testing.T) {
 	const password = "supersecret!!1!"
 	passwordFile := filepath.Join(tempDir, "test_jamf_password.txt")
 	require.NoError(t,
-		os.WriteFile(passwordFile, []byte(password+"\n"), 0400),
+		os.WriteFile(passwordFile, []byte(password+"\n"), 0o400),
 		"WriteFile(%q) failed", passwordFile)
 
 	minimalYAML := fmt.Sprintf(`
@@ -4026,7 +4026,24 @@ func TestApplyKubeConfig(t *testing.T) {
 					},
 				},
 			},
-			wantError: true,
+			wantError: false,
+			wantServiceConfig: servicecfg.KubeConfig{
+				ListenAddr:     utils.MustParseAddr("0.0.0.0:8888"),
+				KubeconfigPath: "path-to-kubeconfig",
+				ResourceMatchers: []services.ResourceMatcher{
+					{
+						Labels: map[string]apiutils.Strings{"a": {"b"}},
+						AWS: services.ResourceMatcherAWS{
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/KubeAccess",
+							ExternalID:    "externalID123",
+						},
+					},
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
 		},
 		{
 			name: "valid",

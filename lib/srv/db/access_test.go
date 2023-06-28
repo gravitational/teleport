@@ -2185,6 +2185,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		CloudClients:             p.CloudClients,
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
+		ShutdownPollPeriod:       100 * time.Millisecond,
 		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
 	})
 	require.NoError(t, err)
