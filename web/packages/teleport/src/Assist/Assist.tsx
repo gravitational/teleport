@@ -244,8 +244,13 @@ export function Assist(props: AssistProps) {
 
 let errorIndex = 0;
 
+interface AssistError {
+  message: string;
+  index: number;
+}
+
 function getInitialErrors(conversations: { error?: string }) {
-  const errors = [];
+  const errors: AssistError[] = [];
 
   if (conversations.error) {
     errors.push({
