@@ -4064,7 +4064,49 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.validateCloudNetworkConfigUpdate(newNetConfig, oldNetConf); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
+}
+
+func cloudTenantNetworkingError(field string) string {
+	return fmt.Sprintf("cloud tenants cannot update %q", field)
+}
+
+func (a *ServerWithRoles) validateCloudNetworkConfigUpdate(newConfig, oldConfig types.ClusterNetworkingConfig) error {
+	if a.hasBuiltinRole(types.RoleAdmin) {
+		return nil
+	}
+
+	if !modules.GetModules().Features().Cloud {
+		return nil
+	}
+
+	if newConfig.GetProxyListenerMode() != oldConfig.GetProxyListenerMode() {
+		return trace.BadParameter(cloudTenantNetworkingError("proxy_listener_mode"))
+	}
+	newtst, newerr := newConfig.GetTunnelStrategyType()
+	oldtst, olderr := oldConfig.GetTunnelStrategyType()
+	if newerr != olderr || newtst != oldtst {
+		return trace.BadParameter(cloudTenantNetworkingError("tunnel_strategy"))
+	}
+
+	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
+		return trace.BadParameter(cloudTenantNetworkingError("keep_alive_interval"))
+	}
+
+	if newConfig.GetKeepAliveCountMax() != oldConfig.GetKeepAliveCountMax() {
+		return trace.BadParameter(cloudTenantNetworkingError("keep_alive_count_max"))
+	}
+
+	return nil
 }
 
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
@@ -4081,6 +4123,14 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
 			return trace.Wrap(err)
 		}
+	}
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.validateCloudNetworkConfigUpdate(types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
+		return trace.Wrap(err)
 	}
 
 	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
