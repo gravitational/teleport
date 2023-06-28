@@ -169,11 +169,6 @@ const StyledTextEditor = styled.div`
 
   /* End: different token styles */
 
-  .ace-teleport .ace_fold-widget {
-    background-image: url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAUAAAAFCAYAAACNbyblAAAANElEQVR42mWKsQ0AMAzC8ixLlrzQjzmBiEjp0A6WwBCSPgKAXoLkqSot7nN3yMwR7pZ32NzpKkVoDBUxKAAAAABJRU5ErkJggg==');
-    opacity: 0.9;
-  }
-
   .ace-teleport .ace_indent-guide {
     /* Indent guide style */
     background: url(data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAACCAYAAACZgbYnAAAAEklEQVQImWNgYGBgYHB3d/8PAAOIAdULw8qMAAAAAElFTkSuQmCC)
