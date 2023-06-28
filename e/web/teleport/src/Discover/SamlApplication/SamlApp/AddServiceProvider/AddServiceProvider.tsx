@@ -129,11 +129,13 @@ export function EntityDescriptorInput({
       <Flex
         height="320px"
         mt={2}
+        borderRadius={2}
         border={hasError ? '2px solid' : '1px solid'}
-        borderColor={hasError ? 'error.dark' : 'levels.surface'}
+        borderColor={hasError ? 'error.main' : 'levels.sunken'}
       >
         <TextEditor
           readOnly={false}
+          bg="levels.deep"
           data={[{ content: entityDescriptor }]}
           onChange={setEntityDescriptor}
         />
