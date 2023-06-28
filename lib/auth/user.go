@@ -84,7 +84,8 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 	prevUser, err := s.GetUser(user.GetName(), false)
 	if err != nil {
-		return trace.Wrap(err)
+		// don't return error here since this call is for event emitting purposes only
+		log.WithError(err).Warn("Failed getting user during update")
 	}
 
 	if err := s.Services.UpdateUser(ctx, user); err != nil {
