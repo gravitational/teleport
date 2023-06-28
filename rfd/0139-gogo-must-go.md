@@ -166,7 +166,7 @@ Currently, in `api/types` we define a large number of interfaces that are subseq
 our protobuf created messages in a nicer, more user friendly way, abstracting away much of the protobuf
 bits and pieces.
 
-We should break this relationship and create actual internal objects for our interfaces. From here, we
+We should break this relationship and create actual internal objects to replace interfaces. From here, we
 should use conversion functions to translate between protobuf messages and our internal objects.
 
 It's imperative that these objects are compatible with the current JSON/YAML representations in Teleport.
@@ -192,8 +192,8 @@ type UserGroup interface {
 }
 ```
 
-For this message, I propose we create an internal implementation for the above interface, along
-with a builder to completely abstract the internal representation of the user group object:
+For this message, I propose we replace the above interface with a struct, along
+with a builder for convenience and avoiding breakages:
 
 ```go
 type UserGroupBuilder struct {
@@ -210,8 +210,8 @@ func (u *UserGroupBuilder) Applications(applications []string) *UserGroupBuilder
 }
 
 func (u *UserGroupBuilder) Build() (UserGroup, error) {
-  ug := &userGroupImpl{
-    spec: &userGroupSpec{
+  ug := &UserGroup{
+    Spec: &userGroupSpec{
       applications: u.applications
     }
   }
@@ -223,26 +223,22 @@ func (u *UserGroupBuilder) Build() (UserGroup, error) {
   return ug, nil
 }
 
-type userGroupSpec struct {
-  Applications []string `json:"applications" yaml:"applications"`
-}
-
-type userGroupImpl struct {
+type UserGroup struct {
   // ResourceHeader will contain the version, kind, and metadata fields.
   ResourceHeader
 
   Spec *userGroupSpec `json:"spec" yaml:"spec"`
 }
 
-func (u *userGroupImpl) CheckAndSetDefaults() error {
+func (u *UserGroup) CheckAndSetDefaults() error {
   ...
 }
 
-func (u *userGroupImpl) GetApplications() string {
+func (u *UserGroup) GetApplications() string {
   return u.Spec.Applications
 }
 
-func (u *userGroupImpl) SetApplications(applications []string) {
+func (u *UserGroup) SetApplications(applications []string) {
   u.Spec.Applications = applications
 }
 ...
