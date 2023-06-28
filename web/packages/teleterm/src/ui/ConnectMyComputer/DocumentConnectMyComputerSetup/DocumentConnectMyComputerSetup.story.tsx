@@ -16,12 +16,12 @@
 
 import React from 'react';
 
-import { DocumentSetup } from './DocumentSetup';
+import { DocumentConnectMyComputerSetup } from './DocumentConnectMyComputerSetup';
 
 export default {
-  title: 'Teleterm/ConnectMyComputer/DocumentSetup',
+  title: 'Teleterm/ConnectMyComputer/DocumentConnectMyComputerSetup',
 };
 
 export function Default() {
-  return <DocumentSetup visible={true} doc={undefined} />;
+  return <DocumentConnectMyComputerSetup visible={true} doc={undefined} />;
 }

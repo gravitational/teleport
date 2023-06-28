@@ -25,7 +25,9 @@ interface DocumentConnectMyComputerSetupProps {
   doc: types.DocumentConnectMyComputerSetup;
 }
 
-export function DocumentSetup(props: DocumentConnectMyComputerSetupProps) {
+export function DocumentConnectMyComputerSetup(
+  props: DocumentConnectMyComputerSetupProps
+) {
   const [step, setStep] =
     useState<'information' | 'agent-setup'>('information');
 
