@@ -744,6 +744,11 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		return
 	}
 
+	// Send close envelope to web terminal upon exit without an error.
+	if err := t.stream.SendCloseMessage(); err != nil {
+		t.log.WithError(err).Error("Unable to send close event to web client.")
+	}
+
 	if err := t.stream.Close(); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
@@ -993,7 +998,8 @@ func (t *WSStream) writeError(msg string) {
 
 func (t *WSStream) processMessages(ctx context.Context) {
 	defer func() {
-		close(t.completedC)
+		//close(t.completedC)
+		t.close()
 	}()
 	t.ws.SetReadLimit(teleport.MaxHTTPRequestSize)
 
@@ -1190,7 +1196,10 @@ func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenti
 	select {
 	case <-t.completedC:
 		return nil, io.EOF
-	case envelope := <-t.challengeC:
+	case envelope, ok := <-t.challengeC:
+		if !ok {
+			return nil, io.EOF
+		}
 		resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
 		return resp, trace.Wrap(err)
 	}
@@ -1202,7 +1211,10 @@ func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateChal
 	select {
 	case <-t.completedC:
 		return nil, io.EOF
-	case envelope := <-t.challengeC:
+	case envelope, ok := <-t.challengeC:
+		if !ok {
+			return nil, io.EOF
+		}
 		challenge, err := codec.decodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
 		return challenge, trace.Wrap(err)
 	}
@@ -1263,7 +1275,7 @@ func (t *WSStream) Write(data []byte) (n int, err error) {
 }
 
 // Read provides data received from [defaults.WebsocketRaw] envelopes. If
-// the previous envelope was not consumed in the last read any remaining data
+// the previous envelope was not consumed in the last read, any remaining data
 // is returned prior to processing the next envelope.
 func (t *WSStream) Read(out []byte) (n int, err error) {
 	if len(t.buffer) > 0 {
@@ -1279,14 +1291,18 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 	select {
 	case <-t.completedC:
 		return 0, io.EOF
-	case envelope := <-t.rawC:
+	case envelope, ok := <-t.rawC:
+		if !ok {
+			return 0, io.EOF
+		}
+
 		data, err := t.decoder.Bytes([]byte(envelope.Payload))
 		if err != nil {
 			return 0, trace.Wrap(err)
 		}
 
 		n := copy(out, data)
-		// if payload size is greater than [out], store the remaining
+		// if the payload size is greater than [out], store the remaining
 		// part in the buffer to be processed on the next Read call
 		if len(data) > n {
 			t.buffer = data[n:]
@@ -1295,34 +1311,34 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 	}
 }
 
-// Close sends a close message on the web socket and closes the web socket.
-func (t *WSStream) Close() error {
-	var closeErr error
+// SendCloseMessage sends a close message on the web socket.
+func (t *WSStream) SendCloseMessage() error {
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketClose,
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+}
+
+func (t *WSStream) close() {
 	t.once.Do(func() {
 		defer func() {
-			<-t.completedC
-
 			close(t.rawC)
 			close(t.challengeC)
 		}()
-
-		// Send close envelope to web terminal upon exit without an error.
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketClose,
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			closeErr = trace.NewAggregate(err, t.ws.Close())
-			return
-		}
-
-		t.mu.Lock()
-		defer t.mu.Unlock()
-		closeErr = trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
 	})
+}
 
-	return trace.Wrap(closeErr)
+// Close sends a close message on the web socket and closes the web socket.
+func (t *WSStream) Close() error {
+	return trace.Wrap(t.ws.Close())
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.
