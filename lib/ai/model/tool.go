@@ -140,7 +140,7 @@ func (e *embeddingRetrievalTool) Run(ctx context.Context, input string) (string,
 	if sb.Len() == 0 {
 		// Either no nodes are connected, embedding process hasn't started yet, or
 		// the user doesn't have access to any resources.
-		return "Didn't find any nodes matching your query", nil
+		return "Didn't find any nodes matching the query", nil
 	}
 
 	return sb.String(), nil
@@ -151,7 +151,8 @@ func (e *embeddingRetrievalTool) Name() string {
 }
 
 func (e *embeddingRetrievalTool) Description() string {
-	return fmt.Sprintf(`Ask about existing remote hosts to fetch node names or/and set of labels. Use this capability instead of guessing the names and labels.
+	return fmt.Sprintf(`Ask about existing remote hosts that user has access to fetch node names or/and set of labels. 
+Always use this capability before returning generating any command. Do not assume that the user has access to any nodes. Returning a command without checking for access will result in an error.
 The input must be a JSON object with the following schema:
 %vjson
 {
