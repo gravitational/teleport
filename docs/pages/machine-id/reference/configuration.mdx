@@ -15,15 +15,15 @@ version: v2
 # Debug enables verbose logging to stderr.
 debug: true
 
-# Address of the Teleport Auth Server (on-prem installs) or Teleport Cloud tenant.
-auth_server: "auth.example.com:3025" # or "example.teleport.sh:443" for Teleport Cloud
+# Address of the Teleport Proxy (on-prem installs) or Teleport Cloud tenant.
+auth_server: "teleport.example.com:443" # or "example.teleport.sh:443" for Teleport Cloud
 
 # TTL of short-lived machine certificates.
-certificate_ttl: "5m"
+certificate_ttl: "1h"
 
 # Interval at which short-lived certificates are renewed; must be less than
 # the certificate TTL.
-renewal_interval: "1m"
+renewal_interval: "20m"
 
 # If set, quit after the first renewal.
 oneshot: true
@@ -60,81 +60,19 @@ onboarding:
         - "(=presets.ca_pin=)"
         - "(=presets.ca_pin=)"
 
-# Storage defines the destination where Machine ID internal data is stored.
+
 storage:
     type: directory
     # Directory to store internal bot data. Access to this directory should be
     # limited. By default, this value is `/var/lib/teleport/bot`.
     path: /var/lib/teleport/bot
 
-# Destinations specifies where short-lived certificates are stored.
-destinations:
-    # Directory specifies a filesystem directory where short-lived certificates
-    # are stored.
-    - directory:
-          # Configure the path at which to store certificates and other
-          # artifacts.
-          path: /opt/machine-id
-
-          # Configure symlink attack prevention. Requires Linux 5.6+.
-          # Possible values:
-          #   * try-secure (default): Attempt to securely read and write certificates
-          #     without symlinks, but fall back (with a warning) to insecure read
-          #     and write if the host doesn't support this.
-          #   * secure: Attempt to securely read and write certificates, with a hard error
-          #     if unsupported.
-          #   * insecure: Quietly allow symlinks in paths.
-          symlinks: try-secure
-          # Configure ACL use. Requires Linux with a file system that supports ACLs.
-          # Possible values:
-          #   * try (default on Linux): Attempt to use ACLs, warn at runtime if ACLs
-          #     are configured but invalid.
-          #   * off (default on non-Linux): Do not attempt to use ACLs.
-          #   * required: Always use ACLs, produce a hard error at runtime if ACLs
-          #     are invalid.
-          acls: try
-      # One or more roles to request for this destination directory from among
-      # the roles granted by `tctl bots add --roles=...`
-      # By default, all roles specified during `tctl bots add ...` are
-      # included. A subset of these may be specified here to write short-lived
-      # certificates with different roles to different directories.
-      roles: [a, b, c]
-
-      # An optional database request. The database must exist, and no other
-      # special certificate requests may be present for this destination, such
-      # as apps or Kubernetes clusters.
-      database:
-          # The name of the database server as it exists in Teleport.
-          service: example-server
-
-          # The database user to connect as.
-          username: alice
-
-          # The database on the database server to use.
-          database: example
-
-      # A list of configuration templates to generate and write to this
-      # destination.
-      configs:
-          # Requests an SSH host certificate. Requires a role granting the `create` verb on `host_cert` resources.
-          - ssh_host_cert:
-              principals: [my.machineid.domain.com]
-          # ssh_client generates known_hosts and an ssh_config that can be
-          # included.
-          - ssh_client
-
-          # The `mongo` template outputs specially-formatted certificates for
-          # MongoDB.
-          - mongo
-
-          # The `cockroach` template generates specially-named certificates
-          # for use with CockroachDB.
-          - cockroach
-
-          # The `tls` template generates tls.key, tls.crt, and tls.cas for apps
-          # with file naming requirements. The always-present `tlscert` is
-          # usually sufficient for most apps.
-          - tls
+# Outputs specify the credentials that `tbot` should generate.
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: /opt/machine-id
 ```
 
 If no configuration file is provided, a simple configuration is used based
@@ -155,50 +93,109 @@ $ tbot start \
 auth_server: auth.example.com:3025
 
 onboarding:
-    join_method: "token"
-    token: "(=presets.tokens.first=)"
-    ca_pins:
-        - "(=presets.ca_pin=)"
+  join_method: "token"
+  token: "(=presets.tokens.first=)"
+  ca_pins:
+      - "(=presets.ca_pin=)"
 
 storage:
-    directory: /var/lib/teleport/bot
+  type: directory
+  path: /var/lib/teleport/bot
 
-destinations:
-    - directory:
-          path: ./tbot-user
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: ./tbot-user
 ```
 
 ## Outputs
 
+Outputs define what actions `tbot` should take when it runs. They describe
+what format of credentials should be generated, with what roles and to what
+destination they should be written.
+
+There are multiple types of output, select the one that is most appropriate for
+your intended use-case.
+
 ### `identity`
+
+```yaml
+# For an identity output, type will always be `identity`.
+type: identity
+destination:
+  type: directory
+  path: /opt/machine-id
+roles:
+  - editor
+```
 
 ### `application`
 
+```yaml
+type: application
+destination:
+  type: directory
+  path: /opt/machine-id
+roles:
+  - editor
+```
+
 ### `database`
+
+```yaml
+type: database
+destination:
+  type: directory
+  path: /opt/machine-id
+roles:
+  - editor
+```
 
 ### `kubernetes`
 
+```yaml
+type: kubernetes
+destination:
+  type: directory
+  path: /opt/machine-id
+roles:
+  - editor
+```
+
 ### `ssh_host`
+
+```yaml
+type: ssh_host
+destination:
+  type: directory
+  path: /opt/machine-id
+roles:
+  - editor
+```
 
 ## Destinations
 
-A destination is something that `tbot` can read and write to. Destinations are
-used in two places in the `tbot` configuration:
+A destination is somewhere that `tbot` can read and write artifacts.
 
-- Specifying where `tbot` should write and read it's own core state to
-- Specifying where an output should write the generated files to
+Destinations are used in two places in the `tbot` configuration:
 
-The most common destination type is `directory`, but new types may be introduced
-to support other platforms (e.g Kubernetes Secrets).
+- Specifying where `tbot` should store its internal state
+- Specifying where an output should write the generated artifacts to
+
+Destinations come in multiple types, usually the `directory` type will be most
+appropriate.
 
 ### `directory`
+
+The `directory` destination type stores artifacts as files within a specified
+directory. This is usually the correct destination type to use.
 
 ```yaml
 # For a directory destination, type will always be `directory`.
 type: directory
 
-# Configure the path at which to store certificates and other
-# artifacts.
+# The path to the folder in which to read and write files.
 path: /opt/machine-id
 
 # Configure symlink attack prevention. Requires Linux 5.6+.
@@ -221,6 +218,12 @@ acls: try
 ```
 
 ### `memory`
+
+The `memory` destination type stores artifacts within the process memory. This
+means when the process exits, nothing will be persisted. This destination type
+is most suitable for ephemeral environments, but can also be used for testing.
+
+Configuration:
 
 ```yaml
 # For a memory destination, type will always be `memory`.
