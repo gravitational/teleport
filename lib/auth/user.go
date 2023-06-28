@@ -75,7 +75,7 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 		log.WithError(err).Warn("Failed to emit user create event.")
 	}
 
-	go usagereporter.EmitEditorChangeEvent(user.GetName(), []string{}, user.GetRoles(), s.AnonymizeAndSubmit)
+	go usagereporter.EmitEditorChangeEvent(user.GetName(), nil, user.GetRoles(), s.AnonymizeAndSubmit)
 
 	return nil
 }
