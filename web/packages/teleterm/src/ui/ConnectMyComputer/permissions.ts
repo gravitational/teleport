@@ -1,7 +1,6 @@
 import { Cluster } from 'teleterm/services/tshd/types';
 import { ConfigService } from 'teleterm/services/config';
 import { RuntimeSettings } from 'teleterm/mainProcess/types';
-import { routing } from 'teleterm/ui/uri';
 
 /**
  * Checks if Connect My Computer can be used for the given root cluster.
@@ -13,7 +12,7 @@ export function isConnectMyComputerPermittedForRootCluster(
   configService: ConfigService,
   runtimeSettings: RuntimeSettings
 ): boolean {
-  if (routing.ensureRootClusterUri(rootCluster.uri) !== rootCluster.uri) {
+  if (rootCluster.leaf) {
     throw new Error(`${rootCluster.uri} is not a root cluster`);
   }
 
