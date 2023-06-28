@@ -22,7 +22,7 @@ resource "aws_instance" "teleport_agent" {
   ami           = "ami-04a0ae173da5807d3"
   instance_type = "t3.small"
   subnet_id     = var.subnet_id
-  user_data = templatefile("./userdata.sh", {
+  user_data = templatefile("./userdata", {
     token                 = teleport_provision_token.agent[count.index].id
     proxy_service_address = var.proxy_service_address
     teleport_version      = var.teleport_version
@@ -38,4 +38,3 @@ resource "aws_instance" "teleport_agent" {
     encrypted = true
   }
 }
-
