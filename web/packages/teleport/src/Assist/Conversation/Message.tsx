@@ -21,6 +21,7 @@ import { CheckIcon } from 'design/SVGIcon';
 
 import {
   Author,
+  ConversationMessage,
   ResolvedServerMessage,
   ServerMessageType,
 } from 'teleport/Assist/types';
@@ -39,8 +40,7 @@ import { MessageEntry } from 'teleport/Assist/Conversation/MessageEntry';
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { ExecuteRemoteCommandEntry } from 'teleport/Assist/Conversation/ExecuteRemoteCommandEntry';
 import { CommandResultEntry } from 'teleport/Assist/Conversation/CommandResultEntry';
-
-import type { ConversationMessage } from 'teleport/Assist/types';
+import { CommandResultSummaryEntry } from 'teleport/Assist/Conversation/CommandResultSummaryEntry';
 
 interface MessageProps {
   message: ConversationMessage;
@@ -137,6 +137,13 @@ function createComponentForEntry(
           output={entry.output}
           finished={true}
           errorMessage={entry.errorMessage}
+        />
+      );
+    case ServerMessageType.CommandResultSummary:
+      return (
+        <CommandResultSummaryEntry
+          command={entry.command}
+          summary={entry.summary}
         />
       );
   }

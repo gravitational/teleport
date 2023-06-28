@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -169,6 +170,16 @@ func (s *Server) createBot(ctx context.Context, req *proto.CreateBotRequest) (*p
 	if exp := provisionToken.Expiry(); !exp.IsZero() {
 		tokenTTL = time.Until(exp)
 	}
+
+	// Emit usage analytics event for bot creation.
+	s.AnonymizeAndSubmit(&usagereporter.BotCreateEvent{
+		UserName:    authz.ClientUsername(ctx),
+		BotUserName: resourceName,
+		RoleName:    resourceName,
+		BotName:     req.Name,
+		RoleCount:   int64(len(req.Roles)),
+		JoinMethod:  string(provisionToken.GetJoinMethod()),
+	})
 
 	return &proto.CreateBotResponse{
 		TokenID:    provisionToken.GetName(),

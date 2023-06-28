@@ -22,9 +22,8 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// NewHeadlessAuthenticationStub creates a new a headless authentication resource with limited data.
-// The stub is used to initiate headless login.
-func NewHeadlessAuthenticationStub(name string, expires time.Time) (*HeadlessAuthentication, error) {
+// NewHeadlessAuthentication creates a new a headless authentication resource.
+func NewHeadlessAuthentication(username, name string, expires time.Time) (*HeadlessAuthentication, error) {
 	ha := &HeadlessAuthentication{
 		ResourceHeader: ResourceHeader{
 			Metadata: Metadata{
@@ -32,6 +31,7 @@ func NewHeadlessAuthenticationStub(name string, expires time.Time) (*HeadlessAut
 				Expires: &expires,
 			},
 		},
+		User: username,
 	}
 	return ha, ha.CheckAndSetDefaults()
 }
@@ -47,11 +47,12 @@ func (h *HeadlessAuthentication) CheckAndSetDefaults() error {
 		return trace.BadParameter("headless authentication resource must have non-zero header.metadata.expires")
 	}
 
+	if h.User == "" {
+		return trace.BadParameter("headless authentication resource must have non-empty user")
+	}
+
 	if h.Version == "" {
 		h.Version = V1
-	}
-	if h.State == HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED {
-		h.State = HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
 	}
 
 	return nil
@@ -74,4 +75,15 @@ func (h HeadlessAuthenticationState) Stringify() string {
 	default:
 		return "unknown"
 	}
+}
+
+// IsUnspecified headless authentication state. This usually means the headless
+// authentication resource is a headless authentication stub, with limited data.
+func (s HeadlessAuthenticationState) IsUnspecified() bool {
+	return s == HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED
+}
+
+// IsPending headless authentication state.
+func (s HeadlessAuthenticationState) IsPending() bool {
+	return s == HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
 }

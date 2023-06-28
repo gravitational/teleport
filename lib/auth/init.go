@@ -39,6 +39,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
+	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/backend"
@@ -195,6 +196,9 @@ type InitConfig struct {
 	// Integrations is a service that manages Integrations.
 	Integrations services.Integrations
 
+	// Embeddings is a service that manages Embeddings
+	Embeddings services.Embeddings
+
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
@@ -229,6 +233,12 @@ type InitConfig struct {
 	// HTTPClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests. Used in test.
 	HTTPClientForAWSSTS utils.HTTPDoClient
+
+	// EmbeddingRetriever is a retriever for embeddings.
+	EmbeddingRetriever *ai.SimpleRetriever
+
+	// EmbeddingClient is a client that allows generating embeddings.
+	EmbeddingClient ai.Embedder
 }
 
 // Init instantiates and configures an instance of AuthServer
@@ -480,7 +490,12 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 
 	// Create presets - convenience and example resources.
-	err = createPresets(ctx, asrv)
+	err = createPresetRoles(ctx, asrv)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	err = createPresetUsers(ctx, asrv)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -611,15 +626,31 @@ type PresetRoleManager interface {
 	UpsertRole(ctx context.Context, role types.Role) error
 }
 
-// createPresets creates preset resources (eg, roles).
-func createPresets(ctx context.Context, rm PresetRoleManager) error {
+// createPresetRoles creates preset role resources
+func createPresetRoles(ctx context.Context, rm PresetRoleManager) error {
 	roles := []types.Role{
 		services.NewPresetGroupAccessRole(),
 		services.NewPresetEditorRole(),
 		services.NewPresetAccessRole(),
 		services.NewPresetAuditorRole(),
+		services.NewPresetReviewerRole(),
+		services.NewPresetRequesterRole(),
+		services.NewSystemAutomaticAccessApproverRole(),
 	}
 	for _, role := range roles {
+		// If the role is nil, skip because it doesn't apply to this Teleport installation.
+		if role == nil {
+			continue
+		}
+
+		if types.IsSystemResource(role) {
+			// System resources *always* get reset on every auth startup
+			if err := rm.UpsertRole(ctx, role); err != nil {
+				return trace.Wrap(err, "failed upserting system role %s", role.GetName())
+			}
+			continue
+		}
+
 		err := rm.CreateRole(ctx, role)
 		if err != nil {
 			if !trace.IsAlreadyExists(err) {
@@ -645,6 +676,55 @@ func createPresets(ctx context.Context, rm PresetRoleManager) error {
 			}
 		}
 	}
+	return nil
+}
+
+// PresetUsers contains the required User Management methods to
+// create a preset User. Method names represent the appropriate
+// subset
+type PresetUsers interface {
+	// CreateUser creates a new user record based on the supplied `user` instance.
+	CreateUser(ctx context.Context, user types.User) error
+	// GetUser fetches a user from the repository by name, optionally fetching
+	// any associated secrets
+	GetUser(username string, withSecrets bool) (types.User, error)
+	// Upsert user creates or updates a user record as needed
+	UpsertUser(user types.User) error
+}
+
+// createPresetUsers creates all of the required user presets. No attempt is
+// made to migrate any existing users to the lastest preset.
+func createPresetUsers(ctx context.Context, um PresetUsers) error {
+	users := []types.User{
+		services.NewSystemAutomaticAccessBotUser(),
+	}
+	for _, user := range users {
+		// Some users are only valid for enterprise Teleport, and so will be
+		// nil for an OSS build and can be skipped
+		if user == nil {
+			continue
+		}
+
+		if types.IsSystemResource(user) {
+			// System resources *always* get reset on every auth startup
+			if err := um.UpsertUser(user); err != nil {
+				return trace.Wrap(err, "failed upserting system user %s", user.GetName())
+			}
+			continue
+		}
+
+		err := um.CreateUser(ctx, user)
+		if err == nil {
+			// Success! The rest of the loop body is immaterial. Move on to
+			// the next user.
+			continue
+		}
+
+		if !trace.IsAlreadyExists(err) {
+			return trace.Wrap(err, "failed creating preset user %s", user.GetName())
+		}
+	}
+
 	return nil
 }
 

@@ -113,12 +113,12 @@ func (b *Bot) Run(ctx context.Context) error {
 	// oneshot use-cases like CI-CD where backing off over several minutes on
 	// failure will just cost the customer money.
 	if b.cfg.Oneshot {
-		b.log.Info("One-shot mode enabled. Renewing destinations.")
-		if err := b.renewDestinations(ctx); err != nil {
+		b.log.Info("One-shot mode enabled. Generating outputs.")
+		if err := b.renewOutputs(ctx); err != nil {
 			return trace.Wrap(err)
 		}
 
-		b.log.Info("Renewed destinations. One-shot mode enabled so exiting.")
+		b.log.Info("Generated outputs. One-shot mode is enabled so exiting.")
 		return nil
 	}
 
@@ -148,7 +148,7 @@ func (b *Bot) Run(ctx context.Context) error {
 	eg.Go(func() error {
 		reloadCh, unsubscribe := reloadBroadcast.subscribe()
 		defer unsubscribe()
-		return trace.Wrap(b.renewDestinationsLoop(egCtx, reloadCh))
+		return trace.Wrap(b.renewOutputsLoop(egCtx, reloadCh))
 	})
 	if b.cfg.ReloadCh != nil {
 		eg.Go(func() error {
@@ -230,19 +230,12 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 	}
 
 	// Start by loading the bot's primary storage.
-	store, err := b.cfg.Storage.GetDestination()
-	if err != nil {
-		return nil, trace.Wrap(
-			err, "could not read bot storage destination from config",
-		)
-	}
-
+	store := b.cfg.Storage.Destination
 	if err := identity.VerifyWrite(store); err != nil {
 		return nil, trace.Wrap(
 			err, "Could not write to destination %s, aborting.", store,
 		)
 	}
-
 	// Now attempt to lock the destination so we have sole use of it
 	unlock, err := store.TryLock()
 	if err != nil {
@@ -376,30 +369,16 @@ func checkDestinations(cfg *config.BotConfig) error {
 	//  - if the destination was properly created via tbot init this is a no-op
 	//  - if users intend to follow that advice but miss a step, it should fail
 	//    due to lack of permissions
-	storage, err := cfg.Storage.GetDestination()
-	if err != nil {
+	storageDest := cfg.Storage.Destination
+
+	// Note: no subdirs to init for bot's internal storage.
+	if err := storageDest.Init([]string{}); err != nil {
 		return trace.Wrap(err)
 	}
 
 	// TODO: consider warning if ownership of all destintions is not expected.
-
-	// Note: no subdirs to init for bot's internal storage.
-	if err := storage.Init([]string{}); err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, dest := range cfg.Destinations {
-		destImpl, err := dest.GetDestination()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		subdirs, err := dest.ListSubdirectories()
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		if err := destImpl.Init(subdirs); err != nil {
+	for _, output := range cfg.Outputs {
+		if err := output.Init(); err != nil {
 			return trace.Wrap(err)
 		}
 	}
