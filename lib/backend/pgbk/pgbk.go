@@ -114,7 +114,7 @@ func (b *Backend) retry(ctx context.Context, f func(*pgxpool.Pool) error) error 
 		return trace.Wrap(err)
 	}
 
-	for i := 1; i < 10; i++ {
+	for i := 1; i <= 10; i++ {
 		err = f(b.pool)
 		if err == nil {
 			return nil
@@ -123,6 +123,10 @@ func (b *Backend) retry(ctx context.Context, f func(*pgxpool.Pool) error) error 
 		if isCode(err, pgerrcode.SerializationFailure) || isCode(err, pgerrcode.DeadlockDetected) {
 			b.log.WithError(err).WithField("attempt", i).Debug("Operation failed due to conflicts, retrying quickly.")
 			retry.Reset()
+			// the first attempt gets instant retry on serialization failure
+			if i > 1 {
+				retry.Inc()
+			}
 		} else {
 			b.log.WithError(err).WithField("attempt", i).Debug("Operation failed, retrying.")
 			retry.Inc()
@@ -131,7 +135,7 @@ func (b *Backend) retry(ctx context.Context, f func(*pgxpool.Pool) error) error 
 		select {
 		case <-retry.After():
 		case <-ctx.Done():
-			return ctx.Err()
+			return trace.Wrap(ctx.Err())
 		}
 
 	}
