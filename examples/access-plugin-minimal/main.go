@@ -31,9 +31,6 @@ func main() {
 		panic(err)
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, initTimeout)
-	defer cancel()
-
 	creds := client.LoadIdentityFile("auth.pem")
 
 	teleport, err := client.New(ctx, client.Config{
@@ -46,6 +43,7 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
+	defer teleport.Close()
 
 	gs := googleSheetsClient{
 		sheetsClient: sheets.NewSpreadsheetsService(svc),

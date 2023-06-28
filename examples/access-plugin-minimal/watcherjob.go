@@ -41,7 +41,6 @@ func (p *AccessRequestPlugin) Run() error {
 	ctx := context.Background()
 
 	watch, err := p.TeleportClient.NewWatcher(ctx, types.Watch{
-		Name: "Access Requests",
 		Kinds: []types.WatchKind{
 			types.WatchKind{Kind: types.KindAccessRequest},
 		},
@@ -50,13 +49,16 @@ func (p *AccessRequestPlugin) Run() error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer watch.Close()
 
 	fmt.Println("Starting the watcher job")
 
 	for {
 		select {
 		case e := <-watch.Events():
-			p.EventHandler.HandleEvent(ctx, e)
+			if err := p.EventHandler.HandleEvent(ctx, e); err != nil {
+				return trace.Wrap(err)
+			}
 		case <-watch.Done():
 			fmt.Println("The watcher job is finished")
 			return nil
