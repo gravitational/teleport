@@ -59,7 +59,7 @@ package rdpclient
 #cgo linux LDFLAGS: -l:librdp_client.a -lpthread -ldl -lm
 #cgo darwin,amd64 LDFLAGS: -L${SRCDIR}/../../../../../target/x86_64-apple-darwin/release
 #cgo darwin,arm64 LDFLAGS: -L${SRCDIR}/../../../../../target/aarch64-apple-darwin/release
-#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -framework SystemConfiguration -lrdp_client -lpthread -ldl -lm
+#cgo darwin LDFLAGS: -framework CoreFoundation -framework Security -lrdp_client -lpthread -ldl -lm
 #include <librdprs.h>
 */
 import "C"

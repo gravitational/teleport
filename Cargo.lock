@@ -1283,7 +1283,7 @@ version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP/?rev=4844e77b7f65024d85ba74b1824013eda6eb32b2#4844e77b7f65024d85ba74b1824013eda6eb32b2"
 dependencies = [
  "bit_field",
- "bitflags 2.3.1",
+ "bitflags 2.3.2",
  "bitvec",
  "byteorder",
  "ironrdp-error",
@@ -1300,7 +1300,7 @@ version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP/?rev=4844e77b7f65024d85ba74b1824013eda6eb32b2#4844e77b7f65024d85ba74b1824013eda6eb32b2"
 dependencies = [
  "bit_field",
- "bitflags 2.3.1",
+ "bitflags 2.3.2",
  "byteorder",
  "der-parser",
  "ironrdp-error",
@@ -1321,7 +1321,7 @@ name = "ironrdp-session"
 version = "0.1.0"
 source = "git+https://github.com/Devolutions/IronRDP/?rev=4844e77b7f65024d85ba74b1824013eda6eb32b2#4844e77b7f65024d85ba74b1824013eda6eb32b2"
 dependencies = [
- "bitflags 2.3.1",
+ "bitflags 2.3.2",
  "ironrdp-connector",
  "ironrdp-error",
  "ironrdp-graphics",

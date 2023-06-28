@@ -415,7 +415,7 @@ endif
 	rm -f *.zip
 	rm -f gitref.go
 	rm -rf build.assets/tooling/bin
-# Clean up wasm-pack build artifacts
+	# Clean up wasm-pack build artifacts
 	rm -rf web/packages/teleport/src/ironrdp/pkg/
 
 .PHONY: clean-ui

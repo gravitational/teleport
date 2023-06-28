@@ -45,4 +45,3 @@ tempfile = "3.6.0"
 
 [features]
 fips = ["rdp-rs/fips"]
-#rustls = ["dep:tokio-rustls"]
