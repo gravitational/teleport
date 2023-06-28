@@ -10,11 +10,11 @@ import (
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
 	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
+	types "github.com/gogo/protobuf/types"
 	github_com_gravitational_teleport_api_constants "github.com/gravitational/teleport/api/constants"
 	v1 "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
 	_ "github.com/gravitational/teleport/api/types/wrappers"
 	github_com_gravitational_teleport_api_types_wrappers "github.com/gravitational/teleport/api/types/wrappers"
-	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	_ "google.golang.org/protobuf/types/known/timestamppb"
 	io "io"
 	math "math"
@@ -16376,10 +16376,10 @@ var xxx_messageInfo_AccessListOwner proto.InternalMessageInfo
 type AccessListAudit struct {
 	// Frequency is a string parseable by golang's time.ParseDuration that describes
 	// how often an access list must be audited.
-	Frequency            *durationpb.Duration `protobuf:"bytes,1,opt,name=Frequency,proto3" json:"frequency"`
-	XXX_NoUnkeyedLiteral struct{}             `json:"-"`
-	XXX_unrecognized     []byte               `json:"-"`
-	XXX_sizecache        int32                `json:"-"`
+	Frequency            *types.Duration `protobuf:"bytes,1,opt,name=Frequency,proto3" json:"frequency"`
+	XXX_NoUnkeyedLiteral struct{}        `json:"-"`
+	XXX_unrecognized     []byte          `json:"-"`
+	XXX_sizecache        int32           `json:"-"`
 }
 
 func (m *AccessListAudit) Reset()         { *m = AccessListAudit{} }
@@ -105086,7 +105086,7 @@ func (m *AccessListAudit) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if m.Frequency == nil {
-				m.Frequency = &durationpb.Duration{}
+				m.Frequency = &types.Duration{}
 			}
 			if err := m.Frequency.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
