@@ -340,7 +340,7 @@ func (c *Client) start() {
 
 			if atomic.LoadUint32(&c.readyForInput) == 0 {
 				// Input not allowed yet, drop the message.
-				c.cfg.Log.Warnf("Dropping TDP input message: %T", msg)
+				c.cfg.Log.Debugf("Dropping TDP input message: %T", msg)
 				continue
 			}
 
@@ -580,17 +580,15 @@ func (c *Client) start() {
 					}
 				}
 			case tdp.RDPResponsePDU:
-				var rdpResponsePDULen uint32 = uint32(len(m))
-				var rdpResponsePDU *C.uint8_t
-				if rdpResponsePDULen > 0 {
-					rdpResponsePDU = (*C.uint8_t)(unsafe.Pointer(&m[0]))
-				} else {
-					c.cfg.Log.Error("RDPResponsePDU is empty")
+				pduLen := uint32(len(m))
+				if pduLen == 0 {
+					c.cfg.Log.Error("response PDU empty")
 					return
 				}
+				rdpResponsePDU := (*C.uint8_t)(unsafe.SliceData(m))
 
 				if errCode := C.handle_tdp_fast_path_response(
-					c.rustClient, rdpResponsePDU, C.uint32_t(rdpResponsePDULen),
+					c.rustClient, rdpResponsePDU, C.uint32_t(pduLen),
 				); errCode != C.ErrCodeSuccess {
 					c.cfg.Log.Errorf("RDPResponsePDU failed: %v", errCode)
 					return
