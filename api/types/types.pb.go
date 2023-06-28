@@ -16277,8 +16277,12 @@ type AccessListSpecV1 struct {
 	// Audit describes the frequency that this access list must be audited.
 	Audit *AccessListAudit `protobuf:"bytes,3,opt,name=Audit,proto3" json:"audit"`
 	// MembershipRequires describes the requirements for a user to be a member of the access list.
+	// For a membership to an access list to be effective, the user must meet the requirements of
+	// MembershipRequires and must be in the members list.
 	MembershipRequires *AccessListRequires `protobuf:"bytes,4,opt,name=MembershipRequires,proto3" json:"membership_requires"`
 	// OwnershipRequires describes the requirements for a user to be an owner of the access list.
+	// For ownership of an access list to be effective, the user must meet the requirements of
+	// OwnershipRequires and must be in the owners list.
 	OwnershipRequires *AccessListRequires `protobuf:"bytes,5,opt,name=OwnershipRequires,proto3" json:"ownership_requires"`
 	// Grants describes the access granted by membership to this access list.
 	Grants *AccessListGrants `protobuf:"bytes,6,opt,name=Grants,proto3" json:"grants"`
