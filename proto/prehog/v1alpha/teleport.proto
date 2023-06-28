@@ -87,6 +87,8 @@ message UserCertificateIssuedEvent {
   bool usage_desktop = 7;
 }
 
+// UIBannerClickEvent is a usage event sent by the UI when the upgrade
+// banner is clicked.
 message UIBannerClickEvent {
   // anonymized
   string user_name = 1;
@@ -94,26 +96,36 @@ message UIBannerClickEvent {
   string alert = 2;
 }
 
+// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial
+// registration is complete.
 message UIOnboardCompleteGoToDashboardClickEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIOnboardAddFirstResourceClickEvent is a UI event sent when a user clicks the
+// "add first resource" button.
 message UIOnboardAddFirstResourceClickEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIOnboardAddFirstResourceLaterClickEvent is a UI event sent when a user
+// clicks the "add first resource later" button.
 message UIOnboardAddFirstResourceLaterClickEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIOnboardSetCredentialSubmitEvent is a UI event sent during registration when
+// users configure their credentials.
 message UIOnboardSetCredentialSubmitEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
+// when the MFA challenge is completed.
 message UIOnboardRegisterChallengeSubmitEvent {
   // anonymized
   string user_name = 1;
@@ -121,16 +133,29 @@ message UIOnboardRegisterChallengeSubmitEvent {
   string login_flow = 3;
 }
 
+// UIOnboardQuestionnaireSubmitEvent is a UI event sent during registration when
+// user submits their onboarding questionnaire.
+message UIOnboardQuestionnaireSubmitEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+// UIRecoveryCodesContinueClickEvent is a UI event sent during
+// registration when the user configures cluster recovery codes.
 message UIRecoveryCodesContinueClickEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIRecoveryCodesCopyClickEvent is a UI event sent during
+// registration when the user copies recovery codes.
 message UIRecoveryCodesCopyClickEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIRecoveryCodesPrintClickEvent is a UI event sent during
+// registration when the user prints recovery codes.
 message UIRecoveryCodesPrintClickEvent {
   // anonymized
   string user_name = 1;
@@ -364,18 +389,37 @@ message BotCreateEvent {
   string bot_name = 6;
 }
 
+// BotJoinEvent is emitted when a bot joins a Teleport cluster.
+message BotJoinEvent {
+  // bot_name is the anonymised name of the bot.
+  string bot_name = 1;
+  // join_method is the join method of the token associated with the bot on
+  // creation. This will be the string value of `api/types.JoinMethod`.
+  string join_method = 2;
+  // join_token_name is the anonymised name of the token used to join
+  // the cluster.
+  string join_token_name = 3;
+}
+
+// UICreateNewRoleClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleClickEvent {
   //anonymized
   string user_name = 1;
 }
+
+// UICreateNewRoleSaveClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleSaveClickEvent {
   //anonymized
   string user_name = 1;
 }
+
+// UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleCancelClickEvent {
   //anonymized
   string user_name = 1;
 }
+
+// UICreateNewRoleViewDocumentationClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleViewDocumentationClickEvent {
   //anonymized
   string user_name = 1;
@@ -573,6 +617,10 @@ message SubmitEventRequest {
     EditorChangeEvent editor_change_event = 46;
 
     BotCreateEvent bot_create = 47;
+
+    UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 48;
+
+    BotJoinEvent bot_join = 49;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
