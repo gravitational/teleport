@@ -944,8 +944,6 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		t.Log(tt.desc)
-
 		err := setupImpersonationHeaders(
 			logrus.NewEntry(logrus.New()),
 			authContext{
@@ -955,7 +953,6 @@ func TestSetupImpersonationHeaders(t *testing.T) {
 			},
 			tt.inHeaders,
 		)
-		t.Log("got error:", err)
 		tt.errAssertion(t, err)
 
 		if err == nil {
