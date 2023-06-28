@@ -1,0 +1,120 @@
+// Copyright 2021 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.accesslist.v1;
+
+import "google/protobuf/duration.proto";
+import "google/protobuf/timestamp.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1;accesslist";
+
+// AccessListV1 describes the basic building block of access grants, which are
+// similar to access requests but for longer lived permissions that need to be
+// regularly audited.
+message AccessListV1 {
+  // kind is a resource kind
+  string kind = 1;
+  // sub_kind is an optional resource sub kind, used in some resources
+  string sub_kind = 2;
+  // version is version
+  string version = 3;
+  // Metadata is resource metadata
+  types.Metadata metadata = 4;
+
+  // spec is the specification for the access list.
+  AccessListSpecV1 spec = 5;
+}
+
+// AccessListSpecV1 is the specification for an access list.
+message AccessListSpecV1 {
+  // description is a plaintext description of the access list.
+  string description = 1;
+
+  // owners is a list of owners of the access list.
+  repeated AccessListOwner owners = 2;
+
+  // audit describes the frequency that this access list must be audited.
+  AccessListAudit audit = 3;
+
+  // membership_requires describes the requirements for a user to be a member of the access list.
+  // For a membership to an access list to be effective, the user must meet the requirements of
+  // Membership_requires and must be in the members list.
+  AccessListRequires membership_requires = 4;
+
+  // ownership_requires describes the requirements for a user to be an owner of the access list.
+  // For ownership of an access list to be effective, the user must meet the requirements of
+  // ownership_requires and must be in the owners list.
+  AccessListRequires ownership_requires = 5;
+
+  // grants describes the access granted by membership to this access list.
+  AccessListGrants grants = 6;
+
+  // members describes the current members of the access list.
+  repeated AccessListMember members = 7;
+}
+
+// AccessListOwnerV1 is an owner of an access list.
+message AccessListOwner {
+  // name is the username of the owner.
+  string name = 1;
+
+  // description is the plaintext description of the owner and why they are an owner.
+  string description = 2;
+}
+
+// AccessListAudit describes the audit configuration for an access list.
+message AccessListAudit {
+  // frequency is a duration that describes how often an access list must be audited.
+  google.protobuf.Duration frequency = 1;
+}
+
+// AccessListRequires describes a requirement section for an access list. A user must
+// meet the following criteria to obtain the specific access to the list.
+message AccessListRequires {
+  // roles are the user roles that must be present for the user to obtain access.
+  repeated string roles = 1;
+
+  // traits are the traits that must be present for the user to obtain access.
+  map<string, string> traits = 2;
+}
+
+// AccessListGrants describes what access is granted by membership to the access list.
+message AccessListGrants {
+  // roles are the roles that are granted to users who are members of the access list.
+  repeated string roles = 1;
+
+  // traits are the traits that are granted to users who are members of the access list.
+  map<string, string> traits = 2;
+}
+
+// AccessListMember describes a member of an access list.
+message AccessListMember {
+  // name is the name of the member of the access list.
+  string name = 1;
+
+  // joined is when the user joined the access list.
+  google.protobuf.Timestamp joined = 2;
+
+  // expires is when the user's membership to the access list expires.
+  google.protobuf.Timestamp expires = 3;
+
+  // reason is the reason this user was added to the access list.
+  string reason = 4;
+
+  // added_by is the user that added this user to the access list.
+  string added_by = 5;
+}
