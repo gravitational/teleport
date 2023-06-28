@@ -1,23 +1,79 @@
 ---
 title: Machine ID V14 Upgrade Guide
-description: Upgrade instructions for Machine ID in Teleport V14.0
+description: Upgrade instructions for Machine ID in Teleport 14.0
 ---
 
 Teleport 14.0 introduces a handful of breaking changes to the configuration of
 Machine ID's agent `tbot`. This guide explains how to implement these changes to
 an existing installation of TBot.
 
-You do not need to read further if:
+You do not need to take any action if:
 
 - You do not use Machine ID.
-- You do not use `tbot` with a configuration file or use the GitHub Actions.
+- You configure `tbot` only with CLI parameters.
 
 ## Overview
 
-TODO: Describe new "output" and "destination" concepts
+Previously, the `tbot` configuration contained a list of destinations. A
+`destination` described what should be written, where it should be written and
+what credential attributes should be used.
 
-## Configuration file
+Each `destination` had a large number of configuration fields, and many of
+these when combined would produce unusable certificates. This proved
+problematic.
 
-## GitHub Actions
+Going forward, a new configuration version has been introduced. What was
+known as a `destination` is now an `output`. Unlike a `destination`, an
+`output` has a specific type. The concept of `destination` remains, but this now
+just refers to where artifacts should be read from and written to.
 
-Teleport 14.0 requires that V2 of the GitHub Actions are used.
+For example,
+
+**Old**
+```yaml
+destinations:
+- directory:
+    path: /opt/machine-id
+  roles:
+  - editor
+  app: grafana
+```
+
+**New**
+```yaml
+version: v2
+outputs:
+- type: application
+  roles:
+  - editor
+  destination:
+    type: directory
+    path: /opt/machine-id
+```
+
+See the [configuration reference](./configuration.mdx) for details of the new
+configuration version and outputs.
+
+## Migrating configuration files
+
+On start, `tbot` will automatically attempt to migrate a v1 configuration to
+v2 in order to continue without disruption. This migration is ephemeral and
+is not written to disk.
+
+We heavily recommend converting your configuration file from v1 to v2
+permanently. A warning will be emitted when starting `tbot` until you do so.
+
+Determine the path of your current configuration file and the path you wish to
+write the migrated configuration file to. Then run:
+
+```
+tbot migrate -c /config.yaml -o /config.migrated.yaml
+```
+
+Inspect the migrated configuration file to ensure it meets your expectations,
+and try running `tbot` with it. If everything is ok, you may replace your
+original configuration file with the migrated one.
+
+### Migration failure
+
+/// TODO: What to do when it doesn't work.
