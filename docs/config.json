@@ -478,7 +478,11 @@
           "entries": [
             {
               "title": "Set Up Device Trust",
-              "slug": "/access-controls/device-trust/guide/"
+              "slug": "/access-controls/device-trust/guide/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "Set Up Auto-Enrollment",
