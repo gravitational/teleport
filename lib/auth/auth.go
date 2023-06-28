@@ -3840,6 +3840,38 @@ func (a *Server) CreateAccessRequest(ctx context.Context, req types.AccessReques
 		return trace.Wrap(err)
 	}
 
+	// Look for user groups and associated applications to the request.
+	requestedResourceIDs := req.GetRequestedResourceIDs()
+	var additionalResources []types.ResourceID
+	existingApps := map[string]struct{}{}
+	for _, resource := range requestedResourceIDs {
+		if resource.Kind != types.KindUserGroup {
+			continue
+		}
+
+		userGroup, err := a.GetUserGroup(ctx, resource.Name)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		for _, app := range userGroup.GetApplications() {
+			// Only add to the request if we haven't already added it.
+			if _, ok := existingApps[app]; !ok {
+				additionalResources = append(additionalResources, types.ResourceID{
+					ClusterName: resource.ClusterName,
+					Kind:        types.KindApp,
+					Name:        app,
+				})
+				existingApps[app] = struct{}{}
+			}
+		}
+	}
+
+	if len(additionalResources) > 0 {
+		requestedResourceIDs = append(requestedResourceIDs, additionalResources...)
+		req.SetRequestedResourceIDs(requestedResourceIDs)
+	}
+
 	if req.GetDryRun() {
 		// Made it this far with no errors, return before creating the request
 		// if this is a dry run.
