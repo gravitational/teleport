@@ -2,6 +2,7 @@ package plugins
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/sirupsen/logrus"
 
@@ -24,6 +25,10 @@ type instanceDependencies struct {
 	staticCredentials []types.PluginStaticCredentials
 
 	log *logrus.Entry
+
+	// HTTP client to be used by Plugin.
+	// Leave as `nil` for the plugins to use their own defaults.
+	HTTPClient *http.Client
 }
 
 // instanceFactory takes plugin spec and its dependencies,

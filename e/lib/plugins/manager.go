@@ -67,6 +67,7 @@ func (cfg *ManagerConfig) checkAndSetDefaults() error {
 			types.PluginTypeSlack:     slackInstanceFactory,
 			types.PluginTypeOpsgenie:  opsgenieInstanceFactory,
 			types.PluginTypePagerDuty: pagerDutyInstanceFactory,
+			types.PluginTypeJamf:      jamfInstanceFactory,
 		}
 	}
 	if cfg.Clock == nil {

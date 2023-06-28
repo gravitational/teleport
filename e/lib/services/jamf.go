@@ -17,7 +17,10 @@ import (
 
 const (
 	jamfIdentityEvent = "JamfIdentity"
-	jamfReadyEvent    = "JamfReady"
+	// JamfReadyEvent is generated when the Jamf service is started.
+	JamfReadyEvent = "JamfReady"
+	// JamfStoppedEvent is generated when the Jamf service is stopped.
+	JamfStoppedEvent = "JamfStopped"
 )
 
 // JamfRegister adds additional roles and ready events expected by the Jamf
@@ -31,80 +34,109 @@ func JamfRegister(cfg *servicecfg.Config) {
 		Role:          types.RoleMDM,
 		IdentityEvent: jamfIdentityEvent,
 	})
-	cfg.AdditionalReadyEvents = append(cfg.AdditionalReadyEvents, jamfReadyEvent)
+	cfg.AdditionalReadyEvents = append(cfg.AdditionalReadyEvents, JamfReadyEvent)
 }
 
-// JamfInit registers the necessary critical functions for the Jamf service
-// within the [service.TeleportProcess].
+// JamfStandaloneInit initializes standalone Jamf service.
+// Use [JamfPluginInit] to run the Jamf service as a hosted plugin.
 // Returns immediately.
-func JamfInit(process *service.TeleportProcess, httpClient *http.Client) error {
+func JamfStandaloneInit(process *service.TeleportProcess, httpClient *http.Client) error {
 	if process == nil {
 		return trace.BadParameter("process required")
 	}
 
-	// Register our request for MDM credentials.
-	process.RegisterWithAuthServer(types.RoleMDM, jamfIdentityEvent)
-
-	// Register Jamf initialization.
+	// When running as a standalone service, we want process to exit on faulty config.
 	process.RegisterCriticalFunc("jamf.init", func() error {
 		ctx, cancel := context.WithCancel(process.ExitContext())
 		defer cancel()
-
-		logger := process.Config.Log.WithField(
-			trace.Component,
-			teleport.Component(ent.ComponentJamf, process.GetID()),
-		)
-
-		// Wait for MDM credentials.
-		conn, err := process.WaitForConnector(jamfIdentityEvent, logger)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if conn == nil {
-			// Is the server shutting down? Report back.
-			if err := ctx.Err(); err != nil {
-				return trace.Wrap(err)
-			}
-			return trace.BadParameter("failed to acquire MDM credentials from Auth")
-		}
-
-		if httpClient == nil {
-			httpClient = &http.Client{
-				Timeout: 5 * time.Minute,
-			}
-		}
-		s, err := jamfservice.New(ctx, jamfservice.Opts{
-			Clock:         process.Clock,
-			Logger:        logger,
-			Config:        &process.Config.Jamf,
-			DevicesClient: conn.Client.DevicesClient(),
-			HTTPClient:    httpClient,
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Broadcast that we are ready and start.
-		process.BroadcastEvent(service.Event{Name: jamfReadyEvent, Payload: nil})
-		err = s.Run(ctx)
-		// err returned below.
-
-		// Trigger exit_on_sync mechanism?
-		if process.Config.Jamf.ExitOnSync {
-			go func() {
-				logger.Info("Signaling shutdown to Teleport process [exit_on_sync=true]")
-
-				// Attempt a graceful shutdown first...
-				ctx := context.Background()
-				process.Shutdown(ctx)
-
-				// ... and follow up with a hard shutdown.
-				// The Close is necessary, the process won't stop without it.
-				process.Close()
-			}()
-		}
-
-		return trace.Wrap(err)
+		return startJamfService(ctx, process, httpClient)
 	})
 	return nil
+}
+
+func startJamfService(ctx context.Context, process *service.TeleportProcess, httpClient *http.Client) error {
+	// Register our request for MDM credentials.
+	process.RegisterWithAuthServer(types.RoleMDM, jamfIdentityEvent)
+
+	logger := process.Config.Log.WithField(
+		trace.Component,
+		teleport.Component(ent.ComponentJamf, process.GetID()),
+	)
+
+	// Wait for MDM credentials.
+	conn, err := process.WaitForConnector(jamfIdentityEvent, logger)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if conn == nil {
+		// Is the server shutting down? Report back.
+		if err := ctx.Err(); err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.BadParameter("failed to acquire MDM credentials from Auth")
+	}
+
+	if httpClient == nil {
+		httpClient = &http.Client{
+			Timeout: 5 * time.Minute,
+		}
+	}
+
+	s, err := jamfservice.New(ctx, jamfservice.Opts{
+		Clock:         process.Clock,
+		Logger:        logger,
+		Config:        &process.Config.Jamf,
+		DevicesClient: conn.Client.DevicesClient(),
+		HTTPClient:    httpClient,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Broadcast that we are ready and start.
+	process.BroadcastEvent(service.Event{Name: JamfReadyEvent})
+	err = s.Run(ctx)
+	// err returned below.
+
+	// Trigger exit_on_sync mechanism?
+	if process.Config.Jamf.ExitOnSync {
+		go func() {
+			logger.Info("Signaling shutdown to Teleport process [exit_on_sync=true]")
+
+			// Attempt a graceful shutdown first...
+			ctx := context.Background()
+			process.Shutdown(ctx)
+
+			// ... and follow up with a hard shutdown.
+			// The Close is necessary, the process won't stop without it.
+			process.Close()
+		}()
+	}
+
+	process.BroadcastEvent(service.Event{Name: JamfStoppedEvent})
+	return trace.Wrap(err)
+}
+
+// JamfPluginInit initializes hosted Jamf service (hosted plugin).
+// Use [JamfStandaloneInit] to run the Jamf service as a standalone service.
+// Returns immediately.
+func JamfPluginInit(ctx context.Context, process *service.TeleportProcess, jamfSpec *types.JamfSpecV1, pluginName string, httpClient *http.Client) (string, error) {
+	if process == nil {
+		return "", trace.BadParameter("process required")
+	}
+
+	// Add Jamf spec to process config.
+	process.Config.Jamf = servicecfg.JamfConfig{
+		Spec: jamfSpec,
+	}
+
+	// Set the expected instance role for this identity event since it's unique to this plugin.
+	process.SetExpectedInstanceRole(types.RoleMDM, jamfIdentityEvent)
+
+	// We don't want auth process to exit due to faulty jamf config.
+	process.RegisterFunc("jamf.init", func() error {
+		return startJamfService(ctx, process, httpClient)
+	})
+
+	return EventWithComponents(JamfStoppedEvent), nil
 }

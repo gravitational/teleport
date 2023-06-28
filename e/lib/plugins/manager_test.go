@@ -3,6 +3,7 @@ package plugins
 import (
 	"context"
 	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -12,12 +13,17 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/e/lib/jamf/testenv"
+	"github.com/gravitational/teleport/e/lib/services"
 	storage "github.com/gravitational/teleport/integrations/access/common/auth/storage"
 	"github.com/gravitational/teleport/lib/backend/memory"
 	"github.com/gravitational/teleport/lib/service"
+	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 type fakeAuthorizer struct{}
@@ -269,4 +275,191 @@ func testPluginStartStop(t *testing.T, plugin *types.PluginV1, modifySpec func(t
 		},
 	})
 	assertStartStop(3, 3)
+}
+
+// TestInstanceFactory runs registered plugins instance factory to test start and stop events
+func TestInstanceFactory(t *testing.T) {
+	jamfEnv := testenv.NewUsingT(t, &testenv.Opts{
+		DeviceTrustEnv: true,
+	})
+	defer jamfEnv.Close()
+
+	var testCases = []struct {
+		name                     string
+		pluginType               string
+		plugin                   *types.PluginV1
+		readyEvent, stoppedEvent string
+	}{
+		{
+			name:       "oktaInstanceFactory",
+			pluginType: types.PluginTypeOkta,
+			plugin: types.NewPluginV1(
+				types.Metadata{
+					Name: "okta",
+				},
+				types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Okta{
+						Okta: &types.PluginOktaSettings{
+							OrgUrl: "https://test.url",
+						},
+					},
+				},
+				&types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"label1": "value1",
+							},
+						},
+					},
+				},
+			),
+			readyEvent:   services.EventWithComponents(services.OktaReady, "okta", fmt.Sprintf("%d", clockwork.NewFakeClock().Now().Unix())),
+			stoppedEvent: services.EventWithComponents(services.OktaStopped, "okta", fmt.Sprintf("%d", clockwork.NewFakeClock().Now().Unix())),
+		},
+		{
+			name:       "jamfInstanceFactory",
+			pluginType: types.PluginTypeJamf,
+			plugin: types.NewPluginV1(
+				types.Metadata{
+					Name: "jamf",
+				},
+				types.PluginSpecV1{
+					Settings: &types.PluginSpecV1_Jamf{
+						Jamf: &types.PluginJamfSettings{
+							JamfSpec: &types.JamfSpecV1{
+								ApiEndpoint: jamfEnv.APIEndpoint,
+								Username:    testenv.DefaultUsers[0].Username,
+								Password:    testenv.DefaultUsers[0].Password,
+							},
+						},
+					},
+				},
+				&types.PluginCredentialsV1{
+					Credentials: &types.PluginCredentialsV1_StaticCredentialsRef{
+						StaticCredentialsRef: &types.PluginStaticCredentialsRef{
+							Labels: map[string]string{
+								"jamf/api-endpoint": jamfEnv.APIEndpoint,
+							},
+						},
+					},
+				},
+			),
+			readyEvent:   services.JamfReadyEvent,
+			stoppedEvent: services.JamfStoppedEvent,
+		},
+	}
+
+	// GIVEN a running Teleport Cluster...
+	process := testAuthProcess(t)
+	require.NoError(t, process.Start())
+
+	for _, tc := range testCases {
+		factoryCtx, factoryCancel := context.WithCancel(context.Background())
+		pluginLifetime, pluginCancel := context.WithCancel(context.Background())
+		t.Run(tc.name, func(t *testing.T) {
+			var factoryFunc func() error
+
+			switch tc.pluginType {
+			case types.PluginTypeOkta:
+				var err error
+				// Run plugin
+				factoryFunc, err = oktaInstanceFactory(factoryCtx, tc.plugin, instanceDependencies{
+					lifetime:      pluginLifetime,
+					log:           logrus.NewEntry(logrus.New()),
+					parentProcess: process,
+					staticCredentials: []types.PluginStaticCredentials{
+						&types.PluginStaticCredentialsV1{
+							ResourceHeader: types.ResourceHeader{
+								Metadata: types.Metadata{
+									Name: "cred",
+								},
+							},
+							Spec: &types.PluginStaticCredentialsSpecV1{
+								Credentials: &types.PluginStaticCredentialsSpecV1_APIToken{
+									APIToken: "test",
+								},
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+			case types.PluginTypeJamf:
+				var err error
+				// Run plugin
+				factoryFunc, err = jamfInstanceFactory(factoryCtx, tc.plugin, instanceDependencies{
+					lifetime:      pluginLifetime,
+					log:           logrus.NewEntry(logrus.New()),
+					HTTPClient:    jamfEnv.HTTPClient,
+					parentProcess: process,
+					staticCredentials: []types.PluginStaticCredentials{
+						&types.PluginStaticCredentialsV1{
+							ResourceHeader: types.ResourceHeader{
+								Metadata: types.Metadata{
+									Name: "cred",
+								},
+							},
+							Spec: &types.PluginStaticCredentialsSpecV1{
+								Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
+									BasicAuth: &types.PluginStaticCredentialsBasicAuth{
+										Username: testenv.DefaultUsers[0].Username,
+										Password: testenv.DefaultUsers[0].Password,
+									},
+								},
+							},
+						},
+					},
+				})
+				require.NoError(t, err)
+			default:
+				t.Fatalf("Unknown plugin type: %q", tc.pluginType)
+			}
+
+			// make sure that anything holding a reference to the wrong context is
+			// terminated with extreme prejudice
+			factoryCancel()
+
+			factoryErr := make(chan error, 1)
+			go func() {
+				factoryErr <- factoryFunc()
+			}()
+
+			// EXPECT that the plugin process emits a `ready` event
+			_, err := process.WaitForEventTimeout(5*time.Second, tc.readyEvent)
+			require.NoError(t, err)
+
+			// terminate plugin
+			pluginCancel()
+
+			// EXPECT that the plugin process emits a `close` event and eventually
+			// terminmates
+			_, err = process.WaitForEventTimeout(5*time.Second, tc.stoppedEvent)
+			require.NoError(t, err)
+
+			select {
+			case err := <-factoryErr:
+				require.NoError(t, err)
+			case <-time.After(5 * time.Second):
+				t.Fatal("Timeout waiting for start error")
+			}
+		})
+	}
+}
+
+func testAuthProcess(t *testing.T) *service.TeleportProcess {
+	cfg := servicecfg.MakeDefaultConfig()
+	cfg.Clock = clockwork.NewFakeClock()
+	cfg.DataDir = t.TempDir()
+	cfg.DiagnosticAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.SetAuthServerAddress(utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"})
+	cfg.Auth.Enabled = true
+	cfg.Auth.StorageConfig.Params["path"] = t.TempDir()
+	cfg.Auth.ListenAddr = utils.NetAddr{AddrNetwork: "tcp", Addr: "127.0.0.1:0"}
+	cfg.Proxy.DisableWebInterface = true
+	cfg.SSH.Enabled = false
+	cfg.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+
+	process, err := service.NewTeleport(cfg)
+	require.NoError(t, err)
+	return process
 }

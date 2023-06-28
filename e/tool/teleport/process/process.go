@@ -89,7 +89,7 @@ func NewTeleport(cfg *servicecfg.Config) (service.Process, error) {
 	}
 
 	if cfg.Jamf.Enabled() {
-		services.JamfInit(ossProcess, nil /* httpClient */)
+		services.JamfStandaloneInit(ossProcess, nil /* httpClient */)
 	}
 
 	if cfg.Databases.Enabled {
