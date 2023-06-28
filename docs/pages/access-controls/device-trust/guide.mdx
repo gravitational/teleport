@@ -104,21 +104,7 @@ demonstrated in the following section.
 
 Make sure your user has the `device-admin` role:
 
-```code
-$ tctl edit users/alice
-```
-
-```diff
-kind: user
-metadata:
-  name: alice
-  # unrelated fields omitted.
-spec:
-  roles:
-  - access
-+ - device-admin # add this line
-version: v2
-```
+(!/docs/pages/includes/add-role-to-user.mdx role="device-admin"!)
 
 Relogin to fetch updated certificates:
 
@@ -166,15 +152,13 @@ a device, you first need to determine its serial number.
   </TabItem>
 </Tabs>
 
-Replace the `$SERIAL` variable below with the serial number obtained from
-the device you wish to enroll and `$OS` with `macos` or `windows`, and execute
-the following command:
+Replace <Var name="(=devicetrust.asset_tag=)" description="The serial number to be registered"/>
+with the serial number obtained from the device you wish to enroll and <Var name="OS" description="The OS of the device being registered"/>
+with `macos` or `windows`, and execute the following command:
 
 ```code
-$ export OS=macos
-$ export SERIAL="(=devicetrust.asset_tag=)"
-$ tctl devices add --os="$OS" --asset-tag="$SERIAL"
-Device (=devicetrust.asset_tag=)/macOS added to the inventory
+$ tctl devices add --os="<Var name="OS"/> --asset-tag=<Var name="(=devicetrust.asset_tag=)"/>"
+Device <Var name="(=devicetrust.asset_tag=)"/>/<Var name="OS"/> added to the inventory
 ```
 
 Use `tctl` to check that the device has been registered:
