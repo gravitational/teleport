@@ -24,7 +24,7 @@ import { ListItem } from 'teleterm/ui/components/ListItem';
 import { ClusterUri } from 'teleterm/ui/uri';
 
 import { NavigationMenuIcon } from './NavigationMenuIcon';
-import { isConnectMyComputerPermittedForRootCluster } from './permissions';
+import { canUseConnectMyComputer } from './permissions';
 
 interface NavigationMenuProps {
   clusterUri: ClusterUri;
@@ -59,7 +59,7 @@ export function NavigationMenu(props: NavigationMenuProps) {
   }
 
   if (
-    !isConnectMyComputerPermittedForRootCluster(
+    !canUseConnectMyComputer(
       rootCluster,
       appCtx.configService,
       appCtx.mainProcessClient.getRuntimeSettings()

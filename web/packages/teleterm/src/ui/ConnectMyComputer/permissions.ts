@@ -7,7 +7,7 @@ import { RuntimeSettings } from 'teleterm/mainProcess/types';
  *
  * The root cluster is required because `loggedInUser` and `features` are not fully defined for leaves.
  * */
-export function isConnectMyComputerPermittedForRootCluster(
+export function canUseConnectMyComputer(
   rootCluster: Cluster,
   configService: ConfigService,
   runtimeSettings: RuntimeSettings

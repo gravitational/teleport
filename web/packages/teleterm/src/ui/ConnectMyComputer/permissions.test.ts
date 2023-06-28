@@ -3,7 +3,7 @@ import { makeRuntimeSettings } from 'teleterm/mainProcess/fixtures/mocks';
 import { Platform } from 'teleterm/mainProcess/types';
 import { makeRootCluster } from 'teleterm/services/tshd/testHelpers';
 
-import { isConnectMyComputerPermittedForRootCluster } from './permissions';
+import { canUseConnectMyComputer } from './permissions';
 
 const testCases: {
   name: string;
@@ -94,7 +94,7 @@ test.each(testCases)('$name', testCase => {
   });
   const runtimeSettings = makeRuntimeSettings({ platform: testCase.platform });
 
-  const isPermitted = isConnectMyComputerPermittedForRootCluster(
+  const isPermitted = canUseConnectMyComputer(
     cluster,
     configService,
     runtimeSettings
