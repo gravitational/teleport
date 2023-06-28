@@ -125,6 +125,19 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     this.usageService.captureUserLogin(params.clusterUri, 'passwordless');
   }
 
+  async solveMFAChallenge(
+    params: types.LoginLocalParams,
+    abortSignal: tsh.TshAbortSignal
+  ) {
+    await this.client.loginLocal(params, abortSignal);
+    // We explicitly use the `andCatchErrors` variant here. If loginLocal succeeds but syncing the
+    // cluster fails, we don't want to stop the user on the failed modal – we want to open the
+    // workspace and show an error state within the workspace.
+    await this.syncRootClusterAndCatchErrors(params.clusterUri);
+    this.usageService.captureUserLogin(params.clusterUri, 'local');
+  }
+
+
   /**
    * syncRootClusterAndCatchErrors is useful when the call site doesn't have a UI for handling
    * errors and instead wants to depend on the notifications service.

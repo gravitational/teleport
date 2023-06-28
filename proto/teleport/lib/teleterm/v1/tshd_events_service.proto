@@ -28,6 +28,8 @@ service TshdEventsService {
   // accepts a specific message rather than a generic string so that the Electron is in control as
   // to what message is displayed and how exactly it looks.
   rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+  // PromptMFA causes the Electron app to prompt for Webauthn.
+  rpc PromptMFA(PromptMFARequest) returns (PromptMFAResponse);
 }
 
 // Relogin
@@ -57,6 +59,7 @@ message ReloginResponse {}
 message SendNotificationRequest {
   oneof subject {
     CannotProxyGatewayConnection cannot_proxy_gateway_connection = 1;
+    CannotPromptMFA cannot_prompt_mfa = 2;
   }
 }
 
@@ -70,4 +73,30 @@ message CannotProxyGatewayConnection {
   string error = 3;
 }
 
+// CannotPromptMFA
+message CannotPromptMFA {
+  string target_uri = 1;
+  string error = 2;
+}
+
 message SendNotificationResponse {}
+
+// PromptMFA
+
+message PromptMFARequest {
+  string root_cluster_uri = 1;
+  oneof request {
+    HeadlessRequest headless_request = 2;
+  }
+}
+
+message HeadlessRequest {
+  HeadlessAuthentication headless_authentication = 1;
+}
+
+message HeadlessAuthentication {
+  string user = 1;
+  string client_ip_address = 2;
+}
+
+message PromptMFAResponse {}

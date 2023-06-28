@@ -129,8 +129,7 @@ func TestReissueCert(t *testing.T) {
 				reloginErr: tt.reloginErr,
 			}
 			reissuer := &GatewayCertReissuer{
-				Log:              log,
-				TSHDEventsClient: tshdEventsClient,
+				Log: log,
 			}
 			dbCertReissuer := &mockDBCertReissuer{
 				returnValuesForSubsequentCalls: tt.reissueErrs,
@@ -138,7 +137,7 @@ func TestReissueCert(t *testing.T) {
 			if tt.reissuerOpt != nil {
 				tt.reissuerOpt(t, reissuer)
 			}
-			err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer)
+			err := reissuer.ReissueCert(ctx, gateway, dbCertReissuer, tshdEventsClient)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				require.ErrorContains(t, err, tt.wantAddedMessage)
@@ -212,4 +211,9 @@ func (c *mockTSHDEventsClient) Relogin(context.Context, *api.ReloginRequest, ...
 func (c *mockTSHDEventsClient) SendNotification(context.Context, *api.SendNotificationRequest, ...grpc.CallOption) (*api.SendNotificationResponse, error) {
 	c.callCounts["SendNotification"]++
 	return &api.SendNotificationResponse{}, nil
+}
+
+func (c *mockTSHDEventsClient) PromptMFA(context.Context, *api.PromptMFARequest, ...grpc.CallOption) (*api.PromptMFAResponse, error) {
+	c.callCounts["PromptMFA"]++
+	return &api.PromptMFAResponse{}, nil
 }

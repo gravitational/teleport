@@ -21,7 +21,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -35,9 +34,7 @@ import (
 // GatewayCertReissuer is responsible for managing the process of reissuing a db cert for a gateway
 // after the db cert expires.
 type GatewayCertReissuer struct {
-	// TSHDEventsClient gets set by daemon.Service behind its mutex.
-	TSHDEventsClient TSHDEventsClient
-	// reloginMu is used when a goroutine needs to request a relogin frem the Electron app. Since the
+	// reloginMu is used when a goroutine needs to request a relogin from the Electron app. Since the
 	// app can show only one login modal at a time, we need to submit only one request at a time.
 	reloginMu sync.Mutex
 	Log       *logrus.Entry
@@ -49,19 +46,6 @@ type DBCertReissuer interface {
 	// ReissueDBCerts reaches out to the cluster to get a cert for the specific tlsca.RouteToDatabase
 	// and saves it to disk.
 	ReissueDBCerts(context.Context, tlsca.RouteToDatabase) error
-}
-
-// TSHDEventsClient takes only those methods from api.TshdEventsServiceClient that
-// GatewayCertReissuer actually needs. It makes mocking the client in tests easier and future-proof.
-//
-// Refer to [api.TshdEventsServiceClient] for a more detailed documentation.
-type TSHDEventsClient interface {
-	// Relogin makes the Electron app display a login modal. Please refer to
-	// [api.TshdEventsServiceClient.Relogin] for more details.
-	Relogin(ctx context.Context, in *api.ReloginRequest, opts ...grpc.CallOption) (*api.ReloginResponse, error)
-	// SendNotification causes the Electron app to display a notification. Please refer to
-	// [api.TshdEventsServiceClient.SendNotification] for more details.
-	SendNotification(ctx context.Context, in *api.SendNotificationRequest, opts ...grpc.CallOption) (*api.SendNotificationResponse, error)
 }
 
 // ReissueCert attempts to contact the cluster to reissue the db cert used by the gateway. If that
@@ -78,18 +62,15 @@ type TSHDEventsClient interface {
 // Any error ReissueCert returns is also forwarded to the Electron app so that it can show an error
 // notification. GatewayCertReissuer is typically called from within a goroutine that handles the
 // gateway, so without forwarding the error to the app, it would be visible only in the logs.
-func (r *GatewayCertReissuer) ReissueCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer) error {
-	if err := r.reissueCert(ctx, gateway, dbCertReissuer); err != nil {
-		r.notifyAppAboutError(ctx, err, gateway)
-
-		// Return the error to the alpn.LocalProxy's middleware.
+func (r *GatewayCertReissuer) ReissueCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer, tshdEventsClient TSHDEventsClient) error {
+	if err := r.reissueCert(ctx, gateway, dbCertReissuer, tshdEventsClient); err != nil {
 		return trace.Wrap(err)
 	}
 
 	return nil
 }
 
-func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer) error {
+func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.Gateway, dbCertReissuer DBCertReissuer, tshdEventsClient TSHDEventsClient) error {
 	// Make the first attempt at reissuing the db cert.
 	//
 	// It might happen that the db cert has expired but the user cert is still active, allowing us to
@@ -124,7 +105,7 @@ func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.
 					TargetUri:  gateway.TargetURI(),
 				},
 			},
-		})
+		}, tshdEventsClient)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -146,7 +127,7 @@ func (r *GatewayCertReissuer) reissueAndReloadGatewayCert(ctx context.Context, g
 	return trace.Wrap(gateway.ReloadCert())
 }
 
-func (r *GatewayCertReissuer) requestReloginFromElectronApp(ctx context.Context, req *api.ReloginRequest) error {
+func (r *GatewayCertReissuer) requestReloginFromElectronApp(ctx context.Context, req *api.ReloginRequest, tshdEventsClient TSHDEventsClient) error {
 	const reloginUserTimeout = time.Minute
 	timeoutCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, reloginUserTimeout)
 	defer cancelTshdEventsCtx()
@@ -158,7 +139,7 @@ func (r *GatewayCertReissuer) requestReloginFromElectronApp(ctx context.Context,
 	}
 	defer r.reloginMu.Unlock()
 
-	_, err := r.TSHDEventsClient.Relogin(timeoutCtx, req)
+	_, err := tshdEventsClient.Relogin(timeoutCtx, req)
 
 	if err != nil {
 		if status.Code(err) == codes.DeadlineExceeded {
@@ -169,24 +150,4 @@ func (r *GatewayCertReissuer) requestReloginFromElectronApp(ctx context.Context,
 	}
 
 	return nil
-}
-
-func (r *GatewayCertReissuer) notifyAppAboutError(ctx context.Context, err error, gateway *gateway.Gateway) {
-	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
-	defer cancelTshdEventsCtx()
-
-	_, tshdEventsErr := r.TSHDEventsClient.SendNotification(tshdEventsCtx,
-		&api.SendNotificationRequest{
-			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
-				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
-					GatewayUri: gateway.URI().String(),
-					TargetUri:  gateway.TargetURI(),
-					Error:      err.Error(),
-				},
-			},
-		})
-	if tshdEventsErr != nil {
-		r.Log.WithError(tshdEventsErr).Error(
-			"Failed to send a notification for an error encountered during OnExpiredCert")
-	}
 }

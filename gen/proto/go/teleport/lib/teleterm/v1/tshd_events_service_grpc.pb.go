@@ -35,6 +35,7 @@ const _ = grpc.SupportPackageIsVersion7
 const (
 	TshdEventsService_Relogin_FullMethodName          = "/teleport.lib.teleterm.v1.TshdEventsService/Relogin"
 	TshdEventsService_SendNotification_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification"
+	TshdEventsService_PromptMFA_FullMethodName        = "/teleport.lib.teleterm.v1.TshdEventsService/PromptMFA"
 )
 
 // TshdEventsServiceClient is the client API for TshdEventsService service.
@@ -48,6 +49,8 @@ type TshdEventsServiceClient interface {
 	// accepts a specific message rather than a generic string so that the Electron is in control as
 	// to what message is displayed and how exactly it looks.
 	SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error)
+	// PromptMFA causes the Electron app to prompt for Webauthn.
+	PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -76,6 +79,15 @@ func (c *tshdEventsServiceClient) SendNotification(ctx context.Context, in *Send
 	return out, nil
 }
 
+func (c *tshdEventsServiceClient) PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error) {
+	out := new(PromptMFAResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_PromptMFA_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TshdEventsServiceServer is the server API for TshdEventsService service.
 // All implementations must embed UnimplementedTshdEventsServiceServer
 // for forward compatibility
@@ -87,6 +99,8 @@ type TshdEventsServiceServer interface {
 	// accepts a specific message rather than a generic string so that the Electron is in control as
 	// to what message is displayed and how exactly it looks.
 	SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error)
+	// PromptMFA causes the Electron app to prompt for Webauthn.
+	PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
 
@@ -99,6 +113,9 @@ func (UnimplementedTshdEventsServiceServer) Relogin(context.Context, *ReloginReq
 }
 func (UnimplementedTshdEventsServiceServer) SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendNotification not implemented")
+}
+func (UnimplementedTshdEventsServiceServer) PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method PromptMFA not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) mustEmbedUnimplementedTshdEventsServiceServer() {}
 
@@ -149,6 +166,24 @@ func _TshdEventsService_SendNotification_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TshdEventsService_PromptMFA_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(PromptMFARequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TshdEventsServiceServer).PromptMFA(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TshdEventsService_PromptMFA_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TshdEventsServiceServer).PromptMFA(ctx, req.(*PromptMFARequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TshdEventsService_ServiceDesc is the grpc.ServiceDesc for TshdEventsService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -163,6 +198,10 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "SendNotification",
 			Handler:    _TshdEventsService_SendNotification_Handler,
+		},
+		{
+			MethodName: "PromptMFA",
+			Handler:    _TshdEventsService_PromptMFA_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

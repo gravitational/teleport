@@ -30,14 +30,6 @@ import (
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
 )
 
-const (
-	// tshdEventsTimeout is the maximum amount of time the gRPC client managed by the tshd daemon will
-	// wait for a response from the tshd events server managed by the Electron app. This timeout
-	// should be used for quick one-off calls where the client doesn't need the server or the user to
-	// perform any additional work, such as the SendNotification RPC.
-	tshdEventsTimeout = time.Second
-)
-
 // New creates an instance of Daemon service
 func New(cfg Config) (*Service, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
@@ -55,11 +47,12 @@ func New(cfg Config) (*Service, error) {
 	go connectUsageReporter.Run(closeContext)
 
 	return &Service{
-		cfg:           &cfg,
-		closeContext:  closeContext,
-		cancel:        cancel,
-		gateways:      make(map[string]*gateway.Gateway),
-		usageReporter: connectUsageReporter,
+		cfg:                    &cfg,
+		closeContext:           closeContext,
+		cancel:                 cancel,
+		gateways:               make(map[string]*gateway.Gateway),
+		usageReporter:          connectUsageReporter,
+		headlessHandlerClosers: make(map[string]context.CancelFunc),
 	}, nil
 }
 
@@ -163,13 +156,17 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 		return trace.Wrap(err)
 	}
 
+	if err := s.StopHeadlessHandler(ctx, uri); err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
 
 // CreateGateway creates a gateway to given targetURI
 func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.gatewaysMu.Lock()
+	defer s.gatewaysMu.Unlock()
 
 	gateway, err := s.createGateway(ctx, params)
 	if err != nil {
@@ -218,13 +215,60 @@ func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gat
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster))
+	if err := s.cfg.GatewayCertReissuer.ReissueCert(ctx, gateway, cluster, s.tshdEventsClient); err != nil {
+		s.notifyAppAboutError(ctx, &api.SendNotificationRequest{
+			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
+				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
+					GatewayUri: gateway.URI().String(),
+					TargetUri:  gateway.TargetURI(),
+					Error:      err.Error(),
+				},
+			},
+		})
+
+		// Return the error to the alpn.LocalProxy's middleware.
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func (s *Service) onPromptMFA(ctx context.Context, cluster *clusters.Cluster) func(ctx context.Context, in *api.PromptMFARequest, opts ...grpc.CallOption) (*api.PromptMFAResponse, error) {
+	return func(ctx context.Context, in *api.PromptMFARequest, opts ...grpc.CallOption) (*api.PromptMFAResponse, error) {
+		resp, err := s.tshdEventsClient.PromptMFA(ctx, in, opts...)
+		if err != nil {
+			s.notifyAppAboutError(ctx, &api.SendNotificationRequest{
+				Subject: &api.SendNotificationRequest_CannotPromptMfa{
+					CannotPromptMfa: &api.CannotPromptMFA{
+						// TODO: what info should be included in notification?
+						TargetUri: cluster.URI.String(),
+						Error:     err.Error(),
+					},
+				},
+			})
+
+			return nil, trace.Wrap(err)
+		}
+
+		return resp, nil
+	}
+}
+
+func (s *Service) notifyAppAboutError(ctx context.Context, notification *api.SendNotificationRequest) {
+	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
+	defer cancelTshdEventsCtx()
+
+	_, tshdEventsErr := s.tshdEventsClient.SendNotification(tshdEventsCtx, notification)
+	if tshdEventsErr != nil {
+		s.cfg.Log.WithError(tshdEventsErr).Error(
+			"Failed to send a notification for an error encountered during OnExpiredCert")
+	}
 }
 
 // RemoveGateway removes cluster gateway
 func (s *Service) RemoveGateway(gatewayURI string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.gatewaysMu.Lock()
+	defer s.gatewaysMu.Unlock()
 
 	gateway, err := s.findGateway(gatewayURI)
 	if err != nil {
@@ -262,8 +306,8 @@ func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 
 // ListGateways lists gateways
 func (s *Service) ListGateways() []gateway.Gateway {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.gatewaysMu.RLock()
+	defer s.gatewaysMu.RUnlock()
 
 	gws := make([]gateway.Gateway, 0, len(s.gateways))
 	for _, gateway := range s.gateways {
@@ -276,8 +320,8 @@ func (s *Service) ListGateways() []gateway.Gateway {
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
 // s.gateways.
 func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.gatewaysMu.Lock()
+	defer s.gatewaysMu.Unlock()
 
 	gateway, err := s.findGateway(gatewayURI)
 	if err != nil {
@@ -299,8 +343,8 @@ func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceN
 //
 // SetGatewayLocalPort is a noop if port is equal to the existing port.
 func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Gateway, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.gatewaysMu.Lock()
+	defer s.gatewaysMu.Unlock()
 
 	oldGateway, err := s.findGateway(gatewayURI)
 	if err != nil {
@@ -494,13 +538,17 @@ func (s *Service) ReportUsageEvent(req *api.ReportUsageEventRequest) error {
 
 // Stop terminates all cluster open connections
 func (s *Service) Stop() {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+	s.gatewaysMu.RLock()
+	defer s.gatewaysMu.RUnlock()
 
 	s.cfg.Log.Info("Stopping")
 
 	for _, gateway := range s.gateways {
 		gateway.Close()
+	}
+
+	for _, close := range s.headlessHandlerClosers {
+		close()
 	}
 
 	timeoutCtx, cancel := context.WithTimeout(s.closeContext, time.Second*10)
@@ -523,8 +571,8 @@ func (s *Service) Stop() {
 // daemon.Service. This way all the other code in daemon.Service can assume that the tshd events
 // client is available right from the beginning, without the need for nil checks.
 func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.gatewaysMu.Lock()
+	defer s.gatewaysMu.Unlock()
 
 	withCreds, err := s.cfg.CreateTshdEventsClientCredsFunc()
 	if err != nil {
@@ -537,9 +585,15 @@ func (s *Service) UpdateAndDialTshdEventsServerAddress(serverAddress string) err
 	}
 
 	client := api.NewTshdEventsServiceClient(conn)
-	// If the need arises to reuse the client in other places,
-	// read https://github.com/gravitational/teleport/pull/17950#discussion_r1039434456
-	s.cfg.GatewayCertReissuer.TSHDEventsClient = client
+
+	s.tshdEventsClientMu.Lock()
+	s.tshdEventsClient = client
+	s.tshdEventsClientMu.Unlock()
+
+	// Resume headless polling for any active login sessions.
+	if err := s.StartHeadlessHandlers(); err != nil {
+		return trace.Wrap(err)
+	}
 
 	return nil
 }
@@ -553,11 +607,59 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 	return cluster.TransferFile(ctx, request, sendProgress)
 }
 
+func (s *Service) StartHeadlessHandler(uri string) error {
+	cluster, err := s.ResolveCluster(uri)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := s.startHeadlessHandler(cluster); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(err)
+}
+
+func (s *Service) StartHeadlessHandlers() error {
+	clusters, err := s.cfg.Storage.ReadAll()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for _, c := range clusters {
+		if c.Connected() {
+			if err := s.startHeadlessHandler(c); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (s *Service) startHeadlessHandler(cluster *clusters.Cluster) error {
+	ctx, cancel := context.WithCancel(s.closeContext)
+	if err := cluster.HandleHeadlessAuthentications(ctx, s.onPromptMFA(s.closeContext, cluster)); err != nil {
+		cancel()
+		return trace.Wrap(err)
+	}
+
+	s.headlessHandlerClosers[cluster.URI.String()] = cancel
+	return nil
+}
+
+func (s *Service) StopHeadlessHandler(ctx context.Context, uri string) error {
+	if closer, ok := s.headlessHandlerClosers[uri]; ok {
+		closer()
+		delete(s.headlessHandlerClosers, uri)
+	}
+	return nil
+}
+
 // Service is the daemon service
 type Service struct {
 	cfg *Config
-	// mu guards gateways and the creation of tshdEventsClient.
-	mu sync.RWMutex
+
 	// closeContext is canceled when Service is getting stopped. It is used as a context for the calls
 	// to the tshd events gRPC client.
 	closeContext context.Context
@@ -565,8 +667,14 @@ type Service struct {
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
 	gateways map[string]*gateway.Gateway
+	// gatewaysMu guards gateways and the creation of tshdEventsClient.
+	gatewaysMu sync.RWMutex
 	// usageReporter batches the events and sends them to prehog
 	usageReporter *usagereporter.UsageReporter
+	// headlessHandlerClosers
+	headlessHandlerClosers map[string]context.CancelFunc
+	tshdEventsClient       TSHDEventsClient
+	tshdEventsClientMu     sync.Mutex
 }
 
 type CreateGatewayParams struct {

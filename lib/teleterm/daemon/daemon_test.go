@@ -283,7 +283,6 @@ func TestUpdateTshdEventsServerAddress(t *testing.T) {
 
 	err = daemon.UpdateAndDialTshdEventsServerAddress(ls.Addr().String())
 	require.NoError(t, err)
-	require.NotNil(t, gatewayCertReissuer.TSHDEventsClient)
 	require.Equal(t, 1, createTshdEventsClientCredsFuncCallCount,
 		"Expected createTshdEventsClientCredsFunc to be called exactly once")
 }
