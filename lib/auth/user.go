@@ -83,9 +83,11 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 // UpdateUser updates an existing user in a backend.
 func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 	prevUser, err := s.GetUser(user.GetName(), false)
+	var omitEditorEvent bool
 	if err != nil {
 		// don't return error here since this call is for event emitting purposes only
 		log.WithError(err).Warn("Failed getting user during update")
+		omitEditorEvent = true
 	}
 
 	if err := s.Services.UpdateUser(ctx, user); err != nil {
@@ -115,7 +117,9 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
 
-	usagereporter.EmitEditorChangeEvent(user.GetName(), prevUser.GetRoles(), user.GetRoles(), s.AnonymizeAndSubmit)
+	if !omitEditorEvent {
+		usagereporter.EmitEditorChangeEvent(user.GetName(), prevUser.GetRoles(), user.GetRoles(), s.AnonymizeAndSubmit)
+	}
 
 	return nil
 }
@@ -123,10 +127,15 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 // UpsertUser updates a user.
 func (s *Server) UpsertUser(user types.User) error {
 	prevUser, err := s.GetUser(user.GetName(), false)
-	if err != nil && !trace.IsNotFound(err) {
-		// don't return error here since upsert may still succeed
-		log.WithError(err).Warn("Failed getting user during upsert")
-		prevUser = nil
+	var omitEditorEvent bool
+	if err != nil {
+		if trace.IsNotFound(err) {
+			prevUser = nil
+		} else {
+			// don't return error here since upsert may still succeed, just omit the event
+			log.WithError(err).Warn("Failed getting user during upsert")
+			omitEditorEvent = true
+		}
 	}
 
 	err = s.Services.UpsertUser(user)
@@ -163,7 +172,9 @@ func (s *Server) UpsertUser(user types.User) error {
 	if prevUser != nil {
 		prevRoles = prevUser.GetRoles()
 	}
-	usagereporter.EmitEditorChangeEvent(user.GetName(), prevRoles, user.GetRoles(), s.AnonymizeAndSubmit)
+	if !omitEditorEvent {
+		usagereporter.EmitEditorChangeEvent(user.GetName(), prevRoles, user.GetRoles(), s.AnonymizeAndSubmit)
+	}
 
 	return nil
 }
@@ -207,10 +218,12 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 // DeleteUser deletes an existng user in a backend by username.
 func (s *Server) DeleteUser(ctx context.Context, user string) error {
 	prevUser, err := s.GetUser(user, false)
+	var omitEditorEvent bool
 	if err != nil && !trace.IsNotFound(err) {
 		// don't return error here, delete may still succeed
 		log.WithError(err).Warn("Failed getting user during delete operation")
 		prevUser = nil
+		omitEditorEvent = true
 	}
 
 	role, err := s.Services.GetRole(ctx, services.RoleNameForUser(user))
@@ -245,7 +258,9 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 		log.WithError(err).Warn("Failed to emit user delete event.")
 	}
 
-	usagereporter.EmitEditorChangeEvent(user, prevUser.GetRoles(), nil, s.AnonymizeAndSubmit)
+	if !omitEditorEvent {
+		usagereporter.EmitEditorChangeEvent(user, prevUser.GetRoles(), nil, s.AnonymizeAndSubmit)
+	}
 
 	return nil
 }
