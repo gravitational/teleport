@@ -16,16 +16,19 @@ Teleport captures the entire pseudo-terminal (PTY) output of the session. The
 intention is for session recording to document what a user saw when they ran a
 session.
 
-Note that the design of session recording carries some security risks if you
-have not adequately hardened your servers. Namely, users can conceal terminal
-commands by encoding them (e.g., using `base64`), running scripts from disk or
-the internet, or changing the terminal settings. If this presents an issue for
-your environment, consider using the BPF-based [Enhanced Session
-Recording](../server-access/guides/bpf-session-recording.mdx) instead.
+Note that the design of session recording carries some security risks. Namely,
+users can conceal terminal commands by encoding them (e.g., using `base64`),
+running scripts from disk or the internet, or changing the terminal settings. If
+this presents an issue for your environment, consider using the BPF-based
+[Enhanced Session Recording](../server-access/guides/bpf-session-recording.mdx)
+instead.
 
 ### Kubernetes sessions
 
 Teleport captures the entire PTY output for `kubectl exec` invocations.
+
+Kubernetes session recording carries the same security risks as SSH session
+recording.
 
 ### Desktop sessions
 
