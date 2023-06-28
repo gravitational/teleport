@@ -86,7 +86,25 @@ func JamfInit(process *service.TeleportProcess, httpClient *http.Client) error {
 
 		// Broadcast that we are ready and start.
 		process.BroadcastEvent(service.Event{Name: jamfReadyEvent, Payload: nil})
-		return trace.Wrap(s.Run(ctx))
+		err = s.Run(ctx)
+		// err returned below.
+
+		// Trigger exit_on_sync mechanism?
+		if process.Config.Jamf.ExitOnSync {
+			go func() {
+				logger.Info("Signaling shutdown to Teleport process [exit_on_sync=true]")
+
+				// Attempt a graceful shutdown first...
+				ctx := context.Background()
+				process.Shutdown(ctx)
+
+				// ... and follow up with a hard shutdown.
+				// The Close is necessary, the process won't stop without it.
+				process.Close()
+			}()
+		}
+
+		return trace.Wrap(err)
 	})
 	return nil
 }

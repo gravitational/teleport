@@ -234,7 +234,7 @@ func (s *S) Run(ctx context.Context) error {
 	for {
 		offset := s.scheduler.NextOffset()
 		if exitOnSync && offset > 0 {
-			s.logger.Debug("All immediate syncs are done, exiting [exit_on_sync=true]")
+			s.logger.Info("All immediate syncs are done, exiting [exit_on_sync=true]")
 			return nil
 		}
 		// timer is always drained when we get here.
