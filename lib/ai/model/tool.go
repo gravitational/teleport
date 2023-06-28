@@ -53,13 +53,13 @@ func (c *commandExecutionTool) Name() string {
 }
 
 func (c *commandExecutionTool) Description() string {
-	return fmt.Sprintf(`Execute a command on a set of remote hosts based on a set of hostnames or/and a set of labels.
+	return fmt.Sprintf(`Execute a command on a set of remote nodes based on a set of node names or/and a set of labels.
 The input must be a JSON object with the following schema:
 
 %vjson
 {
 	"command": string, \\ The command to execute
-	"nodes": []string, \\ Execute a command on all nodes that have the given hostnames
+	"nodes": []string, \\ Execute a command on all nodes that have the given node names
 	"labels": []{"key": string, "value": string} \\ Execute a command on all nodes that has at least one of the labels
 }
 %v
@@ -151,12 +151,13 @@ func (e *embeddingRetrievalTool) Name() string {
 }
 
 func (e *embeddingRetrievalTool) Description() string {
-	return fmt.Sprintf(`Ask about existing remote hosts that user has access to fetch node names or/and set of labels. 
+	return fmt.Sprintf(`Ask about existing remote nodes that user has access to fetch node names or/and set of labels. 
 Always use this capability before returning generating any command. Do not assume that the user has access to any nodes. Returning a command without checking for access will result in an error.
+Always prefer to use labler rather than node names.
 The input must be a JSON object with the following schema:
 %vjson
 {
-	"question": string \\ Question about the available remote hosts
+	"question": string \\ Question about the available remote nodes
 }
 %v
 `, "```", "```")
