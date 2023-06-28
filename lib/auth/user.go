@@ -126,6 +126,7 @@ func (s *Server) UpsertUser(user types.User) error {
 	if err != nil && !trace.IsNotFound(err) {
 		// don't return error here since upsert may still succeed
 		log.WithError(err).Warn("Failed getting user during upsert")
+		prevUser = nil
 	}
 
 	err = s.Services.UpsertUser(user)
