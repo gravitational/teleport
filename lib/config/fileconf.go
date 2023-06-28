@@ -2121,6 +2121,11 @@ type Proxy struct {
 
 	// Assist is a set of options related to the Teleport Assist feature.
 	Assist *AssistOptions `yaml:"assist,omitempty"`
+
+	// TrustXForwardedFor enables the service to take client source IPs from
+	// the "X-Forwarded-For" headers for web APIs received from layer 7 load
+	// balancers or reverse proxies.
+	TrustXForwardedFor types.Bool `yaml:"trust_x_forwarded_for,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.
