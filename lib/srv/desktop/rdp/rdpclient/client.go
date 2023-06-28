@@ -650,7 +650,7 @@ func handle_remote_fx_frame(handle C.uintptr_t, data *C.uint8_t, length C.uint32
 func (c *Client) handleRDPFastPathPDU(data []byte) C.CGOErrCode {
 	// Notify the input forwarding goroutine that we're ready for input.
 	// Input can only be sent after connection was established, which we infer
-	// from the fact that a png was sent.
+	// from the fact that a fast path pdu was sent.
 	atomic.StoreUint32(&c.readyForInput, 1)
 
 	if err := c.cfg.Conn.WriteMessage(tdp.RDPFastPathPDU(data)); err != nil {
