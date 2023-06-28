@@ -915,7 +915,6 @@ func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger, handlers
 		ws:         ws,
 		encoder:    unicode.UTF8.NewEncoder(),
 		decoder:    unicode.UTF8.NewDecoder(),
-		completedC: make(chan struct{}),
 		rawC:       make(chan Envelope, 100),
 		challengeC: make(chan Envelope, 1),
 		handlers:   handlers,
@@ -961,7 +960,6 @@ type WSStream struct {
 	once       sync.Once
 	challengeC chan Envelope
 	rawC       chan Envelope
-	completedC chan struct{}
 
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
@@ -1194,8 +1192,6 @@ func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, co
 // websocket in the correct format.
 func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
 	select {
-	case <-t.completedC:
-		return nil, io.EOF
 	case envelope, ok := <-t.challengeC:
 		if !ok {
 			return nil, io.EOF
@@ -1209,8 +1205,6 @@ func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenti
 // websocket in the correct format.
 func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateChallenge, error) {
 	select {
-	case <-t.completedC:
-		return nil, io.EOF
 	case envelope, ok := <-t.challengeC:
 		if !ok {
 			return nil, io.EOF
@@ -1289,8 +1283,6 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 	}
 
 	select {
-	case <-t.completedC:
-		return 0, io.EOF
 	case envelope, ok := <-t.rawC:
 		if !ok {
 			return 0, io.EOF
