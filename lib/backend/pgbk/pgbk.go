@@ -344,7 +344,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		rows, _ := p.Query(ctx,
 			"SELECT key, value, expires, rev FROM kv "+
 				"WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > $3) "+
-				"LIMIT $4",
+				"ORDER BY key LIMIT $4",
 			startKey, endKey, b.clock.Now().UTC(), limit,
 		)
 		var key, value []byte
