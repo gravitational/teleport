@@ -1010,7 +1010,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	puttyConfig.Arg("[user@]host", "Remote hostname and optional login to use").Required().StringVar(&cf.UserHost)
 	puttyConfig.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
 	puttyConfig.Flag("leaf", "Add a configuration for connecting to a leaf cluster").StringVar(&cf.LeafClusterName)
-	// only expose `tsh config putty` subcommand on windows
+	// only expose `tsh puttyconfig` subcommand on windows
 	if runtime.GOOS != constants.WindowsOS {
 		puttyConfig.Hidden()
 	}

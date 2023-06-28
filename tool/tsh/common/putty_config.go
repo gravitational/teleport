@@ -22,7 +22,7 @@ import (
 	"github.com/gravitational/trace"
 )
 
-// onPuttyConfig handles the `tsh config putty` subcommand
+// onPuttyConfig handles the `tsh puttyconfig` subcommand
 func onPuttyConfig(cf *CLIConf) error {
 	return trace.NotImplemented("PuTTY config is only implemented on Windows")
 }
