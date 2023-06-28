@@ -157,7 +157,7 @@ func (s *Server) UpsertUser(user types.User) error {
 		log.WithError(err).Warn("Failed to emit user upsert event.")
 	}
 
-	prevRoles := []string{}
+	var prevRoles []string
 	if prevUser != nil {
 		prevRoles = prevUser.GetRoles()
 	}
