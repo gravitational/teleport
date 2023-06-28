@@ -2,4 +2,6 @@ version: v1
 plugins:
   - name: gogofast
     out: ./gogogen
-    opt: plugins=grpc,Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types
+    opt: 
+    - plugins=grpc
+    - Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types
