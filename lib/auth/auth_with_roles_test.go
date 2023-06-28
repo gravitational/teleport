@@ -5614,6 +5614,7 @@ func TestCreateAccessRequest(t *testing.T) {
 			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, []string{requestRole.GetName()}, []types.ResourceID{
 				mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
 				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
+				mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
 				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup2.GetName()),
 				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup3.GetName()),
 			}),
@@ -5621,9 +5622,9 @@ func TestCreateAccessRequest(t *testing.T) {
 			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, []string{requestRole.GetName()}, []types.ResourceID{
 				mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
 				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
+				mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
 				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup2.GetName()),
 				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup3.GetName()),
-				mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
 				mustResourceID(srv.ClusterName(), types.KindApp, "app2"),
 				mustResourceID(srv.ClusterName(), types.KindApp, "app3"),
 				mustResourceID(srv.ClusterName(), types.KindApp, "app4"),
