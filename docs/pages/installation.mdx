@@ -287,7 +287,44 @@ API is functioning as intended:
 
 ```code
 $ curl --insecure https://localhost:3080/webapi/ping
-{"auth":{"type":"local","second_factor":"otp","preferred_local_mfa":"otp","local":{"name":""},"private_key_policy":"none","device_trust_disabled":true,"has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3080"},"ssh":{"listen_addr":"0.0.0.0:3080","tunnel_listen_addr":"0.0.0.0:3080","web_listen_addr":"0.0.0.0:3080"},"db":{"postgres_listen_addr":"0.0.0.0:3080","mysql_listen_addr":"0.0.0.0:3080"},"tls_routing_enabled":true},"server_version":"12.1.5","min_client_version":"11.0.0","cluster_name":"localhost","automatic_upgrades":false}
+```
+
+You should see JSON output similar to the following:
+
+```json
+{
+  "auth": {
+    "type": "local",
+    "second_factor": "otp",
+    "preferred_local_mfa": "otp",
+    "local": {
+      "name": ""
+    },
+    "private_key_policy": "none",
+    "device_trust_disabled": true,
+    "has_motd": false
+  },
+  "proxy": {
+    "kube": {
+      "enabled": true,
+      "listen_addr": "0.0.0.0:3080"
+    },
+    "ssh": {
+      "listen_addr": "0.0.0.0:3080",
+      "tunnel_listen_addr": "0.0.0.0:3080",
+      "web_listen_addr": "0.0.0.0:3080"
+    },
+    "db": {
+      "postgres_listen_addr": "0.0.0.0:3080",
+      "mysql_listen_addr": "0.0.0.0:3080"
+    },
+    "tls_routing_enabled": true
+  },
+  "server_version": "12.1.5",
+  "min_client_version": "11.0.0",
+  "cluster_name": "localhost",
+  "automatic_upgrades": false
+}
 ```
 
 We are using the `--insecure` flag to trust Teleport's self-signed certificate.
