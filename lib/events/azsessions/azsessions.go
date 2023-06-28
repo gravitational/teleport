@@ -30,6 +30,8 @@ import (
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/streaming"
 	"github.com/Azure/azure-sdk-for-go/sdk/azidentity"
 	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blockblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/container"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -160,20 +162,18 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 
 	cred = &cachedTokenCredential{TokenCredential: cred}
 
-	service, err := azblob.NewServiceClient(cfg.ServiceURL.String(), cred, nil)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	ensureContainer := func(name string) (*container.Client, error) {
+		containerURL := cfg.ServiceURL
+		containerURL.Path = name
 
-	ensureContainer := func(name string) (*azblob.ContainerClient, error) {
-		container, err := service.NewContainerClient(name)
+		cntClient, err := container.NewClient(containerURL.String(), cred, nil)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-		_, err = cErr2(container.GetProperties(ctx, nil))
+		_, err = cErr2(cntClient.GetProperties(ctx, nil))
 		if err == nil {
-			return container, nil
+			return cntClient, nil
 		}
 		if !trace.IsNotFound(err) && !trace.IsAccessDenied(err) {
 			return nil, trace.Wrap(err)
@@ -182,14 +182,14 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 		cfg.Log.WithError(err).Debugf("Failed to confirm that the %v container exists, attempting creation.", name)
 		// someone else might've created the container between GetProperties and
 		// Create, so we ignore AlreadyExists
-		_, err = cErr2(container.Create(ctx, nil))
+		_, err = cErr2(cntClient.Create(ctx, nil))
 		if err == nil || trace.IsAlreadyExists(err) {
-			return container, nil
+			return cntClient, nil
 		}
 		if trace.IsAccessDenied(err) {
 			cfg.Log.WithError(err).Warnf(
 				"Could not create the %v container, please ensure it exists or session recordings will not be stored correctly.", name)
-			return container, nil
+			return cntClient, nil
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -211,54 +211,36 @@ func NewHandler(ctx context.Context, cfg Config) (*Handler, error) {
 type Handler struct {
 	c          Config
 	cred       azcore.TokenCredential
-	session    *azblob.ContainerClient
-	inprogress *azblob.ContainerClient
+	session    *container.Client
+	inprogress *container.Client
 }
 
 var _ events.MultipartHandler = (*Handler)(nil)
 
 // sessionBlob returns a BlockBlobClient for the blob of the recording of the
-// session. Not expected to ever fail.
-func (h *Handler) sessionBlob(sessionID session.ID) (*azblob.BlockBlobClient, error) {
-	client, err := h.session.NewBlockBlobClient(sessionName(sessionID))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return client, nil
+// session.
+func (h *Handler) sessionBlob(sessionID session.ID) *blockblob.Client {
+	return h.session.NewBlockBlobClient(sessionName(sessionID))
 }
 
 // uploadMarkerBlob returns a BlockBlobClient for the marker blob of the stream
-// upload. Not expected to ever fail.
-func (h *Handler) uploadMarkerBlob(upload events.StreamUpload) (*azblob.BlockBlobClient, error) {
-	client, err := h.inprogress.NewBlockBlobClient(uploadMarkerName(upload))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return client, nil
+// upload.
+func (h *Handler) uploadMarkerBlob(upload events.StreamUpload) *blockblob.Client {
+	return h.inprogress.NewBlockBlobClient(uploadMarkerName(upload))
 }
 
 // partBlob returns a BlockBlobClient for the blob of the part of the specified
-// upload, with the given part number. Not expected to ever fail.
-func (h *Handler) partBlob(upload events.StreamUpload, partNumber int64) (*azblob.BlockBlobClient, error) {
-	client, err := h.inprogress.NewBlockBlobClient(partName(upload, partNumber))
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return client, nil
+// upload, with the given part number.
+func (h *Handler) partBlob(upload events.StreamUpload, partNumber int64) *blockblob.Client {
+	return h.inprogress.NewBlockBlobClient(partName(upload, partNumber))
 }
 
 // Upload implements events.UploadHandler
 func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Reader) (string, error) {
-	blob, err := h.sessionBlob(sessionID)
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
+	blob := h.sessionBlob(sessionID)
 
-	if _, err := cErr2(blob.UploadStream(ctx, reader, azblob.UploadStreamOptions{
-		BlobAccessConditions: &blobDoesNotExist,
+	if _, err := cErr2(blob.UploadStream(ctx, reader, &blockblob.UploadStreamOptions{
+		AccessConditions: &blobDoesNotExist,
 	})); err != nil {
 		return "", trace.Wrap(err)
 	}
@@ -269,17 +251,31 @@ func (h *Handler) Upload(ctx context.Context, sessionID session.ID, reader io.Re
 
 // Download implements events.UploadHandler
 func (h *Handler) Download(ctx context.Context, sessionID session.ID, writer io.WriterAt) error {
-	blob, err := h.sessionBlob(sessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
+	blob := h.sessionBlob(sessionID)
 	const beginOffset = 0
-	if err := cErr(blob.DownloadToWriterAt(ctx, beginOffset, azblob.CountToEnd, writer, azblob.DownloadOptions{})); err != nil {
-		return trace.Wrap(err)
-	}
-	h.c.Log.WithField(fieldSessionID, sessionID).Debug("Downloaded session.")
 
+	resp, err := blob.DownloadStream(ctx, &azblob.DownloadStreamOptions{
+		Range: azblob.HTTPRange{
+			Offset: beginOffset,
+			Count:  blockblob.CountToEnd,
+		},
+	})
+	if cerr := cErr(err); cerr != nil {
+		return trace.Wrap(cerr)
+	}
+
+	defer func() {
+		if err := resp.Body.Close(); err != nil {
+			h.c.Log.WithError(err).WithField(fieldSessionID, sessionID).Warn("Error closing downloaded session blob.")
+		}
+	}()
+
+	_, err = io.Copy(io.NewOffsetWriter(writer, beginOffset), resp.Body)
+	if cerr := cErr(err); cerr != nil {
+		return trace.Wrap(cerr)
+	}
+
+	h.c.Log.WithField(fieldSessionID, sessionID).Debug("Downloaded session.")
 	return nil
 }
 
@@ -290,14 +286,11 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 		SessionID: sessionID,
 	}
 
-	blob, err := h.uploadMarkerBlob(upload)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	blob := h.uploadMarkerBlob(upload)
 
 	emptyBody := streaming.NopCloser(&bytes.Reader{})
-	if _, err := cErr2(blob.Upload(ctx, emptyBody, &azblob.BlockBlobUploadOptions{
-		BlobAccessConditions: &blobDoesNotExist,
+	if _, err := cErr2(blob.Upload(ctx, emptyBody, &blockblob.UploadOptions{
+		AccessConditions: &blobDoesNotExist,
 	})); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -311,15 +304,8 @@ func (h *Handler) CreateUpload(ctx context.Context, sessionID session.ID) (*even
 // inprogress container, using the Put Block From URL API. Might take a little
 // time, but doesn't require any data transfer.
 func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload, parts []events.StreamPart) error {
-	blob, err := h.sessionBlob(upload.SessionID)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	markerBlob, err := h.uploadMarkerBlob(upload)
-	if err != nil {
-		return trace.Wrap(err)
-	}
+	blob := h.sessionBlob(upload.SessionID)
+	markerBlob := h.uploadMarkerBlob(upload)
 
 	// TODO(espadolini): explore the possibility of using leases to get
 	// exclusive access while writing, and to guarantee that leftover parts are
@@ -330,10 +316,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 
 	partURLs := make([]string, 0, len(parts))
 	for _, part := range parts {
-		b, err := h.partBlob(upload, part.Number)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		b := h.partBlob(upload, part.Number)
 		partURLs = append(partURLs, b.URL())
 	}
 
@@ -344,7 +327,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 		return trace.Wrap(err)
 	}
 	copySourceAuthorization := "Bearer " + token.Token
-	stageOptions := &azblob.BlockBlobStageBlockFromURLOptions{
+	stageOptions := &blockblob.StageBlockFromURLOptions{
 		CopySourceAuthorization: &copySourceAuthorization,
 	}
 
@@ -370,8 +353,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 			u := uuid.New()
 			blockNames[i] = base64.StdEncoding.EncodeToString(u[:])
 
-			const contentLength = 0 // required by the API to be zero
-			if _, err := cErr2(blob.StageBlockFromURL(egCtx, blockNames[i], partURLs[i], contentLength, stageOptions)); err != nil {
+			if _, err := cErr2(blob.StageBlockFromURL(egCtx, blockNames[i], partURLs[i], stageOptions)); err != nil {
 				return trace.Wrap(err)
 			}
 			log.WithField(fieldPartNumber, i).Debug("Staged part.")
@@ -383,8 +365,8 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	}
 
 	log.Debug("Committing part list.")
-	if _, err := cErr2(blob.CommitBlockList(ctx, blockNames, &azblob.BlockBlobCommitBlockListOptions{
-		BlobAccessConditions: &blobDoesNotExist,
+	if _, err := cErr2(blob.CommitBlockList(ctx, blockNames, &blockblob.CommitBlockListOptions{
+		AccessConditions: &blobDoesNotExist,
 	})); err != nil {
 		if !trace.IsAlreadyExists(err) {
 			return trace.Wrap(err)
@@ -405,11 +387,7 @@ func (h *Handler) CompleteUpload(ctx context.Context, upload events.StreamUpload
 	// TODO(espadolini): group deletes together with Blob Batch, not supported
 	// by the SDK
 	for _, part := range parts {
-		b, err := h.partBlob(upload, part.Number)
-		if err != nil {
-			log.WithField(fieldPartNumber, part.Number).Warn("Failed to clean up part.")
-			continue
-		}
+		b := h.partBlob(upload, part.Number)
 		if _, err := cErr2(b.Delete(ctx, nil)); err != nil {
 			log.WithField(fieldPartNumber, part.Number).WithError(err).Warn("Failed to clean up part.")
 		}
@@ -425,10 +403,7 @@ func (*Handler) ReserveUploadPart(ctx context.Context, upload events.StreamUploa
 
 // UploadPart implements events.MultipartUploader
 func (h *Handler) UploadPart(ctx context.Context, upload events.StreamUpload, partNumber int64, partBody io.ReadSeeker) (*events.StreamPart, error) {
-	blob, err := h.partBlob(upload, partNumber)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	blob := h.partBlob(upload, partNumber)
 
 	// our parts are just over 5 MiB (events.MinUploadPartSizeBytes) so we can
 	// upload them in one shot
@@ -449,11 +424,15 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 	prefix := partPrefix(upload)
 
 	var parts []events.StreamPart
-	pager := h.inprogress.ListBlobsFlat(&azblob.ContainerListBlobsFlatOptions{
+	pager := h.inprogress.NewListBlobsFlatPager(&azblob.ListBlobsFlatOptions{
 		Prefix: &prefix,
 	})
-	for pager.NextPage(ctx) {
-		resp := pager.PageResponse()
+	for pager.More() {
+		resp, err := pager.NextPage(ctx)
+		if cerr := cErr(err); cerr != nil {
+			return nil, trace.Wrap(cerr)
+		}
+
 		if resp.Segment == nil {
 			continue
 		}
@@ -474,9 +453,6 @@ func (h *Handler) ListParts(ctx context.Context, upload events.StreamUpload) ([]
 			parts = append(parts, events.StreamPart{Number: partNumber})
 		}
 	}
-	if err := cErr(pager.Err()); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	slices.SortFunc(parts, func(a, b events.StreamPart) bool { return a.Number < b.Number })
 
@@ -488,11 +464,15 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 	prefix := uploadMarkerPrefix
 	var uploads []events.StreamUpload
 
-	pager := h.inprogress.ListBlobsFlat(&azblob.ContainerListBlobsFlatOptions{
+	pager := h.inprogress.NewListBlobsFlatPager(&azblob.ListBlobsFlatOptions{
 		Prefix: &prefix,
 	})
-	for pager.NextPage(ctx) {
-		r := pager.PageResponse()
+	for pager.More() {
+		r, err := pager.NextPage(ctx)
+		if cerr := cErr(err); cerr != nil {
+			return nil, trace.Wrap(cerr)
+		}
+
 		if r.Segment == nil {
 			continue
 		}
@@ -524,9 +504,6 @@ func (h *Handler) ListUploads(ctx context.Context) ([]events.StreamUpload, error
 				Initiated: *b.Properties.CreationTime,
 			})
 		}
-	}
-	if err := cErr(pager.Err()); err != nil {
-		return nil, trace.Wrap(err)
 	}
 
 	slices.SortFunc(uploads, func(a, b events.StreamUpload) bool { return a.Initiated.Before(b.Initiated) })

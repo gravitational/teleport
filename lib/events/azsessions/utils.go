@@ -23,14 +23,14 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore"
 	"github.com/Azure/azure-sdk-for-go/sdk/azcore/policy"
-	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob"
+	"github.com/Azure/azure-sdk-for-go/sdk/storage/azblob/blob"
 	"github.com/gravitational/trace"
 )
 
-var eTagAny = azblob.ETagAny
+var eTagAny = azcore.ETagAny
 
-var blobDoesNotExist = azblob.BlobAccessConditions{
-	ModifiedAccessConditions: &azblob.ModifiedAccessConditions{
+var blobDoesNotExist = blob.AccessConditions{
+	ModifiedAccessConditions: &blob.ModifiedAccessConditions{
 		IfNoneMatch: &eTagAny,
 	},
 }
@@ -42,12 +42,12 @@ func cErr(err error) error {
 		return nil
 	}
 
-	var stErr *azblob.StorageError
+	var stErr *azcore.ResponseError
 	if !errors.As(err, &stErr) || stErr == nil {
 		return trace.Wrap(err)
 	}
 
-	return trace.WrapWithMessage(trace.ReadError(stErr.StatusCode(), nil), stErr.ErrorCode)
+	return trace.WrapWithMessage(trace.ReadError(stErr.StatusCode, nil), stErr.ErrorCode)
 }
 
 // cErr2 converts the error as in cErr, leaving the first argument untouched.
