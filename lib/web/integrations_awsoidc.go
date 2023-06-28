@@ -15,16 +15,20 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -159,4 +163,56 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		TaskDefinitionARN:   deployServiceResp.TaskDefinitionARN,
 		ServiceDashboardURL: deployServiceResp.ServiceDashboardURL,
 	}, nil
+}
+
+// awsOIDCConfigureDeployServiceIAM returns a script that configures the required IAM permissions to enable the usage of DeployService action.
+func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (interface{}, error) {
+	clusterName := p.ByName("site")
+	if clusterName == "" {
+		return nil, trace.BadParameter("a cluster name is required")
+	}
+
+	integrationName := p.ByName("name")
+	if integrationName == "" {
+		return nil, trace.BadParameter("an integration name is required")
+	}
+
+	queryParams := r.URL.Query()
+
+	awsRegion := queryParams.Get("aws-region")
+	if err := aws.IsValidRegion(awsRegion); err != nil {
+		return nil, trace.BadParameter("invalid aws-region")
+	}
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role: %v", err)
+	}
+
+	taskRole := queryParams.Get("task-role")
+	if err := aws.IsValidIAMRoleName(taskRole); err != nil {
+		return nil, trace.BadParameter("invalid task-role")
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure deployservice-iam
+	argsList := []string{
+		"integration", "configure", "deployservice-iam",
+		fmt.Sprintf(`--name="%s"`, integrationName),
+		fmt.Sprintf(`--cluster="%s"`, clusterName),
+		fmt.Sprintf(`--aws-region="%s"`, awsRegion),
+		fmt.Sprintf(`--role="%s"`, role),
+		fmt.Sprintf(`--task-role="%s"`, taskRole),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs: strings.Join(argsList, " "),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
 }

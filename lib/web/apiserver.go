@@ -762,6 +762,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	// AWS OIDC Integration Actions
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/databases", h.WithClusterAuth(h.awsOIDCListDatabases))
 	h.POST("/webapi/sites/:site/integrations/aws-oidc/:name/deployservice", h.WithClusterAuth(h.awsOIDCDeployService))
+	h.GET("/webapi/sites/:site/integrations/:name/configure-deployservice-iam", h.WithLimiter(h.awsOIDCConfigureDeployServiceIAM))
 
 	// AWS OIDC Integration specific endpoints:
 	// Unauthenticated access to OpenID Configuration - used for AWS OIDC IdP integration
