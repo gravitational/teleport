@@ -996,7 +996,6 @@ func (t *WSStream) writeError(msg string) {
 
 func (t *WSStream) processMessages(ctx context.Context) {
 	defer func() {
-		//close(t.completedC)
 		t.close()
 	}()
 	t.ws.SetReadLimit(teleport.MaxHTTPRequestSize)
@@ -1197,7 +1196,6 @@ func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenti
 	}
 	resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
 	return resp, trace.Wrap(err)
-
 }
 
 // readChallenge reads and decodes the challenge from the
