@@ -1309,7 +1309,7 @@ func (t *WSStream) SendCloseMessage() error {
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	return trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+	return trace.Wrap(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
 }
 
 func (t *WSStream) close() {
