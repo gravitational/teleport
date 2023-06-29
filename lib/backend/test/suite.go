@@ -375,30 +375,69 @@ func testCompareAndSwap(t *testing.T, newBackend Constructor) {
 	prefix := MakePrefix()
 	ctx := context.Background()
 
+	key := prefix("one")
+
 	// compare and swap on non existing value will fail
-	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("2")})
+	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: []byte("1")}, backend.Item{Key: key, Value: []byte("2")})
 	require.True(t, trace.IsCompareFailed(err))
 
 	// create value and try again...
-	_, err = uut.Create(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")})
+	_, err = uut.Create(ctx, backend.Item{Key: key, Value: []byte("1")})
 	require.NoError(t, err)
 
 	// success CAS!
-	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("2")})
+	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: []byte("1")}, backend.Item{Key: key, Value: []byte("2")})
 	require.NoError(t, err)
 
-	out, err := uut.Get(ctx, prefix("one"))
+	out, err := uut.Get(ctx, key)
 	require.NoError(t, err)
 	require.Equal(t, []byte("2"), out.Value)
 
 	// value has been updated - not '1' any more
-	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: prefix("one"), Value: []byte("1")}, backend.Item{Key: prefix("one"), Value: []byte("3")})
+	_, err = uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: []byte("1")}, backend.Item{Key: key, Value: []byte("3")})
 	require.True(t, trace.IsCompareFailed(err))
 
 	// existing value has not been changed by the failed CAS operation
-	out, err = uut.Get(ctx, prefix("one"))
+	out, err = uut.Get(ctx, key)
 	require.NoError(t, err)
 	require.Equal(t, []byte("2"), out.Value)
+
+	for i := 0; i < 10; i++ {
+		i := i
+		var wg sync.WaitGroup
+		wg.Add(1)
+		errs := make(chan error, 2)
+		go func(value byte) {
+			defer wg.Done()
+			_, err := uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: out.Value}, backend.Item{Key: key, Value: []byte{value}})
+			errs <- err
+		}(byte(i + 10))
+
+		wg.Add(1)
+		go func(value byte) {
+			defer wg.Done()
+			_, err := uut.CompareAndSwap(ctx, backend.Item{Key: key, Value: out.Value}, backend.Item{Key: key, Value: []byte{value}})
+			errs <- err
+		}(byte(i + 100))
+
+		// validate that only a single failure occurred
+		var failed int
+		for i := 0; i < 2; i++ {
+			err := <-errs
+			if err != nil {
+				failed++
+			}
+		}
+		require.Equal(t, 1, failed)
+
+		// validate that the value for the key was updated - we
+		// don't care which CAS above won only that one of them
+		// succeeded.
+		item, err := uut.Get(ctx, key)
+		require.NoError(t, err)
+		require.NotEqual(t, out.Value, item.Value)
+		out = item
+	}
 }
 
 // Expiration tests scenario with expiring values
