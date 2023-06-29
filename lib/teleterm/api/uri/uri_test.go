@@ -265,64 +265,64 @@ func TestGetRootClusterURI(t *testing.T) {
 
 func TestIsDB(t *testing.T) {
 	tests := []struct {
-		in    string
+		in    uri.ResourceURI
 		check require.BoolAssertionFunc
 	}{
 		{
-			in:    uri.NewClusterURI("foo").AppendDB("db").String(),
+			in:    uri.NewClusterURI("foo").AppendDB("db"),
 			check: require.True,
 		},
 		{
-			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("db").String(),
+			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("db"),
 			check: require.True,
 		},
 		{
-			in:    uri.NewClusterURI("foo").String(),
+			in:    uri.NewClusterURI("foo"),
 			check: require.False,
 		},
 		{
-			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar").String(),
+			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar"),
 			check: require.False,
 		},
 		{
-			in:    uri.NewClusterURI("foo").AppendKube("kube").String(),
+			in:    uri.NewClusterURI("foo").AppendKube("kube"),
 			check: require.False,
 		},
 	}
 
 	for _, tt := range tests {
-		tt.check(t, uri.IsDB(tt.in))
+		tt.check(t, tt.in.IsDB())
 	}
 }
 
 func TestIsKube(t *testing.T) {
 	tests := []struct {
-		in    string
+		in    uri.ResourceURI
 		check require.BoolAssertionFunc
 	}{
 		{
-			in:    uri.NewClusterURI("foo").AppendKube("kube").String(),
+			in:    uri.NewClusterURI("foo").AppendKube("kube"),
 			check: require.True,
 		},
 		{
-			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("kube").String(),
+			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendKube("kube"),
 			check: require.True,
 		},
 		{
-			in:    uri.NewClusterURI("foo").String(),
+			in:    uri.NewClusterURI("foo"),
 			check: require.False,
 		},
 		{
-			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar").String(),
+			in:    uri.NewClusterURI("foo").AppendLeafCluster("bar"),
 			check: require.False,
 		},
 		{
-			in:    uri.NewClusterURI("foo").AppendDB("db").String(),
+			in:    uri.NewClusterURI("foo").AppendDB("db"),
 			check: require.False,
 		},
 	}
 
 	for _, tt := range tests {
-		tt.check(t, uri.IsKube(tt.in))
+		tt.check(t, tt.in.IsKube())
 	}
 }

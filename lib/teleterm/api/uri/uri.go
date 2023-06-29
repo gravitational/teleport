@@ -196,11 +196,11 @@ func (r ResourceURI) String() string {
 }
 
 // IsDB returns true if URI is a database resource.
-func IsDB(resourceURI string) bool {
-	return New(resourceURI).GetDbName() != ""
+func (r ResourceURI) IsDB() bool {
+	return r.GetDbName() != ""
 }
 
 // IsDB returns true if URI is a kube resource.
-func IsKube(resourceURI string) bool {
-	return New(resourceURI).GetKubeName() != ""
+func (r ResourceURI) IsKube() bool {
+	return r.GetKubeName() != ""
 }

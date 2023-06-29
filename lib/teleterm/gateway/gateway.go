@@ -76,13 +76,13 @@ func New(cfg Config) (*Gateway, error) {
 		closeCancel:  closeCancel,
 	}
 
-	switch {
-	case uri.IsDB(cfg.TargetURI):
+	switch targetURI := uri.New(cfg.TargetURI); {
+	case targetURI.IsDB():
 		if err := gateway.makeLocalProxyForDB(listener); err != nil {
 			return nil, trace.Wrap(err)
 		}
 
-	case uri.IsKube(cfg.TargetURI):
+	case targetURI.IsKube():
 		if err := gateway.makeLocalProxiesForKube(listener); err != nil {
 			return nil, trace.Wrap(err)
 		}
