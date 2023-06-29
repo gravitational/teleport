@@ -489,6 +489,21 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
       }
     };
+
+    executeCommandWebSocket.current.onclose = () => {
+      executeCommandWebSocket.current = null;
+
+      // If the execution failed, we won't get a SESSION_END message, so we
+      // need to mark all the results as finished here.
+      for (const nodeId of nodeIdToResultId.keys()) {
+        dispatch({
+          type: AssistStateActionType.FinishCommandResult,
+          conversationId: state.conversations.selectedId,
+          commandResultId: nodeIdToResultId.get(nodeId),
+        });
+      }
+      nodeIdToResultId.clear();
+    };
   }
 
   async function deleteConversation(conversationId: string) {
