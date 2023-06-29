@@ -3,12 +3,14 @@ run-name: Lint (Docs)
 on:
   pull_request:
     paths:
+      - 'CHANGELOG.md'
       - 'docs/**'
       - 'examples/**'
   merge_group:
     paths:
       - 'docs/**'
       - 'examples/**'
+      - 'CHANGELOG.md'
 
 jobs:
   doc-tests:

@@ -33,7 +33,7 @@ cluster to Teleport.
   ```code
   $ kubectl get pv
   ```
-  
+
   If there are no persistent volumes available, you will need to either provide
   one or enable [dynamic volume
   provisioning](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/#enabling-dynamic-provisioning)
@@ -52,7 +52,7 @@ cluster to Teleport.
 
   If you are using `eksctl` to launch a fresh Amazon Elastic Kubernetes Service
   cluster in order to follow this guide, the following example configuration
-  sets up the EBS CSI driver add-on. 
+  sets up the EBS CSI driver add-on.
 
   <Notice type="danger">
 
@@ -71,7 +71,7 @@ cluster to Teleport.
     name: my-cluster
     region: us-east-1
     version: "1.23"
-   
+
   iam:
     withOIDC: true
 
@@ -80,7 +80,7 @@ cluster to Teleport.
     version: v1.11.4-eksbuild.1
     attachPolicyARNs:
     - arn:aws:iam::aws:policy/service-role/AmazonEBSCSIDriverPolicy
-   
+
   managedNodeGroups:
     - name: managed-ng-2
       instanceType: t3.medium
@@ -132,7 +132,7 @@ Set the `kubectl` context to the namespace to save some typing:
 $ kubectl config set-context --current --namespace=teleport-cluster
 ```
 
-Assign <Var name="clustername" /> to a subdomain of your domain name, e.g.,
+Assign <Var name="clusterName" /> to a subdomain of your domain name, e.g.,
 `teleport.example.com`. Assign <Var name="email" /> to an email address that you
 will use to receive notifications from Let's Encrypt, which provides TLS
 credentials for the Teleport Proxy Service's HTTPS endpoint.
@@ -140,16 +140,26 @@ credentials for the Teleport Proxy Service's HTTPS endpoint.
 <Tabs>
   <TabItem label="Open Source">
 
-    Install the `teleport-cluster` Helm chart:
+    Write a values file (`teleport-cluster-values.yaml`) which will configure a single node Teleport cluster and
+    provision a cert using ACME.
+
+    ```code
+    $ cat << EOF > teleport-cluster-values.yaml
+    clusterName: <Var name="clusterName" />
+    proxyListenerMode: multiplex
+    acme: true
+    acmeEmail: <Var name="email" />
+    EOF
+    ```
+
+    Install the `teleport-cluster` Helm chart using the values file you wrote:
 
     ```code
     $ helm install teleport-cluster teleport/teleport-cluster \
       --create-namespace \
       --namespace=teleport-cluster \
-      --set clusterName=<Var name="clustername" /> \
-      --set acme=true \
-      --set acmeEmail=<Var name="email" /> \
-      --version (=teleport.version=)
+      --version (=teleport.version=) \
+      --values teleport-cluster-values.yaml
     ```
   </TabItem>
   <TabItem label="Enterprise" scope={["enterprise"]}>
@@ -167,16 +177,27 @@ credentials for the Teleport Proxy Service's HTTPS endpoint.
     secret/license created
     ```
 
-    Install the `teleport-cluster` Helm chart:
+    Write a values file (`teleport-cluster-values.yaml`) which will configure a single node Teleport cluster and
+    provision a cert using ACME.
+
+    ```code
+    $ cat << EOF > teleport-cluster-values.yaml
+    clusterName: <Var name="clusterName" />
+    proxyListenerMode: multiplex
+    acme: true
+    acmeEmail: <Var name="email" />
+    enterprise: true
+    EOF
+    ```
+
+    Now, use the values file you wrote to install the teleport-cluster Helm chart.
 
     ```code
     $ helm install teleport-cluster teleport/teleport-cluster \
+      --create-namespace \
       --namespace=teleport-cluster \
       --version (=teleport.version=) \
-      --set clusterName=<Var name="clustername" /> \
-      --set acme=true \
-      --set enterprise=true \
-      --set acmeEmail=<Var name="email" />
+      --values teleport-cluster-values.yaml
     ```
   </TabItem>
 </Tabs>
@@ -206,8 +227,8 @@ Get information about the Proxy Service load balancer:
 
 ```code
 $ kubectl get services/teleport-cluster
-NAME                    TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
-teleport-cluster        LoadBalancer   10.4.4.73    192.0.2.0        443:31204/TCP,3026:32690/TCP   89s
+NAME              TYPE           CLUSTER-IP   EXTERNAL-IP      PORT(S)                        AGE
+teleport-cluster  LoadBalancer   10.4.4.73    192.0.2.0        443:31204/TCP                  89s
 ```
 
 The `teleport-cluster` service directs traffic to the Teleport Proxy Service.
@@ -232,16 +253,16 @@ domain name, the records will have the following details:
 
 |Record Type|Domain Name|Value|
 |---|---|---|
-|A|teleport.example.com|The IP address of your load balancer|
-|A|*.teleport.example.com|The IP address of your load balancer|
+|A|`teleport.example.com`|The IP address of your load balancer|
+|A|`*.teleport.example.com`|The IP address of your load balancer|
 
 </TabItem>
 <TabItem label="Domain Name">
 
 |Record Type|Domain Name|Value|
 |---|---|---|
-|CNAME|teleport.example.com|The domain name of your load balancer|
-|CNAME|*.teleport.example.com|The domain name of your load balancer|
+|CNAME|`teleport.example.com`|The domain name of your load balancer|
+|CNAME|`*.teleport.example.com`|The domain name of your load balancer|
 
 </TabItem>
 </Tabs>
@@ -250,7 +271,7 @@ Once you create the records, use the following command to confirm that your
 Teleport cluster is running:
 
 ```code
-$ curl https://<Var name="clustername" />/webapi/ping
+$ curl https://<Var name="clusterName" />/webapi/ping
 # `{"auth":{"type":"local","second_factor":"on","preferred_local_mfa":"webauthn","allow_passwordless":true,"allow_headless":true,"local":{"name":""},"webauthn":{"rp_id":"teleport.example.com"},"private_key_policy":"none","device_trust":{},"has_motd":false},"proxy":{"kube":{"enabled":true,"listen_addr":"0.0.0.0:3026"},"ssh":{"listen_addr":"[::]:3023","tunnel_listen_addr":"0.0.0.0:3024","web_listen_addr":"0.0.0.0:3080","public_addr":"teleport.example.com:443"},"db":{"mysql_listen_addr":"0.0.0.0:3036"},"tls_routing_enabled":false},"server_version":"(=teleport.version=)","min_client_version":"12.0.0","cluster_name":"teleport.example.com","automatic_upgrades":false}
 ```
 
@@ -289,20 +310,20 @@ role 'member' has been created
 Create the user and generate an invite link:
 
 ```code
-$ kubectl exec -ti deployment/teleport-cluster-auth -- tctl  users add <Var name="username" /> --roles=member
+$ kubectl exec -ti deployment/teleport-cluster-auth -- tctl users add <Var name="username" /> --roles=member
 
 # User "myuser" has been created but requires a password. Share this URL with the user to
 # complete user setup, link is valid for 1h:
 
-# https://tele.example.com:443/web/invite/(=presets.tokens.first=)
+# https://<Var name="clusterName" />:443/web/invite/(=presets.tokens.first=)
 
-# NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
+# NOTE: Make sure <Var name="clusterName" />:443 points at a Teleport proxy which users can access.
 ```
 
 Try `tsh login` with your local user:
 
 ```code
-$ tsh login --proxy=<Var name="clustername" />:443 --user=<Var name="username" />
+$ tsh login --proxy=<Var name="clusterName" />:443 --user=<Var name="username" />
 ```
 
 Once you're connected to the Teleport cluster, list the available Kubernetes clusters for your user:
@@ -322,7 +343,7 @@ a temporary value during the installation process. This way, if something goes
 wrong, you can easily revert to your original kubeconfig:
 
 ```code
-$ KUBECONFIG=$HOME/teleport-kubeconfig.yaml tsh kube login <Var name="clustername" />
+$ KUBECONFIG=$HOME/teleport-kubeconfig.yaml tsh kube login <Var name="clusterName" />
 
 $ KUBECONFIG=$HOME/teleport-kubeconfig.yaml kubectl get -n teleport-cluster pods
 NAME                                      READY   STATUS    RESTARTS   AGE
@@ -338,7 +359,7 @@ show both pods running as below:
 
 ```code
 $ kubectl get pods -n teleport-cluster
-NAME                                READY   STATUS    RESTARTS   AGE
+NAME                                      READY   STATUS    RESTARTS   AGE
 teleport-cluster-auth-5f8587bfd4-p5zv6    1/1     Running   0          48s
 teleport-cluster-proxy-767747dd94-vkxz6   1/1     Running   0          48s
 ```
@@ -346,6 +367,10 @@ If a pod's status is `Pending`, use the `kubectl logs` and `kubectl describe`
 commands for that pod to check the status. The Auth Service pod relies on being
 able to allocate a Persistent Volume Claim, and may enter a `Pending` state if
 no Persistent Volume is available.
+
+The output of `kubectl get events --sort-by='.metadata.creationTimestamp' -A` can
+also be useful, showing the most recent events taking place inside the Kubernetes
+cluster.
 
 ## Next steps
 

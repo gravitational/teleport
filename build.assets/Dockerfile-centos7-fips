@@ -1,6 +1,6 @@
 # Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
 ARG BUILDARCH
-FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport13-${BUILDARCH} AS teleport-buildbox-centos7-assets
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport14-${BUILDARCH} AS teleport-buildbox-centos7-assets
 
 FROM centos:7 AS libbpf
 
@@ -166,6 +166,8 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustc --version && \
     rustup component add rustfmt clippy && \
     rustup target add aarch64-unknown-linux-gnu
+# Install wasm-pack for targeting WebAssembly from Rust.
+RUN cargo install wasm-pack
 
 
 # Copy BoringSSL into the final image

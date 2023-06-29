@@ -35,7 +35,7 @@ RUN wget https://github.com/git/git/archive/refs/tags/v2.39.1.tar.gz && \
 
 # Create an alias to the assets image. Ref: https://github.com/docker/for-mac/issues/2155
 ARG BUILDARCH
-FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport13-${BUILDARCH} AS teleport-buildbox-centos7-assets
+FROM ghcr.io/gravitational/teleport-buildbox-centos7-assets:teleport14-${BUILDARCH} AS teleport-buildbox-centos7-assets
 
 ## LIBFIDO2 ###################################################################
 
@@ -77,11 +77,11 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
 
 # Install openssl.
 # install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.8 && \
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.9 && \
     cd openssl && \
-    [ "$(git rev-parse HEAD)" = '31157bc0b46e04227b8468d3e6915e4d0332777c' ] && \
+    [ "$(git rev-parse HEAD)" = 'de90e54bbe82e5be4fb9608b6f5c308bb837d355' ] && \
     ./config --release --libdir=/usr/local/lib64 && \
-    make && \
+    make -j"$(nproc)" && \
     make install_sw
 # Necessary for libfido2 to find the correct libcrypto.
 ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
@@ -253,6 +253,8 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
     rustup --version && \
     cargo --version && \
     rustc --version
+# Install wasm-pack for targeting WebAssembly from Rust.
+RUN cargo install wasm-pack
 
 # Do a quick switch back to root and copy/setup libfido2 and libpcsclite binaries.
 # Do this last to take better advantage of the multi-stage build.

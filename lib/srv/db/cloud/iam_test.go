@@ -115,6 +115,20 @@ func TestAWSIAM(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	elasticache, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-elasticache",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID: "some-group",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	// Make configurator.
 	taskChan := make(chan struct{})
 	waitForTaskProcessed := func(t *testing.T) {
@@ -124,7 +138,7 @@ func TestAWSIAM(t *testing.T) {
 			require.Fail(t, "Failed to wait for task is processed")
 		}
 	}
-	assumedRole := services.AssumeRole{
+	assumedRole := types.AssumeRole{
 		RoleARN:    "arn:aws:iam::123456789012:role/role-to-assume",
 		ExternalID: "externalid123",
 	}
@@ -186,10 +200,17 @@ func TestAWSIAM(t *testing.T) {
 				return true // it always is for redshift.
 			},
 		},
+		"ElastiCache": {
+			database:           elasticache,
+			wantPolicyContains: elasticache.GetAWS().ElastiCache.ReplicationGroupID,
+			getIAMAuthEnabled: func() bool {
+				return true // it always is for ElastiCache.
+			},
+		},
 	}
 
 	for testName, tt := range tests {
-		for _, assumeRole := range []services.AssumeRole{{}, assumedRole} {
+		for _, assumeRole := range []types.AssumeRole{{}, assumedRole} {
 			getRolePolicyInput := &iam.GetRolePolicyInput{
 				RoleName:   aws.String("test-role"),
 				PolicyName: aws.String(policyName),
@@ -291,6 +312,19 @@ func TestAWSIAMNoPermissions(t *testing.T) {
 			meta: types.AWS{Region: "localhost", AccountID: "123456789012", Redshift: types.Redshift{ClusterID: "redshift-cluster-1"}},
 			clients: &clients.TestCloudClients{
 				Redshift: &mocks.RedshiftMockUnauth{},
+				IAM: &mocks.IAMErrorMock{
+					Error: trace.AccessDenied("unauthorized"),
+				},
+				STS: stsClient,
+			},
+		},
+		{
+			name: "ElastiCache",
+			meta: types.AWS{Region: "localhost", AccountID: "123456789012", ElastiCache: types.ElastiCache{ReplicationGroupID: "some-group"}},
+			clients: &clients.TestCloudClients{
+				// As of writing this API won't be called by the configurator anyway,
+				// but might as well provide it in case that changes.
+				ElastiCache: &mocks.ElastiCacheMock{Unauth: true},
 				IAM: &mocks.IAMErrorMock{
 					Error: trace.AccessDenied("unauthorized"),
 				},

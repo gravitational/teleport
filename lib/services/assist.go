@@ -34,6 +34,9 @@ type Assistant interface {
 	// CreateAssistantConversation creates a new conversation entry in the backend.
 	CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error)
 
+	// DeleteAssistantConversation deletes a conversation entry and associated messages from the backend.
+	DeleteAssistantConversation(ctx context.Context, req *assist.DeleteAssistantConversationRequest) error
+
 	// GetAssistantConversations returns all conversations started by a user.
 	GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error)
 

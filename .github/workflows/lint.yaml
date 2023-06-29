@@ -3,14 +3,14 @@ run-name: make lint
 on:
   pull_request:
     paths-ignore:
-      - 'docs/**'
-      - 'rfd/**'
-      - '**/*.md*'
+      - "docs/**"
+      - "rfd/**"
+      - "**/*.md*"
   merge_group:
     paths-ignore:
-      - 'docs/**'
-      - 'rfd/**'
-      - '**/*.md*'
+      - "docs/**"
+      - "rfd/**"
+      - "**/*.md*"
 
 jobs:
   lint:
@@ -22,7 +22,7 @@ jobs:
       contents: read
 
     container:
-      image: ghcr.io/gravitational/teleport-buildbox:teleport13
+      image: ghcr.io/gravitational/teleport-buildbox:teleport14
       env:
         GO_LINT_FLAGS: --timeout=15m
 
@@ -40,6 +40,25 @@ jobs:
       - name: Run linter
         run: make lint
 
-      - name: Check if protobufs are up to date
+      - name: Check if protos are up to date
         # We have to add the current directory as a safe directory or else git commands will not work as expected.
         run: git config --global --add safe.directory $(realpath .) && make protos-up-to-date/host
+
+      # The `buf breaking` check is twofold: we always check for compatibility
+      # breaks against the base of the PR, and in backports we check for
+      # compatibility breaks _from_ the tip of master. It's possible to add
+      # fields just to release branches and not master, but it requires
+      # reserving the appropriate field numbers and field names in master (as it
+      # should!).
+
+      # We run a separate fetch because even with a fetch-depth of 0 in
+      # actions/checkout I'm not sure that we're guaranteed to have all the refs
+      # we need (especially the tip of master in backports), but it's a shallow
+      # fetch for a specific tree by hash, so it should be pretty fast.
+
+      - name: Check protos for breakage against parent
+        run: buf breaking . --against "https://github.com/${{ github.repository }}.git#branch=${{ github.event.pull_request.base.sha || github.event.merge_group.base_sha }}"
+
+      - name: Check protos for breakage from master
+        if: ${{ github.base_ref != 'master' && github.event.merge_group.base_ref != 'refs/heads/master' }}
+        run: buf breaking "https://github.com/${{ github.repository }}.git#branch=master" --against .

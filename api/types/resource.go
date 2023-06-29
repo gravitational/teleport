@@ -57,9 +57,21 @@ type Resource interface {
 	CheckAndSetDefaults() error
 }
 
+// IsSystemResource checks to see if the given resource is considered
+// part of the teleport system, as opposed to some user created resource
+// or preset.
+func IsSystemResource(r Resource) bool {
+	metadata := r.GetMetadata()
+	if t, ok := metadata.Labels[TeleportInternalResourceType]; ok {
+		return t == SystemResource
+	}
+	return false
+}
+
 // ResourceDetails includes details about the resource
 type ResourceDetails struct {
-	Hostname string
+	Hostname     string
+	FriendlyName string
 }
 
 // ResourceWithSecrets includes additional properties which must

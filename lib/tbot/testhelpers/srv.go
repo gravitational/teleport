@@ -18,7 +18,6 @@ package testhelpers
 
 import (
 	"context"
-	"net"
 	"path/filepath"
 	"testing"
 	"time"
@@ -34,17 +33,8 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	botconfig "github.com/gravitational/teleport/lib/tbot/config"
-	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-// from lib/service/listeners.go
-// TODO(espadolini): have the constants exported
-const (
-	listenerAuth        = "auth"
-	listenerProxySSH    = "proxy:ssh"
-	listenerProxyWeb    = "proxy:web"
-	listenerProxyTunnel = "proxy:tunnel"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
@@ -59,64 +49,25 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []servicecfg.FileDescripto
 		Global: config.Global{
 			DataDir: t.TempDir(),
 		},
-		Databases: config.Databases{
-			Service: config.Service{
-				EnabledFlag: "true",
-			},
-		},
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: newListener(t, listenerProxySSH, &fds),
+				ListenAddress: testenv.NewTCPListener(t, service.ListenerProxySSH, &fds),
 			},
-			WebAddr:    newListener(t, listenerProxyWeb, &fds),
-			TunAddr:    newListener(t, listenerProxyTunnel, &fds),
-			PublicAddr: []string{"proxy.example.com"},
+			WebAddr:    testenv.NewTCPListener(t, service.ListenerProxyWeb, &fds),
+			TunAddr:    testenv.NewTCPListener(t, service.ListenerProxyTunnel, &fds),
+			PublicAddr: []string{"localhost"}, // ListenerProxyWeb port will be appended
 		},
 		Auth: config.Auth{
+			ClusterName: "localhost",
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: newListener(t, listenerAuth, &fds),
+				ListenAddress: testenv.NewTCPListener(t, service.ListenerAuth, &fds),
 			},
 		},
 	}
 
 	return fc, fds
-}
-
-// newListener creates a new TCP listener on 127.0.0.1:0, adds it to the
-// FileDescriptor slice (with the specified type) and returns its actual local
-// address as a string (for use in configuration). Takes a pointer to the slice
-// so that it's convenient to call in the middle of a FileConfig or Config
-// struct literal.
-// TODO(espadolini): move this to a more generic place so we can use the same
-// approach in other tests that spin up a TeleportProcess
-func newListener(t *testing.T, ty string, fds *[]servicecfg.FileDescriptor) string {
-	t.Helper()
-
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer l.Close()
-	addr := l.Addr().String()
-
-	// File() returns a dup of the listener's file descriptor as an *os.File, so
-	// the original net.Listener still needs to be closed.
-	lf, err := l.(*net.TCPListener).File()
-	require.NoError(t, err)
-	// If the file descriptor slice ends up being passed to a TeleportProcess
-	// that successfully starts, listeners will either get "imported" and used
-	// or discarded and closed, this is just an extra safety measure that closes
-	// the listener at the end of the test anyway (the finalizer would do that
-	// anyway, in principle).
-	t.Cleanup(func() { lf.Close() })
-
-	*fds = append(*fds, servicecfg.FileDescriptor{
-		Type:    ty,
-		Address: addr,
-		File:    lf,
-	})
-
-	return addr
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
@@ -146,27 +97,6 @@ func MakeAndRunTestAuthServer(t *testing.T, log utils.Logger, fc *config.FileCon
 	require.NoError(t, err, "auth server didn't start after 30s")
 
 	return auth
-}
-
-// MakeBotAuthClient creates a new auth client using a Bot identity.
-func MakeBotAuthClient(t *testing.T, fc *config.FileConfig, ident *identity.Identity) auth.ClientI {
-	t.Helper()
-
-	cfg := servicecfg.MakeDefaultConfig()
-	err := config.ApplyFileConfig(fc, cfg)
-	require.NoError(t, err)
-
-	authConfig := new(authclient.Config)
-	authConfig.TLS, err = ident.TLSConfig(cfg.CipherSuites)
-	require.NoError(t, err)
-
-	authConfig.AuthServers = cfg.AuthServerAddresses()
-	authConfig.Log = cfg.Log
-
-	client, err := authclient.Connect(context.Background(), authConfig)
-	require.NoError(t, err)
-
-	return client
 }
 
 // MakeDefaultAuthClient reimplements the bare minimum needed to create a
@@ -230,9 +160,15 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 	return bot
 }
 
-// MakeMemoryBotConfig creates a usable bot config from joining parameters. It
-// only writes artifacts to memory and can be further modified if desired.
-func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse) *botconfig.BotConfig {
+// DefaultBotConfig creates a usable bot config from joining parameters.
+// By default it:
+// - Has the outputs provided to it via the parameter `outputs`
+// - Runs in oneshot mode
+// - Uses a memory storage destination
+// - Does not verify Proxy WebAPI certificates
+func DefaultBotConfig(
+	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output,
+) *botconfig.BotConfig {
 	t.Helper()
 
 	authCfg := servicecfg.MakeDefaultConfig()
@@ -241,21 +177,17 @@ func MakeMemoryBotConfig(t *testing.T, fc *config.FileConfig, botParams *proto.C
 
 	cfg := &botconfig.BotConfig{
 		AuthServer: authCfg.AuthServerAddresses()[0].String(),
-		Onboarding: &botconfig.OnboardingConfig{
+		Onboarding: botconfig.OnboardingConfig{
 			JoinMethod: botParams.JoinMethod,
 		},
 		Storage: &botconfig.StorageConfig{
-			DestinationMixin: botconfig.DestinationMixin{
-				Memory: &botconfig.DestinationMemory{},
-			},
+			Destination: &botconfig.DestinationMemory{},
 		},
-		Destinations: []*botconfig.DestinationConfig{
-			{
-				DestinationMixin: botconfig.DestinationMixin{
-					Memory: &botconfig.DestinationMemory{},
-				},
-			},
-		},
+		Oneshot: true,
+		Outputs: outputs,
+		// Set Insecure so the bot will trust the Proxy's webapi default signed
+		// certs.
+		Insecure: true,
 	}
 
 	cfg.Onboarding.SetToken(botParams.TokenID)

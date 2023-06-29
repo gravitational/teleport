@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 // ProfileStore is a storage interface for client profile data.
@@ -545,4 +546,25 @@ func (p *ProfileStatus) AppNames() (result []string) {
 		result = append(result, app.Name)
 	}
 	return result
+}
+
+// ProfileNameFromProxyAddress converts proxy address to profile name or
+// returns the current profile if the proxyAddr is not set.
+func ProfileNameFromProxyAddress(store ProfileStore, proxyAddr string) (string, error) {
+	if proxyAddr == "" {
+		profileName, err := store.CurrentProfile()
+		return profileName, trace.Wrap(err)
+	}
+
+	profileName, err := utils.Host(proxyAddr)
+	return profileName, trace.Wrap(err)
+}
+
+// AccessInfo returns the complete services.AccessInfo for this profile.
+func (p *ProfileStatus) AccessInfo() *services.AccessInfo {
+	return &services.AccessInfo{
+		Roles:              p.Roles,
+		Traits:             p.Traits,
+		AllowedResourceIDs: p.AllowedResourceIDs,
+	}
 }

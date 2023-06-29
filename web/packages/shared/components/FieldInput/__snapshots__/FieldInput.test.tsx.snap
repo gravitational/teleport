@@ -149,6 +149,7 @@ exports[`snapshot tests 1`] = `
       </span>
       <span
         class="c5"
+        role="icon"
       >
         <span
           class="c6 icon icon-info_outline "
@@ -186,6 +187,7 @@ exports[`snapshot tests 1`] = `
       </span>
       <span
         class="c5"
+        role="icon"
       >
         <span
           class="c6 icon icon-info_outline "

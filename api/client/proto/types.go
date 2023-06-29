@@ -53,9 +53,13 @@ func (req *ListResourcesRequest) CheckAndSetDefaults() error {
 	if req.Namespace == "" {
 		req.Namespace = apidefaults.Namespace
 	}
+	// If the Limit parameter was not provided instead of returning an error fallback to the default limit.
+	if req.Limit == 0 {
+		req.Limit = apidefaults.DefaultChunkSize
+	}
 
-	if req.Limit <= 0 {
-		return trace.BadParameter("nonpositive parameter limit")
+	if req.Limit < 0 {
+		return trace.BadParameter("negative parameter limit")
 	}
 
 	return nil
@@ -90,3 +94,5 @@ type DownstreamInventoryMessage interface {
 func (h DownstreamInventoryHello) sealedDownstreamInventoryMessage() {}
 
 func (p DownstreamInventoryPing) sealedDownstreamInventoryMessage() {}
+
+func (u DownstreamInventoryUpdateLabels) sealedDownstreamInventoryMessage() {}

@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -299,6 +300,16 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	}
 	credential, err := web.CreateCredential(u, *sessionData, parsedResp)
 	if err != nil {
+		// Use a more friendly message for certain verification errors.
+		protocolErr := &protocol.Error{}
+		if errors.As(err, &protocolErr) &&
+			protocolErr.Type == protocol.ErrVerification.Type &&
+			passwordless &&
+			!parsedResp.Response.AttestationObject.AuthData.Flags.UserVerified() {
+			log.WithError(err).Debug("WebAuthn: Replacing verification error with PIN message")
+			return nil, trace.BadParameter("authenticator doesn't support passwordless, setting up a PIN may fix this")
+		}
+
 		return nil, trace.Wrap(err)
 	}
 

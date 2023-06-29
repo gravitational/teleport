@@ -155,8 +155,68 @@ const (
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
-	// KindKubePod is an Kubernetes Pod resource type.
+	// KindKubePod is a Kubernetes Pod resource type.
 	KindKubePod = "pod"
+
+	// KindKubeSecret is a Kubernetes Secret resource type.
+	KindKubeSecret = "secret"
+
+	// KindKubeConfigMap is a Kubernetes Configmap resource type.
+	KindKubeConfigmap = "configmap"
+
+	// KindKubeNamespace is a Kubernetes namespace resource type.
+	KindKubeNamespace = "namespace"
+
+	// KindKubeService is a Kubernetes Service resource type.
+	KindKubeService = "service"
+
+	// KindKubeServiceAccount is an Kubernetes Service Account resource type.
+	KindKubeServiceAccount = "serviceaccount"
+
+	// KindKubeNode is a Kubernetes Node resource type.
+	KindKubeNode = "kube_node"
+
+	// KindKubePersistentVolume is a Kubernetes Persistent Volume resource type.
+	KindKubePersistentVolume = "persistentvolume"
+
+	// KindKubePersistentVolumeClaim is a Kubernetes Persistent Volume Claim resource type.
+	KindKubePersistentVolumeClaim = "persistentvolumeclaim"
+
+	// KindKubeDeployment is a Kubernetes Deployment resource type.
+	KindKubeDeployment = "deployment"
+
+	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
+	KindKubeReplicaSet = "replicaset"
+
+	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
+	KindKubeStatefulset = "statefulset"
+
+	// KindKubeDaemonSet is a Kubernetes Daemonset resource type.
+	KindKubeDaemonSet = "daemonset"
+
+	// KindKubeClusterRole is a Kubernetes ClusterRole resource type.
+	KindKubeClusterRole = "clusterrole"
+
+	// KindKubeRole is a Kubernetes Role resource type.
+	KindKubeRole = "role"
+
+	// KindKubeClusterRoleBinding is a Kubernetes Cluster Role Binding resource type.
+	KindKubeClusterRoleBinding = "clusterrolebinding"
+
+	// KindKubeRoleBinding is a Kubernetes Role Binding resource type.
+	KindKubeRoleBinding = "rolebinding"
+
+	// KindKubeCronjob is a Kubernetes Cronjob resource type.
+	KindKubeCronjob = "cronjob"
+
+	// KindKubeJob is a Kubernetes job resource type.
+	KindKubeJob = "job"
+
+	// KindKubeCertificateSigningRequest is a Certificate Signing Request resource type.
+	KindKubeCertificateSigningRequest = "certificatesigningrequest"
+
+	// KindKubeIngress is a Kubernetes Ingress resource type.
+	KindKubeIngress = "ingress"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -326,6 +386,9 @@ const (
 	// KindPlugin represents a plugin instance
 	KindPlugin = "plugin"
 
+	// KindPluginStaticCredentials represents plugin static credentials.
+	KindPluginStaticCredentials = "plugin_static_credentials"
+
 	// KindSAMLIdPServiceProvider is a SAML service provider for the built in Teleport IdP.
 	KindSAMLIdPServiceProvider = "saml_idp_service_provider"
 
@@ -360,6 +423,9 @@ const (
 
 	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
 	KindWatchStatus = "watch_status"
+
+	// V7 is the seventh version of resources.
+	V7 = "v7"
 
 	// V6 is the sixth version of resources.
 	V6 = "v6"
@@ -434,6 +500,10 @@ const (
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
 
+	// ClusterLabel is a label that identifies the current cluster when creating resources on another systems.
+	// Eg, when creating a resource in AWS, this label must be set as a Tag in the resource.
+	ClusterLabel = TeleportNamespace + "/cluster"
+
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
 
@@ -461,6 +531,13 @@ const (
 	// created from the Okta service.
 	OriginOkta = "okta"
 
+	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
+	// created from the AWS OIDC Integration.
+	OriginIntegrationAWSOIDC = "integration_awsoidc"
+
+	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
+	IntegrationLabel = TeleportNamespace + "/integration"
+
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -487,6 +564,9 @@ const (
 	// DatabaseAdminLabel is used to identify database admin user for auto-
 	// discovered databases.
 	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
+
+	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
+	ReqAnnotationSchedulesLabel = "/schedules"
 
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
@@ -556,6 +636,31 @@ const (
 	// that the discovered resource is owned by. It is used to differentiate resources
 	// that belong to different discovery services that operate on different sets of resources.
 	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
+
+	// TeleportDowngradedLabel identifies resources that have been automatically
+	// downgraded before being returned to clients on older versions that do not
+	// support one or more features enabled in that resource.
+	TeleportDowngradedLabel = TeleportInternalLabelPrefix + "downgraded"
+
+	// TeleportInternalResourceType indicates the type of internal Teleport resource a resource is.
+	// Valid values are:
+	// - system: These resources will be automatically created and overwritten on startup. Users should
+	//           not change these resources.
+	// - preset: These resources will be created if they don't exist. Updates may be applied to them,
+	//           but user changes to these resources will be preserved.
+	TeleportInternalResourceType = TeleportInternalLabelPrefix + "resource-type"
+
+	// TeleportResourceRevision marks a teleport-managed resource with a reversion
+	// number to aid future migrations. Label value is expected to be a number.
+	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
+
+	// SystemResource are resources that will be automatically created and overwritten on startup. Users
+	// should not change these resources.
+	SystemResource = "system"
+
+	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
+	// to them, but user changes to these resources will be preserved.
+	PresetResource = "preset"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
@@ -667,13 +772,64 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
-	KindKubePod,
 	KindUserGroup,
+	KindKubePod,
+	KindKubeSecret,
+	KindKubeConfigmap,
+	KindKubeNamespace,
+	KindKubeService,
+	KindKubeServiceAccount,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubePersistentVolumeClaim,
+	KindKubeDeployment,
+	KindKubeReplicaSet,
+	KindKubeStatefulset,
+	KindKubeDaemonSet,
+	KindKubeClusterRole,
+	KindKubeRole,
+	KindKubeClusterRoleBinding,
+	KindKubeRoleBinding,
+	KindKubeCronjob,
+	KindKubeJob,
+	KindKubeCertificateSigningRequest,
+	KindKubeIngress,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
 var KubernetesResourcesKinds = []string{
 	KindKubePod,
+	KindKubeSecret,
+	KindKubeConfigmap,
+	KindKubeNamespace,
+	KindKubeService,
+	KindKubeServiceAccount,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubePersistentVolumeClaim,
+	KindKubeDeployment,
+	KindKubeReplicaSet,
+	KindKubeStatefulset,
+	KindKubeDaemonSet,
+	KindKubeClusterRole,
+	KindKubeRole,
+	KindKubeClusterRoleBinding,
+	KindKubeRoleBinding,
+	KindKubeCronjob,
+	KindKubeJob,
+	KindKubeCertificateSigningRequest,
+	KindKubeIngress,
+}
+
+// KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
+// that are not namespaced.
+var KubernetesClusterWideResourceKinds = []string{
+	KindKubeNamespace,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubeClusterRole,
+	KindKubeClusterRoleBinding,
+	KindKubeCertificateSigningRequest,
 }
 
 const (

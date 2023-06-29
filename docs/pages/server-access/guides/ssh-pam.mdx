@@ -177,6 +177,12 @@ $ cat /etc/motd
 
 ## Create local Unix users on login
 
+<Admonition type="warning">
+Using PAM to create local users on login is obsolete and will be removed in a future version. Refer to the
+[Host user creation](./host-user-creation.mdx) guide to learn how to configure
+Teleport to automatically create local Linux users without PAM.
+</Admonition>
+
 Teleport has the ability to create local Unix users on login. This is
 very helpful if you're a large organization and want to provision local users and home
 directories on the fly.

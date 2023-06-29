@@ -161,7 +161,7 @@ These ports are required:
 
 | Load Balancer Port | Proxy Service Port | Description |
 | - | - | - |
-| <nobr>`3023`</nobr> | <nobr>`3023`</nobr> | SSH port for clients connect to. |
+| `3023` | `3023` | SSH port for clients connect to. |
 | `3024` | `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
 | `443` | `3080` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 
@@ -183,7 +183,7 @@ services:
 The Auth Service load balancer must forward traffic to the Auth Service's gRPC
 port. In this guide, we are assuming that you have configured the Auth Service
 load balancer to forward traffic from port `3025` to port `3025` on an available
-Auth Service instance. 
+Auth Service instance.
 
 ## Cluster state backend
 
@@ -497,7 +497,7 @@ Ensure that, on each Auth Service instance, the following ports are open:
 
 | Port | Description |
 | - | - |
-| <nobr>`3025`</nobr> | gRPC port to open to Proxy Service instances.|
+| `3025` | gRPC port to open to Proxy Service instances.|
 
 #### License file
 
@@ -507,7 +507,7 @@ and make it available to your Teleport Auth Service instances.
 (!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
 The license file must be available to each Teleport Auth Service instance at
-`/var/lib/teleport/license.pem`. 
+`/var/lib/teleport/license.pem`.
 
 #### Configuration
 
@@ -516,9 +516,9 @@ instances at `/etc/teleport.yaml`. We will explain the required configuration
 fields for a high-availability Teleport deployment below. These are the minimum
 requirements, and when planning your high-availability deployment, you will want
 to follow a more specific [deployment guide](introduction.mdx) for your
-environment. 
+environment.
 
-#### `storage` 
+#### `storage`
 
 The first configuration section to write is the `storage` section, which
 configures the cluster state backend and session recording backend for the Auth

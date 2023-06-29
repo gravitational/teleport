@@ -135,6 +135,8 @@ message Event {
     types.IntegrationV1 Integration = 42 [(gogoproto.jsontag) = "integration,omitempty"];
     // WatchStatus is an WatchStatus resource.
     types.WatchStatusV1 WatchStatus = 43 [(gogoproto.jsontag) = "watch_status,omitempty"];
+    // HeadlessAuthentication is a HeadlessAuthentication resource.
+    types.HeadlessAuthentication HeadlessAuthentication = 44 [(gogoproto.jsontag) = "headless_authentication,omitempty"];
   }
 }
 
@@ -2072,6 +2074,8 @@ message DownstreamInventoryOneOf {
     DownstreamInventoryHello Hello = 1;
     // Ping triggers an upstream pong (used for testing/debug).
     DownstreamInventoryPing Ping = 2;
+    // UpdateLabels updates the instance's labels.
+    DownstreamInventoryUpdateLabels UpdateLabels = 3;
   }
 }
 
@@ -2137,6 +2141,32 @@ message DownstreamInventoryHello {
   string Version = 1;
   // ServerID advertises the server ID of the auth server.
   string ServerID = 2;
+}
+
+// LabelUpdateKind is the type of service to update labels for.
+enum LabelUpdateKind {
+  // SSHServer is an SSH server.
+  SSHServer = 0;
+}
+
+// InventoryUpdateLabelsRequest is used to request that a specified instance
+// update its labels.
+message InventoryUpdateLabelsRequest {
+  // ServerID advertises the server ID of the instance.
+  string ServerID = 1;
+  // Kind is the type of service to update labels for.
+  LabelUpdateKind Kind = 2;
+  // Labels is the new set of labels for the instance.
+  map<string, string> Labels = 3;
+}
+
+// DownstreamInventoryUpdateLabels is the message sent down the inventory
+// control stream to update the instance's labels.
+message DownstreamInventoryUpdateLabels {
+  // Kind is the type of service to update labels for.
+  LabelUpdateKind Kind = 1;
+  // Labels is the new set of labels for the instance.
+  map<string, string> Labels = 2;
 }
 
 // InventoryHeartbeat announces information about instance state.
@@ -2654,6 +2684,17 @@ service AuthService {
   // GetSSODiagnosticInfo returns SSO diagnostic info records.
   rpc GetSSODiagnosticInfo(GetSSODiagnosticInfoRequest) returns (types.SSODiagnosticInfo);
 
+  // GetServerInfos returns a stream of ServerInfos.
+  rpc GetServerInfos(google.protobuf.Empty) returns (stream types.ServerInfoV1);
+  // GetServerInfo returns a ServerInfo by name.
+  rpc GetServerInfo(types.ResourceRequest) returns (types.ServerInfoV1);
+  // UpsertServerInfo upserts a ServerInfo.
+  rpc UpsertServerInfo(types.ServerInfoV1) returns (google.protobuf.Empty);
+  // DeleteServerInfo deletes a ServerInfo by name.
+  rpc DeleteServerInfo(types.ResourceRequest) returns (google.protobuf.Empty);
+  // DeleteAllServerInfos deletes all ServerInfos.
+  rpc DeleteAllServerInfos(google.protobuf.Empty) returns (google.protobuf.Empty);
+
   // GetTrustedCluster gets a Trusted Cluster resource by name.
   rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
   // GetTrustedClusters gets all current Trusted Cluster resources.
@@ -2961,6 +3002,9 @@ service AuthService {
 
   // GetHeadlessAuthentication is a request to retrieve a headless authentication from the backend.
   rpc GetHeadlessAuthentication(GetHeadlessAuthenticationRequest) returns (types.HeadlessAuthentication);
+
+  // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+  rpc WatchPendingHeadlessAuthentications(google.protobuf.Empty) returns (stream Event);
 
   // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
   rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);

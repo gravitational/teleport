@@ -534,7 +534,12 @@ function deserialize_teleport_lib_teleterm_v1_UpdateTshdEventsServerAddressRespo
 }
 
 
-// TerminalService describes Teleterm service
+// TerminalService is used by the Electron app to communicate with the tsh daemon.
+//
+// While we aim to preserve backwards compatibility in order to satisfy CI checks and follow the
+// proto practices used within the company, this service is not guaranteed to be stable across
+// versions. The packaging process of Teleport Connect ensures that the server and the client use
+// the same version of the service.
 var TerminalServiceService = exports.TerminalServiceService = {
   // UpdateTshdEventsServerAddress lets the Electron app update the address the tsh daemon is
 // supposed to use when connecting to the tshd events gRPC service. This RPC needs to be made

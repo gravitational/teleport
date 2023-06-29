@@ -304,14 +304,6 @@
               ]
             },
             {
-              "title": "Device Trust (Preview)",
-              "slug": "/access-controls/guides/device-trust/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
-            },
-            {
               "title": "Headless WebAuthn (Preview)",
               "slug": "/access-controls/guides/headless/"
             },
@@ -335,23 +327,6 @@
           ],
           "entries": [
             {
-              "title": "GitHub SSO",
-              "slug": "/access-controls/sso/github-sso/",
-              "forScopes": [
-                "enterprise",
-                "cloud",
-                "oss"
-              ]
-            },
-            {
-              "title": "Azure Active Directory (AD)",
-              "slug": "/access-controls/sso/azuread/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
-            },
-            {
               "title": "Active Directory (ADFS)",
               "slug": "/access-controls/sso/adfs/",
               "forScopes": [
@@ -360,11 +335,20 @@
               ]
             },
             {
-              "title": "Google Workspace",
-              "slug": "/access-controls/sso/google-workspace/",
+              "title": "Azure Active Directory",
+              "slug": "/access-controls/sso/azuread/",
               "forScopes": [
                 "enterprise",
                 "cloud"
+              ]
+            },
+            {
+              "title": "GitHub",
+              "slug": "/access-controls/sso/github-sso/",
+              "forScopes": [
+                "enterprise",
+                "cloud",
+                "oss"
               ]
             },
             {
@@ -376,8 +360,8 @@
               ]
             },
             {
-              "title": "OneLogin",
-              "slug": "/access-controls/sso/one-login/",
+              "title": "Google Workspace",
+              "slug": "/access-controls/sso/google-workspace/",
               "forScopes": [
                 "enterprise",
                 "cloud"
@@ -394,6 +378,14 @@
             {
               "title": "Okta",
               "slug": "/access-controls/sso/okta/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
+              "title": "OneLogin",
+              "slug": "/access-controls/sso/one-login/",
               "forScopes": [
                 "enterprise",
                 "cloud"
@@ -472,6 +464,40 @@
               "slug": "/access-controls/login-rules/kubernetes/",
               "forScopes": [
                 "enterprise"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Device Trust",
+          "slug": "/access-controls/device-trust/",
+          "forScopes": [
+            "enterprise",
+            "cloud"
+          ],
+          "entries": [
+            {
+              "title": "Set Up Device Trust",
+              "slug": "/access-controls/device-trust/guide/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
+              "title": "Set Up Auto-Enrollment",
+              "slug": "/access-controls/device-trust/auto-enrollment/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
+              "title": "Jamf Integration",
+              "slug": "/access-controls/device-trust/jamf-integration/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
               ]
             }
           ]
@@ -634,12 +660,16 @@
               "slug": "/management/join-services-to-your-cluster/azure/"
             },
             {
-              "title": "Joining Services via Kubernetes ServiceAccount",
+              "title": "Via Kubernetes ServiceAccount",
               "slug": "/management/join-services-to-your-cluster/kubernetes/",
               "forScopes": [
                 "oss",
                 "enterprise"
               ]
+            },
+            {
+              "title": "Via GCP",
+              "slug": "/management/join-services-to-your-cluster/gcp/"
             },
             {
               "title": "Via a Join Token",
@@ -971,18 +1001,34 @@
         {
           "title": "Protect Okta Applications and Groups (Preview)",
           "slug": "/application-access/okta/",
+          "forScopes": [
+            "enterprise",
+            "cloud"
+          ],
           "entries": [
             {
               "title": "Okta Service",
-              "slug": "/application-access/okta/guide/"
+              "slug": "/application-access/okta/guide/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "Architecture",
-              "slug": "/application-access/okta/architecture/"
+              "slug": "/application-access/okta/architecture/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             },
             {
               "title": "Reference",
-              "slug": "/application-access/okta/reference/"
+              "slug": "/application-access/okta/reference/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             }
           ]
         },
@@ -1106,10 +1152,6 @@
           "title": "Manual Cluster Registration",
           "slug": "/kubernetes-access/register-clusters/",
           "entries": [
-            {
-              "title": "Register a Cluster by Deploying Teleport",
-              "slug": "/kubernetes-access/register-clusters/register-via-deployment/"
-            },
             {
               "title": "Register a Cluster with Static kubeconfigs",
               "slug": "/kubernetes-access/register-clusters/static-kubeconfig/"
@@ -1284,7 +1326,17 @@
         },
         {
           "title": "Access Controls",
-          "slug": "/database-access/rbac/"
+          "slug": "/database-access/rbac/",
+          "entries": [
+            {
+              "title": "RBAC",
+              "slug": "/database-access/rbac/configuring-access/"
+            },
+            {
+              "title": "Automatic User Provisioning (Preview)",
+              "slug": "/database-access/rbac/configuring-auto-user-provisioning/"
+            }
+          ]
         },
         {
           "title": "Architecture",
@@ -1687,8 +1739,8 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.4.3",
-      "major_version": "12",
+      "version": "13.1.5",
+      "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
         "monthly_downtime": "44 minutes"
@@ -1867,7 +1919,7 @@
     },
     {
       "source": "/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -1902,7 +1954,7 @@
     },
     {
       "source": "/preview/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -1982,7 +2034,7 @@
     },
     {
       "source": "/cluster/",
-      "destination": "/kubernetes-access/register-clusters/register-via-deployment/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
@@ -2272,7 +2324,7 @@
     },
     {
       "source": "/cloud/introduction/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -2542,7 +2594,7 @@
     },
     {
       "source": "/deploy-a-cluster/teleport-cloud/introduction/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -2622,7 +2674,7 @@
     },
     {
       "source": "/kubernetes-access/guides/multiple-clusters/",
-      "destination": "/kubernetes-access/register-clusters/register-via-deployment/",
+      "destination": "/kubernetes-access/getting-started/",
       "permanent": true
     },
     {
@@ -2778,6 +2830,16 @@
     {
       "source": "/adopters/",
       "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/device-trust/",
+      "destination": "/access-controls/device-trust/guide/",
       "permanent": true
     }
   ]

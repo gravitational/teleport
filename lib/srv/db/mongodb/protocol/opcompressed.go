@@ -115,6 +115,8 @@ func readOpCompressed(header MessageHeader, payload []byte) (message *MessageOpC
 	}
 	if uncompressedSize <= 0 || len(compressedMessage) == 0 {
 		return nil, trace.BadParameter("malformed OP_COMPRESSED: invalid message size %v", payload)
+	} else if uncompressedSize > int32(defaultMaxMessageSizeBytes) {
+		return nil, trace.BadParameter("malformed OP_COMPRESSED: uncompressed size exceeded max %v", payload)
 	}
 
 	message.originalMessage, err = decompress(message)

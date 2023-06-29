@@ -30,7 +30,6 @@ import (
 func TestRunCeremony(t *testing.T) {
 	env := testenv.MustNew()
 	defer env.Close()
-	t.Cleanup(resetNative())
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -65,13 +64,15 @@ func TestRunCeremony(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*authn.GetDeviceCredential = func() (*devicepb.DeviceCredential, error) {
-				return test.dev.GetDeviceCredential(), nil
+			ceremony := authn.Ceremony{
+				GetDeviceCredential: func() (*devicepb.DeviceCredential, error) {
+					return test.dev.GetDeviceCredential(), nil
+				},
+				CollectDeviceData:            test.dev.CollectDeviceData,
+				SignChallenge:                test.dev.SignChallenge,
+				SolveTPMAuthnDeviceChallenge: test.dev.SolveTPMAuthnDeviceChallenge,
+				GetDeviceOSType:              test.dev.GetDeviceOSType,
 			}
-			*authn.CollectDeviceData = test.dev.CollectDeviceData
-			*authn.SignChallenge = test.dev.SignChallenge
-			*authn.GetDeviceOSType = test.dev.GetDeviceOSType
-			*authn.SolveTPMAuthnDeviceChallenge = test.dev.SolveTPMAuthnDeviceChallenge
 
 			// We need to enroll the device before we can test device auth
 			require.NoError(
@@ -80,25 +81,10 @@ func TestRunCeremony(t *testing.T) {
 				"enrollDevice failed",
 			)
 
-			_, err := authn.RunCeremony(ctx, devices, test.certs)
+			_, err := ceremony.Run(ctx, devices, test.certs)
 			// A nil error is good enough for this test.
 			assert.NoError(t, err, "RunCeremony failed")
 		})
-	}
-}
-
-func resetNative() func() {
-	getDeviceCredential := authn.GetDeviceCredential
-	collectDeviceData := authn.CollectDeviceData
-	signChallenge := authn.SignChallenge
-	getDeviceOSType := authn.GetDeviceOSType
-	solveTPMAuthnDeviceChallenge := authn.SolveTPMAuthnDeviceChallenge
-	return func() {
-		authn.GetDeviceCredential = getDeviceCredential
-		authn.CollectDeviceData = collectDeviceData
-		authn.SignChallenge = signChallenge
-		authn.GetDeviceOSType = getDeviceOSType
-		authn.SolveTPMAuthnDeviceChallenge = solveTPMAuthnDeviceChallenge
 	}
 }
 
@@ -143,7 +129,7 @@ func enrollDevice(ctx context.Context, devices devicepb.DeviceTrustServiceClient
 			return err
 		}
 	case devicepb.OSType_OS_TYPE_WINDOWS:
-		solution, err := dev.SolveTPMEnrollChallenge(resp.GetTpmChallenge())
+		solution, err := dev.SolveTPMEnrollChallenge(resp.GetTpmChallenge(), false /* debug */)
 		if err != nil {
 			return err
 		}

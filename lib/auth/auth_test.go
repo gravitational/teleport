@@ -2023,7 +2023,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.NoError(t, err)
 
-	target := types.LockTarget{Node: hostID}
+	target := types.LockTarget{ServerID: hostID}
 	lockWatch, err := p.a.lockWatcher.Subscribe(ctx, target)
 	require.NoError(t, err)
 	defer lockWatch.Close()
@@ -2044,9 +2044,9 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	require.Error(t, err)
 	require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 
-	// Locks targeting nodes should not apply to other system roles.
+	// Locks targeting server IDs should apply to other system roles.
 	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
-	require.NoError(t, err)
+	require.Error(t, err)
 }
 
 func TestNewWebSession(t *testing.T) {

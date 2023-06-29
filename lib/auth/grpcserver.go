@@ -25,6 +25,7 @@ import (
 	"net"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
@@ -45,9 +46,12 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -56,6 +60,7 @@ import (
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -103,6 +108,7 @@ var (
 
 // GRPCServer is GPRC Auth Server API
 type GRPCServer struct {
+	auditlogpb.UnimplementedAuditLogServiceServer
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
@@ -377,6 +383,13 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 		case <-watcher.Done():
 			return watcher.Error()
 		case event := <-watcher.Events():
+			if role, ok := event.Resource.(*types.RoleV6); ok {
+				downgraded, err := maybeDowngradeRole(stream.Context(), role)
+				if err != nil {
+					return trace.Wrap(err)
+				}
+				event.Resource = downgraded
+			}
 			out, err := client.EventToGRPC(event)
 			if err != nil {
 				return trace.Wrap(err)
@@ -1915,22 +1928,206 @@ func (g *GRPCServer) DeleteAllKubernetesServers(ctx context.Context, req *proto.
 	return &emptypb.Empty{}, nil
 }
 
+// maybeDowngradeRole tests the client version passed through the GRPC metadata,
+// and if the client version is unknown or less than the minimum supported
+// version for some features of the role returns a shallow copy of the given
+// role downgraded for compatibility with the older version.
+func maybeDowngradeRole(ctx context.Context, role *types.RoleV6) (*types.RoleV6, error) {
+	clientVersionString, ok := metadata.ClientVersionFromContext(ctx)
+	if !ok {
+		// This client is not reporting its version via gRPC metadata. Teleport
+		// clients have been reporting their version for long enough that older
+		// clients won't even support v6 roles at all, so this is likely a
+		// third-party client, and we shouldn't assume that downgrading the role
+		// will do more good than harm.
+		return role, nil
+	}
+
+	clientVersion, err := semver.NewVersion(clientVersionString)
+	if err != nil {
+		return nil, trace.BadParameter("unrecognized client version: %s is not a valid semver", clientVersionString)
+	}
+
+	role, err = maybeDowngradeRoleToV6(ctx, role, clientVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	role, err = maybeDowngradeRoleLabelExpressions(ctx, role, clientVersion)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return role, nil
+}
+
+var minSupportedLabelExpressionVersion = semver.Version{Major: 13, Minor: 1, Patch: 1}
+
+func maybeDowngradeRoleLabelExpressions(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) (*types.RoleV6, error) {
+	if !clientVersion.LessThan(minSupportedLabelExpressionVersion) {
+		return role, nil
+	}
+	hasLabelExpression := false
+	for _, kind := range types.LabelMatcherKinds {
+		allowLabelMatchers, err := role.GetLabelMatchers(types.Allow, kind)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		denyLabelMatchers, err := role.GetLabelMatchers(types.Deny, kind)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		if len(allowLabelMatchers.Expression) == 0 && len(denyLabelMatchers.Expression) == 0 {
+			continue
+		}
+		hasLabelExpression = true
+		denyLabelMatchers.Labels = types.Labels{types.Wildcard: {types.Wildcard}}
+		role.SetLabelMatchers(types.Deny, kind, denyLabelMatchers)
+	}
+	if hasLabelExpression {
+		reason := fmt.Sprintf(
+			"client version %q does not support label expressions, wildcard deny labels have been added for all resource kinds with configured label expressions",
+			clientVersion)
+		if role.Metadata.Labels == nil {
+			role.Metadata.Labels = make(map[string]string, 1)
+		}
+		role.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+		log.Debugf(`Downgrading role %q before returning it to the client: %s`,
+			role.GetName(), reason)
+	}
+	return role, nil
+}
+
+var minSupportedRoleV7Version = semver.New(utils.VersionBeforeAlpha("14.0.0"))
+
+// maybeDowngradeRoleToV6 tests the client version passed through the GRPC metadata, and
+// if the client version is less than the minimum supported version
+// for V7 roles returns a shallow copy of the given role downgraded to V6, If
+// the passed in role is already V6, it is returned unmodified.
+func maybeDowngradeRoleToV6(ctx context.Context, role *types.RoleV6, clientVersion *semver.Version) (*types.RoleV6, error) {
+	if !clientVersion.LessThan(*minSupportedRoleV7Version) || role.Version != types.V7 {
+		return role, nil
+	}
+
+	log.Debugf(`Client version "%s" is less than 14.0.0, converting role to v6`, clientVersion.String())
+
+	switch downgraded, isRestricted, err := downgradeRoleToV6(role); {
+	case err != nil:
+		return nil, trace.Wrap(err)
+	case isRestricted:
+		reason := fmt.Sprintf(`Client version %q does not support Role v7. `+
+			`Role %q will be downgraded by adding more stringent restriction rules for Kubernetes clusters which will affect its behavior before returning to the client. `+
+			`In order to guarantee the correct behavior, all clients must be updated to version %q or higher.`,
+			clientVersion, downgraded.GetName(), minSupportedRoleV7Version)
+		if downgraded.Metadata.Labels == nil {
+			downgraded.Metadata.Labels = make(map[string]string, 1)
+		}
+		downgraded.Metadata.Labels[types.TeleportDowngradedLabel] = reason
+		log.Debugf(`Downgrading role %q before returning it to the client: %s`,
+			role.GetName(), reason)
+		return downgraded, nil
+	default:
+		return downgraded, nil
+	}
+}
+
+// downgradeRoleToV6 converts a V7 role to V6 so that it will be compatible with
+// older instances. Makes a shallow copy if the conversion is necessary. The
+// passed in role will not be mutated.
+// DELETE IN 15.0.0
+func downgradeRoleToV6(r *types.RoleV6) (*types.RoleV6, bool, error) {
+	switch r.Version {
+	case types.V3, types.V4, types.V5, types.V6:
+		return r, false, nil
+	case types.V7:
+		var (
+			downgraded types.RoleV6
+			restricted bool
+		)
+		downgraded = *r
+		downgraded.Version = types.V6
+
+		if len(downgraded.GetKubeResources(types.Deny)) > 0 {
+			// V6 roles don't know about kubernetes resources besides "pod",
+			// so if the role denies any other resources, we need to deny all
+			// access to kubernetes.
+			// This is more restrictive than the original V7 role and it's the best
+			// we can do without leaking access to kubernetes resources that V6
+			// doesn't know about.
+			hasOtherResources := false
+			for _, resource := range downgraded.GetKubeResources(types.Deny) {
+				if resource.Kind != types.KindKubePod {
+					hasOtherResources = true
+					break
+				}
+			}
+			if hasOtherResources {
+				// If the role has deny rules for resources other than "pod", we
+				// need to deny all access to kubernetes because the Kubernetes
+				// service requesting this role isn't able to exclude those resources
+				// from the responses and the client will receive them.
+				downgraded.SetLabelMatchers(
+					types.Deny,
+					types.KindKubernetesCluster,
+					types.LabelMatchers{
+						Labels: types.Labels{
+							types.Wildcard: []string{types.Wildcard},
+						},
+					},
+				)
+				// Clear out the deny list so that the V6 role doesn't include unknown
+				// resources in the deny list.
+				downgraded.SetKubeResources(types.Deny, nil)
+				restricted = true
+			}
+		}
+
+		if len(downgraded.GetKubeResources(types.Allow)) > 0 {
+			// V6 roles don't know about kubernetes resources besides "pod",
+			// so if the role allows any resources, we need remove the role
+			// from being used for kubernetes access.
+			// If the role specifies any kubernetes resources, the V6 role will
+			// be unable to be used for kubernetes access because the labels
+			// will be empty and won't match anything.
+			downgraded.SetLabelMatchers(
+				types.Allow,
+				types.KindKubernetesCluster,
+				types.LabelMatchers{
+					Labels: types.Labels{},
+				},
+			)
+			// Clear out the allow list so that the V6 role doesn't include unknown
+			// resources in the allow list.
+			downgraded.SetKubeResources(types.Allow, nil)
+			restricted = true
+		}
+
+		return &downgraded, restricted, nil
+	default:
+		return nil, false, trace.BadParameter("unrecognized role version %T", r.Version)
+	}
+}
+
 // GetRole retrieves a role by name.
 func (g *GRPCServer) GetRole(ctx context.Context, req *proto.GetRoleRequest) (*types.RoleV6, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	role, err := auth.ServerWithRoles.GetRole(ctx, req.Name)
+	roleI, err := auth.ServerWithRoles.GetRole(ctx, req.Name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roleV6, ok := role.(*types.RoleV6)
+	role, ok := roleI.(*types.RoleV6)
 	if !ok {
 		return nil, trace.Errorf("encountered unexpected role type: %T", role)
 	}
 
-	return roleV6, nil
+	downgraded, err := maybeDowngradeRole(ctx, role)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return downgraded, nil
 }
 
 // GetRoles retrieves all roles.
@@ -1939,20 +2136,24 @@ func (g *GRPCServer) GetRoles(ctx context.Context, _ *emptypb.Empty) (*proto.Get
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	roles, err := auth.ServerWithRoles.GetRoles(ctx)
+	rolesI, err := auth.ServerWithRoles.GetRoles(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var rolesV6 []*types.RoleV6
-	for _, r := range roles {
+	var roles []*types.RoleV6
+	for _, r := range rolesI {
 		role, ok := r.(*types.RoleV6)
 		if !ok {
 			return nil, trace.BadParameter("unexpected type %T", r)
 		}
-		rolesV6 = append(rolesV6, role)
+		downgraded, err := maybeDowngradeRole(ctx, role)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, downgraded)
 	}
 	return &proto.GetRolesResponse{
-		Roles: rolesV6,
+		Roles: roles,
 	}, nil
 }
 
@@ -2910,6 +3111,84 @@ func (g *GRPCServer) GetSSODiagnosticInfo(ctx context.Context, req *proto.GetSSO
 		return nil, trace.Wrap(err)
 	}
 	return info, nil
+}
+
+// GetServerInfos returns a stream of ServerInfos.
+func (g *GRPCServer) GetServerInfos(_ *emptypb.Empty, stream proto.AuthService_GetServerInfosServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	infos := auth.GetServerInfos(stream.Context())
+	for infos.Next() {
+		si, ok := infos.Item().(*types.ServerInfoV1)
+		if !ok {
+			log.Warnf("Skipping unexpected instance type %T, expected %T.", infos.Item(), si)
+		}
+		if err := stream.Send(si); err != nil {
+			infos.Done()
+			if errors.Is(err, io.EOF) {
+				return nil
+			}
+			return trace.Wrap(err)
+		}
+	}
+
+	return trace.Wrap(infos.Done())
+}
+
+// GetServerInfo returns a ServerInfo by name.
+func (g *GRPCServer) GetServerInfo(ctx context.Context, req *types.ResourceRequest) (*types.ServerInfoV1, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	si, err := auth.ServerWithRoles.GetServerInfo(ctx, req.Name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	serverInfoV1, ok := si.(*types.ServerInfoV1)
+	if !ok {
+		return nil, trace.BadParameter("encountered unexpected Server Info type %T", si)
+	}
+	return serverInfoV1, nil
+}
+
+// UpsertServerInfo upserts a ServerInfo.
+func (g *GRPCServer) UpsertServerInfo(ctx context.Context, si *types.ServerInfoV1) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.ServerWithRoles.UpsertServerInfo(ctx, si); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteServerInfo deletes a ServerInfo by name.
+func (g *GRPCServer) DeleteServerInfo(ctx context.Context, req *types.ResourceRequest) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.ServerWithRoles.DeleteServerInfo(ctx, req.Name); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
+}
+
+// DeleteAllServerInfos deletes all ServerInfos.
+func (g *GRPCServer) DeleteAllServerInfos(ctx context.Context, _ *emptypb.Empty) (*emptypb.Empty, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := auth.ServerWithRoles.DeleteAllServerInfos(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return &emptypb.Empty{}, nil
 }
 
 // GetTrustedCluster retrieves a Trusted Cluster by name.
@@ -4894,15 +5173,79 @@ func (g *GRPCServer) UpdateHeadlessAuthenticationState(ctx context.Context, req 
 	return &emptypb.Empty{}, trace.Wrap(err)
 }
 
-// GetHeadlessAuthentication retrieves a headless authentication by id.
+// GetHeadlessAuthentication retrieves a headless authentication.
 func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.GetHeadlessAuthenticationRequest) (*types.HeadlessAuthentication, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authReq, err := auth.GetHeadlessAuthentication(ctx, req.Id)
+	// First, try to retrieve the headless authentication directly if it already exists.
+	if ha, err := auth.GetHeadlessAuthentication(ctx, req.Id); err == nil {
+		return ha, nil
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the headless authentication doesn't exist yet, the headless login process may be waiting
+	// for the user to create a stub to authorize the insert.
+	if err := auth.UpsertHeadlessAuthenticationStub(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Force a short request timeout to prevent GetHeadlessAuthenticationFromWatcher
+	// from waiting indefinitely for a nonexistent headless authentication. This is
+	// useful for cases when the headless link/command is copied incorrectly or is
+	// run with the wrong user.
+	timeout := 5 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Wait for the login process to insert the actual headless authentication details.
+	authReq, err := auth.GetHeadlessAuthenticationFromWatcher(ctx, req.Id)
 	return authReq, trace.Wrap(err)
+}
+
+// WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, stream proto.AuthService_WatchPendingHeadlessAuthenticationsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	watcher, err := auth.WatchPendingHeadlessAuthentications(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	stubErr := make(chan error)
+	go func() {
+		stubErr <- auth.MaintainHeadlessAuthenticationStub(stream.Context())
+	}()
+
+	for {
+		select {
+		case err := <-stubErr:
+			return trace.Wrap(err)
+		case <-stream.Context().Done():
+			return nil
+		case <-watcher.Done():
+			return watcher.Error()
+		case event := <-watcher.Events():
+			out, err := client.EventToGRPC(event)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
+			watcherEventSizes.Observe(float64(out.Size()))
+
+			if err := stream.Send(out); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
 }
 
 // ExportUpgradeWindows is used to load derived upgrade window values for agents that
@@ -5046,6 +5389,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	proto.RegisterAuthServiceServer(server, authServer)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
+	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
 
 	trust, err := trustv1.NewService(&trustv1.ServiceConfig{
 		Authorizer: cfg.Authorizer,
@@ -5059,12 +5403,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	// Initialize and register the assist service.
 	assistSrv, err := assistv1.NewService(&assistv1.ServiceConfig{
-		Backend: cfg.AuthServer.Services,
+		Backend:        cfg.AuthServer.Services,
+		Embeddings:     cfg.AuthServer.embeddingsRetriever,
+		Embedder:       cfg.AuthServer.embedder,
+		Authorizer:     cfg.Authorizer,
+		ResourceGetter: cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	assist.RegisterAssistServiceServer(server, assistSrv)
+	assist.RegisterAssistEmbeddingServiceServer(server, assistSrv)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
@@ -5094,6 +5443,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
+
+	// Initialize and register the user preferences service.
+	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{
+		Backend: cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userpreferencespb.RegisterUserPreferencesServiceServer(server, userPreferencesSrv)
 
 	return authServer, nil
 }
@@ -5143,4 +5501,67 @@ func (g *GRPCServer) authenticate(ctx context.Context) (*grpcContext, error) {
 			alog:       g.AuthServer,
 		},
 	}, nil
+}
+
+// GetUnstructuredEvents searches for events on the backend and sends them back in an unstructured format.
+func (g *GRPCServer) GetUnstructuredEvents(ctx context.Context, req *auditlogpb.GetUnstructuredEventsRequest) (*auditlogpb.EventsUnstructured, error) {
+	auth, err := g.authenticate(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	rawEvents, lastkey, err := auth.ServerWithRoles.SearchEvents(ctx, events.SearchEventsRequest{
+		From:       req.StartDate.AsTime(),
+		To:         req.EndDate.AsTime(),
+		EventTypes: req.EventTypes,
+		Limit:      int(req.Limit),
+		Order:      types.EventOrder(req.Order),
+		StartKey:   req.StartKey,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	unstructuredEvents := make([]*auditlogpb.EventUnstructured, 0, len(rawEvents))
+	for _, event := range rawEvents {
+		unstructuredEvent, err := apievents.ToUnstructured(event)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		unstructuredEvents = append(unstructuredEvents, unstructuredEvent)
+	}
+
+	return &auditlogpb.EventsUnstructured{
+		Items:   unstructuredEvents,
+		LastKey: lastkey,
+	}, nil
+}
+
+// StreamUnstructuredSessionEventsServer streams all events from a given session recording as an unstructured format.
+func (g *GRPCServer) StreamUnstructuredSessionEventsServer(req *auditlogpb.StreamUnstructuredSessionEventsRequest, stream auditlogpb.AuditLogService_StreamUnstructuredSessionEventsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	c, e := auth.ServerWithRoles.StreamSessionEvents(stream.Context(), session.ID(req.SessionId), int64(req.StartIndex))
+
+	for {
+		select {
+		case event, more := <-c:
+			if !more {
+				return nil
+			}
+			// convert event to JSON
+			eventJson, err := apievents.ToUnstructured(event)
+			if err != nil {
+				return trail.ToGRPC(trace.Wrap(err))
+			}
+			if err := stream.Send(eventJson); err != nil {
+				return trail.ToGRPC(trace.Wrap(err))
+			}
+		case err := <-e:
+			return trail.ToGRPC(trace.Wrap(err))
+		}
+	}
 }

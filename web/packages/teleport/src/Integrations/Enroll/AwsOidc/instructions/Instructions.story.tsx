@@ -43,13 +43,16 @@ export const Step5 = () => <FifthStageInstructions {...props} />;
 export const Step6 = () => <SixthStageInstructions {...props} />;
 export const Step7 = () => (
   <MemoryRouter>
-    <SeventhStageInstructions {...props} />
+    <SeventhStageInstructions {...props} emitEvent={() => null} />
   </MemoryRouter>
 );
 
 export const ConfirmDialog = () => (
   <MemoryRouter>
-    <SuccessfullyAddedIntegrationDialog integrationName="some-integration-name" />
+    <SuccessfullyAddedIntegrationDialog
+      integrationName="some-integration-name"
+      emitEvent={() => null}
+    />
   </MemoryRouter>
 );
 
@@ -57,7 +60,10 @@ export const ConfirmDialogFromDiscover = () => (
   <MemoryRouter
     initialEntries={[{ state: { discover: {} } as DiscoverUrlLocationState }]}
   >
-    <SuccessfullyAddedIntegrationDialog integrationName="some-integration-name" />
+    <SuccessfullyAddedIntegrationDialog
+      integrationName="some-integration-name"
+      emitEvent={() => null}
+    />
   </MemoryRouter>
 );
 

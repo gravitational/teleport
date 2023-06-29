@@ -18,7 +18,6 @@ package local
 
 import (
 	"context"
-	"regexp"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -29,6 +28,7 @@ import (
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local/generic"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const (
@@ -123,7 +123,7 @@ func validateOktaImportRuleRegexes(importRule types.OktaImportRule) error {
 		for _, match := range mapping.GetMatches() {
 			if ok, regexes := match.GetAppNameRegexes(); ok {
 				for _, regex := range regexes {
-					if _, err := regexp.Compile(regex); err != nil {
+					if _, err := utils.CompileExpression(regex); err != nil {
 						errs = append(errs, err)
 					}
 				}
@@ -131,7 +131,7 @@ func validateOktaImportRuleRegexes(importRule types.OktaImportRule) error {
 
 			if ok, regexes := match.GetGroupNameRegexes(); ok {
 				for _, regex := range regexes {
-					if _, err := regexp.Compile(regex); err != nil {
+					if _, err := utils.CompileExpression(regex); err != nil {
 						errs = append(errs, err)
 					}
 				}

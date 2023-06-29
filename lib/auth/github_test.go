@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -212,11 +213,13 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 	diagCtx := ssoDiagContextFixture(false /* testFlow */)
 	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
+		diagCtx.Info.AppliedLoginRules = []string{"login-rule"}
 		return auth, nil
 	}
 	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, tt.mockEmitter.LastEvent().GetType(), events.UserLoginEvent)
 	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOLoginCode)
+	require.Equal(t, tt.mockEmitter.LastEvent().(*apievents.UserLogin).AppliedLoginRules, []string{"login-rule"})
 	require.Equal(t, ssoDiagInfoCalls, 0)
 	tt.mockEmitter.Reset()
 
@@ -279,7 +282,9 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = a.calculateGithubUser(ctx, connector, &types.GithubClaims{
+	diagCtx := &SSODiagContext{}
+
+	_, err = a.calculateGithubUser(ctx, diagCtx, connector, &types.GithubClaims{
 		Username: "octocat",
 		OrganizationToTeams: map[string][]string{
 			"org1": {"team1", "team2"},
@@ -324,6 +329,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 	}
 	mockEvaluator := &mockLoginRuleEvaluator{
 		outputTraits: evaluatedTraits,
+		ruleNames:    []string{"mock"},
 	}
 	a.SetLoginRuleEvaluator(mockEvaluator)
 
@@ -339,7 +345,9 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	userParams, err := a.calculateGithubUser(ctx, connector, &types.GithubClaims{
+	diagCtx := &SSODiagContext{}
+
+	userParams, err := a.calculateGithubUser(ctx, diagCtx, connector, &types.GithubClaims{
 		Username: "octocat",
 		OrganizationToTeams: map[string][]string{
 			"org1": {"team1"},
@@ -358,6 +366,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 		SessionTTL:    defaults.MaxCertDuration,
 	}, userParams, "user params does not match expected")
 	require.Equal(t, 1, mockEvaluator.evaluatedCount, "login rules were not evaluated exactly once")
+	require.Equal(t, mockEvaluator.ruleNames, diagCtx.Info.AppliedLoginRules)
 }
 
 type mockRoleCache struct {
@@ -372,13 +381,14 @@ func (m *mockRoleCache) GetRole(_ context.Context, name string) (types.Role, err
 type mockLoginRuleEvaluator struct {
 	outputTraits   map[string][]string
 	evaluatedCount int
+	ruleNames      []string
 }
 
 func (m *mockLoginRuleEvaluator) Evaluate(context.Context, *loginrule.EvaluationInput) (*loginrule.EvaluationOutput, error) {
 	m.evaluatedCount++
 	return &loginrule.EvaluationOutput{
 		Traits:       m.outputTraits,
-		AppliedRules: []string{"mock"},
+		AppliedRules: m.ruleNames,
 	}, nil
 }
 

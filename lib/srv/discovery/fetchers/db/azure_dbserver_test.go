@@ -73,12 +73,12 @@ func TestAzureDBServerFetchers(t *testing.T) {
 	tests := []struct {
 		name          string
 		inputClients  cloud.AzureClients
-		inputMatchers []services.AzureMatcher
+		inputMatchers []types.AzureMatcher
 		wantDatabases types.Databases
 	}{
 		{
 			name: "match labels",
-			inputMatchers: []services.AzureMatcher{
+			inputMatchers: []types.AzureMatcher{
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{group1},
@@ -116,7 +116,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		},
 		{
 			name: "match labels with all subscriptions, resource groups, and regions",
-			inputMatchers: []services.AzureMatcher{
+			inputMatchers: []types.AzureMatcher{
 				{
 					Subscriptions:  []string{"*"},
 					ResourceGroups: []string{"*"},
@@ -156,7 +156,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		},
 		{
 			name: "skip unsupported and unknown database versions",
-			inputMatchers: []services.AzureMatcher{
+			inputMatchers: []types.AzureMatcher{
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{"*"},
@@ -190,7 +190,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		},
 		{
 			name: "skip unavailable",
-			inputMatchers: []services.AzureMatcher{
+			inputMatchers: []types.AzureMatcher{
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{"*"},
@@ -225,7 +225,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		},
 		{
 			name: "skip access denied errors",
-			inputMatchers: []services.AzureMatcher{
+			inputMatchers: []types.AzureMatcher{
 				{
 					Subscriptions:  []string{subscription1, subscription2},
 					ResourceGroups: []string{"*"},
@@ -264,7 +264,7 @@ func TestAzureDBServerFetchers(t *testing.T) {
 		},
 		{
 			name: "skip group not found errors",
-			inputMatchers: []services.AzureMatcher{
+			inputMatchers: []types.AzureMatcher{
 				{
 					Subscriptions:  []string{subscription1},
 					ResourceGroups: []string{"foobar", group1, "baz"},

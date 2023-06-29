@@ -14,28 +14,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { DeprecatedThemeOption } from 'design/theme/types';
+
 import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
-import { KeysEnum } from './types';
+import {
+  ThemePreference,
+  UserPreferences,
+} from 'teleport/services/userPreferences/types';
 
-import type { ThemeOption } from 'design/theme';
+import { KeysEnum } from './types';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
   KeysEnum.THEME,
   KeysEnum.SHOW_ASSIST_POPUP,
+  KeysEnum.USER_PREFERENCES,
 ];
 
 const storage = {
   clear() {
-    for (let i = 0; i < window.localStorage.length; i++) {
-      const key = window.localStorage.key(i);
-
+    Object.keys(window.localStorage).forEach(key => {
       if (!KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
         window.localStorage.removeItem(key);
       }
-    }
+    });
   },
 
   subscribe(fn) {
@@ -94,20 +98,41 @@ const storage = {
     return null;
   },
 
-  setThemeOption(theme: ThemeOption) {
-    window.localStorage.setItem(KeysEnum.THEME, theme);
-    // This is to trigger the event listener in the current tab
+  getUserPreferences(): UserPreferences {
+    const preferences = window.localStorage.getItem(KeysEnum.USER_PREFERENCES);
+    if (preferences) {
+      return JSON.parse(preferences);
+    }
+    return null;
+  },
+
+  setUserPreferences(preferences: UserPreferences) {
+    const json = JSON.stringify(preferences);
+
+    window.localStorage.setItem(KeysEnum.USER_PREFERENCES, json);
+
     window.dispatchEvent(
       new StorageEvent('storage', {
-        key: KeysEnum.THEME,
-        newValue: theme,
+        key: KeysEnum.USER_PREFERENCES,
+        newValue: json,
       })
     );
   },
 
-  getThemeOption(): ThemeOption {
-    const theme = window.localStorage.getItem(KeysEnum.THEME) as ThemeOption;
-    return theme || 'light';
+  getThemePreference(): ThemePreference {
+    const userPreferences = storage.getUserPreferences();
+    if (userPreferences) {
+      return userPreferences.theme;
+    }
+
+    const theme = window.localStorage.getItem(
+      KeysEnum.THEME
+    ) as DeprecatedThemeOption;
+    if (theme) {
+      return theme === 'light' ? ThemePreference.Light : ThemePreference.Dark;
+    }
+
+    return ThemePreference.Light;
   },
 
   broadcast(messageType, messageBody) {

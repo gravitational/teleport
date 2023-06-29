@@ -18,7 +18,9 @@ package iam
 
 import (
 	"fmt"
+	"strings"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"
@@ -34,6 +36,8 @@ func GetAWSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholde
 		return getRDSPolicyDocument(db)
 	case types.DatabaseTypeRedshift:
 		return getRedshiftPolicyDocument(db)
+	case types.DatabaseTypeElastiCache:
+		return getElastiCachePolicyDocument(db)
 	default:
 		return nil, nil, trace.BadParameter("GetAWSPolicyDocument is not supported for database type %s", db.GetType())
 	}
@@ -75,6 +79,21 @@ func GetReadableAWSPolicyDocumentForAssumedRole(db types.Database) (string, erro
 		return "", trace.Wrap(err)
 	}
 	return marshaled, nil
+}
+
+// CheckElastiCacheSupportsIAMAuth returns whether the given ElastiCache
+// database supports IAM auth.
+// AWS ElastiCache Redis supports IAM auth for redis version 7+.
+func CheckElastiCacheSupportsIAMAuth(database types.Database) (bool, error) {
+	version, ok := database.GetLabel("engine-version")
+	if !ok {
+		return false, trace.NotFound("database missing engine-version label")
+	}
+	v, err := semver.NewVersion(strings.TrimPrefix(version, "v"))
+	if err != nil {
+		return false, trace.Wrap(err, "failed to parse engine-version")
+	}
+	return v.Major >= 7, nil
 }
 
 func getRDSPolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
@@ -159,6 +178,34 @@ func getRedshiftServerlessPolicyDocument(db types.Database) (*awslib.PolicyDocum
 		Actions: awslib.SliceOrString{"redshift-serverless:GetCredentials"},
 		Resources: awslib.SliceOrString{
 			fmt.Sprintf("arn:%v:redshift-serverless:%v:%v:workgroup/%v", partition, region, accountID, workgroupID),
+		},
+	})
+	return policyDoc, placeholders, nil
+}
+
+// getElastiCachePolicyDocument returns the policy document used for
+// ElastiCache databases.
+//
+// https://docs.aws.amazon.com/service-authorization/latest/reference/list_amazonelasticache.html
+func getElastiCachePolicyDocument(db types.Database) (*awslib.PolicyDocument, Placeholders, error) {
+	meta := db.GetAWS()
+	partition := awsutils.GetPartitionFromRegion(meta.Region)
+	region := meta.Region
+	accountID := meta.AccountID
+	replicationGroupID := meta.ElastiCache.ReplicationGroupID
+
+	placeholders := Placeholders(nil).
+		setPlaceholderIfEmpty(&region, "{region}").
+		setPlaceholderIfEmpty(&partition, "{partition}").
+		setPlaceholderIfEmpty(&accountID, "{account_id}").
+		setPlaceholderIfEmpty(&replicationGroupID, "{replication_group_id}")
+
+	policyDoc := awslib.NewPolicyDocument(&awslib.Statement{
+		Effect:  awslib.EffectAllow,
+		Actions: awslib.SliceOrString{"elasticache:Connect"},
+		Resources: awslib.SliceOrString{
+			fmt.Sprintf("arn:%v:elasticache:%v:%v:replicationgroup:%v", partition, region, accountID, replicationGroupID),
+			fmt.Sprintf("arn:%v:elasticache:%v:%v:user:*", partition, region, accountID),
 		},
 	})
 	return policyDoc, placeholders, nil

@@ -257,15 +257,7 @@ type Identity interface {
 	// GetKeyAttestationData gets a verified public key attestation response.
 	GetKeyAttestationData(ctx context.Context, publicKey crypto.PublicKey) (*keys.AttestationData, error)
 
-	// CreateHeadlessAuthenticationStub creates a headless authentication stub.
-	CreateHeadlessAuthenticationStub(ctx context.Context, name string) (*types.HeadlessAuthentication, error)
-
-	// CompareAndSwapHeadlessAuthentication performs a compare
-	// and swap replacement on a headless authentication resource.
-	CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error)
-
-	// DeleteHeadlessAuthentication deletes a headless authentication from the backend by name.
-	DeleteHeadlessAuthentication(ctx context.Context, name string) error
+	HeadlessAuthenticationService
 
 	types.WebSessionsGetter
 	types.WebTokensGetter
@@ -324,6 +316,28 @@ type SAMLIdPSession interface {
 	DeleteAllSAMLIdPSessions(context.Context) error
 	// DeleteUserSAMLIdPSessions deletes all of a user's SAML IdP sessions.
 	DeleteUserSAMLIdPSessions(ctx context.Context, user string) error
+}
+
+// HeadlessAuthenticationService is responsible for headless authentication resource management
+type HeadlessAuthenticationService interface {
+	// GetHeadlessAuthentication gets a headless authentication.
+	GetHeadlessAuthentication(ctx context.Context, username, name string) (*types.HeadlessAuthentication, error)
+
+	// GetHeadlessAuthentications gets all headless authentications.
+	GetHeadlessAuthentications(ctx context.Context) ([]*types.HeadlessAuthentication, error)
+
+	// UpsertHeadlessAuthentication upserts a headless authentication.
+	UpsertHeadlessAuthentication(ctx context.Context, ha *types.HeadlessAuthentication) error
+
+	// CompareAndSwapHeadlessAuthentication performs a compare
+	// and swap replacement on a headless authentication resource.
+	CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error)
+
+	// DeleteHeadlessAuthentication deletes a headless authentication from the backend.
+	DeleteHeadlessAuthentication(ctx context.Context, username, name string) error
+
+	// DeleteAllHeadlessAuthentications deletes all headless authentications from the backend.
+	DeleteAllHeadlessAuthentications(ctx context.Context) error
 }
 
 // VerifyPassword makes sure password satisfies our requirements (relaxed),

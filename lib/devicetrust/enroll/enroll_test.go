@@ -16,7 +16,6 @@ package enroll_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -28,10 +27,9 @@ import (
 	"github.com/gravitational/teleport/lib/devicetrust/testenv"
 )
 
-func TestRunCeremony(t *testing.T) {
+func TestCeremony_Run(t *testing.T) {
 	env := testenv.MustNew()
 	defer env.Close()
-	t.Cleanup(resetNative())
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -85,36 +83,16 @@ func TestRunCeremony(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*enroll.GetDeviceOSType = test.dev.GetDeviceOSType
-			*enroll.EnrollInit = test.dev.EnrollDeviceInit
-			*enroll.SignChallenge = test.dev.SignChallenge
-			*enroll.SolveTPMEnrollChallenge = test.dev.SolveTPMEnrollChallenge
+			c := &enroll.Ceremony{
+				GetDeviceOSType:         test.dev.GetDeviceOSType,
+				EnrollDeviceInit:        test.dev.EnrollDeviceInit,
+				SignChallenge:           test.dev.SignChallenge,
+				SolveTPMEnrollChallenge: test.dev.SolveTPMEnrollChallenge,
+			}
 
-			got, err := enroll.RunCeremony(ctx, devices, "faketoken")
+			got, err := c.Run(ctx, devices, false, "faketoken")
 			test.assertErr(t, err)
 			test.assertGotDevice(t, got)
 		})
-	}
-}
-
-func resetNative() func() {
-	const guardKey = "_dt_reset_native"
-	if os.Getenv(guardKey) != "" {
-		panic("Tests that rely on resetNative cannot run in parallel.")
-	}
-	os.Setenv(guardKey, "1")
-
-	collectDeviceData := *enroll.CollectDeviceData
-	enrollDeviceInit := *enroll.EnrollInit
-	getDeviceOSType := *enroll.GetDeviceOSType
-	signChallenge := *enroll.SignChallenge
-	solveTPMEnrollChallenge := *enroll.SolveTPMEnrollChallenge
-	return func() {
-		*enroll.CollectDeviceData = collectDeviceData
-		*enroll.EnrollInit = enrollDeviceInit
-		*enroll.GetDeviceOSType = getDeviceOSType
-		*enroll.SignChallenge = signChallenge
-		*enroll.SolveTPMEnrollChallenge = solveTPMEnrollChallenge
-		os.Unsetenv(guardKey)
 	}
 }

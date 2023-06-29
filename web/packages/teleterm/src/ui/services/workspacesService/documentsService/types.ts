@@ -152,6 +152,14 @@ export interface DocumentPtySession extends DocumentBase {
   leafClusterId?: string;
 }
 
+export interface DocumentConnectMyComputerSetup extends DocumentBase {
+  kind: 'doc.connect_my_computer_setup';
+  // `DocumentConnectMyComputerSetup` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+  // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
+  // between a document and a cluster just by looking at the document fields.
+  rootClusterUri: uri.RootClusterUri;
+}
+
 export type DocumentTerminal =
   | DocumentPtySession
   | DocumentGatewayCliClient
@@ -163,7 +171,8 @@ export type Document =
   | DocumentBlank
   | DocumentGateway
   | DocumentCluster
-  | DocumentTerminal;
+  | DocumentTerminal
+  | DocumentConnectMyComputerSetup;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document

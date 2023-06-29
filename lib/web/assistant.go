@@ -73,6 +73,31 @@ func (h *Handler) createAssistantConversation(_ http.ResponseWriter, r *http.Req
 	}, nil
 }
 
+// deleteAssistantConversation is a handler for DELETE /webapi/assistant/conversations/:conversation_id.
+func (h *Handler) deleteAssistantConversation(_ http.ResponseWriter, r *http.Request,
+	p httprouter.Params, sctx *SessionContext,
+) (any, error) {
+	authClient, err := sctx.GetClient()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkAssistEnabled(authClient, r.Context()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	conversationID := p.ByName("conversation_id")
+
+	if err := authClient.DeleteAssistantConversation(r.Context(), &assistpb.DeleteAssistantConversationRequest{
+		ConversationId: conversationID,
+		Username:       sctx.GetUser(),
+	}); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return OK(), nil
+}
+
 // assistantMessage is an assistant message that is sent to the client.
 type assistantMessage struct {
 	// Type is a type of the message.
@@ -243,7 +268,7 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := assist.NewAssist(r.Context(), h.cfg.ProxyClient,
+	client, err := assist.NewClient(r.Context(), h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -287,7 +312,7 @@ func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 	sctx *SessionContext, site reversetunnel.RemoteSite,
-) error {
+) (err error) {
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
 	if conversationID == "" {
@@ -346,7 +371,31 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		h.log.WithError(err).Error("Error setting websocket readline")
 		return nil
 	}
-	defer ws.Close()
+	defer func() {
+		closureReason := websocket.CloseNormalClosure
+		closureMsg := ""
+		if err != nil {
+			h.log.WithError(err).Error("Error in the Assistant loop")
+			_ = ws.WriteJSON(&assistantMessage{
+				Type:        assist.MessageKindError,
+				Payload:     "An error has occurred. Please try again later.",
+				CreatedTime: h.clock.Now().UTC().Format(time.RFC3339),
+			})
+			// Set server error code and message: https://datatracker.ietf.org/doc/html/rfc6455#section-7.4.1
+			closureReason = websocket.CloseInternalServerErr
+			closureMsg = err.Error()
+		}
+		// Send the close message to the client and close the connection
+		if err := ws.WriteControl(websocket.CloseMessage,
+			websocket.FormatCloseMessage(closureReason, closureMsg),
+			time.Now().Add(time.Second),
+		); err != nil {
+			h.log.Warnf("Failed to write close message: %v", err)
+		}
+		if err := ws.Close(); err != nil {
+			h.log.Warnf("Failed to close websocket: %v", err)
+		}
+	}()
 
 	// Update the read deadline upon receiving a pong message.
 	ws.SetPongHandler(func(_ string) error {
@@ -361,13 +410,13 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	go startPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
 
-	assistClient, err := assist.NewAssist(ctx, h.cfg.ProxyClient,
+	assistClient, err := assist.NewClient(ctx, h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	chat, err := assistClient.NewChat(ctx, authClient, conversationID, sctx.GetUser())
+	chat, err := assistClient.NewChat(ctx, authClient, authClient.EmbeddingClient(), conversationID, sctx.GetUser())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -385,7 +434,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	if chat.IsNewConversation() {
 		// new conversation, generate a hello message
-		if _, err := chat.ProcessComplete(ctx, onMessageFn); err != nil {
+		if _, err := chat.ProcessComplete(ctx, onMessageFn, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -417,11 +466,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		}
 
 		//TODO(jakule): Should we sanitize the payload?
-		if err := chat.InsertAssistantMessage(ctx, assist.MessageKindUserMessage, wsIncoming.Payload); err != nil {
-			return trace.Wrap(err)
-		}
-
-		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn)
+		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn, wsIncoming.Payload)
 		if err != nil {
 			return trace.Wrap(err)
 		}

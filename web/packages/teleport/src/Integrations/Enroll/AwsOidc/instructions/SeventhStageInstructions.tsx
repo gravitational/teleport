@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router';
 import { Link } from 'react-router-dom';
 import { Danger } from 'design/Alert';
@@ -41,10 +41,15 @@ import {
 } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 import { DiscoverUrlLocationState } from 'teleport/Discover/useDiscover';
+import { IntegrationEnrollEvent } from 'teleport/services/userEvent';
 
 import { InstructionsContainer, PreviousStepProps } from './common';
 
-export function SeventhStageInstructions(props: PreviousStepProps) {
+type EmitEvent = (event: IntegrationEnrollEvent) => void;
+
+export function SeventhStageInstructions(
+  props: PreviousStepProps & { emitEvent: EmitEvent }
+) {
   const { attempt, setAttempt } = useAttempt('');
   const [showConfirmBox, setShowConfirmBox] = useState(false);
   const [roleArn, setRoleArn] = useState(props.awsOidc.roleArn);
@@ -130,7 +135,10 @@ export function SeventhStageInstructions(props: PreviousStepProps) {
         )}
       </Validation>
       {showConfirmBox && (
-        <SuccessfullyAddedIntegrationDialog integrationName={name} />
+        <SuccessfullyAddedIntegrationDialog
+          integrationName={name}
+          emitEvent={props.emitEvent}
+        />
       )}
     </InstructionsContainer>
   );
@@ -138,10 +146,21 @@ export function SeventhStageInstructions(props: PreviousStepProps) {
 
 export function SuccessfullyAddedIntegrationDialog({
   integrationName,
+  emitEvent,
 }: {
   integrationName: string;
+  emitEvent: EmitEvent;
 }) {
   const location = useLocation<DiscoverUrlLocationState>();
+
+  useEffect(() => {
+    if (location.state?.discover) {
+      return;
+    }
+    emitEvent(IntegrationEnrollEvent.Complete);
+    // Only send event once on init.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <Dialog

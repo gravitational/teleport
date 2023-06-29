@@ -78,8 +78,7 @@ func ReadMessage(reader io.Reader) (Message, error) {
 
 // ReadServerMessage reads wire protocol message from the MongoDB server connection.
 func ReadServerMessage(ctx context.Context, conn driver.Connection) (Message, error) {
-	var wm []byte
-	wm, err := conn.ReadWireMessage(ctx, wm)
+	wm, err := conn.ReadWireMessage(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -103,10 +102,7 @@ func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
 	}
 
 	payloadLength := int64(length - headerSizeBytes)
-	// TODO: get the max limit from Mongo handshake
-	// https://github.com/gravitational/teleport/issues/21286
-	// For now allow 2x default mongoDB limit.
-	if payloadLength >= 2*defaultMaxMessageSizeBytes {
+	if payloadLength >= defaultMaxMessageSizeBytes {
 		return nil, nil, trace.BadParameter("exceeded the maximum message size, got length: %d", length)
 	}
 
@@ -132,7 +128,10 @@ func readHeaderAndPayload(reader io.Reader) (*MessageHeader, []byte, error) {
 // defaultMaxMessageSizeBytes is the default max size of mongoDB message.
 // It can be obtained by following command:
 // db.isMaster().maxMessageSizeBytes    48000000 (default)
-const defaultMaxMessageSizeBytes = int64(48000000)
+// TODO(jent): get the max limit from Mongo handshake
+// https://github.com/gravitational/teleport/issues/21286
+// For now allow 2x default mongoDB limit.
+const defaultMaxMessageSizeBytes = int64(48000000) * 2
 
 // buffCapacity returns the capacity for the payload buffer.
 // If payloadLength is greater than defaultMaxMessageSizeBytes the defaultMaxMessageSizeBytes is returned.

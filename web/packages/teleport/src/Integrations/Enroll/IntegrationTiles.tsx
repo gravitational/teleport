@@ -41,6 +41,7 @@ export function IntegrationTiles({
           ? cfg.getIntegrationEnrollRoute(IntegrationKind.AwsOidc)
           : null
       }
+      data-testid="tile-aws-oidc"
     >
       <Box mt={3} mb={2}>
         <AWSIcon size={80} />

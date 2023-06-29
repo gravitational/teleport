@@ -37,6 +37,8 @@ import type { ParticipantMode } from 'teleport/services/session';
 const cfg = {
   isEnterprise: false,
   isCloud: false,
+  assistEnabled: false,
+  automaticUpgrades: false,
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
@@ -64,6 +66,8 @@ const cfg = {
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
     privateKeyPolicy: 'none' as PrivateKeyPolicy,
+    // motd is message of the day, displayed to users before login.
+    motd: '',
   },
 
   proxyCluster: 'localhost',
@@ -237,6 +241,7 @@ const cfg = {
       '/v1/webapi/assistant/conversations/:conversationId',
     assistExecuteCommandWebSocketPath:
       'wss://:hostname/v1/webapi/command/:clusterId/execute',
+    userPreferencesPath: '/v1/webapi/user/preferences',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -276,6 +281,10 @@ const cfg = {
 
   getPreferredMfaType() {
     return cfg.auth ? cfg.auth.preferredLocalMfa : null;
+  },
+
+  getMotd() {
+    return cfg.auth.motd;
   },
 
   getLocalAuthFlag() {

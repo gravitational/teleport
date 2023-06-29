@@ -30,4 +30,14 @@ You will refer to this file later when configuring the plugin.
   certificates for your plugin. See our Machine ID [getting started
   guide](../../machine-id/getting-started.mdx) to learn more.
 
+  Note that you cannot issue certificates that are valid longer than your existing credentials.
+  For example, to issue certificates with a 1000-hour TTL, you must be logged in with a session that is
+  valid for at least 1000 hours. This means your user must have a role allowing
+  a `max_session_ttl` of at least 1000 hours, and you must specify a `--ttl`
+  when logging in:
+
+  ```code
+  $ tsh login --proxy=teleport.example.com --ttl=1001h
+  ```
+
 </Admonition>

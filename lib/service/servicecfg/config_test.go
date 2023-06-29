@@ -644,3 +644,46 @@ func TestVerifyEnabledService(t *testing.T) {
 		})
 	}
 }
+
+func TestWebPublicAddr(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   ProxyConfig
+		expected string
+	}{
+		{
+			name:     "no public address specified",
+			expected: "https://<proxyhost>:3080",
+		},
+		{
+			name: "default port",
+			config: ProxyConfig{
+				PublicAddrs: []utils.NetAddr{
+					{Addr: "0.0.0.0", AddrNetwork: "tcp"},
+				},
+			},
+			expected: "https://0.0.0.0:3080",
+		},
+		{
+			name: "non-default port",
+			config: ProxyConfig{
+				PublicAddrs: []utils.NetAddr{
+					{Addr: "0.0.0.0:443", AddrNetwork: "tcp"},
+				},
+			},
+			expected: "https://0.0.0.0:443",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, err := test.config.WebPublicAddr()
+			require.NoError(t, err)
+
+			require.Equal(t, test.expected, out)
+		})
+	}
+}

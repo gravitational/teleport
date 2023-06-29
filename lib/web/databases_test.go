@@ -220,6 +220,20 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	elasticache, err := types.NewDatabaseV3(types.Metadata{
+		Name: "aws-elasticache",
+	}, types.DatabaseSpecV3{
+		Protocol: "redis",
+		URI:      "clustercfg.my-redis-cluster.xxxxxx.cac1.cache.amazonaws.com:6379",
+		AWS: types.AWS{
+			AccountID: "123456789012",
+			ElastiCache: types.ElastiCache{
+				ReplicationGroupID: "some-group",
+			},
+		},
+	})
+	require.NoError(t, err)
+
 	selfHosted, err := types.NewDatabaseV3(types.Metadata{
 		Name: "self-hosted",
 	}, types.DatabaseSpecV3{
@@ -229,7 +243,7 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 	require.NoError(t, err)
 
 	// Add database servers for above databases.
-	for _, db := range []*types.DatabaseV3{redshift, selfHosted} {
+	for _, db := range []*types.DatabaseV3{redshift, elasticache, selfHosted} {
 		_, err = env.server.Auth().UpsertDatabaseServer(context.TODO(), mustCreateDatabaseServer(t, db))
 		require.NoError(t, err)
 	}
@@ -244,6 +258,14 @@ func TestHandleDatabasesGetIAMPolicy(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, http.StatusOK, resp.Code())
 				requireDatabaseIAMPolicyAWS(t, resp.Bytes(), redshift)
+			},
+		},
+		{
+			inputDatabaseName: "aws-elasticache",
+			verifyResponse: func(t *testing.T, resp *roundtrip.Response, err error) {
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.Code())
+				requireDatabaseIAMPolicyAWS(t, resp.Bytes(), elasticache)
 			},
 		},
 		{

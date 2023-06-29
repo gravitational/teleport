@@ -50,9 +50,12 @@ import (
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
+	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/installers"
@@ -3083,6 +3086,100 @@ func TestDatabaseServicesCRUD(t *testing.T) {
 	require.Empty(t, out)
 }
 
+func TestServerInfoCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+
+	clt, err := srv.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	serverInfo1, err := types.NewServerInfo(types.Metadata{
+		Name: "serverInfo1",
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+	serverInfo2, err := types.NewServerInfo(types.Metadata{
+		Name: "serverInfo2",
+	}, types.ServerInfoSpecV1{})
+	require.NoError(t, err)
+
+	createServerInfos := func(t *testing.T) {
+		// Initially expect no server info to be returned.
+		serverInfos, err := stream.Collect(clt.GetServerInfos(ctx))
+		require.NoError(t, err)
+		require.Empty(t, serverInfos)
+
+		// Create server info.
+		require.NoError(t, clt.UpsertServerInfo(ctx, serverInfo1))
+		require.NoError(t, clt.UpsertServerInfo(ctx, serverInfo2))
+	}
+
+	deleteAllServerInfos := func(t *testing.T) {
+		// Delete server infos.
+		require.NoError(t, clt.DeleteAllServerInfos(ctx))
+
+		// Expect no server infos to be returned.
+		serverInfos, err := stream.Collect(clt.GetServerInfos(ctx))
+		require.NoError(t, err)
+		require.Empty(t, serverInfos)
+	}
+
+	requireResourcesEqual := func(t *testing.T, expected, actual interface{}) {
+		require.Empty(t, cmp.Diff(expected, actual, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+	}
+
+	t.Run("ServerInfoGetters", func(t *testing.T) {
+		createServerInfos(t)
+		t.Cleanup(func() { deleteAllServerInfos(t) })
+
+		t.Run("GetServerInfos", func(t *testing.T) {
+			t.Parallel()
+			// Get all server infos.
+			serverInfos, err := stream.Collect(clt.GetServerInfos(ctx))
+			require.NoError(t, err)
+			require.Len(t, serverInfos, 2)
+			requireResourcesEqual(t, []types.ServerInfo{serverInfo1, serverInfo2}, serverInfos)
+		})
+
+		t.Run("GetServerInfo", func(t *testing.T) {
+			t.Parallel()
+			// Get server info.
+			si, err := clt.GetServerInfo(ctx, serverInfo1.GetName())
+			require.NoError(t, err)
+			requireResourcesEqual(t, serverInfo1, si)
+
+			// GetServerInfo should fail if name isn't provided.
+			_, err = clt.GetServerInfo(ctx, "")
+			require.Error(t, err)
+			require.True(t, trace.IsBadParameter(err))
+		})
+	})
+
+	t.Run("DeleteServerInfo", func(t *testing.T) {
+		createServerInfos(t)
+		t.Cleanup(func() { deleteAllServerInfos(t) })
+
+		// DeleteServerInfo should fail if name isn't provided.
+		err := clt.DeleteServerInfo(ctx, "")
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err))
+
+		// Delete server info.
+		err = clt.DeleteServerInfo(ctx, serverInfo1.GetName())
+		require.NoError(t, err)
+
+		// Expect server info not found.
+		_, err = clt.GetServerInfo(ctx, serverInfo1.GetName())
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err))
+
+		// Expect other server info still exists.
+		si, err := clt.GetServerInfo(ctx, serverInfo2.GetName())
+		require.NoError(t, err)
+		requireResourcesEqual(t, serverInfo2, si)
+	})
+}
+
 // TestSAMLIdPServiceProvidersCRUD tests SAMLIdPServiceProviders resource operations.
 func TestSAMLIdPServiceProvidersCRUD(t *testing.T) {
 	t.Parallel()
@@ -4078,6 +4175,237 @@ func TestGRPCServer_GetInstallers(t *testing.T) {
 			}
 
 			require.Equal(t, tc.expectedInstallers, outputInstallers)
+		})
+	}
+}
+
+func TestRoleVersions(t *testing.T) {
+	t.Parallel()
+	srv := newTestTLSServer(t)
+
+	wildcardLabels := types.Labels{types.Wildcard: {types.Wildcard}}
+
+	newRole := func(version string, spec types.RoleSpecV6) types.Role {
+		role, err := types.NewRoleWithVersion("test_rule", version, spec)
+		require.NoError(t, err)
+		return role
+	}
+
+	role := newRole(types.V7, types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			NodeLabels:               wildcardLabels,
+			AppLabels:                wildcardLabels,
+			AppLabelsExpression:      `labels["env"] == "staging"`,
+			DatabaseLabelsExpression: `labels["env"] == "staging"`,
+			Rules: []types.Rule{
+				types.NewRule(types.KindRole, services.RW()),
+			},
+			KubernetesLabels: wildcardLabels,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+				},
+			},
+		},
+		Deny: types.RoleConditions{
+			KubernetesLabels:               types.Labels{"env": {"prod"}},
+			ClusterLabels:                  types.Labels{"env": {"prod"}},
+			ClusterLabelsExpression:        `labels["env"] == "prod"`,
+			WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind:      types.Wildcard,
+					Namespace: types.Wildcard,
+					Name:      types.Wildcard,
+				},
+			},
+		},
+	})
+
+	user, err := CreateUser(srv.Auth(), "user", role)
+	require.NoError(t, err)
+
+	client, err := srv.NewClient(TestUser(user.GetName()))
+	require.NoError(t, err)
+
+	for _, tc := range []struct {
+		desc             string
+		clientVersions   []string
+		expectError      bool
+		expectedRole     types.Role
+		expectDowngraded bool
+	}{
+		{
+			desc: "up to date",
+			clientVersions: []string{
+				"14.0.0-alpha.1", "15.1.2", api.Version, "",
+			},
+			expectedRole: role,
+		},
+		{
+			desc: "downgrade role to v6 but supports label expressions",
+			clientVersions: []string{
+				minSupportedLabelExpressionVersion.String(), "13.3.0",
+			},
+			expectedRole: newRole(types.V6, types.RoleSpecV6{
+				Allow: types.RoleConditions{
+					NodeLabels:               wildcardLabels,
+					AppLabels:                wildcardLabels,
+					AppLabelsExpression:      `labels["env"] == "staging"`,
+					DatabaseLabelsExpression: `labels["env"] == "staging"`,
+					Rules: []types.Rule{
+						types.NewRule(types.KindRole, services.RW()),
+					},
+				},
+				Deny: types.RoleConditions{
+					KubernetesLabels:               wildcardLabels,
+					ClusterLabels:                  types.Labels{"env": {"prod"}},
+					ClusterLabelsExpression:        `labels["env"] == "prod"`,
+					WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+				},
+			}),
+			expectDowngraded: true,
+		},
+		{
+			desc:           "bad client versions",
+			clientVersions: []string{"Not a version", "13", "13.1"},
+			expectError:    true,
+		},
+		{
+			desc:           "label expressions downgraded",
+			clientVersions: []string{"13.0.11", "12.4.3", "6.0.0"},
+			expectedRole: newRole(types.V6,
+				types.RoleSpecV6{
+					Allow: types.RoleConditions{
+						// None of the allow labels change
+						NodeLabels:               wildcardLabels,
+						AppLabels:                wildcardLabels,
+						AppLabelsExpression:      `labels["env"] == "staging"`,
+						DatabaseLabelsExpression: `labels["env"] == "staging"`,
+						Rules: []types.Rule{
+							types.NewRule(types.KindRole, services.RW()),
+						},
+					},
+					Deny: types.RoleConditions{
+						// These fields don't change
+						KubernetesLabels:               wildcardLabels,
+						ClusterLabelsExpression:        `labels["env"] == "prod"`,
+						WindowsDesktopLabelsExpression: `labels["env"] == "prod"`,
+						// These all get set to wildcard deny because there is
+						// either an allow or deny label expression for them.
+						AppLabels:            wildcardLabels,
+						DatabaseLabels:       wildcardLabels,
+						ClusterLabels:        wildcardLabels,
+						WindowsDesktopLabels: wildcardLabels,
+					},
+				}),
+			expectDowngraded: true,
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			for _, clientVersion := range tc.clientVersions {
+				t.Run(clientVersion, func(t *testing.T) {
+					// setup client metadata
+					ctx := context.Background()
+					if clientVersion == "" {
+						ctx = context.WithValue(ctx, metadata.DisableInterceptors{}, struct{}{})
+					} else {
+						ctx = metadata.AddMetadataToContext(ctx, map[string]string{
+							metadata.VersionKey: clientVersion,
+						})
+					}
+
+					checkRole := func(gotRole types.Role) {
+						t.Helper()
+						if tc.expectError {
+							return
+						}
+						require.Empty(t, cmp.Diff(tc.expectedRole, gotRole,
+							cmpopts.IgnoreFields(types.RoleV6{}, "Metadata.ID", "Metadata.Labels")))
+						// The downgraded label value won't match exactly because it
+						// includes the client version, so just check it's not empty
+						// and ignore it in the role diff.
+						if tc.expectDowngraded {
+							require.NotEmpty(t, gotRole.GetMetadata().Labels[types.TeleportDowngradedLabel])
+						}
+					}
+					checkErr := func(err error) {
+						t.Helper()
+						if tc.expectError {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+						}
+					}
+
+					// Test GetRole
+					gotRole, err := client.GetRole(ctx, role.GetName())
+					checkErr(err)
+					checkRole(gotRole)
+
+					// Test GetRoles
+					gotRoles, err := client.GetRoles(ctx)
+					checkErr(err)
+					if !tc.expectError {
+						foundTestRole := false
+						for _, gotRole := range gotRoles {
+							if gotRole.GetName() != role.GetName() {
+								continue
+							}
+							checkRole(gotRole)
+							foundTestRole = true
+							break
+						}
+						require.True(t, foundTestRole, "GetRoles result does not include expected role")
+					}
+
+					ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+					defer cancel()
+
+					// Test WatchEvents
+					watcher, err := client.NewWatcher(ctx, types.Watch{Name: "roles", Kinds: []types.WatchKind{{Kind: types.KindRole}}})
+					require.NoError(t, err)
+					defer watcher.Close()
+
+					// Swallow the init event
+					e := <-watcher.Events()
+					require.Equal(t, types.OpInit, e.Type)
+
+					// Re-upsert the role so that the watcher sees it, do this
+					// on the auth server directly to avoid the
+					// TeleportDowngradedLabel check in ServerWithRoles
+					require.NoError(t, srv.Auth().UpsertRole(ctx, role))
+
+					gotRole, err = func() (types.Role, error) {
+						for {
+							select {
+							case <-watcher.Done():
+								return nil, watcher.Error()
+							case e := <-watcher.Events():
+								if gotRole, ok := e.Resource.(types.Role); ok && gotRole.GetName() == role.GetName() {
+									return gotRole, nil
+								}
+							}
+						}
+					}()
+					checkErr(err)
+					checkRole(gotRole)
+
+					if !tc.expectError {
+						// Try to re-upsert the role we got. If it was
+						// downgraded, it should be rejected due to the
+						// TeleportDowngradedLabel
+						err = client.UpsertRole(ctx, gotRole)
+						if tc.expectDowngraded {
+							require.Error(t, err)
+						} else {
+							require.NoError(t, err)
+						}
+					}
+				})
+			}
 		})
 	}
 }

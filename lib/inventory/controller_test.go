@@ -567,6 +567,67 @@ func TestInstanceHeartbeat(t *testing.T) {
 	require.Equal(t, uint64(0), controller.ConnectedServiceCount(types.RoleApp))
 }
 
+// TestUpdateLabels verifies that an instance's labels can be updated over an
+// inventory control stream.
+func TestUpdateLabels(t *testing.T) {
+	t.Parallel()
+	const serverID = "test-instance"
+	const peerAddr = "1.2.3.4:456"
+
+	events := make(chan testEvent, 1024)
+
+	auth := &fakeAuth{}
+
+	controller := NewController(
+		auth,
+		usagereporter.DiscardUsageReporter{},
+		withInstanceHBInterval(time.Millisecond*200),
+		withTestEventsChannel(events),
+	)
+	defer controller.Close()
+
+	// Set up fake in-memory control stream.
+	upstream, downstream := client.InventoryControlStreamPipe(client.ICSPipePeerAddr(peerAddr))
+	upstreamHello := proto.UpstreamInventoryHello{
+		ServerID: serverID,
+		Version:  teleport.Version,
+		Services: []types.SystemRole{types.RoleNode},
+	}
+	downstreamHello := proto.DownstreamInventoryHello{
+		Version:  teleport.Version,
+		ServerID: "auth",
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	downstreamHandle := NewDownstreamHandle(func(ctx context.Context) (client.DownstreamInventoryControlStream, error) {
+		return downstream, nil
+	}, upstreamHello)
+
+	// Wait for upstream hello.
+	select {
+	case msg := <-upstream.Recv():
+		require.Equal(t, upstreamHello, msg)
+	case <-ctx.Done():
+		require.Fail(t, "never got upstream hello")
+	}
+	require.NoError(t, upstream.Send(ctx, downstreamHello))
+	controller.RegisterControlStream(upstream, upstreamHello)
+
+	// Verify that control stream upstreamHandle is now accessible.
+	upstreamHandle, ok := controller.GetControlStream(serverID)
+	require.True(t, ok)
+
+	// Update labels.
+	labels := map[string]string{"a": "1", "b": "2"}
+	require.NoError(t, upstreamHandle.UpdateLabels(ctx, proto.LabelUpdateKind_SSHServer, labels))
+
+	require.Eventually(t, func() bool {
+		require.Equal(t, labels, downstreamHandle.GetUpstreamLabels(proto.LabelUpdateKind_SSHServer))
+		return true
+	}, time.Second, 100*time.Millisecond)
+}
+
 type eventOpts struct {
 	expect map[testEvent]int
 	deny   map[testEvent]struct{}

@@ -33,6 +33,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/memorydb/memorydbiface"
+	"github.com/aws/aws-sdk-go/service/opensearchservice"
+	"github.com/aws/aws-sdk-go/service/opensearchservice/opensearchserviceiface"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/aws/aws-sdk-go/service/redshift"
@@ -562,6 +564,8 @@ func (m *IAMErrorMock) PutUserPolicyWithContext(ctx aws.Context, input *iam.PutU
 // ElastiCache mocks AWS ElastiCache API.
 type ElastiCacheMock struct {
 	elasticacheiface.ElastiCacheAPI
+	// Unauth set to true will make API calls return unauthorized errors.
+	Unauth bool
 
 	ReplicationGroups []*elasticache.ReplicationGroup
 	Users             []*elasticache.User
@@ -589,6 +593,9 @@ func (m *ElastiCacheMock) addTags(arn string, tagsMap map[string]string) {
 }
 
 func (m *ElastiCacheMock) DescribeUsersWithContext(_ aws.Context, input *elasticache.DescribeUsersInput, opts ...request.Option) (*elasticache.DescribeUsersOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
 	if input.UserId == nil {
 		return &elasticache.DescribeUsersOutput{Users: m.Users}, nil
 	}
@@ -601,6 +608,9 @@ func (m *ElastiCacheMock) DescribeUsersWithContext(_ aws.Context, input *elastic
 }
 
 func (m *ElastiCacheMock) DescribeReplicationGroupsWithContext(_ aws.Context, input *elasticache.DescribeReplicationGroupsInput, opts ...request.Option) (*elasticache.DescribeReplicationGroupsOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
 	for _, replicationGroup := range m.ReplicationGroups {
 		if aws.StringValue(replicationGroup.ReplicationGroupId) == aws.StringValue(input.ReplicationGroupId) {
 			return &elasticache.DescribeReplicationGroupsOutput{
@@ -612,6 +622,9 @@ func (m *ElastiCacheMock) DescribeReplicationGroupsWithContext(_ aws.Context, in
 }
 
 func (m *ElastiCacheMock) DescribeReplicationGroupsPagesWithContext(_ aws.Context, _ *elasticache.DescribeReplicationGroupsInput, fn func(*elasticache.DescribeReplicationGroupsOutput, bool) bool, _ ...request.Option) error {
+	if m.Unauth {
+		return trace.AccessDenied("unauthorized")
+	}
 	fn(&elasticache.DescribeReplicationGroupsOutput{
 		ReplicationGroups: m.ReplicationGroups,
 	}, true)
@@ -619,6 +632,9 @@ func (m *ElastiCacheMock) DescribeReplicationGroupsPagesWithContext(_ aws.Contex
 }
 
 func (m *ElastiCacheMock) DescribeUsersPagesWithContext(_ aws.Context, _ *elasticache.DescribeUsersInput, fn func(*elasticache.DescribeUsersOutput, bool) bool, _ ...request.Option) error {
+	if m.Unauth {
+		return trace.AccessDenied("unauthorized")
+	}
 	fn(&elasticache.DescribeUsersOutput{
 		Users: m.Users,
 	}, true)
@@ -626,14 +642,23 @@ func (m *ElastiCacheMock) DescribeUsersPagesWithContext(_ aws.Context, _ *elasti
 }
 
 func (m *ElastiCacheMock) DescribeCacheClustersPagesWithContext(aws.Context, *elasticache.DescribeCacheClustersInput, func(*elasticache.DescribeCacheClustersOutput, bool) bool, ...request.Option) error {
-	return trace.AccessDenied("unauthorized")
+	if m.Unauth {
+		return trace.AccessDenied("unauthorized")
+	}
+	return trace.NotImplemented("elasticache:DescribeCacheClustersPagesWithContext is not implemented")
 }
 
 func (m *ElastiCacheMock) DescribeCacheSubnetGroupsPagesWithContext(aws.Context, *elasticache.DescribeCacheSubnetGroupsInput, func(*elasticache.DescribeCacheSubnetGroupsOutput, bool) bool, ...request.Option) error {
-	return trace.AccessDenied("unauthorized")
+	if m.Unauth {
+		return trace.AccessDenied("unauthorized")
+	}
+	return trace.NotImplemented("elasticache:DescribeCacheSubnetGroupsPagesWithContext is not implemented")
 }
 
 func (m *ElastiCacheMock) ListTagsForResourceWithContext(_ aws.Context, input *elasticache.ListTagsForResourceInput, _ ...request.Option) (*elasticache.TagListMessage, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
 	if m.TagsByARN == nil {
 		return nil, trace.NotFound("no tags")
 	}
@@ -649,12 +674,47 @@ func (m *ElastiCacheMock) ListTagsForResourceWithContext(_ aws.Context, input *e
 }
 
 func (m *ElastiCacheMock) ModifyUserWithContext(_ aws.Context, input *elasticache.ModifyUserInput, opts ...request.Option) (*elasticache.ModifyUserOutput, error) {
+	if m.Unauth {
+		return nil, trace.AccessDenied("unauthorized")
+	}
 	for _, user := range m.Users {
 		if aws.StringValue(user.UserId) == aws.StringValue(input.UserId) {
 			return &elasticache.ModifyUserOutput{}, nil
 		}
 	}
 	return nil, trace.NotFound("user %s not found", aws.StringValue(input.UserId))
+}
+
+type OpenSearchMock struct {
+	opensearchserviceiface.OpenSearchServiceAPI
+
+	Domains   []*opensearchservice.DomainStatus
+	TagsByARN map[string][]*opensearchservice.Tag
+}
+
+func (o *OpenSearchMock) ListDomainNamesWithContext(aws.Context, *opensearchservice.ListDomainNamesInput, ...request.Option) (*opensearchservice.ListDomainNamesOutput, error) {
+	out := &opensearchservice.ListDomainNamesOutput{}
+	for _, domain := range o.Domains {
+		out.DomainNames = append(out.DomainNames, &opensearchservice.DomainInfo{
+			DomainName: domain.DomainName,
+			EngineType: aws.String("OpenSearch"),
+		})
+	}
+
+	return out, nil
+}
+
+func (o *OpenSearchMock) DescribeDomainsWithContext(aws.Context, *opensearchservice.DescribeDomainsInput, ...request.Option) (*opensearchservice.DescribeDomainsOutput, error) {
+	out := &opensearchservice.DescribeDomainsOutput{DomainStatusList: o.Domains}
+	return out, nil
+}
+
+func (o *OpenSearchMock) ListTagsWithContext(_ aws.Context, request *opensearchservice.ListTagsInput, _ ...request.Option) (*opensearchservice.ListTagsOutput, error) {
+	tags, found := o.TagsByARN[aws.StringValue(request.ARN)]
+	if !found {
+		return nil, trace.NotFound("tags not found")
+	}
+	return &opensearchservice.ListTagsOutput{TagList: tags}, nil
 }
 
 // MemoryDBMock mocks AWS MemoryDB API.
