@@ -16,12 +16,18 @@ limitations under the License.
 
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 var observationPrefix = "Observation: "
 var thoughtPrefix = "Thought: "
 
 const PromptSummarizeTitle = `You will be given a message. Create a short summary of that message.
+Respond only with summary, nothing else.`
+
+const PromptSummarizeCommand = `You will be given a chat history and a command output. Based on the history context, extract relevant information from the command output and write a short summary of the command output.
 Respond only with summary, nothing else.`
 
 const InitialAIResponse = `Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via OpenAI GPT-4.`
@@ -99,4 +105,15 @@ USER'S INPUT
 --------------------
 
 Okay, so what is the response to my last comment? If using information obtained from the tools you must mention it explicitly without mentioning the tool names - I have forgotten all TOOL RESPONSES! Remember to respond with a markdown code snippet of a json blob with a single action, and NOTHING else.`, toolResponse)
+}
+
+func ConversationCommandResult(result map[string][]byte) string {
+	var message strings.Builder
+	for node, output := range result {
+		message.WriteString(fmt.Sprintf(`Command ran on node "%s" and produced the following output:\n`, node))
+		message.WriteString(string(output))
+		message.WriteString("\n")
+	}
+	message.WriteString("Based on the chat history, extract relevant information out of the command output and write a summary.")
+	return message.String()
 }

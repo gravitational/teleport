@@ -17,6 +17,7 @@ limitations under the License.
 package config
 
 import (
+	"bytes"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -25,8 +26,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/tbot/bot"
+	"github.com/gravitational/teleport/lib/tbot/botfs"
+	"github.com/gravitational/teleport/lib/utils/golden"
 )
 
 func TestConfigCLIOnlySample(t *testing.T) {
@@ -53,22 +58,15 @@ func TestConfigCLIOnlySample(t *testing.T) {
 	require.Equal(t, cf.CAPins, cfg.Onboarding.CAPins)
 
 	// Storage is still default
-	storageDest, err := cfg.Storage.GetDestination()
-	require.NoError(t, err)
-	storageImpl, ok := storageDest.(*DestinationDirectory)
+	storageImpl, ok := cfg.Storage.Destination.(*DestinationDirectory)
 	require.True(t, ok)
 	require.Equal(t, defaultStoragePath, storageImpl.Path)
 
-	// A single default destination should exist
-	require.Len(t, cfg.Destinations, 1)
-	dest := cfg.Destinations[0]
+	// A single default Destination should exist
+	require.Len(t, cfg.Outputs, 1)
+	output := cfg.Outputs[0]
 
-	// We have 3 required/default templates.
-	require.Len(t, dest.Configs, 3)
-	template := dest.Configs[0]
-	require.NotNil(t, template.SSHClient)
-
-	destImpl, err := dest.GetDestination()
+	destImpl := output.GetDestination()
 	require.NoError(t, err)
 	destImplReal, ok := destImpl.(*DestinationDirectory)
 	require.True(t, ok)
@@ -80,7 +78,7 @@ func TestConfigCLIOnlySample(t *testing.T) {
 
 func TestConfigFile(t *testing.T) {
 	configData := fmt.Sprintf(exampleConfigFile, "foo")
-	cfg, err := ReadConfig(strings.NewReader(configData))
+	cfg, err := ReadConfig(strings.NewReader(configData), false)
 	require.NoError(t, err)
 
 	require.Equal(t, "auth.example.com", cfg.AuthServer)
@@ -93,25 +91,15 @@ func TestConfigFile(t *testing.T) {
 	require.Equal(t, "foo", token)
 	require.ElementsMatch(t, []string{"sha256:abc123"}, cfg.Onboarding.CAPins)
 
-	storage, err := cfg.Storage.GetDestination()
-	require.NoError(t, err)
-
-	_, ok := storage.(*DestinationMemory)
+	_, ok := cfg.Storage.Destination.(*DestinationMemory)
 	require.True(t, ok)
 
-	require.Len(t, cfg.Destinations, 1)
-	destination := cfg.Destinations[0]
-
-	require.Len(t, destination.Configs, 1)
-	template := destination.Configs[0]
-	templateImpl, err := template.GetConfigTemplate()
-	require.NoError(t, err)
-	sshTemplate, ok := templateImpl.(*TemplateSSHClient)
+	require.Len(t, cfg.Outputs, 1)
+	output := cfg.Outputs[0]
+	_, ok = output.(*IdentityOutput)
 	require.True(t, ok)
-	require.Equal(t, uint16(1234), sshTemplate.ProxyPort)
 
-	destImpl, err := destination.GetDestination()
-	require.NoError(t, err)
+	destImpl := output.GetDestination()
 	destImplReal, ok := destImpl.(*DestinationDirectory)
 	require.True(t, ok)
 	require.Equal(t, "/tmp/foo", destImplReal.Path)
@@ -126,7 +114,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 	require.NoError(t, os.WriteFile(tokenFile, []byte("xxxyyy"), 0660))
 
 	configData := fmt.Sprintf(exampleConfigFile, tokenFile)
-	cfg, err := ReadConfig(strings.NewReader(configData))
+	cfg, err := ReadConfig(strings.NewReader(configData), false)
 	require.NoError(t, err)
 
 	token, err := cfg.Onboarding.Token()
@@ -135,6 +123,7 @@ func TestLoadTokenFromFile(t *testing.T) {
 }
 
 const exampleConfigFile = `
+version: v2
 auth_server: auth.example.com
 renewal_interval: 5m
 debug: true
@@ -144,69 +133,48 @@ onboarding:
   ca_pins:
     - sha256:abc123
 storage:
-  memory: {}
-destinations:
-  - directory:
+  type: memory
+outputs:
+  - type: identity
+    destination:
+      type: directory
       path: /tmp/foo
-    configs:
-      - ssh_client:
-          proxy_port: 1234
 `
 
-func TestStorageConfigFromCLIConf(t *testing.T) {
+func TestDestinationFromURI(t *testing.T) {
 	tests := []struct {
 		in      string
-		want    *StorageConfig
+		want    bot.Destination
 		wantErr bool
 	}{
 		{
 			in: "/absolute/dir",
-			want: &StorageConfig{
-				DestinationMixin: DestinationMixin{
-					Directory: &DestinationDirectory{
-						Path: "/absolute/dir",
-					},
-				},
+			want: &DestinationDirectory{
+				Path: "/absolute/dir",
 			},
 		},
 		{
 			in: "relative/dir",
-			want: &StorageConfig{
-				DestinationMixin: DestinationMixin{
-					Directory: &DestinationDirectory{
-						Path: "relative/dir",
-					},
-				},
+			want: &DestinationDirectory{
+				Path: "relative/dir",
 			},
 		},
 		{
 			in: "./relative/dir",
-			want: &StorageConfig{
-				DestinationMixin: DestinationMixin{
-					Directory: &DestinationDirectory{
-						Path: "./relative/dir",
-					},
-				},
+			want: &DestinationDirectory{
+				Path: "./relative/dir",
 			},
 		},
 		{
 			in: "file:///absolute/dir",
-			want: &StorageConfig{
-				DestinationMixin: DestinationMixin{
-					Directory: &DestinationDirectory{
-						Path: "/absolute/dir",
-					},
-				},
+			want: &DestinationDirectory{
+				Path: "/absolute/dir",
 			},
 		},
 		{
 			in: "file:/absolute/dir",
-			want: &StorageConfig{
-				DestinationMixin: DestinationMixin{
-					Directory: &DestinationDirectory{
-						Path: "/absolute/dir",
-					},
-				},
+			want: &DestinationDirectory{
+				Path: "/absolute/dir",
 			},
 		},
 		{
@@ -214,12 +182,8 @@ func TestStorageConfigFromCLIConf(t *testing.T) {
 			wantErr: true,
 		},
 		{
-			in: "memory://",
-			want: &StorageConfig{
-				DestinationMixin: DestinationMixin{
-					Memory: &DestinationMemory{},
-				},
-			},
+			in:   "memory://",
+			want: &DestinationMemory{},
 		},
 		{
 			in:      "memory://foo/bar",
@@ -232,13 +196,102 @@ func TestStorageConfigFromCLIConf(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.in, func(t *testing.T) {
-			got, err := storageConfigFromCLIConf(tt.in)
+			got, err := destinationFromURI(tt.in)
 			if tt.wantErr {
 				require.Error(t, err)
 				return
 			}
 			require.NoError(t, err)
 			require.Equal(t, tt.want, got)
+		})
+	}
+}
+
+// TestBotConfig_YAML ensures that as a whole YAML marshaling and unmarshaling
+// of the config works as expected. Avoid testing exhaustive cases here and
+// prefer the Output YAML tests for testing the intricacies of marshaling and
+// unmarshaling specific objects.
+func TestBotConfig_YAML(t *testing.T) {
+	tests := []testYAMLCase[BotConfig]{
+		{
+			name: "standard config",
+			in: BotConfig{
+				Version: V2,
+				Storage: &StorageConfig{
+					Destination: &DestinationDirectory{
+						Path:     "/bot/storage",
+						ACLs:     botfs.ACLTry,
+						Symlinks: botfs.SymlinksSecure,
+					},
+				},
+				FIPS:            true,
+				Debug:           true,
+				Oneshot:         true,
+				AuthServer:      "example.teleport.sh:443",
+				DiagAddr:        "127.0.0.1:1337",
+				CertificateTTL:  time.Minute,
+				RenewalInterval: time.Second * 30,
+				Outputs: Outputs{
+					&IdentityOutput{
+						Destination: &DestinationDirectory{
+							Path: "/bot/output",
+						},
+						Roles:   []string{"editor"},
+						Cluster: "example.teleport.sh",
+					},
+					&IdentityOutput{
+						Destination: &DestinationMemory{},
+					},
+				},
+			},
+		},
+		{
+			name: "minimal config",
+			in: BotConfig{
+				Version:         V2,
+				AuthServer:      "example.teleport.sh:443",
+				CertificateTTL:  time.Minute,
+				RenewalInterval: time.Second * 30,
+				Outputs: Outputs{
+					&IdentityOutput{
+						Destination: &DestinationMemory{},
+					},
+				},
+			},
+		},
+	}
+
+	testYAML(t, tests)
+}
+
+type testYAMLCase[T any] struct {
+	name string
+	in   T
+}
+
+func testYAML[T any](t *testing.T, tests []testYAMLCase[T]) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			b := bytes.NewBuffer(nil)
+			encoder := yaml.NewEncoder(b)
+			encoder.SetIndent(2)
+			require.NoError(t, encoder.Encode(tt.in))
+
+			if golden.ShouldSet() {
+				golden.Set(t, b.Bytes())
+			}
+			require.Equal(
+				t,
+				string(golden.Get(t)),
+				b.String(),
+				"results of marshal did not match golden file, rerun tests with GOLDEN_UPDATE=1",
+			)
+
+			// Now test unmarshalling to see if we get the same object back
+			decoder := yaml.NewDecoder(b)
+			var unmarshalled T
+			require.NoError(t, decoder.Decode(&unmarshalled))
+			require.Equal(t, unmarshalled, tt.in, "unmarshalling did not result in same object as input")
 		})
 	}
 }

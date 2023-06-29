@@ -1100,7 +1100,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.Proxy.ACME = *acme
-
+	cfg.Proxy.TrustXForwardedFor = fc.Proxy.TrustXForwardedFor.Value()
 	return nil
 }
 
@@ -1326,6 +1326,10 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
+					ExternalID:    matcher.AWS.ExternalID,
+				},
 			})
 	}
 
@@ -1362,6 +1366,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Databases.ResourceMatchers = append(cfg.Databases.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
+					ExternalID:    matcher.AWS.ExternalID,
+				},
 			})
 	}
 	for _, matcher := range fc.Databases.AWSMatchers {
@@ -1522,6 +1530,9 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	// Configure resource watcher selectors if present.
 	for _, matcher := range fc.Apps.ResourceMatchers {
+		if matcher.AWS.AssumeRoleARN != "" {
+			return trace.NotImplemented("assume_role_arn is not supported for app resource matchers")
+		}
 		cfg.Apps.ResourceMatchers = append(cfg.Apps.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,

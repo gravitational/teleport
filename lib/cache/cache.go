@@ -113,6 +113,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
 		{Kind: types.KindIntegration},
+		{Kind: types.KindHeadlessAuthentication},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -467,6 +468,7 @@ type Cache struct {
 	userGroupsCache              services.UserGroups
 	oktaCache                    services.Okta
 	integrationsCache            services.Integrations
+	headlessAuthenticationsCache services.HeadlessAuthenticationService
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -817,6 +819,7 @@ func New(config Config) (*Cache, error) {
 		userGroupsCache:              userGroupsCache,
 		oktaCache:                    oktaCache,
 		integrationsCache:            integrationsCache,
+		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,

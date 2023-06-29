@@ -31,7 +31,11 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
-import { RawPayload, ServerMessageType } from 'teleport/Assist/types';
+import {
+  ExecutionEnvelopeType,
+  RawPayload,
+  ServerMessageType,
+} from 'teleport/Assist/types';
 
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 
@@ -41,6 +45,7 @@ import {
 } from 'teleport/services/auth';
 
 import * as service from '../service';
+
 import { resolveServerCommandMessage, resolveServerMessage } from '../service';
 
 import type {
@@ -48,6 +53,7 @@ import type {
   ResolvedServerMessage,
   ServerMessage,
 } from 'teleport/Assist/types';
+
 import type { AssistState } from 'teleport/Assist/context/state';
 
 interface AssistContextValue {
@@ -421,13 +427,22 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           const data = JSON.parse(msg.payload) as RawPayload;
           const payload = atob(data.payload);
 
-          dispatch({
-            type: AssistStateActionType.UpdateCommandResult,
-            conversationId: state.conversations.selectedId,
-            commandResultId: nodeIdToResultId.get(data.node_id),
-            output: payload,
-          });
-
+          if (data.type === ExecutionEnvelopeType) {
+            dispatch({
+              type: AssistStateActionType.AddCommandResultSummary,
+              conversationId: state.conversations.selectedId,
+              summary: payload,
+              executionId: execParams.execution_id,
+              command: execParams.command,
+            });
+          } else {
+            dispatch({
+              type: AssistStateActionType.UpdateCommandResult,
+              conversationId: state.conversations.selectedId,
+              commandResultId: nodeIdToResultId.get(data.node_id),
+              output: payload,
+            });
+          }
           break;
 
         case MessageTypeEnum.WEBAUTHN_CHALLENGE:
@@ -455,22 +470,39 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           sessionsEnded += 1;
 
           if (sessionsEnded === nodeIdToResultId.size) {
+            const message = proto.encodeCloseMessage();
+            const bytearray = new Uint8Array(message);
+
             for (const nodeId of nodeIdToResultId.keys()) {
               dispatch({
                 type: AssistStateActionType.FinishCommandResult,
                 conversationId: state.conversations.selectedId,
                 commandResultId: nodeIdToResultId.get(nodeId),
               });
+
+              executeCommandWebSocket.current.send(bytearray.buffer);
             }
 
             nodeIdToResultId.clear();
-
-            // TODO(ryan): move this to after the summary is sent once it's implemented
-            executeCommandWebSocket.current.close();
           }
 
           break;
       }
+    };
+
+    executeCommandWebSocket.current.onclose = () => {
+      executeCommandWebSocket.current = null;
+
+      // If the execution failed, we won't get a SESSION_END message, so we
+      // need to mark all the results as finished here.
+      for (const nodeId of nodeIdToResultId.keys()) {
+        dispatch({
+          type: AssistStateActionType.FinishCommandResult,
+          conversationId: state.conversations.selectedId,
+          commandResultId: nodeIdToResultId.get(nodeId),
+        });
+      }
+      nodeIdToResultId.clear();
     };
   }
 

@@ -3297,6 +3297,35 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 	return key, nil
 }
 
+// LoginWeb logs the user in via the Teleport web api the same way that the web UI does.
+func (tc *TeleportClient) LoginWeb(ctx context.Context) (*WebClient, types.WebSession, error) {
+	ctx, span := tc.Tracer.Start(
+		ctx,
+		"teleportClient/LoginWeb",
+		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
+	)
+	defer span.End()
+
+	// Ping the endpoint to see if it's up and find the type of authentication
+	// supported, also show the message of the day if available.
+	pr, err := tc.Ping(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Perform the ALPN test once at login.
+	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
+
+	// Get the SSHLoginFunc that matches client and cluster settings.
+	webLoginFunc, err := tc.getWebLoginFunc(pr)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	clt, session, err := tc.webLogin(ctx, webLoginFunc)
+	return clt, session, trace.Wrap(err)
+}
+
 // AttemptDeviceLogin attempts device authentication for the current device.
 // It expects to receive the latest activated key, as acquired via
 // [TeleportClient.Login], and augments the certificates within the key with
@@ -3473,6 +3502,139 @@ func (tc *TeleportClient) getSSHLoginFunc(pr *webclient.PingResponse) (SSHLoginF
 	}
 }
 
+// getWebLoginFunc returns an WebLoginFunc that matches client and cluster settings.
+func (tc *TeleportClient) getWebLoginFunc(pr *webclient.PingResponse) (WebLoginFunc, error) {
+	switch pr.Auth.Type {
+	case constants.Local:
+		switch pr.Auth.Local.Name {
+		case constants.PasswordlessConnector:
+			// Sanity check settings.
+			if !pr.Auth.AllowPasswordless {
+				return nil, trace.BadParameter("passwordless disallowed by cluster settings")
+			}
+			return tc.pwdlessLoginWeb, nil
+		case constants.HeadlessConnector:
+			return nil, trace.BadParameter("headless logins not allowed for web sessions")
+		case constants.LocalConnector, "":
+			// if passwordless is enabled and there are passwordless credentials
+			// registered, we can try to go with passwordless login even though
+			// auth=local was selected.
+			if tc.canDefaultToPasswordless(pr) {
+				log.Debug("Trying passwordless login because credentials were found")
+				return tc.pwdlessLoginWeb, nil
+			}
+
+			return func(ctx context.Context, priv *keys.PrivateKey) (*WebClient, types.WebSession, error) {
+				return tc.localLoginWeb(ctx, priv, pr.Auth.SecondFactor)
+			}, nil
+		default:
+			return nil, trace.BadParameter("unsupported authentication connector type: %q", pr.Auth.Local.Name)
+		}
+	case constants.OIDC:
+		return nil, trace.NotImplemented("SSO login not supported")
+	case constants.SAML:
+		return nil, trace.NotImplemented("SSO login not supported")
+	case constants.Github:
+		return nil, trace.NotImplemented("SSO login not supported")
+	default:
+		return nil, trace.BadParameter("unsupported authentication type: %q", pr.Auth.Type)
+	}
+}
+
+// pwdlessLoginWeb performs a passwordless ceremony and then makes a request to authenticate via the web api.
+func (tc *TeleportClient) pwdlessLoginWeb(ctx context.Context, priv *keys.PrivateKey) (*WebClient, types.WebSession, error) {
+	// Only pass on the user if explicitly set, otherwise let the credential
+	// picker kick in.
+	user := ""
+	if tc.ExplicitUsername {
+		user = tc.Username
+	}
+
+	sshLogin, err := tc.newSSHLogin(priv)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	clt, session, err := SSHAgentPasswordlessLoginWeb(ctx, SSHLoginPasswordless{
+		SSHLogin:                sshLogin,
+		User:                    user,
+		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+		StderrOverride:          tc.Stderr,
+	})
+	return clt, session, trace.Wrap(err)
+}
+
+// localLoginWeb performs the mfa ceremony and then makes a request to authenticate via the web api.
+func (tc *TeleportClient) localLoginWeb(ctx context.Context, priv *keys.PrivateKey, secondFactor constants.SecondFactorType) (*WebClient, types.WebSession, error) {
+	// TODO(awly): mfa: ideally, clients should always go through mfaLocalLogin
+	// (with a nop MFA challenge if no 2nd factor is required). That way we can
+	// deprecate the direct login endpoint.
+	switch secondFactor {
+	case constants.SecondFactorOff, constants.SecondFactorOTP:
+		clt, session, err := tc.directLoginWeb(ctx, secondFactor, priv)
+		return clt, session, trace.Wrap(err)
+	case constants.SecondFactorU2F, constants.SecondFactorWebauthn, constants.SecondFactorOn, constants.SecondFactorOptional:
+		clt, session, err := tc.mfaLocalLoginWeb(ctx, priv)
+		return clt, session, trace.Wrap(err)
+	default:
+		return nil, nil, trace.BadParameter("unsupported second factor type: %q", secondFactor)
+	}
+}
+
+// directLoginWeb asks for a password + OTP token then makes a request to authenticate via the web api.
+func (tc *TeleportClient) directLoginWeb(ctx context.Context, secondFactorType constants.SecondFactorType, priv *keys.PrivateKey) (*WebClient, types.WebSession, error) {
+	password, err := tc.AskPassword(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// Only ask for a second factor if it's enabled.
+	var otpToken string
+	if secondFactorType == constants.SecondFactorOTP {
+		otpToken, err = tc.AskOTP(ctx)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+	}
+
+	sshLogin, err := tc.newSSHLogin(priv)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	// authenticate via the web api
+	clt, session, err := SSHAgentLoginWeb(ctx, SSHLoginDirect{
+		SSHLogin: sshLogin,
+		User:     tc.Username,
+		Password: password,
+		OTPToken: otpToken,
+	})
+	return clt, session, trace.Wrap(err)
+}
+
+// mfaLocalLoginWeb asks for a password and performs the challenge-response authentication with the web api
+func (tc *TeleportClient) mfaLocalLoginWeb(ctx context.Context, priv *keys.PrivateKey) (*WebClient, types.WebSession, error) {
+	password, err := tc.AskPassword(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	sshLogin, err := tc.newSSHLogin(priv)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	clt, session, err := SSHAgentMFAWebSessionLogin(ctx, SSHLoginMFA{
+		SSHLogin:                sshLogin,
+		User:                    tc.Username,
+		Password:                password,
+		AuthenticatorAttachment: tc.AuthenticatorAttachment,
+		PreferOTP:               tc.PreferOTP,
+		AllowStdinHijack:        tc.AllowStdinHijack,
+	})
+	return clt, session, trace.Wrap(err)
+}
+
 // hasTouchIDCredentials provides indirection for tests.
 var hasTouchIDCredentials = touchid.HasCredentials
 
@@ -3564,6 +3726,38 @@ func (tc *TeleportClient) SSHLogin(ctx context.Context, sshLoginFunc SSHLoginFun
 	}
 
 	return key, nil
+}
+
+// WebLoginFunc is a function which carries out authn with the web server and returns a web session and cookies.
+type WebLoginFunc func(context.Context, *keys.PrivateKey) (*WebClient, types.WebSession, error)
+
+// webLogin uses the given login function to log the client in via the web api.
+func (tc *TeleportClient) webLogin(ctx context.Context, webLoginFunc WebLoginFunc) (*WebClient, types.WebSession, error) {
+	priv, err := tc.GetNewLoginKey(ctx)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	clt, session, err := webLoginFunc(ctx, priv)
+	if err != nil {
+		// check if the error is a private key policy error, and relogin if it is.
+		if privateKeyPolicy, parseErr := keys.ParsePrivateKeyPolicyError(err); parseErr == nil {
+			// The current private key was rejected due to an unmet key policy requirement.
+			fmt.Fprintf(tc.Stderr, "Unmet private key policy %q.\n", privateKeyPolicy)
+
+			// Set the private key policy to the expected value and re-login.
+			tc.PrivateKeyPolicy = privateKeyPolicy
+			priv, err = tc.GetNewLoginKey(ctx)
+			if err != nil {
+				return nil, nil, trace.Wrap(err)
+			}
+
+			fmt.Fprintf(tc.Stderr, "Re-initiating login with YubiKey generated private key.\n")
+			clt, session, err = webLoginFunc(ctx, priv)
+		}
+	}
+
+	return clt, session, trace.Wrap(err)
 }
 
 // GetNewLoginKey gets a new private key for login.
@@ -4789,7 +4983,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	if headlessAuthn.State != types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING {
+	if !headlessAuthn.State.IsPending() {
 		return trace.Errorf("cannot approve a headless authentication from a non-pending state: %v", headlessAuthn.State.Stringify())
 	}
 

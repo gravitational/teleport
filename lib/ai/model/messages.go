@@ -67,7 +67,7 @@ type TokensUsed struct {
 }
 
 // UsedTokens returns the number of tokens used during a single invocation of the agent.
-// This method creates a convinient way to get TokensUsed from embedded structs.
+// This method creates a convenient way to get TokensUsed from embedded structs.
 func (t *TokensUsed) UsedTokens() *TokensUsed {
 	return t
 }
