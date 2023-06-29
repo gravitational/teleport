@@ -20,7 +20,10 @@ import styled from 'styled-components';
 import { Popover, Text } from 'design';
 import * as Icons from 'design/Icon';
 
-export const ToolTipInfo: React.FC = ({ children }) => {
+export const ToolTipInfo: React.FC<{ muteIconColor?: boolean }> = ({
+  children,
+  muteIconColor,
+}) => {
   const [anchorEl, setAnchorEl] = useState();
   const open = Boolean(anchorEl);
 
@@ -48,7 +51,7 @@ export const ToolTipInfo: React.FC = ({ children }) => {
           height: 18px;
         `}
       >
-        <Icons.Info fontSize={4} />
+        <InfoIcon muteIconColor={muteIconColor} />
       </span>
       <Popover
         modalCss={modalCss}
@@ -80,4 +83,9 @@ const StyledOnHover = styled(Text)`
   color: ${props => props.theme.colors.text.main};
   background-color: ${props => props.theme.colors.tooltip.background};
   max-width: 350px;
+`;
+
+const InfoIcon = styled(Icons.Info)`
+  font-size: 18px;
+  color: ${p => (p.muteIconColor ? p.theme.colors.text.disabled : 'inherit')};
 `;
