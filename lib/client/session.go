@@ -491,17 +491,41 @@ func (ns *NodeSession) updateTerminalSize(ctx context.Context, s *tracessh.Sessi
 	}
 }
 
+// sessionWriter wraps the [tracessh.Session]
+// stdout to prevent any panics that may occur
+// by trying to use it before it has been initialized.
+// In those cases output is written to the stdout that
+// is configured for tsh so that output is not lost entirely.
+type sessionWriter struct {
+	tshOut  io.Writer
+	session *tracessh.Session
+}
+
+func (s *sessionWriter) Write(p []byte) (int, error) {
+	if s.session.Stdout != nil {
+		return s.session.Stdout.Write(p)
+	}
+
+	return s.tshOut.Write(p)
+}
+
 // runShell executes user's shell on the remote node under an interactive session
 func (ns *NodeSession) runShell(ctx context.Context, mode types.SessionParticipantMode, beforeStart func(io.Writer), callback ShellCreatedCallback) error {
 	return ns.interactiveSession(ctx, mode, func(s *tracessh.Session, shell io.ReadWriteCloser) error {
+		w := &sessionWriter{
+			tshOut:  ns.nodeClient.TC.Stdout,
+			session: s,
+		}
+
 		if beforeStart != nil {
-			beforeStart(s.Stdout)
+			beforeStart(w)
 		}
 
 		// start the shell on the server:
 		if err := s.Shell(ctx); err != nil {
 			return trace.Wrap(err)
 		}
+
 		// call the client-supplied callback
 		if callback != nil {
 			exit, err := callback(s, ns.nodeClient.Client, shell)

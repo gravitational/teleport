@@ -72,8 +72,11 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/mocku2f"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
+	wancli "github.com/gravitational/teleport/lib/auth/webauthncli"
 	"github.com/gravitational/teleport/lib/bpf"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/cloud"
@@ -90,6 +93,7 @@ import (
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
+	"github.com/gravitational/teleport/lib/utils/prompt"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -150,6 +154,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("JumpTrustedClustersWithLabels", suite.bind(testJumpTrustedClustersWithLabels))
 	t.Run("List", suite.bind(testList))
 	t.Run("MapRoles", suite.bind(testMapRoles))
+	t.Run("ModeratedSessions", suite.bind(testModeratedSessions))
 	t.Run("MultiplexingTrustedClusters", suite.bind(testMultiplexingTrustedClusters))
 	t.Run("PAM", suite.bind(testPAM))
 	t.Run("PortForwarding", suite.bind(testPortForwarding))
@@ -8261,5 +8266,218 @@ func TestConnectivityWithoutAuth(t *testing.T) {
 				test.sshAssertion(t, false, errChan, term)
 			})
 		})
+	}
+}
+
+func testModeratedSessions(t *testing.T, suite *integrationTestSuite) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+
+	const password = "supersecretpassword"
+	inputReader := prompt.NewFakeReader().
+		AddString(password).
+		AddReply(func(ctx context.Context) (string, error) {
+			panic("this should not be called")
+		})
+
+	oldStdin, oldWebauthn := prompt.Stdin(), *client.PromptWebauthn
+	t.Cleanup(func() {
+		prompt.SetStdin(oldStdin)
+		*client.PromptWebauthn = oldWebauthn
+	})
+
+	device, err := mocku2f.Create()
+	require.NoError(t, err)
+	device.SetPasswordless()
+
+	prompt.SetStdin(inputReader)
+	*client.PromptWebauthn = func(ctx context.Context, realOrigin string, assertion *wanlib.CredentialAssertion, prompt wancli.LoginPrompt, _ *wancli.LoginOpts) (*proto.MFAAuthenticateResponse, string, error) {
+		car, err := device.SignAssertion("https://127.0.0.1", assertion) // use the fake origin to prevent a mismatch
+		if err != nil {
+			return nil, "", err
+		}
+		return &proto.MFAAuthenticateResponse{
+			Response: &proto.MFAAuthenticateResponse_Webauthn{
+				Webauthn: wanlib.CredentialAssertionResponseToProto(car),
+			},
+		}, "", nil
+	}
+
+	// Enable web service.
+	cfg := suite.defaultServiceConfig()
+	cfg.Auth.Enabled = true
+	cfg.Auth.Preference.SetSecondFactor("on")
+	cfg.Auth.Preference.(*types.AuthPreferenceV2).Spec.RequireMFAType = types.RequireMFAType_SESSION
+	cfg.Auth.Preference.SetWebauthn(&types.Webauthn{RPID: "127.0.0.1"})
+	cfg.Proxy.DisableWebService = false
+	cfg.Proxy.DisableWebInterface = true
+	cfg.Proxy.Enabled = true
+	cfg.SSH.Enabled = true
+
+	instance := suite.NewTeleportWithConfig(t, nil, nil, cfg)
+
+	ctx, cancel := context.WithCancelCause(context.Background())
+	defer cancel(nil)
+
+	peerRole, err := types.NewRole("moderated", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			RequireSessionJoin: []*types.SessionRequirePolicy{
+				{
+					Name:   "moderated",
+					Filter: "contains(user.roles, \"moderator\")",
+					Kinds:  []string{string(types.SSHSessionKind)},
+					Count:  1,
+					Modes:  []string{string(types.SessionModeratorMode)},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, instance.Process.GetAuthServer().UpsertRole(ctx, peerRole))
+
+	moderatorRole, err := types.NewRole("moderator", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			JoinSessions: []*types.SessionJoinPolicy{
+				{
+					Name:  "moderated",
+					Roles: []string{peerRole.GetName()},
+					Kinds: []string{string(types.SSHSessionKind)},
+					Modes: []string{string(types.SessionModeratorMode), string(types.SessionObserverMode)},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.NoError(t, instance.Process.GetAuthServer().UpsertRole(ctx, moderatorRole))
+
+	setupUser := func(user, role string, asrv *auth.Server) {
+		u, err := types.NewUser(user)
+		require.NoError(t, err)
+		u.SetRoles([]string{"access", role})
+		u.SetLogins([]string{suite.Me.Username, user})
+
+		require.NoError(t, asrv.CreateUser(ctx, u))
+
+		token, err := asrv.CreateResetPasswordToken(ctx, auth.CreateUserTokenRequest{
+			Name: user,
+		})
+		require.NoError(t, err)
+		tokenID := token.GetName()
+		res, err := asrv.CreateRegisterChallenge(ctx, &proto.CreateRegisterChallengeRequest{
+			TokenID:     tokenID,
+			DeviceType:  proto.DeviceType_DEVICE_TYPE_WEBAUTHN,
+			DeviceUsage: proto.DeviceUsage_DEVICE_USAGE_PASSWORDLESS,
+		})
+		require.NoError(t, err)
+		cc := wanlib.CredentialCreationFromProto(res.GetWebauthn())
+
+		ccr, err := device.SignCredentialCreation("https://127.0.0.1", cc)
+		require.NoError(t, err)
+		_, err = asrv.ChangeUserAuthentication(ctx, &proto.ChangeUserAuthenticationRequest{
+			TokenID:     tokenID,
+			NewPassword: []byte(password),
+			NewMFARegisterResponse: &proto.MFARegisterResponse{
+				Response: &proto.MFARegisterResponse_Webauthn{
+					Webauthn: wanlib.CredentialCreationResponseToProto(ccr),
+				},
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	setupUser("peer", peerRole.GetName(), instance.Process.GetAuthServer())
+	setupUser("moderator", moderatorRole.GetName(), instance.Process.GetAuthServer())
+
+	peerTerminal := NewTerminal(250)
+	moderatorTerminal := NewTerminal(250)
+
+	// get a reference to site obj:
+	site := instance.GetSiteAPI(helpers.Site)
+	require.NotNil(t, site)
+
+	// PersonA: SSH into the server, wait one second, then type some commands on stdin:
+	openSession := func() {
+		cl, err := instance.NewClient(helpers.ClientConfig{
+			TeleportUser: "peer",
+			Login:        suite.Me.Username,
+			Cluster:      helpers.Site,
+			Host:         Host,
+		})
+		if err != nil {
+			cancel(trace.Wrap(err, "failed to create peer client"))
+			return
+		}
+
+		cl.Stdout = peerTerminal
+		cl.Stdin = peerTerminal
+		if err := cl.SSH(ctx, []string{}, false); err != nil {
+			cancel(trace.Wrap(err, "peer session failed"))
+			return
+		}
+	}
+
+	// PersonB: wait for a session to become available, then join:
+	joinSession := func() {
+		sessionTimeoutCtx, sessionTimeoutCancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer sessionTimeoutCancel()
+		sessions, err := waitForSessionToBeEstablished(sessionTimeoutCtx, defaults.Namespace, site)
+		if err != nil {
+			cancel(trace.Wrap(err, "failed waiting for peer session to be established"))
+			return
+		}
+
+		sessionID := sessions[0].GetSessionID()
+		cl, err := instance.NewClient(helpers.ClientConfig{
+			TeleportUser: "moderator",
+			Login:        suite.Me.Username,
+			Cluster:      helpers.Site,
+			Host:         Host,
+		})
+		if err != nil {
+			cancel(trace.Wrap(err, "failed to create peer client"))
+			return
+		}
+
+		cl.Stdout = moderatorTerminal
+		cl.Stdin = moderatorTerminal
+		if err := cl.Join(ctx, types.SessionModeratorMode, defaults.Namespace, session.ID(sessionID), moderatorTerminal); err != nil {
+			cancel(trace.Wrap(err, "moderator session failed"))
+		}
+	}
+
+	go openSession()
+	go joinSession()
+
+	require.Eventually(t, func() bool {
+		ss, err := site.GetActiveSessionTrackers(ctx)
+		if err != nil {
+			return false
+		}
+
+		if len(ss) != 1 {
+			return false
+		}
+
+		return len(ss[0].GetParticipants()) == 2
+	}, 5*time.Second, 100*time.Millisecond)
+
+	peerTerminal.Type("echo llamas\n\r")
+
+	require.Eventually(t, func() bool {
+		return strings.Contains(moderatorTerminal.AllOutput(), "llamas")
+	}, 5*time.Second, 100*time.Millisecond)
+
+	// terminate the session
+	moderatorTerminal.Type("t\n\r")
+
+	select {
+	case <-ctx.Done():
+		err = context.Cause(ctx)
+		require.Contains(t, err.Error(), "Process exited with status 255")
+		p := peerTerminal.AllOutput()
+		require.Contains(t, p, "Forcefully terminating session...")
+		m := moderatorTerminal.AllOutput()
+		require.Contains(t, m, "Forcefully terminating session...")
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for session to be terminated.")
 	}
 }
