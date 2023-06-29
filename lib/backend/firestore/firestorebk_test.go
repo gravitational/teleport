@@ -70,12 +70,27 @@ func firestoreParams() backend.Params {
 	// Creating the indices on - even an empty - live Firestore collection
 	// can take 5 minutes, so we re-use the same project and collection
 	// names for each test.
+	collection := "tp-cluster-data-test"
+	projectID := "tp-testproj"
+	endpoint := ""
+
+	if c := os.Getenv("TELEPORT_FIRESTORE_TEST_COLLECTION"); c != "" {
+		collection = c
+	}
+
+	if p := os.Getenv("TELEPORT_FIRESTORE_TEST_PROJECT"); p != "" {
+		projectID = p
+	}
+
+	if e := os.Getenv("TELEPORT_FIRESTORE_TEST_ENDPOINT"); e != "" {
+		endpoint = e
+	}
 
 	return map[string]interface{}{
-		"collection_name":                   "tp-cluster-data-test",
-		"project_id":                        "tp-testproj",
-		"endpoint":                          "localhost:8618",
-		"purgeExpiredDocumentsPollInterval": time.Second,
+		"collection_name":                       collection,
+		"project_id":                            projectID,
+		"endpoint":                              endpoint,
+		"purge_expired_documents_poll_interval": 300 * time.Millisecond,
 	}
 }
 
@@ -87,7 +102,17 @@ func ensureTestsEnabled(t *testing.T) {
 }
 
 func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
-	con, err := net.Dial("tcp", cfg["endpoint"].(string))
+	v, ok := cfg["endpoint"]
+	if !ok {
+		return
+	}
+
+	endpoint, ok := v.(string)
+	if !ok || endpoint == "" {
+		return
+	}
+
+	con, err := net.Dial("tcp", endpoint)
 	if err != nil {
 		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
@@ -114,14 +139,19 @@ func TestFirestoreDB(t *testing.T) {
 			return nil, nil, test.ErrConcurrentAccessNotSupported
 		}
 
-		clock := clockwork.NewFakeClock()
+		clock := clockwork.NewRealClock()
 
-		uut, err := New(context.Background(), cfg, Options{Clock: clock})
+		// we can't fiddle with clocks inside the firestore client, so instead of creating
+		// and returning a fake clock, we wrap the real clock used by the client
+		// in a FakeClock interface that sleeps instead of instantly advancing.
+		sleepingClock := test.BlockingFakeClock{Clock: clock}
+
+		uut, err := New(context.Background(), cfg, Options{Clock: sleepingClock})
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
 
-		return uut, clock, nil
+		return uut, sleepingClock, nil
 	}
 
 	test.RunBackendComplianceSuite(t, newBackend)
