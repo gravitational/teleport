@@ -51,6 +51,10 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
+// Tracker represents the view that a reverse tunnel client (i.e. an agentpool)
+// has over the reverse tunnel servers (i.e. proxies) that it's connected to and
+// that it knows about. Based on that information, the Tracker is in charge of
+// deciding if new connection attempts should be made, by giving out [Lease]s.
 type Tracker struct {
 	proxyExpiry   time.Duration
 	clusterSuffix string
@@ -67,15 +71,20 @@ type Tracker struct {
 	tracked  map[string]Proxy
 }
 
+// Proxy holds the name and relevant metadata for a reverse tunnel server, as
+// well as some internal bookkeeping data used by the Tracker.
 type Proxy struct {
-	ID         string
+	Name       string
 	Group      string
 	Generation string
 
-	expiry       time.Time
-	deleteSource string
+	expiry        time.Time
+	deleteAttempt string
 }
 
+// Lease represents an authorization to attempt to connect to a reverse tunnel
+// server, and to attempt to exclusively claim a specific server. It should be
+// explicitly released after use.
 type Lease struct {
 	id int
 
@@ -84,7 +93,8 @@ type Lease struct {
 	k  string
 }
 
-// New configures a new tracker instance.
+// New configures a new Tracker instance. All background goroutines stop when
+// the context is closed.
 func New(ctx context.Context, cfg Config) (*Tracker, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -101,11 +111,16 @@ func New(ctx context.Context, cfg Config) (*Tracker, error) {
 	return t, nil
 }
 
+// Acquire returns the channel from which the Tracker will give out Leases.
 func (t *Tracker) Acquire() <-chan *Lease {
 	return t.leaseC
 }
 
 func (t *Tracker) run(ctx context.Context) {
+	// in lieu of figuring out the closest proxy expiration time every time we
+	// enter the select, we just pick a reasonably frequent interval - there's
+	// no real drawback to attempting new connections for a few more seconds
+	// than necessary
 	expiryTicker := time.NewTicker(t.proxyExpiry / 4)
 	defer expiryTicker.Stop()
 
@@ -141,6 +156,8 @@ func (t *Tracker) run(ctx context.Context) {
 	}
 }
 
+// canSpawn returns true if the current state of the Tracker is such that the
+// client should attempt to spawn new connections.
 func (t *Tracker) canSpawn() bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -152,6 +169,10 @@ func (t *Tracker) canSpawn() bool {
 		}
 	}
 
+	// degenerate condition: we've just started the tracker or we haven't
+	// successfully connected to any server yet, or network conditions were such
+	// that all tracked proxies have expired - spawn one connection, or we'll
+	// get stuck like that forever
 	if t.inflight == 0 && (len(t.claimed) == 0 || len(t.tracked) == 0) {
 		return true
 	}
@@ -170,23 +191,24 @@ func (t *Tracker) canSpawn() bool {
 		}
 	}
 
+	// do the set intersection like this because claimed is generally going to
+	// be smaller than desired/tracked
 	desiredClaimed := 0
 	for k := range t.claimed {
 		if _, ok := desired[k]; ok {
 			desiredClaimed++
 		}
 	}
-	desiredUnclaimed := len(desired) - desiredClaimed
-
-	println("tracked:", len(t.tracked), "desired:", len(desired), "claimed:", len(t.claimed), "desiredClaimed:", desiredClaimed)
 
 	if t.connectionCount == 0 {
-		return desiredUnclaimed > 0
+		return len(desired) > desiredClaimed
 	}
 
 	return t.connectionCount > desiredClaimed
 }
 
+// notify signals the run loop that conditions have changed and that the tracker
+// should check again if it should be giving out a lease or not.
 func (t *Tracker) notify() {
 	select {
 	case t.cond <- struct{}{}:
@@ -208,8 +230,8 @@ func (t *Tracker) TrackExpected(sourceID string, proxies ...Proxy) {
 	expiry := time.Now().Add(t.proxyExpiry)
 	for _, p := range proxies {
 		p.expiry = expiry
-		p.deleteSource = ""
-		t.tracked[p.ID] = p
+		p.deleteAttempt = ""
+		t.tracked[p.Name] = p
 	}
 
 	if sourceID == "" {
@@ -218,22 +240,28 @@ func (t *Tracker) TrackExpected(sourceID string, proxies ...Proxy) {
 
 	for k, v := range t.tracked {
 		if v.expiry == expiry {
+			// we have just added/updated this (or some other gossip message did
+			// the same in the exact same nanosecond, which isn't really
+			// possible), so we should not attempt to delete this proxy
 			continue
 		}
 
-		switch v.deleteSource {
+		switch v.deleteAttempt {
 		case "":
-			println("tagging proxy for deletion", k, "source", sourceID)
-			v.deleteSource = sourceID
+			v.deleteAttempt = sourceID
 			t.tracked[k] = v
 		case sourceID:
+			// do nothing, we want a second opinion before deleting the proxy
 		default:
-			println("deleting proxy", k, "source", sourceID)
+			// we are the second opinion
 			delete(t.tracked, k)
 		}
 	}
 }
 
+// SetConnectionCount updates the desired connection count as defined by the
+// tunnel_strategy; 0 means full connectivity, i.e. "agent mesh" mode, a nonzero
+// value (the connection_count of the tunnel_strategy) is proxy peering mode.
 func (t *Tracker) SetConnectionCount(connectionCount int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -242,6 +270,10 @@ func (t *Tracker) SetConnectionCount(connectionCount int) {
 	t.connectionCount = connectionCount
 }
 
+// Claim attempts to claim exclusive access to a reverse tunnel server
+// identified by the principals. It will fail if the server is already claimed
+// or if the Lease had already been released or has already claimed a different
+// server.
 func (l *Lease) Claim(principals ...string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -259,6 +291,8 @@ func (l *Lease) Claim(principals ...string) bool {
 	return true
 }
 
+// claim attempts to claim a server on behalf of an unclaimed, unreleased Lease.
+// Returns the server name on success, an empty string on failure.
 func (t *Tracker) claim(principals []string) string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -279,6 +313,11 @@ func (t *Tracker) claim(principals []string) string {
 	return k
 }
 
+// IsClaimed returns true if the reverse tunnel server identified by the
+// principals has already been claimed at the time of the call. Keep in mind
+// that a false return value does not imply that a subsequent call to Claim on a
+// Lease with the same principals is guaranteed to succeed, as other goroutines
+// might also be attempting to claim the same server.
 func (t *Tracker) IsClaimed(principals ...string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -292,6 +331,9 @@ func (t *Tracker) IsClaimed(principals ...string) bool {
 	return ok
 }
 
+// Release drops the claim on the server (if any) or the count of inflight
+// connections in the tracker (if not). It's safe to call multiple times; calls
+// other than the first are a no-op.
 func (l *Lease) Release() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -304,6 +346,7 @@ func (l *Lease) Release() {
 	l.t = nil
 }
 
+// IsReleased returns true if Release has been called. Used by tests.
 func (l *Lease) IsReleased() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
@@ -311,18 +354,22 @@ func (l *Lease) IsReleased() bool {
 	return l.t == nil
 }
 
-func (t *Tracker) release(id string) {
+// release releases the claim on a server or reduces the inflight count, on
+// behalf of a Lease.
+func (t *Tracker) release(name string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 	t.notify()
 
-	if id == "" {
+	if name == "" {
 		t.inflight--
 	} else {
-		delete(t.claimed, id)
+		delete(t.claimed, name)
 	}
 }
 
+// ID returns a numerical ID associated with the Lease, for debugging purposes;
+// IDs are consecutively assigned starting from 1 for each given Tracker.
 func (l *Lease) ID() int {
 	return l.id
 }
