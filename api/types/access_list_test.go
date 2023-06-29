@@ -98,7 +98,7 @@ func TestBuilder(t *testing.T) {
 				},
 			},
 			Audit: &AccessListAudit{
-				Frequency: time.Duration(time.Minute),
+				Frequency: time.Minute,
 			},
 			MembershipRequires: &AccessListRequires{
 				Roles:  []string{"role1", "role2"},
