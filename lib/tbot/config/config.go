@@ -238,6 +238,7 @@ func (conf *OnboardingConfig) Token() (string, error) {
 }
 
 // BotConfig is the bot's root config object.
+// This is currently at version "v2".
 type BotConfig struct {
 	Version    Version          `yaml:"version"`
 	Onboarding OnboardingConfig `yaml:"onboarding,omitempty"`
@@ -507,7 +508,7 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	var err error
 
 	if cf.ConfigPath != "" {
-		config, err = ReadConfigFromFile(cf.ConfigPath)
+		config, err = ReadConfigFromFile(cf.ConfigPath, false)
 
 		if err != nil {
 			return nil, trace.Wrap(err, "loading bot config from path %s", cf.ConfigPath)
@@ -619,14 +620,14 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 }
 
 // ReadConfigFromFile reads and parses a YAML config from a file.
-func ReadConfigFromFile(filePath string) (*BotConfig, error) {
+func ReadConfigFromFile(filePath string, manualMigration bool) (*BotConfig, error) {
 	f, err := os.Open(filePath)
 	if err != nil {
 		return nil, trace.Wrap(err, fmt.Sprintf("failed to open file: %v", filePath))
 	}
 
 	defer f.Close()
-	return ReadConfig(f)
+	return ReadConfig(f, manualMigration)
 }
 
 type Version string
@@ -637,7 +638,7 @@ var (
 )
 
 // ReadConfig parses a YAML config file from a Reader.
-func ReadConfig(reader io.ReadSeeker) (*BotConfig, error) {
+func ReadConfig(reader io.ReadSeeker, manualMigration bool) (*BotConfig, error) {
 	var version struct {
 		Version Version `yaml:"version"`
 	}
@@ -651,12 +652,29 @@ func ReadConfig(reader io.ReadSeeker) (*BotConfig, error) {
 		return nil, trace.Wrap(err)
 	}
 	decoder = yaml.NewDecoder(reader)
-	decoder.KnownFields(true)
 
 	switch version.Version {
 	case V1, "":
-		panic("migration code will be inserted here in follow up PR")
+		if !manualMigration {
+			log.Warn("Deprecated config version (V1) detected. Attempting to perform an on-the-fly in-memory migration to latest version. Please persist the config migration by following the guidance at https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/")
+		}
+		config := &configV1{}
+		if err := decoder.Decode(config); err != nil {
+			return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))
+		}
+		latestConfig, err := config.migrate()
+		if err != nil {
+			return nil, trace.WithUserMessage(
+				trace.Wrap(err, "migrating v1 config"),
+				"Failed to migrate. See https://goteleport.com/docs/machine-id/reference/v14-upgrade-guide/",
+			)
+		}
+		return latestConfig, nil
 	case V2:
+		if manualMigration {
+			return nil, trace.BadParameter("configuration already the latest version. nothing to migrate.")
+		}
+		decoder.KnownFields(true)
 		config := &BotConfig{}
 		if err := decoder.Decode(config); err != nil {
 			return nil, trace.BadParameter("failed parsing config file: %s", strings.Replace(err.Error(), "\n", "", -1))

@@ -41,6 +41,11 @@ func ClientAddrContext(ctx context.Context, src net.Addr, dst net.Addr) context.
 	return context.WithValue(ctx, ClientDstAddrContextKey, dst)
 }
 
+// ClientSrcAddrContext sets client source address.
+func ClientSrcAddrContext(ctx context.Context, src net.Addr) context.Context {
+	return context.WithValue(ctx, ClientSrcAddrContextKey, src)
+}
+
 // ClientAddrFromContext gets client source address and destination addresses from the context. If an address is
 // not present, nil will be returned
 func ClientAddrFromContext(ctx context.Context) (src net.Addr, dst net.Addr) {

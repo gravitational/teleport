@@ -17,7 +17,6 @@ package ai
 import (
 	"context"
 	"crypto/sha256"
-	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
@@ -28,9 +27,6 @@ import (
 
 const (
 	maxOpenAIEmbeddingsPerRequest = 1000
-	// EmbeddingPeriod is the time between two embedding routines.
-	// A seventh jitter is applied on the period.
-	EmbeddingPeriod = time.Hour
 )
 
 // EmbeddingHash is the hash function that should be used to compute embedding
@@ -92,11 +88,11 @@ func NewEmbedding(kind, id string, vector Vector64, hash Sha256Hash) *Embedding 
 }
 
 // Embedder is implemented for batch text embedding. Embedding can happen in
-// place (with an embedding model for example) or be done by a remote embedding
+// place (with an embedding model, for example) or be done by a remote embedding
 // service like OpenAI.
 type Embedder interface {
 	// ComputeEmbeddings computes the embeddings of multiple strings.
-	// The embedding list follows the input order (e.g. result[i] is the
+	// The embedding list follows the input order (e.g., result[i] is the
 	// embedding of input[i]).
 	ComputeEmbeddings(ctx context.Context, input []string) ([]Vector64, error)
 }

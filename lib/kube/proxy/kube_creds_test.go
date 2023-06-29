@@ -34,11 +34,13 @@ import (
 	"k8s.io/client-go/rest"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/azure"
 	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/services"
 )
 
 // Test_DynamicKubeCreds tests the dynamic kube credrentials generator for
@@ -102,13 +104,14 @@ func Test_DynamicKubeCreds(t *testing.T) {
 		Host:   "sts.amazonaws.com",
 		Path:   "/?Action=GetCallerIdentity&Version=2011-06-15",
 	}
+	sts := &mocks.STSMock{
+		// u is used to presign the request
+		// here we just verify the pre-signed request includes this url.
+		URL: u,
+	}
 	// mock clients
 	cloudclients := &cloud.TestCloudClients{
-		STS: &mocks.STSMock{
-			// u is used to presign the request
-			// here we just verify the pre-signed request includes this url.
-			URL: u,
-		},
+		STS: sts,
 		EKS: &mocks.EKSMock{
 			Notify: notify,
 			Clusters: []*eks.Cluster{
@@ -164,22 +167,85 @@ func Test_DynamicKubeCreds(t *testing.T) {
 			},
 		},
 	}
-
+	validateEKSToken := func(token string) error {
+		if token == "" {
+			return trace.BadParameter("missing bearer token")
+		}
+		tokens := strings.Split(token, ".")
+		if len(tokens) != 2 {
+			return trace.BadParameter("invalid bearer token")
+		}
+		if tokens[0] != "k8s-aws-v1" {
+			return trace.BadParameter("token must start with k8s-aws-v1")
+		}
+		dec, err := base64.RawStdEncoding.DecodeString(tokens[1])
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if string(dec) != u.String() {
+			return trace.BadParameter("invalid token payload")
+		}
+		return nil
+	}
 	type args struct {
 		cluster             types.KubeCluster
 		client              dynamicCredsClient
 		validateBearerToken func(string) error
 	}
 	tests := []struct {
-		name     string
-		args     args
-		wantAddr string
+		name            string
+		args            args
+		wantAddr        string
+		wantAssumedRole []string
+		wantExternalIds []string
 	}{
 		{
-			name: "aws eks cluster",
+			name: "aws eks cluster without assume role",
+			args: args{
+				cluster:             awsKube,
+				client:              getAWSClientRestConfig(cloudclients, fakeClock, nil),
+				validateBearerToken: validateEKSToken,
+			},
+			wantAddr: "api.eks.us-west-2.amazonaws.com:443",
+		},
+		{
+			name: "aws eks cluster with unmatched assume role",
 			args: args{
 				cluster: awsKube,
-				client:  getAWSClientRestConfig(cloudclients, fakeClock),
+				client: getAWSClientRestConfig(cloudclients, fakeClock, []services.ResourceMatcher{
+					{
+						Labels: types.Labels{
+							"rand": []string{"value"},
+						},
+						AWS: services.ResourceMatcherAWS{
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/eks-role",
+							ExternalID:    "1234567890",
+						},
+					},
+				}),
+				validateBearerToken: validateEKSToken,
+			},
+			wantAddr: "api.eks.us-west-2.amazonaws.com:443",
+		},
+		{
+			name: "aws eks cluster with assume role",
+			args: args{
+				cluster: awsKube,
+				client: getAWSClientRestConfig(
+					cloudclients,
+					fakeClock,
+					[]services.ResourceMatcher{
+						{
+							Labels: types.Labels{
+								types.Wildcard: []string{types.Wildcard},
+							},
+							AWS: services.ResourceMatcherAWS{
+								AssumeRoleARN: "arn:aws:iam::123456789012:role/eks-role",
+								ExternalID:    "1234567890",
+							},
+						},
+					},
+				),
 				validateBearerToken: func(token string) error {
 					if token == "" {
 						return trace.BadParameter("missing bearer token")
@@ -201,7 +267,9 @@ func Test_DynamicKubeCreds(t *testing.T) {
 					return nil
 				},
 			},
-			wantAddr: "api.eks.us-west-2.amazonaws.com:443",
+			wantAddr:        "api.eks.us-west-2.amazonaws.com:443",
+			wantAssumedRole: []string{"arn:aws:iam::123456789012:role/eks-role"},
+			wantExternalIds: []string{"1234567890"},
 		},
 		{
 			name: "gcp gke cluster",
@@ -261,6 +329,10 @@ func Test_DynamicKubeCreds(t *testing.T) {
 				}
 			}
 			require.NoError(t, got.close())
+
+			require.Equal(t, tt.wantAssumedRole, utils.Deduplicate(sts.GetAssumedRoleARNs()))
+			require.Equal(t, tt.wantExternalIds, utils.Deduplicate(sts.GetAssumedRoleExternalIDs()))
+			sts.ResetAssumeRoleHistory()
 		})
 	}
 }

@@ -826,7 +826,7 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			go func() {
 				defer close(errC)
 
-				err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, username)
+				err := srv.Auth().UpsertHeadlessAuthenticationStub(ctx, username)
 				if err != nil {
 					errC <- err
 					return

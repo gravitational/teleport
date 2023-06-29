@@ -318,6 +318,15 @@ func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
 	)
 }
 
+// EmbeddingClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) EmbeddingClient() assist.AssistEmbeddingServiceClient {
+	return assist.NewAssistEmbeddingServiceClient(
+		utils.NewGRPCDummyClientConnection("EmbeddingClient() should not be called on ServerWithRoles"),
+	)
+}
+
 // SAMLIdPClient allows ServerWithRoles to implement ClientI.
 // It should not be called through ServerWithRoles,
 // as it returns a dummy client that will always respond with "not implemented".
@@ -1441,6 +1450,19 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 						return nil, trace.Wrap(err)
 					}
 				}
+			}
+		case types.KindHeadlessAuthentication:
+			var filter types.HeadlessAuthenticationFilter
+			if err := filter.FromMap(kind.Filter); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+
+			// Only users can watch their own headless authentications.
+			if !hasLocalUserRole(a.context) || filter.Username != a.context.User.GetName() {
+				return nil, trace.AccessDenied("user %q cannot watch headless authentications of %q", a.context.User.GetName(), filter.Username)
 			}
 		default:
 			if err := a.action(apidefaults.Namespace, kind.Kind, types.VerbRead); err != nil {
@@ -6185,7 +6207,6 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 
 // GetHeadlessAuthentication gets a headless authentication from the backend.
 func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	// Only users can get their own headless authentication requests.
 	if !hasLocalUserRole(a.context) {
 		return nil, trace.AccessDenied("non-local user roles cannot get headless authentication resources")
 	}
@@ -6201,7 +6222,6 @@ func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, name st
 // GetHeadlessAuthenticationFromWatcher gets a headless authentication from the headless
 // authentication watcher.
 func (a *ServerWithRoles) GetHeadlessAuthenticationFromWatcher(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
-	// Only users can get their own headless authentication requests.
 	if !hasLocalUserRole(a.context) {
 		return nil, trace.AccessDenied("non-local user roles cannot get headless authentication resources")
 	}
@@ -6215,24 +6235,28 @@ func (a *ServerWithRoles) GetHeadlessAuthenticationFromWatcher(ctx context.Conte
 	return headlessAuthn, nil
 }
 
-// CreateHeadlessAuthenticationStub creates a headless authentication stub for the user
+// UpsertHeadlessAuthenticationStub creates a headless authentication stub for the user
 // that will expire after the standard callback timeout. Headless login processes will
 // look for this stub before inserting the headless authentication resource into the
 // backend as a form of indirect authorization.
-func (a *ServerWithRoles) CreateHeadlessAuthenticationStub(ctx context.Context) error {
-	// Only users can create headless authentication stubs.
+func (a *ServerWithRoles) UpsertHeadlessAuthenticationStub(ctx context.Context) error {
 	if !hasLocalUserRole(a.context) {
 		return trace.AccessDenied("non-local user roles cannot create headless authentication stubs")
 	}
 	username := a.context.User.GetName()
 
-	err := a.authServer.CreateHeadlessAuthenticationStub(ctx, username)
+	err := a.authServer.UpsertHeadlessAuthenticationStub(ctx, username)
 	return trace.Wrap(err)
 }
 
 // UpdateHeadlessAuthenticationState updates a headless authentication state.
 func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, name string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
-	headlessAuthn, err := a.GetHeadlessAuthentication(ctx, name)
+	if !hasLocalUserRole(a.context) {
+		return trace.AccessDenied("non-local user roles cannot approve or deny headless authentication resources")
+	}
+	username := a.context.User.GetName()
+
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, username, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -6271,6 +6295,58 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 
 	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
 	return trace.Wrap(err)
+}
+
+// MaintainHeadlessAuthenticationStub maintains a headless authentication stub for the user.
+// Headless login processes will look for this stub before inserting the headless authentication
+// resource into the backend as a form of indirect authorization.
+func (a *ServerWithRoles) MaintainHeadlessAuthenticationStub(ctx context.Context) error {
+	if !hasLocalUserRole(a.context) {
+		return trace.AccessDenied("non-local user roles cannot create headless authentication stubs")
+	}
+	username := a.context.User.GetName()
+
+	// Create a stub and re-create it each time it expires.
+	// Authorization is handled by UpsertHeadlessAuthenticationStub.
+	if err := a.authServer.UpsertHeadlessAuthenticationStub(ctx, username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ticker := time.NewTicker(defaults.CallbackTimeout)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := a.authServer.UpsertHeadlessAuthenticationStub(ctx, username); err != nil {
+				return trace.Wrap(err)
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
+func (a *ServerWithRoles) WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error) {
+	if !hasLocalUserRole(a.context) {
+		return nil, trace.AccessDenied("non-local user roles cannot watch headless authentications")
+	}
+	username := a.context.User.GetName()
+
+	// Authorization is handled by NewWatcher.
+	filter := types.HeadlessAuthenticationFilter{
+		Username: username,
+		State:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
+	}
+
+	return a.NewWatcher(ctx, types.Watch{
+		Name: username,
+		Kinds: []types.WatchKind{{
+			Kind:   types.KindHeadlessAuthentication,
+			Filter: filter.IntoMap(),
+		}},
+	})
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.

@@ -164,7 +164,7 @@ databases:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-$ tsh login --proxy=teleport.example.com --user=testuser
+$ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
 # Name          Description   Labels
 # ------------- ------------- --------
@@ -175,7 +175,7 @@ $ tsh db ls
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=testuser
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
 # Name          Description   Labels
 # ------------- ------------- --------

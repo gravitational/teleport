@@ -65,6 +65,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -310,6 +311,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		fips:                cfg.FIPS,
 		loadAllCAs:          cfg.LoadAllCAs,
 		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
+		embeddingsRetriever: cfg.EmbeddingRetriever,
+		embedder:            cfg.EmbeddingClient,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -621,6 +624,12 @@ type Server struct {
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
+
+	// embeddingRetriever is a retriever used to retrieve embeddings from the backend.
+	embeddingsRetriever *ai.SimpleRetriever
+
+	// embedder is an embedder client used to generate embeddings.
+	embedder ai.Embedder
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -5279,9 +5288,9 @@ func (a *Server) GetHeadlessAuthenticationFromWatcher(ctx context.Context, usern
 	return headlessAuthn, trace.Wrap(err)
 }
 
-// CreateHeadlessAuthenticationStub creates a headless authentication stub for the user
+// UpsertHeadlessAuthenticationStub creates a headless authentication stub for the user
 // that will expire after the standard callback timeout.
-func (a *Server) CreateHeadlessAuthenticationStub(ctx context.Context, username string) error {
+func (a *Server) UpsertHeadlessAuthenticationStub(ctx context.Context, username string) error {
 	// Create the stub. If it already exists, update its expiration.
 	expires := a.clock.Now().Add(defaults.CallbackTimeout)
 	stub, err := types.NewHeadlessAuthentication(username, services.HeadlessAuthenticationUserStubID, expires)

@@ -5187,7 +5187,7 @@ func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.G
 
 	// If the headless authentication doesn't exist yet, the headless login process may be waiting
 	// for the user to create a stub to authorize the insert.
-	if err := auth.CreateHeadlessAuthenticationStub(ctx); err != nil {
+	if err := auth.UpsertHeadlessAuthenticationStub(ctx); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -5202,6 +5202,48 @@ func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.G
 	// Wait for the login process to insert the actual headless authentication details.
 	authReq, err := auth.GetHeadlessAuthenticationFromWatcher(ctx, req.Id)
 	return authReq, trace.Wrap(err)
+}
+
+// WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, stream proto.AuthService_WatchPendingHeadlessAuthenticationsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	watcher, err := auth.WatchPendingHeadlessAuthentications(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	stubErr := make(chan error)
+	go func() {
+		stubErr <- auth.MaintainHeadlessAuthenticationStub(stream.Context())
+	}()
+
+	for {
+		select {
+		case err := <-stubErr:
+			return trace.Wrap(err)
+		case <-stream.Context().Done():
+			return nil
+		case <-watcher.Done():
+			return watcher.Error()
+		case event := <-watcher.Events():
+			out, err := client.EventToGRPC(event)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
+			watcherEventSizes.Observe(float64(out.Size()))
+
+			if err := stream.Send(out); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
 }
 
 // ExportUpgradeWindows is used to load derived upgrade window values for agents that
@@ -5359,12 +5401,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	// Initialize and register the assist service.
 	assistSrv, err := assistv1.NewService(&assistv1.ServiceConfig{
-		Backend: cfg.AuthServer.Services,
+		Backend:        cfg.AuthServer.Services,
+		Embeddings:     cfg.AuthServer.embeddingsRetriever,
+		Embedder:       cfg.AuthServer.embedder,
+		Authorizer:     cfg.Authorizer,
+		ResourceGetter: cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	assist.RegisterAssistServiceServer(server, assistSrv)
+	assist.RegisterAssistEmbeddingServiceServer(server, assistSrv)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)

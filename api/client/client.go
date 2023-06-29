@@ -752,6 +752,12 @@ func (c *Client) TrustClient() trustpb.TrustServiceClient {
 	return trustpb.NewTrustServiceClient(c.conn)
 }
 
+// EmbeddingClient returns an unadorned Embedding client, using the underlying
+// Auth gRPC connection.
+func (c *Client) EmbeddingClient() assist.AssistEmbeddingServiceClient {
+	return assist.NewAssistEmbeddingServiceClient(c.conn)
+}
+
 // Ping gets basic info about the auth server.
 func (c *Client) Ping(ctx context.Context) (proto.PingResponse, error) {
 	rsp, err := c.grpc.Ping(ctx, &proto.PingRequest{})
@@ -3903,6 +3909,24 @@ func (c *Client) GetHeadlessAuthentication(ctx context.Context, id string) (*typ
 	return headlessAuthn, nil
 }
 
+// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
+func (c *Client) WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error) {
+	cancelCtx, cancel := context.WithCancel(ctx)
+	stream, err := c.grpc.WatchPendingHeadlessAuthentications(cancelCtx, &emptypb.Empty{})
+	if err != nil {
+		cancel()
+		return nil, trail.FromGRPC(err)
+	}
+	w := &streamWatcher{
+		stream:  stream,
+		ctx:     cancelCtx,
+		cancel:  cancel,
+		eventsC: make(chan types.Event),
+	}
+	go w.receiveEvents()
+	return w, nil
+}
+
 // CreateAssistantConversation creates a new conversation entry in the backend.
 func (c *Client) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
 	resp, err := c.grpc.CreateAssistantConversation(ctx, req)
@@ -3965,4 +3989,12 @@ func (c *Client) UpdateAssistantConversationInfo(ctx context.Context, in *assist
 		return trail.FromGRPC(err)
 	}
 	return nil
+}
+
+func (c *Client) GetAssistantEmbeddings(ctx context.Context, in *assist.GetAssistantEmbeddingsRequest) (*assist.GetAssistantEmbeddingsResponse, error) {
+	result, err := c.EmbeddingClient().GetAssistantEmbeddings(ctx, in)
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	return result, nil
 }
