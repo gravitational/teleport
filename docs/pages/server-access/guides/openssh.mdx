@@ -61,13 +61,15 @@ resource on your cluster with the following command, assigning <Var name="proxy"
 and <Var name="node" /> to the name of the node that will join the cluster:
 
 ```code
-$ sudo teleport join openssh --address <Var name="node" /> --proxy-server <Var name="proxy" /> \
+$ sudo teleport join openssh \
+  --address <Var name="node" /> \
+  --proxy-server <Var name="proxy" /> \
   --join-method token --token <TOKEN> \
   --labels env=dev
 ```
 
 Note that both the Teleport Proxy Service and node addresses must contain a host and a port.
-Check that your new node was listed with `tsh ls` or in the Web UI.  You can edit the
+Check that your new node is listed with `tsh ls` or in the Web UI.  You can edit the
 hostname and labels with `tctl edit nodes/<hostname>`.  If the hostname isn't unique get the UUID
 from `tctl nodes ls -v` and edit with `tctl edit nodes/<uuid>`.
 
