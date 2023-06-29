@@ -780,14 +780,6 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			},
 			expectErr: true,
 		}, {
-			name: "NOK user mismatch",
-			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
-				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
-				ha.MfaDevice = mfa
-				ha.User = "other-user"
-			},
-			expectErr: true,
-		}, {
 			name: "NOK denied",
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
@@ -834,7 +826,13 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			go func() {
 				defer close(errC)
 
-				headlessAuthn, err := srv.Auth().GetHeadlessAuthentication(ctx, headlessID)
+				err := srv.Auth().UpsertHeadlessAuthenticationStub(ctx, username)
+				if err != nil {
+					errC <- err
+					return
+				}
+
+				headlessAuthn, err := srv.Auth().GetHeadlessAuthenticationFromWatcher(ctx, username, headlessID)
 				if err != nil {
 					errC <- err
 					return

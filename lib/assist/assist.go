@@ -44,6 +44,11 @@ const (
 	MessageKindCommand MessageType = "COMMAND"
 	// MessageKindCommandResult is the type of Assist message that contains the command execution result.
 	MessageKindCommandResult MessageType = "COMMAND_RESULT"
+	// MessageKindCommandResultSummary is the type of message that is optionally
+	// emitted after a command and contains a summary of the command output.
+	// This message is both sent after the command execution to the web UI,
+	// and persisted in the conversation history.
+	MessageKindCommandResultSummary MessageType = "COMMAND_RESULT_SUMMARY"
 	// MessageKindUserMessage is the type of Assist message that contains the user message.
 	MessageKindUserMessage MessageType = "CHAT_MESSAGE_USER"
 	// MessageKindAssistantMessage is the type of Assist message that contains the assistant message.
@@ -104,20 +109,26 @@ type Chat struct {
 	ConversationID string
 	// Username is the username of the user who started the chat.
 	Username string
+	// potentiallyStaleHistory indicates messages might have been inserted into
+	// the chat history and the messages should be re-fetched before attempting
+	// the next completion.
+	potentiallyStaleHistory bool
 }
 
 // NewChat creates a new Assist chat.
 func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
-	conversationID string, username string,
+	embeddingServiceClient assist.AssistEmbeddingServiceClient,
+	conversationID, username string,
 ) (*Chat, error) {
-	aichat := a.client.NewChat(username)
+	aichat := a.client.NewChat(embeddingServiceClient, username)
 
 	chat := &Chat{
-		assist:         a,
-		chat:           aichat,
-		assistService:  assistService,
-		ConversationID: conversationID,
-		Username:       username,
+		assist:                  a,
+		chat:                    aichat,
+		assistService:           assistService,
+		ConversationID:          conversationID,
+		Username:                username,
+		potentiallyStaleHistory: false,
 	}
 
 	if err := chat.loadMessages(ctx); err != nil {
@@ -130,6 +141,35 @@ func (a *Assist) NewChat(ctx context.Context, assistService MessageService,
 // GenerateSummary generates a summary for the given message.
 func (a *Assist) GenerateSummary(ctx context.Context, message string) (string, error) {
 	return a.client.Summary(ctx, message)
+}
+
+// GenerateCommandSummary summarizes the output of a command executed on one or
+// many nodes. The conversation history is also sent into the prompt in order
+// to gather context and know what information is relevant in the command output.
+func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.AssistantMessage, output map[string][]byte) (string, error) {
+	// Create system prompt
+	modelMessages := []openai.ChatCompletionMessage{
+		{Role: openai.ChatMessageRoleSystem, Content: model.PromptSummarizeCommand},
+	}
+
+	// Load context back into prompt
+	for _, message := range messages {
+		role := kindToRole(MessageType(message.Type))
+		if role != "" && role != openai.ChatMessageRoleSystem {
+			payload, err := formatMessagePayload(message)
+			if err != nil {
+				return "", trace.Wrap(err)
+			}
+			modelMessages = append(modelMessages, openai.ChatCompletionMessage{Role: role, Content: payload})
+		}
+	}
+	return a.client.CommandSummary(ctx, modelMessages, output)
+}
+
+// reloadMessages clears the chat history and reloads the messages from the database.
+func (c *Chat) reloadMessages(ctx context.Context) error {
+	c.chat.Clear()
+	return c.loadMessages(ctx)
 }
 
 // loadMessages loads the messages from the database.
@@ -147,7 +187,11 @@ func (c *Chat) loadMessages(ctx context.Context) error {
 	for _, msg := range messages.GetMessages() {
 		role := kindToRole(MessageType(msg.Type))
 		if role != "" {
-			c.chat.Insert(role, msg.Payload)
+			payload, err := formatMessagePayload(msg)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			c.chat.Insert(role, payload)
 		}
 	}
 
@@ -201,6 +245,14 @@ type onMessageFunc func(kind MessageType, payload []byte, createdTime time.Time)
 func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
 ) (*model.TokensUsed, error) {
 	var tokensUsed *model.TokensUsed
+
+	// If data might have been inserted into the chat history, we want to
+	// refresh and get the latest data before querying the model.
+	if c.potentiallyStaleHistory {
+		if err := c.reloadMessages(ctx); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	// query the assistant and fetch an answer
 	message, err := c.chat.Complete(ctx, userInput)
@@ -279,6 +331,11 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		if err := onMessage(MessageKindCommand, payloadJson, c.assist.clock.Now().UTC()); nil != err {
 			return nil, trace.Wrap(err)
 		}
+		// As we emitted a command suggestion, the user might have run it. If
+		// the command ran, a summary could have been inserted in the backend.
+		// To take this command summary into account we note the history might
+		// be stale.
+		c.potentiallyStaleHistory = true
 	default:
 		return nil, trace.Errorf("unknown message type")
 	}
@@ -313,7 +370,27 @@ func kindToRole(kind MessageType) string {
 		return openai.ChatMessageRoleAssistant
 	case MessageKindSystemMessage:
 		return openai.ChatMessageRoleSystem
+	case MessageKindCommandResultSummary:
+		return openai.ChatMessageRoleUser
 	default:
 		return ""
+	}
+}
+
+// formatMessagePayload generates the OpemAI message payload corresponding to
+// an Assist message. Most Assist message payloads can be converted directly,
+// but some payloads are JSON-formatted and must be processed before being
+// passed to the model.
+func formatMessagePayload(message *assist.AssistantMessage) (string, error) {
+	switch MessageType(message.GetType()) {
+	case MessageKindCommandResultSummary:
+		var summary CommandExecSummary
+		err := json.Unmarshal([]byte(message.GetPayload()), &summary)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+		return summary.String(), nil
+	default:
+		return message.GetPayload(), nil
 	}
 }

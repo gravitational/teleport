@@ -31,7 +31,12 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
-import { RawPayload, SessionData, ServerMessageType } from 'teleport/Assist/types';
+import {
+  ExecutionEnvelopeType,
+  RawPayload,
+  ServerMessageType,
+  SessionData,
+} from 'teleport/Assist/types';
 
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 
@@ -41,6 +46,7 @@ import {
 } from 'teleport/services/auth';
 
 import * as service from '../service';
+
 import { resolveServerCommandMessage, resolveServerMessage } from '../service';
 
 import type {
@@ -48,6 +54,7 @@ import type {
   ResolvedServerMessage,
   ServerMessage,
 } from 'teleport/Assist/types';
+
 import type { AssistState } from 'teleport/Assist/context/state';
 
 interface AssistContextValue {
@@ -409,6 +416,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     executeCommandWebSocket.current = new WebSocket(url);
     executeCommandWebSocket.current.binaryType = 'arraybuffer';
 
+    let sessionsEnded = 0;
+
     executeCommandWebSocket.current.onmessage = event => {
       const uintArray = new Uint8Array(event.data);
 
@@ -419,13 +428,22 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           const data = JSON.parse(msg.payload) as RawPayload;
           const payload = atob(data.payload);
 
-          dispatch({
-            type: AssistStateActionType.UpdateCommandResult,
-            conversationId: state.conversations.selectedId,
-            commandResultId: nodeIdToResultId.get(data.node_id),
-            output: payload,
-          });
-
+          if (data.type === ExecutionEnvelopeType) {
+            dispatch({
+              type: AssistStateActionType.AddCommandResultSummary,
+              conversationId: state.conversations.selectedId,
+              summary: payload,
+              executionId: execParams.execution_id,
+              command: execParams.command,
+            });
+          } else {
+            dispatch({
+              type: AssistStateActionType.UpdateCommandResult,
+              conversationId: state.conversations.selectedId,
+              commandResultId: nodeIdToResultId.get(data.node_id),
+              output: payload,
+            });
+          }
           break;
         }
 
@@ -455,6 +473,16 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
             conversationId: state.conversations.selectedId,
             commandResultId: nodeIdToResultId.get(data.session.server_id),
           });
+
+          sessionsEnded += 1;
+
+          if (sessionsEnded === nodeIdToResultId.size) {
+            const message = proto.encodeCloseMessage();
+            const bytearray = new Uint8Array(message);
+
+            executeCommandWebSocket.current.send(bytearray.buffer);
+            nodeIdToResultId.clear();
+          }
 
           break;
         }

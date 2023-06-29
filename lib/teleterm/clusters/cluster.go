@@ -30,6 +30,7 @@ import (
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 )
 
@@ -64,6 +65,8 @@ type ClusterWithDetails struct {
 	SuggestedReviewers []string
 	// RequestableRoles for the given user.
 	RequestableRoles []string
+	// ACL contains user access control list.
+	ACL *api.ACL
 }
 
 // Connected indicates if connection to the cluster can be established
@@ -79,6 +82,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		pingResponse  proto.PingResponse
 		caps          *types.AccessCapabilities
 		authClusterID string
+		acl           *api.ACL
 	)
 
 	err := addMetadataToRetryableError(ctx, func() error {
@@ -113,6 +117,34 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		}
 		authClusterID = clusterName.GetClusterID()
 
+		user, err := authClient.GetCurrentUser(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		roles, err := authClient.GetCurrentUserRoles(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		roleSet := services.NewRoleSet(roles...)
+		userACL := services.NewUserACL(user, roleSet, *pingResponse.ServerFeatures, false)
+
+		acl = &api.ACL{
+			RecordedSessions: convertToAPIResourceAccess(userACL.RecordedSessions),
+			ActiveSessions:   convertToAPIResourceAccess(userACL.ActiveSessions),
+			AuthConnectors:   convertToAPIResourceAccess(userACL.AuthConnectors),
+			Roles:            convertToAPIResourceAccess(userACL.Roles),
+			Users:            convertToAPIResourceAccess(userACL.Users),
+			TrustedClusters:  convertToAPIResourceAccess(userACL.TrustedClusters),
+			Events:           convertToAPIResourceAccess(userACL.Events),
+			Tokens:           convertToAPIResourceAccess(userACL.Tokens),
+			Servers:          convertToAPIResourceAccess(userACL.Nodes),
+			Apps:             convertToAPIResourceAccess(userACL.AppServers),
+			Dbs:              convertToAPIResourceAccess(userACL.DBServers),
+			Kubeservers:      convertToAPIResourceAccess(userACL.KubeServers),
+			AccessRequests:   convertToAPIResourceAccess(userACL.AccessRequests),
+		}
 		return nil
 	})
 	if err != nil {
@@ -125,9 +157,21 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		RequestableRoles:   caps.RequestableRoles,
 		Features:           pingResponse.ServerFeatures,
 		AuthClusterID:      authClusterID,
+		ACL:                acl,
 	}
 
 	return withDetails, nil
+}
+
+func convertToAPIResourceAccess(access services.ResourceAccess) *api.ResourceAccess {
+	return &api.ResourceAccess{
+		List:   access.List,
+		Read:   access.Read,
+		Edit:   access.Edit,
+		Create: access.Create,
+		Delete: access.Delete,
+		Use:    access.Use,
+	}
 }
 
 // GetRoles returns currently logged-in user roles

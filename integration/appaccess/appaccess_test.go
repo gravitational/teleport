@@ -29,7 +29,6 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
-	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
@@ -39,6 +38,7 @@ import (
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -405,10 +405,10 @@ func testRewriteHeadersRoot(p *Pack, t *testing.T) {
 	require.NotEqual(t, req.Header.Get(teleport.AppJWTHeader), "rewritten-app-jwt-header")
 	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
 	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedFor), "rewritten-x-forwarded-for-header")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedHost), "rewritten-x-forwarded-host-header")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedProto), "rewritten-x-forwarded-proto-header")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedServer), "rewritten-x-forwarded-server-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedFor), "rewritten-x-forwarded-for-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedHost), "rewritten-x-forwarded-host-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedProto), "rewritten-x-forwarded-proto-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedServer), "rewritten-x-forwarded-server-header")
 	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
 
 	// Verify JWT tokens.
@@ -444,10 +444,10 @@ func testRewriteHeadersLeaf(p *Pack, t *testing.T) {
 	require.NotEqual(t, req.Header.Get(teleport.AppCFHeader), "rewritten-app-cf-header")
 	require.NotEqual(t, req.Header.Get(common.TeleportAPIErrorHeader), "rewritten-x-teleport-api-error")
 	require.NotEqual(t, req.Header.Get(common.XForwardedSSL), "rewritten-x-forwarded-ssl")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedFor), "rewritten-x-forwarded-for-header")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedHost), "rewritten-x-forwarded-host-header")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedProto), "rewritten-x-forwarded-proto-header")
-	require.NotEqual(t, req.Header.Get(forward.XForwardedServer), "rewritten-x-forwarded-server-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedFor), "rewritten-x-forwarded-for-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedHost), "rewritten-x-forwarded-host-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedProto), "rewritten-x-forwarded-proto-header")
+	require.NotEqual(t, req.Header.Get(reverseproxy.XForwardedServer), "rewritten-x-forwarded-server-header")
 }
 
 // testLogout verifies the session is removed from the backend when the user logs out.
