@@ -345,7 +345,7 @@ func ParseSAMLInResponseTo(response string) (string, error) {
 		if _, err := io.Copy(buf, lr); err != nil {
 			return "", trace.Wrap(err)
 		} else if buf.Len() == maxCompressedBytes {
-			return "", trace.BadParameter("compressed saml response exceeded max size")
+			return "", trace.LimitExceeded("compressed SAML response exceeded max size")
 		}
 
 		doc = etree.NewDocument()
