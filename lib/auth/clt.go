@@ -660,6 +660,8 @@ type IdentityService interface {
 	UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResponse *proto.MFAAuthenticateResponse) error
 	// GetHeadlessAuthentication retrieves a headless authentication by id.
 	GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error)
+	// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
+	WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error)
 }
 
 // ProvisioningService is a service in control
@@ -710,6 +712,7 @@ type ClientI interface {
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.Assistant
+	services.UserPreferences
 	WebService
 	services.Status
 	services.ClusterConfiguration

@@ -89,16 +89,20 @@ const (
 	PortForwardPayload = "Portforward handler message"
 )
 
+type deletedResource struct {
+	requestID string
+	kind      string
+}
 type KubeMockServer struct {
-	router      *httprouter.Router
-	log         *log.Entry
-	server      *httptest.Server
-	TLS         *tls.Config
-	Addr        net.Addr
-	URL         string
-	CA          []byte
-	deletedPods map[string][]string
-	mu          sync.Mutex
+	router           *httprouter.Router
+	log              *log.Entry
+	server           *httptest.Server
+	TLS              *tls.Config
+	Addr             net.Addr
+	URL              string
+	CA               []byte
+	deletedResources map[deletedResource][]string
+	mu               sync.Mutex
 }
 
 // NewKubeAPIMock creates Kubernetes API server for handling exec calls.
@@ -110,9 +114,9 @@ type KubeMockServer struct {
 // TODO(tigrato): add support for other endpoints
 func NewKubeAPIMock() (*KubeMockServer, error) {
 	s := &KubeMockServer{
-		router:      httprouter.New(),
-		log:         log.NewEntry(log.New()),
-		deletedPods: make(map[string][]string),
+		router:           httprouter.New(),
+		log:              log.NewEntry(log.New()),
+		deletedResources: make(map[deletedResource][]string),
 	}
 	s.setup()
 	if err := http2.ConfigureServer(s.server.Config, &http2.Server{}); err != nil {
@@ -131,6 +135,11 @@ func (s *KubeMockServer) setup() {
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/exec", s.withWriter(s.exec))
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
 	s.router.POST("/api/:ver/namespaces/:podNamespace/pods/:podName/portforward", s.withWriter(s.portforward))
+
+	s.router.GET("/apis/rbac.authorization.k8s.io/:ver/clusterroles", s.withWriter(s.listClusterRoles))
+	s.router.GET("/apis/rbac.authorization.k8s.io/:ver/clusterroles/:name", s.withWriter(s.getClusterRole))
+	s.router.DELETE("/apis/rbac.authorization.k8s.io/:ver/clusterroles/:name", s.withWriter(s.deleteClusterRole))
+
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods", s.withWriter(s.listPods))
 	s.router.GET("/api/:ver/pods", s.withWriter(s.listPods))
 	s.router.GET("/api/:ver/namespaces/:podNamespace/pods/:podName", s.withWriter(s.getPod))

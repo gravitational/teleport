@@ -22,7 +22,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"path/filepath"
+	"path"
 	"strings"
 	"sync"
 	"testing"
@@ -33,6 +33,7 @@ import (
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	authv1 "k8s.io/api/rbac/v1"
 	kubeerrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -349,7 +350,13 @@ func TestListPodRBAC(t *testing.T) {
 			},
 		},
 	}
-
+	getPodsFromPodList := func(items []corev1.Pod) []string {
+		pods := make([]string, 0, len(items))
+		for _, item := range items {
+			pods = append(pods, path.Join(item.Namespace, item.Name))
+		}
+		return pods
+	}
 	for _, tt := range tests {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
@@ -384,14 +391,6 @@ func TestListPodRBAC(t *testing.T) {
 			}
 		})
 	}
-}
-
-func getPodsFromPodList(items []corev1.Pod) []string {
-	pods := make([]string, 0, len(items))
-	for _, item := range items {
-		pods = append(pods, filepath.Join(item.Namespace, item.Name))
-	}
-	return pods
 }
 
 func TestWatcherResponseWriter(t *testing.T) {
@@ -507,7 +506,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
 			negotiator := newClientNegotiator()
-			filterWrapper := newPodFilterer(tt.args.allowed, tt.args.denied, log)
+			filterWrapper := newResourceFilterer(types.KindKubePod, tt.args.allowed, tt.args.denied, log)
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
@@ -879,4 +878,194 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 		})
 	}
 	require.Empty(t, kubeMock.DeletedPods(""), "a request as received without metav1.DeleteOptions.Preconditions.UID")
+}
+
+func TestListClusterRoleRBAC(t *testing.T) {
+	const (
+		usernameWithFullAccess    = "full_user"
+		usernameWithLimitedAccess = "limited_user"
+		testPodName               = "test"
+	)
+	// kubeMock is a Kubernetes API mock for the session tests.
+	// Once a new session is created, this mock will write to
+	// stdout and stdin (if available) the pod name, followed
+	// by copying the contents of stdin into both streams.
+	kubeMock, err := testingkubemock.NewKubeAPIMock()
+	require.NoError(t, err)
+	t.Cleanup(func() { kubeMock.Close() })
+
+	// creates a Kubernetes service with a configured cluster pointing to mock api server
+	testCtx := SetupTestContext(
+		context.Background(),
+		t,
+		TestConfig{
+			Clusters: []KubeClusterConfig{{Name: kubeCluster, APIEndpoint: kubeMock.URL}},
+		},
+	)
+	// close tests
+	t.Cleanup(func() { require.NoError(t, testCtx.Close()) })
+
+	// create a user with full access to kubernetes Pods.
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithFullAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithFullAccess,
+		RoleSpec{
+			Name:       usernameWithFullAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow, []types.KubernetesResource{
+					{
+						Kind: types.KindKubeClusterRole,
+						Name: types.Wildcard,
+					},
+				})
+			},
+		},
+	)
+
+	// create a moderator user with access to kubernetes
+	// (kubernetes_user and kubernetes_groups specified)
+	userWithLimitedAccess, _ := testCtx.CreateUserAndRole(
+		testCtx.Context,
+		t,
+		usernameWithLimitedAccess,
+		RoleSpec{
+			Name:       usernameWithLimitedAccess,
+			KubeUsers:  roleKubeUsers,
+			KubeGroups: roleKubeGroups,
+			SetupRoleFunc: func(r types.Role) {
+				r.SetKubeResources(types.Allow,
+					[]types.KubernetesResource{
+						{
+							Kind: types.KindKubeClusterRole,
+							Name: "nginx-*",
+						},
+					},
+				)
+			},
+		},
+	)
+
+	type args struct {
+		user types.User
+		opts []GenTestKubeClientTLSCertOptions
+	}
+	type want struct {
+		listClusterRolesResult []string
+		getTestResult          error
+	}
+	tests := []struct {
+		name string
+		args args
+		want want
+	}{
+		{
+			name: "list cluster roles for user with full access",
+			args: args{
+				user: userWithFullAccess,
+			},
+			want: want{
+				listClusterRolesResult: []string{
+					"nginx-1",
+					"nginx-2",
+					"test",
+				},
+			},
+		},
+		{
+			name: "list cluster roles for user with limited access",
+			args: args{
+				user: userWithLimitedAccess,
+			},
+			want: want{
+				listClusterRolesResult: []string{
+					"nginx-1",
+					"nginx-2",
+				},
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "clusterroles \"test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
+
+		{
+			name: "user with cluster role access request that no longer fullfills the role requirements",
+			args: args{
+				user: userWithLimitedAccess,
+				opts: []GenTestKubeClientTLSCertOptions{
+					WithResourceAccessRequests(
+						types.ResourceID{
+							ClusterName:     testCtx.ClusterName,
+							Kind:            types.KindKubePod,
+							Name:            kubeCluster,
+							SubResourceName: fmt.Sprintf("%s/%s", metav1.NamespaceDefault, testPodName),
+						},
+					),
+				},
+			},
+			want: want{
+				listClusterRolesResult: []string{},
+				getTestResult: &kubeerrors.StatusError{
+					ErrStatus: metav1.Status{
+						Status:  "Failure",
+						Message: "clusterroles \"test\" is forbidden: User \"limited_user\" cannot get resource \"clusterroles\" in API group \"rbac.authorization.k8s.io\"",
+						Code:    403,
+						Reason:  metav1.StatusReasonForbidden,
+					},
+				},
+			},
+		},
+	}
+
+	getClusterRolesFromList := func(items []authv1.ClusterRole) []string {
+		clusterroles := make([]string, 0, len(items))
+		for _, item := range items {
+			clusterroles = append(clusterroles, item.Name)
+		}
+		return clusterroles
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			// generate a kube client with user certs for auth
+			client, _ := testCtx.GenTestKubeClientTLSCert(
+				t,
+				tt.args.user.GetName(),
+				kubeCluster,
+				tt.args.opts...,
+			)
+
+			rsp, err := client.RbacV1().ClusterRoles().List(
+				testCtx.Context,
+				metav1.ListOptions{},
+			)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.want.listClusterRolesResult, getClusterRolesFromList(rsp.Items))
+
+			_, err = client.RbacV1().ClusterRoles().Get(
+				testCtx.Context,
+				testPodName,
+				metav1.GetOptions{},
+			)
+
+			if tt.want.getTestResult == nil {
+				require.NoError(t, err)
+			} else {
+				require.Error(t, err)
+				require.Contains(t, err.Error(), tt.want.getTestResult.Error())
+			}
+		})
+	}
 }

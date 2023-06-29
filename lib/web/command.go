@@ -674,7 +674,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		return
 	}
 
-	if err := t.stream.Close(); err != nil {
+	if err := t.stream.SendCloseMessage(); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}

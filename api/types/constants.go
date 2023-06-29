@@ -155,8 +155,68 @@ const (
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
-	// KindKubePod is an Kubernetes Pod resource type.
+	// KindKubePod is a Kubernetes Pod resource type.
 	KindKubePod = "pod"
+
+	// KindKubeSecret is a Kubernetes Secret resource type.
+	KindKubeSecret = "secret"
+
+	// KindKubeConfigMap is a Kubernetes Configmap resource type.
+	KindKubeConfigmap = "configmap"
+
+	// KindKubeNamespace is a Kubernetes namespace resource type.
+	KindKubeNamespace = "namespace"
+
+	// KindKubeService is a Kubernetes Service resource type.
+	KindKubeService = "service"
+
+	// KindKubeServiceAccount is an Kubernetes Service Account resource type.
+	KindKubeServiceAccount = "serviceaccount"
+
+	// KindKubeNode is a Kubernetes Node resource type.
+	KindKubeNode = "kube_node"
+
+	// KindKubePersistentVolume is a Kubernetes Persistent Volume resource type.
+	KindKubePersistentVolume = "persistentvolume"
+
+	// KindKubePersistentVolumeClaim is a Kubernetes Persistent Volume Claim resource type.
+	KindKubePersistentVolumeClaim = "persistentvolumeclaim"
+
+	// KindKubeDeployment is a Kubernetes Deployment resource type.
+	KindKubeDeployment = "deployment"
+
+	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
+	KindKubeReplicaSet = "replicaset"
+
+	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
+	KindKubeStatefulset = "statefulset"
+
+	// KindKubeDaemonSet is a Kubernetes Daemonset resource type.
+	KindKubeDaemonSet = "daemonset"
+
+	// KindKubeClusterRole is a Kubernetes ClusterRole resource type.
+	KindKubeClusterRole = "clusterrole"
+
+	// KindKubeRole is a Kubernetes Role resource type.
+	KindKubeRole = "role"
+
+	// KindKubeClusterRoleBinding is a Kubernetes Cluster Role Binding resource type.
+	KindKubeClusterRoleBinding = "clusterrolebinding"
+
+	// KindKubeRoleBinding is a Kubernetes Role Binding resource type.
+	KindKubeRoleBinding = "rolebinding"
+
+	// KindKubeCronjob is a Kubernetes Cronjob resource type.
+	KindKubeCronjob = "cronjob"
+
+	// KindKubeJob is a Kubernetes job resource type.
+	KindKubeJob = "job"
+
+	// KindKubeCertificateSigningRequest is a Certificate Signing Request resource type.
+	KindKubeCertificateSigningRequest = "certificatesigningrequest"
+
+	// KindKubeIngress is a Kubernetes Ingress resource type.
+	KindKubeIngress = "ingress"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -712,13 +772,64 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
-	KindKubePod,
 	KindUserGroup,
+	KindKubePod,
+	KindKubeSecret,
+	KindKubeConfigmap,
+	KindKubeNamespace,
+	KindKubeService,
+	KindKubeServiceAccount,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubePersistentVolumeClaim,
+	KindKubeDeployment,
+	KindKubeReplicaSet,
+	KindKubeStatefulset,
+	KindKubeDaemonSet,
+	KindKubeClusterRole,
+	KindKubeRole,
+	KindKubeClusterRoleBinding,
+	KindKubeRoleBinding,
+	KindKubeCronjob,
+	KindKubeJob,
+	KindKubeCertificateSigningRequest,
+	KindKubeIngress,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
 var KubernetesResourcesKinds = []string{
 	KindKubePod,
+	KindKubeSecret,
+	KindKubeConfigmap,
+	KindKubeNamespace,
+	KindKubeService,
+	KindKubeServiceAccount,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubePersistentVolumeClaim,
+	KindKubeDeployment,
+	KindKubeReplicaSet,
+	KindKubeStatefulset,
+	KindKubeDaemonSet,
+	KindKubeClusterRole,
+	KindKubeRole,
+	KindKubeClusterRoleBinding,
+	KindKubeRoleBinding,
+	KindKubeCronjob,
+	KindKubeJob,
+	KindKubeCertificateSigningRequest,
+	KindKubeIngress,
+}
+
+// KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
+// that are not namespaced.
+var KubernetesClusterWideResourceKinds = []string{
+	KindKubeNamespace,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubeClusterRole,
+	KindKubeClusterRoleBinding,
+	KindKubeCertificateSigningRequest,
 }
 
 const (
