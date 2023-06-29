@@ -103,7 +103,7 @@ func TestChat_PromptTokens(t *testing.T) {
 			}
 
 			ctx := context.Background()
-			message, err := chat.Complete(ctx, "")
+			message, err := chat.Complete(ctx, "", func(aa *model.AgentAction) {})
 			require.NoError(t, err)
 			msg, ok := message.(interface{ UsedTokens() *model.TokensUsed })
 			require.True(t, ok)
@@ -131,7 +131,7 @@ func TestChat_Complete(t *testing.T) {
 	chat := client.NewChat(nil, "Bob")
 
 	t.Run("initial message", func(t *testing.T) {
-		msgAny, err := chat.Complete(context.Background(), "Hello")
+		msgAny, err := chat.Complete(context.Background(), "Hello", func(aa *model.AgentAction) {})
 		require.NoError(t, err)
 
 		msg, ok := msgAny.(*model.Message)
@@ -147,7 +147,7 @@ func TestChat_Complete(t *testing.T) {
 	t.Run("text completion", func(t *testing.T) {
 		chat.Insert(openai.ChatMessageRoleUser, "Show me free disk space")
 
-		msg, err := chat.Complete(context.Background(), "")
+		msg, err := chat.Complete(context.Background(), "", func(aa *model.AgentAction) {})
 		require.NoError(t, err)
 
 		require.IsType(t, &model.Message{}, msg)
@@ -161,7 +161,7 @@ func TestChat_Complete(t *testing.T) {
 	t.Run("command completion", func(t *testing.T) {
 		chat.Insert(openai.ChatMessageRoleUser, "localhost")
 
-		msg, err := chat.Complete(context.Background(), "")
+		msg, err := chat.Complete(context.Background(), "", func(aa *model.AgentAction) {})
 		require.NoError(t, err)
 
 		require.IsType(t, &model.CompletionCommand{}, msg)

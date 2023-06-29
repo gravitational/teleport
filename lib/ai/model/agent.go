@@ -33,10 +33,16 @@ import (
 )
 
 const (
-	actionFinalAnswer   = "Final Answer"
-	actionException     = "_Exception"
-	maxIterations       = 15
-	maxElapsedTime      = 5 * time.Minute
+	// The internal name used to create actions when the agent encounters an error, such as when parsing output.
+	actionException = "_Exception"
+
+	// The maximum amount of thought<-> observation iterations the agent is allowed to perform.
+	maxIterations = 15
+
+	// The maximum amount of time the agent is allowed to spend before yielding a final answer.
+	maxElapsedTime = 5 * time.Minute
+
+	// The special header the LLM has to respond with to indicate it's done.
 	finalResponseHeader = "<FINAL RESPONSE>"
 )
 
