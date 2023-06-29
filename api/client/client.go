@@ -3985,7 +3985,7 @@ func (c *Client) GetAssistantEmbeddings(ctx context.Context, in *assist.GetAssis
 }
 
 // GetUserPreferences returns the user preferences for a given user.
-func (c *Client) GetUserPreferences(ctx context.Context, in *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.UserPreferences, error) {
+func (c *Client) GetUserPreferences(ctx context.Context, in *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.GetUserPreferencesResponse, error) {
 	resp, err := c.grpc.GetUserPreferences(ctx, in)
 	if err != nil {
 		return nil, trail.FromGRPC(err)

@@ -43,7 +43,7 @@ const (
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type UserPreferencesServiceClient interface {
 	// GetUserPreferences returns the user preferences for a given user.
-	GetUserPreferences(ctx context.Context, in *GetUserPreferencesRequest, opts ...grpc.CallOption) (*UserPreferences, error)
+	GetUserPreferences(ctx context.Context, in *GetUserPreferencesRequest, opts ...grpc.CallOption) (*GetUserPreferencesResponse, error)
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, in *UpsertUserPreferencesRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
@@ -56,8 +56,8 @@ func NewUserPreferencesServiceClient(cc grpc.ClientConnInterface) UserPreference
 	return &userPreferencesServiceClient{cc}
 }
 
-func (c *userPreferencesServiceClient) GetUserPreferences(ctx context.Context, in *GetUserPreferencesRequest, opts ...grpc.CallOption) (*UserPreferences, error) {
-	out := new(UserPreferences)
+func (c *userPreferencesServiceClient) GetUserPreferences(ctx context.Context, in *GetUserPreferencesRequest, opts ...grpc.CallOption) (*GetUserPreferencesResponse, error) {
+	out := new(GetUserPreferencesResponse)
 	err := c.cc.Invoke(ctx, UserPreferencesService_GetUserPreferences_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -79,7 +79,7 @@ func (c *userPreferencesServiceClient) UpsertUserPreferences(ctx context.Context
 // for forward compatibility
 type UserPreferencesServiceServer interface {
 	// GetUserPreferences returns the user preferences for a given user.
-	GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*UserPreferences, error)
+	GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*GetUserPreferencesResponse, error)
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(context.Context, *UpsertUserPreferencesRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedUserPreferencesServiceServer()
@@ -89,7 +89,7 @@ type UserPreferencesServiceServer interface {
 type UnimplementedUserPreferencesServiceServer struct {
 }
 
-func (UnimplementedUserPreferencesServiceServer) GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*UserPreferences, error) {
+func (UnimplementedUserPreferencesServiceServer) GetUserPreferences(context.Context, *GetUserPreferencesRequest) (*GetUserPreferencesResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetUserPreferences not implemented")
 }
 func (UnimplementedUserPreferencesServiceServer) UpsertUserPreferences(context.Context, *UpsertUserPreferencesRequest) (*emptypb.Empty, error) {

@@ -50,7 +50,7 @@ func (h *Handler) getUserPreferences(_ http.ResponseWriter, r *http.Request, p h
 		return nil, trace.Wrap(err)
 	}
 
-	return userPreferencesResponse(resp), nil
+	return userPreferencesResponse(resp.Preferences), nil
 }
 
 // updateUserPreferences is a handler for PUT /webapi/user/preferences.

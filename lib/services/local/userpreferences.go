@@ -53,17 +53,17 @@ func NewUserPreferencesService(backend backend.Backend) *UserPreferencesService 
 }
 
 // GetUserPreferences returns the user preferences for the given user.
-func (u *UserPreferencesService) GetUserPreferences(ctx context.Context, req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.UserPreferences, error) {
+func (u *UserPreferencesService) GetUserPreferences(ctx context.Context, req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error) {
 	preferences, err := u.getUserPreferences(ctx, req.Username)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return DefaultUserPreferences, nil
+			return &userpreferencesv1.GetUserPreferencesResponse{Preferences: DefaultUserPreferences}, nil
 		}
 
 		return nil, trace.Wrap(err)
 	}
 
-	return preferences, nil
+	return &userpreferencesv1.GetUserPreferencesResponse{Preferences: preferences}, nil
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.

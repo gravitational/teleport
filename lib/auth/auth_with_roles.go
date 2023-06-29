@@ -6347,7 +6347,7 @@ func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, m
 }
 
 // GetUserPreferences returns the user preferences for a given user.
-func (a *ServerWithRoles) GetUserPreferences(ctx context.Context, req *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.UserPreferences, error) {
+func (a *ServerWithRoles) GetUserPreferences(ctx context.Context, req *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.GetUserPreferencesResponse, error) {
 	if err := a.currentUserAction(req.Username); err != nil {
 		return nil, trace.Wrap(err)
 	}

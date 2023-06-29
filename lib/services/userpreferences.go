@@ -27,7 +27,7 @@ import (
 // UserPreferences is the interface for managing user preferences.
 type UserPreferences interface {
 	// GetUserPreferences returns the user preferences for a given user.
-	GetUserPreferences(ctx context.Context, req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.UserPreferences, error)
+	GetUserPreferences(ctx context.Context, req *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error)
 	// UpsertUserPreferences creates or updates user preferences for a given username.
 	UpsertUserPreferences(ctx context.Context, req *userpreferencesv1.UpsertUserPreferencesRequest) error
 }

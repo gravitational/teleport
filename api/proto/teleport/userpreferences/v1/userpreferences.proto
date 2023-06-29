@@ -36,6 +36,12 @@ message GetUserPreferencesRequest {
   string username = 1;
 }
 
+// GetUserPreferencesResponse is a response to get the user preferences.
+message GetUserPreferencesResponse {
+  // preferences is the user preferences.
+  UserPreferences preferences = 1;
+}
+
 // UpsertUserPreferencesRequest is a request to create or update the user preferences.
 message UpsertUserPreferencesRequest {
   // preferences is the new user preferences to set.
@@ -47,7 +53,7 @@ message UpsertUserPreferencesRequest {
 // UserPreferencesService is a service that stores user settings.
 service UserPreferencesService {
   // GetUserPreferences returns the user preferences for a given user.
-  rpc GetUserPreferences(GetUserPreferencesRequest) returns (UserPreferences);
+  rpc GetUserPreferences(GetUserPreferencesRequest) returns (GetUserPreferencesResponse);
   // UpsertUserPreferences creates or updates user preferences for a given username.
   rpc UpsertUserPreferences(UpsertUserPreferencesRequest) returns (google.protobuf.Empty);
 }

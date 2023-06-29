@@ -52,7 +52,7 @@ func NewService(cfg *ServiceConfig) (*Service, error) {
 }
 
 // GetUserPreferences returns the user preferences for a given user.
-func (a *Service) GetUserPreferences(ctx context.Context, req *userpreferences.GetUserPreferencesRequest) (*userpreferences.UserPreferences, error) {
+func (a *Service) GetUserPreferences(ctx context.Context, req *userpreferences.GetUserPreferencesRequest) (*userpreferences.GetUserPreferencesResponse, error) {
 	return a.backend.GetUserPreferences(ctx, req)
 }
 

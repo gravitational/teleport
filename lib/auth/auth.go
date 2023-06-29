@@ -5349,7 +5349,7 @@ func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, 
 }
 
 // GetUserPreferences returns the user preferences for a given user.
-func (a *Server) GetUserPreferences(ctx context.Context, request *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.UserPreferences, error) {
+func (a *Server) GetUserPreferences(ctx context.Context, request *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error) {
 	resp, err := a.Services.GetUserPreferences(ctx, request)
 	return resp, trace.Wrap(err)
 }
