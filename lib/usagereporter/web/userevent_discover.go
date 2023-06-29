@@ -128,11 +128,11 @@ func (d *DiscoverEventData) ToUsageEvent(eventName string) (*usageeventsv1.Usage
 	case uiDiscoverDeployServiceEvent:
 		deployMethodEnum, ok := usageeventsv1.UIDiscoverDeployServiceEvent_DeployMethod_value[d.ServiceDeploy.Method]
 		if !ok {
-			return nil, trace.BadParameter("invalid deployed method %s", d.ServiceDeploy.Method)
+			return nil, trace.BadParameter("invalid service deploy method %s", d.ServiceDeploy.Method)
 		}
 		deployTypeEnum, ok := usageeventsv1.UIDiscoverDeployServiceEvent_DeployType_value[d.ServiceDeploy.Type]
 		if !ok {
-			return nil, trace.BadParameter("invalid deployed type %s", d.ServiceDeploy.Type)
+			return nil, trace.BadParameter("invalid service deploy type %s", d.ServiceDeploy.Type)
 		}
 		return &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent{
 			UiDiscoverDeployServiceEvent: &usageeventsv1.UIDiscoverDeployServiceEvent{

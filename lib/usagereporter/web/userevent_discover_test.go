@@ -115,7 +115,7 @@ func TestDiscoverEventDataToUsageEvent(t *testing.T) {
 			}},
 		},
 		{
-			name:     uiDiscoverDeployServiceEvent + "/success_test_deployed_method_setting",
+			name:     uiDiscoverDeployServiceEvent + "/success_test_deployed_method_type_setting",
 			event:    uiDiscoverDeployServiceEvent,
 			errCheck: require.NoError,
 			req: DiscoverEventData{
