@@ -45,6 +45,9 @@ Follow the instructions below to generate TLS credentials for your database.
 $ tctl auth sign --format=oracle --host=db.example.com --out=server --ttl=2190h
 ```
 
+In this example, `db.example.com` is the hostname that the Oracle server is
+accessible from to the Teleport Proxy service.
+
 (!docs/pages/includes/database-access/ttl-note.mdx!)
 
 If `tctl` finds the Orapki tool in your local environment, the `tctl auth sign --format=oracle --host=db.example.com --out=server --ttl=2190h` command will produce an Oracle Wallet and
