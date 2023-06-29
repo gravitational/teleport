@@ -1191,27 +1191,24 @@ func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, co
 // readChallengeResponse reads and decodes the challenge response from the
 // websocket in the correct format.
 func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
-	select {
-	case envelope, ok := <-t.challengeC:
-		if !ok {
-			return nil, io.EOF
-		}
-		resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
-		return resp, trace.Wrap(err)
+	envelope, ok := <-t.challengeC
+	if !ok {
+		return nil, io.EOF
 	}
+	resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	return resp, trace.Wrap(err)
+
 }
 
 // readChallenge reads and decodes the challenge from the
 // websocket in the correct format.
 func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateChallenge, error) {
-	select {
-	case envelope, ok := <-t.challengeC:
-		if !ok {
-			return nil, io.EOF
-		}
-		challenge, err := codec.decodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
-		return challenge, trace.Wrap(err)
+	envelope, ok := <-t.challengeC
+	if !ok {
+		return nil, io.EOF
 	}
+	challenge, err := codec.decodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	return challenge, trace.Wrap(err)
 }
 
 // writeAuditEvent encodes and writes the audit event to the
@@ -1271,7 +1268,7 @@ func (t *WSStream) Write(data []byte) (n int, err error) {
 // Read provides data received from [defaults.WebsocketRaw] envelopes. If
 // the previous envelope was not consumed in the last read, any remaining data
 // is returned prior to processing the next envelope.
-func (t *WSStream) Read(out []byte) (n int, err error) {
+func (t *WSStream) Read(out []byte) (int, error) {
 	if len(t.buffer) > 0 {
 		n := copy(out, t.buffer)
 		if n == len(t.buffer) {
@@ -1282,25 +1279,23 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 		return n, nil
 	}
 
-	select {
-	case envelope, ok := <-t.rawC:
-		if !ok {
-			return 0, io.EOF
-		}
-
-		data, err := t.decoder.Bytes([]byte(envelope.Payload))
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-
-		n := copy(out, data)
-		// if the payload size is greater than [out], store the remaining
-		// part in the buffer to be processed on the next Read call
-		if len(data) > n {
-			t.buffer = data[n:]
-		}
-		return n, nil
+	envelope, ok := <-t.rawC
+	if !ok {
+		return 0, io.EOF
 	}
+
+	data, err := t.decoder.Bytes([]byte(envelope.Payload))
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	n := copy(out, data)
+	// if the payload size is greater than [out], store the remaining
+	// part in the buffer to be processed on the next Read call
+	if len(data) > n {
+		t.buffer = data[n:]
+	}
+	return n, nil
 }
 
 // SendCloseMessage sends a close message on the web socket.

@@ -357,6 +357,7 @@ type wsReader struct {
 }
 
 // Read reads data from websocket connection.
+// The message should be in web.Envelope format and only the payload will be returned.
 // It expects that the passed buffer is big enough to fit the whole message.
 func (r *wsReader) Read(p []byte) (int, error) {
 	_, data, err := r.conn.ReadMessage()
