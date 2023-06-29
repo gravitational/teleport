@@ -43,42 +43,39 @@ oneshot: false
 # `onboarding` is a group of configuration options that control how `tbot` will
 # authenticate with the Teleport cluster.
 onboarding:
-    # `token` specifies which join token, configured in the Teleport cluster,
-    # should be used to join the Teleport cluster.
-    #
-    # This can also be an absolute path to a file containing the token name.
-    # File path example:
-    # token: /var/lib/teleport/tokenjoin
-    #
-    # When using the `token` join method, we recommend use the file path
-    # invocation, as the file containing the token can be deleted after the
-    # bot has initially registered.
-    token: "00000000000000000000000000000000"
+  # `token` specifies which join token, configured in the Teleport cluster,
+  # should be used to join the Teleport cluster.
+  #
+  # This can also be an absolute path to a file containing the value you wish
+  # to be used.
+  # File path example:
+  # token: /var/lib/teleport/tokenjoin
+  token: "00000000000000000000000000000000"
 
-    # `join_method` specifies the join method associated with the token
-    # specified above. This should match the value configured in the `token`
-    # resource you have created before starting the bot.
-    #
-    # Support values include:
-    # - `token`
-    # - `azure`
-    # - `circleci`
-    # - `github`
-    # - `gitlab`
-    # - `iam`
-    join_method: "token"
+  # `join_method` specifies the join method associated with the token
+  # specified above. This should match the value configured in the `token`
+  # resource you have created before starting the bot.
+  #
+  # Support values include:
+  # - `token`
+  # - `azure`
+  # - `circleci`
+  # - `github`
+  # - `gitlab`
+  # - `iam`
+  join_method: "token"
 
-    # `ca_pins` is used to validate the identity of the Teleport Auth Server on
-    # first connect. This should not be specified when using Teleport Cloud or
-    # connecting via a Teleport Proxy.
-    ca_pins:
-      - "(=presets.ca_pin=)"
-      - "(=presets.ca_pin=)"
+  # `ca_pins` is used to validate the identity of the Teleport Auth Server on
+  # first connect. This should not be specified when using Teleport Cloud or
+  # connecting via a Teleport Proxy.
+  ca_pins:
+    - "(=presets.ca_pin=)"
+    - "(=presets.ca_pin=)"
 
-    # `ca_path` is used to validate the identity of the Teleport Auth Server on
-    # first connect. This should not be specified when using Teleport Cloud or
-    # connecting via a Teleport Proxy.
-    ca_path: "/path/to/ca.pem"
+  # `ca_path` is used to validate the identity of the Teleport Auth Server on
+  # first connect. This should not be specified when using Teleport Cloud or
+  # connecting via a Teleport Proxy.
+  ca_path: "/path/to/ca.pem"
 
 # `storage` specifies the destination that `tbot` should use to store its
 # internal state. This state is sensitive, and you should ensure that the
@@ -93,7 +90,8 @@ storage:
   type: directory
   path: /var/lib/teleport/bot
 
-# `outputs` specifies what `tbot` should generate and renew when it runs.
+# `outputs` specifies what artifacts `tbot` should generate and renew when it
+# runs.
 #
 # See the full list of supported outputs and their configuration options
 # under the Outputs section of this reference page.
@@ -125,7 +123,7 @@ onboarding:
   join_method: "token"
   token: "(=presets.tokens.first=)"
   ca_pins:
-      - "(=presets.ca_pin=)"
+    - "(=presets.ca_pin=)"
 
 storage:
   type: directory
@@ -141,7 +139,7 @@ outputs:
 ## Outputs
 
 Outputs define what actions `tbot` should take when it runs. They describe
-what format of credentials should be generated, with what roles and to what
+what format of certificates should be generated, with what roles and to what
 destination they should be written.
 
 There are multiple types of output, select the one that is most appropriate for
@@ -149,45 +147,160 @@ your intended use-case.
 
 ### `identity`
 
+The `identity` output can be used to authenticate:
+
+- SSH access to your Teleport nodes, using `tsh`, openssh and tools like
+  ansible
+- Administrative actions against your cluster using tools like `tsh` or `tctl`
+- Management of Teleport resources using the Teleport Terraform provider
+- Access to the Teleport API using the Teleport Go SDK
+
+See the [Getting Started guide](../getting-started.mdx) to see the `identity`
+output used in context.
+
 ```yaml
-# For an identity output, type will always be `identity`.
+# `type` specifies the type of the output. For the identity output, this will
+# always be `identity`.
 type: identity
+# `destination` specifies where the output should write any generated artifacts
+# such as certificates and configuration files.
+#
+# See the full list of supported destinations and their configuration options
+# under the Destinations section of this reference page.
 destination:
   type: directory
   path: /opt/machine-id
+# `roles` specifies which roles should be included in the certificates generated
+# by the output. These roles must be roles for which the bot has been granted
+# permission to impersonate.
+#
+# When unspecified, all roles the bot is allowed to impersonate will be used.
 roles:
   - editor
 ```
 
 ### `application`
 
+The `application` output is used to generate credentials that can be used to
+access applications that have been configured with Teleport Application Access.
+
+See the [Machine ID with Application Access guide](../guides/applications.mdx)
+to see the `application` output used in context.
+
 ```yaml
+# `type` specifies the type of the output. For the application output, this will
+# always be `application`.
 type: application
+# `app_name` specifies the application name, as configured in your Teleport
+# cluster, that `tbot` should generate credentials for.
+# This field must be specified.
+app_name: grafana
+
+# `destination` specifies where the output should write any generated artifacts
+# such as certificates and configuration files.
+#
+# See the full list of supported destinations and their configuration options
+# under the Destinations section of this reference page.
 destination:
   type: directory
   path: /opt/machine-id
+# `roles` specifies which roles should be included in the certificates generated
+# by the output. These roles must be roles for which the bot has been granted
+# permission to impersonate.
+#
+# When unspecified, all roles the bot is allowed to impersonate will be used.
 roles:
   - editor
 ```
 
 ### `database`
 
+The `database` output is used to generate credentials that can be used to
+access databases that have been configured with Teleport Database Access.
+
+See the [Machine ID with Database Access guide](../guides/databases.mdx)
+to see the `database` output used in context.
+
 ```yaml
+# `type` specifies the type of the output. For the database output, this will
+# always be `database`.
 type: database
+# `service` is the name of the database service, as configured in Teleport,
+# that the output should generate credentials for. This field must be specified.
+service: my-postgres-server
+# `database` is the name of the specific database on the specified database
+# service to generate credentials for. This field may not need to be specified
+# when using database types that do not have individual databases.
+database: my-database
+# `username` is the name of the user on the specified database service to
+# generate credentials for. This field may not need to be specified
+# when using database types that do not have users.
+username: my-user
+# `format` specifies what format the output artifacts should take. If
+# unspecified, a sensible default is used. See the table titled "Supported
+# formats" below for the full list of supported values.
+format: tls
+
+# `destination` specifies where the output should write any generated artifacts
+# such as certificates and configuration files.
+#
+# See the full list of supported destinations and their configuration options
+# under the Destinations section of this reference page.
 destination:
   type: directory
   path: /opt/machine-id
+# `roles` specifies which roles should be included in the certificates generated
+# by the output. These roles must be roles for which the bot has been granted
+# permission to impersonate.
+#
+# When unspecified, all roles the bot is allowed to impersonate will be used.
 roles:
   - editor
 ```
 
+#### Supported formats
+
+| `format`      | Description                          |
+|---------------|--------------------------------------|
+| Unspecified   | Provides a certificate in `tlscert`, a private key in `key` and the CA in `teleport-database-ca.crt`. This is compatible with most clients and databases. |
+| `mongo`       | Provides `mongo.crt` and `mongo.cas`. This is designed for compatability with MongoDB clients. |
+| `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt`. This is designed for compatability with CockroachDB clients. |
+| `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas`. This is for generic clients that require the specific file extensions. |
+
 ### `kubernetes`
 
+The `kubernetes` output is used to generate credentials that can be used to
+access Kubernetes clusters that have been configured with Teleport Kubernetes
+Access.
+
+It outputs a `kubeconfig.yaml` in the output destination, which can be used
+with `kubectl`.
+
+See the [Machine ID with Kubernetes Access guide](../guides/kubernetes.mdx)
+to see the `kubernetes` output used in context.
+
 ```yaml
+# `type` specifies the type of the output. For the kubernetes output, this will
+# always be `kubernetes`.
 type: kubernetes
+# `kubernetes_cluster` is the name of the Kubernetes cluster, as configured in
+# Teleport, that the output should generate credentials and a kubeconfig for.
+# This field must be specified.
+kubernetes_cluster: my-cluster
+
+# `destination` specifies where the output should write any generated artifacts
+# such as certificates and configuration files.
+#
+# See the full list of supported destinations and their configuration options
+# under the Destinations section of this reference page.
 destination:
   type: directory
   path: /opt/machine-id
+# `roles` specifies which roles should be included in the certificates generated
+# by the output. These roles must be roles for which the bot has been granted
+# permission to impersonate.
+#
+# When unspecified, all roles the bot is allowed to impersonate will be used.
 roles:
   - editor
 ```
@@ -196,9 +309,20 @@ roles:
 
 ```yaml
 type: ssh_host
+
+# `destination` specifies where the output should write any generated artifacts
+# such as certificates and configuration files.
+#
+# See the full list of supported destinations and their configuration options
+# under the Destinations section of this reference page.
 destination:
   type: directory
   path: /opt/machine-id
+# `roles` specifies which roles should be included in the certificates generated
+# by the output. These roles must be roles for which the bot has been granted
+# permission to impersonate.
+#
+# When unspecified, all roles the bot is allowed to impersonate will be used.
 roles:
   - editor
 ```
