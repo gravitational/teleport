@@ -17,6 +17,8 @@ limitations under the License.
 package reversetunnel
 
 import (
+	"fmt"
+	"strconv"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
@@ -43,7 +45,7 @@ type discoveryProxy struct {
 	} `json:"metadata"`
 
 	ProxyGroupID         string `json:"gid,omitempty"`
-	ProxyGroupGeneration string `json:"ggen,omitempty"`
+	ProxyGroupGeneration int    `json:"ggen,omitempty"`
 }
 
 // SetProxies overwrites the proxy list in the discoveryRequest with data from
@@ -56,7 +58,8 @@ func (r *discoveryRequest) SetProxies(proxies []types.Server) {
 		}
 		d.Metadata.Name = proxy.GetName()
 		d.ProxyGroupID, _ = proxy.GetLabel(types.ProxyGroupIDLabel)
-		d.ProxyGroupGeneration, _ = proxy.GetLabel(types.ProxyGroupGenerationLabel)
+		proxyGroupGeneration, _ := proxy.GetLabel(types.ProxyGroupGenerationLabel)
+		d.ProxyGroupGeneration, _ = strconv.Atoi(proxyGroupGeneration)
 
 		r.Proxies = append(r.Proxies, d)
 	}
@@ -92,11 +95,11 @@ func (r discoveryRequest) String() string {
 			b.WriteString(", ")
 		}
 		b.WriteString(p.Metadata.Name)
-		if p.ProxyGroupID != "" || p.ProxyGroupGeneration != "" {
+		if p.ProxyGroupID != "" || p.ProxyGroupGeneration != 0 {
 			b.WriteRune('(')
 			b.WriteString(p.ProxyGroupID)
 			b.WriteRune('@')
-			b.WriteString(p.ProxyGroupGeneration)
+			fmt.Fprintf(&b, "%v", p.ProxyGroupGeneration)
 			b.WriteRune(')')
 		}
 	}
