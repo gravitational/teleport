@@ -26,11 +26,13 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 )
 
+// AssistUserPreferencesResponse is the JSON response for the assist user preferences.
 type AssistUserPreferencesResponse struct {
 	PreferredLogins []string                         `json:"preferredLogins"`
 	ViewMode        userpreferencesv1.AssistViewMode `json:"viewMode"`
 }
 
+// UserPreferencesResponse is the JSON response for the user preferences.
 type UserPreferencesResponse struct {
 	Assist AssistUserPreferencesResponse `json:"assist"`
 	Theme  userpreferencesv1.Theme       `json:"theme"`
