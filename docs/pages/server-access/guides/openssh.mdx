@@ -48,23 +48,25 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
 Teleport only allows access to resources in your infrastructure via Teleport
 processes that that have joined the cluster.
 
-On the machine the cluster's Proxy Service is running on, use the `tctl` tool to generate a new token. In the
-following example, a new token is created with a TTL of five minutes:
+To register the OpenSSH node requires a valid auth token to connect to the cluster.
+Generate one by running the following command against your Teleport Auth Service:
 
 ```code
-$ tctl tokens add --ttl=5m --type=node --format=text
+$ tctl tokens add --type=node --format=text
 (=presets.tokens.first=)
 ```
 
 Copy the `teleport` binary to your `sshd` host. Configure `sshd` and create a node
-resource on your cluster with the following command, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service,
-and <Var name="node" /> to the name of the node that will join the cluster:
+resource on your cluster with the following command, assigning <Var name="teleport.example.com:443" />
+to the address of your Teleport Proxy Service, <Var name="server1.example.com:22" />
+to the address of the node that will join the cluster, and <Var name="token" /> to the token value:
 
 ```code
 $ sudo teleport join openssh \
-  --address <Var name="node" /> \
-  --proxy-server <Var name="proxy" /> \
-  --join-method token --token <TOKEN> \
+  --address <Var name="server1.example.com:22" /> \
+  --proxy-server <Var name="teleport.example.com:443" /> \
+  --join-method token \
+  --token <Var name="token" /> \
   --labels env=dev
 ```
 
