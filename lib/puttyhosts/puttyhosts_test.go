@@ -194,50 +194,50 @@ func TestFormatLocalCommandString(t *testing.T) {
 func TestFormatHostCAPublicKeysForRegistry(t *testing.T) {
 	t.Parallel()
 
-	// set up test CAs
-	testCAOne := make(map[string][]string)
-	testCAOne["teleport.example.com"] = []string{
-		`AAAAB3NzaC1yc2EAAAADAQABAAABAQDNbSbDa+bAjeH6wQPMfcUoyKHOTOwBRc1Lr+5Vy6aHOz+lWsovldH0r4mGFv2mLyWmqax18YVWG/YY+5um9y19SxlIHcAZI/uqnV7lAOhVkni87CGZ+Noww512dlrtczYZDc4735mSYxcSYQyRZywwXOfSqA0Euc6P2a0e03hcdROeJxx50xQcDw/wjreot5swiVHOvOGIIauekPswP58Z+F4goIFaFk5i5gDDBfX4mvtFV5AOkYQlk4hzmwJZ2JpphUQ33YbwhDrEPat2/mLf1tUk6aY8qHFqE9g5bjFjuLQxeva3Y5in49Zt+pg701TbBwS+R8wbuQqDM8b7VgEV`,
-		`AAAAB3NzaC1yc2EAAAADAQABAAABAQDm0PWl5llSpFArdHkXv8xXgsO9qEAbjvIAjMaoUbr79d03pBlmCCU7Zm3X9NkiLL7om2KLSE7AA0oQI+S+VgrDX17S327uj8M3hNZkfkbKGvzY5NS17DubpEEuAoF1r8Of7GKMbAmQ9d8dF8iNkREaJ+FT8g2JmGtRwmQGf8c0v2FCdz7SbChE9nUxk4Q8f1Qjhx8Pgjga/ntqkB+JpwATVvCxkd/ld0yzh9T0l90dV1TYYwnmWVpQzes1nbotQoMK8vUO20dWBEMWVMxXXp/P4OaztYGLmGJ9YP9upxq8IoSUdef7URUuJZGPWEyCQ0Mk6GRYJHvlX5cNOSHxYDBt`,
-	}
-	testCATwo := make(map[string][]string)
-	testCATwo["testClusterTwo"] = []string{
-		`AAAAB3NzaC1yc2EAAAADAQABAAABAQC09sJMb0CHzA8S/bYzHIsP1SgkwMD5QYOLqWhx8skWpheUZK7rTjW4y254CgLIcgGtsYyRdROs1F7IChAqfn9afCSz2a4o9tZiGXdUDw9mCB54aYF/l3WST8y+TOApSaq2Aduxagm4VlWTtohdEIKVphm7l6Dp3kTz2llQ+0qmV338d8InaEFXXhVhfOZ0/erLuFllMkeMQ66R7yjNyubY/bZy3PMF2Miv7VfX8SXAgkkS40v1esHxS26NnyD3l3MwXh99peoYQcDevq6EwYMmKSvdHgcUT+Sm9LJx48+n6ejHTUOZw2E64I26LD6PiIoFavyWVSPN/06W6n1gvmbb`,
-	}
-
-	// set up expected outputs
-	outputMapOne := make(map[string][]HostCAPublicKeyForRegistry)
-	outputMapOne["teleport.example.com"] = append(outputMapOne["teleport.example.com"], HostCAPublicKeyForRegistry{
-		KeyName:   "TeleportHostCA-teleport.example.com-0",
-		PublicKey: "AAAAB3NzaC1yc2EAAAADAQABAAABAQDNbSbDa+bAjeH6wQPMfcUoyKHOTOwBRc1Lr+5Vy6aHOz+lWsovldH0r4mGFv2mLyWmqax18YVWG/YY+5um9y19SxlIHcAZI/uqnV7lAOhVkni87CGZ+Noww512dlrtczYZDc4735mSYxcSYQyRZywwXOfSqA0Euc6P2a0e03hcdROeJxx50xQcDw/wjreot5swiVHOvOGIIauekPswP58Z+F4goIFaFk5i5gDDBfX4mvtFV5AOkYQlk4hzmwJZ2JpphUQ33YbwhDrEPat2/mLf1tUk6aY8qHFqE9g5bjFjuLQxeva3Y5in49Zt+pg701TbBwS+R8wbuQqDM8b7VgEV",
-		Hostname:  "test-hostname.example.com",
-	})
-	outputMapOne["teleport.example.com"] = append(outputMapOne["teleport.example.com"], HostCAPublicKeyForRegistry{
-		KeyName:   "TeleportHostCA-teleport.example.com-1",
-		PublicKey: "AAAAB3NzaC1yc2EAAAADAQABAAABAQDm0PWl5llSpFArdHkXv8xXgsO9qEAbjvIAjMaoUbr79d03pBlmCCU7Zm3X9NkiLL7om2KLSE7AA0oQI+S+VgrDX17S327uj8M3hNZkfkbKGvzY5NS17DubpEEuAoF1r8Of7GKMbAmQ9d8dF8iNkREaJ+FT8g2JmGtRwmQGf8c0v2FCdz7SbChE9nUxk4Q8f1Qjhx8Pgjga/ntqkB+JpwATVvCxkd/ld0yzh9T0l90dV1TYYwnmWVpQzes1nbotQoMK8vUO20dWBEMWVMxXXp/P4OaztYGLmGJ9YP9upxq8IoSUdef7URUuJZGPWEyCQ0Mk6GRYJHvlX5cNOSHxYDBt",
-		Hostname:  "test-hostname.example.com",
-	})
-	outputMapTwo := make(map[string][]HostCAPublicKeyForRegistry)
-	outputMapTwo["testClusterTwo"] = append(outputMapTwo["testClusterTwo"], HostCAPublicKeyForRegistry{
-		KeyName:   "TeleportHostCA-testClusterTwo",
-		PublicKey: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC09sJMb0CHzA8S/bYzHIsP1SgkwMD5QYOLqWhx8skWpheUZK7rTjW4y254CgLIcgGtsYyRdROs1F7IChAqfn9afCSz2a4o9tZiGXdUDw9mCB54aYF/l3WST8y+TOApSaq2Aduxagm4VlWTtohdEIKVphm7l6Dp3kTz2llQ+0qmV338d8InaEFXXhVhfOZ0/erLuFllMkeMQ66R7yjNyubY/bZy3PMF2Miv7VfX8SXAgkkS40v1esHxS26NnyD3l3MwXh99peoYQcDevq6EwYMmKSvdHgcUT+Sm9LJx48+n6ejHTUOZw2E64I26LD6PiIoFavyWVSPN/06W6n1gvmbb",
-		Hostname:  "some-other-test-host",
-	})
-
 	var tests = []struct {
 		inputMap       map[string][]string
 		hostname       string
 		expectedOutput map[string][]HostCAPublicKeyForRegistry
 	}{
 		{
-			inputMap:       testCAOne,
-			hostname:       "test-hostname.example.com",
-			expectedOutput: outputMapOne,
+			inputMap: map[string][]string{
+				"teleport.example.com": {
+					`AAAAB3NzaC1yc2EAAAADAQABAAABAQDNbSbDa+bAjeH6wQPMfcUoyKHOTOwBRc1Lr+5Vy6aHOz+lWsovldH0r4mGFv2mLyWmqax18YVWG/YY+5um9y19SxlIHcAZI/uqnV7lAOhVkni87CGZ+Noww512dlrtczYZDc4735mSYxcSYQyRZywwXOfSqA0Euc6P2a0e03hcdROeJxx50xQcDw/wjreot5swiVHOvOGIIauekPswP58Z+F4goIFaFk5i5gDDBfX4mvtFV5AOkYQlk4hzmwJZ2JpphUQ33YbwhDrEPat2/mLf1tUk6aY8qHFqE9g5bjFjuLQxeva3Y5in49Zt+pg701TbBwS+R8wbuQqDM8b7VgEV`,
+					`AAAAB3NzaC1yc2EAAAADAQABAAABAQDm0PWl5llSpFArdHkXv8xXgsO9qEAbjvIAjMaoUbr79d03pBlmCCU7Zm3X9NkiLL7om2KLSE7AA0oQI+S+VgrDX17S327uj8M3hNZkfkbKGvzY5NS17DubpEEuAoF1r8Of7GKMbAmQ9d8dF8iNkREaJ+FT8g2JmGtRwmQGf8c0v2FCdz7SbChE9nUxk4Q8f1Qjhx8Pgjga/ntqkB+JpwATVvCxkd/ld0yzh9T0l90dV1TYYwnmWVpQzes1nbotQoMK8vUO20dWBEMWVMxXXp/P4OaztYGLmGJ9YP9upxq8IoSUdef7URUuJZGPWEyCQ0Mk6GRYJHvlX5cNOSHxYDBt`,
+				},
+			},
+			hostname: "test-hostname.example.com",
+			expectedOutput: map[string][]HostCAPublicKeyForRegistry{
+				"teleport.example.com": {
+					HostCAPublicKeyForRegistry{
+						KeyName:   "TeleportHostCA-teleport.example.com-0",
+						PublicKey: "AAAAB3NzaC1yc2EAAAADAQABAAABAQDNbSbDa+bAjeH6wQPMfcUoyKHOTOwBRc1Lr+5Vy6aHOz+lWsovldH0r4mGFv2mLyWmqax18YVWG/YY+5um9y19SxlIHcAZI/uqnV7lAOhVkni87CGZ+Noww512dlrtczYZDc4735mSYxcSYQyRZywwXOfSqA0Euc6P2a0e03hcdROeJxx50xQcDw/wjreot5swiVHOvOGIIauekPswP58Z+F4goIFaFk5i5gDDBfX4mvtFV5AOkYQlk4hzmwJZ2JpphUQ33YbwhDrEPat2/mLf1tUk6aY8qHFqE9g5bjFjuLQxeva3Y5in49Zt+pg701TbBwS+R8wbuQqDM8b7VgEV",
+						Hostname:  "test-hostname.example.com",
+					},
+					HostCAPublicKeyForRegistry{
+						KeyName:   "TeleportHostCA-teleport.example.com-1",
+						PublicKey: "AAAAB3NzaC1yc2EAAAADAQABAAABAQDm0PWl5llSpFArdHkXv8xXgsO9qEAbjvIAjMaoUbr79d03pBlmCCU7Zm3X9NkiLL7om2KLSE7AA0oQI+S+VgrDX17S327uj8M3hNZkfkbKGvzY5NS17DubpEEuAoF1r8Of7GKMbAmQ9d8dF8iNkREaJ+FT8g2JmGtRwmQGf8c0v2FCdz7SbChE9nUxk4Q8f1Qjhx8Pgjga/ntqkB+JpwATVvCxkd/ld0yzh9T0l90dV1TYYwnmWVpQzes1nbotQoMK8vUO20dWBEMWVMxXXp/P4OaztYGLmGJ9YP9upxq8IoSUdef7URUuJZGPWEyCQ0Mk6GRYJHvlX5cNOSHxYDBt",
+						Hostname:  "test-hostname.example.com",
+					},
+				},
+			},
 		},
 		{
-			inputMap:       testCATwo,
-			hostname:       "some-other-test-host",
-			expectedOutput: outputMapTwo,
+			inputMap: map[string][]string{
+				"testClusterTwo": {
+					`AAAAB3NzaC1yc2EAAAADAQABAAABAQC09sJMb0CHzA8S/bYzHIsP1SgkwMD5QYOLqWhx8skWpheUZK7rTjW4y254CgLIcgGtsYyRdROs1F7IChAqfn9afCSz2a4o9tZiGXdUDw9mCB54aYF/l3WST8y+TOApSaq2Aduxagm4VlWTtohdEIKVphm7l6Dp3kTz2llQ+0qmV338d8InaEFXXhVhfOZ0/erLuFllMkeMQ66R7yjNyubY/bZy3PMF2Miv7VfX8SXAgkkS40v1esHxS26NnyD3l3MwXh99peoYQcDevq6EwYMmKSvdHgcUT+Sm9LJx48+n6ejHTUOZw2E64I26LD6PiIoFavyWVSPN/06W6n1gvmbb`,
+				},
+			},
+			hostname: "some-other-test-host",
+			expectedOutput: map[string][]HostCAPublicKeyForRegistry{
+				"testClusterTwo": {
+					HostCAPublicKeyForRegistry{
+						KeyName:   "TeleportHostCA-testClusterTwo",
+						PublicKey: "AAAAB3NzaC1yc2EAAAADAQABAAABAQC09sJMb0CHzA8S/bYzHIsP1SgkwMD5QYOLqWhx8skWpheUZK7rTjW4y254CgLIcgGtsYyRdROs1F7IChAqfn9afCSz2a4o9tZiGXdUDw9mCB54aYF/l3WST8y+TOApSaq2Aduxagm4VlWTtohdEIKVphm7l6Dp3kTz2llQ+0qmV338d8InaEFXXhVhfOZ0/erLuFllMkeMQ66R7yjNyubY/bZy3PMF2Miv7VfX8SXAgkkS40v1esHxS26NnyD3l3MwXh99peoYQcDevq6EwYMmKSvdHgcUT+Sm9LJx48+n6ejHTUOZw2E64I26LD6PiIoFavyWVSPN/06W6n1gvmbb",
+						Hostname:  "some-other-test-host",
+					},
+				},
+			},
 		},
 	}
 
