@@ -313,10 +313,10 @@ func TestProxyGroups(t *testing.T) {
 	tracker.SetConnectionCount(2)
 
 	tracker.TrackExpected("",
-		Proxy{Name: "xa", Group: "x", Generation: "1"},
-		Proxy{Name: "xb", Group: "x", Generation: "1"},
-		Proxy{Name: "yc", Group: "y", Generation: "1"},
-		Proxy{Name: "yd", Group: "y", Generation: "1"},
+		Proxy{Name: "xa", Group: "x", Generation: 1},
+		Proxy{Name: "xb", Group: "x", Generation: 1},
+		Proxy{Name: "yc", Group: "y", Generation: 1},
+		Proxy{Name: "yd", Group: "y", Generation: 1},
 	)
 
 	xa := <-tracker.Acquire()
@@ -336,8 +336,8 @@ func TestProxyGroups(t *testing.T) {
 	noAcquire()
 
 	tracker.TrackExpected("",
-		Proxy{Name: "xe", Group: "x", Generation: "2"},
-		Proxy{Name: "xf", Group: "x", Generation: "2"},
+		Proxy{Name: "xe", Group: "x", Generation: 2},
+		Proxy{Name: "xf", Group: "x", Generation: 2},
 	)
 
 	yc := <-tracker.Acquire()
@@ -370,16 +370,16 @@ func TestProxyGroups(t *testing.T) {
 	// if the new generation of proxies disappears, the old generation becomes
 	// desired again
 	tracker.TrackExpected("a",
-		Proxy{Name: "xa", Group: "x", Generation: "1"},
-		Proxy{Name: "xb", Group: "x", Generation: "1"},
-		Proxy{Name: "yc", Group: "y", Generation: "1"},
-		Proxy{Name: "yd", Group: "y", Generation: "1"},
+		Proxy{Name: "xa", Group: "x", Generation: 1},
+		Proxy{Name: "xb", Group: "x", Generation: 1},
+		Proxy{Name: "yc", Group: "y", Generation: 1},
+		Proxy{Name: "yd", Group: "y", Generation: 1},
 	)
 	tracker.TrackExpected("b",
-		Proxy{Name: "xa", Group: "x", Generation: "1"},
-		Proxy{Name: "xb", Group: "x", Generation: "1"},
-		Proxy{Name: "yc", Group: "y", Generation: "1"},
-		Proxy{Name: "yd", Group: "y", Generation: "1"},
+		Proxy{Name: "xa", Group: "x", Generation: 1},
+		Proxy{Name: "xb", Group: "x", Generation: 1},
+		Proxy{Name: "yc", Group: "y", Generation: 1},
+		Proxy{Name: "yd", Group: "y", Generation: 1},
 	)
 
 	<-tracker.Acquire()
