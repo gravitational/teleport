@@ -12,9 +12,14 @@ func FuzzParseSAMLInResponseTo(f *testing.F) {
 	// Disable Go App Engine logging
 	logrus.SetLevel(logrus.PanicLevel)
 
-	f.Fuzz(func(t *testing.T, response string) {
+	f.Add([]byte(respOkta))
+	largeCompressedBytes, err := base64.StdEncoding.DecodeString(largeCompressedBody)
+	require.NoError(f, err)
+	f.Add(largeCompressedBytes)
+
+	f.Fuzz(func(t *testing.T, response []byte) {
 		require.NotPanics(t, func() {
-			ParseSAMLInResponseTo(base64.StdEncoding.EncodeToString([]byte(response)))
+			_, _ = ParseSAMLInResponseTo(base64.StdEncoding.EncodeToString(response))
 		})
 	})
 }

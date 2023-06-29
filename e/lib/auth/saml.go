@@ -53,6 +53,8 @@ type SAMLAuthServiceConfig struct {
 	License                License
 }
 
+const maxCompressedBytes = 1024 * 1024 // 1 MB, will error if size is hit
+
 func (cfg *SAMLAuthServiceConfig) CheckAndSetDefaults() error {
 	if cfg.Auth == nil {
 		return trace.BadParameter("auth.Server not provided")
@@ -338,13 +340,16 @@ func ParseSAMLInResponseTo(response string) (string, error) {
 	err := doc.ReadFromBytes(raw)
 	if err != nil {
 		// Attempt to inflate the response in case it happens to be compressed (as with one case at saml.oktadev.com)
-		buf, err := io.ReadAll(flate.NewReader(bytes.NewReader(raw)))
-		if err != nil {
+		lr := io.LimitReader(flate.NewReader(bytes.NewReader(raw)), maxCompressedBytes)
+		buf := new(bytes.Buffer)
+		if _, err := io.Copy(buf, lr); err != nil {
 			return "", trace.Wrap(err)
+		} else if buf.Len() == maxCompressedBytes {
+			return "", trace.BadParameter("compressed saml response exceeded max size")
 		}
 
 		doc = etree.NewDocument()
-		err = doc.ReadFromBytes(buf)
+		err = doc.ReadFromBytes(buf.Bytes())
 		if err != nil {
 			return "", trace.Wrap(err)
 		}
