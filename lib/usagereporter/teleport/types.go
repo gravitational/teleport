@@ -48,6 +48,22 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 	}
 }
 
+// BotJoinEvent is an event emitted when a user logs into Teleport,
+// potentially via SSO.
+type BotJoinEvent prehogv1a.BotJoinEvent
+
+func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BotJoin{
+			BotJoin: &prehogv1a.BotJoinEvent{
+				BotName:       a.AnonymizeString(u.BotName),
+				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
+				JoinMethod:    u.JoinMethod,
+			},
+		},
+	}
+}
+
 // SSOCreateEvent is emitted when an SSO connector has been created.
 type SSOCreateEvent prehogv1a.SSOCreateEvent
 
@@ -229,6 +245,24 @@ func (u *RoleCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventReq
 			RoleCreate: &prehogv1a.RoleCreateEvent{
 				UserName: a.AnonymizeString(u.UserName),
 				RoleName: role,
+			},
+		},
+	}
+}
+
+// BotCreateEvent is an event emitted when a Machine ID bot is created.
+type BotCreateEvent prehogv1a.BotCreateEvent
+
+func (u *BotCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BotCreate{
+			BotCreate: &prehogv1a.BotCreateEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				RoleName:    a.AnonymizeString(u.RoleName),
+				BotUserName: a.AnonymizeString(u.BotUserName),
+				BotName:     a.AnonymizeString(u.BotName),
+				RoleCount:   u.RoleCount,
+				JoinMethod:  u.JoinMethod,
 			},
 		},
 	}

@@ -125,6 +125,17 @@ func ConvertAuditEvent(event apievents.AuditEvent) Anonymizable {
 			UserName: e.User,
 			Action:   int32(e.Action),
 		}
+
+	case *apievents.BotJoin:
+		// Only count successful joins.
+		if !e.Success {
+			return nil
+		}
+		return &BotJoinEvent{
+			BotName:       e.BotName,
+			JoinMethod:    e.Method,
+			JoinTokenName: e.TokenName,
+		}
 	}
 
 	return nil
