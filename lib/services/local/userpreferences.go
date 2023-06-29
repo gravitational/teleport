@@ -23,7 +23,6 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/trace"
-	"github.com/sirupsen/logrus"
 
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/lib/backend"
@@ -32,7 +31,6 @@ import (
 // UserPreferencesService is responsible for managing a user's preferences.
 type UserPreferencesService struct {
 	backend.Backend
-	log logrus.FieldLogger
 }
 
 // DefaultUserPreferences is the default user preferences.
@@ -48,7 +46,6 @@ var DefaultUserPreferences = &userpreferencesv1.UserPreferences{
 func NewUserPreferencesService(backend backend.Backend) *UserPreferencesService {
 	return &UserPreferencesService{
 		Backend: backend,
-		log:     logrus.WithField(trace.Component, "userpreferences"),
 	}
 }
 
