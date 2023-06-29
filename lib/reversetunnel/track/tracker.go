@@ -205,11 +205,12 @@ func (t *Tracker) canSpawn() bool {
 		}
 	}
 
-	if t.connectionCount == 0 {
-		return len(desired) > desiredClaimed+t.inflight
+	desiredCount := len(desired)
+	if t.connectionCount > 0 && desiredCount > t.connectionCount {
+		desiredCount = t.connectionCount
 	}
 
-	return t.connectionCount > desiredClaimed+t.inflight
+	return desiredCount > desiredClaimed+t.inflight
 }
 
 // notify signals the run loop that conditions have changed and that the tracker
