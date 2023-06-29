@@ -1606,7 +1606,7 @@ func validateKubeResources(roleVersion string, kubeResources []KubernetesResourc
 			}
 		}
 
-		if len(kubeResource.Namespace) == 0 {
+		if len(kubeResource.Namespace) == 0 && !slices.Contains(KubernetesClusterWideResourceKinds, kubeResource.Kind) {
 			return trace.BadParameter("KubernetesResource must include Namespace")
 		}
 		if len(kubeResource.Name) == 0 {
