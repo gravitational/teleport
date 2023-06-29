@@ -72,16 +72,12 @@ func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, req 
 		return trace.Wrap(err)
 	}
 
-	// track whether we need to create or update the user preferences record
-	create := false
-
 	preferences, err := u.getUserPreferences(ctx, req.Username)
 	if err != nil {
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
 
-		create = true
 		preferences = DefaultUserPreferences
 	}
 
@@ -92,11 +88,7 @@ func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, req 
 		return trace.Wrap(err)
 	}
 
-	if create {
-		_, err = u.Create(ctx, item)
-	} else {
-		_, err = u.Update(ctx, item)
-	}
+	_, err = u.Put(ctx, item)
 
 	return trace.Wrap(err)
 }
