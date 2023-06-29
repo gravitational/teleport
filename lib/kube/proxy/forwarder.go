@@ -38,8 +38,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
-	fwdutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
@@ -78,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -161,7 +160,7 @@ type ForwarderConfig struct {
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	PROXYSigner multiplexer.PROXYHeaderSigner
 	// log is the logger function
-	log logrus.FieldLogger
+	log utils.FieldLoggerWithWriter
 	// TracerProvider is used to create tracers capable
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
@@ -358,7 +357,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 // however some requests like exec sessions it intercepts and records.
 type Forwarder struct {
 	mu     sync.Mutex
-	log    logrus.FieldLogger
+	log    utils.FieldLoggerWithWriter
 	router http.Handler
 	cfg    ForwarderConfig
 	// clientCredentials is an expiring cache of ephemeral client credentials.
@@ -2130,7 +2129,7 @@ type clusterSession struct {
 	// It is non-nil if the kubernetes cluster is served by this teleport service,
 	// nil otherwise.
 	kubeAPICreds kubeCreds
-	forwarder    *forward.Forwarder
+	forwarder    *reverseproxy.Forwarder
 	// noAuditEvents is true if this teleport service should leave audit event
 	// logging to another service.
 	noAuditEvents bool
@@ -2298,24 +2297,20 @@ func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authCon
 // - for HTTP2 in all other cases.
 // The reason being is that streaming requests are going to be upgraded to SPDY, which is only
 // supported coming from an HTTP1 request.
-func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forwarder, error) {
+func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Forwarder, error) {
 	transport, err := f.transportForRequest(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	forwarder, err := forward.New(
-		forward.FlushInterval(100*time.Millisecond),
-		forward.RoundTripper(transport),
-		forward.WebsocketDial(sess.Dial),
-		forward.Logger(f.log),
-		forward.ErrorHandler(fwdutils.ErrorHandlerFunc(f.formatForwardResponseError)),
+	forwarder, err := reverseproxy.New(
+		reverseproxy.WithFlushInterval(100*time.Millisecond),
+		reverseproxy.WithRoundTripper(transport),
+		reverseproxy.WithLogger(f.log),
+		reverseproxy.WithErrorHandler(f.formatForwardResponseError),
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return forwarder, nil
+	return forwarder, trace.Wrap(err)
 }
 
 // getOrCreateRequestContext creates a new certificate request for a given context,
