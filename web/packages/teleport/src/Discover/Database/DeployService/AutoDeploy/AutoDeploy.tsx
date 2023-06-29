@@ -34,7 +34,7 @@ import {
   AwsOidcDeployServiceResponse,
   integrationService,
 } from 'teleport/services/integrations';
-import { useDiscover, type DbMeta } from 'teleport/Discover/useDiscover';
+import { useDiscover, DbMeta } from 'teleport/Discover/useDiscover';
 import { DiscoverEventStatus } from 'teleport/services/userEvent';
 
 import {
