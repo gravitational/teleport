@@ -20,11 +20,12 @@ import (
 	"regexp"
 	"time"
 
-	commonpb "github.com/gravitational/teleport/api/gen/proto/go/common/v1"
-	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
+
+	commonpb "github.com/gravitational/teleport/api/gen/proto/go/common/v1"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Builder is an interface that can build a resource object.
