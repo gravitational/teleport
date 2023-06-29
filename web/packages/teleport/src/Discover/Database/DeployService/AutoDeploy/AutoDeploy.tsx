@@ -310,9 +310,8 @@ const DeployHints = ({
     }
   }, [result]);
 
-  let hint;
   if (showHint && !result) {
-    hint = (
+    return (
       <HintBox header="We're still in the process of creating your Database Service">
         <Text mb={3}>
           The network may be slow. Try continuing to wait for a few more minutes
@@ -328,39 +327,39 @@ const DeployHints = ({
         </Text>
       </HintBox>
     );
-  } else if (result) {
-    hint = (
+  }
+
+  if (result) {
+    return (
       <SuccessBox>
         Successfully created and detected your new Database Service.
       </SuccessBox>
     );
-  } else {
-    hint = (
-      <WaitingInfo>
-        <TextIcon
-          css={`
-            white-space: pre;
-            margin-right: 4px;
-            padding-right: 4px;
-          `}
-        >
-          <Icons.Restore fontSize={4} />
-        </TextIcon>
-        <Text>
-          Teleport is currently deploying a Database Service. It will take at
-          least a minute for the Database Service to be created and joined to
-          your cluster. <br />
-          We will update this status once detected, meanwhile visit your AWS{' '}
-          <Link target="_blank" href={deploySvcResp.serviceDashboardUrl}>
-            dashboard
-          </Link>{' '}
-          to see progress details.
-        </Text>
-      </WaitingInfo>
-    );
   }
 
-  return <>{hint}</>;
+  return (
+    <WaitingInfo>
+      <TextIcon
+        css={`
+          white-space: pre;
+          margin-right: 4px;
+          padding-right: 4px;
+        `}
+      >
+        <Icons.Restore fontSize={4} />
+      </TextIcon>
+      <Text>
+        Teleport is currently deploying a Database Service. It will take at
+        least a minute for the Database Service to be created and joined to your
+        cluster. <br />
+        We will update this status once detected, meanwhile visit your AWS{' '}
+        <Link target="_blank" href={deploySvcResp.serviceDashboardUrl}>
+          dashboard
+        </Link>{' '}
+        to see progress details.
+      </Text>
+    </WaitingInfo>
+  );
 };
 
 const StyledBox = styled(Box)`
