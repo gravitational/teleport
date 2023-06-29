@@ -38,6 +38,10 @@ type Config struct {
 	// StatusSink receives any status updates from the plugin for
 	// further processing. Status updates will be ignored if not set.
 	StatusSink common.StatusSink
+
+	// TeleportUser is the name of the Teleport user that will act
+	// as the access request approver
+	TeleportUser string
 }
 
 type PagerdutyConfig struct {

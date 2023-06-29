@@ -21,11 +21,14 @@ export enum ServerMessageType {
   Error = 'CHAT_MESSAGE_ERROR',
   Command = 'COMMAND',
   CommandResult = 'COMMAND_RESULT',
+  CommandResultSummary = 'COMMAND_RESULT_SUMMARY',
   CommandResultStream = 'COMMAND_RESULT_STREAM',
   AssistPartialMessage = 'CHAT_PARTIAL_MESSAGE_ASSISTANT',
   AssistPartialMessageEnd = 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE',
   AssistThought = 'CHAT_THOUGHT_ASSISTANT',
 }
+
+export const ExecutionEnvelopeType = 'summary';
 
 export interface Conversation {
   id: string;
@@ -65,6 +68,14 @@ export interface ResolvedCommandResultServerMessage {
   sessionId: string;
   output?: string;
   errorMessage?: string;
+  created: Date;
+}
+
+export interface ResolvedCommandResultSummaryServerMessage {
+  type: ServerMessageType.CommandResultSummary;
+  executionId: string;
+  summary: string;
+  command: string;
   created: Date;
 }
 
@@ -108,6 +119,7 @@ export type ResolvedServerMessage =
   | ResolvedUserServerMessage
   | ResolvedErrorServerMessage
   | ResolvedCommandResultServerMessage
+  | ResolvedCommandResultSummaryServerMessage
   | ResolvedAssistThoughtServerMessage
   | ResolvedCommandResultStreamServerMessage;
 
@@ -142,6 +154,12 @@ export interface CommandResultPayload {
   execution_id: string;
 }
 
+export interface CommandResultSummaryPayload {
+  execution_id: string;
+  command: string;
+  summary: string;
+}
+
 export interface ExecEvent {
   event: EventType.EXEC;
   exitError?: string;
@@ -162,6 +180,7 @@ export interface NodeState {
 
 export interface RawPayload {
   node_id: string;
+  type: string;
   payload: string;
 }
 

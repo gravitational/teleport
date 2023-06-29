@@ -133,19 +133,19 @@ configuration:
 Run the following command to create a user that can access the Teleport Web UI:
 
 ```code
-$ sudo tctl users add tele-admin --roles=editor,access,reviewer --logins=root,ubuntu,ec2-user
+$ tctl users add myuser --roles=editor,access,reviewer --logins=root,ubuntu,ec2-user
 ```
 
 This will generate an initial login link where you can create a password and set
-up two-factor authentication for `tele-admin`.
+up two-factor authentication for `myuser`.
 
 <Admonition type="note" title="Note">
-We've only given `tele-admin` the roles `editor` and `access` according to the
+We've only given `myuser` the roles `editor` and `access` according to the
 Principle of Least Privilege.
 </Admonition>
 
 You should now be able to view your server in the Teleport Web UI after
-logging in as `tele-admin`:
+logging in as `myuser`:
 
    <Figure
      align="center"
@@ -171,7 +171,7 @@ On your local machine, log in to your cluster through `tsh`, assigning the
 
 ```code
 # Log in through tsh
-$ tsh login --proxy=tele.example.com --user=tele-admin
+$ tsh login --proxy=tele.example.com --user=myuser
 ```
 
 </ScopedBlock>
@@ -182,7 +182,7 @@ On your local machine, log in to your cluster through `tsh`, assigning the
 
 ```code
 # Log in through tsh
-$ tsh login --proxy=mytenant.teleport.sh:443 --user=tele-admin
+$ tsh login --proxy=mytenant.teleport.sh:443 --user=myuser
 ```
 
 </ScopedBlock>
@@ -190,13 +190,13 @@ $ tsh login --proxy=mytenant.teleport.sh:443 --user=tele-admin
 You'll be prompted to supply the password and second factor we set up
 previously.
 
-`tele-admin` will now see something similar to:
+`myuser` will now see something similar to:
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```txt
 > Profile URL:      https://tele.example.com:443
-Logged in as:       tele-admin
+Logged in as:       myuser
 Cluster:            tele.example.com
 Roles:              access, editor
 Logins:             root, ubuntu, ec2-user
@@ -205,7 +205,7 @@ Valid until:        2021-04-30 06:39:13 -0500 CDT [valid for 12h0m0s]
 Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-In this example, `tele-admin` is now logged into the `tele.example.com` cluster
+In this example, `myuser` is now logged into the `tele.example.com` cluster
 through Teleport SSH.
 
 </ScopedBlock>
@@ -213,7 +213,7 @@ through Teleport SSH.
 
 ```txt
 > Profile URL:        https://mytenant.teleport.sh:443
-Logged in as:       tele-admin
+Logged in as:       myuser
 Cluster:            mytenant.teleport.sh
 Roles:              access, editor
 Logins:             root, ubuntu, ec2-user
@@ -222,14 +222,14 @@ Valid until:        2021-04-30 06:39:13 -0500 CDT [valid for 12h0m0s]
 Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
 
-In this example, `tele-admin` is now logged into the `mytenant.teleport.sh`
+In this example, `myuser` is now logged into the `mytenant.teleport.sh`
 cluster through Teleport SSH.
 
 </ScopedBlock>
 
 ### Display cluster resources
 
-`tele-admin` can now execute the following to find the cluster's server names,
+`myuser` can now execute the following to find the cluster's server names,
 which are used for establishing SSH connections:
 
    ```code
@@ -248,7 +248,7 @@ which are used for establishing SSH connections:
 
 ### Connect to a server
 
-`tele-admin` can SSH into the bastion host server by running the following command locally:
+`myuser` can SSH into the bastion host server by running the following command locally:
 
 ```code
 # Use tsh to ssh into a server
@@ -262,7 +262,7 @@ Now, they can:
 - Traverse the Linux file system.
 - Execute desired commands.
 
-All commands executed by `tele-admin` are recorded and can be replayed in the
+All commands executed by `myuser` are recorded and can be replayed in the
 Teleport Web UI.
 
 The `tsh ssh` command allows users to do anything they could if they were to SSH
@@ -278,17 +278,22 @@ into a server using a third-party tool. Compare the two equivalent commands:
   </TabItem>
   <TabItem label="ssh">
 
+  To use the `ssh` client generate a SSH configuration file and postfix
+  the cluster name after the node name.
+
   <ScopedBlock scope={["oss", "enterprise"]}>
 
     ```code
-    $ ssh -J tele.example.com root@ip-172-31-41-144
+    $ tsh config > ssh_config_teleport
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.tele.example.com
     ```
 
    </ScopedBlock>
   <ScopedBlock scope={["cloud"]}>
 
     ```code
-    $ ssh -J mytenant.teleport.sh root@ip-172-31-41-144
+    $ tsh config > ssh_config_teleport
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.mytenant.teleport.sh
     ```
 
    </ScopedBlock>
@@ -298,7 +303,7 @@ into a server using a third-party tool. Compare the two equivalent commands:
 
 ## Step 4/4. Use tsh and the unified resource catalog to introspect the cluster
 
-Now, `tele-admin` has the ability to SSH into other servers within the cluster,
+Now, `myuser` has the ability to SSH into other servers within the cluster,
 traverse the Linux file system, and execute commands.
 
 - They have visibility into all resources within the cluster due to their
@@ -312,7 +317,7 @@ Execute the following command within your bastion host console:
 
 ```code
 # List servers
-$ sudo tctl nodes ls
+$ tctl nodes ls
 ```
 
 This displays the unified resource catalog with all queried resources in one
@@ -325,7 +330,7 @@ ip-172-31-35-170 4980899c-d260-414f-9aea-874feef71747
 ip-172-31-41-144 f3d2a65f-3fa7-451d-b516-68d189ff9ae5 127.0.0.1:3022 env=example,hostname=ip-172-31-41-144
 ```
 
-Note the "Labels" column on the farthest side. `tele-admin` can query all
+Note the "Labels" column on the farthest side. `myuser` can query all
 resources with a shared label using the command:
 
 ```code
@@ -342,7 +347,7 @@ that label since it remains unchanged.
 
 ### Run commands on all servers with a label
 
-`tele-admin` can also execute commands on all servers that share a label, vastly
+`myuser` can also execute commands on all servers that share a label, vastly
 simplifying repeated operations. For example, the following command will execute
 the `ls` command on each server and display the results in your terminal:
 

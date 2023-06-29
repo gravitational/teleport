@@ -304,14 +304,6 @@
               ]
             },
             {
-              "title": "Device Trust (Preview)",
-              "slug": "/access-controls/guides/device-trust/",
-              "forScopes": [
-                "enterprise",
-                "cloud"
-              ]
-            },
-            {
               "title": "Headless WebAuthn (Preview)",
               "slug": "/access-controls/guides/headless/"
             },
@@ -472,6 +464,40 @@
               "slug": "/access-controls/login-rules/kubernetes/",
               "forScopes": [
                 "enterprise"
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Device Trust",
+          "slug": "/access-controls/device-trust/",
+          "forScopes": [
+            "enterprise",
+            "cloud"
+          ],
+          "entries": [
+            {
+              "title": "Set Up Device Trust",
+              "slug": "/access-controls/device-trust/guide/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
+              "title": "Set Up Auto-Enrollment",
+              "slug": "/access-controls/device-trust/auto-enrollment/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
+              "title": "Jamf Integration",
+              "slug": "/access-controls/device-trust/jamf-integration/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
               ]
             }
           ]
@@ -1713,7 +1739,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.1.0",
+      "version": "13.1.5",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2809,6 +2835,11 @@
     {
       "source": "/choose-an-edition/teleport-cloud/",
       "destination": "/choose-an-edition/teleport-cloud/introduction/",
+      "permanent": true
+    },
+    {
+      "source": "/access-controls/guides/device-trust/",
+      "destination": "/access-controls/device-trust/guide/",
       "permanent": true
     }
   ]

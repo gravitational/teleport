@@ -32,6 +32,8 @@ import (
 	"github.com/gravitational/teleport/lib/utils"
 )
 
+const DestinationDirectoryType = "directory"
+
 // DestinationDirectory is a Destination that writes to the local filesystem
 type DestinationDirectory struct {
 	Path     string             `yaml:"path,omitempty"`
@@ -183,8 +185,8 @@ func (dd *DestinationDirectory) Verify(keys []string) error {
 		return trace.Wrap(err)
 	}
 
-	// Make sure it's worth warning about ACLs for this destination. If ACLs
-	// are disabled, unsupported, or the destination is owned by the bot
+	// Make sure it's worth warning about ACLs for this Destination. If ACLs
+	// are disabled, unsupported, or the Destination is owned by the bot
 	// (implying the user is not trying to use ACLs), just bail.
 	if dd.ACLs == botfs.ACLOff || !aclsSupported || ownedByBot {
 		return nil
@@ -226,7 +228,7 @@ func (dd *DestinationDirectory) Read(name string) ([]byte, error) {
 }
 
 func (dd *DestinationDirectory) String() string {
-	return fmt.Sprintf("directory %s", dd.Path)
+	return fmt.Sprintf("%s: %s", DestinationDirectoryType, dd.Path)
 }
 
 func (dd *DestinationDirectory) TryLock() (func() error, error) {
@@ -235,4 +237,9 @@ func (dd *DestinationDirectory) TryLock() (func() error, error) {
 	// ACLs has been completed.
 	unlock, err := utils.FSTryWriteLock(filepath.Join(dd.Path, "lock"))
 	return unlock, trace.Wrap(err)
+}
+
+func (dm DestinationDirectory) MarshalYAML() (interface{}, error) {
+	type raw DestinationDirectory
+	return withTypeHeader(raw(dm), DestinationDirectoryType)
 }

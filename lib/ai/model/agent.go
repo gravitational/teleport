@@ -25,6 +25,8 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	log "github.com/sirupsen/logrus"
+
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 )
 
 const (
@@ -34,11 +36,17 @@ const (
 	maxElapsedTime    = 5 * time.Minute
 )
 
-// AssistAgent is a global instance of the Assist agent which defines the model responsible for the Assist feature.
-var AssistAgent = &Agent{
-	tools: []Tool{
-		&commandExecutionTool{},
-	},
+// NewAgent creates a new agent. The Assist agent which defines the model responsible for the Assist feature.
+func NewAgent(assistClient assist.AssistEmbeddingServiceClient, username string) *Agent {
+	return &Agent{
+		tools: []Tool{
+			&commandExecutionTool{},
+			&embeddingRetrievalTool{
+				assistClient: assistClient,
+				currentUser:  username,
+			},
+		},
+	}
 }
 
 // Agent is a model storing static state which defines some properties of the chat model.
@@ -46,7 +54,7 @@ type Agent struct {
 	tools []Tool
 }
 
-// agentAction is an event type represetning the decision to take a single action, typically a tool invocation.
+// agentAction is an event type representing the decision to take a single action, typically a tool invocation.
 type agentAction struct {
 	// The action to take, typically a tool name.
 	action string
@@ -208,7 +216,11 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState) (stepOu
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 
-	return stepOutput{}, trace.NotImplemented("assist does not support non command execution tools yet")
+	runOut, err := tool.Run(ctx, action.input)
+	if err != nil {
+		return stepOutput{}, trace.Wrap(err)
+	}
+	return stepOutput{action: action, observation: runOut}, nil
 }
 
 func (a *Agent) plan(ctx context.Context, state *executionState) (*agentAction, *agentFinish, error) {
@@ -315,6 +327,7 @@ func parsePlanningOutput(text string) (*agentAction, *agentFinish, error) {
 	log.Tracef("received planning output: \"%v\"", text)
 	response, err := parseJSONFromModel[planOutput](text)
 	if err != nil {
+		log.WithError(err).Trace("failed to parse planning output")
 		return nil, nil, trace.Wrap(err)
 	}
 

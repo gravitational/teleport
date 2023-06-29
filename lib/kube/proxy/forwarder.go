@@ -38,8 +38,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/gravitational/oxy/forward"
-	fwdutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/jonboulle/clockwork"
@@ -78,6 +76,7 @@ import (
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/kube/proxy/responsewriters"
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	kubeutils "github.com/gravitational/teleport/lib/kube/utils"
@@ -161,7 +160,7 @@ type ForwarderConfig struct {
 	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
 	PROXYSigner multiplexer.PROXYHeaderSigner
 	// log is the logger function
-	log logrus.FieldLogger
+	log utils.FieldLoggerWithWriter
 	// TracerProvider is used to create tracers capable
 	// of starting spans.
 	TracerProvider oteltrace.TracerProvider
@@ -358,7 +357,7 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 // however some requests like exec sessions it intercepts and records.
 type Forwarder struct {
 	mu     sync.Mutex
-	log    logrus.FieldLogger
+	log    utils.FieldLoggerWithWriter
 	router http.Handler
 	cfg    ForwarderConfig
 	// clientCredentials is an expiring cache of ephemeral client credentials.
@@ -458,11 +457,21 @@ func (c *authContext) key() string {
 	return fmt.Sprintf("%v:%v:%v:%v:%v:%v:%v", c.teleportCluster.name, c.User.GetName(), c.kubeUsers, c.kubeGroups, c.kubeClusterName, c.certExpires.Unix(), c.Identity.GetIdentity().ActiveRequests)
 }
 
-func (c *authContext) eventClusterMeta() apievents.KubernetesClusterMetadata {
+func (c *authContext) eventClusterMeta(req *http.Request) apievents.KubernetesClusterMetadata {
+	var kubeUsers, kubeGroups []string
+
+	if impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(c.kubeUsers, c.kubeGroups, req.Header); err == nil {
+		kubeUsers = []string{impersonateUser}
+		kubeGroups = impersonateGroups
+	} else {
+		kubeUsers = utils.StringsSliceFromSet(c.kubeUsers)
+		kubeGroups = utils.StringsSliceFromSet(c.kubeGroups)
+	}
+
 	return apievents.KubernetesClusterMetadata{
 		KubernetesCluster: c.kubeClusterName,
-		KubernetesUsers:   utils.StringsSliceFromSet(c.kubeUsers),
-		KubernetesGroups:  utils.StringsSliceFromSet(c.kubeGroups),
+		KubernetesUsers:   kubeUsers,
+		KubernetesGroups:  kubeGroups,
 		KubernetesLabels:  c.kubeClusterLabels,
 	}
 }
@@ -869,7 +878,7 @@ func (f *Forwarder) emitAuditEvent(ctx *authContext, req *http.Request, sess *cl
 		RequestPath:               req.URL.Path,
 		Verb:                      req.Method,
 		ResponseCode:              int32(status),
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 	}
 
 	r.populateEvent(event)
@@ -1488,7 +1497,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		SessionMetadata:           sessionMetadata,
 		UserMetadata:              ctx.eventUserMeta(),
 		ConnectionMetadata:        connectionMetdata,
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 		KubernetesPodMetadata:     eventPodMeta,
 
 		InitialCommand:   request.cmd,
@@ -1511,7 +1520,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 		CommandMetadata: apievents.CommandMetadata{
 			Command: strings.Join(request.cmd, " "),
 		},
-		KubernetesClusterMetadata: ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 		KubernetesPodMetadata:     eventPodMeta,
 	}
 
@@ -1533,7 +1542,7 @@ func (f *Forwarder) execNonInteractive(ctx *authContext, w http.ResponseWriter, 
 			Interactive:               false,
 			StartTime:                 sessionStart,
 			EndTime:                   f.cfg.Clock.Now().UTC(),
-			KubernetesClusterMetadata: ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: ctx.eventClusterMeta(req),
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
 			SessionRecording:          ctx.recordingConfig.GetMode(),
@@ -1882,7 +1891,7 @@ func setupImpersonationHeaders(log logrus.FieldLogger, ctx authContext, headers 
 		return nil
 	}
 
-	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(log, ctx.kubeUsers, ctx.kubeGroups, headers)
+	impersonateUser, impersonateGroups, err := computeImpersonatedPrincipals(ctx.kubeUsers, ctx.kubeGroups, headers)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -1918,7 +1927,7 @@ func copyImpersonationHeaders(dst, src http.Header) {
 // received in the `Impersonate-User` and `Impersonate-Groups` headers and the
 // allowed values. If the user didn't specify any user and groups to impersonate,
 // Teleport will use every group the user is allowed to impersonate.
-func computeImpersonatedPrincipals(log logrus.FieldLogger, kubeUsers, kubeGroups map[string]struct{}, headers http.Header) (string, []string, error) {
+func computeImpersonatedPrincipals(kubeUsers, kubeGroups map[string]struct{}, headers http.Header) (string, []string, error) {
 	var impersonateUser string
 	var impersonateGroups []string
 	for header, values := range headers {
@@ -2120,7 +2129,7 @@ type clusterSession struct {
 	// It is non-nil if the kubernetes cluster is served by this teleport service,
 	// nil otherwise.
 	kubeAPICreds kubeCreds
-	forwarder    *forward.Forwarder
+	forwarder    *reverseproxy.Forwarder
 	// noAuditEvents is true if this teleport service should leave audit event
 	// logging to another service.
 	noAuditEvents bool
@@ -2288,24 +2297,20 @@ func (f *Forwarder) newClusterSessionDirect(ctx context.Context, authCtx authCon
 // - for HTTP2 in all other cases.
 // The reason being is that streaming requests are going to be upgraded to SPDY, which is only
 // supported coming from an HTTP1 request.
-func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*forward.Forwarder, error) {
+func (f *Forwarder) makeSessionForwarder(sess *clusterSession) (*reverseproxy.Forwarder, error) {
 	transport, err := f.transportForRequest(sess)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	forwarder, err := forward.New(
-		forward.FlushInterval(100*time.Millisecond),
-		forward.RoundTripper(transport),
-		forward.WebsocketDial(sess.Dial),
-		forward.Logger(f.log),
-		forward.ErrorHandler(fwdutils.ErrorHandlerFunc(f.formatForwardResponseError)),
+	forwarder, err := reverseproxy.New(
+		reverseproxy.WithFlushInterval(100*time.Millisecond),
+		reverseproxy.WithRoundTripper(transport),
+		reverseproxy.WithLogger(f.log),
+		reverseproxy.WithErrorHandler(f.formatForwardResponseError),
 	)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
 
-	return forwarder, nil
+	return forwarder, trace.Wrap(err)
 }
 
 // getOrCreateRequestContext creates a new certificate request for a given context,
@@ -2768,7 +2773,7 @@ func (f *Forwarder) handleDeleteCollectionReq(req *http.Request, authCtx *authCo
 			allowedKubeUsers, allowedKubeGroups = fillDefaultKubePrincipalDetails(allowedKubeUsers, allowedKubeGroups, authCtx.User.GetName())
 
 			impersonatedUsers, impersonatedGroups, err := computeImpersonatedPrincipals(
-				f.log, utils.StringsSet(allowedKubeUsers), utils.StringsSet(allowedKubeGroups),
+				utils.StringsSet(allowedKubeUsers), utils.StringsSet(allowedKubeGroups),
 				req.Header,
 			)
 			if err != nil {
