@@ -57,9 +57,10 @@ $ tctl tokens add --type=node --format=text
 ```
 
 Copy the `teleport` binary to your `sshd` host. Configure `sshd` and create a node
-resource on your cluster with the following command, assigning <Var name="teleport.example.com:443" />
-to the address of your Teleport Proxy Service, <Var name="server1.example.com:22" />
-to the address of the node that will join the cluster, and <Var name="token" /> to the token value:
+resource on your cluster with the following command, assigning
+<Var name="teleport.example.com:443" /> to the address and port of your Teleport
+Proxy Service, <Var name="server1.example.com:22" /> to the address and port of
+the node that will join the cluster, and <Var name="token" /> to the token value:
 
 ```code
 $ sudo teleport join openssh \
