@@ -199,3 +199,9 @@ func (b *summaryBuffer) Export() (map[string][]byte, bool) {
 	b.invalid = true
 	return b.buffer, false
 }
+
+func (b *summaryBuffer) CanBeExported() bool {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	return !b.invalid && len(b.buffer) != 0
+}
