@@ -19,9 +19,10 @@ package types
 import (
 	"time"
 
+	"github.com/gravitational/trace"
+
 	accesslistpb "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/common"
-	"github.com/gravitational/trace"
 )
 
 // FromAccessListV1 converts a v1 access list into an internal access list object.

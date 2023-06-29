@@ -21,9 +21,10 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types/common"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/common"
 )
 
 func TestBuilder(t *testing.T) {
@@ -43,7 +44,7 @@ func TestBuilder(t *testing.T) {
 			},
 		}).
 		Audit(&AccessListAudit{
-			Frequency: time.Duration(time.Minute),
+			Frequency: time.Minute,
 		}).
 		MembershipRequires(&AccessListRequires{
 			Roles:  []string{"role1", "role2"},
