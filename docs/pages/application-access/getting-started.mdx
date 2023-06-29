@@ -79,7 +79,7 @@ expose, skip over to **Step 3**.
 Grafana can be launched in a Docker container with a single command:
 
 ```code
-$ docker run -d -p 3000:3000 grafana/grafana
+$ docker run -d --name grafana -p 3000:3000 grafana/grafana
 ```
 
 Next, we need to edit `/etc/grafana/grafana.ini` in the container. Under
