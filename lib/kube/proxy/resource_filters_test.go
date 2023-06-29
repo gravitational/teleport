@@ -19,8 +19,8 @@ import (
 	"compress/gzip"
 	"fmt"
 	"io"
+	"path"
 	"path/filepath"
-	"sort"
 	"testing"
 	"text/template"
 
@@ -76,7 +76,7 @@ func Test_filterBuffer(t *testing.T) {
 		want []string
 	}{
 		{
-			name: "Test filterBuffer with gzip",
+			name: "resource list compressed with gzip",
 			args: args{
 				dataFile:        "testing/data/resources_list.tmpl",
 				contentEncoding: "gzip",
@@ -88,7 +88,7 @@ func Test_filterBuffer(t *testing.T) {
 			},
 		},
 		{
-			name: "Test filterBuffer with no gzip",
+			name: "resource list uncompressed",
 			args: args{
 				dataFile:        "testing/data/resources_list.tmpl",
 				contentEncoding: "",
@@ -100,7 +100,7 @@ func Test_filterBuffer(t *testing.T) {
 			},
 		},
 		{
-			name: "Test table filterBuffer with gzip",
+			name: "table response compressed with gzip",
 			args: args{
 				dataFile:        "testing/data/partial_table.json",
 				contentEncoding: "gzip",
@@ -110,7 +110,7 @@ func Test_filterBuffer(t *testing.T) {
 			},
 		},
 		{
-			name: "Test table filterBuffer with no gzip",
+			name: "table response uncompressed",
 			args: args{
 				dataFile:        "testing/data/partial_table.json",
 				contentEncoding: "",
@@ -208,18 +208,16 @@ func Test_filterBuffer(t *testing.T) {
 				default:
 					t.Errorf("filterBuffer() = %v (%T)", obj, obj)
 				}
-				sort.Strings(resources)
-				sort.Strings(tt.want)
-				require.Equal(t, tt.want, resources)
+				require.ElementsMatch(t, tt.want, resources)
 			})
 		}
 	}
 }
 
 func collectResourcesFromResponse[T kubeObjectInterface](originalList []T) []string {
-	resources := []string{}
+	resources := make([]string, 0, len(originalList))
 	for _, resource := range originalList {
-		resources = append(resources, resource.GetNamespace()+"/"+resource.GetName())
+		resources = append(resources, path.Join(resource.GetNamespace(), resource.GetName()))
 	}
 	return resources
 }

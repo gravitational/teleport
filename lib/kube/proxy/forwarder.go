@@ -29,6 +29,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"path"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -329,17 +330,17 @@ func NewForwarder(cfg ForwarderConfig) (*Forwarder, error) {
 	for k, v := range allowedResources {
 		prefix := "/api"
 		if k.apiGroup != "core" {
-			prefix = filepath.Join("/apis", k.apiGroup)
+			prefix = path.Join("/apis", k.apiGroup)
 		}
-		prefix = filepath.Join(prefix, ":ver")
+		prefix = path.Join(prefix, ":ver")
 
 		switch namespace := ""; {
 		case !slices.Contains(types.KubernetesClusterWideResourceKinds, v):
-			router.GET(filepath.Join(prefix, k.resourceKind), fwd.withAuth(fwd.listResources))
+			router.GET(path.Join(prefix, k.resourceKind), fwd.withAuth(fwd.listResources))
 			namespace = "namespaces/:podNamespace"
 			fallthrough
 		default:
-			endpoint := filepath.Join(prefix, namespace, k.resourceKind)
+			endpoint := path.Join(prefix, namespace, k.resourceKind)
 			router.GET(endpoint, fwd.withAuth(fwd.listResources))
 			router.DELETE(endpoint, fwd.withAuth(fwd.deleteResourcesCollection))
 			router.POST(endpoint, fwd.withAuth(

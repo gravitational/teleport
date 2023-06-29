@@ -22,7 +22,7 @@ import (
 	"io"
 	"mime"
 	"net/http"
-	"path/filepath"
+	"path"
 	"strings"
 	"sync"
 	"testing"
@@ -353,7 +353,7 @@ func TestListPodRBAC(t *testing.T) {
 	getPodsFromPodList := func(items []corev1.Pod) []string {
 		pods := make([]string, 0, len(items))
 		for _, item := range items {
-			pods = append(pods, filepath.Join(item.Namespace, item.Name))
+			pods = append(pods, path.Join(item.Namespace, item.Name))
 		}
 		return pods
 	}

@@ -20,7 +20,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"path/filepath"
+	"path"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
@@ -155,11 +155,11 @@ func (f *Forwarder) validateSelfSubjectAccessReview(actx *authContext, w http.Re
 			case namespace == "" && name == "":
 				return ""
 			case namespace != "" && name != "":
-				return filepath.Join(namespace, name)
+				return path.Join(namespace, name)
 			case namespace != "":
-				return filepath.Join(namespace, "*")
+				return path.Join(namespace, "*")
 			default:
-				return filepath.Join("*", name)
+				return path.Join("*", name)
 			}
 		}
 		accessReview.Status = authv1.SubjectAccessReviewStatus{

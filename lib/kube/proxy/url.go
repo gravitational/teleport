@@ -18,7 +18,6 @@ package proxy
 
 import (
 	"path"
-	"path/filepath"
 	"strings"
 
 	"github.com/gravitational/teleport/api/types"
@@ -141,7 +140,7 @@ func parseResourcePath(p string) apiResource {
 }
 
 func (r apiResource) populateEvent(e *apievents.KubeRequest) {
-	e.ResourceAPIGroup = filepath.Join(r.apiGroup, r.apiGroupVersion)
+	e.ResourceAPIGroup = path.Join(r.apiGroup, r.apiGroupVersion)
 	e.ResourceNamespace = r.namespace
 	e.ResourceKind = r.resourceKind
 	e.ResourceName = r.resourceName
@@ -183,7 +182,7 @@ var allowedResources = map[allowedResourcesKey]string{
 // API group for a given Teleport resource kind. If the Teleport resource kind
 // is not supported, it returns the Teleport resource kind as the Kubernetes
 // resource kind and an empty string as the API group.
-func getKubeResourceAndAPIGroupFromType(s string) (string, string) {
+func getKubeResourceAndAPIGroupFromType(s string) (kind string, apiGroup string) {
 	for k, v := range allowedResources {
 		if v == s {
 			apiGroup := ""
