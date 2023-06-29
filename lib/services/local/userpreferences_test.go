@@ -73,11 +73,11 @@ func TestUserPreferencesCRUD(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		require.Equal(t, preferences.Theme, userpreferencesv1.Theme_THEME_DARK)
+		require.Equal(t, userpreferencesv1.Theme_THEME_DARK, preferences.Theme)
 
 		// expect the assist settings to have stayed the same
 		require.Len(t, preferences.Assist.PreferredLogins, 0)
-		require.Equal(t, preferences.Assist.ViewMode, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED)
+		require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED, preferences.Assist.ViewMode)
 	})
 
 	t.Run("update the assist preferred logins only", func(t *testing.T) {
@@ -99,13 +99,13 @@ func TestUserPreferencesCRUD(t *testing.T) {
 
 		require.NoError(t, err)
 
-		require.Equal(t, preferences.Assist.PreferredLogins, []string{"foo", "bar"})
+		require.Equal(t, []string{"foo", "bar"}, preferences.Assist.PreferredLogins)
 
 		// expect the view mode to have stayed the same
-		require.Equal(t, preferences.Assist.ViewMode, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED)
+		require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED, preferences.Assist.ViewMode)
 
 		// expect the theme to have stayed the same
-		require.Equal(t, preferences.Theme, userpreferencesv1.Theme_THEME_DARK)
+		require.Equal(t, userpreferencesv1.Theme_THEME_DARK, preferences.Theme)
 	})
 
 	t.Run("update the assist view mode only", func(t *testing.T) {
@@ -126,13 +126,13 @@ func TestUserPreferencesCRUD(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Equal(t, preferences.Assist.ViewMode, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE)
+		require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE, preferences.Assist.ViewMode)
 
 		// expect the assist view mode to have stayed the same
-		require.Equal(t, preferences.Assist.PreferredLogins, []string{"foo", "bar"})
+		require.Equal(t, []string{"foo", "bar"}, preferences.Assist.PreferredLogins)
 
 		// expect the theme to have stayed the same
-		require.Equal(t, preferences.Theme, userpreferencesv1.Theme_THEME_DARK)
+		require.Equal(t, userpreferencesv1.Theme_THEME_DARK, preferences.Theme)
 	})
 
 	t.Run("update all the settings at once", func(t *testing.T) {
@@ -156,8 +156,8 @@ func TestUserPreferencesCRUD(t *testing.T) {
 
 		require.NoError(t, err)
 
-		require.Equal(t, preferences.Theme, userpreferencesv1.Theme_THEME_LIGHT)
-		require.Equal(t, preferences.Assist.PreferredLogins, []string{"baz"})
-		require.Equal(t, preferences.Assist.ViewMode, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP)
+		require.Equal(t, userpreferencesv1.Theme_THEME_LIGHT, preferences.Theme)
+		require.Equal(t, []string{"baz"}, preferences.Assist.PreferredLogins)
+		require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP, preferences.Assist.ViewMode)
 	})
 }
