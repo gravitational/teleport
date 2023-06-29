@@ -96,7 +96,6 @@ func newRev() pgtype.UUID {
 	}
 }
 
-
 // ValidateDatabaseName returns true when name contains only alphanumeric and/or
 // underscore/dollar characters, the first character is not a digit, and the
 // name's length is less than MaxDatabaseNameLength (63 bytes).
