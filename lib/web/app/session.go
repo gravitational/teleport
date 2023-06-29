@@ -21,14 +21,13 @@ import (
 	"sync"
 	"time"
 
-	"github.com/gravitational/oxy/forward"
-	oxyutils "github.com/gravitational/oxy/utils"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/app/common"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -37,7 +36,7 @@ import (
 // session holds a request forwarder and web session for this request.
 type session struct {
 	// fwd can rewrite and forward requests to the target application.
-	fwd *forward.Forwarder
+	fwd *reverseproxy.Forwarder
 	// ws represents the services.WebSession this requests belongs to.
 	ws types.WebSession
 	// transport allows to dial an application server.
@@ -96,24 +95,22 @@ func (h *Handler) newSession(ctx context.Context, ws types.WebSession) (*session
 	}
 
 	// Don't trust any "X-Forward-*" headers the client sends, instead set our own.
-	delegate := forward.NewHeaderRewriter()
+	delegate := reverseproxy.NewHeaderRewriter()
 	delegate.TrustForwardHeader = false
 	hr := common.NewHeaderRewriter(delegate)
 
-	fwd, err := forward.New(
-		forward.FlushInterval(100*time.Millisecond),
-		forward.RoundTripper(transport),
-		forward.Logger(h.log),
-		forward.PassHostHeader(true),
-		forward.WebsocketDial(transport.DialWebsocket),
-		forward.ErrorHandler(oxyutils.ErrorHandlerFunc(h.handleForwardError)),
-		forward.WebsocketRewriter(hr),
-		forward.Rewriter(hr),
+	// Create a forwarder that will be used to forward requests.
+	fwd, err := reverseproxy.New(
+		reverseproxy.WithPassHostHeader(),
+		reverseproxy.WithFlushInterval(100*time.Millisecond),
+		reverseproxy.WithRoundTripper(transport),
+		reverseproxy.WithLogger(h.log),
+		reverseproxy.WithErrorHandler(h.handleForwardError),
+		reverseproxy.WithRewriter(hr),
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
 	return &session{
 		fwd: fwd,
 		ws:  ws,
