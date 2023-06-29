@@ -34,6 +34,8 @@ import {
 
 import ManualDeploy from './ManualDeploy';
 
+const DEFAULT_PING_INTERVAL = 1000 * 100; // 100 seconds
+
 export default {
   title: 'Teleport/Discover/Database/Deploy/Manual',
 };
@@ -101,7 +103,7 @@ const Provider = props => {
         <FeaturesContextProvider value={[]}>
           <DiscoverProvider mockCtx={discoverCtx}>
             <PingTeleportProvider
-              interval={props.interval || 100000}
+              interval={props.interval || DEFAULT_PING_INTERVAL}
               resourceKind={ResourceKind.Database}
             >
               {props.children}

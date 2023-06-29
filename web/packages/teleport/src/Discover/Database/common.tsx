@@ -63,7 +63,7 @@ export const Labels = ({
             {region ? (
               <span>
                 {' '}
-                in this region (<Mark>{region}</Mark>)
+                in this region (<Mark>{region}</Mark>).
               </span>
             ) : (
               '.'
