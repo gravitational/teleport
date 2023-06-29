@@ -34,5 +34,5 @@ export function DeployService() {
 }
 
 export type DeployServiceProp = {
-  toggleDeployMethod(): void;
+  toggleDeployMethod?(): void;
 };
