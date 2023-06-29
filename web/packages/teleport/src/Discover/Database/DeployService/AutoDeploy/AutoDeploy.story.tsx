@@ -68,7 +68,7 @@ const Provider = props => {
       resourceName: 'db-name',
       agentMatcherLabels: [],
       db: {} as any,
-      selectedAwsRdsDb: {} as any,
+      selectedAwsRdsDb: { region: 'us-east-1' } as any,
       ...props.agentMeta,
     },
     currentStep: 0,

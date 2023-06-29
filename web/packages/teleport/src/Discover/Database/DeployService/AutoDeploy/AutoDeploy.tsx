@@ -45,6 +45,7 @@ import {
   Header,
   DiscoverLabel,
   AlternateInstructionButton,
+  Mark,
 } from '../../../Shared';
 
 import { DeployServiceProp } from '../DeployService';
@@ -52,7 +53,7 @@ import { hasMatchingLabels, Labels } from '../../common';
 
 import type { Database } from 'teleport/services/databases';
 
-export function AutoDeploy({ toggleDeployMethod }: Partial<DeployServiceProp>) {
+export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const { emitErrorEvent, nextStep, emitEvent, agentMeta, updateAgentMeta } =
     useDiscover();
   const { attempt, setAttempt } = useAttempt('');
@@ -68,6 +69,7 @@ export function AutoDeploy({ toggleDeployMethod }: Partial<DeployServiceProp>) {
   const [labels, setLabels] = useState<DiscoverLabel[]>([
     { name: '*', value: '*', isFixed: dbLabels.length === 0 },
   ]);
+  const agent = agentMeta as DbMeta;
 
   useEffect(() => {
     // Turn off error once user changes labels.
@@ -88,7 +90,6 @@ export function AutoDeploy({ toggleDeployMethod }: Partial<DeployServiceProp>) {
 
     setShowLabelMatchErr(false);
     setAttempt({ status: 'processing' });
-    const agent = agentMeta as DbMeta;
     integrationService
       .deployAwsOidcService(agent.integrationName, {
         deploymentMode: 'database-service',
@@ -141,6 +142,7 @@ export function AutoDeploy({ toggleDeployMethod }: Partial<DeployServiceProp>) {
             <Heading
               toggleDeployMethod={abortDeploying}
               togglerDisabled={isProcessing}
+              region={agent.selectedAwsRdsDb.region}
             />
 
             {/* step one */}
@@ -161,6 +163,7 @@ export function AutoDeploy({ toggleDeployMethod }: Partial<DeployServiceProp>) {
                   showLabelMatchErr={showLabelMatchErr}
                   dbLabels={dbLabels}
                   autoFocus={false}
+                  region={agent.selectedAwsRdsDb?.region}
                 />
               </Box>
               <ButtonSecondary
@@ -206,21 +209,25 @@ export function AutoDeploy({ toggleDeployMethod }: Partial<DeployServiceProp>) {
 const Heading = ({
   toggleDeployMethod,
   togglerDisabled,
+  region,
 }: {
   toggleDeployMethod(): void;
   togglerDisabled: boolean;
+  region: string;
 }) => {
   return (
     <>
       <Header>Automatically Deploy a Database Service</Header>
       <HeaderSubtitle>
-        Teleport needs an agent to be able to connect to your database. With a
-        few permission configurations, Teleport can spin up an ECS Fargate
-        container (0.xxx vCPU, 1GB memory) in your Amazon account with the
-        ability to access databases in this region. You will only need to do
-        this once for all databases per geographical region. <br />
+        Teleport needs a database service to be able to connect to your
+        database. Teleport can configure the permissions required to spin up an
+        ECS Fargate container (0.xxx vCPU, 1GB memory) in your Amazon account
+        with the ability to access databases in this region (
+        <Mark>{region}</Mark>). You will only need to do this once for all
+        databases per geographical region. <br />
         <br />
-        Want to deploy an agent manually from one of your existing servers?{' '}
+        Want to deploy a database service manually from one of your existing
+        servers?{' '}
         <AlternateInstructionButton
           onClick={toggleDeployMethod}
           disabled={togglerDisabled}
@@ -272,7 +279,7 @@ const CreateAccessRole = ({
           // TODO(lisa): replace with actual script when ready
           lines={[
             {
-              text: '$ sudo bash -c "$(curl -fsSL https://kenny-r-test.teleport.sh/scripts/40884566df6fbdb02411364e641f78b2/set-up-aws-role.sh)"',
+              text: 'sudo bash -c "$(curl -fsSL https://kenny-r-test.teleport.sh/scripts/40884566df6fbdb02411364e641f78b2/set-up-aws-role.sh)"',
             },
           ]}
         />

@@ -19,7 +19,8 @@ import { Box, Label as Pill, Text } from 'design';
 import * as Icons from 'design/Icon';
 
 import { AgentLabel } from 'teleport/services/agents';
-import { LabelsCreater, TextIcon } from 'teleport/Discover/Shared';
+import { LabelsCreater, Mark, TextIcon } from 'teleport/Discover/Shared';
+import { Regions } from 'teleport/services/integrations';
 
 export const Labels = ({
   labels,
@@ -28,6 +29,7 @@ export const Labels = ({
   dbLabels,
   showLabelMatchErr = false,
   autoFocus = true,
+  region,
 }: {
   labels: AgentLabel[];
   setLabels(l: AgentLabel[]): void;
@@ -35,46 +37,56 @@ export const Labels = ({
   dbLabels: AgentLabel[];
   showLabelMatchErr?: boolean;
   autoFocus?: boolean;
+  region?: Regions;
 }) => {
   const hasDbLabels = dbLabels.length > 0;
   return (
     <Box mb={2}>
       <Text bold>Optionally Define Matcher Labels</Text>
-      <Text typography="subtitle1" mb={2}>
-        {!hasDbLabels && (
-          <>
-            Since no labels were defined for the registered database from the
-            previous step, the matcher labels are defaulted to wildcards which
-            will allow this database service to match any database.
-          </>
-        )}
-        {hasDbLabels && (
-          <>
-            Default wildcards label allows this database service to match any
-            database.
-            <br />
-            You can define your own labels that this database service will use
-            to identify your registered database. The labels you define must
-            match the labels that were defined for the registered database (from
-            previous step):
-          </>
-        )}
-      </Text>
+      {!hasDbLabels && (
+        <Text typography="subtitle1" mb={2}>
+          Since no labels were defined for the registered database from the
+          previous step, the matcher labels are defaulted to wildcards which
+          will allow this database service to match any database.
+        </Text>
+      )}
       {hasDbLabels && (
-        <Box mb={3}>
-          {dbLabels.map((label, index) => {
-            const labelText = `${label.name}: ${label.value}`;
-            return (
-              <Pill
-                key={`${label.name}${label.value}${index}`}
-                mr="1"
-                kind="secondary"
-              >
-                {labelText}
-              </Pill>
-            );
-          })}
-        </Box>
+        <>
+          <Text typography="subtitle1" mb={2}>
+            The default wildcard label allows this database service to match any
+            database. If you're unsure about how label matching works in
+            Teleport, leave this for now.
+          </Text>
+          <Text typography="subtitle1" mb={2}>
+            Alternatively, you can define narrower labels that this database
+            service will use to identify the databases you register
+            {region ? (
+              <span>
+                {' '}
+                in this region (<Mark>{region}</Mark>)
+              </span>
+            ) : (
+              '.'
+            )}{' '}
+            In order to identify the database you registered in the previous
+            step, the labels you define here must match with one of its existing
+            labels:
+          </Text>
+          <Box mb={3}>
+            {dbLabels.map((label, index) => {
+              const labelText = `${label.name}: ${label.value}`;
+              return (
+                <Pill
+                  key={`${label.name}${label.value}${index}`}
+                  mr="1"
+                  kind="secondary"
+                >
+                  {labelText}
+                </Pill>
+              );
+            })}
+          </Box>
+        </>
       )}
       <LabelsCreater
         autoFocus={autoFocus}

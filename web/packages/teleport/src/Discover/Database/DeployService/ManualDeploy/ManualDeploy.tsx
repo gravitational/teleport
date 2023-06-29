@@ -38,7 +38,7 @@ import {
 } from 'teleport/Discover/Shared/HintBox';
 
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
-import { useDiscover } from 'teleport/Discover/useDiscover';
+import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
 import { DatabaseLocation } from 'teleport/Discover/SelectResource';
 import { DiscoverEventStatus } from 'teleport/services/userEvent';
 
@@ -56,9 +56,7 @@ import {
 import { Labels, hasMatchingLabels } from '../../common';
 import { DeployServiceProp } from '../DeployService';
 
-export default function Container({
-  toggleDeployMethod,
-}: Partial<DeployServiceProp>) {
+export default function Container({ toggleDeployMethod }: DeployServiceProp) {
   const { agentMeta } = useDiscover();
   const hasDbLabels = agentMeta?.agentMatcherLabels?.length;
   const dbLabels = hasDbLabels ? agentMeta.agentMatcherLabels : [];
@@ -216,6 +214,7 @@ export function ManualDeploy(props: {
         setLabels={props.setLabels}
         disableBtns={true}
         dbLabels={props.dbLabels}
+        region={(agentMeta as DbMeta).selectedAwsRdsDb?.region}
       />
       <Box mt={6}>
         <CommandBox>

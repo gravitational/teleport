@@ -29,7 +29,7 @@ export function LabelsCreater({
   disableBtns = false,
   isLabelOptional = false,
   noDuplicateKey = false,
-  autoFocus = true,
+  autoFocus = false,
 }: {
   labels: DiscoverLabel[];
   setLabels(l: DiscoverLabel[]): void;
