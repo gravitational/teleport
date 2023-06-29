@@ -736,8 +736,8 @@ func TestParseSAMLInResponseTo(t *testing.T) {
 	})
 	t.Run("large compressed response", func(t *testing.T) {
 		result, err := ParseSAMLInResponseTo(largeCompressedBody)
-		require.Error(t, err)
-		require.Len(t, result, 0)
+		require.True(t, trace.IsLimitExceeded(err))
+		require.Empty(t, result)
 	})
 }
 
