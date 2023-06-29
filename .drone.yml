@@ -6236,29 +6236,6 @@ steps:
     path: /var/run
   - name: dockerconfig
     path: /root/.docker
-- name: Build and push buildbox-fips
-  image: docker
-  pull: if-not-exists
-  commands:
-  - apk add --no-cache make aws-cli
-  - chown -R $UID:$GID /go
-  - aws ecr get-login-password --profile staging --region=us-west-2 | docker login
-    -u="AWS" --password-stdin 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - make -C build.assets buildbox-fips
-  - docker tag public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
-    146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
-  - docker push 146628656107.dkr.ecr.us-west-2.amazonaws.com/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION-$DRONE_COMMIT_SHA
-  - docker logout 146628656107.dkr.ecr.us-west-2.amazonaws.com
-  - aws ecr-public get-login-password --profile production --region=us-east-1 | docker
-    login -u="AWS" --password-stdin public.ecr.aws
-  - docker push public.ecr.aws/gravitational/teleport-buildbox-fips:$BUILDBOX_VERSION
-  volumes:
-  - name: awsconfig
-    path: /root/.aws
-  - name: dockersock
-    path: /var/run
-  - name: dockerconfig
-    path: /root/.docker
 - name: Build and push buildbox-arm
   image: docker
   pull: if-not-exists
@@ -17231,6 +17208,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: 00665b79186e25b022b99fea2af4a2da0cd867f7b0b995ce4541af3d2d242b3d
+hmac: d3185434ba38b96a9cbf435a59a3ab0d7e4d3ef6ef39a198164e0e2198f1286d
 
 ...

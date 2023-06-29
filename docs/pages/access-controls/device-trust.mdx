@@ -1,0 +1,31 @@
+---
+title: Device Trust (Preview)
+description: Use and enforce trusted devices with Teleport
+layout: tocless-doc
+---
+
+<Admonition type="warning">
+Device Trust is currently in Preview mode.
+</Admonition>
+
+Device Trust allows Teleport admins to enforce the use of trusted devices.
+Resources protected by the device mode "required" will enforce the use of a
+trusted device, in addition to establishing the user's identity and enforcing
+the necessary roles. Furthermore, users using a trusted device leave audit
+trails that include the device's information.
+
+The device trust preview works on macOS and Windows devices and supports the
+following Teleport features:
+
+- SSH access enforcement
+- Database access enforcement
+- Kubernetes access enforcement
+
+Support for other operating systems and access features is planned for upcoming
+Teleport versions.
+
+## Guides
+
+- [Set Up Device Trust](./device-trust/guide.mdx)
+- [Set Up Auto-Enrollment](./device-trust/auto-enrollment.mdx)
+- [Jamf Integration](./device-trust/jamf-integration.mdx)

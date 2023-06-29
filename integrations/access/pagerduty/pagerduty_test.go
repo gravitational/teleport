@@ -596,7 +596,12 @@ func (s *PagerdutySuite) assertNewEvent(watcher types.Watcher, opType types.OpTy
 			assert.Equal(t, resourceKind, ev.Resource.GetKind())
 			assert.Equal(t, resourceName, ev.Resource.GetName())
 		} else {
-			assert.Nil(t, ev.Resource)
+			switch r := ev.Resource.(type) {
+			case nil:
+			case *types.WatchStatusV1:
+			default:
+				t.Errorf("expected nil or *WatchStatusV1, got %T instead", r)
+			}
 		}
 	case <-s.Context().Done():
 		t.Error(t, "No events received", s.Context().Err())
