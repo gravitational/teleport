@@ -31,6 +31,7 @@ type Chat struct {
 	client    *Client
 	messages  []openai.ChatCompletionMessage
 	tokenizer tokenizer.Codec
+	agent     *model.Agent
 }
 
 // Insert inserts a message into the conversation. Returns the index of the message.
@@ -70,10 +71,15 @@ func (chat *Chat) Complete(ctx context.Context, userInput string) (any, error) {
 		Content: userInput,
 	}
 
-	response, err := model.AssistAgent.PlanAndExecute(ctx, chat.client.svc, chat.messages, userMessage)
+	response, err := chat.agent.PlanAndExecute(ctx, chat.client.svc, chat.messages, userMessage)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
 	return response, nil
+}
+
+// Clear clears the conversation.
+func (chat *Chat) Clear() {
+	chat.messages = []openai.ChatCompletionMessage{}
 }

@@ -416,7 +416,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		return trace.Wrap(err)
 	}
 
-	chat, err := assistClient.NewChat(ctx, authClient, conversationID, sctx.GetUser())
+	chat, err := assistClient.NewChat(ctx, authClient, authClient.EmbeddingClient(), conversationID, sctx.GetUser())
 	if err != nil {
 		return trace.Wrap(err)
 	}
