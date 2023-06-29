@@ -1743,7 +1743,7 @@ func (process *TeleportProcess) initAuthService() error {
 				return nil
 			}
 			log.Debugf("Starting embedding processor")
-			return embeddingProcessor.Run(process.ExitContext(), embeddingInitialDelay, embeddingPeriod)
+			return embeddingProcessor.Run(process.GracefulExitContext(), embeddingInitialDelay, embeddingPeriod)
 		})
 	}
 
