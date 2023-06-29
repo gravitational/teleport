@@ -57,11 +57,11 @@ func (s *Storage) ReadAll() ([]*Cluster, error) {
 	return clusters, nil
 }
 
-// GetByURI returns a cluster by URI
-func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
-	URI := uri.New(clusterURI)
-	profileName := URI.GetProfileName()
-	leafClusterName := URI.GetLeafClusterName()
+// GetByURI returns a cluster by URI. Assumes the URI has been successfully parsed and is of a
+// cluster.
+func (s *Storage) GetByURI(clusterURI uri.ResourceURI) (*Cluster, error) {
+	profileName := clusterURI.GetProfileName()
+	leafClusterName := clusterURI.GetLeafClusterName()
 
 	cluster, err := s.fromProfile(profileName, leafClusterName)
 	if err != nil {
@@ -71,15 +71,15 @@ func (s *Storage) GetByURI(clusterURI string) (*Cluster, error) {
 	return cluster, nil
 }
 
-// GetByResourceURI returns a cluster by a URI of its resource. Accepts both root and leaf cluster
-// resources and will return a root or leaf cluster accordingly.
+// GetByResourceURI returns a cluster by a string URI of its resource. Accepts both root and leaf
+// cluster resources and will return a root or a leaf cluster accordingly.
 func (s *Storage) GetByResourceURI(resourceURI string) (*Cluster, error) {
 	clusterURI, err := uri.ParseClusterURI(resourceURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cluster, err := s.GetByURI(clusterURI.String())
+	cluster, err := s.GetByURI(clusterURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
