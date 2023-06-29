@@ -25,11 +25,11 @@ import (
 func TestSummaryBuffer(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
-		name             string
-		outputs          map[string][][]byte
-		capacity         int
-		expectedOutput   map[string][]byte
-		expectedOverflow bool
+		name           string
+		outputs        map[string][][]byte
+		capacity       int
+		expectedOutput map[string][]byte
+		assertValidity require.BoolAssertionFunc
 	}{
 		{
 			name: "Single node",
@@ -44,7 +44,7 @@ func TestSummaryBuffer(t *testing.T) {
 			expectedOutput: map[string][]byte{
 				"node": []byte("foobarbaz"),
 			},
-			expectedOverflow: false,
+			assertValidity: require.True,
 		},
 		{
 			name: "Single node overflow",
@@ -55,9 +55,9 @@ func TestSummaryBuffer(t *testing.T) {
 					[]byte("baz"),
 				},
 			},
-			capacity:         8,
-			expectedOutput:   nil,
-			expectedOverflow: true,
+			capacity:       8,
+			expectedOutput: nil,
+			assertValidity: require.False,
 		},
 		{
 			name: "Multiple nodes",
@@ -84,7 +84,7 @@ func TestSummaryBuffer(t *testing.T) {
 				"node2": []byte("bazbarfoo"),
 				"node3": []byte("bazbazbaz"),
 			},
-			expectedOverflow: false,
+			assertValidity: require.True,
 		},
 		{
 			name: "Multiple nodes overflow",
@@ -105,16 +105,16 @@ func TestSummaryBuffer(t *testing.T) {
 					[]byte("baz"),
 				},
 			},
-			capacity:         25,
-			expectedOutput:   nil,
-			expectedOverflow: true,
+			capacity:       25,
+			expectedOutput: nil,
+			assertValidity: require.False,
 		},
 		{
-			name:             "No output",
-			outputs:          nil,
-			capacity:         10,
-			expectedOutput:   map[string][]byte{},
-			expectedOverflow: false,
+			name:           "No output",
+			outputs:        nil,
+			capacity:       10,
+			expectedOutput: map[string][]byte{},
+			assertValidity: require.False,
 		},
 	}
 	for _, tc := range tests {
@@ -134,64 +134,9 @@ func TestSummaryBuffer(t *testing.T) {
 				}()
 			}
 			wg.Wait()
-			output, overflow := buffer.Export()
+			output, isValid := buffer.Export()
 			require.Equal(t, tc.expectedOutput, output)
-			require.Equal(t, tc.expectedOverflow, overflow)
-
-		})
-	}
-}
-
-func TestSummaryBuffer_CanBeExported(t *testing.T) {
-	type fields struct {
-		buffer  map[string][]byte
-		invalid bool
-	}
-	tests := []struct {
-		name   string
-		fields fields
-		assert require.BoolAssertionFunc
-	}{
-		{
-			name: "overflowed and not empty",
-			fields: fields{
-				buffer:  map[string][]byte{"foo": {0x00}},
-				invalid: true,
-			},
-			assert: require.False,
-		},
-		{
-			name: "overflowed and empty",
-			fields: fields{
-				buffer:  map[string][]byte{},
-				invalid: true,
-			},
-			assert: require.False,
-		},
-		{
-			name: "not overflowed and not empty",
-			fields: fields{
-				buffer:  map[string][]byte{"foo": {0x00}},
-				invalid: false,
-			},
-			assert: require.True,
-		},
-		{
-			name: "not overflowed and empty",
-			fields: fields{
-				buffer:  map[string][]byte{},
-				invalid: false,
-			},
-			assert: require.False,
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			b := &summaryBuffer{
-				buffer:  tt.fields.buffer,
-				invalid: tt.fields.invalid,
-			}
-			tt.assert(t, b.CanBeExported())
+			tc.assertValidity(t, isValid)
 		})
 	}
 }
