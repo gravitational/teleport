@@ -4265,6 +4265,14 @@ func TestClusterAppsGet(t *testing.T) {
 		TotalCount int      `json:"totalCount"`
 	}
 
+	// add a user group
+	ug, err := types.NewUserGroup(types.Metadata{
+		Name: "ug1", Description: "ug1-description"},
+		types.UserGroupSpecV1{Applications: []string{"app1"}})
+	require.NoError(t, err)
+	err = env.server.Auth().CreateUserGroup(context.Background(), ug)
+	require.NoError(t, err)
+
 	resource := &types.AppServerV3{
 		Metadata: types.Metadata{Name: "test-app"},
 		Kind:     types.KindAppServer,
@@ -4273,13 +4281,14 @@ func TestClusterAppsGet(t *testing.T) {
 			HostID: "hostid",
 			App: &types.AppV3{
 				Metadata: types.Metadata{
-					Name:        "name",
+					Name:        "app1",
 					Description: "description",
 					Labels:      map[string]string{"test-field": "test-value"},
 				},
 				Spec: types.AppSpecV3{
 					URI:        "https://console.aws.amazon.com", // sets field awsConsole to true
 					PublicAddr: "publicaddrs",
+					UserGroups: []string{"ug1"},
 				},
 			},
 		},
@@ -4311,7 +4320,7 @@ func TestClusterAppsGet(t *testing.T) {
 	require.Len(t, resp.Items, 2)
 	require.Equal(t, 2, resp.TotalCount)
 	require.ElementsMatch(t, resp.Items, []ui.App{{
-		Name:        resource.Spec.App.GetName(),
+		Name:        "app1",
 		Description: resource.Spec.App.GetDescription(),
 		URI:         resource.Spec.App.GetURI(),
 		PublicAddr:  resource.Spec.App.GetPublicAddr(),
@@ -4319,6 +4328,7 @@ func TestClusterAppsGet(t *testing.T) {
 		FQDN:        resource.Spec.App.GetPublicAddr(),
 		ClusterID:   env.server.ClusterName(),
 		AWSConsole:  true,
+		UserGroups:  []ui.UserGroupAndDescription{{Name: "ug1", Description: "ug1-description"}},
 	}, {
 		Name:       "app2",
 		URI:        "uri",
