@@ -284,6 +284,18 @@ func TestNaivelyValidateHostname(t *testing.T) {
 			hostname:   "general.",
 			shouldPass: false,
 		},
+		{
+			hostname:   "-startswithadash",
+			shouldPass: false,
+		},
+		{
+			hostname:   "endswithadash-",
+			shouldPass: false,
+		},
+		{
+			hostname:   "consecutive..dots",
+			shouldPass: false,
+		},
 	}
 
 	for i, tt := range tests {
