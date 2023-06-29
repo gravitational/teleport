@@ -84,8 +84,10 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 	for _, server := range page.Resources {
 		apps = append(apps, server.GetApp())
 
-		ugs := make(types.UserGroups, len(server.GetApp().GetUserGroups()))
-		for i, userGroupName := range server.GetApp().GetUserGroups() {
+		app := server.GetApp()
+
+		ugs := make(types.UserGroups, len(app.GetUserGroups()))
+		for i, userGroupName := range app.GetUserGroups() {
 			userGroup := userGroupLookup[userGroupName]
 			if userGroup == nil {
 				h.log.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
@@ -95,7 +97,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			ugs[i] = userGroup
 		}
 		sort.Sort(ugs)
-		appsToUserGroups[server.GetName()] = ugs
+		appsToUserGroups[app.GetName()] = ugs
 	}
 
 	return listResourcesGetResponse{
