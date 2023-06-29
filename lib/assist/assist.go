@@ -343,7 +343,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 			},
 		}
 
-		if err := c.authClient.CreateAssistantMessage(ctx, protoMsg); err != nil {
+		if err := c.assistService.CreateAssistantMessage(ctx, protoMsg); err != nil {
 			return nil, trace.Wrap(err)
 		}
 	case *model.CompletionCommand:

@@ -228,7 +228,7 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		return stepOutput{finish: &agentFinish{output: completion}}, nil
 	}
 
-	runOut, err := tool.Run(ctx, action.input)
+	runOut, err := tool.Run(ctx, action.Input)
 	if err != nil {
 		return stepOutput{}, trace.Wrap(err)
 	}
