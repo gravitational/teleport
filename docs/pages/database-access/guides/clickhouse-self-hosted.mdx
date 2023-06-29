@@ -1,0 +1,250 @@
+---
+title: Database Access with ClickHouse
+description: How to configure Teleport database access with ClickHouse.
+---
+
+<Admonition type="warning" title="Preview">
+  Database access for ClickHouse Database is currently in Preview mode.
+  Teleport Database audit logs are only supported for ClickHouse HTTP protocol
+  and Teleport Database Access with ClickHouse Native protocol does not include audit logs of database query activity.
+</Admonition>
+
+This guide will help you to:
+
+- Install and configure Teleport.
+- Set up Teleport to access your self-hosted ClickHouse Database.
+- Connect to your database through Teleport.
+
+<ScopedBlock scope={["oss", "enterprise"]}>
+![Teleport Database Access Self-hosted ClickHouse](../../../img/database-access/guides/clickhouse_selfhosted_selfhosted.png)
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+![Teleport Database Access ClickHouse Cloud](../../../img/database-access/guides/clickhouse_selfhosted_cloud.png)
+</ScopedBlock>
+
+## Prerequisites
+
+(!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+- For ClickHouse HTTP Protocol integration self-hosted ClickHouse server v22.3 or later.
+- For ClickHouse Native Protocol integration self-hosterd ClickHouse Server v23.3 or later.
+- The [clickhouse-client](https://clickhouse.com/docs/en/interfaces/cli) installed and added to your system's `PATH` environment variable
+
+## Step 1/5. Create a Teleport token and user
+
+(!docs/pages/includes/database-access/token.mdx!)
+
+(!docs/pages/includes/database-access/create-user.mdx!)
+
+## Step 2/5. Create a certificate/key pair
+
+(!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
+
+Follow the instructions below to generate TLS credentials for your database.
+
+```code
+# Export Teleport's certificate authority and a generated certificate/key pair
+# for host db.example.com with a 1-year validity period.
+$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=8766h
+```
+
+(!docs/pages/includes/database-access/ttl-note.mdx!)
+
+The command will create three files:
+
+- `server.cas` with Teleport's certificate authority
+- `server.key` with a generated private key
+- `server.crt` with a generated host certificate
+
+## Step 3/5. Configure ClickHouse Server
+
+Use the generated secrets to enable mutual TLS in your `clickhouse-server/config.xml` configuration file:
+
+```xml
+<openSSL>
+    <server>
+       <privateKeyFile>/path/to/server.key</privateKeyFile>
+       <caConfig>/path/to/server.cas</caConfig>
+       <certificateFile>/path/to/server.crt</certificateFile>
+       <verificationMode>strict</verificationMode>
+    </server>
+</openSSL>
+```
+
+See [SSL-TLS](https://clickhouse.com/docs/en/guides/sre/configuring-ssl) ClickHouse documentation for more details.
+
+Additionally, your ClickHouse database user accounts must be configured to require a valid client certificate.
+
+```sql
+CREATE USER alice IDENTIFIED WITH ssl_certificate CN 'alice';
+```
+
+By default, the created user may not have access to anything and won't be able to connect, so let's grant it some permissions:
+
+```sql
+GRANT ALL ON *.* TO alice;
+```
+
+## Step 4/5. Configure and Start the Database Service
+Install and configure Teleport where you will run the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Linux Server">
+
+(!docs/pages/includes/install-linux.mdx!)
+
+<Tabs>
+  <TabItem label="ClickHouse HTTP protocol">
+
+Configure and start the Teleport Service:
+
+(!docs/pages/includes/database-access/db-configure-start.mdx dbProtocol="clickhouse" dbName="clickhouse-http" databaseAddress="clickhouse.example.com:8443" !)
+  </TabItem>
+  <TabItem label="ClickHouse Native protocol">
+
+Configure and start the Teleport Service:
+
+(!docs/pages/includes/database-access/db-configure-start.mdx dbProtocol="clickhouse" dbName="clickhouse" databaseAddress="clickhouse.example.com:9440" !)
+  </TabItem>
+</Tabs>
+
+</TabItem>
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
+
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+
+<Tabs>
+  <TabItem label="ClickHouse HTTP Protocol">
+
+(!docs/pages/includes/database-access/db-helm-install.mdx dbName="clickhouse-http" dbProtocol="clickhouse-http" databaseAddress="clickhouse.example.com:8443" dbName="clickhouse-http" !)
+
+  </TabItem>
+  <TabItem label="clickHouse Native Protocol">
+
+(!docs/pages/includes/database-access/db-helm-install.mdx dbName="clickhouse" dbProtocol="clickhouse" databaseAddress="clickhouse.example.com:9440" dbName="clickhouse" !)
+
+  </TabItem>
+</Tabs>
+
+</TabItem>
+</Tabs>
+
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
+
+## Step 5/5. Connect
+
+Once the Database Service has joined the cluster, log in to see the available
+databases:
+
+
+<Tabs>
+  <TabItem label="ClickHouse HTTP Protocol">
+
+```code
+$ tsh login --proxy=teleport.example.com --user=testuser
+$ tsh db ls
+# Name                            Description Allowed Users Labels  Connect
+# ------------------------------- ----------- ------------- ------- ------------------------------
+# clickhouse-http (user: alice)             [*]           env=dev tsh db connect clickhouse-http
+```
+
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=testuser
+$ tsh db ls
+# Name                            Description Allowed Users Labels  Connect
+# ------------------------------- ----------- ------------- ------- ------------------------------
+# clickhouse-http (user: alice)             [*]           env=dev tsh db connect clickhouse-http
+```
+
+</ScopedBlock>
+
+Start Teleport Local Proxy:
+
+```code
+$ tsh proxy db --tunnel clickhouse-http
+# Started authenticated tunnel for the Clickhouse (HTTP) database "clickhouse-http" in cluster "ice-berg.dev" on 127.0.0.1:59215.
+# To avoid port randomization, you can choose the listening port using the --port flag.
+#
+# Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
+#   $ curl http://localhost:59215/
+```
+
+To test connection you can run the following command:
+
+```code
+$ echo 'select 1;' | curl http://localhost:59215/  --data-binary @-
+# 1
+```
+
+To log out of the database and remove credentials:
+
+```code
+# Remove credentials for a particular database instance.
+$ tsh db logout clickhouse-http
+# Remove credentials for all database instances.
+$ tsh db logout
+```
+
+  </TabItem>
+  <TabItem label="ClickHouse Native Protocol">
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+```code
+$ tsh login --proxy=teleport.example.com --user=testuser
+$ tsh db ls
+# Name                            Description Allowed Users Labels  Connect
+# ------------------------------- ----------- ------------- ------- ------------------------------
+# clickhouse                                  [*]           env=dev
+```
+
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+
+```code
+$ tsh login --proxy=mytenant.teleport.sh --user=testuser
+$ tsh db ls
+# Name                            Description Allowed Users Labels  Connect
+# ------------------------------- ----------- ------------- ------- ------------------------------
+# clickhouse                                  [*]           env=dev
+```
+
+</ScopedBlock>
+
+```code
+$ tsh db connect --db-user=alice clickhouse
+# ClickHouse client version 22.7.2.1.
+# Connecting to localhost:59502 as user default.
+# Connected to ClickHouse server version 23.4.2 revision 54462.
+#
+# 350ddafd1941 :) select 1;
+#
+# SELECT 1
+#
+# Query id: 327cfd34-2fec-4e04-a185-79fc840aa5cf
+#
+# ┌─1─┐
+# │ 1 │
+# └───┘
+# ↓ Progress: 1.00 rows, 1.00 B (208.59 rows/s., 208.59 B/s.)                                                                                                                                                            (0.0 CPU, 9.19 KB RAM)
+# 1 row in set. Elapsed: 0.005 sec.
+#
+# 350ddafd1941 :)
+```
+
+To log out of the database and remove credentials:
+
+```code
+# Remove credentials for a particular database instance.
+$ tsh db logout clickhouse
+# Remove credentials for all database instances.
+$ tsh db logout
+```
+
+  </TabItem>
+</Tabs>
+
+## Next steps
+
+(!docs/pages/includes/database-access/guides-next-steps.mdx!)

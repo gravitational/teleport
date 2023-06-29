@@ -1299,6 +1299,15 @@
               "slug": "/database-access/guides/oracle-self-hosted/"
             },
             {
+              "title": "Self-Hosted ClickHouse (Preview)",
+              "forScopes": [
+                "oss",
+                "enterprise",
+                "cloud"
+              ],
+              "slug": "/database-access/guides/clickhouse-self-hosted/"
+            },
+            {
               "title": "Snowflake (Preview)",
               "slug": "/database-access/guides/snowflake/"
             }
