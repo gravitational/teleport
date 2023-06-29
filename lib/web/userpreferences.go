@@ -94,7 +94,7 @@ func userPreferencesResponse(resp *userpreferencesv1.UserPreferences) *UserPrefe
 	return jsonResp
 }
 
-// UserPreferencesResponse creates a JSON response for the assist user preferences.
+// assistUserPreferencesResponse creates a JSON response for the assist user preferences.
 func assistUserPreferencesResponse(resp *userpreferencesv1.AssistUserPreferences) AssistUserPreferencesResponse {
 	jsonResp := AssistUserPreferencesResponse{
 		PreferredLogins: make([]string, 0, len(resp.PreferredLogins)),
