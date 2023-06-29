@@ -194,3 +194,15 @@ export interface ExecuteRemoteCommandPayload {
   labels?: { key: string; value: string }[];
   nodes?: string[];
 }
+
+export enum ViewMode {
+  Docked = 1,
+  Popup = 2,
+  PopupExpanded = 3,
+  PopupExpandedSidebarVisible = 4,
+}
+
+export interface AssistUserPreferences {
+  preferredLogins: string[];
+  viewMode: ViewMode;
+}
