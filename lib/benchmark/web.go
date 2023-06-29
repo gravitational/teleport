@@ -99,7 +99,7 @@ func (s WebSSHBenchmark) runCommand(ctx context.Context, tc *client.TeleportClie
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	defer stream.Close()
+	defer stream.Close("{}")
 
 	if _, err := io.WriteString(stream, command); err != nil {
 		return trace.Wrap(err)

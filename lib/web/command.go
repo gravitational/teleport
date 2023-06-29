@@ -550,7 +550,12 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		return
 	}
 
-	if err := t.stream.Close(); err != nil {
+	sessionMetadataPayload, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
+	if err != nil {
+		t.log.WithError(err).Warn("Could not marshal session metadata for the close event")
+		return
+	}
+	if err := t.stream.Close(string(sessionMetadataPayload)); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}

@@ -31,7 +31,7 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
-import { RawPayload, ServerMessageType } from 'teleport/Assist/types';
+import { RawPayload, SessionData, ServerMessageType } from 'teleport/Assist/types';
 
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 
@@ -409,15 +409,13 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     executeCommandWebSocket.current = new WebSocket(url);
     executeCommandWebSocket.current.binaryType = 'arraybuffer';
 
-    let sessionsEnded = 0;
-
     executeCommandWebSocket.current.onmessage = event => {
       const uintArray = new Uint8Array(event.data);
 
       const msg = proto.decode(uintArray);
 
       switch (msg.type) {
-        case MessageTypeEnum.RAW:
+        case MessageTypeEnum.RAW: {
           const data = JSON.parse(msg.payload) as RawPayload;
           const payload = atob(data.payload);
 
@@ -429,6 +427,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           });
 
           break;
+        }
 
         case MessageTypeEnum.WEBAUTHN_CHALLENGE:
           const challenge = JSON.parse(msg.payload);
@@ -448,28 +447,17 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
           break;
 
-        case MessageTypeEnum.SESSION_END:
-          // we don't know the nodeId of the session that ended, so we have to
-          // count the finished sessions and then mark them all as done once
-          // they've all finished
-          sessionsEnded += 1;
+        case MessageTypeEnum.SESSION_END: {
+          const data = JSON.parse(msg.payload) as SessionData;
 
-          if (sessionsEnded === nodeIdToResultId.size) {
-            for (const nodeId of nodeIdToResultId.keys()) {
-              dispatch({
-                type: AssistStateActionType.FinishCommandResult,
-                conversationId: state.conversations.selectedId,
-                commandResultId: nodeIdToResultId.get(nodeId),
-              });
-            }
-
-            nodeIdToResultId.clear();
-
-            // TODO(ryan): move this to after the summary is sent once it's implemented
-            executeCommandWebSocket.current.close();
-          }
+          dispatch({
+            type: AssistStateActionType.FinishCommandResult,
+            conversationId: state.conversations.selectedId,
+            commandResultId: nodeIdToResultId.get(data.session.server_id),
+          });
 
           break;
+        }
       }
     };
   }
