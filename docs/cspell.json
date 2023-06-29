@@ -315,6 +315,7 @@
     "clusterrolebinding",
     "clusterrolebindings",
     "clusterroles",
+    "clickhouse",
     "cockroachdb",
     "codingllama",
     "compat",
