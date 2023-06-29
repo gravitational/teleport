@@ -143,6 +143,11 @@ func (t *Tracker) run(ctx context.Context) {
 				t:  t,
 			}
 
+			// as we need to grab a lock _after_ granting the lease (and the
+			// lease might get released immediately), it's possible for the
+			// value of inflight to go negative, but it doesn't matter because
+			// we only need it to be accurate when we call canSpawn() in this
+			// loop, which only happens after we've fixed it
 			t.mu.Lock()
 			t.inflight++
 			t.mu.Unlock()
@@ -201,10 +206,10 @@ func (t *Tracker) canSpawn() bool {
 	}
 
 	if t.connectionCount == 0 {
-		return len(desired) > desiredClaimed
+		return len(desired) > desiredClaimed+t.inflight
 	}
 
-	return t.connectionCount > desiredClaimed
+	return t.connectionCount > desiredClaimed+t.inflight
 }
 
 // notify signals the run loop that conditions have changed and that the tracker
