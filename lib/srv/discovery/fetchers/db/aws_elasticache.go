@@ -40,7 +40,7 @@ type elastiCacheFetcherConfig struct {
 	// Region is the AWS region to query databases in.
 	Region string
 	// AssumeRole is the AWS IAM role to assume before discovering databases.
-	AssumeRole services.AssumeRole
+	AssumeRole types.AssumeRole
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.

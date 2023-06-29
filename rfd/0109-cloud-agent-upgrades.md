@@ -72,7 +72,7 @@ their control planes are always compatible with the current version targeted by 
 The current `cloud-stable` target version will be served via an `s3` bucket backed by CloudFront. Ex:
 
 ```
-$ VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://update.gravitational.io/v1/cloud-stable/version)"
+$ VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://updates.releases.teleport.dev/v1/cloud/stable/version)"
 ```
 
 Formally, this will be the only definition of what the current "cloud-stable" target is. An agent "downgrade" will
@@ -123,8 +123,8 @@ is treated as non-critical.
 Example usage:
 
 ```bash
-VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://update.gravitational.io/v1/cloud-stable/version)"
-CRITICAL="$(curl --proto '=https' --tlsv1.2 -sSf https://update.gravitational.io/v1/cloud-stable/critical)"
+VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://updates.releases.teleport.dev/v1/cloud/stable/version)"
+CRITICAL="$(curl --proto '=https' --tlsv1.2 -sSf https://updates.releases.teleport.dev/v1/cloud/stable/critical)"
 
 if [[ "$CRITICAL" == "yes" || "$UPGRADE_WINDOW" == "yes" ]]
 then

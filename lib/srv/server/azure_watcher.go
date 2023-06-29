@@ -51,7 +51,7 @@ type AzureInstances struct {
 }
 
 // NewAzureWatcher creates a new Azure watcher instance.
-func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clients cloud.Clients) (*Watcher, error) {
+func NewAzureWatcher(ctx context.Context, matchers []types.AzureMatcher, clients cloud.Clients) (*Watcher, error) {
 	cancelCtx, cancelFn := context.WithCancel(ctx)
 	watcher := Watcher{
 		fetchers:      []Fetcher{},
@@ -81,7 +81,7 @@ func NewAzureWatcher(ctx context.Context, matchers []services.AzureMatcher, clie
 }
 
 type azureFetcherConfig struct {
-	Matcher       services.AzureMatcher
+	Matcher       types.AzureMatcher
 	Subscription  string
 	ResourceGroup string
 	AzureClient   azure.VirtualMachinesClient
@@ -97,18 +97,23 @@ type azureInstanceFetcher struct {
 }
 
 func newAzureInstanceFetcher(cfg azureFetcherConfig) *azureInstanceFetcher {
-	return &azureInstanceFetcher{
+	ret := &azureInstanceFetcher{
 		Azure:         cfg.AzureClient,
 		Regions:       cfg.Matcher.Regions,
 		Subscription:  cfg.Subscription,
 		ResourceGroup: cfg.ResourceGroup,
 		Labels:        cfg.Matcher.ResourceTags,
-		Parameters: map[string]string{
+	}
+
+	if cfg.Matcher.Params != nil {
+		ret.Parameters = map[string]string{
 			"token":           cfg.Matcher.Params.JoinToken,
 			"scriptName":      cfg.Matcher.Params.ScriptName,
 			"publicProxyAddr": cfg.Matcher.Params.PublicProxyAddr,
-		},
+		}
 	}
+
+	return ret
 }
 
 func (*azureInstanceFetcher) GetMatchingInstances(_ []types.Server, _ bool) ([]Instances, error) {

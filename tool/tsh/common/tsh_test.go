@@ -788,7 +788,7 @@ func TestMakeClient(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Equal(t, localUser, tc.Config.HostLogin)
-	require.Equal(t, apidefaults.CertDuration, tc.Config.KeyTTL)
+	require.Equal(t, time.Duration(0), tc.Config.KeyTTL)
 
 	// specific configuration
 	conf.MinsToLive = 5
@@ -2275,6 +2275,81 @@ func TestSSHHeadless(t *testing.T) {
 	}
 }
 
+func TestHeadlessDoesNotAddKeysToAgent(t *testing.T) {
+	modules.SetTestModules(t, &modules.TestModules{TestBuildType: modules.BuildEnterprise})
+	agentKeyring, _ := createAgent(t)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	user, err := user.Current()
+	require.NoError(t, err)
+
+	// Headless ssh should pass session mfa requirements
+	nodeAccess, err := types.NewRole("node-access", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequireMFAType: types.RequireMFAType_SESSION,
+		},
+		Allow: types.RoleConditions{
+			Logins:     []string{user.Username},
+			NodeLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+		},
+	})
+	require.NoError(t, err)
+
+	alice, err := types.NewUser("alice@example.com")
+	require.NoError(t, err)
+	alice.SetRoles([]string{"node-access"})
+
+	sshHostname := "test-ssh-host"
+	rootAuth, rootProxy := makeTestServers(t, withBootstrap(nodeAccess, alice), withConfig(func(cfg *servicecfg.Config) {
+		cfg.Hostname = sshHostname
+		cfg.SSH.Enabled = true
+		cfg.SSH.Addr = utils.NetAddr{AddrNetwork: "tcp", Addr: net.JoinHostPort("127.0.0.1", ports.Pop())}
+	}))
+
+	proxyAddr, err := rootProxy.ProxyWebAddr()
+	require.NoError(t, err)
+
+	require.NoError(t, rootAuth.GetAuthServer().SetAuthPreference(ctx, &types.AuthPreferenceV2{
+		Spec: types.AuthPreferenceSpecV2{
+			Type:         constants.Local,
+			SecondFactor: constants.SecondFactorOptional,
+			Webauthn: &types.Webauthn{
+				RPID: "127.0.0.1",
+			},
+		},
+	}))
+
+	go func() {
+		if err := approveAllAccessRequests(ctx, rootAuth.GetAuthServer()); err != nil {
+			assert.ErrorIs(t, err, context.Canceled, "unexpected error from approveAllAccessRequests")
+		}
+		// Cancel the context, so Run calls don't block
+		cancel()
+	}()
+
+	err = Run(ctx, []string{
+		"ssh",
+		"-d",
+		"--insecure",
+		"--proxy", proxyAddr.String(),
+		"--headless",
+		"--user", "alice",
+		"--add-keys-to-agent=yes",
+		fmt.Sprintf("%s@%s", user.Username, sshHostname),
+		"echo", "test",
+	}, CliOption(func(cf *CLIConf) error {
+		cf.MockHeadlessLogin = mockHeadlessLogin(t, rootAuth.GetAuthServer(), alice)
+		return nil
+	}))
+	require.NoError(t, err)
+
+	keys, err := agentKeyring.List()
+	require.NoError(t, err)
+	require.Empty(t, keys)
+}
+
 func TestFormatConnectCommand(t *testing.T) {
 	t.Parallel()
 
@@ -2485,6 +2560,73 @@ func TestEnvFlags(t *testing.T) {
 			},
 			outCLIConf: CLIConf{
 				GlobalTshConfigPath: "/opt/teleport/tsh.yaml",
+			},
+		}))
+	})
+
+	t.Run("tsh ssh session env", func(t *testing.T) {
+		t.Run("ignore ssh session env without headless", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: false,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: false,
+			},
+		}))
+		t.Run("use ssh session env with headless cli flag", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: true,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+		}))
+		t.Run("use ssh session env with headless auth connector cli flag", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				AuthConnector: constants.HeadlessConnector,
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: "proxy.example.com",
+				teleport.SSHTeleportUser:        "alice",
+				teleport.SSHTeleportClusterName: "root-cluster",
+			},
+			outCLIConf: CLIConf{
+				AuthConnector: constants.HeadlessConnector,
+				Proxy:         "proxy.example.com",
+				Username:      "alice",
+				SiteName:      "root-cluster",
+			},
+		}))
+		t.Run("does not overwrite cli flags", testEnvFlag(testCase{
+			inCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
+			},
+			envMap: map[string]string{
+				teleport.SSHSessionWebProxyAddr: "other.example.com",
+				teleport.SSHTeleportUser:        "bob",
+				teleport.SSHTeleportClusterName: "leaf-cluster",
+			},
+			outCLIConf: CLIConf{
+				Headless: true,
+				Proxy:    "proxy.example.com",
+				Username: "alice",
+				SiteName: "root-cluster",
 			},
 		}))
 	})
@@ -3367,6 +3509,7 @@ func TestSerializeDatabases(t *testing.T) {
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
+        "opensearch": {},
         "rdsproxy": {},
         "redshift_serverless": {}
       },
@@ -3381,7 +3524,8 @@ func TestSerializeDatabases(t *testing.T) {
       "ad": {
         "domain": "",
         "spn": ""
-      }
+      },
+      "mongo_atlas": {}
     },
     "status": {
       "mysql": {},
@@ -3393,6 +3537,7 @@ func TestSerializeDatabases(t *testing.T) {
         "elasticache": {},
         "secret_store": {},
         "memorydb": {},
+        "opensearch": {},
         "rdsproxy": {},
         "redshift_serverless": {}
       },
@@ -3531,9 +3676,10 @@ func TestSerializeDatabases(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
 			expected := fmt.Sprintf(expectedFmt, tt.dbUsersData)
 			testSerialization(t, expected, func(f string) (string, error) {
-				return serializeDatabases([]types.Database{db}, f, tt.roles)
+				return serializeDatabases([]types.Database{db}, f, accessChecker)
 			})
 		})
 	}
@@ -4189,10 +4335,13 @@ func TestListDatabasesWithUsers(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			gotUsers := getDBUsers(tt.database, tt.roles)
+
+			accessChecker := services.NewAccessCheckerWithRoleSet(&services.AccessInfo{}, "clustername", tt.roles)
+
+			gotUsers := getDBUsers(tt.database, accessChecker)
 			require.Equal(t, tt.wantUsers, gotUsers)
 
-			gotText := formatUsersForDB(tt.database, tt.roles)
+			gotText := formatUsersForDB(tt.database, accessChecker)
 			require.Equal(t, tt.wantText, gotText)
 		})
 	}

@@ -1070,7 +1070,7 @@ exports[`loaded with CTA 1`] = `
   color: inherit;
   font-weight: 500;
   font-size: 15px;
-  margin-right: 4px;
+  margin-right: 10px;
 }
 
 .c24 {
@@ -1263,8 +1263,9 @@ exports[`loaded with CTA 1`] = `
       <a
         class="c4"
         height="36px"
-        href="https://goteleport.com/r/upgrade-team?4.4.0-dev&campaign=CTA_ACTIVE_SESSIONS"
+        href="https://goteleport.com/r/upgrade-team?4.4.0-dev&utm_campaign=CTA_ACTIVE_SESSIONS"
         kind="primary"
+        rel="noreferrer"
         style="text-transform: none;"
         target="blank"
         width="100%"

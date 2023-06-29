@@ -112,6 +112,7 @@ func newAPIRootClusterWithDetails(cluster *clusters.ClusterWithDetails) *api.Clu
 	apiCluster.LoggedInUser.RequestableRoles = cluster.RequestableRoles
 	apiCluster.LoggedInUser.SuggestedReviewers = cluster.SuggestedReviewers
 	apiCluster.AuthClusterId = cluster.AuthClusterID
+	apiCluster.LoggedInUser.Acl = cluster.ACL
 
 	return apiCluster
 }

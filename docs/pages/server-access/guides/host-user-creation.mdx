@@ -6,17 +6,10 @@ description: How to configure Teleport to automatically create transient host us
 Teleport's SSH Service can be configured to automatically create local Unix users
 upon login.
 
-Host users created by Teleport are transient and will be deleted at the end of an SSH
-session. This feature has overlap with the [PAM](./ssh-pam.mdx) integration, however
-it provides some additional convenience of not having to manually configure a PAM
-script to create and delete users.
-
-It also has benefits over manually creating users as it allows for separate host
-users for each member of an organization. This provides more fine-grained control
-of permissions on a given host.
-
-Refer to the [Desktop Access RBAC guide](../../desktop-access/rbac.mdx#automatic-user-creation)
-for how to automatically create local users in Windows machines.
+This saves you from having to manually create users for each member of an
+organization and provides more fine-grained control of permissions on a given
+host. Host users created by Teleport are transient and will be deleted at the
+end of an SSH session.
 
 ## Prerequisites
 
@@ -35,8 +28,11 @@ since it must execute these commands in order to create transient users:
 
 ## Step 1/2. Configure a role
 
-First, create a role with `create_host_user` set to `true`. This will allow users
-with this role to have transient host users created at login time.
+First, create a role with `create_host_user_mode` set to `drop` or `keep`.
+
+Setting the option to `drop` will create transient users that are deleted once the
+session ends. Setting it to `keep` will create permanent users on the host at
+login time.
 
 The following role specification will allow users to log in as `nginxrestarter` on
 any matching Node. The host user will be created and added to the groups listed in
@@ -53,7 +49,7 @@ metadata:
 spec:
   options:
     # Allow automatic creation of users.
-    create_host_user: true
+    create_host_user_mode: drop
   allow:
     logins: [ "nginxrestarter" ]
     # List of host groups the created user will be added to. Any that don't already exist are created.
@@ -81,10 +77,15 @@ of the Linux distribution being used. See [User/Group Name Syntax](https://syste
 
 <Admonition type="warning">
 
-When a Teleport user accesses an SSH Service instance, Teleport checks each of
-the user's roles that match the instance. If at least one role matches the
-instance but does not include `create_host_user: true`, automatic user creation
-will be disabled. Roles that do not match the Node will not be checked.
+When a Teleport user accesses an SSH Service instance, Teleport checks each of the
+user's roles that match the instance. If at least one role matches the instance
+but does not specify `create_host_user_mode` to be either `keep` or `drop`,
+automatic user creation will be disabled. Roles that do not match the server will
+not be checked.
+
+If multiple roles match where one might specify `keep` and another `drop`,
+Teleport will default to `keep`, retaining the user on the server after the session
+ends.
 
 </Admonition>
 
@@ -106,7 +107,7 @@ metadata:
   name: auto-users
 spec:
   options:
-    create_host_user: true
+    create_host_user_mode: drop
   deny:
     host_sudoers: [
        "*" # ensure that users in this role never have sudoers files created on matching Nodes
@@ -135,6 +136,7 @@ ssh_service:
 
 When you connect to a remote Node via `tsh`, and host user creation is enabled, the
 Teleport SSH Service will automatically create a user on the host:
+
 ```code
 $ tsh login
 $ tsh ssh nginxrestarter@develnode
@@ -149,18 +151,36 @@ $ echo $?
 # 1
 ```
 
-When logging in, the `nginxrestarter` user and any groups that do not already exist
-will be created on the host. The `nginxrestarter` user will be added to the `ubuntu`,
-`nginx` and `other` groups as specified in the `host_groups` field.
+When the user above logs in, the `nginxrestarter` user and any groups that do
+not already exist are created on the host. The `nginxrestarter` user is added to
+the `ubuntu`, `nginx`, and `other` groups, as specified in the `host_groups`
+field.
 
-A file will also be created in `/etc/sudoers.d` with the contents of the
-`host_sudoers` file written with one entry per line, each prefixed with the username
-of the user that has logged in.
+The Teleport SSH Service executes `useradd` to create new users on the host, and
+returns an error if it cannot find the `useradd` binary. The `useradd` command
+creates a new home directory with the name of the new host user and adds the
+user to the groups specified in the Teleport user's roles.
+
+Aside from specifying a home directory and groups, the SSH Service executes
+`useradd` with the system defaults. For example, it associates the user with the
+default login shell for the host, which you can specify by setting the `SHELL`
+field in `/etc/default/useradd`. See the `useradd` manual for your system for a
+full description of the default behavior.
+
+The Teleport SSH Service also creates a file in `/etc/sudoers.d` with the
+contents of the `host_sudoers` file written with one entry per line, each
+prefixed with the username of the user that has logged in.
 
 The session can then proceed as usual, however once the SSH session ends, the user
-will be automatically removed and their home directory will be deleted. Files owned
-by the deleted user, created outside the home directory, will remain in place. Groups
-that were created will remain on the system after the session ends.
+will be automatically removed and their home directory will be deleted, as the
+matching role specified they should be dropped. Files owned by the deleted user,
+created outside the home directory, will remain in place. Groups that were created
+will remain on the system after the session ends.
 
 Should a Teleport SSH instance be restarted while a session is in progress, the user
 will be cleaned up at the next Teleport restart.
+
+## Next steps
+
+- Configure automatic user provisioning for [Database Access](../../database-access/rbac/configuring-auto-user-provisioning.mdx).
+- Configure automatic user provisioning for [Desktop Access](../../desktop-access/rbac.mdx#automatic-user-creation).

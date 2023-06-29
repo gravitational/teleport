@@ -1,0 +1,94 @@
+name: Renovate
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 21 * * 0' # At 9:00 PM every Sunday UTC
+jobs:
+  renovate:
+    name: 'Renovate'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Get token
+        id: get_token
+        uses: tibdex/github-app-token@v1
+        with:
+          APP_ID: ${{ vars.PUBLIC_RENOVATE_GHA_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.PUBLIC_RENOVATE_GHA_PRIVATE_KEY }}
+
+      - name: Checkout
+        uses: actions/checkout@v3.3.0
+
+      # This script/action will be moved to a separate action in my work
+      # immediately following this project. For now it lives here to
+      # avoid scope creep.
+      #
+      # Github can be notoriously difficult to authenticate and talk with.
+      # There are four different types of authentication. This step
+      # generates an app JWT token, and an app installation token, for
+      # other steps that need a specific one.
+      - name: Install NPM dependencies
+        run: npm install '@octokit/auth-app' '@actions/github' --force
+      - name: Generate Github access tokens
+        uses: actions/github-script@v6.4.1
+        id: generate-tokens
+        env:
+          APP_ID: ${{ vars.PUBLIC_RENOVATE_GHA_APP_ID }}
+          PRIVATE_KEY: ${{ secrets.PUBLIC_RENOVATE_GHA_PRIVATE_KEY }}
+        with:
+          script: |
+            const { createAppAuth } = require("@octokit/auth-app");
+            const { getOctokit } = require("@actions/github");
+            // App authentication, which uses a JWT
+            const appAuthFunction = createAppAuth({appId: process.env.APP_ID, privateKey: process.env.PRIVATE_KEY});
+            const appAuth = await appAuthFunction({ type: "app" });
+            // TODO export token via `appAuth.token`
+            core.setSecret(appAuth.token)
+            core.setOutput("app-jwt-token", appAuth.token)
+            const appOctokit = getOctokit(appAuth.token);
+            // Installation authentication, which uses an installation token
+            let installationId = process.env["INSTALLATION_ID"];
+            if (installationId === undefined) {
+              try {
+                // Repo can be specified via `GITHUB_REPOSITORY` env variable
+                installationId = (await appOctokit.rest.apps.getRepoInstallation(context.repo)).data.id;
+              } catch (error) {
+                throw new Error(
+                  "Could not get repo installation to find ID. Is the app installed on this repo?",
+                  { cause: error },
+                );
+              }
+            }
+            const installationToken = (await appOctokit.rest.apps.createInstallationAccessToken({installation_id: installationId})).data.token;
+            core.setSecret(installationToken)
+            core.setOutput("app-installation-token", installationToken)
+      # These two actions will also be moved out to a separate repo after this project is complete
+      - name: Get app JWT information
+        uses: actions/github-script@v6.4.1
+        id: app-jwt-info
+        with:
+          github-token: ${{ steps.generate-tokens.outputs.app-jwt-token }}
+          script: |
+            const appSlug = (await github.rest.apps.getAuthenticated()).data.slug;
+            const appUserName = `${appSlug}[bot]`
+            core.setOutput("app-username", appUserName);
+      - name: Get app installation information
+        uses: actions/github-script@v6.4.1
+        id: app-installation-info
+        env:
+          APP_USERNAME: ${{ steps.app-jwt-info.outputs.app-username }}
+        with:
+          github-token: ${{ steps.generate-tokens.outputs.app-installation-token }}
+          script: |
+            const userId = (await github.rest.users.getByUsername({username: process.env.APP_USERNAME})).data.id
+            core.setOutput("user-id", userId);
+            core.setOutput("user-email", `${userId}+${process.env.APP_USERNAME}@users.noreply.github.com`);
+      - name: Renovate
+        uses: renovatebot/github-action@v36.0.0
+        env:
+          LOG_LEVEL: 'debug'
+          RENOVATE_USERNAME: ${{ steps.app-jwt-info.outputs.app-username }}
+          RENOVATE_GIT_AUTHOR: "${{ steps.app-jwt-info.outputs.app-username }} <${{ steps.app-installation-info.outputs.user-email }}>"
+          RENOVATE_REPOSITORIES: ${{ github.repository }}
+        with:
+          token: ${{ steps.generate-tokens.outputs.app-installation-token }}
+          configurationFile: .github/renovate.json

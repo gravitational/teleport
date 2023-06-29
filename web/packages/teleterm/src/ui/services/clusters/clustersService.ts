@@ -151,8 +151,6 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
    */
   private async syncRootCluster(clusterUri: uri.RootClusterUri) {
     await Promise.all([
-      // syncClusterInfo never fails with a retryable error since it reads data from disk.
-      // syncLeafClusters reaches out to the proxy so it might return a retryable error.
       this.syncClusterInfo(clusterUri),
       this.syncLeafClustersList(clusterUri),
     ]);

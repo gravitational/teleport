@@ -99,7 +99,7 @@ var ErrUserLoggedIn = errors.New("User logged in error")
 
 type HostUsers interface {
 	// CreateUser creates a temporary Teleport user in the TeleportServiceGroup
-	CreateUser(name string, hostRoleInfo *services.HostUsersInfo) (*user.User, io.Closer, error)
+	CreateUser(name string, hostRoleInfo *services.HostUsersInfo) (io.Closer, error)
 	// DeleteUser deletes a temporary Teleport user only if they are
 	// in a specified group
 	DeleteUser(name string, gid string) error
@@ -112,7 +112,7 @@ type HostUsers interface {
 	Shutdown()
 
 	// UserExists returns nil should a hostuser exist
-	UserExists(string) (*user.User, error)
+	UserExists(string) error
 
 	// doWithUserLock runs the passed function with a host user
 	// interaction lock
@@ -151,23 +151,27 @@ func sanitizeSudoersName(username string) string {
 }
 
 // CreateUser creates a temporary Teleport user in the TeleportServiceGroup
-func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo) (*user.User, io.Closer, error) {
+func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo) (io.Closer, error) {
+	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
+		return nil, trace.BadParameter("Mode is a required argument to CreateUser")
+	}
+
 	tempUser, err := u.backend.Lookup(name)
 	if err != nil && err != user.UnknownUserError(name) {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	if tempUser != nil {
 		gids, err := u.backend.UserGIDs(tempUser)
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		systemGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 		if err != nil {
 			if isUnknownGroupError(err, types.TeleportServiceGroup) {
-				return nil, nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
+				return nil, trace.AlreadyExists("User %q already exists, however no users are currently managed by teleport", name)
 			}
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		var found bool
 		for _, gid := range gids {
@@ -177,7 +181,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 			}
 		}
 		if !found {
-			return nil, nil, trace.AlreadyExists("User %q already exists and is not managed by teleport", name)
+			return nil, trace.AlreadyExists("User %q already exists and is not managed by teleport", name)
 		}
 
 		err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
@@ -187,20 +191,24 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 			return nil
 		})
 		if err != nil {
-			return nil, nil, trace.Wrap(err)
+			return nil, trace.Wrap(err)
 		}
 		// try to delete even if the user already exists as only users
 		// in the teleport-system group will be deleted and this way
 		// if a user creates multiple sessions the account will
 		// succeed in deletion
-		return tempUser, &userCloser{
+		return &userCloser{
 			username: name,
 			users:    u,
 			backend:  u.backend,
 		}, trace.AlreadyExists("User %q already exists", name)
 	}
 
-	groups := append(ui.Groups, types.TeleportServiceGroup)
+	groups := make([]string, len(ui.Groups))
+	copy(groups, ui.Groups)
+	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_DROP {
+		groups = append(groups, types.TeleportServiceGroup)
+	}
 	var errs []error
 	for _, group := range groups {
 		if err := u.createGroupIfNotExist(group); err != nil {
@@ -209,7 +217,7 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		}
 	}
 	if err := trace.NewAggregate(errs...); err != nil {
-		return nil, nil, trace.WrapWithMessage(err, "error while creating groups")
+		return nil, trace.WrapWithMessage(err, "error while creating groups")
 	}
 
 	err = u.doWithUserLock(func(_ types.SemaphoreLease) error {
@@ -224,30 +232,33 @@ func (u *HostUserManagement) CreateUser(name string, ui *services.HostUsersInfo)
 		return nil
 	})
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	tempUser, err = u.backend.Lookup(name)
+	_, err = u.backend.Lookup(name)
 	if err != nil {
-		return nil, nil, trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
-	closer := &userCloser{
-		username: name,
-		users:    u,
-		backend:  u.backend,
-	}
+
 	if len(ui.Sudoers) != 0 {
 		var sudoers strings.Builder
 		for _, entry := range ui.Sudoers {
 			sudoers.WriteString(fmt.Sprintf("%s %s\n", name, entry))
 		}
-		err := u.backend.WriteSudoersFile(name, []byte(sudoers.String()))
-		if err != nil {
-			return tempUser, closer, trace.Wrap(err)
-		}
+		err = u.backend.WriteSudoersFile(name, []byte(sudoers.String()))
 	}
 
-	return tempUser, closer, nil
+	if ui.Mode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
+		return nil, trace.Wrap(err)
+	}
+
+	closer := &userCloser{
+		username: name,
+		users:    u,
+		backend:  u.backend,
+	}
+
+	return closer, trace.Wrap(err)
 }
 
 func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) error {
@@ -334,8 +345,8 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	return trace.NewAggregate(errs...)
 }
 
-// DeleteUser deletes the user only if they are
-// present in the specified group
+// DeleteUser deletes the specified user only if they are
+// present in the specified group.
 func (u *HostUserManagement) DeleteUser(username string, gid string) error {
 	tempUser, err := u.backend.Lookup(username)
 	if err != nil {
@@ -388,16 +399,16 @@ func (u *HostUserManagement) Shutdown() {
 	u.cancel()
 }
 
-// UserExists returns nil should a hostuser exist
-func (u *HostUserManagement) UserExists(username string) (*user.User, error) {
-	tempUser, err := u.backend.Lookup(username)
+// UserExists looks up an existing host user.
+func (u *HostUserManagement) UserExists(username string) error {
+	_, err := u.backend.Lookup(username)
 	if err != nil {
 		if err == user.UnknownUserError(username) {
-			return nil, trace.NotFound("User not found: %s", err)
+			return trace.NotFound("User not found: %s", err)
 		}
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
-	return tempUser, nil
+	return nil
 }
 
 func (u *HostUserManagement) SetHostUserDeletionGrace(d time.Duration) {

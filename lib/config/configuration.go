@@ -697,6 +697,16 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Auth.Preference.SetDisconnectExpiredCert(fc.Auth.DisconnectExpiredCert.Value)
 	}
 
+	if fc.Auth.Assist != nil && fc.Auth.Assist.OpenAI != nil {
+		keyPath := fc.Auth.Assist.OpenAI.APITokenPath
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			return trace.Errorf("failed to read OpenAI API key file: %w", err)
+		} else {
+			cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+		}
+	}
+
 	// Set cluster audit configuration from file configuration.
 	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Params)
 	if err != nil {
@@ -1090,7 +1100,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.Proxy.ACME = *acme
-
+	cfg.Proxy.TrustXForwardedFor = fc.Proxy.TrustXForwardedFor.Value()
 	return nil
 }
 
@@ -1225,7 +1235,7 @@ func applySSHConfig(fc *FileConfig, cfg *servicecfg.Config) (err error) {
 // getInstallerProxyAddr determines the address of the proxy for discovered
 // nodes to connect to.
 func getInstallerProxyAddr(matcher AzureMatcher, fc *FileConfig) string {
-	if matcher.InstallParams.PublicProxyAddr != "" {
+	if matcher.InstallParams != nil && matcher.InstallParams.PublicProxyAddr != "" {
 		return matcher.InstallParams.PublicProxyAddr
 	}
 	if fc.ProxyServer != "" {
@@ -1247,21 +1257,21 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		cfg.Discovery.AWSMatchers = append(cfg.Discovery.AWSMatchers,
-			services.AWSMatcher{
+			types.AWSMatcher{
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
-				AssumeRole: services.AssumeRole{
+				AssumeRole: &types.AssumeRole{
 					RoleARN:    matcher.AssumeRoleARN,
 					ExternalID: matcher.ExternalID,
 				},
 				Tags:   matcher.Tags,
-				Params: installParams,
-				SSM:    &services.AWSSSM{DocumentName: matcher.SSM.DocumentName},
+				Params: &installParams,
+				SSM:    &types.AWSSSM{DocumentName: matcher.SSM.DocumentName},
 			})
 	}
 
 	for _, matcher := range fc.Discovery.AzureMatchers {
-		m := services.AzureMatcher{
+		m := types.AzureMatcher{
 			Subscriptions:  matcher.Subscriptions,
 			ResourceGroups: matcher.ResourceGroups,
 			Types:          matcher.Types,
@@ -1270,7 +1280,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		}
 
 		if matcher.InstallParams != nil {
-			m.Params = services.InstallerParams{
+			m.Params = &types.InstallerParams{
 				JoinMethod:      matcher.InstallParams.JoinParams.Method,
 				JoinToken:       matcher.InstallParams.JoinParams.TokenName,
 				ScriptName:      matcher.InstallParams.ScriptName,
@@ -1283,7 +1293,7 @@ func applyDiscoveryConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	for _, matcher := range fc.Discovery.GCPMatchers {
 		cfg.Discovery.GCPMatchers = append(
 			cfg.Discovery.GCPMatchers,
-			services.GCPMatcher{
+			types.GCPMatcher{
 				Types:      matcher.Types,
 				Locations:  matcher.Locations,
 				Tags:       matcher.Tags,
@@ -1316,6 +1326,10 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
+					ExternalID:    matcher.AWS.ExternalID,
+				},
 			})
 	}
 
@@ -1352,15 +1366,19 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Databases.ResourceMatchers = append(cfg.Databases.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
+					ExternalID:    matcher.AWS.ExternalID,
+				},
 			})
 	}
 	for _, matcher := range fc.Databases.AWSMatchers {
 		cfg.Databases.AWSMatchers = append(cfg.Databases.AWSMatchers,
-			services.AWSMatcher{
+			types.AWSMatcher{
 				Types:   matcher.Types,
 				Regions: matcher.Regions,
 				Tags:    matcher.Tags,
-				AssumeRole: services.AssumeRole{
+				AssumeRole: &types.AssumeRole{
 					RoleARN:    matcher.AssumeRoleARN,
 					ExternalID: matcher.ExternalID,
 				},
@@ -1368,7 +1386,7 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 	for _, matcher := range fc.Databases.AzureMatchers {
 		cfg.Databases.AzureMatchers = append(cfg.Databases.AzureMatchers,
-			services.AzureMatcher{
+			types.AzureMatcher{
 				Subscriptions:  matcher.Subscriptions,
 				ResourceGroups: matcher.ResourceGroups,
 				Types:          matcher.Types,
@@ -1512,6 +1530,9 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	// Configure resource watcher selectors if present.
 	for _, matcher := range fc.Apps.ResourceMatchers {
+		if matcher.AWS.AssumeRoleARN != "" {
+			return trace.NotImplemented("assume_role_arn is not supported for app resource matchers")
+		}
 		cfg.Apps.ResourceMatchers = append(cfg.Apps.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,

@@ -15,9 +15,8 @@ To disable session recording at the cluster level, edit your `teleport.yaml`
 configuration file.
 
 ```yaml
-teleport:
-  auth_service:
-    session_recording: off
+auth_service:
+  session_recording: off
 ```
 
 <Admonition type="warning">
@@ -59,9 +58,9 @@ for all possible settings in the `record_session` section.
 
 ## Playback
 
-Recorded sessions can be viewed in the *Session Recordings* page. Desktop
-recordings show a desktop icon in the first column to distinguish them from
-SSH recordings.
+Recorded sessions can be viewed in the *Session Recordings* page under the 
+*Activity* section in the *Management* area. Desktop recordings show a
+desktop icon in the first column to distinguish them from SSH recordings.
 
 ![Desktop Session Recording](../../../img/desktop-access/session-recording@2x.png)
 

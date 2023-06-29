@@ -15,7 +15,7 @@ limitations under the License.
 */
 
 import React, { useEffect, useRef, useState } from 'react';
-import styled from 'styled-components';
+import styled, { useTheme } from 'styled-components';
 import { Box, Flex } from 'design';
 import { debounce } from 'shared/utils/highbar';
 import {
@@ -54,6 +54,7 @@ export function Terminal(props: TerminalProps) {
   const [startPtyProcessAttempt, setStartPtyProcessAttempt] = useState<
     Attempt<void>
   >(makeEmptyAttempt());
+  const theme = useTheme();
 
   useEffect(() => {
     const removeOnStartErrorListener = props.ptyProcess.onStartError(
@@ -69,6 +70,7 @@ export function Terminal(props: TerminalProps) {
     const ctrl = new XTermCtrl(props.ptyProcess, {
       el: refElement.current,
       fontSize: props.fontSize,
+      theme: theme.colors.terminal,
     });
 
     // Start the PTY process.
@@ -102,6 +104,12 @@ export function Terminal(props: TerminalProps) {
     refCtrl.current.focus();
     refCtrl.current.requestResize();
   }, [props.visible]);
+
+  useEffect(() => {
+    if (refCtrl.current) {
+      refCtrl.current.term.options.theme = theme.colors.terminal;
+    }
+  }, [theme]);
 
   return (
     <Flex

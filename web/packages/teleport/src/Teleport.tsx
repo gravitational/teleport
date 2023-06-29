@@ -14,14 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { Suspense, lazy } from 'react';
+import React, { lazy, Suspense } from 'react';
 import ThemeProvider from 'design/ThemeProvider';
 
-import { Router, Route, Switch } from 'teleport/components/Router';
+import { Route, Router, Switch } from 'teleport/components/Router';
 import { CatchError } from 'teleport/components/CatchError';
 import Authenticated from 'teleport/components/Authenticated';
 
 import { getOSSFeatures } from 'teleport/features';
+
+import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
+import { UserContextProvider } from 'teleport/User';
 
 import TeleportContextProvider from './TeleportContextProvider';
 import TeleportContext from './teleportContext';
@@ -39,26 +42,30 @@ const Teleport: React.FC<Props> = props => {
   return (
     <CatchError>
       <ThemeProvider>
-        <Router history={history}>
-          <Suspense fallback={null}>
-            <Switch>
-              {createPublicRoutes()}
-              <Route path={cfg.routes.root}>
-                <Authenticated>
-                  <TeleportContextProvider ctx={ctx}>
-                    <Switch>
-                      <Route
-                        path={cfg.routes.appLauncher}
-                        component={AppLauncher}
-                      />
-                      <Route>{createPrivateRoutes()}</Route>
-                    </Switch>
-                  </TeleportContextProvider>
-                </Authenticated>
-              </Route>
-            </Switch>
-          </Suspense>
-        </Router>
+        <LayoutContextProvider>
+          <Router history={history}>
+            <Suspense fallback={null}>
+              <Switch>
+                {createPublicRoutes()}
+                <Route path={cfg.routes.root}>
+                  <Authenticated>
+                    <UserContextProvider>
+                      <TeleportContextProvider ctx={ctx}>
+                        <Switch>
+                          <Route
+                            path={cfg.routes.appLauncher}
+                            component={AppLauncher}
+                          />
+                          <Route>{createPrivateRoutes()}</Route>
+                        </Switch>
+                      </TeleportContextProvider>
+                    </UserContextProvider>
+                  </Authenticated>
+                </Route>
+              </Switch>
+            </Suspense>
+          </Router>
+        </LayoutContextProvider>
       </ThemeProvider>
     </CatchError>
   );

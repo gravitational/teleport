@@ -17,9 +17,9 @@ exports[`support Cloud 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -398,9 +398,9 @@ exports[`support Enterprise 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -831,9 +831,9 @@ exports[`support Enterprise with CTA 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -917,7 +917,7 @@ exports[`support Enterprise with CTA 1`] = `
   color: inherit;
   font-weight: 500;
   font-size: 15px;
-  margin-right: 4px;
+  margin-right: 10px;
 }
 
 .c12 {
@@ -1016,8 +1016,9 @@ exports[`support Enterprise with CTA 1`] = `
         </a>
         <a
           class="c9"
-          href="https://goteleport.com/r/upgrade-team?4.4.0-dev&campaign=CTA_PREMIUM_SUPPORT"
+          href="https://goteleport.com/r/upgrade-team?4.4.0-dev&utm_campaign=CTA_PREMIUM_SUPPORT"
           kind="primary"
+          rel="noreferrer"
           style="text-transform: none;"
           target="blank"
           width="100%"
@@ -1243,9 +1244,9 @@ exports[`support OSS 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
   box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {

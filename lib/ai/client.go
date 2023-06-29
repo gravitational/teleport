@@ -22,6 +22,9 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
 	"github.com/tiktoken-go/tokenizer/codec"
+
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	"github.com/gravitational/teleport/lib/ai/model"
 )
 
 // Client is a client for OpenAI API.
@@ -41,18 +44,20 @@ func NewClientFromConfig(config openai.ClientConfig) *Client {
 
 // NewChat creates a new chat. The username is set in the conversation context,
 // so that the AI can use it to personalize the conversation.
-func (client *Client) NewChat(username string) *Chat {
+// embeddingServiceClient is used to get the embeddings from the Auth Server.
+func (client *Client) NewChat(embeddingServiceClient assist.AssistEmbeddingServiceClient, username string) *Chat {
 	return &Chat{
 		client: client,
 		messages: []openai.ChatCompletionMessage{
 			{
 				Role:    openai.ChatMessageRoleSystem,
-				Content: promptCharacter(username),
+				Content: model.PromptCharacter(username),
 			},
 		},
 		// Initialize a tokenizer for prompt token accounting.
 		// Cl100k is used by GPT-3 and GPT-4.
 		tokenizer: codec.NewCl100kBase(),
+		agent:     model.NewAgent(embeddingServiceClient, username),
 	}
 }
 
@@ -63,9 +68,31 @@ func (client *Client) Summary(ctx context.Context, message string) (string, erro
 		openai.ChatCompletionRequest{
 			Model: openai.GPT4,
 			Messages: []openai.ChatCompletionMessage{
-				{Role: openai.ChatMessageRoleSystem, Content: promptSummarizeTitle},
+				{Role: openai.ChatMessageRoleSystem, Content: model.PromptSummarizeTitle},
 				{Role: openai.ChatMessageRoleUser, Content: message},
 			},
+		},
+	)
+
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	return resp.Choices[0].Message.Content, nil
+}
+
+// CommandSummary creates a command summary based on the command output.
+// The message history is also passed to the model in order to keep context
+// and extract relevant information from the output.
+func (client *Client) CommandSummary(ctx context.Context, messages []openai.ChatCompletionMessage, output map[string][]byte) (string, error) {
+	messages = append(messages, openai.ChatCompletionMessage{
+		Role: openai.ChatMessageRoleUser, Content: model.ConversationCommandResult(output)})
+
+	resp, err := client.svc.CreateChatCompletion(
+		ctx,
+		openai.ChatCompletionRequest{
+			Model:    openai.GPT4,
+			Messages: messages,
 		},
 	)
 

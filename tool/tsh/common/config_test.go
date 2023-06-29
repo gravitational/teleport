@@ -42,7 +42,7 @@ Host *.test-cluster localhost
 # Flags for all test-cluster hosts except the proxy
 Host *.test-cluster !localhost
     Port 3022
-    ProxyCommand "/bin/tsh" proxy ssh --cluster=test-cluster --proxy=localhost %r@%h:%p
+    ProxyCommand "/bin/tsh" proxy ssh --cluster=test-cluster --proxy=localhost:3080 %r@%h:%p
 
 # End generated Teleport configuration
 `
@@ -55,6 +55,7 @@ Host *.test-cluster !localhost
 		IdentityFilePath:    "/tmp/alice",
 		CertificateFilePath: "/tmp/localhost-cert.pub",
 		ProxyHost:           "localhost",
+		ProxyPort:           "3080",
 		ExecutablePath:      "/bin/tsh",
 	}, func() (*semver.Version, error) {
 		return semver.New("9.0.0"), nil

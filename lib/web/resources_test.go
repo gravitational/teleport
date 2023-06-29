@@ -220,7 +220,6 @@ spec:
     cert_format: standard
     create_db_user: false
     create_desktop_user: false
-    create_host_user: false
     desktop_clipboard: true
     desktop_directory_sharing: true
     enhanced_recording:
@@ -237,7 +236,7 @@ spec:
       default: best_effort
       desktop: true
     ssh_file_copy: true
-version: v6
+version: v7
 `
 	role, err := types.NewRole("roleName", types.RoleSpecV6{
 		Allow: types.RoleConditions{

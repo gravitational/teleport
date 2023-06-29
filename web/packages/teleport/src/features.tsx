@@ -68,7 +68,6 @@ const Integrations = lazy(() => import('./Integrations'));
 const IntegrationEnroll = lazy(
   () => import('@gravitational/teleport/src/Integrations/Enroll')
 );
-const Assist = lazy(() => import('./Assist'));
 
 // ****************************
 // Resource Features
@@ -366,6 +365,10 @@ export class FeatureDiscover implements TeleportFeature {
   hasAccess(flags: FeatureFlags) {
     return flags.discover;
   }
+
+  getRoute() {
+    return this.route;
+  }
 }
 
 export class FeatureIntegrations implements TeleportFeature {
@@ -573,21 +576,6 @@ export class FeatureHelpAndSupport implements TeleportFeature {
   };
 }
 
-export class FeatureAssist implements TeleportFeature {
-  category = NavigationCategory.Assist;
-
-  route = {
-    title: 'Assist',
-    path: cfg.routes.assist,
-    exact: false,
-    component: Assist,
-  };
-
-  hasAccess(flags: FeatureFlags) {
-    return flags.assist;
-  }
-}
-
 export function getOSSFeatures(): TeleportFeature[] {
   return [
     // Resources
@@ -621,6 +609,5 @@ export function getOSSFeatures(): TeleportFeature[] {
     // Other
     new FeatureAccount(),
     new FeatureHelpAndSupport(),
-    new FeatureAssist(),
   ];
 }

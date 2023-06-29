@@ -400,3 +400,53 @@ func TestBuildRoleARN(t *testing.T) {
 		})
 	}
 }
+
+func TestIsRoleARN(t *testing.T) {
+	for name, tt := range map[string]struct {
+		arn           string
+		expectedValue bool
+	}{
+		"valid full arn":      {"arn:aws:iam::123456789012:role/role-name", true},
+		"valid partial arn":   {"role/role-name", true},
+		"valid user arn":      {"arn:aws:iam::123456789012:user/user-name", false},
+		"invalid arn":         {"arn:aws:iam:::123456789012:role/role-name", false},
+		"invalid partial arn": {"user/user-name", false},
+		"invalid value":       {"role-name", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tt.expectedValue, IsRoleARN(tt.arn))
+		})
+	}
+}
+
+func TestIsUserARN(t *testing.T) {
+	for name, tt := range map[string]struct {
+		arn           string
+		expectedValue bool
+	}{
+		"valid full arn":      {"arn:aws:iam::123456789012:user/user-name", true},
+		"valid partial arn":   {"user/user-name", true},
+		"valid user arn":      {"arn:aws:iam::123456789012:role/role-name", false},
+		"invalid arn":         {"arn:aws:iam:::123456789012:user/user-name", false},
+		"invalid partial arn": {"role/role-name", false},
+		"invalid value":       {"user-name", false},
+	} {
+		t.Run(name, func(t *testing.T) {
+			require.Equal(t, tt.expectedValue, IsUserARN(tt.arn))
+		})
+	}
+}
+
+func FuzzParseSigV4(f *testing.F) {
+	f.Add("")
+	f.Add("Authorization: AWS4-HMAC-SHA256 " +
+		"Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, " +
+		"SignedHeaders=host;range;x-amz-date, " +
+		"Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024")
+
+	f.Fuzz(func(t *testing.T, str string) {
+		require.NotPanics(t, func() {
+			_, _ = ParseSigV4(str)
+		})
+	})
+}

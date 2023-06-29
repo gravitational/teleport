@@ -18,7 +18,6 @@ package testhelpers
 
 import (
 	"context"
-	"net"
 	"path/filepath"
 	"testing"
 	"time"
@@ -35,15 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	botconfig "github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/utils"
-)
-
-// from lib/service/listeners.go
-// TODO(espadolini): have the constants exported
-const (
-	listenerAuth        = "auth"
-	listenerProxySSH    = "proxy:ssh"
-	listenerProxyWeb    = "proxy:web"
-	listenerProxyTunnel = "proxy:tunnel"
+	"github.com/gravitational/teleport/tool/teleport/testenv"
 )
 
 // DefaultConfig returns a FileConfig to be used in tests, with random listen
@@ -61,56 +52,22 @@ func DefaultConfig(t *testing.T) (*config.FileConfig, []servicecfg.FileDescripto
 		Proxy: config.Proxy{
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: newListener(t, listenerProxySSH, &fds),
+				ListenAddress: testenv.NewTCPListener(t, service.ListenerProxySSH, &fds),
 			},
-			WebAddr:    newListener(t, listenerProxyWeb, &fds),
-			TunAddr:    newListener(t, listenerProxyTunnel, &fds),
-			PublicAddr: []string{"proxy.example.com"},
+			WebAddr:    testenv.NewTCPListener(t, service.ListenerProxyWeb, &fds),
+			TunAddr:    testenv.NewTCPListener(t, service.ListenerProxyTunnel, &fds),
+			PublicAddr: []string{"localhost"}, // ListenerProxyWeb port will be appended
 		},
 		Auth: config.Auth{
+			ClusterName: "localhost",
 			Service: config.Service{
 				EnabledFlag:   "true",
-				ListenAddress: newListener(t, listenerAuth, &fds),
+				ListenAddress: testenv.NewTCPListener(t, service.ListenerAuth, &fds),
 			},
 		},
 	}
 
 	return fc, fds
-}
-
-// newListener creates a new TCP listener on 127.0.0.1:0, adds it to the
-// FileDescriptor slice (with the specified type) and returns its actual local
-// address as a string (for use in configuration). Takes a pointer to the slice
-// so that it's convenient to call in the middle of a FileConfig or Config
-// struct literal.
-// TODO(espadolini): move this to a more generic place so we can use the same
-// approach in other tests that spin up a TeleportProcess
-func newListener(t *testing.T, ty string, fds *[]servicecfg.FileDescriptor) string {
-	t.Helper()
-
-	l, err := net.Listen("tcp", "127.0.0.1:0")
-	require.NoError(t, err)
-	defer l.Close()
-	addr := l.Addr().String()
-
-	// File() returns a dup of the listener's file descriptor as an *os.File, so
-	// the original net.Listener still needs to be closed.
-	lf, err := l.(*net.TCPListener).File()
-	require.NoError(t, err)
-	// If the file descriptor slice ends up being passed to a TeleportProcess
-	// that successfully starts, listeners will either get "imported" and used
-	// or discarded and closed, this is just an extra safety measure that closes
-	// the listener at the end of the test anyway (the finalizer would do that
-	// anyway, in principle).
-	t.Cleanup(func() { lf.Close() })
-
-	*fds = append(*fds, servicecfg.FileDescriptor{
-		Type:    ty,
-		Address: addr,
-		File:    lf,
-	})
-
-	return addr
 }
 
 // MakeAndRunTestAuthServer creates an auth server useful for testing purposes.
@@ -203,10 +160,14 @@ func MakeBot(t *testing.T, client auth.ClientI, name string, roles ...string) *p
 	return bot
 }
 
-// MakeMemoryBotConfig creates a usable bot config from joining parameters. It
-// only writes artifacts to memory and can be further modified if desired.
-func MakeMemoryBotConfig(
-	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, destinations []*botconfig.DestinationConfig,
+// DefaultBotConfig creates a usable bot config from joining parameters.
+// By default it:
+// - Has the outputs provided to it via the parameter `outputs`
+// - Runs in oneshot mode
+// - Uses a memory storage destination
+// - Does not verify Proxy WebAPI certificates
+func DefaultBotConfig(
+	t *testing.T, fc *config.FileConfig, botParams *proto.CreateBotResponse, outputs []botconfig.Output,
 ) *botconfig.BotConfig {
 	t.Helper()
 
@@ -220,12 +181,13 @@ func MakeMemoryBotConfig(
 			JoinMethod: botParams.JoinMethod,
 		},
 		Storage: &botconfig.StorageConfig{
-			DestinationMixin: botconfig.DestinationMixin{
-				Memory: &botconfig.DestinationMemory{},
-			},
+			Destination: &botconfig.DestinationMemory{},
 		},
-		Oneshot:      true,
-		Destinations: destinations,
+		Oneshot: true,
+		Outputs: outputs,
+		// Set Insecure so the bot will trust the Proxy's webapi default signed
+		// certs.
+		Insecure: true,
 	}
 
 	cfg.Onboarding.SetToken(botParams.TokenID)

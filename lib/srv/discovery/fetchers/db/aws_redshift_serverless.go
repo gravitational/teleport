@@ -42,7 +42,7 @@ type redshiftServerlessFetcherConfig struct {
 	// Client is the Redshift Serverless API client.
 	Client redshiftserverlessiface.RedshiftServerlessAPI
 	// AssumeRole is the AWS IAM role to assume before discovering databases.
-	AssumeRole services.AssumeRole
+	AssumeRole types.AssumeRole
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
