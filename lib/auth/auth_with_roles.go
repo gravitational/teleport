@@ -6352,7 +6352,12 @@ func (a *ServerWithRoles) GetUserPreferences(ctx context.Context, req *userprefe
 		return nil, trace.Wrap(err)
 	}
 
-	return a.authServer.GetUserPreferences(ctx, req)
+	preferences, err := a.authServer.GetUserPreferences(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return preferences, nil
 }
 
 // UpsertUserPreferences creates or updates user preferences for a given username.
@@ -6361,7 +6366,7 @@ func (a *ServerWithRoles) UpsertUserPreferences(ctx context.Context, req *userpr
 		return trace.Wrap(err)
 	}
 
-	return a.authServer.UpsertUserPreferences(ctx, req)
+	return trace.Wrap(a.authServer.UpsertUserPreferences(ctx, req))
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.
