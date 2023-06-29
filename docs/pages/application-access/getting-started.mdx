@@ -72,11 +72,11 @@ $ tctl tokens add \
 
 ## Step 2/4. Start Grafana
 
-We've picked Grafana for this tutorial since it's very easy to run with zero
+We've picked Grafana for this tutorial because it's easy to run with no
 configuration required. If you have another web application you'd like to
-expose, skip over to **Step 3**.
+expose, skip to **Step 3**.
 
-Grafana can be launched in a Docker container with a single command:
+You can start Grafana in a Docker container by running the following command:
 
 ```code
 $ docker run -d --name grafana -p 3000:3000 grafana/grafana
@@ -84,8 +84,8 @@ $ docker run -d --name grafana -p 3000:3000 grafana/grafana
 
 Next, we need to edit `/etc/grafana/grafana.ini` in the container. Under
 `[server]`, uncomment the `domain` key and set the value to your Teleport
-cluster domain, (e.g., `teleport.example.com`). Since there is no text editor
-installed in the container, we can do this with `sed`:
+cluster domain, (for example, `teleport.example.com`). Because the container doesn't have a text editor
+installed, you can use the `sed` command to edit the file. For example:
 
 ```code
 $ docker exec -u 0 grafana sed -i 's/;domain = localhost/domain = teleport.example.com/g' /etc/grafana/grafana.ini
@@ -97,15 +97,16 @@ Replace `teleport.example.com` with your Teleport cluster domain.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
-### Configure and Start Teleport
+### Configure and start Teleport
 
-Install Teleport on the host where you will run the Teleport Application Service. See our [Installation](../installation.mdx) page for options besides Linux servers.
+Install Teleport on the host where you will run the Teleport Application Service. 
+See the [Installation](../installation.mdx) page for options besides Linux servers.
 
 (!docs/pages/includes/install-linux.mdx!)
 
 Create the Teleport Application Service configuration at `/etc/teleport.yaml`.
 Replace <Var name="teleport.example.com" /> with your Teleport Proxy Service
-address (`teleport.example.com`) or Teleport Cloud tenant (e.g. `mytenant.teleport.sh`).
+address or Teleport Cloud tenant (for example, `mytenant.teleport.sh`).
 
 ```code
 $ sudo teleport configure \
@@ -120,8 +121,8 @@ $ sudo teleport configure \
 Make sure to update `--app-name` and `--app-uri` accordingly if you're using your
 own web application.
 
-The `--token` flag points to the file on the Application Service host where we
-stored the token that we generated earlier.
+The `--token` flag points to the file on the Application Service host where you
+stored the token that you generated earlier.
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
 
@@ -130,9 +131,9 @@ stored the token that we generated earlier.
 
 ## Step 2/4. Start Grafana
 
-We've picked Grafana for this tutorial since it's very easy to run with zero
+We've picked Grafana for this tutorial because it's easy to run with no
 configuration required. If you have another web application you'd like to
-expose, skip over to **Step 3**. Install Grafana with these helm instructions
+expose, skip to **Step 3**. Install Grafana with these helm instructions
 and it will be available at `http://example-grafana.example-grafana.svc.cluster.local`
 within the Kubernetes cluster.
 
@@ -152,8 +153,8 @@ $ helm install example-grafana grafana/grafana \
 Install the Teleport Kubernetes Service into your Kubernetes Cluster
 with the Teleport Application Service configuration.
 Replace <Var name="teleport.example.com" /> with
-your Teleport Proxy Service address (`teleport.example.com`) or your
-Teleport Enterprise Cloud tenant (e.g. `mytenant.teleport.sh`):
+your Teleport Proxy Service address or your
+Teleport Enterprise Cloud tenant (for example, `mytenant.teleport.sh`):
 
 ```code
 $ JOIN_TOKEN=$(cat /tmp/token)
