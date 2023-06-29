@@ -22,7 +22,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/trace"
 	"github.com/jackc/pgerrcode"
 	"github.com/jackc/pgx/v4"
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/backend/pgbk"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/session"
