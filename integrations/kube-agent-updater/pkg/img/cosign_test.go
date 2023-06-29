@@ -51,7 +51,6 @@ func Test_cosignKeyValidator_ValidateAndResolveDigest(t *testing.T) {
 	// This is the worst case scenario and also reduces the amount of noise and failed calls in the logs.
 	testRegistry := httptest.NewServer(registry.New(registry.WithReferrersSupport(true)))
 	t.Cleanup(testRegistry.Close)
-	t.Log(testRegistry.URL)
 
 	// Put test layers and manifests into the registry
 	for digest, contents := range blobs {
