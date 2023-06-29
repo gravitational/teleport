@@ -19,8 +19,10 @@ package common
 import (
 	"bytes"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
+	"net"
 	"os"
 	"os/exec"
 	"os/user"
@@ -247,6 +249,60 @@ func TestSSHLoadAllCAs(t *testing.T) {
 			require.NoError(t, err)
 		})
 	}
+}
+
+// TestWithRsync tests that Teleport works with rsync.
+func TestWithRsync(t *testing.T) {
+	_, err := exec.LookPath("rsync")
+	require.NoError(t, err)
+
+	s := newTestSuite(t)
+	tshHome, _ := mustLogin(t, s)
+
+	// create ssh client config rsync will use
+	ctx := context.Background()
+	var buf bytes.Buffer
+	err = Run(ctx, []string{"config"}, setHomePath(tshHome), setOverrideStdout(&buf))
+	require.NoError(t, err)
+
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "ssh_config")
+	err = os.WriteFile(configPath, buf.Bytes(), 0o777)
+	require.NoError(t, err)
+
+	// create a source file with random contents
+	srcContents := make([]byte, 1024)
+	_, err = rand.Read(srcContents)
+	require.NoError(t, err)
+
+	srcPath := filepath.Join(dir, "src")
+	err = os.WriteFile(srcPath, srcContents, 0o777)
+	require.NoError(t, err)
+
+	// use rsync to copy from src to dst
+	host, port, err := net.SplitHostPort(s.root.Config.SSH.Addr.String())
+	require.NoError(t, err)
+	dstPath := filepath.Join(dir, "dst")
+
+	ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	t.Cleanup(cancel)
+	cmd := exec.CommandContext(
+		ctx,
+		"rsync",
+		// ensure ssh will use the client config that was generated
+		"-e",
+		fmt.Sprintf("ssh -F %s -p %s", configPath, port),
+		srcPath,
+		fmt.Sprintf("%s:%s", host, dstPath),
+	)
+
+	err = cmd.Run()
+	require.NoError(t, err)
+
+	// verify that dst exists and that its contents match src
+	dstContents, err := os.ReadFile(dstPath)
+	require.NoError(t, err)
+	require.Equal(t, srcContents, dstContents)
 }
 
 // TestProxySSH verifies "tsh proxy ssh" functionality
