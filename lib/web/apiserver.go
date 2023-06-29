@@ -279,7 +279,6 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	// request has a session cookie or a client cert, forward to
 	// application handlers. If the request is requesting a
 	// FQDN that is not of the proxy, redirect to application launcher.
-
 	if h.appHandler != nil && (app.HasFragment(r) || app.HasSession(r) || app.HasClientCert(r)) {
 		h.appHandler.ServeHTTP(w, r)
 		return
@@ -771,7 +770,7 @@ func (h *Handler) bindDefaultEndpoints() {
 	h.GET("/webapi/thumbprint", h.WithLimiter(h.thumbprint))
 
 	// Connection upgrades.
-	h.GET("/webapi/connectionupgrade", h.WithLimiter(h.connectionUpgrade))
+	h.GET("/webapi/connectionupgrade", h.WithHighLimiter(h.connectionUpgrade))
 
 	// create user events.
 	h.POST("/webapi/precapture", h.WithUnauthenticatedLimiter(h.createPreUserEventHandle))
@@ -804,6 +803,12 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Allows executing an arbitrary command on multiple nodes.
 	h.GET("/webapi/command/:site/execute", h.WithClusterAuth(h.executeCommand))
+
+	// Fetches the user's preferences
+	h.GET("/webapi/user/preferences", h.WithAuth(h.getUserPreferences))
+
+	// Updates the user's preferences
+	h.PUT("/webapi/user/preferences", h.WithAuth(h.updateUserPreferences))
 }
 
 // GetProxyClient returns authenticated auth server client
@@ -1977,8 +1982,6 @@ func (h *Handler) createWebSession(w http.ResponseWriter, r *http.Request, p htt
 }
 
 func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
-	// multiplexer handles extracting real client IP using PROXY protocol where
-	// available, so we can omit checking X-Forwarded-For.
 	return &auth.ForwardedClientMetadata{
 		UserAgent:  r.UserAgent(),
 		RemoteAddr: r.RemoteAddr,

@@ -33,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	usagereporter "github.com/gravitational/teleport/lib/usagereporter/teleport"
 )
 
 // CreateUser inserts a new user entry in a backend.
@@ -74,11 +75,21 @@ func (s *Server) CreateUser(ctx context.Context, user types.User) error {
 		log.WithError(err).Warn("Failed to emit user create event.")
 	}
 
+	usagereporter.EmitEditorChangeEvent(user.GetName(), nil, user.GetRoles(), s.AnonymizeAndSubmit)
+
 	return nil
 }
 
 // UpdateUser updates an existing user in a backend.
 func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
+	prevUser, err := s.GetUser(user.GetName(), false)
+	var omitEditorEvent bool
+	if err != nil {
+		// don't return error here since this call is for event emitting purposes only
+		log.WithError(err).Warn("Failed getting user during update")
+		omitEditorEvent = true
+	}
+
 	if err := s.Services.UpdateUser(ctx, user); err != nil {
 		return trace.Wrap(err)
 	}
@@ -106,12 +117,28 @@ func (s *Server) UpdateUser(ctx context.Context, user types.User) error {
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
 
+	if !omitEditorEvent {
+		usagereporter.EmitEditorChangeEvent(user.GetName(), prevUser.GetRoles(), user.GetRoles(), s.AnonymizeAndSubmit)
+	}
+
 	return nil
 }
 
 // UpsertUser updates a user.
 func (s *Server) UpsertUser(user types.User) error {
-	err := s.Services.UpsertUser(user)
+	prevUser, err := s.GetUser(user.GetName(), false)
+	var omitEditorEvent bool
+	if err != nil {
+		if trace.IsNotFound(err) {
+			prevUser = nil
+		} else {
+			// don't return error here since upsert may still succeed, just omit the event
+			log.WithError(err).Warn("Failed getting user during upsert")
+			omitEditorEvent = true
+		}
+	}
+
+	err = s.Services.UpsertUser(user)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -139,6 +166,14 @@ func (s *Server) UpsertUser(user types.User) error {
 		Roles:     user.GetRoles(),
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user upsert event.")
+	}
+
+	var prevRoles []string
+	if prevUser != nil {
+		prevRoles = prevUser.GetRoles()
+	}
+	if !omitEditorEvent {
+		usagereporter.EmitEditorChangeEvent(user.GetName(), prevRoles, user.GetRoles(), s.AnonymizeAndSubmit)
 	}
 
 	return nil
@@ -175,11 +210,22 @@ func (s *Server) CompareAndSwapUser(ctx context.Context, new, existing types.Use
 		log.WithError(err).Warn("Failed to emit user update event.")
 	}
 
+	usagereporter.EmitEditorChangeEvent(new.GetName(), existing.GetRoles(), new.GetRoles(), s.AnonymizeAndSubmit)
+
 	return nil
 }
 
 // DeleteUser deletes an existng user in a backend by username.
 func (s *Server) DeleteUser(ctx context.Context, user string) error {
+	prevUser, err := s.GetUser(user, false)
+	var omitEditorEvent bool
+	if err != nil && !trace.IsNotFound(err) {
+		// don't return error here, delete may still succeed
+		log.WithError(err).Warn("Failed getting user during delete operation")
+		prevUser = nil
+		omitEditorEvent = true
+	}
+
 	role, err := s.Services.GetRole(ctx, services.RoleNameForUser(user))
 	if err != nil {
 		if !trace.IsNotFound(err) {
@@ -210,6 +256,10 @@ func (s *Server) DeleteUser(ctx context.Context, user string) error {
 		},
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit user delete event.")
+	}
+
+	if !omitEditorEvent {
+		usagereporter.EmitEditorChangeEvent(user, prevUser.GetRoles(), nil, s.AnonymizeAndSubmit)
 	}
 
 	return nil

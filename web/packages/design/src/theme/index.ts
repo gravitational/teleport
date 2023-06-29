@@ -18,4 +18,4 @@ import darkTheme from './darkTheme';
 import lightTheme from './lightTheme';
 
 export { darkTheme, lightTheme };
-export type { ThemeOption } from './types';
+export type { DeprecatedThemeOption } from './types';

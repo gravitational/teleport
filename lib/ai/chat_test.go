@@ -49,7 +49,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hello",
 				},
 			},
-			want: 632,
+			want: 743,
 		},
 		{
 			name: "system and user messages",
@@ -63,7 +63,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hi LLM.",
 				},
 			},
-			want: 640,
+			want: 751,
 		},
 		{
 			name: "tokenize our prompt",
@@ -77,7 +77,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Show me free disk space on localhost node.",
 				},
 			},
-			want: 843,
+			want: 954,
 		},
 	}
 
@@ -96,7 +96,7 @@ func TestChat_PromptTokens(t *testing.T) {
 			cfg.BaseURL = server.URL + "/v1"
 
 			client := NewClientFromConfig(cfg)
-			chat := client.NewChat("Bob")
+			chat := client.NewChat(nil, "Bob")
 
 			for _, message := range tt.messages {
 				chat.Insert(message.Role, message.Content)
@@ -128,7 +128,7 @@ func TestChat_Complete(t *testing.T) {
 	cfg.BaseURL = server.URL + "/v1"
 	client := NewClientFromConfig(cfg)
 
-	chat := client.NewChat("Bob")
+	chat := client.NewChat(nil, "Bob")
 
 	t.Run("initial message", func(t *testing.T) {
 		msgAny, err := chat.Complete(context.Background(), "Hello")

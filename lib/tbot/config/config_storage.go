@@ -42,7 +42,7 @@ func (sc *StorageConfig) CheckAndSetDefaults() error {
 		}
 	}
 
-	return trace.Wrap(sc.Destination.CheckAndSetDefaults())
+	return trace.Wrap(sc.Destination.CheckAndSetDefaults(), "validating storage")
 }
 
 func (sc *StorageConfig) MarshalYAML() (interface{}, error) {
