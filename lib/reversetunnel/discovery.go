@@ -76,7 +76,7 @@ func (r discoveryRequest) TrackProxies() []track.Proxy {
 	tp := make([]track.Proxy, 0, len(r.Proxies))
 	for _, p := range r.Proxies {
 		tp = append(tp, track.Proxy{
-			ID:         p.Metadata.Name,
+			Name:       p.Metadata.Name,
 			Group:      p.ProxyGroupID,
 			Generation: p.ProxyGroupGeneration,
 		})
