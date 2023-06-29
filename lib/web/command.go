@@ -287,7 +287,7 @@ func (h *Handler) executeCommand(
 	runCommands(hosts, runCmd, h.log)
 
 	// Optionally, try to compute the command summary.
-	if output, overflow := buffer.Export(); !overflow || len(output) != 0 {
+	if output, valid := buffer.Export(); valid {
 		summaryReq := summaryRequest{
 			hosts:          hosts,
 			output:         output,

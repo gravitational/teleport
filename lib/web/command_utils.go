@@ -189,13 +189,14 @@ func (b *summaryBuffer) Write(node string, data []byte) {
 	b.remainingCapacity -= len(data)
 }
 
-// Export returns the buffer content and a whether the buffer overflowed.
+// Export returns the buffer content and a whether the Export is valid.
+// Exporting the buffer can only happen once.
 func (b *summaryBuffer) Export() (map[string][]byte, bool) {
 	b.mutex.Lock()
 	defer b.mutex.Unlock()
 	if b.invalid {
-		return nil, true
+		return nil, false
 	}
 	b.invalid = true
-	return b.buffer, false
+	return b.buffer, len(b.buffer) != 0
 }
