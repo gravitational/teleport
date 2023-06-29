@@ -183,6 +183,7 @@ allow:
 	for roleVersion, gvk := range map[string]schema.GroupVersionKind{
 		types.V5: resources.TeleportRoleGVKV5,
 		types.V6: resources.TeleportRoleGVKV6,
+		types.V7: resources.TeleportRoleGVKV7,
 	} {
 		for _, tc := range tests {
 			tc := tc // capture range variable

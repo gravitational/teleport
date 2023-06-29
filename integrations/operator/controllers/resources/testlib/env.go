@@ -45,6 +45,7 @@ import (
 	resourcesv3 "github.com/gravitational/teleport/integrations/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	resourcesv6 "github.com/gravitational/teleport/integrations/operator/apis/resources/v6"
+	resourcesv7 "github.com/gravitational/teleport/integrations/operator/apis/resources/v7"
 	"github.com/gravitational/teleport/integrations/operator/controllers/resources"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
@@ -61,6 +62,7 @@ func init() {
 	utilruntime.Must(resourcesv3.AddToScheme(scheme))
 	utilruntime.Must(resourcesv5.AddToScheme(scheme))
 	utilruntime.Must(resourcesv6.AddToScheme(scheme))
+	utilruntime.Must(resourcesv7.AddToScheme(scheme))
 }
 
 func createNamespaceForTest(t *testing.T, kc kclient.Client) *core.Namespace {

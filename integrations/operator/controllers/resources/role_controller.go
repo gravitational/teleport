@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	v5 "github.com/gravitational/teleport/integrations/operator/apis/resources/v5"
 	v6 "github.com/gravitational/teleport/integrations/operator/apis/resources/v6"
+	v7 "github.com/gravitational/teleport/integrations/operator/apis/resources/v7"
 	"github.com/gravitational/teleport/integrations/operator/sidecar"
 )
 
@@ -42,6 +43,12 @@ const teleportRoleKind = "TeleportRole"
 // TODO(for v12): Have the Role controller to use the generic Teleport reconciler
 // This means we'll have to move back to a statically typed client.
 // This will require removing the crdgen hack, fixing TeleportRole JSON serialization
+
+var TeleportRoleGVKV7 = schema.GroupVersionKind{
+	Group:   v7.GroupVersion.Group,
+	Version: v7.GroupVersion.Version,
+	Kind:    teleportRoleKind,
+}
 
 var TeleportRoleGVKV6 = schema.GroupVersionKind{
 	Group:   v6.GroupVersion.Group,
@@ -80,7 +87,7 @@ func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	// TODO: (Check how to handle multiple versions)
 	log := ctrllog.FromContext(ctx).WithValues("namespacedname", req.NamespacedName)
 
-	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV6)
+	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV7)
 	err := r.Get(ctx, req.NamespacedName, obj)
 	switch {
 	case apierrors.IsNotFound(err):
@@ -89,6 +96,8 @@ func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	case err != nil:
 		log.Error(err, "failed to get resource")
 		return ctrl.Result{}, trace.Wrap(err)
+	case getAPIVersionFromManagedFields(obj) == v7.GroupVersion.String():
+		obj = GetUnstructuredObjectFromGVK(TeleportRoleGVKV7)
 	case getAPIVersionFromManagedFields(obj) == v6.GroupVersion.String():
 		obj = GetUnstructuredObjectFromGVK(TeleportRoleGVKV6)
 	case getAPIVersionFromManagedFields(obj) == v5.GroupVersion.String():
@@ -126,7 +135,7 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
 	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context
 	// TODO: (Check how to handle multiple versions)
-	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV6)
+	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV7)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(obj).
 		Complete(r)
@@ -150,6 +159,8 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	// We check the API version to determine which TeleportRole object to use.
 	var k8sResource role
 	switch u.GetAPIVersion() {
+	case v7.GroupVersion.String():
+		k8sResource = &v7.TeleportRole{}
 	case v6.GroupVersion.String():
 		k8sResource = &v6.TeleportRole{}
 	case v5.GroupVersion.String():
