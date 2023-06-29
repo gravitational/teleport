@@ -114,6 +114,33 @@ generates a config with a clusterName containing a regular string:
           output: stderr
           severity: INFO
       version: v3
+generates a config with proxy_service.trust_x_forwarded_for=true when version = 14.0.0-rc.1 and ingress.enabled=true:
+  1: |
+    |-
+      auth_service:
+        enabled: false
+      proxy_service:
+        enabled: true
+        public_addr: helm-test.example.com:443
+        trust_x_forwarded_for: true
+      ssh_service:
+        enabled: false
+      teleport:
+        auth_server: RELEASE-NAME-auth.NAMESPACE.svc.cluster.local:3025
+        join_params:
+          method: kubernetes
+          token_name: RELEASE-NAME-proxy
+        log:
+          format:
+            extra_fields:
+            - timestamp
+            - level
+            - component
+            - caller
+            output: text
+          output: stderr
+          severity: INFO
+      version: v3
 generates a config with proxy_service.trust_x_forwarded_for=true when version >=14.0.0 and ingress.enabled=true:
   1: |
     |-
