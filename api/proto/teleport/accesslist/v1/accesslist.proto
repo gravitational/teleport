@@ -1,4 +1,4 @@
-// Copyright 2021 Gravitational, Inc
+// Copyright 2023 Gravitational, Inc
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,7 +18,7 @@ package teleport.accesslist.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
-import "teleport/legacy/types/types.proto";
+import "teleport/common/v1/common.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1;accesslist";
 
@@ -26,17 +26,11 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/accessli
 // similar to access requests but for longer lived permissions that need to be
 // regularly audited.
 message AccessListV1 {
-  // kind is a resource kind
-  string kind = 1;
-  // sub_kind is an optional resource sub kind, used in some resources
-  string sub_kind = 2;
-  // version is version
-  string version = 3;
-  // Metadata is resource metadata
-  types.Metadata metadata = 4;
+  // header is the header for the resource.
+  teleport.common.v1.ResourceHeader header = 1;
 
   // spec is the specification for the access list.
-  AccessListSpecV1 spec = 5;
+  AccessListSpecV1 spec = 2;
 }
 
 // AccessListSpecV1 is the specification for an access list.
