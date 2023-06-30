@@ -21,6 +21,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	apiproto "github.com/gravitational/teleport/api/client/proto"
@@ -118,8 +119,8 @@ func (c *Config) CheckAndSetDefaults() error {
 	return nil
 }
 
-// ListKubernetesResources returns the list of pods available for the user for
-// the specified Kubernetes cluster and namespace.
+// ListKubernetesResources returns the list of resources available for the user for
+// the specified Resource kind, Kubernetes cluster and namespace.
 func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKubernetesResourcesRequest) (*proto.ListKubernetesResourcesResponse, error) {
 	userContext, err := s.authorize(ctx)
 	if err != nil {
@@ -157,8 +158,8 @@ func (s *Server) ListKubernetesResources(ctx context.Context, req *proto.ListKub
 	case requiresFakePagination(req):
 		rsp, err := s.listResourcesUsingFakePagination(ctx, identity, req)
 		return rsp, trail.ToGRPC(err)
-	case req.ResourceType == types.KindKubePod:
-		rsp, err := s.listKubernetesPods(ctx, identity, true, req)
+	case slices.Contains(types.KubernetesResourcesKinds, req.ResourceType):
+		rsp, err := s.listKubernetesResources(ctx, identity, true, req)
 		return rsp, trail.ToGRPC(err)
 	default:
 		return nil, trail.ToGRPC(trace.BadParameter("unsupported resource type %q", req.ResourceType))
@@ -195,12 +196,13 @@ func (s *Server) emitAuditEvent(ctx context.Context, userContext *authz.Context,
 	return trace.Wrap(err)
 }
 
-// listKubernetesPods returns the list of pods available for the user for
+// listKubernetesResources returns the list of resources available for the user for
 // the specified Kubernetes cluster and namespace. If respectLimit is true,
 // the limit will be respected, otherwise the limit will be ignored and we return
-// all pods available to the user. If any search parameters are specified, the
-// only pods returned will be those that match the search parameters.
-func (s *Server) listKubernetesPods(
+// all resources from type=req.ResourceType available to the user.
+// If any search parameters are specified, the only resources returned will be
+// those that match the search parameters.
+func (s *Server) listKubernetesResources(
 	ctx context.Context,
 	identity tlsca.Identity,
 	respectLimit bool,
@@ -222,7 +224,7 @@ func (s *Server) listKubernetesPods(
 	}
 
 	rsp := &proto.ListKubernetesResourcesResponse{}
-	err := s.iterateKubernetesPods(
+	err := s.iterateKubernetesResources(
 		ctx, identity, req, respectLimit,
 		func(r *types.KubernetesResourceV1, continueKey string) (int, error) {
 			switch match, err := services.MatchResourceByFilters(r, filter, nil /* ignore dup matches  */); {
@@ -242,9 +244,9 @@ func (s *Server) listKubernetesPods(
 	return rsp, trace.Wrap(err)
 }
 
-// iterateKubernetesPods creates a new Kubernetes Client with temporary user
-// certificates and iterates through the returned Kubernetes Pods.
-// For each Pod discovered, the fn function is called to decide the action.
+// iterateKubernetesResources creates a new Kubernetes Client with temporary user
+// certificates and iterates through the returned Kubernetes resources.
+// For each resources discovered, the fn function is called to decide the action.
 // Kubernetes continue key is a base64 encoded json payload with the resource
 // version of the request. In order to resume the operation when using the paginated
 // mode, Teleport respects the Kubernetes Continue Key and will return it to the client
@@ -252,7 +254,7 @@ func (s *Server) listKubernetesPods(
 // In order to have the expected behavior Teleport must respect the ContinueKey and
 // cannot manipulate it. It means that Teleport needs to manipulate the number of
 // requested items from the Kubernetes Cluster in order to have the expected behavior.
-func (s *Server) iterateKubernetesPods(
+func (s *Server) iterateKubernetesResources(
 	ctx context.Context,
 	identity tlsca.Identity,
 	req *proto.ListKubernetesResourcesRequest,
@@ -268,29 +270,174 @@ func (s *Server) iterateKubernetesPods(
 	continueKey := req.StartKey
 	itemsAppended := 0
 	for {
-		podList, err := kubeClient.CoreV1().Pods(req.KubernetesNamespace).List(ctx, metav1.ListOptions{
-			Limit:    decideLimit(int64(req.Limit), int64(itemsAppended), respectLimit),
-			Continue: continueKey,
-		})
-		if err != nil {
-			return trace.Wrap(err)
+		var (
+			items           []kObject
+			nextContinueKey string
+			listOpts        = metav1.ListOptions{
+				Limit:    decideLimit(int64(req.Limit), int64(itemsAppended), respectLimit),
+				Continue: continueKey,
+			}
+		)
+
+		switch req.ResourceType {
+		case types.KindKubePod:
+			lItems, err := kubeClient.CoreV1().Pods(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeSecret:
+			lItems, err := kubeClient.CoreV1().Secrets(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeConfigmap:
+			lItems, err := kubeClient.CoreV1().ConfigMaps(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeNamespace:
+			lItems, err := kubeClient.CoreV1().Namespaces().List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeService:
+			lItems, err := kubeClient.CoreV1().Services(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeServiceAccount:
+			lItems, err := kubeClient.CoreV1().ServiceAccounts(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeNode:
+			lItems, err := kubeClient.CoreV1().Nodes().List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubePersistentVolume:
+			lItems, err := kubeClient.CoreV1().PersistentVolumes().List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubePersistentVolumeClaim:
+			lItems, err := kubeClient.CoreV1().PersistentVolumeClaims(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeDeployment:
+			lItems, err := kubeClient.AppsV1().Deployments(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeReplicaSet:
+			lItems, err := kubeClient.AppsV1().ReplicaSets(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeStatefulset:
+			lItems, err := kubeClient.AppsV1().StatefulSets(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeDaemonSet:
+			lItems, err := kubeClient.AppsV1().DaemonSets(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeClusterRole:
+			lItems, err := kubeClient.RbacV1().ClusterRoles().List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeRole:
+			lItems, err := kubeClient.RbacV1().Roles(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeClusterRoleBinding:
+			lItems, err := kubeClient.RbacV1().ClusterRoleBindings().List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeRoleBinding:
+			lItems, err := kubeClient.RbacV1().RoleBindings(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeCronjob:
+			lItems, err := kubeClient.BatchV1().CronJobs(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeJob:
+			lItems, err := kubeClient.BatchV1().Jobs(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeCertificateSigningRequest:
+			lItems, err := kubeClient.CertificatesV1().CertificateSigningRequests().List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		case types.KindKubeIngress:
+			lItems, err := kubeClient.NetworkingV1().Ingresses(req.KubernetesNamespace).List(ctx, listOpts)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			items = itemListToKObjectList(itemListToItemListPtr(lItems.Items))
+			nextContinueKey = lItems.Continue
+		default:
+			return trace.BadParameter("unsupported resource type: %q", req.ResourceType)
 		}
 
-		for _, pod := range podList.Items {
-			resource, err := types.NewKubernetesPodV1(
-				types.Metadata{
-					Name:   pod.Name,
-					Labels: pod.Labels,
-				},
-				types.KubernetesResourceSpecV1{
-					Namespace: pod.Namespace,
-				},
-			)
+		for _, resource := range items {
+			resource, err := getKubernetesResourceFromKObject(resource, req.ResourceType)
 			if err != nil {
 				return trace.Wrap(err)
 			}
 
-			itemsAppended, err = fn(resource, podList.Continue)
+			itemsAppended, err = fn(resource, nextContinueKey)
 			if errors.Is(err, errDone) {
 				return nil
 			} else if err != nil {
@@ -298,11 +445,58 @@ func (s *Server) iterateKubernetesPods(
 			}
 		}
 
-		if len(podList.Continue) == 0 {
+		if len(nextContinueKey) == 0 {
 			return nil
 		}
-		continueKey = podList.Continue
+		continueKey = nextContinueKey
 	}
+}
+
+// kObject is an interface that all Kubernetes objects implement.
+type kObject interface {
+	GetName() string
+	GetNamespace() string
+	GetLabels() map[string]string
+}
+
+// getKubernetesResourceFromKObject converts a Kubernetes object to a
+// KubernetesResourceV1.
+func getKubernetesResourceFromKObject(
+	kObj kObject,
+	resourceType string,
+) (*types.KubernetesResourceV1, error) {
+	return types.NewKubernetesResourceV1(
+		resourceType,
+		types.Metadata{
+			Name:   kObj.GetName(),
+			Labels: kObj.GetLabels(),
+		},
+		types.KubernetesResourceSpecV1{
+			Namespace: kObj.GetNamespace(),
+		},
+	)
+}
+
+// itemListToItemListPtr is a helper function that converts a list of items
+// to a list of pointers to items.
+// This is needed because the Kubernetes API returns a list of items, but
+// only a list of pointers to items satisfies the kObject interface.
+func itemListToItemListPtr[T any](items []T) []*T {
+	kObjects := make([]*T, len(items))
+	for i := range items {
+		kObjects[i] = &(items[i])
+	}
+	return kObjects
+}
+
+// itemListToKObjectList is a helper function that converts a list of items
+// to a list of kObjects.
+func itemListToKObjectList[T kObject](items []T) []kObject {
+	kObjects := make([]kObject, len(items))
+	for i, item := range items {
+		kObjects[i] = item
+	}
+	return kObjects
 }
 
 // listResourcesUsingFakePagination is a helper function that lists Kubernetes
@@ -317,8 +511,8 @@ func (s *Server) listResourcesUsingFakePagination(
 		err error
 	)
 	switch {
-	case req.ResourceType == types.KindKubePod:
-		rsp, err = s.listKubernetesPods(ctx, identity, false /* do not respect the limit value */, req)
+	case slices.Contains(types.KubernetesResourcesKinds, req.ResourceType):
+		rsp, err = s.listKubernetesResources(ctx, identity, false /* do not respect the limit value */, req)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
