@@ -22,6 +22,10 @@ import { RuntimeSettings } from 'teleterm/mainProcess/types';
  * Checks if Connect My Computer can be used for the given root cluster.
  *
  * The root cluster is required because `loggedInUser` and `features` are not fully defined for leaves.
+ *
+ * TODO(gzdunek): we should have a single place where all permissions are defined.
+ * This will make it easier to understand what the user can and cannot do without having to jump around the code base.
+ * https://github.com/gravitational/teleport/pull/28346#discussion_r1246653846
  * */
 export function canUseConnectMyComputer(
   rootCluster: Cluster,

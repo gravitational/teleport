@@ -34,6 +34,7 @@ export function NavigationMenu(props: NavigationMenuProps) {
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const appCtx = useAppContext();
+  // DocumentCluster renders this component only if the cluster exists.
   const cluster = appCtx.clustersService.findCluster(props.clusterUri);
 
   if (cluster.leaf) {
