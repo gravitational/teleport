@@ -57,17 +57,11 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	clock, _ := params["clock"].(clockwork.Clock)
-	if clock == nil {
-		clock = clockwork.NewRealClock()
-	}
-
 	ctx, cancel := context.WithCancel(ctx)
 	b := &Backend{
 		log:    log,
 		pool:   pool,
 		buf:    backend.NewCircularBuffer(),
-		clock:  clock,
 		cancel: cancel,
 	}
 
@@ -86,10 +80,9 @@ func New(ctx context.Context, params backend.Params) (*Backend, error) {
 }
 
 type Backend struct {
-	log   logrus.FieldLogger
-	pool  *pgxpool.Pool
-	buf   *backend.CircularBuffer
-	clock clockwork.Clock
+	log  logrus.FieldLogger
+	pool *pgxpool.Pool
+	buf  *backend.CircularBuffer
 
 	cancel context.CancelFunc
 	wg     sync.WaitGroup
@@ -213,8 +206,8 @@ func (b *Backend) Create(ctx context.Context, i backend.Item) (*backend.Lease, e
 			"INSERT INTO kv (key, value, expires, rev) VALUES ($1, $2, $3, $4) "+
 				"ON CONFLICT (key) DO UPDATE SET "+
 				"value = EXCLUDED.value, expires = EXCLUDED.expires, rev = EXCLUDED.rev "+
-				"WHERE kv.expires IS NOT NULL AND kv.expires <= $5",
-			i.Key, i.Value, zeronull.Timestamp(i.Expires.UTC()), rev, b.clock.Now().UTC())
+				"WHERE kv.expires IS NOT NULL AND kv.expires <= now()",
+			i.Key, i.Value, zeronull.Timestamp(i.Expires.UTC()), rev)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -255,8 +248,8 @@ func (b *Backend) CompareAndSwap(ctx context.Context, expected backend.Item, rep
 	rev := newRev()
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		tag, err := p.Exec(ctx,
-			"UPDATE kv SET value = $2, expires = $3, rev = $4 WHERE key = $1 AND value = $5 AND (expires IS NULL OR expires > $6)",
-			replaceWith.Key, replaceWith.Value, zeronull.Timestamp(replaceWith.Expires.UTC()), rev, expected.Value, b.clock.Now().UTC())
+			"UPDATE kv SET value = $1, expires = $2, rev = $3 WHERE key = $4 AND value = $5 AND (expires IS NULL OR expires > now())",
+			replaceWith.Value, zeronull.Timestamp(replaceWith.Expires.UTC()), rev, replaceWith.Key, expected.Value)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -278,8 +271,8 @@ func (b *Backend) Update(ctx context.Context, i backend.Item) (*backend.Lease, e
 	rev := newRev()
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		tag, err := p.Exec(ctx,
-			"UPDATE kv SET value = $2, expires = $3, rev = $4 WHERE key = $1 AND (expires IS NULL OR expires > $5)",
-			i.Key, i.Value, zeronull.Timestamp(i.Expires.UTC()), rev, b.clock.Now().UTC())
+			"UPDATE kv SET value = $1, expires = $2, rev = $3 WHERE key = $4 AND (expires IS NULL OR expires > now())",
+			i.Value, zeronull.Timestamp(i.Expires.UTC()), rev, i.Key)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -304,8 +297,8 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 		var rev pgtype.UUID
 		err := p.QueryRow(ctx,
 			"SELECT value, expires, rev FROM kv "+
-				"WHERE key = $1 AND (expires IS NULL OR expires > $2)",
-			key, b.clock.Now().UTC()).Scan(&value, &expires, &rev)
+				"WHERE key = $1 AND (expires IS NULL OR expires > now())",
+			key).Scan(&value, &expires, &rev)
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil
 		} else if err != nil {
@@ -339,9 +332,9 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		r.Items = nil
 		rows, _ := p.Query(ctx,
 			"SELECT key, value, expires, rev FROM kv "+
-				"WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > $3) "+
-				"LIMIT $4",
-			startKey, endKey, b.clock.Now().UTC(), limit,
+				"WHERE key BETWEEN $1 AND $2 AND (expires IS NULL OR expires > now()) "+
+				"LIMIT $3",
+			startKey, endKey, limit,
 		)
 		var key, value []byte
 		var expires zeronull.Timestamp
@@ -368,9 +361,7 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 func (b *Backend) Delete(ctx context.Context, key []byte) error {
 	var r int64
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
-		tag, err := p.Exec(ctx,
-			"DELETE FROM kv WHERE key = $1 AND (expires IS NULL OR expires > $2)",
-			key, b.clock.Now().UTC())
+		tag, err := p.Exec(ctx, "DELETE FROM kv WHERE key = $1 AND (expires IS NULL OR expires > now())", key)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -425,8 +416,8 @@ func (b *Backend) KeepAlive(ctx context.Context, lease backend.Lease, expires ti
 	rev := newRev()
 	if err := b.retry(ctx, func(p *pgxpool.Pool) error {
 		tag, err := p.Exec(ctx,
-			"UPDATE kv SET expires = $2, rev = $3 WHERE key = $1 AND (expires IS NULL OR expires > $4)",
-			lease.Key, zeronull.Timestamp(expires.UTC()), rev, b.clock.Now().UTC())
+			"UPDATE kv SET expires = $1, rev = $2 WHERE key = $3 AND (expires IS NULL OR expires > now())",
+			zeronull.Timestamp(expires.UTC()), rev, lease.Key)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -451,4 +442,4 @@ func (b *Backend) NewWatcher(ctx context.Context, watch backend.Watch) (backend.
 func (b *Backend) CloseWatchers() { b.buf.Clear() }
 
 // Clock implements backend.Backend
-func (b *Backend) Clock() clockwork.Clock { return b.clock }
+func (b *Backend) Clock() clockwork.Clock { return clockwork.NewRealClock() }

@@ -44,15 +44,29 @@ func TestPostgresBackend(t *testing.T) {
 		var params backend.Params
 		require.NoError(t, json.Unmarshal([]byte(paramString), &params))
 
-		clock := clockwork.NewFakeClockAt(time.Now().UTC())
-		params["clock"] = clock
-
 		uut, err := New(context.Background(), params)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
-		return uut, clock, nil
+		return uut, blockingFakeClock{clockwork.NewRealClock()}, nil
 	}
 
 	test.RunBackendComplianceSuite(t, newBackend)
+}
+
+// TODO(espadolini): use the one used by etcd and firestore
+type blockingFakeClock struct {
+	clockwork.Clock
+}
+
+func (r blockingFakeClock) Advance(d time.Duration) {
+	if d < 0 {
+		panic("cannot rewind real clock")
+	}
+
+	r.Clock.Sleep(d)
+}
+
+func (r blockingFakeClock) BlockUntil(n int) {
+	panic("BlockUntil not implemented")
 }
