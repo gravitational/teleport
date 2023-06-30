@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import React, {
   createContext,
   PropsWithChildren,
@@ -25,8 +26,6 @@ import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { Indicator } from 'design';
 
-import { StyledIndicator } from 'teleport/Main';
-
 import * as service from 'teleport/services/userPreferences';
 
 import storage, { KeysEnum } from 'teleport/services/localStorage';
@@ -34,6 +33,8 @@ import storage, { KeysEnum } from 'teleport/services/localStorage';
 import { ThemePreference } from 'teleport/services/userPreferences/types';
 
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
+
+import { LoadingContainer } from 'teleport/User/Loading';
 
 import type {
   UserPreferences,
@@ -129,9 +130,9 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
   if (attempt.status === 'processing') {
     return (
-      <StyledIndicator>
+      <LoadingContainer>
         <Indicator />
-      </StyledIndicator>
+      </LoadingContainer>
     );
   }
 
