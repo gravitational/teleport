@@ -51,7 +51,13 @@ export function IntegrationTiles({
       </Text>
       {!hasAccess && (
         <ToolTipNoPermBadge
-          children={`You do not have access to create integrations`}
+          children={
+            <div>
+              You don’t have sufficient permissions to create an integration.
+              Reach out to your Teleport administrator to request additional
+              permissions.
+            </div>
+          }
         />
       )}
     </IntegrationTile>
