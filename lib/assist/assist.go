@@ -21,6 +21,7 @@ package assist
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -170,6 +171,23 @@ func (a *Assist) GenerateCommandSummary(ctx context.Context, messages []*assist.
 func (c *Chat) reloadMessages(ctx context.Context) error {
 	c.chat.Clear()
 	return c.loadMessages(ctx)
+}
+
+// ClassifyMessage takes a user message, a list of categories, and uses the AI
+// mode as a zero shot classifier. It returns an error if the classification
+// result is not a valid class.
+func (a *Assist) ClassifyMessage(ctx context.Context, message string, classes map[string]string) (string, error) {
+	category, err := a.client.ClassifyMessage(ctx, message, classes)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	cleanedCategory := strings.ToLower(strings.Trim(category, ". "))
+	if _, ok := classes[cleanedCategory]; ok {
+		return cleanedCategory, nil
+	}
+
+	return "", trace.CompareFailed("classification failed, category '%s' is not a valid classes", cleanedCategory)
 }
 
 // loadMessages loads the messages from the database.
