@@ -1,0 +1,51 @@
+version: v2
+teleport:
+  nodename: teleport-e2e
+  auth_token: foo
+  data_dir: /var/lib/teleport
+  log:
+    output: stderr
+    severity: TRACE
+    format:
+      output: text
+
+  auth_servers:
+    - teleport:3025
+
+auth_service:
+  enabled: "yes"
+  license_file: /var/lib/teleport/license.pem
+  listen_addr: 0.0.0.0:3025
+  proxy_listener_mode: multiplex
+
+#  assist:
+#    openai:
+#      api_token_path: /etc/teleport/openai_key
+  tokens:
+    - "node,auth,proxy,db,trusted_cluster:foo"
+  authentication:
+    type: local
+    second_factor: off
+
+ssh_service:
+  enabled: "yes"
+  public_addr: teleport:3080
+
+  labels:
+    env: example
+
+proxy_service:
+  enabled: "yes"
+  public_addr: teleport:3080
+  acme: {}
+
+  web_listen_addr: 0.0.0.0:3080
+#  assist:
+#    openai:
+#      api_token_path: /etc/teleport/openai_key
+
+  https_keypairs:
+    - key_file: /etc/teleport/certs/tls.key
+      cert_file: /etc/teleport/certs/tls.crt
+
+

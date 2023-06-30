@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  teleport:
+    image: teleport-e2e:latest
+    hostname: teleport
+    build:
+        context: ..
+        dockerfile: ./e2e/config/Dockerfile
+    volumes:
+      - teleport-config:/etc/teleport
+      - ./config/teleport.yaml:/etc/teleport/teleport.yaml
+#      - ./config/openai_key:/etc/teleport/openai_key
+      - teleport-data:/var/lib/teleport
+    ports:
+      - 3080:3080
+
+  e2e:
+    image: mcr.microsoft.com/playwright:v1.36.0-jammy
+    entrypoint:
+        - bash
+        - -c
+    volumes:
+      - .:/e2e
+      - teleport-config:/etc/teleport
+      - teleport-data:/var/lib/teleport
+    environment:
+      - CI=1
+    working_dir: /e2e
+    command:
+      - /e2e/config/run-tests.sh
+    depends_on:
+        - tctl
+
+  tctl:
+    image: teleport-e2e:latest
+    build:
+      context: ..
+      dockerfile: ./e2e/config/Dockerfile
+    environment:
+      - TELEPORT_CONFIG_FILE=/etc/teleport/teleport.yaml
+    volumes:
+        - teleport-config:/etc/teleport
+        - ./config/teleport.yaml:/etc/teleport/teleport.yaml
+#        - ./config/openai_key:/etc/teleport/openai_key
+        - ./config/create-user.sh:/create-user.sh
+        - teleport-data:/var/lib/teleport
+    entrypoint:
+      - bash
+      - -c
+    command:
+      - /create-user.sh && sleep infinity
+
+volumes:
+  teleport-config: {}
+  teleport-data: {}
+
