@@ -21,82 +21,11 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
-	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 
 	commonpb "github.com/gravitational/teleport/api/gen/proto/go/common/v1"
 	"github.com/gravitational/teleport/api/utils"
 )
-
-// Builder is an interface that can build a resource object.
-type Builder[T any] interface {
-	// Build will build a resource object.
-	Build() (T, error)
-}
-
-// ResourceHeaderBuilder is a builder that can be attached to another resource builder.
-// This will give the resource header build options to the given builder.
-type ResourceHeaderBuilder[T Builder[V], V any] struct {
-	parentBuilder T
-
-	kind    string
-	subKind string
-	version string
-	*MetadataBuilder[T, V]
-
-	resourceHeader *ResourceHeader
-}
-
-// NewResourceHeaderBuilder creates a new resource header builder with the given parent builder.
-func NewResourceHeaderBuilder[T Builder[V], V any](parent T) *ResourceHeaderBuilder[T, V] {
-	return &ResourceHeaderBuilder[T, V]{
-		parentBuilder: parent,
-		MetadataBuilder: &MetadataBuilder[T, V]{
-			parentBuilder: parent,
-		},
-	}
-}
-
-// Kind sets the kind for the resource header.
-func (r *ResourceHeaderBuilder[T, _]) Kind(kind string) T {
-	r.kind = kind
-	return r.parentBuilder
-}
-
-// SubKind sets the sub kind for the resource header.
-func (r *ResourceHeaderBuilder[T, _]) SubKind(subKind string) T {
-	r.subKind = subKind
-	return r.parentBuilder
-}
-
-// Version sets the version for the resource header.
-func (r *ResourceHeaderBuilder[T, _]) Version(version string) T {
-	r.version = version
-	return r.parentBuilder
-}
-
-// ResourceHeader takes a resource header object and will return this object when Build is called.
-// This is primarily used for things like protobuf conversion functions where the resource header
-// may be converted explicitly.
-func (r *ResourceHeaderBuilder[T, _]) ResourceHeader(resourceHeader *ResourceHeader) T {
-	r.resourceHeader = resourceHeader
-	return r.parentBuilder
-}
-
-// Build creates the resource header object.
-func (r *ResourceHeaderBuilder[_, _]) Build() *ResourceHeader {
-	// If the resource header field is set, use this object instead of building a new one.
-	if r.resourceHeader != nil {
-		return r.resourceHeader
-	}
-
-	return &ResourceHeader{
-		Kind:     r.kind,
-		SubKind:  r.subKind,
-		Version:  r.version,
-		Metadata: r.MetadataBuilder.Build(),
-	}
-}
 
 // FromResourceHeaderV1 converts the resource header protobuf message into an internal resource header object.
 // This function does not use the builder due to the generics for the builder object.
@@ -106,6 +35,12 @@ func FromResourceHeaderV1(msg *commonpb.ResourceHeader) *ResourceHeader {
 		SubKind:  msg.SubKind,
 		Version:  msg.Version,
 		Metadata: FromMetadataV1(msg.Metadata),
+	}
+}
+
+func ResourceHeaderFromMetadata(metadata *Metadata) *ResourceHeader {
+	return &ResourceHeader{
+		Metadata: metadata,
 	}
 }
 
@@ -227,80 +162,6 @@ func (h *ResourceHeader) CheckAndSetDefaults() error {
 		return trace.BadParameter("resource has an empty Version field")
 	}
 	return trace.Wrap(h.Metadata.CheckAndSetDefaults())
-}
-
-// MetadataBuilder will create a builder for a metadata object.
-type MetadataBuilder[T Builder[V], V any] struct {
-	parentBuilder T
-
-	name        string
-	description string
-	labels      map[string]string
-	expires     time.Time
-	id          int64
-
-	metadata *Metadata
-}
-
-// NewResourceHeaderBuilder creates a new metadata builder with the given parent builder.
-func NewMetadataBuilder[T Builder[V], V any](parent T) *MetadataBuilder[T, V] {
-	return &MetadataBuilder[T, V]{
-		parentBuilder: parent,
-	}
-}
-
-// Name sets the name for the metadata.
-func (m *MetadataBuilder[T, _]) Name(name string) T {
-	m.name = name
-	return m.parentBuilder
-}
-
-// Description sets the description for the metadata.
-func (m *MetadataBuilder[T, _]) Description(description string) T {
-	m.description = description
-	return m.parentBuilder
-}
-
-// Labels sets the labels for the metadata.
-func (m *MetadataBuilder[T, _]) Labels(labels map[string]string) T {
-	m.labels = maps.Clone(labels)
-	return m.parentBuilder
-}
-
-// Expires sets the expiry time for the metadata.
-func (m *MetadataBuilder[T, _]) Expires(expires time.Time) T {
-	m.expires = expires
-	return m.parentBuilder
-}
-
-// ID sets the resource ID for the metadata.
-func (m *MetadataBuilder[T, _]) ID(id int64) T {
-	m.id = id
-	return m.parentBuilder
-}
-
-// Metadata takes a metadata object and will return this object when Build is called.
-// This is primarily used for things like protobuf conversion functions where the metadata
-// may be converted explicitly.
-func (m *MetadataBuilder[T, _]) Metadata(metadata *Metadata) T {
-	m.metadata = metadata
-	return m.parentBuilder
-}
-
-// Build creates the metadata object.
-func (m *MetadataBuilder[_, _]) Build() *Metadata {
-	// If the metadata field is set, use this object instead of building a new one.
-	if m.metadata != nil {
-		return m.metadata
-	}
-
-	return &Metadata{
-		Name:        m.name,
-		Description: m.description,
-		Labels:      m.labels,
-		Expires:     m.expires,
-		ID:          m.id,
-	}
 }
 
 // FromMetadataV1 converts v1 metadata into an internal metadata object.
