@@ -101,11 +101,7 @@ appropriate steps.
 You can start Grafana in a Docker container by running the following command:
 
 ```code
-<<<<<<< HEAD
-$ docker run -d --name grafana -p 3000:3000 grafana/grafana
-=======
 $ docker run --detach --name grafana --publish 3000:3000 grafana/grafana
->>>>>>> 623632848c (Modified according to review comments plus some refinements)
 ```
 
 After running this command, edit the `/etc/grafana/grafana.ini` file in the container. 
