@@ -1,6 +1,6 @@
 ---
-title: Teleport Authentication with One Login as an SSO provider
-description: How to configure Teleport access using One Login as an SSO provider
+title: Teleport Authentication with OneLogin as an SSO Provider
+description: How to configure Teleport access using OneLogin as an SSO provider
 h1: Teleport Authentication with OneLogin
 ---
 
@@ -15,7 +15,7 @@ to define policies like:
 
 ## Prerequisites
 
-- A One Login account with admin access, and users assigned to at least two groups.
+- A OneLogin account with admin access, and users assigned to at least two groups.
 - Teleport role with access to maintaining `saml` resources.  This is available
   in the default `editor` role.
 
@@ -30,7 +30,7 @@ In the OneLogin control panel's main menu navigate to **Applications** ->
 
 ![SAML Custom Connector (SP Shibboleth)](../../../img/sso/onelogin/onelogin-saml-1.png)
 
-Define the new Application:
+Define the new application:
 
 ![SAML Config](../../../img/sso/onelogin/onelogin-saml-1a.png)
 
@@ -42,7 +42,9 @@ You can find Teleport icons to upload from the following links:
 From the application's **Configuration** page, set the following values:
 
 <Admonition type="tip">
-Set <Var name="teleport.example.com:443" description="Your Teleport proxy address and port, or cloud tenant." /> here with your Teleport Proxy address and port, or Teleport Cloud tenant (e.g. `company.teleport.sh:443`) to fill out the values below.
+Set <Var name="teleport.example.com:443" description="Your Teleport Proxy Service address and port, or cloud tenant." />
+here with your Teleport Proxy Service address and port, or Teleport Enterprise
+Cloud tenant (e.g. `company.teleport.sh:443`) to fill out the values below.
 </Admonition>
 
 - **Login URL**:
