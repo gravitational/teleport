@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package reversetunnel
+package reversetunnelclient
 
 import (
 	"github.com/gravitational/trace"
@@ -32,9 +32,10 @@ type ClusterGetter interface {
 }
 
 // NewTunnelWithRoles returns new authorizing tunnel
-func NewTunnelWithRoles(tunnel Tunnel, accessChecker services.AccessChecker, access ClusterGetter) *TunnelWithRoles {
+func NewTunnelWithRoles(tunnel Tunnel, localCluster string, accessChecker services.AccessChecker, access ClusterGetter) *TunnelWithRoles {
 	return &TunnelWithRoles{
 		tunnel:        tunnel,
+		localCluster:  localCluster,
 		accessChecker: accessChecker,
 		access:        access,
 	}
@@ -43,6 +44,8 @@ func NewTunnelWithRoles(tunnel Tunnel, accessChecker services.AccessChecker, acc
 // TunnelWithRoles authorizes requests
 type TunnelWithRoles struct {
 	tunnel Tunnel
+
+	localCluster string
 
 	// accessChecker is used to check RBAC permissions.
 	accessChecker services.AccessChecker
@@ -58,7 +61,7 @@ func (t *TunnelWithRoles) GetSites() ([]RemoteSite, error) {
 	}
 	out := make([]RemoteSite, 0, len(clusters))
 	for _, cluster := range clusters {
-		if _, ok := cluster.(*localSite); ok {
+		if t.localCluster == cluster.GetName() {
 			out = append(out, cluster)
 			continue
 		}
@@ -87,7 +90,7 @@ func (t *TunnelWithRoles) GetSite(clusterName string) (RemoteSite, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if _, ok := cluster.(*localSite); ok {
+	if t.localCluster == cluster.GetName() {
 		return cluster, nil
 	}
 	rc, err := t.access.GetRemoteCluster(clusterName)

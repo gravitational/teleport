@@ -34,7 +34,6 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -43,7 +42,7 @@ import (
 
 // transportConfig is configuration for a rewriting transport.
 type transportConfig struct {
-	proxyClient  reversetunnel.Tunnel
+	proxyClient  reversetunnelclient.Tunnel
 	accessPoint  auth.ReadProxyAccessPoint
 	cipherSuites []uint16
 	identity     *tlsca.Identity
@@ -285,7 +284,7 @@ func (t *transport) DialWebsocket(network, address string) (net.Conn, error) {
 
 // dialAppServer dial and connect to the application service over the reverse
 // tunnel subsystem.
-func dialAppServer(ctx context.Context, proxyClient reversetunnel.Tunnel, clusterName string, server types.AppServer) (net.Conn, error) {
+func dialAppServer(ctx context.Context, proxyClient reversetunnelclient.Tunnel, clusterName string, server types.AppServer) (net.Conn, error) {
 	clusterClient, err := proxyClient.GetSite(clusterName)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -298,7 +297,7 @@ func dialAppServer(ctx context.Context, proxyClient reversetunnel.Tunnel, cluste
 		from = clientSrcAddr
 	}
 
-	conn, err := clusterClient.Dial(reversetunnel.DialParams{
+	conn, err := clusterClient.Dial(reversetunnelclient.DialParams{
 		From:                  from,
 		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 		OriginalClientDstAddr: originalDst,
@@ -349,5 +348,5 @@ func configureTLS(c *transportConfig) (*tls.Config, error) {
 // the reverse tunnel connection is down e.g. because the agent is down.
 func isReverseTunnelDownError(err error) bool {
 	return trace.IsConnectionProblem(err) ||
-		strings.Contains(err.Error(), reversetunnel.NoApplicationTunnel)
+		strings.Contains(err.Error(), reversetunnelclient.NoApplicationTunnel)
 }

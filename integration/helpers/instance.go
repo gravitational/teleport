@@ -56,6 +56,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -258,7 +259,7 @@ type TeleInstance struct {
 	// Internal stuff...
 	Process              *service.TeleportProcess
 	Config               *servicecfg.Config
-	Tunnel               reversetunnel.Server
+	Tunnel               reversetunnelclient.Server
 	RemoteClusterWatcher *reversetunnel.RemoteClusterTunnelManager
 
 	// Nodes is a list of additional nodes
@@ -1033,7 +1034,7 @@ type ProxyConfig struct {
 }
 
 // StartProxy starts another Proxy Server and connects it to the cluster.
-func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunnel.Server, *service.TeleportProcess, error) {
+func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunnelclient.Server, *service.TeleportProcess, error) {
 	dataDir, err := os.MkdirTemp("", "cluster-"+i.Secrets.SiteName+"-"+cfg.Name)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1107,12 +1108,12 @@ func (i *TeleInstance) StartProxy(cfg ProxyConfig, opts ...Option) (reversetunne
 	log.Debugf("Teleport proxy (in instance %v) started: %v/%v events received.",
 		i.Secrets.SiteName, len(expectedEvents), len(receivedEvents))
 
-	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
+	// Extract and set reversetunnelclient.Server and reversetunnel.AgentPool upon
 	// receipt of a ProxyReverseTunnelReady event
 	for _, re := range receivedEvents {
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
-			ts, ok := re.Payload.(reversetunnel.Server)
+			ts, ok := re.Payload.(reversetunnelclient.Server)
 			if ok {
 				return ts, process, nil
 			}
@@ -1220,12 +1221,12 @@ func (i *TeleInstance) Start() error {
 		return trace.Wrap(err)
 	}
 
-	// Extract and set reversetunnel.Server and reversetunnel.AgentPool upon
+	// Extract and set reversetunnelclient.Server and reversetunnel.AgentPool upon
 	// receipt of a ProxyReverseTunnelReady and ProxyAgentPoolReady respectively.
 	for _, re := range receivedEvents {
 		switch re.Name {
 		case service.ProxyReverseTunnelReady:
-			ts, ok := re.Payload.(reversetunnel.Server)
+			ts, ok := re.Payload.(reversetunnelclient.Server)
 			if ok {
 				i.Tunnel = ts
 			}
