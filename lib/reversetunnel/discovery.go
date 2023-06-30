@@ -59,7 +59,11 @@ func (r *discoveryRequest) SetProxies(proxies []types.Server) {
 		d.Metadata.Name = proxy.GetName()
 		d.ProxyGroupID, _ = proxy.GetLabel(types.ProxyGroupIDLabel)
 		proxyGroupGeneration, _ := proxy.GetLabel(types.ProxyGroupGenerationLabel)
-		d.ProxyGroupGeneration, _ = strconv.Atoi(proxyGroupGeneration)
+		var err error
+		d.ProxyGroupGeneration, err = strconv.Atoi(proxyGroupGeneration)
+		if err != nil {
+			d.ProxyGroupGeneration = 0
+		}
 
 		r.Proxies = append(r.Proxies, d)
 	}
