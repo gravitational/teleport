@@ -5,7 +5,7 @@
 --exclude .fpm
 --force
 --after-install install.sh
---after-upgrade install.sh
+--after-upgrade upgrade.sh
 --maintainer "info@goteleport.com"
 --depends teleport-ent
 --description "Teleports new version of Teleport to your system"
