@@ -25,7 +25,12 @@ import { makeUserContext } from 'teleport/services/user';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 
+import { mockUserPreferencesResponse } from 'teleport/User/mock';
+import { UserContextProvider } from 'teleport/User';
+
 import { TopBar } from './TopBar';
+
+const { worker } = window.msw;
 
 export default {
   title: 'Teleport/TopBar',
@@ -42,13 +47,17 @@ export function Story() {
     },
   });
 
+  worker.use(mockUserPreferencesResponse());
+
   return (
     <Router history={createMemoryHistory()}>
       <LayoutContextProvider>
         <TeleportContextProvider ctx={ctx}>
-          <FeaturesContextProvider value={getOSSFeatures()}>
-            <TopBar />
-          </FeaturesContextProvider>
+          <UserContextProvider>
+            <FeaturesContextProvider value={getOSSFeatures()}>
+              <TopBar />
+            </FeaturesContextProvider>
+          </UserContextProvider>
         </TeleportContextProvider>
       </LayoutContextProvider>
     </Router>

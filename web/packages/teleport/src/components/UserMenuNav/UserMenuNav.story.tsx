@@ -1,50 +1,54 @@
-/**
- * Copyright 2022 Gravitational, Inc.
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
+/*
+Copyright 2019 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
 
 import React from 'react';
-import { MemoryRouter } from 'react-router';
-import * as Icons from 'design/Icon';
 
-import { UserMenuNav } from './UserMenuNav';
+import { MemoryRouter } from 'react-router';
+
+import { UserMenuNav } from 'teleport/components/UserMenuNav/UserMenuNav';
+import { UserContextProvider } from 'teleport/User';
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import TeleportContext from 'teleport/teleportContext';
+import { userContext } from 'teleport/Main/fixtures';
+import { FeaturesContextProvider } from 'teleport/FeaturesContext';
+import { getOSSFeatures } from 'teleport/features';
+import { mockUserPreferencesResponse } from 'teleport/User/mock';
+
+const { worker } = window.msw;
 
 export default {
   title: 'Teleport/UserMenuNav',
 };
 
 export function Loaded() {
+  const ctx = new TeleportContext();
+
+  ctx.storeUser.state = userContext;
+
+  worker.use(mockUserPreferencesResponse());
+
   return (
     <MemoryRouter>
-      <UserMenuNav {...props} />
+      <TeleportContextProvider ctx={ctx}>
+        <UserContextProvider>
+          <FeaturesContextProvider value={getOSSFeatures()}>
+            <UserMenuNav username="george" />
+          </FeaturesContextProvider>
+        </UserContextProvider>
+      </TeleportContextProvider>
     </MemoryRouter>
   );
 }
-
-const props = {
-  navItems: [
-    {
-      title: 'Nav Item 1',
-      Icon: Icons.Apple,
-      getLink: () => 'test',
-    },
-    {
-      title: 'Nav Item 2',
-      Icon: Icons.Cloud,
-      getLink: () => 'test2',
-    },
-  ],
-  username: 'george',
-  logout: () => null,
-};

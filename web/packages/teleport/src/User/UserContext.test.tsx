@@ -30,6 +30,10 @@ import { UserContextProvider } from 'teleport/User';
 import { ThemePreference } from 'teleport/services/userPreferences/types';
 import { useUser } from 'teleport/User/UserContext';
 import { KeysEnum } from 'teleport/services/localStorage';
+import {
+  mockUserPreferencesFailedResponse,
+  mockUserPreferencesResponse,
+} from 'teleport/User/mock';
 
 function ThemeName() {
   const { preferences } = useUser();
@@ -42,16 +46,7 @@ function ThemeName() {
 }
 
 describe('user context - success state', () => {
-  const server = setupServer(
-    rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
-      return res(
-        ctx.json({
-          theme: ThemePreference.Light,
-          assist: {},
-        })
-      );
-    })
-  );
+  const server = setupServer(mockUserPreferencesResponse());
 
   beforeAll(() => server.listen());
   beforeEach(() => localStorage.clear());
@@ -102,11 +97,7 @@ describe('user context - success state', () => {
 });
 
 describe('user context - error state', () => {
-  const server = setupServer(
-    rest.get(cfg.api.userPreferencesPath, (req, res, ctx) => {
-      return res(ctx.status(500));
-    })
-  );
+  const server = setupServer(mockUserPreferencesFailedResponse());
 
   beforeAll(() => server.listen());
   beforeEach(() => localStorage.clear());
