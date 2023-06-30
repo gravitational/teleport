@@ -51,14 +51,14 @@ type fakeStorage struct {
 	clusters []*Cluster
 }
 
-func (f fakeStorage) GetByResourceURI(resourceURI string) (*Cluster, error) {
+func (f fakeStorage) GetByResourceURI(resourceURI string) (*Cluster, *client.TeleportClient, error) {
 	for _, cluster := range f.clusters {
 		if strings.HasPrefix(resourceURI, cluster.URI.String()) {
-			return cluster, nil
+			return cluster, cluster.clusterClient, nil
 		}
 	}
 
-	return nil, trace.NotFound("not found")
+	return nil, nil, trace.NotFound("not found")
 }
 
 func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {

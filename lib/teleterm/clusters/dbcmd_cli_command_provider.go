@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -32,7 +33,7 @@ type DbcmdCLICommandProvider struct {
 }
 
 type StorageByResourceURI interface {
-	GetByResourceURI(string) (*Cluster, error)
+	GetByResourceURI(string) (*Cluster, *client.TeleportClient, error)
 }
 
 func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Execer) DbcmdCLICommandProvider {
@@ -43,7 +44,7 @@ func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Exece
 }
 
 func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd, error) {
-	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI())
+	cluster, _, err := d.storage.GetByResourceURI(gateway.TargetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

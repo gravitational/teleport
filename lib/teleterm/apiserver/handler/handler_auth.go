@@ -24,7 +24,7 @@ import (
 
 // Login logs in a user to a cluster
 func (s *Handler) Login(ctx context.Context, req *api.LoginRequest) (*api.EmptyResponse, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -65,7 +65,7 @@ func (s *Handler) LoginPasswordless(stream api.TerminalService_LoginPasswordless
 		return trace.BadParameter("cluster URI is required")
 	}
 
-	cluster, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
+	cluster, _, err := s.DaemonService.ResolveCluster(initReq.GetClusterUri())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -89,7 +89,7 @@ func (s *Handler) Logout(ctx context.Context, req *api.LogoutRequest) (*api.Empt
 
 // GetAuthSettings returns cluster auth preferences
 func (s *Handler) GetAuthSettings(ctx context.Context, req *api.GetAuthSettingsRequest) (*api.AuthSettings, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -26,7 +26,7 @@ import (
 
 // GetDatabases gets databses with filters and returns paginated results
 func (s *Handler) GetDatabases(ctx context.Context, req *api.GetDatabasesRequest) (*api.GetDatabasesResponse, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.ClusterUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.ClusterUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -54,7 +54,7 @@ func (s *Handler) GetDatabases(ctx context.Context, req *api.GetDatabasesRequest
 // The list is based on whatever we can deduce from the role set, so it's similar to the behavior of
 // `tsh db ls -v`, with the exception that Teleterm is interested only in the allowed usernames.
 func (s *Handler) ListDatabaseUsers(ctx context.Context, req *api.ListDatabaseUsersRequest) (*api.ListDatabaseUsersResponse, error) {
-	cluster, err := s.DaemonService.ResolveCluster(req.DbUri)
+	cluster, _, err := s.DaemonService.ResolveCluster(req.DbUri)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
