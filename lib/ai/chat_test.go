@@ -18,6 +18,8 @@ package ai
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
 	"net/http/httptest"
 	"testing"
 
@@ -87,7 +89,7 @@ func TestChat_PromptTokens(t *testing.T) {
 			t.Parallel()
 
 			responses := []string{
-				generateCommandResponse(),
+				generateCommandResponse(t),
 			}
 			server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
 			t.Cleanup(server.Close)
@@ -119,7 +121,7 @@ func TestChat_Complete(t *testing.T) {
 
 	responses := []string{
 		generateTextResponse(),
-		generateCommandResponse(),
+		generateCommandResponse(t),
 	}
 	server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
 	t.Cleanup(server.Close)
@@ -174,20 +176,36 @@ func TestChat_Complete(t *testing.T) {
 
 // generateTextResponse generates a response for a text completion
 func generateTextResponse() string {
-	return "```" + `json
-	{
-	    "action": "Final Answer",
-	    "action_input": "Which node do you want use?"
-	}
-	` + "```"
+	dataBytes := []byte{}
+	dataBytes = append(dataBytes, []byte("event: message\n")...)
+	data := fmt.Sprintf(`{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":{"content": "%v", "role": "assistant"}}]}`, "<FINAL ANSWER> \nWhich node do you want use?")
+	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
+	dataBytes = append(dataBytes, []byte("event: done\n")...)
+	dataBytes = append(dataBytes, []byte("data: [DONE]\n\n")...)
+	return string(dataBytes)
 }
 
 // generateCommandResponse generates a response for the command "df -h" on the node "localhost"
-func generateCommandResponse() string {
-	return "```" + `json
-	{
-	    "action": "Command Execution",
-	    "action_input": "{\"command\":\"df -h\",\"nodes\":[\"localhost\"],\"labels\":[]}"
+func generateCommandResponse(t *testing.T) string {
+	dataBytes := []byte{}
+	dataBytes = append(dataBytes, []byte("event: message\n")...)
+	obj := struct {
+		content string
+		role    string
+	}{
+		content: "```" + `json
+		{
+			"action": "Command Execution",
+			"action_input": "{\"command\":\"df -h\",\"nodes\":[\"localhost\"],\"labels\":[]}"
+		}
+		` + "```",
+		role: "assistant",
 	}
-	` + "```"
+	json, err := json.Marshal(obj)
+	require.NoError(t, err)
+	data := fmt.Sprintf(`{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":%v}]}`, string(json))
+	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
+	dataBytes = append(dataBytes, []byte("event: done\n")...)
+	dataBytes = append(dataBytes, []byte("data: [DONE]\n\n")...)
+	return string(dataBytes)
 }
