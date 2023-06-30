@@ -15,11 +15,21 @@ limitations under the License.
 */
 
 import React from 'react';
-import { render, fireEvent, screen } from 'design/utils/testing';
+import {
+  fireEvent,
+  screen,
+  render as testingRender,
+} from 'design/utils/testing';
+
+import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 
 import { BannerList } from './BannerList';
 
 import type { BannerType } from './BannerList';
+
+function render(banner: React.ReactNode) {
+  return testingRender(<LayoutContextProvider>{banner}</LayoutContextProvider>);
+}
 
 describe('components/BannerList/Banner', () => {
   let banners: BannerType[] = null;

@@ -24,6 +24,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
+	"golang.org/x/crypto/ssh"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/constants"
@@ -138,6 +139,53 @@ func NewSessionController(cfg SessionControllerConfig) (*SessionController, erro
 	}
 
 	return &SessionController{cfg: cfg}, nil
+}
+
+// WebSessionContext contains information associated with a session
+// established via the web ui.
+type WebSessionContext interface {
+	GetUserAccessChecker() (services.AccessChecker, error)
+	GetSSHCertificate() (*ssh.Certificate, error)
+	GetUser() string
+}
+
+// WebSessionController is a wrapper around [SessionController] which can be
+// used to create an [IdentityContext] and apply session controls for a web session.
+// This allows `lib/web` to not depend on `lib/srv`.
+func WebSessionController(controller *SessionController) func(ctx context.Context, sctx WebSessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
+	return func(ctx context.Context, sctx WebSessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
+		accessChecker, err := sctx.GetUserAccessChecker()
+		if err != nil {
+			return ctx, trace.Wrap(err)
+		}
+
+		sshCert, err := sctx.GetSSHCertificate()
+		if err != nil {
+			return ctx, trace.Wrap(err)
+		}
+
+		unmappedRoles, err := services.ExtractRolesFromCert(sshCert)
+		if err != nil {
+			return ctx, trace.Wrap(err)
+		}
+
+		accessRequestIDs, err := ParseAccessRequestIDs(sshCert.Extensions[teleport.CertExtensionTeleportActiveRequests])
+		if err != nil {
+			return ctx, trace.Wrap(err)
+		}
+
+		identity := IdentityContext{
+			AccessChecker:  accessChecker,
+			TeleportUser:   sctx.GetUser(),
+			Login:          login,
+			Certificate:    sshCert,
+			UnmappedRoles:  unmappedRoles,
+			ActiveRequests: accessRequestIDs,
+			Impersonator:   sshCert.Extensions[teleport.CertExtensionImpersonator],
+		}
+		ctx, err = controller.AcquireSessionContext(ctx, identity, localAddr, remoteAddr)
+		return ctx, trace.Wrap(err)
+	}
 }
 
 // AcquireSessionContext attempts to create a context for the session. If the session is
