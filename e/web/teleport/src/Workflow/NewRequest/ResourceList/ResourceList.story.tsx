@@ -79,6 +79,7 @@ const apps: App[] = [
     fqdn: 'awsconsole-1.com',
     id: 'one-aws-console-1-awsconsole-1.teleport-proxy.com',
     launchUrl: '',
+    userGroups: [],
   },
 ];
 

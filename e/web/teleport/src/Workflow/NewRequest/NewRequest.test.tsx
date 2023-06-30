@@ -275,6 +275,7 @@ const appsFirstPage: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://olfuptad.zw/zecco',
+    userGroups: [],
   },
   {
     id: 'dummy-735596623',
@@ -291,6 +292,7 @@ const appsFirstPage: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://tefe.sg/kis',
+    userGroups: [],
   },
   {
     id: 'dummy-61474169',
@@ -307,6 +309,7 @@ const appsFirstPage: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://sudlinot.hn/jomevo',
+    userGroups: [],
   },
   {
     id: 'dummy-19793371',
@@ -323,6 +326,7 @@ const appsFirstPage: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://efijena.ae/lehgofuj',
+    userGroups: [],
   },
   {
     id: 'dummy-526000410',
@@ -339,6 +343,7 @@ const appsFirstPage: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://lamice.gh/ifi',
+    userGroups: [],
   },
   {
     id: 'dummy-2992909050',
@@ -355,6 +360,7 @@ const appsFirstPage: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://ruswuzup.ua/apcafuc',
+    userGroups: [],
   },
   {
     id: 'dummy-886097749',
@@ -371,6 +377,7 @@ const appsFirstPage: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://ra.mn/bowiguj',
+    userGroups: [],
   },
   {
     id: 'dummy-2279168647',
@@ -387,6 +394,7 @@ const appsFirstPage: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://deufdoc.gq/fur',
+    userGroups: [],
   },
   {
     id: 'dummy-3694860682',
@@ -403,6 +411,7 @@ const appsFirstPage: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://lebup.ki/sopsupehi',
+    userGroups: [],
   },
   {
     id: 'dummy-2592544769',
@@ -419,6 +428,7 @@ const appsFirstPage: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://dulzawu.vc/ji',
+    userGroups: [],
   },
 ];
 
@@ -438,6 +448,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://olfuptad.zw/zecco',
+    userGroups: [],
   },
   {
     id: 'dummy-735596623',
@@ -454,6 +465,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://tefe.sg/kis',
+    userGroups: [],
   },
   {
     id: 'dummy-61474169',
@@ -470,6 +482,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://sudlinot.hn/jomevo',
+    userGroups: [],
   },
   {
     id: 'dummy-19793371',
@@ -486,6 +499,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://efijena.ae/lehgofuj',
+    userGroups: [],
   },
   {
     id: 'dummy-526000410',
@@ -502,6 +516,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://lamice.gh/ifi',
+    userGroups: [],
   },
   {
     id: 'dummy-2992909050',
@@ -518,6 +533,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://ruswuzup.ua/apcafuc',
+    userGroups: [],
   },
   {
     id: 'dummy-886097749',
@@ -534,6 +550,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://ra.mn/bowiguj',
+    userGroups: [],
   },
   {
     id: 'dummy-2279168647',
@@ -550,6 +567,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://deufdoc.gq/fur',
+    userGroups: [],
   },
   {
     id: 'dummy-3694860682',
@@ -566,6 +584,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://lebup.ki/sopsupehi',
+    userGroups: [],
   },
   {
     id: 'dummy-2592544769',
@@ -582,6 +601,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://dulzawu.vc/ji',
+    userGroups: [],
   },
   {
     id: 'dummy-2070848380',
@@ -598,6 +618,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://fo.be/mohpacev',
+    userGroups: [],
   },
   {
     id: 'dummy-1041383074',
@@ -614,6 +635,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://tujfo.aw/jecusnow',
+    userGroups: [],
   },
   {
     id: 'dummy-310160582',
@@ -630,6 +652,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://rahi.vu/dik',
+    userGroups: [],
   },
   {
     id: 'dummy-531607002',
@@ -646,6 +669,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://bu.sz/heko',
+    userGroups: [],
   },
   {
     id: 'dummy-1649180430',
@@ -662,6 +686,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://hodtatgu.ms/zeduf',
+    userGroups: [],
   },
   {
     id: 'dummy-393072968',
@@ -678,6 +703,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://uhawo.pg/it',
+    userGroups: [],
   },
   {
     id: 'dummy-2826879942',
@@ -694,6 +720,7 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://fe.rw/ejaesogeb',
+    userGroups: [],
   },
   {
     id: 'dummy-3147977584',
@@ -710,5 +737,6 @@ const allApps: App[] = [
     ],
     clusterId: 'one',
     fqdn: 'http://cuzevutuj.by/icbub',
+    userGroups: [],
   },
 ];
