@@ -542,6 +542,20 @@ func (e *AssistCompletionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEv
 	}
 }
 
+// EditorChangeEvent is an event emitted when the default editor is added or removed to an user
+type EditorChangeEvent prehogv1a.EditorChangeEvent
+
+func (e *EditorChangeEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_EditorChangeEvent{
+			EditorChangeEvent: &prehogv1a.EditorChangeEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Status:   e.Status,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
