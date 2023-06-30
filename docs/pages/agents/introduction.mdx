@@ -14,7 +14,7 @@ your infrastructure.
 
 ### Services
 
-Each Teleport agent can run one or more services.  A Teleport instance runs a
+Each Teleport agent can run one or more **services**. A Teleport instance runs a
 service if it is enabled within the instance's configuration file. See the
 [Teleport Configuration
 Reference](../reference/config.mdx#enabling-teleport-services) for which
@@ -67,11 +67,41 @@ agents](deploy-agents-terraform.mdx).
 
 ## Joining agents
 
+### Initially joining a cluster
+
 Teleport agents need to establish trust with the Teleport Auth Service in order
-to authorize users to access your infrastructure. There are several ways to join
-an agent to your Teleport cluster, making it possible to automate the join
-process for your environment. Read about the available join methods in our [Join
-Services to your Cluster](./join-services-to-your-cluster.mdx) guides.
+to join a cluster. There are several ways to join an agent to your Teleport
+cluster, making it possible to automate the join process for your environment.
+Read about the available join methods in our [Join Services to your
+Cluster](./join-services-to-your-cluster.mdx) guides.
+
+When a Teleport process first runs on an agent, it checks its configuration file
+to determine which services are enabled. Each service then connects separately
+to the Teleport Auth Service, which checks whether it has created a **join
+token** for that service. If so, the Auth Service issues the agent credentials
+signed for that service. 
+
+### Joining a new service on an existing agent
+
+The credentials that the Auth Service issues to agents are signed for specific
+services. To run new services on an agent, you must repeat the initial join
+procedure for those services.
+
+Generate a new join token for all services running on an agent, including the
+new services. Then make the new join token available to the agent. The method to
+use depends on the value of either `teleport.join_params` or
+`teleport.auth_token` in the agent's configuration file:
+
+- If the value of the configuration field is a token, update the token.
+- If the value is a file path, edit the file at that path to refer to the new
+  token.
+
+Finally, restart the agent.
+
+We recommend deploying Teleport agents via infrastructure-as-code approaches,
+e.g., [using a Terraform module](./deploy-agents-terraform.mdx). To modify the
+services that an agent runs, you can edit the configuration of your agents
+within your infrastructure-as-code project, then redeploy the agents.
 
 ## Enrolling infrastructure
 
