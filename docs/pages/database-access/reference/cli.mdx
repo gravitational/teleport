@@ -162,8 +162,8 @@ $ tctl auth sign --format=db --host=db.example.com --out=db --ttl=2190h
 $ tctl auth sign --format=db --host=host1,localhost,127.0.0.1 --out=db --ttl=2190h
 ```
 
-In this example, `db.example.com` is the hostname that the database server is
-accessible from to the Teleport Proxy service. The second example assumes a
+In this example, `db.example.com` is the hostname where the Teleport Database
+Service can reach the database server. The second example assumes a
 database running on the same host as Teleport.
 
 | Flag | Description |
