@@ -46,103 +46,27 @@ func FromAccessListV1(msg *accesslistpb.AccessListV1) (*AccessList, error) {
 		}
 	}
 
-	accessList, err := NewAccessListBuilder().
-		ResourceHeader(common.FromResourceHeaderV1(msg.Header)).
-		Audit(&AccessListAudit{
+	accessList, err := NewAccessList(common.FromMetadataV1(msg.Header.Metadata), &AccessListSpec{
+		Owners: owners,
+		Audit: &AccessListAudit{
 			Frequency: msg.Spec.Audit.Frequency.AsDuration(),
-		}).
-		MembershipRequires(&AccessListRequires{
+		},
+		MembershipRequires: &AccessListRequires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
 			Traits: msg.Spec.MembershipRequires.Traits,
-		}).
-		OwnershipRequires(&AccessListRequires{
-			Roles:  msg.Spec.MembershipRequires.Roles,
-			Traits: msg.Spec.MembershipRequires.Traits,
-		}).
-		Grants(&AccessListGrants{
+		},
+		OwnershipRequires: &AccessListRequires{
+			Roles:  msg.Spec.OwnershipRequires.Roles,
+			Traits: msg.Spec.OwnershipRequires.Traits,
+		},
+		Grants: &AccessListGrants{
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: msg.Spec.Grants.Traits,
-		}).
-		Members(members).
-		Build()
+		},
+		Members: members,
+	})
 
 	return accessList, trace.Wrap(err)
-}
-
-// AccessListBuilder is a builder for creating access list resources.
-type AccessListBuilder struct {
-	*common.ResourceHeaderBuilder[*AccessListBuilder, *AccessList]
-
-	owners             []*AccessListOwner
-	audit              *AccessListAudit
-	membershipRequires *AccessListRequires
-	ownershipRequires  *AccessListRequires
-	grants             *AccessListGrants
-	members            []*AccessListMember
-}
-
-// NewAccessListBuilder creates a new access list builder.
-func NewAccessListBuilder() *AccessListBuilder {
-	b := &AccessListBuilder{}
-	b.ResourceHeaderBuilder = common.NewResourceHeaderBuilder[*AccessListBuilder, *AccessList](b)
-	return b
-}
-
-// Owners sets the owners for the builder.
-func (b *AccessListBuilder) Owners(owners []*AccessListOwner) *AccessListBuilder {
-	b.owners = owners
-	return b
-}
-
-// Audit sets the audit configuration for the builder.
-func (b *AccessListBuilder) Audit(audit *AccessListAudit) *AccessListBuilder {
-	b.audit = audit
-	return b
-}
-
-// MembershipRequires sets the membership requires configuration for the builder.
-func (b *AccessListBuilder) MembershipRequires(requires *AccessListRequires) *AccessListBuilder {
-	b.membershipRequires = requires
-	return b
-}
-
-// OwnershipRequires sets the ownership requires configuration for the builder.
-func (b *AccessListBuilder) OwnershipRequires(requires *AccessListRequires) *AccessListBuilder {
-	b.ownershipRequires = requires
-	return b
-}
-
-// Grants sets the grants for the builder.
-func (b *AccessListBuilder) Grants(grants *AccessListGrants) *AccessListBuilder {
-	b.grants = grants
-	return b
-}
-
-// Members sets the mmembers for the builder.
-func (b *AccessListBuilder) Members(members []*AccessListMember) *AccessListBuilder {
-	b.members = members
-	return b
-}
-
-// Build creates a new access list resource.
-func (a *AccessListBuilder) Build() (*AccessList, error) {
-	accessList := &AccessList{
-		ResourceHeader: a.ResourceHeaderBuilder.Build(),
-		Spec: &AccessListSpec{
-			Owners:             a.owners,
-			Audit:              a.audit,
-			MembershipRequires: a.membershipRequires,
-			OwnershipRequires:  a.ownershipRequires,
-			Grants:             a.grants,
-			Members:            a.members,
-		},
-	}
-
-	if err := accessList.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return accessList, nil
 }
 
 // AccessList describes the basic building block of access grants, which are
@@ -234,6 +158,20 @@ type AccessListMember struct {
 
 	// added_by is the user that added this user to the access list.
 	AddedBy string `json:"added_by" yaml:"added_by"`
+}
+
+// NewAccessList will create a new access list.
+func NewAccessList(metadata *common.Metadata, spec *AccessListSpec) (*AccessList, error) {
+	accessList := &AccessList{
+		ResourceHeader: common.ResourceHeaderFromMetadata(metadata),
+		Spec:           spec,
+	}
+
+	if err := accessList.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return accessList, nil
 }
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
