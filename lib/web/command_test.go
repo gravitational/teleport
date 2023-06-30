@@ -19,7 +19,6 @@ package web
 import (
 	"context"
 	"crypto/tls"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -187,11 +186,11 @@ func TestExecuteCommandSummary(t *testing.T) {
 	require.NoError(t, err)
 
 	// Consume summary message
-	var env Envelope
+	var env outEnvelope
 	err = dec.Decode(&env)
 	require.NoError(t, err)
-	require.Equal(t, envelopeTypeSummary, env.GetType())
-	require.NotEmpty(t, env.GetPayload())
+	require.Equal(t, envelopeTypeSummary, env.Type)
+	require.NotEmpty(t, env.Payload)
 
 	// Wait for the command execution history to be saved
 	var messages *assist.GetAssistantMessagesResponse
@@ -298,18 +297,13 @@ func waitForCommandOutput(stream io.Reader, substr string) error {
 		default:
 		}
 
-		var env Envelope
+		var env outEnvelope
 		dec := json.NewDecoder(stream)
 		if err := dec.Decode(&env); err != nil {
 			return trace.Wrap(err, "decoding envelope JSON from stream")
 		}
 
-		d, err := base64.StdEncoding.DecodeString(env.Payload)
-		if err != nil {
-			return trace.Wrap(err, "decoding b64 payload")
-		}
-
-		data := removeSpace(string(d))
+		data := removeSpace(string(env.Payload))
 		if strings.Contains(data, substr) {
 			return nil
 		}
