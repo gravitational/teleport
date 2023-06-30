@@ -109,8 +109,6 @@ func (r BlockingFakeClock) Advance(d time.Duration) {
 		panic("Invalid argument, negative duration")
 	}
 
-	// We cannot rewind time for etcd since it will not have any effect on the server
-	// so we actually sleep in this case
 	time.Sleep(d)
 }
 
@@ -131,7 +129,6 @@ type Constructor func(options ...ConstructionOption) (backend.Backend, clockwork
 // `newBackend` function, which callers will use inject instances of the
 // backend under test.
 func RunBackendComplianceSuite(t *testing.T, newBackend Constructor) {
-	t.Parallel()
 	t.Run("CRUD", func(t *testing.T) {
 		t.Parallel()
 		testCRUD(t, newBackend)
