@@ -29,8 +29,8 @@ to create a certificate for PostgreSQL, the command looks like this:
 $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 ```
 
-In this example, `db.example.com` is the hostname that the PostgreSQL server is
-accessible from to the Teleport Proxy service.
+In this example, `db.example.com` is the hostname where the Teleport Database
+Service can reach the PostgreSQL server.
 
 Each database uses a different format. You can check your database guide for more
 details and examples:
