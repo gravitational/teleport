@@ -37,6 +37,7 @@ import {
 } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
 import { EViewConfigs } from './types';
+import { ServiceDeployMethod } from './Database/common';
 
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
@@ -472,11 +473,9 @@ export type DbMeta = BaseMeta & {
   db: Database;
   integrationName?: string;
   selectedAwsRdsDb: AwsRdsDatabase;
-  // serviceDeployedMethod is a flag to determine if user opted to
-  // deploy database service automagically or manually.
-  // This flag will be undefined if user skipped deploying service
-  // (service already existed).
-  serviceDeployedMethod?: 'auto' | 'manual';
+  // serviceDeployedMethod flag will be undefined if user skipped
+  // deploying service (service already existed).
+  serviceDeployedMethod?: ServiceDeployMethod;
 };
 
 // KubeMeta describes the fields for a kube resource

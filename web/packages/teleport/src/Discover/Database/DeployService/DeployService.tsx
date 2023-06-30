@@ -16,11 +16,13 @@
 
 import React, { useState } from 'react';
 
+import { ServiceDeployMethod } from '../common';
+
 import { ManualDeploy } from './ManualDeploy';
 import { AutoDeploy } from './AutoDeploy';
 
 export function DeployService() {
-  const [deployMethod, setDeployMethod] = useState<'manual' | 'auto'>('auto');
+  const [deployMethod, setDeployMethod] = useState<ServiceDeployMethod>('auto');
 
   function toggleDeployMethod() {
     setDeployMethod(deployMethod === 'auto' ? 'manual' : 'auto');

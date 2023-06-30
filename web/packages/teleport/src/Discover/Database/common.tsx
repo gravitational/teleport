@@ -22,6 +22,11 @@ import { AgentLabel } from 'teleport/services/agents';
 import { LabelsCreater, Mark, TextIcon } from 'teleport/Discover/Shared';
 import { Regions } from 'teleport/services/integrations';
 
+// serviceDeployedMethod is a flag to determine if user opted to
+// deploy database service automagically (teleport deploys for user)
+// or manually (user has their own server).
+export type ServiceDeployMethod = 'auto' | 'manual';
+
 export const Labels = ({
   labels,
   setLabels,
