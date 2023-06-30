@@ -222,27 +222,13 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 
 	startStatus := assignment.GetStatus()
 
-	switch startStatus {
-	case constants.OktaAssignmentStatusPending:
-	case constants.OktaAssignmentStatusSuccessful:
-		// We should only retry successful objects if the time between loops has passes since
-		// it last became successful
-		if sinceTransition < timeBetweenAssignmentProcessLoops {
-			return nil
-		}
-	case constants.OktaAssignmentStatusFailed:
-		// Only process this if enough time has passed since the failure state.
-		if sinceTransition < timeBeforeFailedRetry {
-			return nil
-		}
-	case constants.OktaAssignmentStatusProcessing:
-		// Only process this if enough time has passed since trying to process this.
-		if sinceTransition < processingTimeout {
-			return nil
-		}
-		a.log.Debugf("Assignment %s is stuck, so this service will be reprocessing it", assignment.GetName())
-	default:
-		return trace.BadParameter("unknown state %s, unable to process assignment %s", assignment.GetStatus(), assignment.GetName())
+	// See if we should process this assignment.
+	shouldProcess, err := a.shouldProcess(assignment, needsCleanup)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if !shouldProcess {
+		return nil
 	}
 
 	if err := assignment.SetStatus(constants.OktaAssignmentStatusProcessing); err != nil {
@@ -254,7 +240,7 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	}
 
 	// Update the status to processing, which will lock other services from operating on this.
-	err := a.accessPoint.UpdateOktaAssignmentStatus(ctx, assignment.GetName(), constants.OktaAssignmentStatusProcessing, sinceTransition)
+	err = a.accessPoint.UpdateOktaAssignmentStatus(ctx, assignment.GetName(), constants.OktaAssignmentStatusProcessing, sinceTransition)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -301,6 +287,42 @@ func (a *assignmentProcessor) processAssignment(ctx context.Context, assignment 
 	a.emitAuditEvent(ctx, assignment, startStatus, nextStatus, needsCleanup, err)
 
 	return trace.Wrap(err)
+}
+
+func (a *assignmentProcessor) shouldProcess(assignment types.OktaAssignment, needsCleanup bool) (bool, error) {
+	sinceTransition := a.clock.Since(assignment.GetLastTransition())
+	startStatus := assignment.GetStatus()
+
+	// If this assignment doesn't need cleanup or it last transitioned after the cleanup time,
+	// check if enough time has passed to process this again.
+	if !needsCleanup || assignment.GetLastTransition().After(assignment.GetCleanupTime()) {
+		switch startStatus {
+		case constants.OktaAssignmentStatusPending:
+		case constants.OktaAssignmentStatusSuccessful:
+			// We should only retry successful objects if the time between loops has passes since
+			// it last became successful
+			if sinceTransition < timeBetweenAssignmentProcessLoops {
+				return false, nil
+			}
+		case constants.OktaAssignmentStatusFailed:
+			// Only process this if enough time has passed since the failure state.
+			if sinceTransition < timeBeforeFailedRetry {
+				return false, nil
+			}
+		case constants.OktaAssignmentStatusProcessing:
+			// Only process this if enough time has passed since trying to process this.
+			if sinceTransition < processingTimeout {
+				return false, nil
+			}
+			a.log.Debugf("Assignment %s is stuck, so this service will be reprocessing it", assignment.GetName())
+		default:
+			return false, trace.BadParameter("unknown state %s, unable to process assignment %s", assignment.GetStatus(), assignment.GetName())
+		}
+	} else {
+		a.log.Debugf("Assignment %s just transitioned to cleanup, so this service will be processing it immediately", assignment.GetName())
+	}
+
+	return true, nil
 }
 
 // processTargets will process or retry the targets for an assignment.
