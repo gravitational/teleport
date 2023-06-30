@@ -287,7 +287,7 @@ func (h *Handler) executeCommand(
 	runCommands(hosts, runCmd, h.log)
 
 	// Optionally, try to compute the command summary.
-	if output, overflow := buffer.Export(); !overflow || len(output) != 0 {
+	if output, valid := buffer.Export(); valid {
 		summaryReq := summaryRequest{
 			hosts:          hosts,
 			output:         output,
@@ -679,7 +679,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		t.log.WithError(err).Warn("Could not marshal session metadata for the close event")
 		return
 	}
-	if err := t.stream.CloseWithPayload(string(sessionMetadataPayload)); err != nil {
+	if err := t.stream.SendCloseMessage(string(sessionMetadataPayload)); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}

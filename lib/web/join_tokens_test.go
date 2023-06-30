@@ -759,7 +759,6 @@ db_service:
 			}
 
 			if test.extraAssertions != nil {
-				t.Log(script)
 				test.extraAssertions(script)
 			}
 		})

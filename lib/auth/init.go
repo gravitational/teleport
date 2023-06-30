@@ -147,6 +147,9 @@ type InitConfig struct {
 	// Assist is a service that implements the Teleport Assist functionality.
 	Assist services.Assistant
 
+	// UserPreferences is a service that manages user preferences.
+	UserPreferences services.UserPreferences
+
 	// Roles is a set of roles to create
 	Roles []types.Role
 

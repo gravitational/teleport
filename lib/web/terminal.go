@@ -744,6 +744,11 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		return
 	}
 
+	// Send close envelope to web terminal upon exit without an error.
+	if err := t.stream.SendCloseMessage(""); err != nil {
+		t.log.WithError(err).Error("Unable to send close event to web client.")
+	}
+
 	if err := t.stream.Close(); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
@@ -910,7 +915,6 @@ func NewWStream(ctx context.Context, ws WSConn, log logrus.FieldLogger, handlers
 		ws:         ws,
 		encoder:    unicode.UTF8.NewEncoder(),
 		decoder:    unicode.UTF8.NewDecoder(),
-		completedC: make(chan struct{}),
 		rawC:       make(chan Envelope, 100),
 		challengeC: make(chan Envelope, 1),
 		handlers:   handlers,
@@ -956,7 +960,6 @@ type WSStream struct {
 	once       sync.Once
 	challengeC chan Envelope
 	rawC       chan Envelope
-	completedC chan struct{}
 
 	// buffer is a buffer used to store the remaining payload data if it did not
 	// fit into the buffer provided by the callee to Read method
@@ -993,7 +996,7 @@ func (t *WSStream) writeError(msg string) {
 
 func (t *WSStream) processMessages(ctx context.Context) {
 	defer func() {
-		close(t.completedC)
+		t.close()
 	}()
 	t.ws.SetReadLimit(teleport.MaxHTTPRequestSize)
 
@@ -1187,25 +1190,23 @@ func (t *WSStream) writeChallenge(challenge *client.MFAAuthenticateChallenge, co
 // readChallengeResponse reads and decodes the challenge response from the
 // websocket in the correct format.
 func (t *WSStream) readChallengeResponse(codec mfaCodec) (*authproto.MFAAuthenticateResponse, error) {
-	select {
-	case <-t.completedC:
+	envelope, ok := <-t.challengeC
+	if !ok {
 		return nil, io.EOF
-	case envelope := <-t.challengeC:
-		resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
-		return resp, trace.Wrap(err)
 	}
+	resp, err := codec.decodeResponse([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	return resp, trace.Wrap(err)
 }
 
 // readChallenge reads and decodes the challenge from the
 // websocket in the correct format.
 func (t *WSStream) readChallenge(codec mfaCodec) (*authproto.MFAAuthenticateChallenge, error) {
-	select {
-	case <-t.completedC:
+	envelope, ok := <-t.challengeC
+	if !ok {
 		return nil, io.EOF
-	case envelope := <-t.challengeC:
-		challenge, err := codec.decodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
-		return challenge, trace.Wrap(err)
 	}
+	challenge, err := codec.decodeChallenge([]byte(envelope.Payload), defaults.WebsocketWebauthnChallenge)
+	return challenge, trace.Wrap(err)
 }
 
 // writeAuditEvent encodes and writes the audit event to the
@@ -1263,9 +1264,9 @@ func (t *WSStream) Write(data []byte) (n int, err error) {
 }
 
 // Read provides data received from [defaults.WebsocketRaw] envelopes. If
-// the previous envelope was not consumed in the last read any remaining data
+// the previous envelope was not consumed in the last read, any remaining data
 // is returned prior to processing the next envelope.
-func (t *WSStream) Read(out []byte) (n int, err error) {
+func (t *WSStream) Read(out []byte) (int, error) {
 	if len(t.buffer) > 0 {
 		n := copy(out, t.buffer)
 		if n == len(t.buffer) {
@@ -1276,66 +1277,54 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 		return n, nil
 	}
 
-	select {
-	case <-t.completedC:
+	envelope, ok := <-t.rawC
+	if !ok {
 		return 0, io.EOF
-	case envelope := <-t.rawC:
-		data, err := t.decoder.Bytes([]byte(envelope.Payload))
-		if err != nil {
-			return 0, trace.Wrap(err)
-		}
-
-		n := copy(out, data)
-		// if payload size is greater than [out], store the remaining
-		// part in the buffer to be processed on the next Read call
-		if len(data) > n {
-			t.buffer = data[n:]
-		}
-		return n, nil
 	}
+
+	data, err := t.decoder.Bytes([]byte(envelope.Payload))
+	if err != nil {
+		return 0, trace.Wrap(err)
+	}
+
+	n := copy(out, data)
+	// if the payload size is greater than [out], store the remaining
+	// part in the buffer to be processed on the next Read call
+	if len(data) > n {
+		t.buffer = data[n:]
+	}
+	return n, nil
 }
 
-func (t *WSStream) close(payload string) error {
-	var closeErr error
+// SendCloseMessage sends a close message on the web socket.
+func (t *WSStream) SendCloseMessage(payload string) error {
+	envelope := &Envelope{
+		Version: defaults.WebsocketVersion,
+		Type:    defaults.WebsocketClose,
+		Payload: payload,
+	}
+	envelopeBytes, err := proto.Marshal(envelope)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	return trace.Wrap(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes))
+}
+
+func (t *WSStream) close() {
 	t.once.Do(func() {
 		defer func() {
-			<-t.completedC
-
 			close(t.rawC)
 			close(t.challengeC)
 		}()
-
-		// Send close envelope to web terminal upon exit without an error.
-		envelope := &Envelope{
-			Version: defaults.WebsocketVersion,
-			Type:    defaults.WebsocketClose,
-			Payload: payload,
-		}
-		envelopeBytes, err := proto.Marshal(envelope)
-		if err != nil {
-			closeErr = trace.NewAggregate(err, t.ws.Close())
-			return
-		}
-
-		t.mu.Lock()
-		defer t.mu.Unlock()
-		closeErr = trace.NewAggregate(t.ws.WriteMessage(websocket.BinaryMessage, envelopeBytes), t.ws.Close())
 	})
-
-	return trace.Wrap(closeErr)
 }
 
 // Close sends a close message on the web socket and closes the web socket.
 func (t *WSStream) Close() error {
-	return t.close("")
-}
-
-// CloseWithPayload sends a close message with additional payload on the web socket and then closes the stream.
-// This is necessary for Assist, which multiplexes multiple node connections over one websocket,
-// and needs additional metadata to know which session was closed.
-// Additionally, in Assist Close() does not actually close the underlying websocket for this stream due to the use of noopCloserWS.
-func (t *WSStream) CloseWithPayload(payload string) error {
-	return t.close(payload)
+	return trace.Wrap(t.ws.Close())
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.

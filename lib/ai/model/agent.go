@@ -54,7 +54,7 @@ type Agent struct {
 	tools []Tool
 }
 
-// agentAction is an event type represetning the decision to take a single action, typically a tool invocation.
+// agentAction is an event type representing the decision to take a single action, typically a tool invocation.
 type agentAction struct {
 	// The action to take, typically a tool name.
 	action string
