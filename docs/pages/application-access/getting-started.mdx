@@ -4,11 +4,24 @@ description: Getting started with Teleport application access.
 videoBanner: 5Uwhp3IQMHY
 ---
 
-Let's connect to Grafana using Teleport in three steps:
+This tutorial demonstrates how to configure secure access to an application through Teleport. 
+The tutorial uses Grafana as a sample application because it's straightforward to install and run 
+in a Docker container or Kubernetes cluster with no additional configuration required.
+If you want to configure access for a different web application, you can use this tutorial as a 
+general guide for what to do. 
 
-- Launch Grafana in a Docker container or Kubernetes cluster.
-- Install the Teleport Application Service and configure it to proxy Grafana.
-- Access Grafana through Teleport.
+At a high level, configuring access for applications involves the following steps:
+
+* Verify your environment meets the prerequisites.
+* Verify you can launch the application in a Docker container, Kubernetes cluster, or using another method.
+* Generate a short-lived token for the application.
+* Install and configure on the application host.
+* Add a user to verify access to the application.
+
+If you have not yet deployed the Auth Service and Proxy Service, see one of the [getting started guides](../get-started.mdx) or try the
+Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon).
+
+The following diagram illustrates the basic steps for connecting to Grafana using Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
 ![Teleport Application Access Grafana Self-Hosted](../../img/application-access/grafana_selfhosted.png)
@@ -23,38 +36,42 @@ Let's connect to Grafana using Teleport in three steps:
 
 - (!docs/pages/includes/tctl.mdx!)
 - A host where you will run the Teleport Application Service.
+- A DNS subdomain for each application.
+   
+   <Admonition type="note" title="Application Access and DNS for Self-Hosted Clusters">
 
-<Tabs>
-<TabItem label="Docker">
-- A Docker installation, which we will use to launch Grafana in a container.
-  Alternatively, if you have another web application you'd like to protect with
-  Teleport, you can use that instead.
-</TabItem>
-<TabItem label="Kubernetes Cluster">
+   (!docs/pages/includes/dns-app-access.mdx!)
 
-(!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
+   Teleport Cloud will automatically provide a subdomain and signed TLS certificate for your application under your tenant address.
+   </Admonition>
 
-- Administrative rights to deploy within a cluster.
+- Docker or Kubernetes to launch Grafana.
 
-</TabItem>
-</Tabs>
+   This tutorial illustrates how to launch Grafana in a Docker container or Kubernetes cluster.
+   Therefore, you must have either Docker or Kubernetes installed. For more information, click **Docker** or **Kubernetes cluster**.
+   
+   <Tabs>
+   <TabItem label="Docker">
+   You must have some version of Docker installed to launch Grafana in a Docker container. 
+   If you are configuring access to a different web application using Teleport, use the appropriate commands to 
+   launch that application in a Docker container.
+   </TabItem>
+   <TabItem label="Kubernetes cluster">
 
-<Admonition type="tip" title="Not yet a Teleport user?">
-{/*lint ignore messaging*/}
-If you have not yet deployed the Auth Service and Proxy Service, you should
-follow one of our [getting started guides](../index.mdx) or try our
-Teleport Application Access [interactive learning track](https://play.instruqt.com/teleport/invite/rgvuva4gzkon).
-</Admonition>
+   (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
-<Admonition type="note" title="Application Access and DNS for Self-Hosted Clusters">
+   - Administrative rights to deploy within a cluster.
 
-(!docs/pages/includes/dns-app-access.mdx!)
+   </TabItem>
+   </Tabs>
 
-Teleport Cloud will automatically provide a subdomain and signed TLS certificate
-for your application under your tenant address.
-</Admonition>
+- Check that you are using appropriate permissions.
+   The permissions used in examples in this tutorial are intended for demo environments.
+   Before running Teleport in a production environment, check that you are following best practices to avoid security incidents.
 
-## Step 1/4. Generate a token
+   (!docs/pages/includes/permission-warning.mdx!)
+
+## Step 1/5. Generate a token
 
 A join token is required to authorize a Teleport Application Service instance to
 join the cluster. Generate a short-lived join token and save it, for example,
@@ -67,14 +84,13 @@ $ tctl tokens add \
     --app-uri=http://localhost:3000
 ```
 
+## Step 2/5. Start Grafana
+
+You can start Grafana in a Docker container or Kubernetes cluster by running the appropriate steps.
+For more information, click **Docker** or **Kubernetes cluster**.
+
 <Tabs>
 <TabItem label="Docker">
-
-## Step 2/4. Start Grafana
-
-We've picked Grafana for this tutorial because it's easy to run with no
-configuration required. If you have another web application you'd like to
-expose, skip to **Step 3**.
 
 You can start Grafana in a Docker container by running the following command:
 
@@ -82,24 +98,39 @@ You can start Grafana in a Docker container by running the following command:
 $ docker run -d --name grafana -p 3000:3000 grafana/grafana
 ```
 
-Next, we need to edit `/etc/grafana/grafana.ini` in the container. Under
-`[server]`, uncomment the `domain` key and set the value to your Teleport
-cluster domain, (for example, `teleport.example.com`). Because the container doesn't have a text editor
-installed, you can use the `sed` command to edit the file. For example:
+After running this command, edit the `/etc/grafana/grafana.ini` file in the container. 
+Under `[server]`, uncomment the `domain` key and set the value to your Teleport
+cluster domain, (for example, `teleport.example.com`). 
+Because the container doesn't have a text editor installed, you can use the `sed` command to edit the file. 
+For example:
 
 ```code
 $ docker exec -u 0 grafana sed -i 's/;domain = localhost/domain = teleport.example.com/g' /etc/grafana/grafana.ini
 ```
 
 Replace `teleport.example.com` with your Teleport cluster domain.
+</TabItem>
+<TabItem label="Kubernetes cluster">
 
-## Step 3/4. Install and configure Teleport
+If you install Grafana with the following `helm` instructions, it is available at `http://example-grafana.example-grafana.svc.cluster.local`
+within the Kubernetes cluster.
 
-(!docs/pages/includes/permission-warning.mdx!)
+```code
+$ helm repo add grafana https://grafana.github.io/helm-charts
+$ helm repo update
+$ helm install example-grafana grafana/grafana \
+    --create-namespace \
+    --namespace example-grafana
+```
+</TabItem>
+</Tabs>
 
-### Configure and start Teleport
+## Step 3/5. Install and configure Teleport
 
-Install Teleport on the host where you will run the Teleport Application Service. 
+Install Teleport on the host where you will run the Teleport Application Service.
+
+<Tabs>
+<TabItem label="Docker">
 See the [Installation](../installation.mdx) page for options besides Linux servers.
 
 (!docs/pages/includes/install-linux.mdx!)
@@ -125,32 +156,13 @@ The `--token` flag points to the file on the Application Service host where you
 stored the token that you generated earlier.
 
 (!docs/pages/includes/start-teleport.mdx service="the Teleport Application Service"!)
-
 </TabItem>
 <TabItem label="Kubernetes cluster">
 
-## Step 2/4. Start Grafana
-
-We've picked Grafana for this tutorial because it's easy to run with no
-configuration required. If you have another web application you'd like to
-expose, skip to **Step 3**. Install Grafana with these helm instructions
-and it will be available at `http://example-grafana.example-grafana.svc.cluster.local`
-within the Kubernetes cluster.
-
-```code
-$ helm repo add grafana https://grafana.github.io/helm-charts
-$ helm repo update
-$ helm install example-grafana grafana/grafana \
-    --create-namespace \
-    --namespace example-grafana
-```
-
-## Step 3/4. Install and configure Teleport
-
-  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
+(!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-Install the Teleport Kubernetes Service into your Kubernetes Cluster
+Install the Teleport Kubernetes Service into your Kubernetes cluster
 with the Teleport Application Service configuration.
 Replace <Var name="teleport.example.com" /> with
 your Teleport Proxy Service address or your
@@ -197,7 +209,7 @@ your own web application.
 </TabItem>
 </Tabs>
 
-### Create a user
+## Step 4/5. Create a user
 
 Next, let's create a user to access the application we've just connected.
 Teleport has a built-in role called `access` that allows users to access
@@ -210,24 +222,25 @@ $ tctl users add --roles=access alice
 The command will output a signup link. Use it to choose a password and set up a
 second factor. After that, it will take you to the Teleport Web UI.
 
-## Step 4/4. Access the application
+## Step 5/5. Access the application
 
 There are a couple of ways to access the proxied application.
 
-Log in to the Teleport Web UI at your Proxy Service address. All available
-applications are displayed on the Applications tab. Click Launch on the Grafana
-application tile to access it.
+Log in to the Teleport Web UI at your Proxy Service address. 
+All available applications are displayed on the Applications tab. 
+Click Launch on the Grafana application tile to access it.
 
-Alternatively call the application directly with its name as the sub-domain,
-e.g. `https://grafana.teleport.example.com` or `https://grafana.mytenant.teleport.sh`
-for a Teleport Cloud tenant. You will need to log in if you weren't already authenticated.
+Alternatively call the application directly with its name as the subdomain, for example, 
+`https://grafana.teleport.example.com` or `https://grafana.mytenant.teleport.sh`
+for a Teleport Cloud tenant. 
+You are prompted to log in if you haven't already been authenticated.
 
 ## Next steps
 
-Dive deeper into protecting applications with Teleport:
+Learn more about protecting applications with Teleport in the following topics:
 
-- Learn in more detail about [connecting applications](./guides/connecting-apps.mdx).
-- Learn about integrating with [JWT tokens](./jwt/introduction.mdx) for auth.
-- Learn how to use application access with [RESTful APIs](./guides/api-access.mdx).
-- See full configuration and CLI [reference](./reference.mdx).
-- Read about how Let's Encrypt uses the [ACME protocol](https://letsencrypt.org/how-it-works/).
+- [Connecting applications](./guides/connecting-apps.mdx).
+- Integrating with [JWT tokens](./jwt/introduction.mdx).
+- Accessing applications with [RESTful APIs](./guides/api-access.mdx).
+- Setting configuration options AND running CLI commands in the [Application Access reference](./reference.mdx).
+- Using the Let's Encrypt [ACME protocol](https://letsencrypt.org/how-it-works/).
