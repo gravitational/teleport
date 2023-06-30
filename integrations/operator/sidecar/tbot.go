@@ -236,18 +236,14 @@ func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, *proto.Feat
 // See https://github.com/gravitational/teleport/issues/13091
 func createOrReplaceBot(ctx context.Context, opts Options, authClient auth.ClientI) (string, error) {
 	var token string
-	botPresent, err := botExists(ctx, opts, authClient)
-	if err != nil {
+	// We remove the bot and its role. If this is the first operator to run,
+	// this throws a "NotFound" error.
+	botRoleName := fmt.Sprintf("bot-%s", opts.Name)
+	if err := authClient.DeleteBot(ctx, opts.Name); err != nil && !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	if botPresent {
-		if err := authClient.DeleteBot(ctx, opts.Name); err != nil {
-			return "", trace.Wrap(err)
-		}
-		if err := authClient.DeleteRole(ctx, fmt.Sprintf("bot-%s", opts.Name)); err != nil {
-			return "", trace.Wrap(err)
-		}
-
+	if err := authClient.DeleteRole(ctx, botRoleName); err != nil && !trace.IsNotFound(err) {
+		return "", trace.Wrap(err)
 	}
 	response, err := authClient.CreateBot(ctx, &proto.CreateBotRequest{
 		Name:  opts.Name,
@@ -259,18 +255,4 @@ func createOrReplaceBot(ctx context.Context, opts Options, authClient auth.Clien
 	token = response.TokenID
 
 	return token, nil
-}
-
-func botExists(ctx context.Context, opts Options, authClient auth.ClientI) (bool, error) {
-	botUsers, err := authClient.GetBotUsers(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	for _, botUser := range botUsers {
-
-		if botUser.GetName() == fmt.Sprintf("bot-%s", opts.Name) {
-			return true, nil
-		}
-	}
-	return false, nil
 }
