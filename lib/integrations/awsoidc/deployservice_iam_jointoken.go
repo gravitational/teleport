@@ -1,0 +1,199 @@
+/*
+Copyright 2023 Gravitational, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+	http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+*/
+
+package awsoidc
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
+	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
+	awsutils "github.com/gravitational/teleport/api/utils/aws"
+)
+
+const (
+	// awsSTSShortName is the service name of the AWS STS
+	// Used to build the ARN matcher in the IAM Join Token.
+	awsSTSShortName = "sts"
+)
+
+// GetUpsertToken defines the required methods to upsert the Provision Token used by the Deploy Service.
+type GetUpsertToken interface {
+	// GetToken returns a provision token by name.
+	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
+
+	// UpsertToken creates or updates a provision token.
+	UpsertToken(ctx context.Context, token types.ProvisionToken) error
+}
+
+// upsertIAMJoinTokenRequest is the request to create or update a Provision Token that has a rule which allows AWS Identities to join the cluster.
+// Allowed AWS Identities are the ones described
+// It gives access for those identities to join as system roles.
+type upsertIAMJoinTokenRequest struct {
+	// tokenName is the Token's name to create or update.
+	tokenName string
+
+	// accountID is the allowed AWS Account ID.
+	accountID string
+
+	// region is the allowed AWS Region.
+	region string
+
+	// iamRole is the allowed IAM Role.
+	iamRole string
+
+	// deploymentMode is the service configuration that is going to be deployed
+	deploymentMode string
+
+	// awsARN is the IAM Role's ARN.
+	// This value is calculated using the AWS account, region and IAM role.
+	awsARN string
+}
+
+// CheckAndSetDefaults verifies the required fields are present.
+func (u *upsertIAMJoinTokenRequest) CheckAndSetDefaults() error {
+	if u.tokenName == "" {
+		return trace.BadParameter("token name is required")
+	}
+
+	if u.accountID == "" {
+		return trace.BadParameter("accound id is required")
+	}
+
+	if u.region == "" {
+		return trace.BadParameter("region is required")
+	}
+
+	if u.iamRole == "" {
+		return trace.BadParameter("iam role is required")
+	}
+
+	if !slices.Contains(DeploymentModes, u.deploymentMode) {
+		return trace.BadParameter("invalid deployment mode, please use one of the following: %v", DeploymentModes)
+	}
+
+	partition := awsutils.GetPartitionFromRegion(u.region)
+
+	// Example ARN:
+	// arn:aws:sts::278576220453:assumed-role/MarcoTestRoleOIDCProvider/1688143717490080920
+	u.awsARN = arn.ARN{
+		Partition: partition,
+		Service:   awsSTSShortName,
+		AccountID: u.accountID,
+		Resource:  fmt.Sprintf("assumed-role/%s/*", u.iamRole),
+	}.String()
+
+	return nil
+}
+
+// upsertIAMJoinToken creates or updates a Provision Token with a rule that allows Teleport Services with given AWS Identities to join the cluster.
+// The allowed Identities are the ones provided in the request (Account, Region and AWSRole).
+// It gives access for those identities to join as system roles.
+func upsertIAMJoinToken(ctx context.Context, req upsertIAMJoinTokenRequest, clt GetUpsertToken) error {
+	if err := req.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	rule := &types.TokenRule{
+		AWSAccount: req.accountID,
+		AWSARN:     req.awsARN,
+	}
+
+	token, err := clt.GetToken(ctx, req.tokenName)
+	switch {
+	case trace.IsNotFound(err):
+		token, err = newIAMJoinTokenWithRule(ctx, req, rule)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	case err != nil:
+		return trace.Wrap(err)
+
+	default:
+		token, err = updateTokenIAMJoin(ctx, req, rule, token)
+		if trace.IsAlreadyExists(err) {
+			// Early return when the required rule already exists.
+			return nil
+		}
+		if err != nil {
+			return trace.Wrap(err)
+		}
+	}
+
+	if err := clt.UpsertToken(ctx, token); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+func updateTokenIAMJoin(ctx context.Context, req upsertIAMJoinTokenRequest, rule *types.TokenRule, existingToken types.ProvisionToken) (types.ProvisionToken, error) {
+	if existingToken.GetJoinMethod() != types.JoinMethodIAM {
+		return nil, trace.BadParameter("Token %q already exists but has the wrong method %q. "+
+			"Please remove it before continuing.",
+			req.tokenName, existingToken.GetJoinMethod(),
+		)
+	}
+
+	allRoles := append(existingToken.GetRoles(), types.RoleDatabase)
+	uniqueRoles := utils.Deduplicate(allRoles)
+	existingToken.SetRoles(uniqueRoles)
+
+	for _, rule := range existingToken.GetAllowRules() {
+		if rule.AWSAccount == req.accountID &&
+			rule.AWSARN == req.awsARN {
+
+			return nil, trace.AlreadyExists("required rule already exists")
+		}
+	}
+
+	existingToken.SetAllowRules(append(existingToken.GetAllowRules(), rule))
+
+	return existingToken, nil
+}
+
+// newIAMJoinTokenWithRule creates a new ProvisionToken using the
+func newIAMJoinTokenWithRule(ctx context.Context, req upsertIAMJoinTokenRequest, rule *types.TokenRule) (types.ProvisionToken, error) {
+	var systemRoles types.SystemRoles
+
+	switch req.deploymentMode {
+	case DatabaseServiceDeploymentMode:
+		systemRoles = types.SystemRoles{types.RoleDatabase}
+	default:
+		return nil, trace.BadParameter("invalid deployment mode %q, supported modes: %v", req.deploymentMode, DeploymentModes)
+	}
+
+	token := &types.ProvisionTokenV2{
+		Metadata: types.Metadata{
+			Name: req.tokenName,
+		},
+		Spec: types.ProvisionTokenSpecV2{
+			JoinMethod: types.JoinMethodIAM,
+			Roles:      systemRoles,
+			Allow:      []*types.TokenRule{rule},
+		},
+	}
+	if err := token.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return token, nil
+}
