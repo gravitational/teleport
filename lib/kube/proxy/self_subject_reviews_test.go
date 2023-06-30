@@ -206,13 +206,14 @@ func TestSelfSubjectAccessReviewsRBAC(t *testing.T) {
 				user.GetName(),
 				kubeCluster,
 			)
-
+			resource, apiGroup := getKubeResourceAndAPIGroupFromType(tt.args.kind)
 			rsp, err := client.AuthorizationV1().SelfSubjectAccessReviews().Create(
 				context.TODO(),
 				&authv1.SelfSubjectAccessReview{
 					Spec: authv1.SelfSubjectAccessReviewSpec{
 						ResourceAttributes: &authv1.ResourceAttributes{
-							Resource:  pluralize(tt.args.kind),
+							Resource:  resource,
+							Group:     apiGroup,
 							Name:      tt.args.name,
 							Namespace: tt.args.namespace,
 							Verb:      "list",

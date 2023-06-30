@@ -712,6 +712,7 @@ type ClientI interface {
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.Assistant
+	services.UserPreferences
 	WebService
 	services.Status
 	services.ClusterConfiguration

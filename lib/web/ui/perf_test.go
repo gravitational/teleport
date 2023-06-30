@@ -31,7 +31,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/memory"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
@@ -143,7 +143,7 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 	}
 }
 
-func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnel.RemoteSite, nodes int, opts ...services.MarshalOption) {
+func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reversetunnelclient.RemoteSite, nodes int, opts ...services.MarshalOption) {
 	var cluster *Cluster
 	var err error
 	for i := 0; i < b.N; i++ {
@@ -155,7 +155,7 @@ func benchmarkGetClusterDetails(ctx context.Context, b *testing.B, site reverset
 }
 
 type mockRemoteSite struct {
-	reversetunnel.RemoteSite
+	reversetunnelclient.RemoteSite
 	accessPoint auth.ProxyAccessPoint
 }
 

@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/app"
@@ -43,7 +43,7 @@ import (
 )
 
 // clusterAppsGet returns a list of applications in a form the UI can present.
-func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	identity, err := sctx.GetIdentity()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -317,7 +317,7 @@ type resolveAppResult struct {
 	App types.Application
 }
 
-func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, params resolveAppParams) (*resolveAppResult, error) {
+func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reversetunnelclient.Tunnel, params resolveAppParams) (*resolveAppResult, error) {
 	var (
 		server         types.AppServer
 		appClusterName string
@@ -351,7 +351,7 @@ func (h *Handler) resolveApp(ctx context.Context, clt app.Getter, proxy reverset
 
 // resolveDirect takes a public address and cluster name and exactly resolves
 // the application and the server on which it is running.
-func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel, publicAddr string, clusterName string) (types.AppServer, string, error) {
+func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnelclient.Tunnel, publicAddr string, clusterName string) (types.AppServer, string, error) {
 	clusterClient, err := proxy.GetSite(clusterName)
 	if err != nil {
 		return nil, "", trace.Wrap(err)
@@ -376,7 +376,7 @@ func (h *Handler) resolveDirect(ctx context.Context, proxy reversetunnel.Tunnel,
 
 // resolveFQDN makes a best effort attempt to resolve FQDN to an application
 // running within a root or leaf cluster.
-func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnel.Tunnel, fqdn string) (types.AppServer, string, error) {
+func (h *Handler) resolveFQDN(ctx context.Context, clt app.Getter, proxy reversetunnelclient.Tunnel, fqdn string) (types.AppServer, string, error) {
 	return app.ResolveFQDN(ctx, clt, proxy, h.proxyDNSNames(), fqdn)
 }
 

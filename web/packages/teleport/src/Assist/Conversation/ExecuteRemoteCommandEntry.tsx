@@ -24,6 +24,7 @@ import { ButtonPrimary, ButtonSecondary } from 'design';
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { getLoginsForQuery } from 'teleport/Assist/service';
 import useStickyClusterId from 'teleport/useStickyClusterId';
+import { useUser } from 'teleport/User/UserContext';
 
 interface ExecuteRemoteCommandEntryProps {
   command: string;
@@ -84,6 +85,7 @@ const InfoText = styled.span`
 export function ExecuteRemoteCommandEntry(
   props: ExecuteRemoteCommandEntryProps
 ) {
+  const { preferences } = useUser();
   const { executeCommand } = useAssist();
 
   const [hasRan, setHasRan] = useState(false);
@@ -105,7 +107,12 @@ export function ExecuteRemoteCommandEntry(
     try {
       const logins = await getLoginsForQuery(query, clusterId);
 
-      if (!selectedLogin || !logins.includes(selectedLogin)) {
+      const preferredLogin = logins.find(login =>
+        preferences.assist.preferredLogins.includes(login)
+      );
+      if (preferredLogin) {
+        setSelectedLogin(preferredLogin);
+      } else if (!selectedLogin || !logins.includes(selectedLogin)) {
         setSelectedLogin(logins[0]);
       }
 

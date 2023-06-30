@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
 // createAssistantConversationResponse is a response for POST /webapi/assistant/conversations.
@@ -287,7 +287,7 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 }
 
 func (h *Handler) assistant(w http.ResponseWriter, r *http.Request, _ httprouter.Params,
-	sctx *SessionContext, site reversetunnel.RemoteSite,
+	sctx *SessionContext, site reversetunnelclient.RemoteSite,
 ) (any, error) {
 	if err := runAssistant(h, w, r, sctx, site); err != nil {
 		h.log.Warn(trace.DebugReport(err))
@@ -311,7 +311,7 @@ func checkAssistEnabled(a auth.ClientI, ctx context.Context) error {
 
 // runAssistant upgrades the HTTP connection to a websocket and starts a chat loop.
 func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
-	sctx *SessionContext, site reversetunnel.RemoteSite,
+	sctx *SessionContext, site reversetunnelclient.RemoteSite,
 ) (err error) {
 	q := r.URL.Query()
 	conversationID := q.Get("conversation_id")
@@ -328,12 +328,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		return trace.Wrap(err)
 	}
 
-	identity, err := createIdentityContext(sctx.GetUser(), sctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), identity, h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
+	ctx, err := h.cfg.SessionControl.AcquireSessionContext(r.Context(), sctx, sctx.GetUser(), h.cfg.ProxyWebAddr.Addr, r.RemoteAddr)
 	if err != nil {
 		return trace.Wrap(err)
 	}

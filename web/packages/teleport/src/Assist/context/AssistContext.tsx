@@ -65,6 +65,7 @@ interface AssistContextValue {
   sendMfaChallenge: (data: WebauthnAssertionResponse) => void;
   selectedConversationMessages: ConversationMessage[];
   setSelectedConversationId: (conversationId: string) => Promise<void>;
+  toggleSidebar: (visible: boolean) => void;
 }
 
 const AssistContext = createContext<AssistState & AssistContextValue>(null);
@@ -81,6 +82,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   const { clusterId } = useStickyClusterId();
 
   const [state, dispatch] = useReducer(reducer, {
+    sidebarVisible: false,
     conversations: {
       loading: false,
       data: [],
@@ -489,6 +491,21 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
       }
     };
+
+    executeCommandWebSocket.current.onclose = () => {
+      executeCommandWebSocket.current = null;
+
+      // If the execution failed, we won't get a SESSION_END message, so we
+      // need to mark all the results as finished here.
+      for (const nodeId of nodeIdToResultId.keys()) {
+        dispatch({
+          type: AssistStateActionType.FinishCommandResult,
+          conversationId: state.conversations.selectedId,
+          commandResultId: nodeIdToResultId.get(nodeId),
+        });
+      }
+      nodeIdToResultId.clear();
+    };
   }
 
   async function deleteConversation(conversationId: string) {
@@ -505,6 +522,13 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       type: AssistStateActionType.PromptMfa,
       promptMfa: false,
       publicKey: null,
+    });
+  }
+
+  function toggleSidebar(visible: boolean) {
+    dispatch({
+      type: AssistStateActionType.ToggleSidebar,
+      visible,
     });
   }
 
@@ -534,6 +558,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
         sendMessage,
         sendMfaChallenge,
         setSelectedConversationId,
+        toggleSidebar,
       }}
     >
       {props.children}
