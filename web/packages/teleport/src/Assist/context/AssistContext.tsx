@@ -65,6 +65,7 @@ interface AssistContextValue {
   sendMfaChallenge: (data: WebauthnAssertionResponse) => void;
   selectedConversationMessages: ConversationMessage[];
   setSelectedConversationId: (conversationId: string) => Promise<void>;
+  toggleSidebar: (visible: boolean) => void;
 }
 
 const AssistContext = createContext<AssistState & AssistContextValue>(null);
@@ -81,6 +82,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   const { clusterId } = useStickyClusterId();
 
   const [state, dispatch] = useReducer(reducer, {
+    sidebarVisible: false,
     conversations: {
       loading: false,
       data: [],
@@ -523,6 +525,13 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     });
   }
 
+  function toggleSidebar(visible: boolean) {
+    dispatch({
+      type: AssistStateActionType.ToggleSidebar,
+      visible,
+    });
+  }
+
   useEffect(() => {
     loadConversations();
   }, []);
@@ -549,6 +558,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
         sendMessage,
         sendMfaChallenge,
         setSelectedConversationId,
+        toggleSidebar,
       }}
     >
       {props.children}
