@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Popover from 'design/Popover';
 import styled from 'styled-components';
 import { Box } from 'design';
@@ -35,13 +35,16 @@ export function NavigationMenu(props: NavigationMenuProps) {
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const appCtx = useAppContext();
   const cluster = appCtx.clustersService.findCluster(props.clusterUri);
-  const rootCluster = appCtx.clustersService.findRootClusterByResource(
-    props.clusterUri
-  );
 
-  const togglePopover = useCallback(() => {
+  if (cluster.leaf) {
+    return null;
+  }
+
+  const rootCluster = cluster;
+
+  function togglePopover() {
     setIsPopoverOpened(wasOpened => !wasOpened);
-  }, []);
+  }
 
   function openSetupDocument(): void {
     const documentService =
@@ -52,10 +55,6 @@ export function NavigationMenu(props: NavigationMenuProps) {
     documentService.add(document);
     documentService.open(document.uri);
     setIsPopoverOpened(false);
-  }
-
-  if (cluster.leaf) {
-    return null;
   }
 
   if (
