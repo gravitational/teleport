@@ -24,6 +24,7 @@ import (
 	jamfservice "github.com/gravitational/teleport/e/lib/jamf/service"
 	"github.com/gravitational/teleport/e/lib/jamf/testenv"
 	"github.com/gravitational/teleport/e/lib/mdm"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 )
 
@@ -34,6 +35,95 @@ var devicesCmpOpts = []cmp.Option{
 	protocmp.Transform(),
 	protocmp.IgnoreFields(&devicepb.Device{}, "api_version", "id", "create_time", "update_time"),
 	protocmp.IgnoreFields(&devicepb.DeviceProfile{}, "update_time"),
+}
+
+func BenchmarkSyncInventory_jamf(b *testing.B) {
+	b.StopTimer() // Don't count setup/warmup.
+
+	// Benchmark the number of devices, instead of the number of method calls, as
+	// each sync operation is effectively a loop over all devices.
+	numDevs := b.N
+	b.Logf("Benchmarking with an inventory of %v devices", numDevs)
+
+	// Enable Enterprise build.
+	beforeModules := modules.GetModules()
+	modules.SetModules(&modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+	b.Cleanup(func() { modules.SetModules(beforeModules) })
+
+	// Create test environment.
+	clock := clockwork.NewRealClock()
+	env := testenv.MustNew(&testenv.Opts{
+		Clock:          clock,
+		DeviceTrustEnv: true,
+	})
+	defer env.Close()
+
+	api := env.API
+	ctx := context.Background()
+
+	// Prepare a fake device inventory.
+	now := clock.Now()
+	t0 := now.Add(-24 * time.Hour)
+	t1 := now.Add(-23 * time.Hour)
+	t2 := now.Add(-22 * time.Hour)
+	inv := make([]*jamf.ComputerInventory, numDevs)
+	nextComputerID := 1
+	for i := range inv {
+		id := strconv.Itoa(nextComputerID)
+		nextComputerID++
+		inv[i] = &jamf.ComputerInventory{
+			ID:   id,
+			UDID: "u" + id,
+			General: &jamf.ComputerGeneralSection{
+				Name:              "d" + id,
+				JamfBinaryVersion: "10.47.0-t1685028359",
+				Platform:          "Mac",
+				ReportDate:        t2,
+				LastContactTime:   t1,
+				LastEnrolledDate:  t0,
+			},
+			Hardware: &jamf.ComputerHardwareSection{
+				ModelIdentifier: "MacBookPro16,1",
+				SerialNumber:    "CX" + id,
+			},
+			LocalUserAccounts: []*jamf.LocalUserAccount{
+				{
+					UID:      "501",
+					Username: "alice",
+					FullName: "Alice",
+				},
+			},
+			OperatingSystem: &jamf.ComputerOperatingSystemSection{
+				Name:    "Mac OS X",
+				Version: "13.4.1",
+				Build:   "22F82",
+			},
+		}
+	}
+
+	s := serviceFromEnv(b, env, nil /* modifyOpts */)
+
+	// Run a quick sync to "warm up".
+	api.SetInventory(inv[:1])
+	if _, err := s.RunOnce(ctx, jamfservice.RunSpec{
+		Mode:      mdm.SyncModeFull,
+		OnMissing: mdm.DeviceActionDelete,
+	}); err != nil {
+		b.Fatalf("Warmup RunOnce failed: %v", err)
+	}
+
+	// Benchmark.
+	b.StartTimer()
+	api.SetInventory(inv)
+	_, err := s.RunOnce(ctx, jamfservice.RunSpec{
+		Mode:      mdm.SyncModeFull,
+		OnMissing: mdm.DeviceActionDelete,
+	})
+	if err != nil {
+		b.Fatalf("RunOnce failed: %v", err)
+	}
 }
 
 func TestNew_errors(t *testing.T) {
@@ -806,7 +896,7 @@ func listAllDevices(t *testing.T, devicesClient devicepb.DeviceTrustServiceClien
 	}
 }
 
-func serviceFromEnv(t *testing.T, env *testenv.E, modifyOpts func(opts *jamfservice.Opts)) *jamfservice.S {
+func serviceFromEnv(t testing.TB, env *testenv.E, modifyOpts func(opts *jamfservice.Opts)) *jamfservice.S {
 	t.Helper()
 
 	opts := jamfservice.Opts{

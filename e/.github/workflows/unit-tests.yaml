@@ -44,4 +44,6 @@ jobs:
 
       - name: Run tests
         timeout-minutes: 40
-        run: GOFLAGS="-tags=tpmsimulator" make -C ${GITHUB_WORKSPACE}/e/ -j test
+        run: |
+          GOFLAGS="-tags=tpmsimulator" make -C ${GITHUB_WORKSPACE}/e/ -j test
+          cd ${GITHUB_WORKSPACE}/e; go test -run=IGNOREME -bench=. -benchtime=1x ./...

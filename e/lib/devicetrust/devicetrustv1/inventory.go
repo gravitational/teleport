@@ -2,10 +2,12 @@ package devicetrustv1
 
 import (
 	"context"
+	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sync/errgroup"
 	spb "google.golang.org/genproto/googleapis/rpc/status"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -196,67 +198,89 @@ func (s *inventorySyncer) upsertDevices(ctx context.Context, source *devicepb.De
 		return nil, nil
 	}
 
+	// Allow for some parallelism when writing devices.
+	// Enough to make a difference, but not enough to negatively impact the
+	// backend.
+	const upsertLimit = 4
+	g := &errgroup.Group{}
+	g.SetLimit(upsertLimit)
+
+	var mu sync.Mutex // mu guards statuses
 	statuses := make([]*devicepb.DeviceOrStatus, len(devs))
+	setStatus := func(i int, s *devicepb.DeviceOrStatus) {
+		mu.Lock()
+		statuses[i] = s
+		mu.Unlock()
+	}
+
 	for i, dev := range devs {
 		// Avoid querying clearly-invalid devices.
 		const createAsResource = false
 		if err := storage.ValidateDeviceForCreate(dev, createAsResource); err != nil {
-			statuses[i] = &devicepb.DeviceOrStatus{
+			setStatus(i, &devicepb.DeviceOrStatus{
 				Status: errToStatus(err),
-			}
+			})
 			continue
 		}
 
 		// Synced devices always use the "global" source.
 		dev.Source = source
 
-		// Find if the device exists.
-		// A non-empty ID is not a guarantee that the device exists, as indexes can
-		// have leftover data, but it's a strong sign that it does.
-		deviceID, err := s.storage.GetDeviceIDByOSTag(ctx, dev.OsType, dev.AssetTag, false /* verifyExistence */)
-		// err handled below.
-
-		// Attempt Update first.
-		var stored *devicepb.Device
-		if err == nil {
-			var prevUpdateTime *timestamppb.Timestamp
-			stored, err = s.storage.UpdateDevice(ctx, deviceID, func(stored *devicepb.Device) *devicepb.Device {
-				prevUpdateTime = stored.UpdateTime
-
-				// Copy system-managed fields and fields that sync can't, by
-				// definition, change.
-				// Everything else we take from the sync device.
-				dev.ApiVersion = stored.ApiVersion
-				dev.Id = stored.Id
-				dev.CreateTime = stored.CreateTime
-				dev.UpdateTime = stored.UpdateTime
-				dev.EnrollStatus = stored.EnrollStatus
-				dev.Credential = stored.Credential
-				return dev
-			})
-			// err handled below
-
-			// Notify noops separately from updates, they are needless noise for
-			// audit but interesting for metrics.
-			if err == nil && proto.Equal(prevUpdateTime, stored.GetUpdateTime()) {
-				s.noopCallback(stored, err)
-			} else {
-				s.updateCallback(stored, err)
-			}
-		}
-		// Attempt Create if either GetDeviceIDByOSTag or UpdateDevice failed with
-		// not found.
-		if trace.IsNotFound(err) {
-			stored, err = s.storage.CreateDevice(ctx, dev, createAsResource)
-			s.createCallback(stored, err)
+		i := i
+		dev := dev
+		g.Go(func() error {
+			// Find if the device exists.
+			// A non-empty ID is not a guarantee that the device exists, as indexes
+			// can have leftover data, but it's a strong sign that it does.
+			deviceID, err := s.storage.GetDeviceIDByOSTag(ctx, dev.OsType, dev.AssetTag, false /* verifyExistence */)
 			// err handled below.
-		}
 
-		statuses[i] = &devicepb.DeviceOrStatus{
-			Status: errToStatus(err),
-			Id:     stored.GetId(), // only present on success.
-		}
+			// Attempt Update first.
+			var stored *devicepb.Device
+			if err == nil {
+				var prevUpdateTime *timestamppb.Timestamp
+				stored, err = s.storage.UpdateDevice(ctx, deviceID, func(stored *devicepb.Device) *devicepb.Device {
+					prevUpdateTime = stored.UpdateTime
+
+					// Copy system-managed fields and fields that sync can't, by
+					// definition, change.
+					// Everything else we take from the sync device.
+					dev.ApiVersion = stored.ApiVersion
+					dev.Id = stored.Id
+					dev.CreateTime = stored.CreateTime
+					dev.UpdateTime = stored.UpdateTime
+					dev.EnrollStatus = stored.EnrollStatus
+					dev.Credential = stored.Credential
+					return dev
+				})
+				// err handled below
+
+				// Notify noops separately from updates, they are needless noise for
+				// audit but interesting for metrics.
+				if err == nil && proto.Equal(prevUpdateTime, stored.GetUpdateTime()) {
+					s.noopCallback(stored, err)
+				} else {
+					s.updateCallback(stored, err)
+				}
+			}
+			// Attempt Create if either GetDeviceIDByOSTag or UpdateDevice failed with
+			// not found.
+			if trace.IsNotFound(err) {
+				stored, err = s.storage.CreateDevice(ctx, dev, createAsResource)
+				s.createCallback(stored, err)
+				// err handled below.
+			}
+
+			setStatus(i, &devicepb.DeviceOrStatus{
+				Status: errToStatus(err),
+				Id:     stored.GetId(), // only present on success.
+			})
+
+			return nil
+		})
 	}
+
+	_ = g.Wait() // Inner goroutines never error.
 
 	return statuses, nil
 }

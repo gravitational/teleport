@@ -65,6 +65,7 @@ var (
 // from Jamf to the Auth Server/DeviceTrustService.
 type S struct {
 	logger    log.FieldLogger
+	clock     clockwork.Clock
 	config    *servicecfg.JamfConfig
 	devices   devicepb.DeviceTrustServiceClient
 	jamf      *jamf.Client
@@ -124,9 +125,14 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	clock := opts.Clock
+	if clock == nil {
+		clock = clockwork.NewRealClock()
+	}
+
 	// Connect to the Jamf API and verify credentials.
 	jamfClient, err := jamf.NewClient(ctx, jamf.ClientOpts{
-		Clock:      opts.Clock,
+		Clock:      clock,
 		Logger:     opts.Logger,
 		HTTPClient: opts.HTTPClient,
 		APIURL:     spec.ApiEndpoint,
@@ -138,8 +144,9 @@ func New(ctx context.Context, opts Opts) (*S, error) {
 	}
 
 	s := &S{
-		config:    &cfg,
 		logger:    logger,
+		clock:     clock,
+		config:    &cfg,
 		devices:   opts.DevicesClient,
 		jamf:      jamfClient,
 		scheduler: scheduler,
@@ -245,12 +252,6 @@ func (s *S) Run(ctx context.Context) error {
 			// TODO(codingllama): "Downgrade" initial FULL sync to PARTIAL depending
 			//  on device counts?
 			e := s.scheduler.Next()
-			s.logger.WithFields(log.Fields{
-				"Mode":       e.Mode,
-				"FilterRSQL": e.Entry.FilterRsql,
-				"OnMissing":  e.Entry.OnMissing,
-				"CutTime":    e.Entry.cutTime,
-			}).Info("Starting sync")
 
 			nextCutTime, err := s.RunOnce(ctx, RunSpec{
 				Mode:       e.Mode,
@@ -266,7 +267,6 @@ func (s *S) Run(ctx context.Context) error {
 				s.logger.WithError(err).Warn("Jamf inventory sync attempt failed")
 				continue
 			}
-			s.logger.Info("Sync complete")
 
 			// Update cut time.
 			if nextCutTime.After(e.Entry.cutTime) {
@@ -295,6 +295,14 @@ type RunSpec struct {
 // Returns the cut time for the next sync, acquired from the first computer read
 // from Jamf.
 func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, err error) {
+	s.logger.WithFields(log.Fields{
+		"Mode":       spec.Mode,
+		"FilterRSQL": spec.FilterRSQL,
+		"OnMissing":  spec.OnMissing,
+		"CutTime":    spec.CutTime,
+	}).Info("Starting sync")
+	start := s.clock.Now()
+
 	stream, err := s.devices.SyncInventory(ctx)
 	if err != nil {
 		return time.Time{}, trace.Wrap(err)
@@ -327,110 +335,99 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 		return time.Time{}, trace.BadParameter("unexpected payload %T, expecting ack", resp.Payload)
 	}
 
-	// Devices.
-	seenCount := 0
-	getReq := &jamf.GetComputersInventoryRequest{
-		Section: []string{
-			jamf.SectionGeneral,
-			jamf.SectionHardware,
-			jamf.SectionLocalUserAccounts,
-			jamf.SectionOperatingSystem,
-		},
-		PageSize: 200,                // arbitrary
-		Sort:     []string{sortByID}, // expected to be more "stable" than timestamps
-		Filter:   spec.FilterRSQL,
+	type devicesResp struct {
+		jamfDevs     []*jamf.ComputerInventory
+		teleportDevs []*devicepb.Device
+		page         int
+		err          error
 	}
+	const devicesBuffer = 4 // Allow for a small backlog to build up.
+	devicesC := make(chan devicesResp, devicesBuffer)
 
-	// Sort by recent use on PARTIAL syncs.
-	// Alternatively we could use an RSQL filter.
-	if spec.Mode == mdm.SyncModePartial {
-		getReq.Sort = []string{sortByReportDateDesc}
-	}
+	// Read and convert inventory from Jamf.
+	go func() {
+		req := &jamf.GetComputersInventoryRequest{
+			Section: []string{
+				jamf.SectionGeneral,
+				jamf.SectionHardware,
+				jamf.SectionLocalUserAccounts,
+				jamf.SectionOperatingSystem,
+			},
+			PageSize: 1000,               // arbitrary
+			Sort:     []string{sortByID}, // expected to be more "stable" than timestamps
+			Filter:   spec.FilterRSQL,
+		}
 
+		// Sort by recent use on PARTIAL syncs.
+		// Alternatively we could use an RSQL filter.
+		if spec.Mode == mdm.SyncModePartial {
+			req.Sort = []string{sortByReportDateDesc}
+		}
+
+		jamfDevsCount := 0
+		for {
+			page, err := s.getDevicesPage(ctx, spec, req)
+			if err != nil {
+				devicesC <- devicesResp{err: trace.Wrap(err)}
+				return
+			}
+
+			jamfDevsCount += len(page.jamfDevs)
+			if len(page.teleportDevs) > 0 {
+				devicesC <- devicesResp{
+					jamfDevs:     page.jamfDevs,
+					teleportDevs: page.teleportDevs,
+					page:         req.Page,
+					err:          err,
+				}
+			}
+
+			// Update cut time.
+			if page.highCutTime.After(nextCutTime) {
+				nextCutTime = page.highCutTime
+			}
+
+			// Stop?
+			if page.partialStop ||
+				jamfDevsCount >= page.jamfTotalCount ||
+				len(page.teleportDevs) == 0 {
+				close(devicesC)
+				return
+			}
+
+			req.Page++
+		}
+	}()
+
+	// Write devices to Teleport.
+	syncCount := 0
 	for {
-		// Read inventory from Jamf.
-		inventoryResp, err := s.jamf.GetComputersInventory(ctx, getReq)
-		if err != nil {
-			return time.Time{}, trace.Wrap(err, "jamf read failed")
+		devsResp, ok := <-devicesC
+		if !ok {
+			break // No more devices.
 		}
-		jamfDevs := inventoryResp.Results
-		jamfDevsLen := len(jamfDevs)
-
-		// Convert Jamf devices to Teleport.
-		devs := make([]*devicepb.Device, 0, jamfDevsLen)
-		partialStop := false
-		for _, inv := range jamfDevs {
-			// Stop partial sync?
-			if spec.Mode == mdm.SyncModePartial &&
-				inv.General != nil &&
-				inv.General.ReportDate.Before(spec.CutTime) {
-				s.logger.Debugf("Stopping partial sync, general.reportDate=%v", inv.General.ReportDate)
-				// Signal stop after this round of upserts.
-				partialStop = true
-				break
-			}
-
-			dev, err := computerInventoryToDevice(inv)
-			if err != nil {
-				s.logger.WithError(err).Warn("Failed to convert Jamf ComputerInventory to Teleport Device")
-				continue
-			}
-			devs = append(devs, dev)
-
-			// Log device information, but redact sensitive data first.
-			if log.IsLevelEnabled(log.DebugLevel) {
-				osUsernames := dev.Profile.OsUsernames
-				dev.Profile.OsUsernames = []string{"<REDACTED>"}
-				s.logger.Debugf(""+
-					"Syncing Jamf device %v/%v, "+
-					"id=%v, "+
-					"general.reportDate=%q, "+
-					"general.lastContactTime=%q, "+
-					"general.lastEnrolledDate=%q, "+
-					"profile={%+v}",
-					inv.General.Platform, inv.Hardware.SerialNumber,
-					inv.ID,
-					inv.General.ReportDate,
-					inv.General.LastContactTime,
-					inv.General.LastEnrolledDate,
-					dev.Profile,
-				)
-				dev.Profile.OsUsernames = osUsernames
-			}
-
-			// Record last contact time of the first device to sync.
-			if nextCutTime.IsZero() && inv.General != nil {
-				nextCutTime = inv.General.LastContactTime
-			}
+		if err := devsResp.err; err != nil {
+			return time.Time{}, trace.Wrap(err)
 		}
 
-		// Write devices to Teleport.
-		if len(devs) > 0 {
-			if err := stream.Send(&devicepb.SyncInventoryRequest{
-				Payload: &devicepb.SyncInventoryRequest_DevicesToUpsert{
-					DevicesToUpsert: &devicepb.SyncInventoryDevices{
-						Devices: devs,
-					},
+		if err := stream.Send(&devicepb.SyncInventoryRequest{
+			Payload: &devicepb.SyncInventoryRequest_DevicesToUpsert{
+				DevicesToUpsert: &devicepb.SyncInventoryDevices{
+					Devices: devsResp.teleportDevs,
 				},
-			}); err != nil {
-				return time.Time{}, trace.Wrap(err, "devices: Send")
-			}
-			resp, err = stream.Recv()
-			if err != nil {
-				return time.Time{}, trace.Wrap(err, "devices: Recv")
-			}
-			s.logSyncResult(resp.GetResult(), syncState{
-				jamfDevices: jamfDevs,
-				page:        getReq.Page,
-			})
+			},
+		}); err != nil {
+			return time.Time{}, trace.Wrap(err, "devices: Send")
 		}
-
-		// Stop device upserts?
-		seenCount += jamfDevsLen
-		if partialStop || seenCount >= inventoryResp.TotalCount || jamfDevsLen == 0 {
-			break
+		resp, err = stream.Recv()
+		if err != nil {
+			return time.Time{}, trace.Wrap(err, "devices: Recv")
 		}
-		getReq.Page++
+		s.logSyncResult(resp.GetResult(), syncState{
+			jamfDevices: devsResp.jamfDevs,
+			page:        devsResp.page,
+		})
+		syncCount += len(resp.GetResult().GetDevices())
 	}
 
 	// End.
@@ -478,7 +475,86 @@ func (s *S) RunOnce(ctx context.Context, spec RunSpec) (nextCutTime time.Time, e
 		})
 	}
 
+	s.logger.Infof("Synced %v devices in %v", syncCount, s.clock.Since(start))
 	return nextCutTime, nil
+}
+
+type devicesPage struct {
+	jamfTotalCount int       // aka GetComputersInventoryResponse.TotalCount
+	highCutTime    time.Time // highest observed cut date in the page
+	partialStop    bool      // true if a partial stop was trigerred
+
+	jamfDevs     []*jamf.ComputerInventory
+	teleportDevs []*devicepb.Device
+}
+
+// getDevicesPage reads a single page of devices from Jamf and converts them
+// to Teleport devices.
+func (s *S) getDevicesPage(
+	ctx context.Context, spec RunSpec, req *jamf.GetComputersInventoryRequest) (*devicesPage, error) {
+	resp, err := s.jamf.GetComputersInventory(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err, "jamf read failed")
+	}
+	jamfDevs := resp.Results
+
+	partialStop := false
+	var highCutTime time.Time
+
+	// Convert Jamf devices to Teleport.
+	devs := make([]*devicepb.Device, 0, len(jamfDevs))
+	for _, inv := range jamfDevs {
+		// Stop partial sync?
+		if spec.Mode == mdm.SyncModePartial &&
+			inv.General != nil &&
+			inv.General.ReportDate.Before(spec.CutTime) {
+			s.logger.Debugf("Stopping partial sync, general.reportDate=%v", inv.General.ReportDate)
+			// Signal stop after this round of upserts.
+			partialStop = true
+			break
+		}
+
+		dev, err := computerInventoryToDevice(inv)
+		if err != nil {
+			s.logger.WithError(err).Warn("Failed to convert Jamf ComputerInventory to Teleport Device")
+			continue
+		}
+		devs = append(devs, dev)
+
+		// Log device information, but redact sensitive data first.
+		if log.IsLevelEnabled(log.DebugLevel) {
+			osUsernames := dev.Profile.OsUsernames
+			dev.Profile.OsUsernames = []string{"<REDACTED>"}
+			s.logger.Debugf(""+
+				"Syncing Jamf device %v/%v, "+
+				"id=%v, "+
+				"general.reportDate=%q, "+
+				"general.lastContactTime=%q, "+
+				"general.lastEnrolledDate=%q, "+
+				"profile={%+v}",
+				inv.General.Platform, inv.Hardware.SerialNumber,
+				inv.ID,
+				inv.General.ReportDate,
+				inv.General.LastContactTime,
+				inv.General.LastEnrolledDate,
+				dev.Profile,
+			)
+			dev.Profile.OsUsernames = osUsernames
+		}
+
+		// Keep tabs of highest-seen reportDate.
+		if inv.General != nil && inv.General.ReportDate.After(highCutTime) {
+			highCutTime = inv.General.ReportDate
+		}
+	}
+
+	return &devicesPage{
+		jamfTotalCount: resp.TotalCount,
+		jamfDevs:       jamfDevs,
+		highCutTime:    highCutTime,
+		teleportDevs:   devs,
+		partialStop:    partialStop,
+	}, nil
 }
 
 func (s *S) confirmMissingDevices(ctx context.Context, missingDevs []*devicepb.Device) ([]*devicepb.Device, error) {

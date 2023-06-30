@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sort"
 	"strings"
 	"testing"
 
@@ -748,12 +749,21 @@ func TestService_SyncInventory_audit(t *testing.T) {
 		// dev1 deleted
 		// dev4 deleted
 	})
-	assertEvents(t, emitter.Events(), []wantEvent{
+
+	// Assert audit events.
+	// Note that the order of audit events is not deterministic for this stream.
+	got := emitter.Events()
+	sort.Slice(got, func(i, j int) bool {
+		e1 := got[i]
+		e2 := got[j]
+		return e1.GetType() < e2.GetType()
+	})
+	assertEvents(t, got, []wantEvent{
 		createEvent,
 		createEvent,
+		deleteEvent,
+		deleteEvent,
 		updateEvent,
-		deleteEvent,
-		deleteEvent,
 	})
 }
 
