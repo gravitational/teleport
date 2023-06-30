@@ -22,30 +22,38 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/common/v
 
 // ResourceHeader is a shared resource header.
 message ResourceHeader {
-  // kind is a resource kind
+  // kind is a resource kind.
   string kind = 1;
-  // sub_kind is an optional resource sub kind, used in some resources
+  // sub_kind is an optional resource sub kind, used in some resources.
   string sub_kind = 2;
-  // version is version
+  // version is version.
   string version = 3;
-  // metadata is resource metadata
+  // metadata is resource metadata.
   Metadata metadata = 4;
 }
 
-// Metadata is resource metadata
+// Metadata is resource metadata.
 message Metadata {
-  // name is an object name
+  // name is an object name.
   string name = 1;
   // namespace is object namespace. The field should be called "namespace"
   // when it returns in Teleport 2.4.
   string namespace = 2;
-  // description is object description
+  // description is object description.
   string description = 3;
-  // labels is a set of labels
+  // labels is a set of labels.
   map<string, string> labels = 5;
   // expires is a global expiry time header can be set on any resource in the
   // system.
   google.protobuf.Timestamp expires = 6;
   // ID is a record ID
   int64 id = 7;
+}
+
+// Trait is a trait that can be use in various resources.
+message Trait {
+  // key is the name of the trait.
+  string key = 1;
+  // values is the list of trait values.
+  repeated string values = 2;
 }

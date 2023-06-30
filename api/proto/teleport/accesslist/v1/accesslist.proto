@@ -22,19 +22,19 @@ import "teleport/common/v1/common.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1;accesslist";
 
-// AccessListV1 describes the basic building block of access grants, which are
+// AccessList describes the basic building block of access grants, which are
 // similar to access requests but for longer lived permissions that need to be
 // regularly audited.
-message AccessListV1 {
+message AccessList {
   // header is the header for the resource.
   teleport.common.v1.ResourceHeader header = 1;
 
   // spec is the specification for the access list.
-  AccessListSpecV1 spec = 2;
+  AccessListSpec spec = 2;
 }
 
-// AccessListSpecV1 is the specification for an access list.
-message AccessListSpecV1 {
+// AccessListSpec is the specification for an access list.
+message AccessListSpec {
   // description is a plaintext description of the access list.
   string description = 1;
 
@@ -61,7 +61,7 @@ message AccessListSpecV1 {
   repeated AccessListMember members = 7;
 }
 
-// AccessListOwnerV1 is an owner of an access list.
+// AccessListOwner is an owner of an access list.
 message AccessListOwner {
   // name is the username of the owner.
   string name = 1;
@@ -83,7 +83,7 @@ message AccessListRequires {
   repeated string roles = 1;
 
   // traits are the traits that must be present for the user to obtain access.
-  map<string, string> traits = 2;
+  repeated teleport.common.v1.Trait traits = 2;
 }
 
 // AccessListGrants describes what access is granted by membership to the access list.
@@ -92,7 +92,7 @@ message AccessListGrants {
   repeated string roles = 1;
 
   // traits are the traits that are granted to users who are members of the access list.
-  map<string, string> traits = 2;
+  repeated teleport.common.v1.Trait traits = 2;
 }
 
 // AccessListMember describes a member of an access list.

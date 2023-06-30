@@ -41,13 +41,13 @@ type ResourceHeader struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// kind is a resource kind
+	// kind is a resource kind.
 	Kind string `protobuf:"bytes,1,opt,name=kind,proto3" json:"kind,omitempty"`
-	// sub_kind is an optional resource sub kind, used in some resources
+	// sub_kind is an optional resource sub kind, used in some resources.
 	SubKind string `protobuf:"bytes,2,opt,name=sub_kind,json=subKind,proto3" json:"sub_kind,omitempty"`
-	// version is version
+	// version is version.
 	Version string `protobuf:"bytes,3,opt,name=version,proto3" json:"version,omitempty"`
-	// metadata is resource metadata
+	// metadata is resource metadata.
 	Metadata *Metadata `protobuf:"bytes,4,opt,name=metadata,proto3" json:"metadata,omitempty"`
 }
 
@@ -111,20 +111,20 @@ func (x *ResourceHeader) GetMetadata() *Metadata {
 	return nil
 }
 
-// Metadata is resource metadata
+// Metadata is resource metadata.
 type Metadata struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// name is an object name
+	// name is an object name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// namespace is object namespace. The field should be called "namespace"
 	// when it returns in Teleport 2.4.
 	Namespace string `protobuf:"bytes,2,opt,name=namespace,proto3" json:"namespace,omitempty"`
-	// description is object description
+	// description is object description.
 	Description string `protobuf:"bytes,3,opt,name=description,proto3" json:"description,omitempty"`
-	// labels is a set of labels
+	// labels is a set of labels.
 	Labels map[string]string `protobuf:"bytes,5,rep,name=labels,proto3" json:"labels,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
 	// expires is a global expiry time header can be set on any resource in the
 	// system.
@@ -207,6 +207,64 @@ func (x *Metadata) GetId() int64 {
 	return 0
 }
 
+// Trait is a trait that can be use in various resources.
+type Trait struct {
+	state         protoimpl.MessageState
+	sizeCache     protoimpl.SizeCache
+	unknownFields protoimpl.UnknownFields
+
+	// key is the name of the trait.
+	Key string `protobuf:"bytes,1,opt,name=key,proto3" json:"key,omitempty"`
+	// values is the list of trait values.
+	Values []string `protobuf:"bytes,2,rep,name=values,proto3" json:"values,omitempty"`
+}
+
+func (x *Trait) Reset() {
+	*x = Trait{}
+	if protoimpl.UnsafeEnabled {
+		mi := &file_teleport_common_v1_common_proto_msgTypes[2]
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		ms.StoreMessageInfo(mi)
+	}
+}
+
+func (x *Trait) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*Trait) ProtoMessage() {}
+
+func (x *Trait) ProtoReflect() protoreflect.Message {
+	mi := &file_teleport_common_v1_common_proto_msgTypes[2]
+	if protoimpl.UnsafeEnabled && x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use Trait.ProtoReflect.Descriptor instead.
+func (*Trait) Descriptor() ([]byte, []int) {
+	return file_teleport_common_v1_common_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *Trait) GetKey() string {
+	if x != nil {
+		return x.Key
+	}
+	return ""
+}
+
+func (x *Trait) GetValues() []string {
+	if x != nil {
+		return x.Values
+	}
+	return nil
+}
+
 var File_teleport_common_v1_common_proto protoreflect.FileDescriptor
 
 var file_teleport_common_v1_common_proto_rawDesc = []byte{
@@ -243,11 +301,15 @@ var file_teleport_common_v1_common_proto_rawDesc = []byte{
 	0x6e, 0x74, 0x72, 0x79, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79, 0x18, 0x01, 0x20, 0x01, 0x28,
 	0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x14, 0x0a, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18,
 	0x02, 0x20, 0x01, 0x28, 0x09, 0x52, 0x05, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x3a, 0x02, 0x38, 0x01,
-	0x42, 0x45, 0x5a, 0x43, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f, 0x6d, 0x2f, 0x67,
-	0x72, 0x61, 0x76, 0x69, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f, 0x74, 0x65, 0x6c,
-	0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x67, 0x65, 0x6e, 0x2f, 0x70, 0x72,
-	0x6f, 0x74, 0x6f, 0x2f, 0x67, 0x6f, 0x2f, 0x63, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e, 0x2f, 0x76, 0x31,
-	0x3b, 0x63, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x22, 0x31, 0x0a, 0x05, 0x54, 0x72, 0x61, 0x69, 0x74, 0x12, 0x10, 0x0a, 0x03, 0x6b, 0x65, 0x79,
+	0x18, 0x01, 0x20, 0x01, 0x28, 0x09, 0x52, 0x03, 0x6b, 0x65, 0x79, 0x12, 0x16, 0x0a, 0x06, 0x76,
+	0x61, 0x6c, 0x75, 0x65, 0x73, 0x18, 0x02, 0x20, 0x03, 0x28, 0x09, 0x52, 0x06, 0x76, 0x61, 0x6c,
+	0x75, 0x65, 0x73, 0x42, 0x45, 0x5a, 0x43, 0x67, 0x69, 0x74, 0x68, 0x75, 0x62, 0x2e, 0x63, 0x6f,
+	0x6d, 0x2f, 0x67, 0x72, 0x61, 0x76, 0x69, 0x74, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x61, 0x6c, 0x2f,
+	0x74, 0x65, 0x6c, 0x65, 0x70, 0x6f, 0x72, 0x74, 0x2f, 0x61, 0x70, 0x69, 0x2f, 0x67, 0x65, 0x6e,
+	0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x2f, 0x67, 0x6f, 0x2f, 0x63, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e,
+	0x2f, 0x76, 0x31, 0x3b, 0x63, 0x6f, 0x6d, 0x6d, 0x6f, 0x6e, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74,
+	0x6f, 0x33,
 }
 
 var (
@@ -262,17 +324,18 @@ func file_teleport_common_v1_common_proto_rawDescGZIP() []byte {
 	return file_teleport_common_v1_common_proto_rawDescData
 }
 
-var file_teleport_common_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 3)
+var file_teleport_common_v1_common_proto_msgTypes = make([]protoimpl.MessageInfo, 4)
 var file_teleport_common_v1_common_proto_goTypes = []interface{}{
 	(*ResourceHeader)(nil),        // 0: teleport.common.v1.ResourceHeader
 	(*Metadata)(nil),              // 1: teleport.common.v1.Metadata
-	nil,                           // 2: teleport.common.v1.Metadata.LabelsEntry
-	(*timestamppb.Timestamp)(nil), // 3: google.protobuf.Timestamp
+	(*Trait)(nil),                 // 2: teleport.common.v1.Trait
+	nil,                           // 3: teleport.common.v1.Metadata.LabelsEntry
+	(*timestamppb.Timestamp)(nil), // 4: google.protobuf.Timestamp
 }
 var file_teleport_common_v1_common_proto_depIdxs = []int32{
 	1, // 0: teleport.common.v1.ResourceHeader.metadata:type_name -> teleport.common.v1.Metadata
-	2, // 1: teleport.common.v1.Metadata.labels:type_name -> teleport.common.v1.Metadata.LabelsEntry
-	3, // 2: teleport.common.v1.Metadata.expires:type_name -> google.protobuf.Timestamp
+	3, // 1: teleport.common.v1.Metadata.labels:type_name -> teleport.common.v1.Metadata.LabelsEntry
+	4, // 2: teleport.common.v1.Metadata.expires:type_name -> google.protobuf.Timestamp
 	3, // [3:3] is the sub-list for method output_type
 	3, // [3:3] is the sub-list for method input_type
 	3, // [3:3] is the sub-list for extension type_name
@@ -310,6 +373,18 @@ func file_teleport_common_v1_common_proto_init() {
 				return nil
 			}
 		}
+		file_teleport_common_v1_common_proto_msgTypes[2].Exporter = func(v interface{}, i int) interface{} {
+			switch v := v.(*Trait); i {
+			case 0:
+				return &v.state
+			case 1:
+				return &v.sizeCache
+			case 2:
+				return &v.unknownFields
+			default:
+				return nil
+			}
+		}
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -317,7 +392,7 @@ func file_teleport_common_v1_common_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_teleport_common_v1_common_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   3,
+			NumMessages:   4,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
