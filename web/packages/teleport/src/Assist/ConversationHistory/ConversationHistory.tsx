@@ -17,16 +17,15 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { ButtonPrimary } from 'design';
-
 import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { ConversationHistoryItem } from 'teleport/Assist/ConversationHistory/ConversationHistoryItem';
-import { AssistViewMode } from 'teleport/Assist/Assist';
 import { DeleteConversationDialog } from 'teleport/Assist/ConversationHistory/DeleteConversationDialog';
+import { ViewMode } from 'teleport/Assist/types';
 
 interface ConversationHistoryProps {
   onConversationSelect: (id: string) => void;
-  viewMode: AssistViewMode;
+  viewMode: ViewMode;
+  onError: (message: string) => void;
 }
 
 const Container = styled.ul.attrs({ 'data-scrollbar': 'default' })`
@@ -40,7 +39,7 @@ const Container = styled.ul.attrs({ 'data-scrollbar': 'default' })`
   width: var(--conversation-list-width);
   margin: 0;
   position: var(--conversation-list-position);
-  top: var(--assist-header-height);
+  top: 0;
   bottom: 0;
   background: ${p => p.theme.colors.levels.popout};
   z-index: 999;
@@ -57,38 +56,17 @@ const List = styled.ul.attrs({ 'data-scrollbar': 'default' })`
   overflow-y: auto;
 `;
 
-const NewConversationButton = styled.li`
-  margin: 10px 10px 0;
-
-  button {
-    width: 100%;
-  }
-`;
-
-const ErrorMessage = styled.div`
-  background: ${props => props.theme.colors.error.main};
-  color: white;
-  border-radius: 5px;
-  margin-bottom: 10px;
-  padding: 5px 10px;
-`;
-
-function isExpanded(viewMode: AssistViewMode) {
+function isExpanded(viewMode: ViewMode) {
   return (
-    viewMode === AssistViewMode.Expanded ||
-    viewMode === AssistViewMode.ExpandedSidebarVisible
+    viewMode === ViewMode.PopupExpanded ||
+    viewMode === ViewMode.PopupExpandedSidebarVisible
   );
 }
 
 export function ConversationHistory(props: ConversationHistoryProps) {
-  const {
-    conversations,
-    createConversation,
-    deleteConversation,
-    setSelectedConversationId,
-  } = useAssist();
+  const { conversations, deleteConversation, setSelectedConversationId } =
+    useAssist();
 
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteErrorMessage, setDeleteErrorMessage] =
     useState<string | null>(null);
@@ -101,7 +79,7 @@ export function ConversationHistory(props: ConversationHistoryProps) {
 
       await setSelectedConversationId(id);
     } catch (err) {
-      setErrorMessage(err.message);
+      props.onError('Failed to load the conversation.');
     }
   }
 
@@ -118,16 +96,6 @@ export function ConversationHistory(props: ConversationHistoryProps) {
     }
 
     setDeleting(false);
-  }
-
-  async function handleCreateNewConversation() {
-    try {
-      const id = await createConversation();
-
-      props.onConversationSelect(id);
-    } catch (err) {
-      setErrorMessage(err.message);
-    }
   }
 
   const conversationToDelete = conversations.data.find(
@@ -158,14 +126,6 @@ export function ConversationHistory(props: ConversationHistoryProps) {
           error={deleteErrorMessage}
         />
       )}
-
-      <NewConversationButton>
-        {errorMessage && <ErrorMessage>{errorMessage}</ErrorMessage>}
-
-        <ButtonPrimary onClick={() => handleCreateNewConversation()}>
-          New conversation
-        </ButtonPrimary>
-      </NewConversationButton>
 
       <List>{items}</List>
     </Container>
