@@ -175,6 +175,16 @@ That is, the objects that are in Teleport today should unmarshal properly into o
 All objects should remain in `api/types` as they do today. (Open question: should this be the case? Should
 we relocate objects?)
 
+#### Packaging
+
+The following packages should be used for this approach:
+
+| Package name | Description |
+|--------------|-------------|
+| `api/types`  | The location of the internal objects. |
+| `api/gen/proto/go/<proto-pkg>` | The location of generated protobuf messages. |
+| `api/convert/proto/go/<proto-pkg>` | The location of conversion functions for protobuf messages into internal types.
+
 ##### Example
 
 Let's take `UserGroup` as an example, as it's a very simple message. `UserGroup`'s interface as it is
@@ -256,15 +266,98 @@ I recommend the following path:
 2. Write tests that verify that the current messages marshal/unmarshal properly into
    the new object. This will require creating message conversion functions as well.
 3. Replace existing references to the object with the new version.
-4. The `gogoproto` extensions on the original message are now largely irrelevant, and
-   can be removed. This will likely require changes to the conversion functions
-   mentioned above.
+
+Step 3 may also require modifying `e`, which may momentarily break the build. It is
+recommended to have all relevant modifications made and approved in PRs, including in `e`,
+before merging anything.
+
+Once these steps are accomplished for all objects, we can then start removing `gogoproto`
+extensions from `types.proto`. As they'll no longer have an impact on Teleport's business
+logic, the impact should be contained to modifying conversion functions. To handle the new
+output of the generated objects.
 
 ### UX
 
 There should be no difference in UX between Teleport pre-migration and post-migration. The process
 must be transparent to the user.
 
+### Security
+
+As this is primarily a migration of data, there should be no security impacts with this effort.
+
 ### Implementation plan
 
-TBD
+#### Migrate individual objects
+
+We'll need to migrate our individual objects that currently sit in `api/types`. This list is currently
+not in any prioritized order.
+
+- AccessRequest
+- AppServer
+- Application
+- AuthPreference
+- CertAuthority
+- ClusterAssert
+- ClusterAuditConfig
+- ClusterMaintenanceConfig
+- ClusterName
+- ClusterNetworkingConfig
+- ConnectionDiagnostic
+- Database
+- DatabaseServer
+- DatabaseService
+- Device
+- GithubConnector
+- HeadlessAuthentication
+- Installer
+- Instance
+- Integration
+- Jamf
+- KeepAlive
+- KubernetesCluster
+- KubernetesServer
+- Lock
+- MFADevice
+- Metadata
+- Namespace
+- NetworkRestrictions
+- OIDCConnector
+- OktaAssignment
+- OktaImportRule
+- Plugin
+- PluginData
+- PluginStaticCredentials
+- ProvisionToken
+- RecoveryCodes
+- RemoteCluster
+- ResourceHeader
+- ResourceID
+- ReverseTunnel
+- Role
+- SAMLConnector
+- SAMLIdPServiceProvider
+- Semaphore
+- Server
+- ServerInfo
+- SessionRecordingConfig
+- SessionTracker
+- StaticTokens
+- TrustedCluster
+- TunnelConnection
+- TunnelStrategy
+- UIConfig
+- User
+- UserGroup
+- UserToken
+- UserTokenSecrets
+- WatchStatus
+- WebSession
+- WindowsDesktopService
+
+#### Migrate events
+
+The objects in `api/proto/teleport/legacy/types/events` must be migrated.
+
+#### Migrate webauthn
+
+The objects in `api/proto/teleport/legacy/types/webauthn` must be migrated.
