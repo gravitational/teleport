@@ -29,7 +29,7 @@ export function canUseConnectMyComputer(
   runtimeSettings: RuntimeSettings
 ): boolean {
   if (rootCluster.leaf) {
-    throw new Error(`${rootCluster.uri} is not a root cluster`);
+    return false;
   }
 
   const isUnix =
