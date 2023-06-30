@@ -110,6 +110,7 @@ import (
 	"github.com/gravitational/teleport/lib/proxy"
 	restricted "github.com/gravitational/teleport/lib/restrictedsession"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/secret"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -133,7 +134,7 @@ type WebSuite struct {
 
 	node        *regular.Server
 	proxy       *regular.Server
-	proxyTunnel reversetunnel.Server
+	proxyTunnel reversetunnelclient.Server
 	srvID       string
 
 	user       string
@@ -453,11 +454,15 @@ func newWebSuiteWithConfig(t *testing.T, cfg webSuiteConfig) *WebSuite {
 		StaticFS:                        fs,
 		CachedSessionLingeringThreshold: &sessionLingeringThreshold,
 		ProxySettings:                   &mockProxySettings{},
-		SessionControl:                  proxySessionController,
-		Router:                          router,
-		HealthCheckAppServer:            cfg.HealthCheckAppServer,
-		UI:                              cfg.uiConfig,
-		OpenAIConfig:                    cfg.OpenAIConfig,
+		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
+			controller := srv.WebSessionController(proxySessionController)
+			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
+			return ctx, trace.Wrap(err)
+		}),
+		Router:               router,
+		HealthCheckAppServer: cfg.HealthCheckAppServer,
+		UI:                   cfg.uiConfig,
+		OpenAIConfig:         cfg.OpenAIConfig,
 	}
 
 	if handlerConfig.HealthCheckAppServer == nil {
@@ -7693,19 +7698,23 @@ func createProxy(ctx context.Context, t *testing.T, proxyID string, node *regula
 	fs, err := newDebugFileSystem()
 	require.NoError(t, err)
 	handler, err := NewHandler(Config{
-		Proxy:                          revTunServer,
-		AuthServers:                    utils.FromAddr(authServer.Addr()),
-		DomainName:                     authServer.ClusterName(),
-		ProxyClient:                    client,
-		ProxyPublicAddrs:               utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
-		CipherSuites:                   utils.DefaultCipherSuites(),
-		AccessPoint:                    client,
-		Context:                        ctx,
-		HostUUID:                       proxyID,
-		Emitter:                        client,
-		StaticFS:                       fs,
-		ProxySettings:                  &mockProxySettings{},
-		SessionControl:                 sessionController,
+		Proxy:            revTunServer,
+		AuthServers:      utils.FromAddr(authServer.Addr()),
+		DomainName:       authServer.ClusterName(),
+		ProxyClient:      client,
+		ProxyPublicAddrs: utils.MustParseAddrList("proxy-1.example.com", "proxy-2.example.com"),
+		CipherSuites:     utils.DefaultCipherSuites(),
+		AccessPoint:      client,
+		Context:          ctx,
+		HostUUID:         proxyID,
+		Emitter:          client,
+		StaticFS:         fs,
+		ProxySettings:    &mockProxySettings{},
+		SessionControl: SessionControllerFunc(func(ctx context.Context, sctx *SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
+			controller := srv.WebSessionController(sessionController)
+			ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
+			return ctx, trace.Wrap(err)
+		}),
 		Router:                         router,
 		HealthCheckAppServer:           func(context.Context, string, string) error { return nil },
 		MinimalReverseTunnelRoutesOnly: cfg.minimalHandler,
@@ -7767,7 +7776,7 @@ type testProxy struct {
 	clock   clockwork.FakeClock
 	client  auth.ClientI
 	auth    *auth.TestTLSServer
-	revTun  reversetunnel.Server
+	revTun  reversetunnelclient.Server
 	node    *regular.Server
 	proxy   *regular.Server
 	handler *APIHandler
@@ -8326,7 +8335,7 @@ func newKubeConfigFile(ctx context.Context, t *testing.T, clusters ...kubeCluste
 type startKubeOptions struct {
 	clusters    []kubeClusterConfig
 	authServer  *auth.TestTLSServer
-	revTunnel   reversetunnel.Server
+	revTunnel   reversetunnelclient.Server
 	serviceType kubeproxy.KubeServiceType
 }
 

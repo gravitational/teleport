@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package reversetunnel
+package reversetunnelclient
 
 import (
 	"net"
@@ -26,7 +26,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 )
 
-// FakeServer is a fake reversetunnel.Server implementation used in tests.
+// FakeServer is a fake Server implementation used in tests.
 type FakeServer struct {
 	Server
 	// Sites is a list of sites registered via this fake reverse tunnel.
@@ -48,7 +48,7 @@ func (s *FakeServer) GetSite(name string) (RemoteSite, error) {
 	return nil, trace.NotFound("site %q not found", name)
 }
 
-// FakeRemoteSite is a fake reversetunnel.RemoteSite implementation used in tests.
+// FakeRemoteSite is a fake reversetunnelclient.RemoteSite implementation used in tests.
 type FakeRemoteSite struct {
 	RemoteSite
 	// Name is the remote site name.

@@ -28,7 +28,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 )
 
 // WaitForTunnelConnections waits for remote tunnels connections
@@ -76,7 +76,7 @@ func TryCreateTrustedCluster(t *testing.T, authServer *auth.Server, trustedClust
 	require.FailNow(t, "Timeout creating trusted cluster")
 }
 
-func WaitForClusters(tun reversetunnel.Server, expected int) func() bool {
+func WaitForClusters(tun reversetunnelclient.Server, expected int) func() bool {
 	return func() bool {
 		clusters, err := tun.GetSites()
 		if err != nil {
@@ -129,7 +129,7 @@ func WaitForNodeCount(ctx context.Context, t *TeleInstance, clusterName string, 
 }
 
 // WaitForActiveTunnelConnections waits for remote cluster to report a minimum number of active connections
-func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnel.Server, clusterName string, expectedCount int) {
+func WaitForActiveTunnelConnections(t *testing.T, tunnel reversetunnelclient.Server, clusterName string, expectedCount int) {
 	require.Eventually(t, func() bool {
 		cluster, err := tunnel.GetSite(clusterName)
 		if err != nil {
