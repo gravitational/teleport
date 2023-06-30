@@ -120,7 +120,7 @@ func TestChat_Complete(t *testing.T) {
 	t.Parallel()
 
 	responses := []string{
-		generateTextResponse(),
+		generateTextResponse(t),
 		generateCommandResponse(t),
 	}
 	server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
@@ -175,10 +175,19 @@ func TestChat_Complete(t *testing.T) {
 }
 
 // generateTextResponse generates a response for a text completion
-func generateTextResponse() string {
+func generateTextResponse(t *testing.T) string {
 	dataBytes := []byte{}
 	dataBytes = append(dataBytes, []byte("event: message\n")...)
-	data := fmt.Sprintf(`{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":{"content": "%v", "role": "assistant"}}]}`, "<FINAL ANSWER> \nWhich node do you want use?")
+	obj := struct {
+		content string
+		role    string
+	}{
+		content: "<FINAL ANSWER>\nWhich node do you want use?",
+		role:    "assistant",
+	}
+	json, err := json.Marshal(obj)
+	require.NoError(t, err)
+	data := fmt.Sprintf(`{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":%v}]}`, string(json))
 	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
 	dataBytes = append(dataBytes, []byte("event: done\n")...)
 	dataBytes = append(dataBytes, []byte("data: [DONE]\n\n")...)
