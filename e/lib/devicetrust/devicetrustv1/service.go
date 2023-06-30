@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
 	log "github.com/sirupsen/logrus"
@@ -22,8 +23,10 @@ import (
 	"github.com/gravitational/teleport/e/lib/devicetrust/storage"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
+	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	config "github.com/gravitational/teleport/lib/devicetrust/config"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -90,6 +93,11 @@ type AuthServer interface {
 	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
 }
 
+// RateLimiter is a subset of [limiter.RateLimiter].
+type RateLimiter interface {
+	RegisterRequest(token string, customRate *ratelimit.RateSet) error
+}
+
 // Service implements the teleport.devicetrust.v1.DeviceTrustService RPC
 // service.
 type Service struct {
@@ -100,6 +108,7 @@ type Service struct {
 	authServer AuthServer
 	authorizer authz.Authorizer
 	emitter    apievents.Emitter
+	limiter    RateLimiter
 	storage    *storage.S
 }
 
@@ -109,7 +118,12 @@ type ServiceParams struct {
 	AuthServer AuthServer
 	Authorizer authz.Authorizer
 	Emitter    apievents.Emitter
-	Storage    *storage.S
+	// Limiter is the rate limiter for loosely-authorized requests, like
+	// auto-enrollment token creation or device authentication.
+	// Requests are typically rate-limited by user.
+	// If `nil` a default limiter is used.
+	Limiter RateLimiter
+	Storage *storage.S
 }
 
 // New creates a new DeviceTrustService implementer.
@@ -135,11 +149,31 @@ func New(params ServiceParams) (*Service, error) {
 		baseLogger = log.StandardLogger()
 	}
 
+	rateLimiter := params.Limiter
+	if rateLimiter == nil {
+		var err error
+		rateLimiter, err = limiter.NewRateLimiter(limiter.Config{
+			Rates: []limiter.Rate{
+				{
+					Period:  libdefaults.LimiterPeriod,
+					Average: libdefaults.LimiterAverage,
+					Burst:   libdefaults.LimiterBurst,
+				},
+			},
+			MaxConnections:   libdefaults.LimiterMaxConnections,
+			MaxNumberOfUsers: libdefaults.LimiterMaxConcurrentUsers,
+		})
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return &Service{
 		logger:     baseLogger.WithField(trace.Component, "devicetrust.service"),
 		authServer: params.AuthServer,
 		authorizer: params.Authorizer,
 		emitter:    params.Emitter,
+		limiter:    rateLimiter,
 		storage:    params.Storage,
 	}, nil
 }
@@ -501,6 +535,11 @@ func (s *Service) CreateDeviceEnrollToken(ctx context.Context, req *devicepb.Cre
 	//   (Otherwise, favor legacy behavior.)
 	var devMetadata *apievents.DeviceMetadata
 	if checkErr != nil || (req.DeviceId == "" && req.DeviceData != nil && autoEnrollEnabled) {
+		// Rate limit auto-enroll/data-based token creation.
+		if err := s.rateLimitByUser(authCtx.User.GetName()); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
 		var dev *devicepb.Device
 		dev, err = s.storage.CreateDeviceEnrollTokenUsingData(ctx, req.DeviceData)
 		// err verified below
@@ -671,6 +710,11 @@ func (s *Service) AuthenticateDevice(stream devicepb.DeviceTrustService_Authenti
 		return trace.BadParameter("device trust disabled by cluster settings")
 	}
 
+	// Rate limit device authn.
+	if err := s.rateLimitByUser(authCtx.User.GetName()); err != nil {
+		return trace.Wrap(err)
+	}
+
 	c := &authnCeremony{
 		logger:  s.logger,
 		storage: s.storage,
@@ -814,6 +858,10 @@ func (s *Service) emitAuditEvent(ctx context.Context, e apievents.AuditEvent) {
 			}).
 			Warn("Failed to emit audit event")
 	}
+}
+
+func (s *Service) rateLimitByUser(user string) error {
+	return s.limiter.RegisterRequest(user, nil /* customRate */)
 }
 
 func getDeviceMetadata(dev *devicepb.Device) *apievents.DeviceMetadata {

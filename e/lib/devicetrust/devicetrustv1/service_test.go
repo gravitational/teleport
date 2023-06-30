@@ -10,11 +10,13 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/grpc/codes"
@@ -312,6 +314,104 @@ func (c *ruleVerifyingChecker) verifyMatches() error {
 		return nil
 	}
 	return fmt.Errorf("CheckAccessToRule not called for the following wanted matches: %v", c.want)
+}
+
+type alternatingLimiter struct {
+	mu   sync.Mutex
+	keys map[string]struct{}
+}
+
+func (l *alternatingLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if l.keys == nil {
+		l.keys = make(map[string]struct{})
+	}
+
+	if _, ok := l.keys[token]; ok {
+		delete(l.keys, token)
+		return trace.LimitExceeded("limit exceeded")
+	} else {
+		l.keys[token] = struct{}{}
+		return nil
+	}
+}
+
+func (l *alternatingLimiter) reset() {
+	l.mu.Lock()
+	l.keys = nil
+	l.mu.Unlock()
+}
+
+func TestService_rateLimiting(t *testing.T) {
+	limiter := &alternatingLimiter{}
+	env := testenv.NewUsingT(t,
+		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
+			DeviceTrust: &types.DeviceTrust{
+				AutoEnroll: true,
+			},
+		}),
+		// Note: all testenv calls are made, by default, using a fake "llama" user.
+		testenv.WithLimiter(limiter),
+	)
+
+	devices := env.DevicesClient
+	ctx := context.Background()
+
+	// Create a couple of test devices.
+	createdDev, err := devices.CreateDevice(ctx, &devicepb.CreateDeviceRequest{
+		Device: &devicepb.Device{
+			OsType:   devicepb.OSType_OS_TYPE_MACOS,
+			AssetTag: "llama",
+		},
+	})
+	if err != nil {
+		t.Fatalf("CreateDevice failed: %v", err)
+	}
+	enrolledDev, enrolledKey, err := createAndEnroll(ctx, devices, &devicepb.Device{
+		OsType:   devicepb.OSType_OS_TYPE_MACOS,
+		AssetTag: "alpaca",
+	})
+	if err != nil {
+		t.Fatalf("createAndEnroll failed: %v", err)
+	}
+
+	tests := []struct {
+		name string
+		rpc  func() error
+	}{
+		{
+			name: "CreateDeviceEnrollToken auto-enroll",
+			rpc: func() error {
+				_, err := devices.CreateDeviceEnrollToken(ctx, &devicepb.CreateDeviceEnrollTokenRequest{
+					DeviceData: defaultCollectData(createdDev),
+				})
+				return err
+			},
+		},
+		{
+			name: "AuthenticateDevice",
+			rpc: func() error {
+				return authenticateDevice(ctx, devices, enrolledDev, enrolledKey, defaultCollectData)
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			limiter.reset()
+
+			// First call succeeds.
+			if err := test.rpc(); err != nil {
+				t.Fatalf("First rpc call returned err=%v, want nil", err)
+			}
+
+			// Second call is rate limited.
+			if err := test.rpc(); !trace.IsLimitExceeded(err) {
+				t.Fatalf("Second rpc call returned err=%v, want LimitExceeded", err)
+			}
+		})
+	}
 }
 
 func TestService_CreateDevice(t *testing.T) {

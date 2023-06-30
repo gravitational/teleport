@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gravitational/oxy/ratelimit"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -40,6 +41,7 @@ type E struct {
 	authSpec         *types.AuthPreferenceSpecV2
 	authorizer       authz.Authorizer
 	emitter          apievents.Emitter
+	limiter          devicetrustv1.RateLimiter
 	closers          []func() error
 }
 
@@ -76,6 +78,11 @@ func WithAuthorizer(a authz.Authorizer) Opt {
 // WithEmitter customizes the [E] event emitter.
 func WithEmitter(em apievents.Emitter) Opt {
 	return func(e *E) { e.emitter = em }
+}
+
+// WithLimiter customizes the [E] rate limiter.
+func WithLimiter(l devicetrustv1.RateLimiter) Opt {
+	return func(e *E) { e.limiter = l }
 }
 
 // MustNew creates a new [E] or panics.
@@ -116,6 +123,7 @@ func New(opts ...Opt) (*E, error) {
 		authSpec:   &types.AuthPreferenceSpecV2{},
 		authorizer: &noopAuthorizer{},
 		emitter:    &noopEmitter{},
+		limiter:    &noopLimiter{},
 	}
 	for _, opt := range opts {
 		opt(e)
@@ -152,6 +160,7 @@ func New(opts ...Opt) (*E, error) {
 		},
 		Authorizer: e.authorizer,
 		Emitter:    e.emitter,
+		Limiter:    e.limiter,
 		Storage:    dtStorage,
 	})
 	if err != nil {
@@ -268,5 +277,11 @@ func (*NoopChecker) CheckAccessToRule(ruleCtx services.RuleContext, namespace st
 type noopEmitter struct{}
 
 func (*noopEmitter) EmitAuditEvent(context.Context, apievents.AuditEvent) error {
+	return nil
+}
+
+type noopLimiter struct{}
+
+func (*noopLimiter) RegisterRequest(token string, customRate *ratelimit.RateSet) error {
 	return nil
 }
