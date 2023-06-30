@@ -102,13 +102,8 @@ func ensureTestsEnabled(t *testing.T) {
 }
 
 func ensureEmulatorRunning(t *testing.T, cfg map[string]interface{}) {
-	v, ok := cfg["endpoint"]
-	if !ok {
-		return
-	}
-
-	endpoint, ok := v.(string)
-	if !ok || endpoint == "" {
+	endpoint, _ := cfg["endpoint"].(string)
+	if endpoint == "" {
 		return
 	}
 
