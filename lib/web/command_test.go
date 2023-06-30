@@ -182,8 +182,10 @@ func TestExecuteCommandSummary(t *testing.T) {
 	dec := json.NewDecoder(stream)
 
 	// Consume close message
-	err = dec.Decode(&struct{}{})
+	var sessionMetadata siteSessionGenerateResponse
+	err = dec.Decode(&sessionMetadata)
 	require.NoError(t, err)
+	require.Equal(t, "node", sessionMetadata.Session.ServerID)
 
 	// Consume summary message
 	var env outEnvelope
