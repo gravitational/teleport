@@ -3,11 +3,11 @@ title: Database Access with ClickHouse
 description: How to configure Teleport database access with ClickHouse.
 ---
 
-Teleport Clickhouse integration leverages  ClickHouse x509 authentication that is only support
+Teleport Clickhouse integration leverages  ClickHouse x509 authentication that only supports
 with  HTTPS or Native interfaces only.
-The HTTP interface lets you use ClickHouse on any platform from any programming language in a form of REST API.
+The HTTP interface lets you use ClickHouse on any platform from any programming language in the form of REST API.
 The HTTP interface is more limited than the Native interface, but it has better language support.
-Teleport ClickHouse integration allow you to select between Native or HTTP interface
+Teleport ClickHouse integration allows you to select between Native or HTTP interface
 
 <Admonition type="warning" title="Preview">
  Database access for ClickHouse ClickHouse is currently in Preview mode.
@@ -136,7 +136,7 @@ $ tsh db ls
 # example- clickhouse-http (user: alice)             [*]           env=dev tsh db connect clickhouse-http
 ```
 
-Create a authenticated proxy tunnel for allowing to connect to ClickHouse Database GUI database client send request via `curl`:
+Create an authenticated proxy tunnel for allowing to connect to the ClickHouse Database GUI database client send a request via `curl`:
 
 ```code
 $ tsh proxy db --tunnel example-clickhouse-http
@@ -147,7 +147,7 @@ $ tsh proxy db --tunnel example-clickhouse-http
 #   $ curl http://localhost:59215/
 ```
 
-To test connection you can run the following command:
+To test the connection you can run the following command:
 
 ```code
 $ echo 'select 1;' | curl http://localhost:59215/  --data-binary @-
