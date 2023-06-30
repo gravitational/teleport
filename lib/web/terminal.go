@@ -357,15 +357,10 @@ func (t *TerminalHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 func (t *TerminalHandler) Close() error {
 	var err error
 	t.closeOnce.Do(func() {
-		sessionMetadataPayload, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
-		if err != nil {
-			t.log.WithError(err).Warn("Could not marshal session metadata for the close event")
-			return
-		}
 		// If the terminal handler was closed (most likely due to the *SessionContext
 		// closing) then the stream should be closed as well.
 		if t.stream != nil {
-			err = t.stream.Close(string(sessionMetadataPayload))
+			err = t.stream.Close()
 		}
 	})
 	return trace.Wrap(err)
@@ -749,12 +744,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 		return
 	}
 
-	sessionMetadataPayload, err := json.Marshal(siteSessionGenerateResponse{Session: t.sessionData})
-	if err != nil {
-		t.log.WithError(err).Warn("Could not marshal session metadata for the close event")
-		return
-	}
-	if err := t.stream.Close(string(sessionMetadataPayload)); err != nil {
+	if err := t.stream.Close(); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}
@@ -1305,8 +1295,7 @@ func (t *WSStream) Read(out []byte) (n int, err error) {
 	}
 }
 
-// Close sends a close message on the web socket and closes the web socket.
-func (t *WSStream) Close(payload string) error {
+func (t *WSStream) close(payload string) error {
 	var closeErr error
 	t.once.Do(func() {
 		defer func() {
@@ -1334,6 +1323,19 @@ func (t *WSStream) Close(payload string) error {
 	})
 
 	return trace.Wrap(closeErr)
+}
+
+// Close sends a close message on the web socket and closes the web socket.
+func (t *WSStream) Close() error {
+	return t.close("")
+}
+
+// CloseWithPayload sends a close message with additional payload on the web socket and then closes the stream.
+// This is necessary for Assist, which multiplexes multiple node connections over one websocket,
+// and needs additional metadata to know which session was closed.
+// Additionally, in Assist Close() does not actually close the underlying websocket for this stream due to the use of noopCloserWS.
+func (t *WSStream) CloseWithPayload(payload string) error {
+	return t.close(payload)
 }
 
 // deadlineForInterval returns a suitable network read deadline for a given ping interval.
