@@ -180,8 +180,14 @@ func TestExecuteCommandSummary(t *testing.T) {
 	// Wait for command execution to complete
 	require.NoError(t, waitForCommandOutput(stream, "teleport"))
 
-	var env Envelope
 	dec := json.NewDecoder(stream)
+
+	// Consume close message
+	err = dec.Decode(&struct{}{})
+	require.NoError(t, err)
+
+	// Consume summary message
+	var env Envelope
 	err = dec.Decode(&env)
 	require.NoError(t, err)
 	require.Equal(t, envelopeTypeSummary, env.GetType())
