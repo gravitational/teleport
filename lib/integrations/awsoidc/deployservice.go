@@ -22,8 +22,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -90,6 +92,10 @@ var (
 type DeployServiceRequest struct {
 	// Region is the AWS Region
 	Region string
+
+	// AccountID is the AWS Account ID.
+	// Optional. sts.GetCallerIdentity is used if the value is not provided.
+	AccountID string
 
 	// SubnetIDs are the subnets associated with the service.
 	SubnetIDs []string
@@ -269,11 +275,54 @@ type DeployServiceClient interface {
 	// RegisterTaskDefinition registers a new task definition from the supplied family and containerDefinitions.
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.RegisterTaskDefinition
 	RegisterTaskDefinition(ctx context.Context, params *ecs.RegisterTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error)
+
+	// GetUpsertToken are the required methods to manage the IAM Join Token.
+	// When the deployed service connects to the cluster, it will use the IAM Join method.
+	// Before deploying the service, it must ensure that the token exists and has the appropriate token rul.
+	GetUpsertToken
+
+	// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
+type defaultDeployServiceClient struct {
+	*ecs.Client
+	stsClient      *sts.Client
+	teleportClient GetUpsertToken
+}
+
+// GetToken returns a provision token by name.
+func (d *defaultDeployServiceClient) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+	return d.teleportClient.GetToken(ctx, name)
+}
+
+// UpsertToken creates or updates a provision token.
+func (d *defaultDeployServiceClient) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
+	return d.teleportClient.UpsertToken(ctx, token)
+}
+
+// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
+func (d defaultDeployServiceClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
 }
 
 // NewDeployServiceClient creates a new DeployServiceClient using a AWSClientRequest.
-func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (DeployServiceClient, error) {
-	return newECSClient(ctx, clientReq)
+func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, teleportClient GetUpsertToken) (DeployServiceClient, error) {
+	ecsClient, err := newECSClient(ctx, clientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	stsClient, err := newSTSClient(ctx, clientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &defaultDeployServiceClient{
+		Client:         ecsClient,
+		stsClient:      stsClient,
+		teleportClient: teleportClient,
+	}, nil
 }
 
 // DeployService calls Amazon ECS APIs to deploy a Teleport Service.
@@ -384,6 +433,26 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (D
 // If resources already exist, only resources with those tags will be updated.
 func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest) (*DeployServiceResponse, error) {
 	if err := req.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if req.AccountID == "" {
+		callerIdentity, err := clt.GetCallerIdentity(ctx, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		req.AccountID = aws.ToString(callerIdentity.Account)
+	}
+
+	upsertTokenReq := upsertIAMJoinTokenRequest{
+		tokenName:      *req.TeleportIAMTokenName,
+		accountID:      req.AccountID,
+		region:         req.Region,
+		iamRole:        req.TaskRoleARN,
+		deploymentMode: req.DeploymentMode,
+	}
+	if err := upsertIAMJoinToken(ctx, upsertTokenReq, clt); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
