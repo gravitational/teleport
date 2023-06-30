@@ -19,7 +19,6 @@ package aws
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"net/url"
 	"sort"
 
@@ -29,6 +28,8 @@ import (
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
+
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 // Policy represents an AWS IAM policy.
@@ -320,7 +321,7 @@ func NewPolicies(partitionID string, accountID string, iamClient iamiface.IAMAPI
 // * `iam:DeletePolicyVersion`: wildcard ("*") or policy that will be created;
 // * `iam:CreatePolicyVersion`: wildcard ("*") or policy that will be created;
 func (p *policies) Upsert(ctx context.Context, policy *Policy) (string, error) {
-	policyARN := PolicyARN(p.partitionID, p.accountID, policy.Name)
+	policyARN := awsutils.PolicyARN(p.partitionID, p.accountID, policy.Name)
 	encodedPolicyDocument, err := json.Marshal(policy.Document)
 	if err != nil {
 		return "", trace.Wrap(err)
@@ -496,20 +497,6 @@ func matchTag(policyTags []*iam.Tag, name, value string) bool {
 	}
 
 	return false
-}
-
-// PolicyARN returns the ARN representation of an AWS IAM Policy.
-func PolicyARN(partition, accountID, policy string) string {
-	return resourceARN(partition, accountID, "policy", policy)
-}
-
-// RoleARN returns the ARN representation of an AWS IAM Role.
-func RoleARN(partition, accountID, role string) string {
-	return resourceARN(partition, accountID, "role", role)
-}
-
-func resourceARN(partition, accountID, resourceType, resourceName string) string {
-	return fmt.Sprintf("arn:%s:iam::%s:%s/%s", partition, accountID, resourceType, resourceName)
 }
 
 const (

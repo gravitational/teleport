@@ -40,7 +40,7 @@ func StatementForIAMEditUserPolicy(resources ...string) *Statement {
 	}
 }
 
-// StatementForECSDeployServicePolicy returns the statement that allows managing the ECS Service deployed
+// StatementForECSManageService returns the statement that allows managing the ECS Service deployed
 // by DeployService (AWS OIDC Integration).
 func StatementForECSManageService() *Statement {
 	return &Statement{
@@ -54,7 +54,7 @@ func StatementForECSManageService() *Statement {
 	}
 }
 
-// StatementForLogsDeployServicePolicy returns the statement that allows the writing logs to CloudWatch.
+// StatementForWritingLogs returns the statement that allows the writing logs to CloudWatch.
 // This is used by the DeployService (ECS Service) to write teleport logs.
 // https://docs.aws.amazon.com/AmazonECS/latest/developerguide/using_awslogs.html
 func StatementForWritingLogs() *Statement {
@@ -78,9 +78,9 @@ func StatementForIAMPassRole(targetRole string) *Statement {
 	}
 }
 
-// StatementForECSTasksAssumeRole returns the Trust Relationship to allow the ECS Tasks service to.
+// StatementForECSTaskRoleTrustRelationships returns the Trust Relationship to allow the ECS Tasks service to.
 // It allows the usage of this Role by the ECS Tasks service.
-func StatementForECSTasksAssumeRole() *Statement {
+func StatementForECSTaskRoleTrustRelationships() *Statement {
 	return &Statement{
 		Effect:  EffectAllow,
 		Actions: SliceOrString{"sts:AssumeRole"},

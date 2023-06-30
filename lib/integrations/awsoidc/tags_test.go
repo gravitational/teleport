@@ -19,9 +19,9 @@ package awsoidc
 import (
 	"testing"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
 	iamTypes "github.com/aws/aws-sdk-go-v2/service/iam/types"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/stretchr/testify/require"
 )
 

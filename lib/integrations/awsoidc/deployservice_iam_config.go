@@ -26,13 +26,16 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 
-	awsutils "github.com/gravitational/teleport/api/utils/aws"
+	awsapiutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
+	awslibutils "github.com/gravitational/teleport/lib/utils/aws"
 )
 
 const (
 	boundarySuffix = "Boundary"
 )
+
+var taskRoleDescription = "Used by Teleport Database Service deployed in Amazon ECS."
 
 // DeployServiceIAMConfigureRequest is a request to configure the DeployService action required Roles.
 type DeployServiceIAMConfigureRequest struct {
@@ -113,7 +116,7 @@ func (r *DeployServiceIAMConfigureRequest) CheckAndSetDefaults() error {
 		r.ResourceCreationTags = DefaultResourceCreationTags(r.Cluster, r.IntegrationName)
 	}
 
-	r.partitionID = awsutils.GetPartitionFromRegion(r.Region)
+	r.partitionID = awsapiutils.GetPartitionFromRegion(r.Region)
 
 	return nil
 }
@@ -216,7 +219,7 @@ func ConfigureDeployServiceIAM(ctx context.Context, clt DeployServiceIAMConfigur
 // - Get, Put and Delete Role Policies to manage the Policy Statements when adding other rds-db:connect entries
 // - write application logs to CloudWatch
 func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
-	taskRoleARN := awslib.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
+	taskRoleARN := awslibutils.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
 
 	taskRoleBoundaryPolicyDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForRDSDBConnect(),
@@ -233,10 +236,11 @@ func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMCo
 		Tags:           req.ResourceCreationTags.ToIAMTags(),
 	})
 	if err != nil {
-		if trace.IsAlreadyExists(awslib.ConvertIAMv2Error(err)) {
+		convertedErr := awslib.ConvertIAMv2Error(err)
+		if trace.IsAlreadyExists(convertedErr) {
 			return trace.AlreadyExists("Policy %q already exists, please remove it and try again.", req.TaskRoleBoundaryPolicyName)
 		}
-		return trace.Wrap(err)
+		return trace.Wrap(convertedErr)
 	}
 
 	log.Printf("TaskRole: Boundary Policy %q created.\n", req.TaskRoleBoundaryPolicyName)
@@ -246,25 +250,27 @@ func createBoundaryPolicyForTaskRole(ctx context.Context, clt DeployServiceIAMCo
 // createTaskRole creates the TaskRole and sets up the Role Boundary and its Trust Relationship.
 func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
 	taskRoleAssumeRoleDocument, err := awslib.NewPolicyDocument(
-		awslib.StatementForECSTasksAssumeRole(),
+		awslib.StatementForECSTaskRoleTrustRelationships(),
 	).Marshal()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	policyARNForRoleBoundary := awslib.PolicyARN(req.partitionID, req.AccountID, req.TaskRoleBoundaryPolicyName)
+	policyARNForRoleBoundary := awslibutils.PolicyARN(req.partitionID, req.AccountID, req.TaskRoleBoundaryPolicyName)
 
 	_, err = clt.CreateRole(ctx, &iam.CreateRoleInput{
 		RoleName:                 &req.TaskRole,
+		Description:              &taskRoleDescription,
 		AssumeRolePolicyDocument: &taskRoleAssumeRoleDocument,
 		PermissionsBoundary:      &policyARNForRoleBoundary,
 		Tags:                     req.ResourceCreationTags.ToIAMTags(),
 	})
 	if err != nil {
-		if trace.IsAlreadyExists(awslib.ConvertIAMv2Error(err)) {
+		convertedErr := awslib.ConvertIAMv2Error(err)
+		if trace.IsAlreadyExists(convertedErr) {
 			return trace.AlreadyExists("Role %q already exists, please remove it and try again.", req.TaskRole)
 		}
-		return trace.Wrap(err)
+		return trace.Wrap(convertedErr)
 	}
 
 	log.Printf("TaskRole: Role %q created with Boundary %q.\n", req.TaskRole, policyARNForRoleBoundary)
@@ -275,7 +281,7 @@ func createTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, re
 // - manage Policies of the TaskRole
 // - write logs to CloudWatch
 func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
-	taskRoleARN := awslib.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
+	taskRoleARN := awslibutils.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
 
 	taskRolePolicyDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForIAMEditRolePolicy(taskRoleARN),
@@ -301,7 +307,7 @@ func addPolicyToTaskRole(ctx context.Context, clt DeployServiceIAMConfigureClien
 // addPolicyToIntegrationRole creates or updates the DeployService Policy in IntegrationRole.
 // It allows the Proxy to call ECS APIs and to pass the TaskRole when deploying a service.
 func addPolicyToIntegrationRole(ctx context.Context, clt DeployServiceIAMConfigureClient, req DeployServiceIAMConfigureRequest) error {
-	taskRoleARN := awslib.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
+	taskRoleARN := awslibutils.RoleARN(req.partitionID, req.AccountID, req.TaskRole)
 
 	taskRolePolicyDocument, err := awslib.NewPolicyDocument(
 		awslib.StatementForIAMPassRole(taskRoleARN),
