@@ -34,6 +34,7 @@ func getStaticPlugins() []types.PluginType {
 		types.PluginTypeOkta,
 		types.PluginTypeOpsgenie,
 		types.PluginTypePagerDuty,
+		types.PluginTypeJamf,
 	}
 }
 

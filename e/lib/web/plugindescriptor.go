@@ -5,11 +5,13 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	"github.com/gravitational/teleport/api/types"
+	jamf "github.com/gravitational/teleport/e/lib/jamf"
 	"github.com/gravitational/teleport/e/lib/plugins"
 	"github.com/gravitational/teleport/e/lib/web/ui"
 	"github.com/gravitational/teleport/lib/web"
@@ -171,6 +173,10 @@ func installOpsgeniePlugin(ctx context.Context, sessCtx *web.SessionContext, w h
 }
 
 func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.ResponseWriter, r *http.Request, p *Plugin) (*ui.Plugin, error) {
+	apiEndpoint := r.FormValue("apiEndpoint")
+	username := r.FormValue("username")
+	password := r.FormValue("password")
+
 	pluginReq := &pluginspb.CreatePluginRequest{
 		Plugin: &types.PluginV1{
 			SubKind: types.PluginSubkindMDM,
@@ -184,15 +190,41 @@ func installJamfPlugin(ctx context.Context, sessCtx *web.SessionContext, w http.
 				Settings: &types.PluginSpecV1_Jamf{
 					Jamf: &types.PluginJamfSettings{
 						JamfSpec: &types.JamfSpecV1{
-							ApiEndpoint: r.FormValue("apiEndpoint"),
+							ApiEndpoint: apiEndpoint,
 						},
+					},
+				},
+			},
+		},
+		StaticCredentials: &types.PluginStaticCredentialsV1{
+			ResourceHeader: types.ResourceHeader{
+				Metadata: types.Metadata{
+					Labels: map[string]string{
+						"jamf/api-endpoint": apiEndpoint,
+					},
+					Name: types.PluginTypeJamf,
+				},
+			},
+			Spec: &types.PluginStaticCredentialsSpecV1{
+				Credentials: &types.PluginStaticCredentialsSpecV1_BasicAuth{
+					BasicAuth: &types.PluginStaticCredentialsBasicAuth{
+						Username: username,
+						Password: password,
 					},
 				},
 			},
 		},
 	}
 
-	_, err := ui.NewPlugin(pluginReq.Plugin)
+	// Verify Jamf credential and API endpoint.
+	_, err := jamf.NewClient(ctx, jamf.ClientOpts{
+		HTTPClient: &http.Client{
+			Timeout: 5 * time.Minute,
+		},
+		APIURL:   apiEndpoint,
+		Username: username,
+		Password: password,
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

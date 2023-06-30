@@ -1125,6 +1125,32 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           </a>
           <a
             class="c9"
+            data-testid="tile-jamf"
+            disabled=""
+            href="/web/integrations/new/jamf"
+          >
+            <img
+              class="c10 c11"
+              src="file_stub"
+            />
+            <div
+              class="c12"
+            >
+              <div
+                class="c13"
+              >
+                Jamf
+              </div>
+            </div>
+            <div
+              class="c14"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </a>
+          <a
+            class="c9"
             data-testid="tile-pagerduty"
             disabled=""
             href="/web/integrations/new/pagerduty"

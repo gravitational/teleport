@@ -358,6 +358,9 @@ func TestGetAvailablePluginTypes(t *testing.T) {
 			Type: types.PluginTypeOkta,
 		},
 		{
+			Type: types.PluginTypeJamf,
+		},
+		{
 			Type: types.PluginTypeOpsgenie,
 		},
 		{

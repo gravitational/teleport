@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
 
-import { Link } from 'design';
-import { Text } from 'design';
+import { Text, Link } from 'design';
 import CardError from 'design/CardError';
 import * as Icons from 'design/Icon';
 import oktaIcon from 'design/assets/images/icons/okta.svg';
@@ -14,12 +13,15 @@ import jiraIcon from 'design/assets/images/icons/jira.svg';
 import discordIcon from 'design/assets/images/icons/discord.svg';
 import mattermostIcon from 'design/assets/images/icons/mattermost.svg';
 import msteamsIcon from 'design/assets/images/icons/msteams.svg';
+import JamfIcon from 'design/assets/images/icons/jamf.svg';
 import FieldInput from 'shared/components/FieldInput';
 import FieldSelect from 'shared/components/FieldSelect';
 import { Option } from 'shared/components/Select';
 import { requiredField } from 'shared/components/Validation/rules';
 import { IntegrationEnrollKind } from 'teleport/services/userEvent';
 import { PluginKind } from 'teleport/services/integrations';
+
+import cfg from 'e-teleport/config';
 
 type Permission = {
   title: string;
@@ -316,6 +318,102 @@ export const plugins: (SelfHostedPlugin | HostedPlugin)[] = [
     },
     NextSteps: () => {
       return null; // TODO(lisa): help with next step blurb, empty for now
+    },
+  },
+  {
+    type: 'jamf',
+    name: 'Jamf',
+    icon: JamfIcon,
+    url: 'https://goteleport.com/docs/access-controls/guides/device-trust/?scope=enterprise',
+    hosted: true,
+    fullName: 'Jamf Integration for Device Trust',
+    Description: () => (
+      <Text>
+        <p>
+          Jamf plugin updates trusted devices in Teleport to match available
+          devices in your Jamf inventory. For more details, see our docs page
+          about{' '}
+          <Link
+            // TODO(sshah): update link when we have a dedicated Jamf page
+            href="https://goteleport.com/docs/access-controls/guides/device-trust/?scope=enterprise"
+            target="_blank"
+          >
+            Device Trust and the Jamf Integration.
+          </Link>
+        </p>
+      </Text>
+    ),
+    permissions: [
+      {
+        category: 'API Access',
+        permissions: [
+          {
+            title: 'Read-only access to Jamf API.',
+            description:
+              'Teleport will authenticate to Jamf API using Jamf account credential (username + password).',
+          },
+        ],
+      },
+      {
+        category: 'Device Registration, Enrollment and Deletion',
+        permissions: [
+          {
+            title:
+              'Synchronize devices from Jamf to Teleport device inventory.',
+          },
+        ],
+      },
+    ],
+    FormMixin: () => {
+      const [username, setUsername] = useState('');
+      const [password, setPassword] = useState('');
+      const [apiEndpoint, setApiEndpoint] = useState('');
+      return (
+        <InputIconContainer style={{ position: 'relative' }}>
+          <StyledFieldInput
+            width="500px"
+            label="Jamf API Endpoint"
+            name="apiEndpoint" // must be the same name as expected by the backend as form value
+            rule={requiredField('API endpoint must be specified')}
+            value={apiEndpoint}
+            onChange={e => setApiEndpoint(e.target.value)}
+            autoFocus
+            placeholder="yourserver.jamfcloud.com"
+            toolTipContent="URL of Jamf API. (e.g. https://yourtenant.jamfcloud.com)"
+          />
+          <StyledFieldInput
+            width="500px"
+            label="Jamf Account Username"
+            name="username" // must be the same name as expected by the backend as form value
+            rule={requiredField('Username must be specified')}
+            value={username}
+            onChange={e => setUsername(e.target.value)}
+            placeholder="username"
+            toolTipContent="Username of the account that will be used to authenticate with Jamf API. We recommend using a read-only account."
+          />
+          <StyledFieldInput
+            width="500px"
+            label="Jamf Account Password"
+            name="password" // must be the same name as expected by the backend as form value
+            rule={requiredField('Password must be specified')}
+            value={password}
+            onChange={e => setPassword(e.target.value)}
+            placeholder="password"
+            type="password"
+            toolTipContent="Password of the account that will be used to authenticate with Jamf API.  We recommend using a read-only account."
+          />
+        </InputIconContainer>
+      );
+    },
+    NextSteps: () => {
+      return (
+        <Text typography="body1">
+          Jamf plugin is configured for your cluster. Depending on the size of
+          your Jamf inventory, it may take a few minutes to sync with{' '}
+          <Link href={cfg.routes.deviceTrust}>Trusted Devices</Link> in
+          Teleport.
+        </Text>
+      );
     },
   },
   {
