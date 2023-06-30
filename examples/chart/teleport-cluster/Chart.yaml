@@ -1,4 +1,4 @@
-.version: &version "13.1.6-dev.azure.2"
+.version: &version "13.1.6-dev.azure.4"
 
 name: teleport-cluster
 apiVersion: v2
