@@ -192,42 +192,29 @@ type UserGroup interface {
 }
 ```
 
-For this message, I propose we replace the above interface with a struct, along
-with a builder for convenience and avoiding breakages:
+For this message, I propose we replace the above interface with a struct:
 
 ```go
-type UserGroupBuilder struct {
-  applications []string
-}
-
-func NewUserGroupBuilder() *UserGroupBuilder {
-  return &UserGroupBuilder{}
-}
-
-func (u *UserGroupBuilder) Applications(applications []string) *UserGroupBuilder {
-  u.applications = applications
-  return u
-}
-
-func (u *UserGroupBuilder) Build() (UserGroup, error) {
-  ug := &UserGroup{
-    Spec: &userGroupSpec{
-      applications: u.applications
-    }
-  }
-  
-  if err := ug.CheckAndSetDefaults(); err != nil {
-    return nil, trace.Wrap(err)
-  }
-
-  return ug, nil
-}
-
 type UserGroup struct {
   // ResourceHeader will contain the version, kind, and metadata fields.
   ResourceHeader
 
   Spec *userGroupSpec `json:"spec" yaml:"spec"`
+}
+
+func NewUserGroup(metadata Metadata, spec Spec) (*UserGroup, error) {
+  userGroup := &UserGroup{
+    ResourceHeader: &ResourceHeader{
+      Metadata: metadata
+    }
+    Spec: spec,
+  }
+
+  if err := userGroup.CheckAndSetDefaults(); err != nil {
+    return trace.Wrap(err)
+  }
+
+  return userGroup, nil
 }
 
 func (u *UserGroup) CheckAndSetDefaults() error {
@@ -247,10 +234,14 @@ func (u *UserGroup) SetApplications(applications []string) {
 To go between the protobuf message and the internal implementation, we should have:
 
 ```go
-func FromV1(msg proto.UserGroupV1) (types.UserGroup, error) {
-  return NewUserGroupBuilder().
-    Applications(msg.GetApplications()).
-    Build()
+func FromV1(msg usergroupv1.UserGroupV1) (types.UserGroup, error) {
+  return NewUserGroup(types.Metadata{
+    // Convert metadata object here
+    ...
+  }, &UserGroupSpec{
+    // Convert user group spec here
+    ...
+  })
 }
 ```
 
@@ -264,7 +255,7 @@ I recommend the following path:
 1. Create the new implementation object as described above.
 2. Write tests that verify that the current messages marshal/unmarshal properly into
    the new object. This will require creating message conversion functions as well.
-3. Replace existing references to the object with the new builder.
+3. Replace existing references to the object with the new version.
 4. The `gogoproto` extensions on the original message are now largely irrelevant, and
    can be removed. This will likely require changes to the conversion functions
    mentioned above.
