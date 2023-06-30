@@ -219,9 +219,10 @@ func (a *Agent) takeNextStep(ctx context.Context, state *executionState, progres
 		}
 
 		completion := &CompletionCommand{
-			Command: input.Command,
-			Nodes:   input.Nodes,
-			Labels:  input.Labels,
+			TokensUsed: newTokensUsed_Cl100kBase(),
+			Command:    input.Command,
+			Nodes:      input.Nodes,
+			Labels:     input.Labels,
 		}
 
 		log.Tracef("agent decided on command execution, let's translate to an agentFinish")
@@ -344,7 +345,7 @@ func parseJSONFromModel[T any](text string) (T, *invalidOutputError) {
 }
 
 // planOutput describes the expected JSON output after asking it to plan it's next action.
-type planOutput struct {
+type PlanOutput struct {
 	Action       string `json:"action"`
 	Action_input any    `json:"action_input"`
 	Reasoning    string `json:"reasoning"`
@@ -368,16 +369,16 @@ func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, erro
 				}
 			}()
 
-			return nil, &agentFinish{output: &StreamingMessage{Parts: parts}}, nil
+			return nil, &agentFinish{output: &StreamingMessage{Parts: parts, TokensUsed: newTokensUsed_Cl100kBase()}}, nil
 		}
 	}
 
 	log.Tracef("received planning output: \"%v\"", text)
 	if outputString, found := strings.CutPrefix(text, finalResponseHeader); found {
-		return nil, &agentFinish{output: &Message{Content: outputString}}, nil
+		return nil, &agentFinish{output: &Message{Content: outputString, TokensUsed: newTokensUsed_Cl100kBase()}}, nil
 	}
 
-	response, err := parseJSONFromModel[planOutput](text)
+	response, err := parseJSONFromModel[PlanOutput](text)
 	if err != nil {
 		log.WithError(err).Trace("failed to parse planning output")
 		return nil, nil, trace.Wrap(err)
