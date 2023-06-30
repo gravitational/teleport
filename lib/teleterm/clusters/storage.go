@@ -212,26 +212,9 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 		return nil, trace.Wrap(err)
 	}
 
-	status := &client.ProfileStatus{}
-
-	// load profile status if key exists
-	_, err = clusterClient.LocalAgent().GetKey(clusterNameForKey)
+	status, err := s.loadProfileStatusAndClusterKey(clusterClient, clusterNameForKey)
 	if err != nil {
-		if trace.IsNotFound(err) {
-			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
-		} else {
-			return nil, trace.Wrap(err)
-		}
-	}
-	if err == nil && cfg.Username != "" {
-		status, err = clusterClient.ProfileStatus()
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-
-		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
-			return nil, trace.Wrap(err)
-		}
+		return nil, trace.Wrap(err)
 	}
 
 	return &Cluster{
@@ -244,6 +227,33 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 		status:        *status,
 		Log:           s.Log.WithField("cluster", clusterURI),
 	}, nil
+}
+
+func (s *Storage) loadProfileStatusAndClusterKey(clusterClient *client.TeleportClient, clusterNameForKey string) (*client.ProfileStatus, error) {
+	status := &client.ProfileStatus{}
+
+	// load profile status if key exists
+	_, err := clusterClient.LocalAgent().GetKey(clusterNameForKey)
+	if err != nil {
+		if trace.IsNotFound(err) {
+			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
+		} else {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	if err == nil && clusterClient.Username != "" {
+		status, err = clusterClient.ProfileStatus()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := clusterClient.LoadKeyForCluster(context.Background(), status.Cluster); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	return status, nil
 }
 
 // parseName gets cluster name from cluster web proxy address
