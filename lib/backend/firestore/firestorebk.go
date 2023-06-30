@@ -428,8 +428,21 @@ func (b *Backend) GetRange(ctx context.Context, startKey []byte, endKey []byte, 
 		}
 
 		if r.isExpired(b.clock.Now()) {
-			if _, err := docSnap.Ref.Delete(ctx); err != nil {
-				return nil, ConvertGRPCError(err)
+			if _, err := docSnap.Ref.Delete(ctx, firestore.LastUpdateTime(docSnap.UpdateTime)); err != nil && status.Code(err) == codes.FailedPrecondition {
+				// If the document has been updated, then attempt one additional get to see if the
+				// resource was updated and is no longer expired.
+				docSnap, err := b.svc.Collection(b.CollectionName).Doc(docSnap.Ref.ID).Get(ctx)
+				if err != nil {
+					return nil, ConvertGRPCError(err)
+				}
+				r, err := newRecordFromDoc(docSnap)
+				if err != nil {
+					return nil, trace.Wrap(err)
+				}
+
+				if !r.isExpired(b.clock.Now()) {
+					values = append(values, r.backendItem())
+				}
 			}
 			// Do not include this document in result.
 			continue
@@ -455,7 +468,10 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	if len(key) == 0 {
 		return nil, trace.BadParameter("missing parameter key")
 	}
-	docSnap, err := b.svc.Collection(b.CollectionName).Doc(b.keyToDocumentID(key)).Get(ctx)
+
+	documentID := b.keyToDocumentID(key)
+
+	docSnap, err := b.svc.Collection(b.CollectionName).Doc(documentID).Get(ctx)
 	if err != nil {
 		return nil, ConvertGRPCError(err)
 	}
@@ -465,8 +481,22 @@ func (b *Backend) Get(ctx context.Context, key []byte) (*backend.Item, error) {
 	}
 
 	if r.isExpired(b.clock.Now()) {
-		if _, err := docSnap.Ref.Delete(ctx); err != nil {
-			return nil, trace.Wrap(err)
+		if _, err := docSnap.Ref.Delete(ctx, firestore.LastUpdateTime(docSnap.UpdateTime)); err != nil && status.Code(err) == codes.FailedPrecondition {
+			// If the document has been updated, then attempt one additional get to see if the
+			// resource was updated and is no longer expired.
+			docSnap, err := b.svc.Collection(b.CollectionName).Doc(documentID).Get(ctx)
+			if err != nil {
+				return nil, ConvertGRPCError(err)
+			}
+			r, err := newRecordFromDoc(docSnap)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+
+			if !r.isExpired(b.clock.Now()) {
+				bi := r.backendItem()
+				return &bi, nil
+			}
 		}
 		return nil, trace.NotFound("the supplied key: %q does not exist", string(key))
 	}
