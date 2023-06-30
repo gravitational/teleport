@@ -130,7 +130,12 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		return nil, trace.Wrap(err)
 	}
 
-	deployDBServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq)
+	clt, err := sctx.GetUserClient(ctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployDBServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq, clt)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -142,6 +147,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 
 	deployServiceResp, err := awsoidc.DeployService(ctx, deployDBServiceClient, awsoidc.DeployServiceRequest{
 		Region:                        req.Region,
+		AccountID:                     req.AccountID,
 		SubnetIDs:                     req.SubnetIDs,
 		ClusterName:                   req.ClusterName,
 		ServiceName:                   req.ServiceName,
