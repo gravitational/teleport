@@ -65,9 +65,6 @@ const (
 	// MessageKindProgressUpdate is the type of Assist message that contains a progress update.
 	// A progress update starts a new "stage" and ends a previous stage if there was one.
 	MessageKindProgressUpdate MessageType = "CHAT_MESSAGE_PROGRESS_UPDATE"
-	// MessageKindProgressUpdateFinalize is the type of Assist message that signals
-	// the agent has taken its final action.
-	MessageKindProgressUpdateFinalize MessageType = "CHAT_MESSAGE_PROGRESS_UPDATE_FINALIZE"
 )
 
 // PluginGetter is the minimal interface used by the chat to interact with the plugin service in the backend.
@@ -202,6 +199,9 @@ func (c *Chat) loadMessages(ctx context.Context) error {
 		}
 	}
 
+	// Mark the history as fresh.
+	c.potentiallyStaleHistory = false
+
 	return nil
 }
 
@@ -252,8 +252,6 @@ type onMessageFunc func(kind MessageType, payload []byte, createdTime time.Time)
 func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
 ) (*model.TokensUsed, error) {
 	var tokensUsed *model.TokensUsed
-	defer onMessage(MessageKindProgressUpdateFinalize, nil, c.assist.clock.Now().UTC())
-
 	progressUpdates := func(update *model.AgentAction) {
 		payload, err := json.Marshal(update)
 		if err != nil {

@@ -66,17 +66,6 @@ func Test_runAssistant(t *testing.T) {
 		return sb.String()
 	}
 
-	readUpdateFinalize := func(t *testing.T, ws *websocket.Conn) {
-		var msg assistantMessage
-		_, payload, err := ws.ReadMessage()
-		require.NoError(t, err)
-
-		err = json.Unmarshal(payload, &msg)
-		require.NoError(t, err)
-
-		require.Equal(t, assist.MessageKindProgressUpdateFinalize, msg.Type)
-	}
-
 	readRateLimitedMessage := func(t *testing.T, ws *websocket.Conn) {
 		var msg assistantMessage
 		_, payload, err := ws.ReadMessage()
@@ -104,8 +93,6 @@ func Test_runAssistant(t *testing.T) {
 			act: func(t *testing.T, ws *websocket.Conn) {
 				err := ws.WriteMessage(websocket.TextMessage, []byte(`{"payload": "show free disk space"}`))
 				require.NoError(t, err)
-
-				readUpdateFinalize(t, ws)
 
 				const expectedMsg = "Which node do you want to use?"
 				require.Contains(t, readStreamResponse(t, ws), expectedMsg)
@@ -135,15 +122,11 @@ func Test_runAssistant(t *testing.T) {
 				err := ws.WriteMessage(websocket.TextMessage, []byte(`{"payload": "show free disk space"}`))
 				require.NoError(t, err)
 
-				readUpdateFinalize(t, ws)
-
 				const expectedMsg = "Which node do you want to use?"
 				require.Contains(t, readStreamResponse(t, ws), expectedMsg)
 
 				err = ws.WriteMessage(websocket.TextMessage, []byte(`{"payload": "all nodes, please"}`))
 				require.NoError(t, err)
-
-				readUpdateFinalize(t, ws)
 
 				readRateLimitedMessage(t, ws)
 			},

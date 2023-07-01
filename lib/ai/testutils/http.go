@@ -18,7 +18,6 @@ package testutils
 
 import (
 	"encoding/json"
-	"github.com/stretchr/testify/require"
 	"net/http"
 	"strconv"
 	"testing"
@@ -32,13 +31,13 @@ import (
 // the chat API. It takes a list of responses that will be returned in order.
 func GetTestHandlerFn(t *testing.T, responses []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != "POST" || r.URL.Path != "/chat/completions" {
+		if r.Method != http.MethodPost || r.URL.Path != "/chat/completions" {
 			http.Error(w, "Unexpected request", http.StatusBadRequest)
 			return
 		}
 
 		switch r.Header.Get("Accept") {
-		case "application/json":
+		case "application/json; charset=utf-8", "application/json":
 			responses = messageResponse(w, r, t, responses)
 		case "text/event-stream":
 			responses = streamResponse(w, t, responses)
@@ -77,7 +76,7 @@ func streamResponse(w http.ResponseWriter, t *testing.T, responses []string) []s
 	assert.NoError(t, err, "Marshal error")
 
 	_, err = w.Write([]byte("data: "))
-	require.NoError(t, err, "Write error")
+	assert.NoError(t, err, "Write error")
 	_, err = w.Write(respBytes)
 	assert.NoError(t, err, "Write error")
 	_, err = w.Write([]byte("\n\nevent: done\ndata: [DONE]\n\n"))
