@@ -36,12 +36,11 @@ func TestChat_PromptTokens(t *testing.T) {
 		name     string
 		messages []openai.ChatCompletionMessage
 		want     int
-		wantErr  bool
 	}{
 		{
 			name:     "empty",
 			messages: []openai.ChatCompletionMessage{},
-			want:     3,
+			want:     0,
 		},
 		{
 			name: "only system message",
@@ -51,7 +50,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hello",
 				},
 			},
-			want: 8,
+			want: 721,
 		},
 		{
 			name: "system and user messages",
@@ -65,7 +64,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Hi LLM.",
 				},
 			},
-			want: 16,
+			want: 729,
 		},
 		{
 			name: "tokenize our prompt",
@@ -79,7 +78,7 @@ func TestChat_PromptTokens(t *testing.T) {
 					Content: "Show me free disk space on localhost node.",
 				},
 			},
-			want: 187,
+			want: 932,
 		},
 	}
 
@@ -152,8 +151,14 @@ func TestChat_Complete(t *testing.T) {
 
 	chat := client.NewChat(nil, "Bob")
 
+	ctx := context.Background()
+	_, err := chat.Complete(ctx, "Hello", func(aa *model.AgentAction) {})
+	require.NoError(t, err)
+
+	chat.Insert(openai.ChatMessageRoleUser, "Show me free disk space on localhost node.")
+
 	t.Run("text completion", func(t *testing.T) {
-		msg, err := chat.Complete(context.Background(), "Show me free disk space", func(aa *model.AgentAction) {})
+		msg, err := chat.Complete(ctx, "Show me free disk space", func(aa *model.AgentAction) {})
 		require.NoError(t, err)
 
 		require.IsType(t, &model.StreamingMessage{}, msg)
@@ -165,7 +170,7 @@ func TestChat_Complete(t *testing.T) {
 	})
 
 	t.Run("command completion", func(t *testing.T) {
-		msg, err := chat.Complete(context.Background(), "localhost", func(aa *model.AgentAction) {})
+		msg, err := chat.Complete(ctx, "localhost", func(aa *model.AgentAction) {})
 		require.NoError(t, err)
 
 		require.IsType(t, &model.CompletionCommand{}, msg)
@@ -181,19 +186,19 @@ func generateTextResponse() string {
 	dataBytes := []byte{}
 	dataBytes = append(dataBytes, []byte("event: message\n")...)
 
-	obj := struct {
-		Content string `json:"content"`
-		Role    string `json:"role"`
-	}{
-		Content: "<FINAL RESPONSE>\nWhich node do you want to use?",
-		Role:    "assistant",
-	}
-	json, err := json.Marshal(obj)
-	if err != nil {
-		panic(err)
-	}
+	data := `{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":{"content": "<FINAL RESPONSE>Which ", "role": "assistant"}}]}`
+	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
+	dataBytes = append(dataBytes, []byte("event: message\n")...)
 
-	data := fmt.Sprintf(`{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":%v}]}`, string(json))
+	data = `{"id":"2","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":{"content": "node do ", "role": "assistant"}}]}`
+	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
+	dataBytes = append(dataBytes, []byte("event: message\n")...)
+
+	data = `{"id":"3","object":"completion","created":1598069255,"model":"gpt-4","choices":[{"index": 0, "delta":{"content": "you want ", "role": "assistant"}}]}`
+	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
+	dataBytes = append(dataBytes, []byte("event: message\n")...)
+
+	data = `{"id":"4","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":{"content": "use?", "role": "assistant"}}]}`
 	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
 	dataBytes = append(dataBytes, []byte("event: done\n")...)
 

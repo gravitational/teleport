@@ -258,9 +258,13 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		payload, err := json.Marshal(update)
 		if err != nil {
 			log.WithError(err).Debugf("Failed to marshal progress update: %v", update)
+			return
 		}
 
-		onMessage(MessageKindProgressUpdate, payload, c.assist.clock.Now().UTC())
+		if err := onMessage(MessageKindProgressUpdate, payload, c.assist.clock.Now().UTC()); err != nil {
+			log.WithError(err).Debugf("Failed to send progress update: %v", update)
+			return
+		}
 	}
 
 	// If data might have been inserted into the chat history, we want to
@@ -378,11 +382,11 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		}
 		// As we emitted a command suggestion, the user might have run it. If
 		// the command ran, a summary could have been inserted in the backend.
-		// To take this command summary into account we note the history might
+		// To take this command summary into account, we note the history might
 		// be stale.
 		c.potentiallyStaleHistory = true
 	default:
-		return nil, trace.Errorf("unknown message type")
+		return nil, trace.Errorf("unknown message type: %T", message)
 	}
 
 	return tokensUsed, nil

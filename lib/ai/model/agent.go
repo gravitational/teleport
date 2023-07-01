@@ -134,6 +134,8 @@ func (a *Agent) PlanAndExecute(ctx context.Context, llm *openai.Client, chatHist
 			}
 
 			item.SetUsed(tokensUsed)
+
+			return item, nil
 		}
 
 		if output.action != nil {

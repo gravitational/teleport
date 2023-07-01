@@ -27,7 +27,7 @@ import { EventType } from 'teleport/lib/term/enums';
 
 import NodeService from 'teleport/services/nodes';
 
-import { ServerMessageType } from './types';
+import {ResolvedAssistThoughtServerMessage, ServerMessageType, ThoughtMessagePayload} from './types';
 
 import type {
   CommandResultPayload,
@@ -72,7 +72,8 @@ export async function resolveServerMessage(
 
     case ServerMessageType.CommandResultSummary:
       return resolveServerCommandResultSummaryMessage(message);
-
+    case ServerMessageType.AssistThought:
+      return resolveServerAssistThoughtMessage(message);
     case ServerMessageType.Assist:
     case ServerMessageType.User:
       return {
@@ -188,6 +189,18 @@ export function resolveServerCommandResultSummaryMessage(
     executionId: payload.execution_id,
     command: payload.command,
     summary: payload.summary,
+    created: new Date(message.created_time),
+  };
+}
+
+export function resolveServerAssistThoughtMessage(
+    message: ServerMessage
+): ResolvedAssistThoughtServerMessage {
+  const payload = JSON.parse(message.payload) as ThoughtMessagePayload;
+
+  return {
+    type: ServerMessageType.AssistThought,
+    message: payload.action,
     created: new Date(message.created_time),
   };
 }

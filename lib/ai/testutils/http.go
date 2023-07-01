@@ -17,9 +17,14 @@
 package testutils
 
 import (
+	"encoding/json"
+	"github.com/stretchr/testify/require"
 	"net/http"
+	"strconv"
 	"testing"
+	"time"
 
+	"github.com/sashabaranov/go-openai"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -27,8 +32,99 @@ import (
 // the chat API. It takes a list of responses that will be returned in order.
 func GetTestHandlerFn(t *testing.T, responses []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		_, err := w.Write([]byte(responses[0]))
-		assert.NoError(t, err, "Write error")
-		responses = responses[1:]
+		if r.Method != "POST" || r.URL.Path != "/chat/completions" {
+			http.Error(w, "Unexpected request", http.StatusBadRequest)
+			return
+		}
+
+		switch r.Header.Get("Accept") {
+		case "application/json":
+			responses = messageResponse(w, r, t, responses)
+		case "text/event-stream":
+			responses = streamResponse(w, t, responses)
+		default:
+			http.Error(w, "Unexpected request", http.StatusBadRequest)
+		}
 	}
+}
+
+func streamResponse(w http.ResponseWriter, t *testing.T, responses []string) []string {
+	w.Header().Set("Content-Type", "text/event-stream")
+
+	if !assert.GreaterOrEqual(t, len(responses), 1, "Unexpected request") {
+		http.Error(w, "Unexpected request", http.StatusBadRequest)
+		return responses
+	}
+
+	resp := &openai.ChatCompletionStreamResponse{
+		ID:      strconv.Itoa(int(time.Now().Unix())),
+		Object:  "completion",
+		Created: time.Now().Unix(),
+		Model:   openai.GPT4,
+		Choices: []openai.ChatCompletionStreamChoice{
+			{
+				Index: 0,
+				Delta: openai.ChatCompletionStreamChoiceDelta{
+					Content: responses[0],
+					Role:    openai.ChatMessageRoleAssistant,
+				},
+				FinishReason: "",
+			},
+		},
+	}
+
+	respBytes, err := json.Marshal(resp)
+	assert.NoError(t, err, "Marshal error")
+
+	_, err = w.Write([]byte("data: "))
+	require.NoError(t, err, "Write error")
+	_, err = w.Write(respBytes)
+	assert.NoError(t, err, "Write error")
+	_, err = w.Write([]byte("\n\nevent: done\ndata: [DONE]\n\n"))
+	assert.NoError(t, err, "Write error")
+
+	return responses[1:]
+}
+
+func messageResponse(w http.ResponseWriter, r *http.Request, t *testing.T, responses []string) []string {
+	w.Header().Set("Content-Type", "application/json")
+
+	req := &openai.ChatCompletionRequest{}
+	err := json.NewDecoder(r.Body).Decode(req)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+	}
+
+	// Use assert as require doesn't work when called from a goroutine
+	if !assert.GreaterOrEqual(t, len(responses), 1, "Unexpected request") {
+		http.Error(w, "Unexpected request", http.StatusBadRequest)
+		return responses
+	}
+
+	dataBytes := responses[0]
+
+	resp := openai.ChatCompletionResponse{
+		ID:      strconv.Itoa(int(time.Now().Unix())),
+		Object:  "test-object",
+		Created: time.Now().Unix(),
+		Model:   req.Model,
+		Choices: []openai.ChatCompletionChoice{
+			{
+				Message: openai.ChatCompletionMessage{
+					Role:    openai.ChatMessageRoleAssistant,
+					Content: dataBytes,
+					Name:    "",
+				},
+			},
+		},
+		Usage: openai.Usage{},
+	}
+
+	respBytes, err := json.Marshal(resp)
+	assert.NoError(t, err, "Marshal error")
+
+	_, err = w.Write(respBytes)
+	assert.NoError(t, err, "Write error")
+
+	return responses[1:]
 }
