@@ -215,7 +215,7 @@ func generateCommandResponse() string {
 
 	actionObj := model.PlanOutput{
 		Action: "Command Execution",
-		Action_input: struct {
+		ActionInput: struct {
 			Command string   `json:"command"`
 			Nodes   []string `json:"nodes"`
 		}{"df -h", []string{"localhost"}},

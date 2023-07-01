@@ -269,7 +269,8 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, 
 
 			delta := response.Choices[0].Delta.Content
 			deltas <- delta
-			completion.WriteString(delta)
+			// TODO(jakule): Fix token counting. Uncommenting the line below causes a race condition.
+			//completion.WriteString(delta)
 		}
 	}()
 
@@ -324,7 +325,7 @@ func (a *Agent) constructScratchpad(intermediateSteps []AgentAction, observation
 
 // parseJSONFromModel parses a JSON object from the model output and attempts to sanitize contaminant text
 // to avoid triggering self-correction due to some natural language being bundled with the JSON.
-// The output type is generic and thus the structure of the expected JSON varies depending on T.
+// The output type is generic, and thus the structure of the expected JSON varies depending on T.
 func parseJSONFromModel[T any](text string) (T, *invalidOutputError) {
 	cleaned := strings.TrimSpace(text)
 	if strings.Contains(cleaned, "```json") {
@@ -346,14 +347,14 @@ func parseJSONFromModel[T any](text string) (T, *invalidOutputError) {
 	return output, nil
 }
 
-// planOutput describes the expected JSON output after asking it to plan it's next action.
+// PlanOutput describes the expected JSON output after asking it to plan its next action.
 type PlanOutput struct {
-	Action       string `json:"action"`
-	Action_input any    `json:"action_input"`
-	Reasoning    string `json:"reasoning"`
+	Action      string `json:"action"`
+	ActionInput any    `json:"action_input"`
+	Reasoning   string `json:"reasoning"`
 }
 
-// parsePlanningOutput parses the output of the model after asking it to plan it's next action
+// parsePlanningOutput parses the output of the model after asking it to plan its next action
 // and returns the appropriate event type or an error.
 func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, error) {
 	var text string
@@ -386,10 +387,10 @@ func parsePlanningOutput(deltas <-chan string) (*AgentAction, *agentFinish, erro
 		return nil, nil, trace.Wrap(err)
 	}
 
-	if v, ok := response.Action_input.(string); ok {
+	if v, ok := response.ActionInput.(string); ok {
 		return &AgentAction{Action: response.Action, Input: v}, nil, nil
 	} else {
-		input, err := json.Marshal(response.Action_input)
+		input, err := json.Marshal(response.ActionInput)
 		if err != nil {
 			return nil, nil, trace.Wrap(err)
 		}
