@@ -25,7 +25,7 @@ import (
 
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -50,7 +50,7 @@ type Cluster struct {
 }
 
 // NewClusters creates a slice of Cluster's, containing data about each cluster.
-func NewClusters(remoteClusters []reversetunnel.RemoteSite) ([]Cluster, error) {
+func NewClusters(remoteClusters []reversetunnelclient.RemoteSite) ([]Cluster, error) {
 	clusters := make([]Cluster, 0, len(remoteClusters))
 	for _, site := range remoteClusters {
 		// Other fields such as node count, url, and proxy/auth versions are not set
@@ -87,7 +87,7 @@ func NewClustersFromRemote(remoteClusters []types.RemoteCluster) ([]Cluster, err
 }
 
 // GetClusterDetails retrieves and sets details about a cluster
-func GetClusterDetails(ctx context.Context, site reversetunnel.RemoteSite, opts ...services.MarshalOption) (*Cluster, error) {
+func GetClusterDetails(ctx context.Context, site reversetunnelclient.RemoteSite, opts ...services.MarshalOption) (*Cluster, error) {
 	clt, err := site.CachingAccessPoint()
 	if err != nil {
 		return nil, trace.Wrap(err)

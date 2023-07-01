@@ -124,6 +124,51 @@ func TestChatComplete(t *testing.T) {
 	})
 }
 
+func TestClassifyMessage(t *testing.T) {
+	// Given an OpenAI server that returns a response for a chat completion request.
+	responses := []string{
+		"troubleshooting",
+		"Troubleshooting",
+		"Troubleshooting.",
+		"non-existent",
+	}
+
+	server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
+	t.Cleanup(server.Close)
+
+	cfg := openai.DefaultConfig("secret-test-token")
+	cfg.BaseURL = server.URL + "/v1"
+
+	// And a chat client.
+	ctx := context.Background()
+	client, err := NewClient(ctx, &mockPluginGetter{}, &apiKeyMock{}, &cfg)
+	require.NoError(t, err)
+
+	t.Run("Valid class", func(t *testing.T) {
+		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
+		require.NoError(t, err)
+		require.Equal(t, class, "troubleshooting")
+	})
+
+	t.Run("Valid class starting with upper-case", func(t *testing.T) {
+		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
+		require.NoError(t, err)
+		require.Equal(t, class, "troubleshooting")
+	})
+
+	t.Run("Valid class starting with upper-case and ending with dot", func(t *testing.T) {
+		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
+		require.NoError(t, err)
+		require.Equal(t, class, "troubleshooting")
+	})
+
+	t.Run("Model hallucinates", func(t *testing.T) {
+		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
+		require.Error(t, err)
+		require.Empty(t, class)
+	})
+}
+
 type apiKeyMock struct{}
 
 // GetOpenAIAPIKey returns a mock API key.

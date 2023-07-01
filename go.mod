@@ -40,12 +40,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.100.1
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.1
 	github.com/aws/aws-sdk-go-v2/service/glue v1.51.0
+	github.com/aws/aws-sdk-go-v2/service/iam v1.20.3
 	github.com/aws/aws-sdk-go-v2/service/rds v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.35.0
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.13
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.22.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.2
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
+	github.com/aws/smithy-go v1.13.5
 	github.com/beevik/etree v1.2.0
 	github.com/bufbuild/connect-go v1.7.0
 	github.com/buildkite/bintest/v3 v3.1.1
@@ -229,7 +231,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.14.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.12 // indirect
-	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect

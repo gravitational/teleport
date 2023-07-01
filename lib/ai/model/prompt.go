@@ -114,3 +114,18 @@ func ConversationCommandResult(result map[string][]byte) string {
 	message.WriteString("Based on the chat history, extract relevant information out of the command output and write a summary.")
 	return message.String()
 }
+
+func MessageClassificationPrompt(classes map[string]string) string {
+	var classList strings.Builder
+	for name, description := range classes {
+		classList.WriteString(fmt.Sprintf("- `%s` (%s)\n", name, description))
+	}
+
+	return fmt.Sprintf(`Teleport is a tool that provides access to servers, kubernetes clusters, databases, and applications. All connected Teleport resources are called a cluster. Server resources might be called nodes.
+
+Classify the provided message between the following categories:
+
+%v
+
+Answer only with the category name. Nothing else.`, classList.String())
+}

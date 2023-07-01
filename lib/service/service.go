@@ -1744,7 +1744,7 @@ func (process *TeleportProcess) initAuthService() error {
 				return nil
 			}
 			log.Debugf("Starting embedding processor")
-			return embeddingProcessor.Run(process.ExitContext(), embeddingInitialDelay, embeddingPeriod)
+			return embeddingProcessor.Run(process.GracefulExitContext(), embeddingInitialDelay, embeddingPeriod)
 		})
 	}
 
@@ -3666,7 +3666,7 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 	// register SSH reverse tunnel server that accepts connections
 	// from remote teleport nodes
-	var tsrv reversetunnel.Server
+	var tsrv reversetunnelclient.Server
 	var peerClient *peer.Client
 
 	if !process.Config.Proxy.DisableReverseTunnel {
@@ -3843,8 +3843,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 			ProxyKubeAddr:    proxyKubeAddr,
 			TraceClient:      traceClt,
 			Router:           proxyRouter,
-			SessionControl:   sessionController,
-			PROXYSigner:      proxySigner,
+			SessionControl: web.SessionControllerFunc(func(ctx context.Context, sctx *web.SessionContext, login, localAddr, remoteAddr string) (context.Context, error) {
+				controller := srv.WebSessionController(sessionController)
+				ctx, err := controller(ctx, sctx, login, localAddr, remoteAddr)
+				return ctx, trace.Wrap(err)
+			}),
+			PROXYSigner: proxySigner,
 		}
 		webHandler, err := web.NewHandler(webConfig)
 		if err != nil {
@@ -4599,7 +4603,7 @@ func kubeDialAddr(config servicecfg.ProxyConfig, mode types.ProxyListenerMode) u
 	return config.Kube.ListenAddr
 }
 
-func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnel.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
+func (process *TeleportProcess) setupProxyTLSConfig(conn *Connector, tsrv reversetunnelclient.Server, accessPoint auth.ReadProxyAccessPoint, clusterName string) (*tls.Config, error) {
 	cfg := process.Config
 	var tlsConfig *tls.Config
 	acmeCfg := process.Config.Proxy.ACME
