@@ -24,7 +24,6 @@ import React, {
   useRef,
 } from 'react';
 
-import type { AssistState } from 'teleport/Assist/context/state';
 import { AssistStateActionType, reducer } from 'teleport/Assist/context/state';
 
 import { convertServerMessages } from 'teleport/Assist/context/utils';
@@ -32,11 +31,6 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
-import type {
-  ConversationMessage,
-  ResolvedServerMessage,
-  ServerMessage,
-} from 'teleport/Assist/types';
 import {
   ExecutionEnvelopeType,
   RawPayload,
@@ -56,6 +50,13 @@ import {
   resolveServerCommandMessage,
   resolveServerMessage,
 } from '../service';
+
+import type {
+  ConversationMessage,
+  ResolvedServerMessage,
+  ServerMessage,
+} from 'teleport/Assist/types';
+import type { AssistState } from 'teleport/Assist/context/state';
 
 interface AssistContextValue {
   cancelMfaChallenge: () => void;

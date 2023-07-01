@@ -24,9 +24,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gravitational/teleport/lib/ai/model"
 	"github.com/sashabaranov/go-openai"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/lib/ai/model"
 )
 
 func TestChat_PromptTokens(t *testing.T) {

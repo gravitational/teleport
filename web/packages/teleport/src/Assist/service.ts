@@ -27,7 +27,11 @@ import { EventType } from 'teleport/lib/term/enums';
 
 import NodeService from 'teleport/services/nodes';
 
-import {ResolvedAssistThoughtServerMessage, ServerMessageType, ThoughtMessagePayload} from './types';
+import {
+  ResolvedAssistThoughtServerMessage,
+  ServerMessageType,
+  ThoughtMessagePayload,
+} from './types';
 
 import type {
   CommandResultPayload,
@@ -194,7 +198,7 @@ export function resolveServerCommandResultSummaryMessage(
 }
 
 export function resolveServerAssistThoughtMessage(
-    message: ServerMessage
+  message: ServerMessage
 ): ResolvedAssistThoughtServerMessage {
   const payload = JSON.parse(message.payload) as ThoughtMessagePayload;
 
