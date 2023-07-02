@@ -125,7 +125,7 @@ require (
 	github.com/pelletier/go-toml v1.9.5
 	github.com/pkg/sftp v1.13.5
 	github.com/pquerna/otp v1.4.0
-	github.com/prometheus/client_golang v1.15.1
+	github.com/prometheus/client_golang v1.16.0
 	github.com/prometheus/client_model v0.4.0
 	github.com/prometheus/common v0.44.0
 	github.com/russellhaering/gosaml2 v0.9.1
@@ -349,7 +349,7 @@ require (
 	github.com/pkg/xattr v0.4.9 // indirect
 	github.com/pmezard/go-difflib v1.0.0 // indirect
 	github.com/pquerna/cachecontrol v0.1.0 // indirect
-	github.com/prometheus/procfs v0.9.0 // indirect
+	github.com/prometheus/procfs v0.10.1 // indirect
 	github.com/rivo/uniseg v0.4.3 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	github.com/rs/zerolog v1.28.0 // indirect
