@@ -8,7 +8,7 @@ edition = "2018"
 crate-type = ["staticlib"]
 
 [dependencies]
-bitflags = "2.3.2"
+bitflags = "2.3.3"
 byteorder = "1.4.3"
 env_logger = "0.10.0"
 iso7816 = "0.1.1"
