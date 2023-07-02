@@ -4,7 +4,7 @@ go 1.20
 
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
-	cloud.google.com/go/container v1.21.0
+	cloud.google.com/go/container v1.22.1
 	cloud.google.com/go/firestore v1.10.0
 	cloud.google.com/go/iam v1.1.0
 	cloud.google.com/go/kms v1.12.1
