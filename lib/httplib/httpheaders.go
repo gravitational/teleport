@@ -134,7 +134,16 @@ func SetDefaultSecurityHeaders(h http.Header) {
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 }
 
+// Cache the result of getIndexContentSecurityPolicy because it called for
+// every request to the web UI, so we want to make it as efficient as possible.
+var indexCspCache = make(map[string]cspMap)
+
 func getIndexContentSecurityPolicy(withStripe, withWasm bool) cspMap {
+	key := fmt.Sprintf("%v-%v", withStripe, withWasm)
+	if result, ok := indexCspCache[key]; ok {
+		return result
+	}
+
 	cspMaps := []cspMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc}
 
 	if withStripe {
@@ -145,7 +154,10 @@ func getIndexContentSecurityPolicy(withStripe, withWasm bool) cspMap {
 		cspMaps = append(cspMaps, wasmSecurityPolicy)
 	}
 
-	return combineCSPMaps(cspMaps...)
+	result := combineCSPMaps(cspMaps...)
+	indexCspCache[key] = result
+
+	return result
 }
 
 // desktopSessionRe is a regex that matches /web/cluster/:clusterId/desktops/:desktopName/:username
