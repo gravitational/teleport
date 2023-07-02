@@ -15,7 +15,7 @@ iso7816 = "0.1.1"
 iso7816-tlv = "0.4.3"
 libc = "0.2.146"
 log = "0.4.19"
-num-derive = "0.3.3"
+num-derive = "0.4.0"
 num-traits = "0.2.15"
 rand = { version = "0.8.5", features = ["getrandom"] }
 rand_chacha = "0.3.1"
