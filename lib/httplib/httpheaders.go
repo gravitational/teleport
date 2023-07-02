@@ -27,6 +27,7 @@ import (
 	"time"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 type cspMap map[string][]string
@@ -56,21 +57,6 @@ var wasmSecurityPolicy = cspMap{
 	"script-src": {"'wasm-unsafe-eval'"},
 }
 
-func deduplicate(elements []string) []string {
-	encountered := map[string]bool{}
-	result := []string{}
-
-	for v := range elements {
-		if encountered[elements[v]] {
-			// Do not add element when encountered before
-		} else {
-			encountered[elements[v]] = true
-			result = append(result, elements[v])
-		}
-	}
-	return result
-}
-
 // combineCSPMaps combines multiple CSP maps into a single map.
 // When multiple of the input cspMaps have the same key, their
 // respective lists are concatenated.
@@ -80,7 +66,7 @@ func combineCSPMaps(cspMaps ...cspMap) cspMap {
 	for _, cspMap := range cspMaps {
 		for key, value := range cspMap {
 			combinedMap[key] = append(combinedMap[key], value...)
-			combinedMap[key] = deduplicate(combinedMap[key])
+			combinedMap[key] = utils.Deduplicate(combinedMap[key])
 		}
 	}
 
