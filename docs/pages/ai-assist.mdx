@@ -83,20 +83,20 @@ Do not share your secret API keys in publicly accessible areas.
 ## Step 2/3. Enable Assist
 
 To enable Teleport Assist, you need to provide your OpenAI API key. On each
-Proxy Service host, perform the following actions:
+Auth Service host, perform the following actions:
 
 1. Open your Teleport configuration file. This is typically located at `/etc/teleport.yaml`.
 2. Add your OpenAI API key to the `assist` section:
 
  ```yaml
-proxy_service:
+auth_service:
   assist:
     openai:
       api_token_path: /etc/teleport/openai_key
 ```
 
 3. Save the changes and close the file.
-4. Restart your Teleport Proxy Service for the changes to take effect.
+4. Restart Teleport for the changes to take effect.
 
 
 Make sure that your Teleport user has the `assistant` permission. By default, users
