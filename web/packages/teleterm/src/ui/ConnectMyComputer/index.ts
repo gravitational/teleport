@@ -14,5 +14,5 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-export * from 'teleterm/ui/ConnectMyComputer/DocumentConnectMyComputerSetup/DocumentConnectMyComputerSetup';
+export * from './DocumentConnectMyComputerSetup/DocumentConnectMyComputerSetup';
 export { NavigationMenu as ConnectMyComputerNavigationMenu } from './NavigationMenu';
