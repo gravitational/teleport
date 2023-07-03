@@ -23,6 +23,36 @@ import { sharedStyles } from './sharedStyles';
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
 
+const dataVisualisationColors = {
+  primary: {
+    purple: '#9F85FF',
+    wednesdays: '#F74DFF',
+    picton: '#009EFF',
+    sunflower: '#FFAB00',
+    caribbean: '#00BFA6',
+    abbey: '#FF6257',
+    cyan: '#00D3F0',
+  },
+  secondary: {
+    purple: '#7D59FF',
+    wednesdays: '#D50DE0',
+    picton: '#007CC9',
+    sunflower: '#AC7400',
+    caribbean: '#008775',
+    abbey: '#DB3F34',
+    cyan: '#009CB1',
+  },
+  tertiary: {
+    purple: '#B9A6FF',
+    wednesdays: '#FA96FF',
+    picton: '#7BCDFF',
+    sunflower: '#FFD98C',
+    caribbean: '#2EFFD5',
+    abbey: '#FF948D',
+    cyan: '#74EEFF',
+  },
+};
+
 const colors = {
   /*
       Colors in `levels` are used to reflect the perceived depth of elements in the UI.
@@ -154,22 +184,31 @@ const colors = {
     selectionBackground: 'rgba(255, 255, 255, 0.18)',
     cursor: '#FFF',
     cursorAccent: '#0C143D',
-    red: '#FF6257',
-    green: '#00BFA6',
-    yellow: '#FFAB00',
-    blue: '#009EFF',
-    magenta: '#9F85FF',
-    cyan: '#00D3F0',
+    red: dataVisualisationColors.primary.abbey,
+    green: dataVisualisationColors.primary.caribbean,
+    yellow: dataVisualisationColors.primary.sunflower,
+    blue: dataVisualisationColors.primary.picton,
+    magenta: dataVisualisationColors.primary.purple,
+    cyan: dataVisualisationColors.primary.cyan,
     brightWhite: lighten('#0C143D', 0.89),
     white: lighten('#0C143D', 0.78),
     brightBlack: lighten('#0C143D', 0.61),
     black: '#000',
-    brightRed: '#FF948D',
-    brightGreen: '#2EFFD5',
-    brightYellow: '#FFD98C',
-    brightBlue: '#7BCDFF',
-    brightMagenta: '#B9A6FF',
-    brightCyan: '#74EEFF',
+    brightRed: dataVisualisationColors.tertiary.abbey,
+    brightGreen: dataVisualisationColors.tertiary.caribbean,
+    brightYellow: dataVisualisationColors.tertiary.sunflower,
+    brightBlue: dataVisualisationColors.tertiary.picton,
+    brightMagenta: dataVisualisationColors.tertiary.purple,
+    brightCyan: dataVisualisationColors.tertiary.cyan,
+  },
+
+  editor: {
+    abbey: dataVisualisationColors.tertiary.abbey,
+    purple: dataVisualisationColors.tertiary.purple,
+    cyan: dataVisualisationColors.tertiary.cyan,
+    picton: dataVisualisationColors.tertiary.picton,
+    sunflower: dataVisualisationColors.tertiary.sunflower,
+    caribbean: dataVisualisationColors.tertiary.caribbean,
   },
 
   subtle: blueGrey[50],
@@ -179,6 +218,8 @@ const colors = {
   disabled: blueGrey[500],
   info: lightBlue[600],
   success: '#00BFA5',
+
+  dataVisualisation: dataVisualisationColors,
 };
 
 const borders = [
