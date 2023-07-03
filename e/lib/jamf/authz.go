@@ -37,12 +37,32 @@ type AuthToken struct {
 }
 
 func (c *Client) doAuthnJSONRequest(req *http.Request, jsonResp any) error {
-	token, err := c.createOrRenewAuthToken(req.Context())
-	if err != nil {
-		return trace.Wrap(err)
+	allowRetry := true // One retry attempt allowed.
+	for {
+		token, err := c.createOrRenewAuthToken(req.Context())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token)
+		err = c.doJSONRequest(req, jsonResp)
+		if err == nil || !allowRetry {
+			return trace.Wrap(err)
+		}
+
+		// If we got a 401 attempt a single token renewal.
+		// This may happen if our existing auth token got invalidated.
+		apiErr := &APIError{}
+		if !errors.As(err, &apiErr) || apiErr.StatusCode != 401 {
+			return trace.Wrap(err)
+		}
+		c.logger.Warn("Jamf API: Existing auth token invalidated, attempting renewal")
+
+		allowRetry = false
+		c.mu.Lock()
+		c.currentToken = nil
+		c.mu.Unlock()
 	}
-	req.Header.Set("Authorization", "Bearer "+token)
-	return trace.Wrap(c.doJSONRequest(req, jsonResp))
 }
 
 func (c *Client) createOrRenewAuthToken(ctx context.Context) (string, error) {

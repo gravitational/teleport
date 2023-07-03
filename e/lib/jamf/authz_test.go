@@ -23,41 +23,18 @@ func TestClient_authn(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Sanity check fake behavior. Following tests depend on it.
-	t.Run("bad token fails", func(t *testing.T) {
-		client := env.MustNewClient()
-		client.SetAuthToken(&jamf.AuthToken{
-			Token:   "who's bad?",
-			Expires: clock.Now().Add(1 * time.Hour),
-		})
-
-		_, err := client.GetComputersInventory(ctx, &jamf.GetComputersInventoryRequest{})
-		if err == nil {
-			t.Fatalf("GetComputersInventory succeeded, want Unauthorized error")
-		}
-		apiErr := &jamf.APIError{}
-		if !errors.As(err, &apiErr) {
-			t.Fatalf("GetComputersInventory returned err=%v, want jamf.APIError", err)
-		}
-		if got, want := apiErr.StatusCode, 401; got != want {
-			t.Errorf("GetComputersInventory returned status=%v, want %v", got, want)
-		}
-	})
-
-	t.Run("automatic authn", func(t *testing.T) {
-		client := env.MustNewClient()
-
-		// Absence of errors is good enough.
-		if _, err := client.GetComputersInventory(ctx, &jamf.GetComputersInventoryRequest{}); err != nil {
-			t.Fatalf("GetComputersInventory failed: %v", err)
-		}
-	})
-
 	mustGetComputersInventory := func(t *testing.T, client *jamf.Client) {
 		if _, err := client.GetComputersInventory(ctx, &jamf.GetComputersInventoryRequest{}); err != nil {
 			t.Fatalf("GetComputersInventory failed: %v", err)
 		}
 	}
+
+	t.Run("automatic authn", func(t *testing.T) {
+		client := env.MustNewClient()
+
+		// Absence of errors is good enough.
+		mustGetComputersInventory(t, client)
+	})
 
 	t.Run("automatic keep-alive", func(t *testing.T) {
 		client := env.MustNewClient()
@@ -95,6 +72,22 @@ func TestClient_authn(t *testing.T) {
 		clock.Advance(jamffake.TokenExpiryPeriod * 2)
 
 		mustGetComputersInventory(t, client)
+	})
+
+	t.Run("invalidated token healed", func(t *testing.T) {
+		const badToken = "who's bad?"
+		client := env.MustNewClient()
+		client.SetAuthToken(&jamf.AuthToken{
+			Token:   badToken,
+			Expires: clock.Now().Add(1 * time.Hour),
+		})
+
+		mustGetComputersInventory(t, client)
+
+		// Assert that the token changed.
+		if client.AuthToken().Token == badToken {
+			t.Error("Client AuthToken unexpectedly unchanged")
+		}
 	})
 
 	t.Run(`try base URL with "/api" suffix`, func(t *testing.T) {
