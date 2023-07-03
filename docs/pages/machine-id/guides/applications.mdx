@@ -69,6 +69,7 @@ Next, on the bot node, create a Machine ID configuration file at
 
 <ScopedBlock scope={["cloud"]}>
 ```yaml
+version: v2
 auth_server: "example.teleport.sh:443"
 onboarding:
   join_method: "token"
@@ -88,6 +89,7 @@ outputs:
 </ScopedBlock>
 <ScopedBlock scope={["oss","enterprise"]}>
 ```yaml
+version: v2
 auth_server: "teleport.example.com:443"
 onboarding:
   join_method: "token"

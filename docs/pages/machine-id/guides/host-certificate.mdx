@@ -263,17 +263,18 @@ in this case the domain name that we'll be applying to the `tbot` configuration 
 The new configuration YAML will require a `destination` field and `ssh_host_cert` subfield that resembles the following, replacing `nodename.my.domain.com` with your own required domain name:
 
 ```
-destinations:
-  - directory:
+outputs:
+  - type: ssh_host
+    destination:
+      type: directory
       path: /opt/machine-id
-    configs:
-      - ssh_host_cert:
-          principals: [nodename.my.domain.com]
+    principals: [nodename.my.domain.com]
 ```
 
 Once completed, your `tbot.yaml` configuration should resemble the following:
 
 ```
+version: v2
 onboarding:
   token: "1234abcd5678efgh9"
   ca_path: ""
@@ -281,16 +282,16 @@ onboarding:
   - sha256:1234abcd5678efgh910ijklmnop
   join_method: token
 storage:
-  directory:
-    path: /var/lib/teleport/bot
-    symlinks: secure
-    acls: try
-destinations:
-  - directory:
+  type: directory
+  path: /var/lib/teleport/bot
+  symlinks: secure
+  acls: try
+outputs:
+  - type: ssh_host
+    destination:
+      type: directory
       path: /opt/machine-id
-    configs:
-      - ssh_host_cert:
-          principals: [nodename.my.domain.com]
+    principals: [nodename.my.domain.com]
 debug: false
 auth_server: example.teleport.sh:443
 certificate_ttl: 1h0m0s

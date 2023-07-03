@@ -131,6 +131,7 @@ Next, you need to start Machine ID in the background of each Jenkins worker.
   First create a configuration file for Machine ID at `/etc/tbot.yaml`.
 
   ```yaml
+  version: v2
   auth_server: "example.teleport.sh:443"
   onboarding:
     join_method: "token"
@@ -138,14 +139,19 @@ Next, you need to start Machine ID in the background of each Jenkins worker.
     ca_pins:
     - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
   storage:
-    directory: /var/lib/teleport/bot
-  destinations:
-    - directory: /opt/machine-id
+    type: directory
+    path: /var/lib/teleport/bot
+  outputs:
+    - type: identity
+      destination:
+        type: directory
+        path: /opt/machine-id
   ```
 </ScopedBlock>
 <ScopedBlock scope={["oss","enterprise"]}>
 First create a configuration file for Machine ID at `/etc/tbot.yaml`.
   ```yaml
+  version: v2
   auth_server: "auth.example.com:3025"
   onboarding:
     join_method: "token"
@@ -153,9 +159,13 @@ First create a configuration file for Machine ID at `/etc/tbot.yaml`.
     ca_pins:
     - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
   storage:
-    directory: /var/lib/teleport/bot
-  destinations:
-    - directory: /opt/machine-id
+    type: directory
+    path: /var/lib/teleport/bot
+  outputs:
+    - type: identity
+      destination:
+        type: directory
+        path: /opt/machine-id
   ```
 </ScopedBlock>
 
