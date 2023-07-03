@@ -27,9 +27,7 @@ known as a `destination` is now an `output`. Unlike a `destination`, an
 `output` has a specific type. The concept of `destination` remains, but this now
 just refers to where artifacts should be read from and written to.
 
-For example,
-
-**Old**
+**Example of previous configuration**
 ```yaml
 destinations:
 - directory:
@@ -39,7 +37,7 @@ destinations:
   app: grafana
 ```
 
-**New**
+**Example of new configuration**
 ```yaml
 version: v2
 outputs:
