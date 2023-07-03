@@ -132,7 +132,7 @@ func Test_filterBuffer(t *testing.T) {
 					Kind:      r,
 					Namespace: "default",
 					Name:      "*",
-					Verbs:     []string{"list"},
+					Verbs:     []string{types.KubeVerbList},
 				},
 			}
 			t.Run(fmt.Sprintf("%s %s", r, tt.name), func(t *testing.T) {
@@ -150,7 +150,7 @@ func Test_filterBuffer(t *testing.T) {
 
 				buf, decompress := newMemoryResponseWriter(t, data.Bytes(), tt.args.contentEncoding)
 
-				err = filterBuffer(newResourceFilterer(r, "list", allowedResources, nil, log), buf)
+				err = filterBuffer(newResourceFilterer(r, types.KubeVerbList, allowedResources, nil, log), buf)
 				require.NoError(t, err)
 
 				// Decompress the buffer to compare the result.

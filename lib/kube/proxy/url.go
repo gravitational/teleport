@@ -250,12 +250,12 @@ func isKubeWatchRequest(req *http.Request, r apiResource) bool {
 			return true
 		}
 	}
-	return false || r.isWatch
+	return r.isWatch
 }
 
 func (r apiResource) getVerb(req *http.Request) string {
 	verb := ""
-	isWatch := r.isWatch || isKubeWatchRequest(req, r)
+	isWatch := isKubeWatchRequest(req, r)
 	switch req.Method {
 	case http.MethodPost:
 		verb = types.KubeVerbCreate

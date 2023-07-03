@@ -3187,7 +3187,7 @@ func deleteResources[T kubeObjectInterface](
 				params.authCtx.Checker.Traits(),
 			),
 			services.NewKubernetesResourceMatcher(
-				getKubeResource(kind, "deletecollection", item),
+				getKubeResource(kind, types.KubeVerbDeleteCollection, item),
 			),
 		)
 		// no match was found, we ignore the request.
