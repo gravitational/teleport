@@ -21,7 +21,7 @@ import { AgentLabel } from 'teleport/services/agents';
 import { AwsRdsDatabase, RdsEngine } from '../integrations';
 
 export type Aws = {
-  rds?: Pick<AwsRdsDatabase, 'resourceId' | 'region' | 'subnets'>;
+  rds: Pick<AwsRdsDatabase, 'resourceId' | 'region' | 'subnets'>;
 };
 
 export interface Database {
