@@ -273,7 +273,7 @@ const ToolTip: React.FC = ({ children }) => {
         onMouseLeave={handlePopoverClose}
         css={`
           position: absolute;
-          background: red;
+          background: ${p => p.theme.colors.error.main};
           padding: 0px 6px;
           border-top-right-radius: 8px;
           border-bottom-left-radius: 8px;
