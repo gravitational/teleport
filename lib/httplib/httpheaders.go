@@ -174,8 +174,13 @@ func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features, urlPath st
 	h.Set("Content-Security-Policy", cspString)
 }
 
-// SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
-func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
+var appLaunchCspCache = make(map[string]string)
+
+func getAppLaunchContentSecurityPolicyString(applicationURL string) string {
+	if cspString, ok := appLaunchCspCache[applicationURL]; ok {
+		return cspString
+	}
+
 	cspString := getContentSecurityPolicyString(
 		defaultContentSecurityPolicy,
 		defaultFontSrc,
@@ -183,7 +188,14 @@ func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
 			"connect-src": {"'self'", applicationURL},
 		},
 	)
+	appLaunchCspCache[applicationURL] = cspString
 
+	return cspString
+}
+
+// SetAppLaunchContentSecurityPolicy sets the Content-Security-Policy header for /web/launch
+func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
+	cspString := getAppLaunchContentSecurityPolicyString(applicationURL)
 	h.Set("Content-Security-Policy", cspString)
 }
 
