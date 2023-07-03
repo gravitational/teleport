@@ -118,6 +118,8 @@ func TestSynchronizeGroups(t *testing.T) {
 	require.True(t, trace.IsNotFound(err))
 	_, err = ap.GetUserGroup(ctx, "group2")
 	require.True(t, trace.IsNotFound(err))
+
+	// These should be created.
 	group3, err = ap.GetUserGroup(ctx, "group3")
 	require.NoError(t, err)
 	require.Equal(t, "group name (group 3 description)", group3.GetMetadata().Description)
@@ -144,6 +146,57 @@ func TestSynchronizeGroups(t *testing.T) {
 		require.Equal(t, int32(1), event.Added)
 		require.Equal(t, int32(1), event.Updated)
 		require.Equal(t, int32(2), event.Deleted)
+	})
+
+	// App1 is now assigned to group3 as well.
+	client.appsToGroups["app1"] = []string{"group3", "group4"}
+
+	require.NoError(t, svc.synchronize(ctx))
+
+	// Verify app1 is now in group3's application list.
+	group3, err = ap.GetUserGroup(ctx, "group3")
+	require.NoError(t, err)
+	require.Equal(t, "group name (group 3 description)", group3.GetMetadata().Description)
+	require.Equal(t, []string{mustAppName(t, svc.hash, "app1", "applink-name1")}, group3.GetApplications())
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaApplicationsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaApplicationsUpdateCode, event.GetCode())
+		require.Equal(t, int32(0), event.Added)
+		require.Equal(t, int32(1), event.Updated)
+		require.Equal(t, int32(0), event.Deleted)
+	})
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaGroupsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaGroupsUpdateCode, event.GetCode())
+		require.Equal(t, int32(0), event.Added)
+		require.Equal(t, int32(1), event.Updated)
+		require.Equal(t, int32(0), event.Deleted)
+	})
+
+	// Let's explicitly set group3 to have no applications to simulate the apps and group
+	// mappings getting out of sync with one another.
+	group3.SetApplications(nil)
+	require.NoError(t, ap.UpdateUserGroup(ctx, group3))
+
+	svc.groupsMu.Lock()
+	svc.groups[group3.GetName()] = group3
+	svc.groupsMu.Unlock()
+
+	require.NoError(t, svc.synchronize(ctx))
+
+	// Verify app1 is now in group3's application list.
+	group3, err = ap.GetUserGroup(ctx, "group3")
+	require.NoError(t, err)
+	require.Equal(t, "group name (group 3 description)", group3.GetMetadata().Description)
+	require.Equal(t, []string{mustAppName(t, svc.hash, "app1", "applink-name1")}, group3.GetApplications())
+
+	expectAuditEvent(t, emitter, func(event *apievents.OktaResourcesUpdate) {
+		require.Equal(t, events.OktaGroupsUpdateEvent, event.GetType())
+		require.Equal(t, events.OktaGroupsUpdateCode, event.GetCode())
+		require.Equal(t, int32(0), event.Added)
+		require.Equal(t, int32(1), event.Updated)
+		require.Equal(t, int32(0), event.Deleted)
 	})
 }
 

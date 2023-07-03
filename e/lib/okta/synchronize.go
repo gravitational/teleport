@@ -212,7 +212,7 @@ func (s *Service) synchronizeApplications(ctx context.Context) (userGroupsToAppl
 
 	// If all of the app stats are 0, skip the emit. We only want to emit on changes.
 	if s.appsAdded == nil && s.appsUpdated == nil && s.appsDeleted == nil {
-		return nil, nil
+		return groupsToAppsMapping, nil
 	}
 
 	s.emitSyncEventsInBatches(ctx, events.OktaApplicationsUpdateEvent, events.OktaApplicationsUpdateCode, s.appsAdded, s.appsUpdated, s.appsDeleted)
