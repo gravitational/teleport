@@ -16,6 +16,10 @@
 
 import { EmployeeOptions, TeamOptions, TitleOptions } from './constants';
 
+export type QuestionnaireProps = {
+  username: string;
+};
+
 export type QuestionProps = {
   updateFields: (fields: Partial<QuestionnaireFormFields>) => void;
 };

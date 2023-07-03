@@ -23,5 +23,5 @@ export default {
 };
 
 export const Loaded = () => {
-  return <Questionnaire />;
+  return <Questionnaire username="" />;
 };
