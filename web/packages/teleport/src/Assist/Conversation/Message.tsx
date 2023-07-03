@@ -19,12 +19,7 @@ import styled from 'styled-components';
 
 import { CheckIcon } from 'design/SVGIcon';
 
-import {
-  Author,
-  ConversationMessage,
-  ResolvedServerMessage,
-  ServerMessageType,
-} from 'teleport/Assist/types';
+import { Author, ServerMessageType } from 'teleport/Assist/types';
 
 import {
   TeleportAvatar,
@@ -41,6 +36,13 @@ import { useAssist } from 'teleport/Assist/context/AssistContext';
 import { ExecuteRemoteCommandEntry } from 'teleport/Assist/Conversation/ExecuteRemoteCommandEntry';
 import { CommandResultEntry } from 'teleport/Assist/Conversation/CommandResultEntry';
 import { CommandResultSummaryEntry } from 'teleport/Assist/Conversation/CommandResultSummaryEntry';
+import { AccessRequests } from 'teleport/Assist/Conversation/AccessRequests/AccessRequests';
+import { AccessRequest } from 'teleport/Assist/Conversation/AccessRequest';
+
+import type {
+  ConversationMessage,
+  ResolvedServerMessage,
+} from 'teleport/Assist/types';
 
 interface MessageProps {
   message: ConversationMessage;
@@ -139,12 +141,79 @@ function createComponentForEntry(
           errorMessage={entry.errorMessage}
         />
       );
+
     case ServerMessageType.CommandResultSummary:
       return (
         <CommandResultSummaryEntry
           command={entry.command}
           summary={entry.summary}
         />
+      );
+
+    case ServerMessageType.AccessRequests:
+      return (
+        <AccessRequests
+          events={entry.events}
+          username={entry.username}
+          status={entry.status}
+          summary={entry.summary}
+          created={entry.created}
+        />
+      );
+
+    case ServerMessageType.AccessRequest:
+      return (
+        <AccessRequest resources={entry.resources} reason={entry.reason} />
+      );
+  }
+}
+
+function createEntryWrapper(
+  entry: ResolvedServerMessage,
+  author: Author,
+  streaming: boolean,
+  lastMessage: boolean,
+  index: number,
+  length: number
+) {
+  switch (entry.type) {
+    case ServerMessageType.AssistThought:
+      const processing = index === length - 1;
+
+      return (
+        <Thought key={index}>
+          {processing ? (
+            <TypingContainer>
+              <TypingDot style={{ animationDelay: '0s' }} />
+              <TypingDot style={{ animationDelay: '0.2s' }} />
+              <TypingDot style={{ animationDelay: '0.4s' }} />
+            </TypingContainer>
+          ) : (
+            <ThoughtIcon>
+              <CheckIcon size={16} fill="#34a853" />
+            </ThoughtIcon>
+          )}
+
+          {entry.message}
+        </Thought>
+      );
+
+    default:
+      return (
+        <EntryContainer
+          author={author}
+          key={index}
+          index={index}
+          length={length}
+          streaming={streaming && index === length - 1}
+          lastMessage={lastMessage}
+          hideOverflow={
+            entry.type === ServerMessageType.CommandResultStream ||
+            entry.type === ServerMessageType.CommandResult
+          }
+        >
+          {createComponentForEntry(entry, lastMessage && index === length - 1)}
+        </EntryContainer>
       );
   }
 }
@@ -153,40 +222,13 @@ export function Message(props: MessageProps) {
   const { messages } = useAssist();
 
   const entries = props.message.entries.map((entry, index) =>
-    entry.type === ServerMessageType.AssistThought ? (
-      <Thought key={index}>
-        {index === props.message.entries.length - 1 ? (
-          <TypingContainer>
-            <TypingDot style={{ animationDelay: '0s' }} />
-            <TypingDot style={{ animationDelay: '0.2s' }} />
-            <TypingDot style={{ animationDelay: '0.4s' }} />
-          </TypingContainer>
-        ) : (
-          <ThoughtIcon>
-            <CheckIcon size={16} fill="#34a853" />
-          </ThoughtIcon>
-        )}
-
-        {entry.message}
-      </Thought>
-    ) : (
-      <EntryContainer
-        author={props.message.author}
-        key={index}
-        index={index}
-        length={props.message.entries.length}
-        streaming={messages.streaming}
-        lastMessage={props.lastMessage}
-        hideOverflow={
-          entry.type === ServerMessageType.CommandResultStream ||
-          entry.type === ServerMessageType.CommandResult
-        }
-      >
-        {createComponentForEntry(
-          entry,
-          props.lastMessage && index === props.message.entries.length - 1
-        )}
-      </EntryContainer>
+    createEntryWrapper(
+      entry,
+      props.message.author,
+      messages.streaming,
+      props.lastMessage,
+      index,
+      props.message.entries.length
     )
   );
 
