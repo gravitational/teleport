@@ -61,7 +61,7 @@ Markdown code snippet formatted in the following schema:
 {
 	"action": string \\ The action to take. Must be one of %v
 	"action_input": string \\ The input to the action
-	"reasoning": string \\ Your reasoning for taking this action
+	"reasoning": string \\ A short consice thought with the reasoning for taking this action
 }
 %v
 
