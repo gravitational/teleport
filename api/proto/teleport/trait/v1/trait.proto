@@ -14,20 +14,14 @@
 
 syntax = "proto3";
 
-package teleport.common.v1;
+package teleport.trait.v1;
 
-import "teleport/common/v1/metadata.proto";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/trait/v1;trait";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/common/v1;common";
-
-// ResourceHeader is a shared resource header.
-message ResourceHeader {
-  // kind is a resource kind.
-  string kind = 1;
-  // sub_kind is an optional resource sub kind, used in some resources.
-  string sub_kind = 2;
-  // version is version.
-  string version = 3;
-  // metadata is resource metadata.
-  Metadata metadata = 4;
+// Trait is a trait that can be use in various resources.
+message Trait {
+  // key is the name of the trait.
+  string key = 1;
+  // values is the list of trait values.
+  repeated string values = 2;
 }

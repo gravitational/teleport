@@ -14,11 +14,11 @@
 
 syntax = "proto3";
 
-package teleport.common.v1;
+package teleport.header.v1;
 
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/common/v1;common";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/header/v1;header";
 
 // Metadata is resource metadata.
 message Metadata {

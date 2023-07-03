@@ -18,8 +18,8 @@ package teleport.accesslist.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
-import "teleport/common/v1/resourceheader.proto";
-import "teleport/common/v1/trait.proto";
+import "teleport/header/v1/resourceheader.proto";
+import "teleport/trait/v1/trait.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1;accesslist";
 
@@ -28,7 +28,7 @@ option go_package = "github.com/gravitational/teleport/api/gen/proto/go/accessli
 // regularly audited.
 message AccessList {
   // header is the header for the resource.
-  teleport.common.v1.ResourceHeader header = 1;
+  teleport.header.v1.ResourceHeader header = 1;
 
   // spec is the specification for the access list.
   AccessListSpec spec = 2;
@@ -84,7 +84,7 @@ message AccessListRequires {
   repeated string roles = 1;
 
   // traits are the traits that must be present for the user to obtain access.
-  repeated teleport.common.v1.Trait traits = 2;
+  repeated teleport.trait.v1.Trait traits = 2;
 }
 
 // AccessListGrants describes what access is granted by membership to the access list.
@@ -93,7 +93,7 @@ message AccessListGrants {
   repeated string roles = 1;
 
   // traits are the traits that are granted to users who are members of the access list.
-  repeated teleport.common.v1.Trait traits = 2;
+  repeated teleport.trait.v1.Trait traits = 2;
 }
 
 // AccessListMember describes a member of an access list.
