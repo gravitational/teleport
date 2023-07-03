@@ -512,9 +512,9 @@ type Features struct {
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	// AdvancedAccessWorkflows enables search-based access requests
+	// advanced_access_workflows enables search-based access requests
 	AdvancedAccessWorkflows bool `protobuf:"varint,1,opt,name=advanced_access_workflows,json=advancedAccessWorkflows,proto3" json:"advanced_access_workflows,omitempty"`
-	// IsUsageBasedBilling determines if the cloud user subscription is usage-based (pay-as-you-go).
+	// is_usage_based_billing determines if the cloud user subscription is usage-based (pay-as-you-go).
 	IsUsageBasedBilling bool `protobuf:"varint,2,opt,name=is_usage_based_billing,json=isUsageBasedBilling,proto3" json:"is_usage_based_billing,omitempty"`
 }
 
