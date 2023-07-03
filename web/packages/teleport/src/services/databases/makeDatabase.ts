@@ -26,13 +26,13 @@ export function makeDatabase(json: any): Database {
   // The backend will return the field `aws` as undefined
   // if this database is not hosted by AWS.
   // (Only setting RDS fields for now.)
-  let awsRds: Aws;
-  if (aws && aws.rds) {
-    awsRds = {
+  let madeAws: Aws;
+  if (aws) {
+    madeAws = {
       rds: {
-        resourceId: aws.rds.resource_id,
-        region: aws.rds.region,
-        subnets: aws.rds.subnets || [],
+        resourceId: aws.rds?.resource_id,
+        region: aws.rds?.region,
+        subnets: aws.rds?.subnets || [],
       },
     };
   }
@@ -46,7 +46,7 @@ export function makeDatabase(json: any): Database {
     names: json.database_names || [],
     users: json.database_users || [],
     hostname: json.hostname,
-    aws: awsRds,
+    aws: madeAws,
   };
 }
 
