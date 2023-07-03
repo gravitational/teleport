@@ -14,10 +14,6 @@ flag, e.g `tbot -c ./tbot.yaml`.
 
 From Teleport 14, `tbot` supports the v2 configuration version.
 
-The following snippet shows full YAML configuration of the Machine ID client
-`tbot`. Assuming the file is written to `tbot.yaml`, it can be used with
-`tbot -c /etc/tbot.yaml`.
-
 ```yaml
 # version specifies the version of the configuration file in use. `v2` is the
 # most recent and should be used for all new bots. The rest of this example
@@ -50,10 +46,10 @@ renewal_interval: "20m"
 # CI/CD.
 oneshot: false
 
-# `onboarding` is a group of configuration options that control how `tbot` will
+# onboarding is a group of configuration options that control how `tbot` will
 # authenticate with the Teleport cluster.
 onboarding:
-  # `token` specifies which join token, configured in the Teleport cluster,
+  # token specifies which join token, configured in the Teleport cluster,
   # should be used to join the Teleport cluster.
   #
   # This can also be an absolute path to a file containing the value you wish
@@ -230,6 +226,9 @@ format: tls
 
 #### Supported formats
 
+The following values may be provided to the `format` configuration field in
+the `database` output type.
+
 | `format`      | Description                          |
 |---------------|--------------------------------------|
 | Unspecified   | Provides a certificate in `tlscert`, a private key in `key` and the CA in `teleport-database-ca.crt`. This is compatible with most clients and databases. |
@@ -275,8 +274,8 @@ A destination is somewhere that `tbot` can read and write artifacts.
 
 Destinations are used in two places in the `tbot` configuration:
 
-- Specifying where `tbot` should store its internal state
-- Specifying where an output should write the generated artifacts to
+- Specifying where `tbot` should store its internal state.
+- Specifying where an output should write the generated artifacts to.
 
 Destinations come in multiple types, usually the `directory` type will be most
 appropriate.
@@ -287,7 +286,8 @@ The `directory` destination type stores artifacts as files within a specified
 directory. This is usually the correct destination type to use.
 
 ```yaml
-# For a directory destination, type will always be `directory`.
+# type specifies the type of the destination. For the directory destination,
+# this will always be `directory`.
 type: directory
 
 # The path to the folder in which to read and write files.
@@ -321,6 +321,7 @@ is most suitable for ephemeral environments, but can also be used for testing.
 Configuration:
 
 ```yaml
-# For a memory destination, type will always be `memory`.
+# type specifies the type of the destination. For the memory destination, this
+# will always be `memory`.
 type: memory
 ```
