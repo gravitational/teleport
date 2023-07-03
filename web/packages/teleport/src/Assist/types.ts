@@ -162,6 +162,7 @@ export interface CommandResultSummaryPayload {
 
 export interface ThoughtMessagePayload {
   action: string;
+  reasoning: string;
 }
 
 export interface ExecEvent {

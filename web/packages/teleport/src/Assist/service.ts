@@ -204,7 +204,7 @@ export function resolveServerAssistThoughtMessage(
 
   return {
     type: ServerMessageType.AssistThought,
-    message: payload.action,
+    message: payload.reasoning || payload.action,
     created: new Date(message.created_time),
   };
 }
