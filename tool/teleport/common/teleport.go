@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/config"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/openssh"
 	"github.com/gravitational/teleport/lib/service"
@@ -433,6 +434,15 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 
 	joinOpenSSH.Flag("debug", "Enable verbose logging to stderr.").Short('d').BoolVar(&ccf.Debug)
 
+	integrationCmd := app.Command("integration", "Integration commands")
+	integrationConfigureCmd := integrationCmd.Command("configure", "Configure an integration")
+	integrationConfDeployServiceCmd := integrationConfigureCmd.Command("deployservice-iam", "Create the required IAM Roles for the AWS OIDC Deploy Service.")
+	integrationConfDeployServiceCmd.Flag("cluster", "Teleport Cluster's name.").Required().StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.Cluster)
+	integrationConfDeployServiceCmd.Flag("name", "Integration name.").Required().StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.Name)
+	integrationConfDeployServiceCmd.Flag("aws-region", "AWS Region.").Required().StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.Region)
+	integrationConfDeployServiceCmd.Flag("role", "The AWS Role used by the AWS OIDC Integration.").Required().StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.Role)
+	integrationConfDeployServiceCmd.Flag("task-role", "The AWS Role to be used by the deployed service.").Required().StringVar(&ccf.IntegrationConfDeployServiceIAMArguments.TaskRole)
+
 	// parse CLI commands+flags:
 	utils.UpdateAppUsageTemplate(app, options.Args)
 	command, err := app.Parse(options.Args)
@@ -518,6 +528,8 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
 	case joinOpenSSH.FullCommand():
 		err = onJoinOpenSSH(ccf, conf)
+	case integrationConfDeployServiceCmd.FullCommand():
+		err = onIntegrationConfDeployService(ccf.IntegrationConfDeployServiceIAMArguments)
 	}
 	if err != nil {
 		utils.FatalError(err)
@@ -840,5 +852,27 @@ func onJoinOpenSSH(clf config.CommandLineFlags, conf *servicecfg.Config) error {
 	if err := OnStart(clf, conf); err != nil {
 		return trace.Wrap(err)
 	}
+	return nil
+}
+
+func onIntegrationConfDeployService(params config.IntegrationConfDeployServiceIAM) error {
+	ctx := context.Background()
+
+	iamClient, err := awsoidc.NewDeployServiceIAMConfigureClient(ctx, params.Region)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = awsoidc.ConfigureDeployServiceIAM(ctx, iamClient, awsoidc.DeployServiceIAMConfigureRequest{
+		Cluster:         params.Cluster,
+		IntegrationName: params.Name,
+		Region:          params.Region,
+		IntegrationRole: params.Role,
+		TaskRole:        params.TaskRole,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	return nil
 }
