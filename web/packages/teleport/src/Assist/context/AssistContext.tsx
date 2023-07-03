@@ -78,6 +78,7 @@ const TEN_MINUTES = 10 * 60 * 1000;
 
 export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   const activeWebSocket = useRef<WebSocket>(null);
+  // TODO(ryan): this should be removed once https://github.com/gravitational/teleport.e/pull/1609 is implemented
   const executeCommandWebSocket = useRef<WebSocket>(null);
   const refreshWebSocketTimeout = useRef<number | null>(null);
 
