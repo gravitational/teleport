@@ -22,6 +22,7 @@ import { Option } from 'shared/components/Select';
 
 import {
   EmployeeOptionsStrings,
+  ProtoResource,
   Resource,
   TeamOptionsStrings,
   TitleOptionsStrings,
@@ -98,4 +99,12 @@ export const requiredResourceField = (value: Resource[]) => () => {
     valid,
     message: 'Resource is required',
   };
+};
+
+export const resourceMapping: { [key in Resource]: ProtoResource } = {
+  [Resource.RESOURCE_WINDOWS_DESKTOPS]: ProtoResource.RESOURCE_WINDOWS_DESKTOPS,
+  [Resource.RESOURCE_SERVER_SSH]: ProtoResource.RESOURCE_SERVER_SSH,
+  [Resource.RESOURCE_DATABASES]: ProtoResource.RESOURCE_DATABASES,
+  [Resource.RESOURCE_KUBERNETES]: ProtoResource.RESOURCE_KUBERNETES,
+  [Resource.RESOURCE_WEB_APPLICATIONS]: ProtoResource.RESOURCE_WEB_APPLICATIONS,
 };

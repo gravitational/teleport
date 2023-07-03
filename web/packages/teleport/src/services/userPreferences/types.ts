@@ -16,8 +16,8 @@
 
 import { DeprecatedThemeOption } from 'design/theme';
 
+import { ProtoResource } from 'teleport/Welcome/Questionnaire/types';
 import type { AssistUserPreferences } from 'teleport/Assist/types';
-import type { Resource } from 'teleport/Welcome/Questionnaire/types';
 
 export enum ThemePreference {
   Light = 1,
@@ -25,7 +25,7 @@ export enum ThemePreference {
 }
 
 export type OnboardUserPreferences = {
-  preferredResources: Resource[];
+  preferredResources: ProtoResource[];
 };
 
 export interface UserPreferences {

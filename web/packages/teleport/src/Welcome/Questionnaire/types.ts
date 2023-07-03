@@ -17,7 +17,12 @@
 import { EmployeeOptions, TeamOptions, TitleOptions } from './constants';
 
 export type QuestionnaireProps = {
+  // full indicates if a full survey should be presented
+  // false indicates that a partial survey is shown (some questions are skipped)
+  full: boolean;
   username: string;
+  // optional callback to handle parent interaction
+  onSubmit?: () => void;
 };
 
 export type QuestionProps = {
@@ -32,6 +37,7 @@ export type CompanyProps = QuestionProps & {
 export type RoleProps = QuestionProps & {
   role: TitleOptionsStrings;
   team: TeamOptionsStrings;
+  teamName: string;
 };
 
 export type ResourceType = {
@@ -43,6 +49,15 @@ export type ResourcesProps = QuestionProps & {
   resources: ResourceType[];
   checked: Resource[];
 };
+
+export enum ProtoResource {
+  RESOURCE_UNSPECIFIED = 0,
+  RESOURCE_WINDOWS_DESKTOPS = 1,
+  RESOURCE_SERVER_SSH = 2,
+  RESOURCE_DATABASES = 3,
+  RESOURCE_KUBERNETES = 4,
+  RESOURCE_WEB_APPLICATIONS = 5,
+}
 
 export enum Resource {
   RESOURCE_WINDOWS_DESKTOPS = 'Windows Desktops',
@@ -58,6 +73,7 @@ export type QuestionnaireFormFields = {
   role: TitleOptionsStrings;
   team: TeamOptionsStrings;
   resources: Resource[];
+  teamName?: string; // only set if "Other" is selected from team options
 };
 
 export type EmployeeOptionsStrings = keyof typeof EmployeeOptions;

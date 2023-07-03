@@ -1,11 +1,11 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2023 Gravitational, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,19 +14,5 @@
  * limitations under the License.
  */
 
-import React from 'react';
-
-import { Questionnaire } from './Questionnaire';
-
-export default {
-  title: 'Teleport/Welcome/Questionnaire',
-  args: { userContext: true },
-};
-
-export const Full = () => {
-  return <Questionnaire full={true} username={''} />;
-};
-
-export const Partial = () => {
-  return <Questionnaire full={false} username={''} />;
-};
+export { surveyService as surveyService } from './survey';
+export * from './types';

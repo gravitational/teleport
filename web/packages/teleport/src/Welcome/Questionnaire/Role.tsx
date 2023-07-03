@@ -18,11 +18,12 @@ import React from 'react';
 import { Option } from 'shared/components/Select';
 import FieldSelect from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
+import FieldInput from 'shared/components/FieldInput';
 
 import { RoleProps, TeamOptionsStrings, TitleOptionsStrings } from './types';
 import { teamSelectOptions, titleSelectOptions } from './constants';
 
-export const Role = ({ team, role, updateFields }: RoleProps) => (
+export const Role = ({ team, teamName, role, updateFields }: RoleProps) => (
   <>
     <FieldSelect
       label="Which Team are you on?"
@@ -34,6 +35,18 @@ export const Role = ({ team, role, updateFields }: RoleProps) => (
       options={teamSelectOptions}
       value={team ? { label: team, value: team } : null}
     />
+    {team === 'Other (free-form field)' && (
+      <FieldInput
+        id="team-name"
+        type="text"
+        label="Team Name"
+        rule={requiredField('Team Name is required')}
+        onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+          updateFields({ teamName: e.target.value })
+        }
+        value={teamName}
+      />
+    )}
     <FieldSelect
       label="Job Title"
       rule={requiredField('Job Title is required')}

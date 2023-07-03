@@ -25,7 +25,10 @@ import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolic
 
 import cfg from 'teleport/config';
 
-import useToken, { State } from '../useToken';
+import { NewCredentialsProps } from 'teleport/Welcome/NewCredentials/types';
+import { Questionnaire } from 'teleport/Welcome/Questionnaire/Questionnaire';
+
+import useToken from '../useToken';
 
 import { Expired } from './Expired';
 import { RegisterSuccess } from './Success';
@@ -54,7 +57,7 @@ export function Container({ tokenId = '', resetMode = false }) {
   );
 }
 
-export function NewCredentials(props: State & Props) {
+export function NewCredentials(props: NewCredentialsProps) {
   const {
     fetchAttempt,
     recoveryCodes,
@@ -66,7 +69,19 @@ export function NewCredentials(props: State & Props) {
     finishedRegister,
     privateKeyPolicyEnabled,
     isDashboard,
+    displayOnboardingQuestionnaire,
+    setDisplayOnboardingQuestionnaire,
   } = props;
+
+  // Check which flow to render as default.
+  const [password, setPassword] = useState('');
+  const [newFlow, setNewFlow] = useState<NewFlow<LoginFlow>>();
+  const [flow, setFlow] = useState<LoginFlow>(() => {
+    if (primaryAuthType === 'sso' || primaryAuthType === 'local') {
+      return 'local';
+    }
+    return 'passwordless';
+  });
 
   if (fetchAttempt.status === 'failed') {
     return <Expired resetMode={resetMode} />;
@@ -80,6 +95,17 @@ export function NewCredentials(props: State & Props) {
     return (
       <PrivateKeyLoginDisabledCard
         title={resetMode ? 'Reset Complete' : 'Registration Complete'}
+      />
+    );
+  }
+
+  if (success && !resetMode && displayOnboardingQuestionnaire) {
+    // todo (michellescripts) check cluster config to determine if all or partial questions are asked
+    return (
+      <Questionnaire
+        full={true}
+        username={resetToken.user}
+        onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
       />
     );
   }
@@ -106,16 +132,7 @@ export function NewCredentials(props: State & Props) {
     );
   }
 
-  // Check which flow to render as default.
-  const [password, setPassword] = useState('');
-  const [newFlow, setNewFlow] = useState<NewFlow<LoginFlow>>();
-  const [flow, setFlow] = useState<LoginFlow>(() => {
-    if (primaryAuthType === 'sso' || primaryAuthType === 'local') {
-      return 'local';
-    }
-    return 'passwordless';
-  });
-
+  // display credentials flow
   function onSwitchFlow(flow: LoginFlow) {
     setFlow(flow);
   }
@@ -143,8 +160,3 @@ export function NewCredentials(props: State & Props) {
     </Card>
   );
 }
-
-export type Props = State & {
-  resetMode?: boolean;
-  isDashboard: boolean;
-};

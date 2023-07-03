@@ -1,11 +1,11 @@
 /**
- * Copyright 2020 Gravitational, Inc.
+ * Copyright 2023 Gravitational, Inc
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     http://www.apache.org/licenses/LICENSE-2.0
+ *      http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,19 +14,18 @@
  * limitations under the License.
  */
 
-import React from 'react';
+import api from 'teleport/services/api';
+import cfg from 'teleport/config';
 
-import { Questionnaire } from './Questionnaire';
+import { SurveyRequest } from './types';
 
-export default {
-  title: 'Teleport/Welcome/Questionnaire',
-  args: { userContext: true },
-};
-
-export const Full = () => {
-  return <Questionnaire full={true} username={''} />;
-};
-
-export const Partial = () => {
-  return <Questionnaire full={false} username={''} />;
+export const surveyService = {
+  submitSurvey(survey: SurveyRequest) {
+    // using api.fetch instead of api.fetchJSON
+    // because we are not expecting a JSON response
+    void api.fetch(cfg.api.surveyPath, {
+      method: 'POST',
+      body: JSON.stringify(survey),
+    });
+  },
 };
