@@ -54,7 +54,7 @@ Follow the instructions below to generate TLS credentials for your database.
 ```code
 # Export Teleport's certificate authority and a generated certificate/key pair
 # for host db.example.com with a 1-year validity period.
-$ tctl auth sign --format=db --host=db.example.com --out=server --ttl=8766h
+$ tctl auth sign --format=db --host=clickhouse.example.com --out=server --ttl=8766h
 ```
 
 (!docs/pages/includes/database-access/ttl-note.mdx!)
@@ -132,9 +132,9 @@ databases:
 ```code
 $ tsh login --proxy=<Var name="proxy-address" /> --user=testuser
 $ tsh db ls
-# Name                                        Description Allowed Users Labels  Connect
-# ------------------------------------------- ----------- ------------- ------- ------------------------------
-# example- clickhouse-http (user: alice)             [*]           env=dev tsh db connect clickhouse-http
+# Name                      Description Allowed Users Labels  Connect
+# ------------------------- ----------- ------------- ------- -------
+# example-clickhouse-http               [*]           env=dev
 ```
 
 Create an authenticated proxy tunnel for allowing to connect to the ClickHouse Database GUI database client send a request via `curl`:
@@ -151,8 +151,8 @@ $ tsh proxy db --tunnel example-clickhouse-http
 To test the connection you can run the following command:
 
 ```code
-$ echo 'select 1;' | curl http://localhost:59215/  --data-binary @-
-# 1
+$ echo 'select currentUser();' | curl http://localhost:59215/  --data-binary @-
+# alice
 ```
 
 To log out of the database and remove credentials:
@@ -169,10 +169,10 @@ $ tsh db logout
 
 ```code
 $ tsh login --proxy=<Var name="proxy-address" /> --user=testuser
-$ tsh db ls
-# Name                            Description Allowed Users Labels  Connect
-# ------------------------------- ----------- ------------- ------- ------------------------------
-# example-clickhouse                                  [*]           env=dev
+# tsh db ls
+# Name                    Description Allowed Users Labels  Connect
+# ----------------------- ----------- ------------- ------- -------
+# example-clickhouse                  [*]           env=dev
 ```
 
 ```code

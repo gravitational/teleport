@@ -21,8 +21,19 @@ $ teleport db configure create \
    --labels=env=dev
 ```
 
-For ClickHouse integration with Native interface set the protocol value to `--protocol=clickhouse` installed of `--protocol=clickhouse-http` and point `--uri` to the
-ClickHouse Native interface listener.
+For ClickHouse integration with Native interface set the protocol value to `--protocol=clickhouse` instead of `--protocol=clickhouse-http` and point `--uri` to the
+ClickHouse Native interface listener:
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> \
+   --name=example-clickhouse \
+   --protocol=clickhouse \
+   --uri=clickhouse.example.com:9440 \
+   --labels=env=dev
+```
 
 Configure the Database Service to start automatically when the host boots up by
 creating a systemd service for it. The instructions depend on how you installed
@@ -52,11 +63,3 @@ $ sudo systemctl start teleport
 
 </TabItem>
 </Tabs>
-
-<Admonition type="note">
-
-The `--auth-server` flag must point to the Teleport cluster's Proxy Service
-endpoint because the Database Service always connects back to the cluster over a
-reverse tunnel.
-
-</Admonition>

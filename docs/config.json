@@ -1283,6 +1283,15 @@
               "slug": "/database-access/guides/cassandra-self-hosted/"
             },
             {
+              "title": "Self-Hosted ClickHouse (Preview)",
+              "forScopes": [
+                "oss",
+                "enterprise",
+                "cloud"
+              ],
+              "slug": "/database-access/guides/clickhouse-self-hosted/"
+            },
+            {
               "title": "Self-Hosted CockroachDB",
               "slug": "/database-access/guides/cockroachdb-self-hosted/"
             },
@@ -1317,15 +1326,6 @@
                 "cloud"
               ],
               "slug": "/database-access/guides/oracle-self-hosted/"
-            },
-            {
-              "title": "Self-Hosted ClickHouse (Preview)",
-              "forScopes": [
-                "oss",
-                "enterprise",
-                "cloud"
-              ],
-              "slug": "/database-access/guides/clickhouse-self-hosted/"
             },
             {
               "title": "Snowflake (Preview)",
