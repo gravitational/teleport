@@ -10,8 +10,7 @@ configuring `tbot` using CLI parameters alone.
 To configure `tbot` to use a configuration file, specify the path with the `-c`
 flag, e.g `tbot -c ./tbot.yaml`.
 
-Certain terms hold a specific meaning when used in reference to Machine ID,
-these are:
+Certain terms are used in this reference and hold a specific meaning:
 
 - **Artifact**: an item that `tbot` will write to a destination as part of the
   process of generating an output. Examples of artifacts include configuration
@@ -285,7 +284,13 @@ to see the `ssh_host` output used in context.
 
 
 ```yaml
+# type specifies the type of the output. For the ssh hhost output, this will
+# always be `shh_host`.
 type: ssh_host
+# principals is the list of host names to include in the host certificates.
+# These should match the names that clients will use to connect to the host.
+principals:
+  - host.example.com
 
 (!docs/pages/includes/machine-id/common-output-config.mdx!)
 ```
