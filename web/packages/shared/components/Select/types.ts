@@ -66,3 +66,19 @@ export type Option<T = string, S = string> = {
 export type ActionMeta = {
   action: 'set-value' | 'input-change' | 'input-blur' | 'menu-close';
 };
+
+// CustomSelectComponentProps defines a prop type for the custom
+// componets you define for react-select's `components` prop.
+export type CustomSelectComponentProps<
+  CustomProps,
+  CustomOption = Option
+> = CustomOption & {
+  // selectProps is the field to use to access the props that were
+  // passed down to react-select's component.
+  //
+  // Use `customProps` field to easily identify non react-select props
+  // that are intended to be used in custom components.
+  //
+  // Generic type `CustomOption` is the data type used for react-select options.
+  selectProps: { customProps: CustomProps };
+};
