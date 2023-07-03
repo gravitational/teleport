@@ -179,22 +179,7 @@ func Migrate(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
-	t, err := newMigrateTask(ctx, cfg, awsCfg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	exportInfo, err := t.GetOrStartExportAndWaitForResults(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := t.ProcessDataObjects(ctx, exportInfo); err != nil {
-		return trace.Wrap(err)
-	}
-
-	t.Logger.Info("Migration finished")
-	return nil
+	return trace.Wrap(MigrateWithAWS(ctx, cfg, awsCfg))
 }
 
 // MigrateWithAWS executed dynamodb -> athena migration. Provide your own awsCfg
