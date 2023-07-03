@@ -18,7 +18,8 @@ package teleport.accesslist.v1;
 
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
-import "teleport/common/v1/common.proto";
+import "teleport/common/v1/resourceheader.proto";
+import "teleport/common/v1/trait.proto";
 
 option go_package = "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1;accesslist";
 
