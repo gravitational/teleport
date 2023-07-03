@@ -204,14 +204,26 @@ func SetAppLaunchContentSecurityPolicy(h http.Header, applicationURL string) {
 	h.Set("Content-Security-Policy", cspString)
 }
 
-func SetRedirectPageContentSecurityPolicy(h http.Header, scriptSrc string) {
+var redirectCspStringCache = make(map[string]string)
+
+func getRedirectPageContentSecurityPolicyString(scriptSrc string) string {
+	if cspString, ok := redirectCspStringCache[scriptSrc]; ok {
+		return cspString
+	}
+
 	cspString := getContentSecurityPolicyString(
 		defaultContentSecurityPolicy,
 		cspMap{
 			"script-src": {"'" + scriptSrc + "'"},
 		},
 	)
+	redirectCspStringCache[scriptSrc] = cspString
 
+	return cspString
+}
+
+func SetRedirectPageContentSecurityPolicy(h http.Header, scriptSrc string) {
+	cspString := getRedirectPageContentSecurityPolicyString(scriptSrc)
 	h.Set("Content-Security-Policy", cspString)
 }
 
