@@ -15813,14 +15813,12 @@ type JamfInventoryEntry struct {
 	// PARTIAL syncs are scheduled in the time window between FULL syncs, so
 	// sync_period_partial must always be smaller than sync_period_full, otherwise
 	// it would never trigger.
-	// Set to negative to disable PARTIAL syncs.
-	// Defaults to 6h.
+	// Set to zero or negative to disable PARTIAL syncs.
 	SyncPeriodPartial Duration `protobuf:"varint,2,opt,name=sync_period_partial,json=syncPeriodPartial,proto3,casttype=Duration" json:"sync_period_partial,omitempty"`
 	// Sync period for FULL syncs.
 	// Ideally sync_period_full is a multiple of sync_period_partial, so schedules
 	// line up perfectly.
-	// Set to negative to disable FULL syncs.
-	// Defaults to 24h.
+	// Set to zero or negative to disable FULL syncs.
 	SyncPeriodFull Duration `protobuf:"varint,3,opt,name=sync_period_full,json=syncPeriodFull,proto3,casttype=Duration" json:"sync_period_full,omitempty"`
 	// on_missing is the trigger used on devices missing from the MDM view in a
 	// FULL sync.

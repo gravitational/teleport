@@ -37,17 +37,20 @@ require (
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.4
 	github.com/aws/aws-sdk-go-v2/feature/s3/manager v1.11.67
 	github.com/aws/aws-sdk-go-v2/service/athena v1.30.2
-	github.com/aws/aws-sdk-go-v2/service/ec2 v1.100.1
+	github.com/aws/aws-sdk-go-v2/service/ec2 v1.102.0
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.1
 	github.com/aws/aws-sdk-go-v2/service/glue v1.51.0
+	github.com/aws/aws-sdk-go-v2/service/iam v1.20.3
 	github.com/aws/aws-sdk-go-v2/service/rds v1.44.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.35.0
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.13
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.22.0
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.2
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
+	github.com/aws/smithy-go v1.13.5
 	github.com/beevik/etree v1.2.0
 	github.com/bufbuild/connect-go v1.7.0
+	github.com/buildkite/bintest/v3 v3.1.1
 	github.com/coreos/go-oidc v2.1.0+incompatible // replaced
 	github.com/coreos/go-semver v0.3.1
 	github.com/creack/pty v1.1.18
@@ -129,6 +132,7 @@ require (
 	github.com/russellhaering/goxmldsig v1.4.0
 	github.com/sashabaranov/go-openai v1.10.1
 	github.com/schollz/progressbar/v3 v3.13.1
+	github.com/segmentio/parquet-go v0.0.0-20230622230624-510764ae9e80
 	github.com/sethvargo/go-diceware v0.3.0
 	github.com/sirupsen/logrus v1.9.3
 	github.com/snowflakedb/gosnowflake v1.6.22
@@ -136,8 +140,6 @@ require (
 	github.com/stretchr/testify v1.8.3
 	github.com/ucarion/urlpath v0.0.0-20200424170820-7ccc79b76bbb
 	github.com/vulcand/predicate v1.2.0 // replaced
-	github.com/xitongsys/parquet-go v1.6.2
-	github.com/xitongsys/parquet-go-source v0.0.0-20230312005205-fbbcdea5f512
 	go.etcd.io/etcd/api/v3 v3.5.9
 	go.etcd.io/etcd/client/v3 v3.5.9
 	go.mongodb.org/mongo-driver v1.12.0
@@ -213,7 +215,6 @@ require (
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137 // indirect
 	github.com/alicebob/gopher-json v0.0.0-20200520072559-a9ecdc9d1d3a // indirect
 	github.com/andybalholm/brotli v1.0.4 // indirect
-	github.com/apache/arrow/go/arrow v0.0.0-20200730104253-651201b0f516 // indirect
 	github.com/apache/arrow/go/v12 v12.0.0 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 // indirect
@@ -230,7 +231,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.14.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.12 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.12 // indirect
-	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect
@@ -314,6 +314,7 @@ require (
 	github.com/kr/text v0.2.0 // indirect
 	github.com/kylelemons/godebug v1.1.0 // indirect
 	github.com/kyroy/priority-queue v0.0.0-20180327160706-6e21825e7e0c // indirect
+	github.com/lib/pq v1.10.4 // indirect
 	github.com/liggitt/tabwriter v0.0.0-20181228230101-89fcab3d43de // indirect
 	github.com/lithammer/dedent v1.1.0 // indirect
 	github.com/mailru/easyjson v0.7.7 // indirect
@@ -336,9 +337,11 @@ require (
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/mxk/go-flowrate v0.0.0-20140419014527-cca7078d478f // indirect
 	github.com/nsf/termbox-go v1.1.1 // indirect
+	github.com/olekukonko/tablewriter v0.0.5 // indirect
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/patrickmn/go-cache v0.0.0-20180815053127-5633e0862627 // indirect
 	github.com/peterbourgon/diskv v2.0.1+incompatible // indirect
+	github.com/petermattis/goid v0.0.0-20180202154549-b0b1615b78e5 // indirect
 	github.com/pierrec/lz4/v4 v4.1.17 // indirect
 	github.com/pingcap/errors v0.11.5-0.20201126102027-b0a155152ca3 // indirect
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
@@ -352,6 +355,8 @@ require (
 	github.com/rs/zerolog v1.28.0 // indirect
 	github.com/russross/blackfriday/v2 v2.1.0 // indirect
 	github.com/ryszard/goskiplist v0.0.0-20150312221310-2dfbae5fcf46 // indirect
+	github.com/sasha-s/go-deadlock v0.0.0-20180226215254-237a9547c8a5 // indirect
+	github.com/segmentio/encoding v0.3.5 // indirect
 	github.com/shabbyrobe/gocovmerge v0.0.0-20190829150210-3e036491d500 // indirect
 	github.com/siddontang/go v0.0.0-20180604090527-bdc77568d726 // indirect
 	github.com/siddontang/go-log v0.0.0-20180807004314-8d05993dda07 // indirect

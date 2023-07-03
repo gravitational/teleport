@@ -15,8 +15,13 @@
 package aws
 
 import (
+	"context"
 	"errors"
+	"io"
 
+	awsV2 "github.com/aws/aws-sdk-go-v2/aws"
+	managerV2 "github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	s3v2 "github.com/aws/aws-sdk-go-v2/service/s3"
 	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/service/s3"
@@ -61,4 +66,65 @@ func ConvertS3Error(err error, args ...interface{}) error {
 		return trace.AlreadyExists(bucketAlreadyOwned.Error(), args...)
 	}
 	return err
+}
+
+// s3V2FileWriter can be used to upload data to s3 via io.WriteCloser interface.
+type s3V2FileWriter struct {
+	// uploadFinisherErrChan is used to wait for completed upload as well as
+	// sending error message.
+	uploadFinisherErrChan <-chan error
+	pipeWriter            *io.PipeWriter
+	pipeReader            *io.PipeReader
+}
+
+// NewS3V2FileWriter created s3V2FileWriter. Close method on writer should be called
+// to make sure that reader has finished.
+func NewS3V2FileWriter(ctx context.Context, s3Client managerV2.UploadAPIClient, bucket, key string, uploaderOptions []func(*managerV2.Uploader), putObjectInputOptions ...func(*s3v2.PutObjectInput)) (*s3V2FileWriter, error) {
+	uploader := managerV2.NewUploader(s3Client, uploaderOptions...)
+	pr, pw := io.Pipe()
+
+	uploadParams := &s3v2.PutObjectInput{
+		Bucket: awsV2.String(bucket),
+		Key:    awsV2.String(key),
+		Body:   pr,
+	}
+
+	for _, f := range putObjectInputOptions {
+		f(uploadParams)
+	}
+	uploadFinisherErrChan := make(chan error)
+	go func() {
+		defer close(uploadFinisherErrChan)
+		_, err := uploader.Upload(ctx, uploadParams)
+		if err != nil {
+			pr.CloseWithError(err)
+		}
+		uploadFinisherErrChan <- trace.Wrap(err)
+	}()
+
+	return &s3V2FileWriter{
+		uploadFinisherErrChan: uploadFinisherErrChan,
+		pipeWriter:            pw,
+		pipeReader:            pr,
+	}, nil
+}
+
+// Write bytes from in to the connected pipe.
+func (s *s3V2FileWriter) Write(in []byte) (int, error) {
+	bytesWritten, writeError := s.pipeWriter.Write(in)
+	if writeError != nil {
+		s.pipeWriter.CloseWithError(writeError)
+		return bytesWritten, writeError
+	}
+	return bytesWritten, nil
+}
+
+// Close signals write completion and cleans up any
+// open streams. Will block until pending uploads are complete.
+func (s *s3V2FileWriter) Close() error {
+	wCloseErr := s.pipeWriter.Close()
+	// wait for reader to finish, it will be triggered by writer.Close
+	readerErr := <-s.uploadFinisherErrChan
+	rCloseErr := s.pipeReader.Close()
+	return trace.Wrap(trace.NewAggregate(wCloseErr, readerErr, rCloseErr))
 }

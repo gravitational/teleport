@@ -76,7 +76,7 @@ type transport struct {
 	sconn sshutils.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
-	reverseTunnelServer Server
+	reverseTunnelServer reversetunnelclient.Server
 
 	// server is either an SSH or application server. It can handle a connection
 	// (perform handshake and handle request).
@@ -194,7 +194,7 @@ func (p *transport) start() {
 			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
 			src, err := utils.ParseAddr(dreq.ClientSrcAddr)
 			if err == nil {
-				clientConn = newConnectionWithSrcAddr(clientConn, src)
+				clientConn = utils.NewConnWithSrcAddr(clientConn, getTCPAddr(src))
 			}
 			p.server.HandleConnection(clientConn)
 			return
@@ -237,7 +237,7 @@ func (p *transport) start() {
 			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
 			src, err := utils.ParseAddr(dreq.ClientSrcAddr)
 			if err == nil {
-				clientConn = newConnectionWithSrcAddr(clientConn, src)
+				clientConn = utils.NewConnWithSrcAddr(clientConn, getTCPAddr(src))
 			}
 			p.server.HandleConnection(clientConn)
 			return
@@ -377,11 +377,11 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 		// a direct dial, return right away.
 		switch r.ConnType {
 		case types.AppTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoApplicationTunnel)
 		case types.OktaTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoOktaTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoOktaTunnel)
 		case types.DatabaseTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoDatabaseTunnel)
 		}
 
 		errTun := err
@@ -450,37 +450,9 @@ func (p *transport) directDial(addr string) (net.Conn, error) {
 	return conn, nil
 }
 
-// connectionWithSrcAddr is a net.Conn wrapper that allows us to specify remote client address
-type connectionWithSrcAddr struct {
-	net.Conn
-	clientSrcAddr net.Addr
-}
-
-// RemoteAddr returns specified client source address
-func (c *connectionWithSrcAddr) RemoteAddr() net.Addr {
-	return c.clientSrcAddr
-}
-
-// NetConn returns the underlying net.Conn.
-func (c *connectionWithSrcAddr) NetConn() net.Conn {
-	return c.Conn
-}
-
-// newConnectionWithSrcAddr wraps provided connection and overrides client remote address
-func newConnectionWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *connectionWithSrcAddr {
-	var addr net.Addr
-	if clientSrcAddr != nil {
-		addr = getTCPAddr(clientSrcAddr) // SSH package requires net.TCPAddr for source-address check
-	}
-	if addr == nil {
-		addr = conn.RemoteAddr()
-	}
-	return &connectionWithSrcAddr{
-		Conn:          conn,
-		clientSrcAddr: addr,
-	}
-}
-
+// getTCPAddr converts net.Addr to *net.TCPAddr.
+//
+// SSH package requires net.TCPAddr for source-address check.
 func getTCPAddr(addr net.Addr) *net.TCPAddr {
 	ap, err := netip.ParseAddrPort(addr.String())
 	if err != nil {

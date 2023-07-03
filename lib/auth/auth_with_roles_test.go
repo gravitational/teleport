@@ -4669,6 +4669,11 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 		require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
 	}
 
+	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
+	}
+
 	for _, tc := range []struct {
 		name                  string
 		headlessID            string
@@ -4692,20 +4697,17 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 		}, {
 			name:        "NOK admin",
 			identity:    TestAdmin(),
-			assertError: assertTimeout,
+			assertError: assertAccessDenied,
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
 			// create headless authn
 			headlessAuthn := newTestHeadlessAuthn(t, username, srv.Auth().clock)
-			stub, err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, headlessAuthn.GetName())
+			err := srv.Auth().UpsertHeadlessAuthentication(ctx, headlessAuthn)
 			require.NoError(t, err)
-			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
-			require.NoError(t, err)
-
 			client, err := srv.NewClient(tc.identity)
 			require.NoError(t, err)
 
@@ -4736,9 +4738,14 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 	_, _, err := CreateUserAndRole(srv.Auth(), otherUsername, nil, nil)
 	require.NoError(t, err)
 
-	assertTimeout := func(t require.TestingT, err error, i ...interface{}) {
+	assertNotFound := func(t require.TestingT, err error, i ...interface{}) {
 		require.Error(t, err)
-		require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
+		require.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
+	}
+
+	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
 	}
 
 	for _, tc := range []struct {
@@ -4761,49 +4768,45 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     true,
 			assertError: require.NoError,
 		}, {
-			name:    "NOK same user approved without mfa",
-			state:   types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
-			withMFA: false,
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
-			},
+			name:        "NOK same user approved without mfa",
+			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
+			withMFA:     false,
+			assertError: assertAccessDenied,
 		}, {
 			name:        "NOK not found",
 			headlessID:  uuid.NewString(),
 			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
-			assertError: assertTimeout,
+			assertError: assertNotFound,
 		}, {
-			name:        "NOK different user denied",
+			name:        "NOK different user not found",
 			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
 			identity:    TestUser(otherUsername),
-			assertError: assertTimeout,
+			assertError: assertNotFound,
 		}, {
 			name:        "NOK different user approved",
 			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
 			identity:    TestUser(otherUsername),
-			assertError: assertTimeout,
+			assertError: assertNotFound,
 		}, {
 			name:        "NOK admin denied",
 			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
 			identity:    TestAdmin(),
-			assertError: assertTimeout,
+			assertError: assertAccessDenied,
 		}, {
 			name:        "NOK admin approved",
 			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
 			identity:    TestAdmin(),
-			assertError: assertTimeout,
+			assertError: assertAccessDenied,
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
 			// create headless authn
 			headlessAuthn := newTestHeadlessAuthn(t, mfa.User, srv.Auth().clock)
-			stub, err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, headlessAuthn.GetName())
-			require.NoError(t, err)
-			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
+			headlessAuthn.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
+			err := srv.Auth().UpsertHeadlessAuthentication(ctx, headlessAuthn)
 			require.NoError(t, err)
 
 			// default to mfa user
@@ -5514,5 +5517,192 @@ func TestSafeToSkipInventoryCheck(t *testing.T) {
 	} {
 		require.Equal(t, tc.safeToSkip,
 			safeToSkipInventoryCheck(*semver.New(tc.authVersion), *semver.New(tc.minRequiredVersion)))
+	}
+}
+
+func TestCreateAccessRequest(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	srv := newTestTLSServer(t)
+	clock := srv.Clock()
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	searchRole, err := types.NewRole("requestRole", types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Request: &types.AccessRequestConditions{
+				Roles:         []string{"requestRole"},
+				SearchAsRoles: []string{"requestRole"},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	requestRole, err := types.NewRole("requestRole", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	srv.Auth().CreateRole(ctx, searchRole)
+	srv.Auth().CreateRole(ctx, requestRole)
+
+	user, err := srv.Auth().GetUser(alice, true)
+	require.NoError(t, err)
+
+	user.AddRole(searchRole.GetName())
+	require.NoError(t, srv.Auth().UpsertUser(user))
+
+	userGroup1, err := types.NewUserGroup(types.Metadata{
+		Name: "user-group1",
+	}, types.UserGroupSpecV1{
+		Applications: []string{"app1", "app2", "app3"},
+	})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().CreateUserGroup(ctx, userGroup1))
+
+	userGroup2, err := types.NewUserGroup(types.Metadata{
+		Name: "user-group2",
+	}, types.UserGroupSpecV1{})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().CreateUserGroup(ctx, userGroup2))
+
+	userGroup3, err := types.NewUserGroup(types.Metadata{
+		Name: "user-group3",
+	}, types.UserGroupSpecV1{
+		Applications: []string{"app1", "app4", "app5"},
+	})
+	require.NoError(t, err)
+	require.NoError(t, srv.Auth().CreateUserGroup(ctx, userGroup3))
+
+	tests := []struct {
+		name             string
+		user             string
+		accessRequest    types.AccessRequest
+		errAssertionFunc require.ErrorAssertionFunc
+		expected         types.AccessRequest
+	}{
+		{
+			name: "user creates own pending access request",
+			user: alice,
+			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+				}),
+			errAssertionFunc: require.NoError,
+			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+				}),
+		},
+		{
+			name: "admin creates a request for alice",
+			user: admin,
+			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+				}),
+			errAssertionFunc: require.NoError,
+			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+				}),
+		},
+		{
+			name: "bob fails to create a request for alice",
+			user: bob,
+			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+				}),
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "user creates own pending access request with user group needing app expansion",
+			user: alice,
+			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup2.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup3.GetName()),
+				}),
+			errAssertionFunc: require.NoError,
+			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup2.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup3.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app2"),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app3"),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app4"),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app5"),
+				}),
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Make sure there are no access requests before we do anything. We'll clear out
+			// each time to save on the complexity of setting up the auth server and dependent
+			// users and roles.
+			ctx := context.Background()
+			require.NoError(t, srv.Auth().DeleteAllAccessRequests(ctx))
+
+			client, err := srv.NewClient(TestUser(test.user))
+			require.NoError(t, err)
+
+			test.errAssertionFunc(t, client.CreateAccessRequest(ctx, test.accessRequest))
+
+			accessRequests, err := srv.Auth().GetAccessRequests(ctx, types.AccessRequestFilter{
+				ID: test.accessRequest.GetName(),
+			})
+			require.NoError(t, err)
+
+			if test.expected == nil {
+				require.Empty(t, accessRequests)
+				return
+			}
+
+			require.Len(t, accessRequests, 1)
+
+			// We have to ignore the name here, as it's auto-generated by the underlying access request
+			// logic.
+			require.Empty(t, cmp.Diff(test.expected, accessRequests[0],
+				cmpopts.IgnoreFields(types.Metadata{}, "Name", "ID"),
+				cmpopts.IgnoreFields(types.AccessRequestSpecV3{}),
+			))
+		})
+	}
+}
+
+func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {
+	t.Helper()
+
+	accessRequest, err := types.NewAccessRequest(uuid.NewString(), user, roles...)
+	require.NoError(t, err)
+
+	accessRequest.SetRequestedResourceIDs(resourceIDs)
+	accessRequest.SetState(state)
+	accessRequest.SetCreationTime(created)
+	accessRequest.SetExpiry(expires)
+	accessRequest.SetAccessExpiry(expires)
+	accessRequest.SetThresholds([]types.AccessReviewThreshold{{Name: "default", Approve: 1, Deny: 1}})
+	accessRequest.SetRoleThresholdMapping(map[string]types.ThresholdIndexSets{
+		"requestRole": {
+			Sets: []types.ThresholdIndexSet{
+				{Indexes: []uint32{0}},
+			},
+		},
+	})
+
+	return accessRequest
+}
+
+func mustResourceID(clusterName, kind, name string) types.ResourceID {
+	return types.ResourceID{
+		ClusterName: clusterName,
+		Kind:        kind,
+		Name:        name,
 	}
 }

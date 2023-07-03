@@ -32,13 +32,13 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
-func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of resources.
 	clt, err := c.GetUserClient(r.Context(), site)

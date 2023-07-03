@@ -19,6 +19,8 @@ import (
 	"context"
 	"errors"
 	"net"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 	"time"
@@ -474,4 +476,40 @@ func (f *fakeConn) RemoteAddr() net.Addr {
 
 func (f *fakeConn) Close() error {
 	return nil
+}
+
+func TestMakeMiddleware(t *testing.T) {
+	t.Parallel()
+
+	limiter, err := NewLimiter(Config{
+		MaxConnections: 1,
+		Rates: []Rate{
+			{
+				Period:  time.Minute,
+				Average: 1,
+				Burst:   1,
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	middleware := MakeMiddleware(limiter)
+	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusAccepted)
+	}))
+
+	mustServeAndReceiveStatusCode(t, handler, http.StatusAccepted)
+	mustServeAndReceiveStatusCode(t, handler, http.StatusTooManyRequests)
+}
+
+func mustServeAndReceiveStatusCode(t *testing.T, handler http.Handler, wantStatusCode int) {
+	t.Helper()
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest("", "/", nil))
+
+	response := recorder.Result()
+	defer response.Body.Close()
+
+	require.Equal(t, wantStatusCode, response.StatusCode)
 }

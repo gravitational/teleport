@@ -23,6 +23,9 @@ import {
   DiscoverEvent,
   DiscoverEventResource,
   userEventService,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeploy,
+  DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
@@ -70,6 +73,7 @@ type CustomEventInput = {
   eventResourceName?: DiscoverEventResource;
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
+  serviceDeploy?: DiscoverServiceDeploy;
 };
 
 type DiscoverProviderProps = {
@@ -120,13 +124,28 @@ export function DiscoverProvider({
     (status: DiscoverEventStepStatus, custom?: CustomEventInput) => {
       const { id, currEventName } = eventState;
 
+      const event = custom?.eventName || currEventName;
+
+      let serviceDeploy: DiscoverServiceDeploy;
+      if (event === DiscoverEvent.DeployService) {
+        if (custom?.serviceDeploy) {
+          serviceDeploy = custom.serviceDeploy;
+        } else {
+          serviceDeploy = {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          };
+        }
+      }
+
       userEventService.captureDiscoverEvent({
-        event: custom?.eventName || currEventName,
+        event,
         eventData: {
           id: id || custom.id,
           resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
+          serviceDeploy,
           ...status,
         },
       });
@@ -387,7 +406,14 @@ export function DiscoverProvider({
         stepStatus: DiscoverEventStatus.Error,
         stepStatusError: errorStr,
       },
-      { autoDiscoverResourcesCount: 0, selectedResourcesCount: 0 }
+      {
+        autoDiscoverResourcesCount: 0,
+        selectedResourcesCount: 0,
+        serviceDeploy: {
+          method: DiscoverServiceDeployMethod.Unspecified,
+          type: DiscoverServiceDeployType.Unspecified,
+        },
+      }
     );
   }
 
