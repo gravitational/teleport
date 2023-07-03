@@ -98,6 +98,12 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
         taskRoleArn,
         databaseAgentMatcherLabels: labels,
       })
+      // The user is still technically in the "processing"
+      // state, because after this call succeeds, we will
+      // start pinging for the newly registered db
+      // to get picked up by this service we deployed.
+      // So setting the attempt here to "success"
+      // is not necessary.
       .then(setDeploySvcResp)
       .catch((err: Error) => {
         setAttempt({ status: 'failed', statusText: err.message });

@@ -55,11 +55,6 @@ test('correct formatting of database fetch response', async () => {
         names: [],
         users: [],
         labels: [],
-        aws: {
-          rds: {
-            subnets: [],
-          },
-        },
       },
     ],
     startKey: mockResponse.startKey,
