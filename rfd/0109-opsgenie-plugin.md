@@ -1,4 +1,5 @@
 # RFD 109: Opsgenie Integration
+
 ## Required approvers
 
 Engineering: @r0mant, @marcoandredinis, @hugoShaka
@@ -7,7 +8,7 @@ Security: @reedloden, @jentfoo
 
 ## What
 
-This RFD proposes a plugin that allows Teleport to integrate with Opsgenie, allowing access requests to show up as alerts in Opsgenie. This plugin will differ from existing plugins by being part of the Teleport binary directly. 
+This RFD proposes a plugin that allows Teleport to integrate with Opsgenie, allowing access requests to show up as alerts in Opsgenie. This plugin will differ from existing plugins by being part of the Teleport binary directly.
 Doing so by creating a new Teleport service 'plugin_service' with the opsgenie plugin (and any future ones) being configurable resources. This will allow the plugins to be run either by themselves or alongside other Teleport services.
 
 ## Scope
@@ -42,7 +43,7 @@ plugin_service:
 ```
 This example would only match plugin resources with the the labels 'type:opsgenie', or 'type:slack'.
 
-The Opsgenie plugin (and any others created) can then be configured using resources. 
+The Opsgenie plugin (and any others created) can then be configured using resources.
 Example plugin.yaml for Opsgenie that would match with this.
 ```
 kind: plugin
@@ -160,7 +161,7 @@ To check if the requesting user of a request is currently on-call the ‘Who is 
 
 Similar to the existing Pagerduty plugin for auto-approval to work, the user creating an Access Request must have a Teleport username that is also the email address associated with an Opsgenie account.
 
-Access requests will be mapped to Opsgenie alerts by including the Access request ID in the tags field of the note. 
+Access requests will be mapped to Opsgenie alerts by including the Access request ID in the tags field of the note.
 
 ### IaC
 
@@ -170,4 +171,3 @@ The Helm charts will be updated to support the new plugin-service.
 
 Potential for users to get access requests auto approved if they can get themselves onto the current on call rotation.
 Since Teleport usernames are assumed to match the Opsgenie email address when checking on call there is potential for access requests to be auto approved unintentionally.
-

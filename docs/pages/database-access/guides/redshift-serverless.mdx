@@ -1,6 +1,6 @@
 ---
 title: Database Access with Redshift Serverless on AWS
-description: How to configure Teleport Database Access with AWS Redshift Serverless.
+description: How to configure Teleport database access with AWS Redshift Serverless.
 ---
 
 This guide will help you to:
@@ -17,9 +17,8 @@ This guide will help you to:
 
 ## Prerequisites
 
-- A pre-existing Teleport `(=teleport.version=)` cluster. If you don't already
-  have Teleport running, see [How to Choose a Teleport Edition](../../choose-an-edition/introduction.mdx)
-  to learn more about your options, and how to set up Teleport.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - AWS account with a Redshift Serverless configuration and permissions to create
   and attach IAM policies.
 - Command-line client `psql` installed and added to your system's `PATH` environment variable.
@@ -189,6 +188,8 @@ role 'redshift-serverless-access' has been created
 ## Step 4/5. Install and start the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
 Install Teleport on the host where you will run the Teleport Database Service:
 

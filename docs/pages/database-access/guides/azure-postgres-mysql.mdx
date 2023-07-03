@@ -1,6 +1,6 @@
 ---
 title: Database Access with Azure PostgreSQL and MySQL
-description: How to configure Teleport Database Access with Azure Database for PostgreSQL and MySQL.
+description: How to configure Teleport database access with Azure Database for PostgreSQL and MySQL.
 ---
 
 <Details
@@ -142,9 +142,9 @@ spec:
 
 | Flag                       | Description                                                                                                                              |
 |----------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| <nobr>`--db-users`</nobr>  | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
-| <nobr>`--db-names`</nobr>  | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
-| <nobr>`--db-labels`</nobr> | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
+| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
+| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
+| `--db-labels` | List of labels assigned to the database the user will be able to access. A wildcard entry allows any database.                           |
 
 Save this file and apply it to your Teleport cluster:
 
@@ -223,7 +223,7 @@ and replace the subscription in "assignableScopes" with your own subscription id
 ![Create JSON role](../../../img/database-access/guides/azure/create-role-from-json@2x.png)
 </Figure>
 
-### Create a role assignment for the Teleport Database Service principal.
+### Create a role assignment for the Teleport Database Service principal
 
 (!docs/pages/includes/database-access/azure-assign-service-principal.mdx!)
 

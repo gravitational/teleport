@@ -19,42 +19,43 @@ on_azure() {
   if test -f /usr/local/bin/teleport; then
     exit 0
   fi
-
+  # shellcheck disable=SC1091
   . /etc/os-release
 
-  # old versions of ubuntu require that keys get added by `apt-key add`, without
-  # adding the key apt shows a key signing error when installing teleport.
-  LEGACY_UBUNTU=false
-  if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
-    LEGACY_UBUNTU=true
+  PACKAGE_LIST="{{ .TeleportPackage }} jq"
+  # shellcheck disable=SC2050
+  if [ "{{ .AutomaticUpgrades }}" = "true" ]; then
+    PACKAGE_LIST="${PACKAGE_LIST} {{ .TeleportPackage }}-updater"
   fi
 
   if [ "$ID" = "debian" ] || [ "$ID" = "ubuntu" ]; then
-    if [ "$LEGACY_UBUNTU" = true ]; then
-      curl -o /tmp/teleport-pubkey.asc https://deb.releases.teleport.dev/teleport-pubkey.asc
-      cat /tmp/teleport-pubkey.asc | sudo apt-key add -
+    # old versions of ubuntu require that keys get added by `apt-key add`, without
+    # adding the key apt shows a key signing error when installing teleport.
+    if [ "$VERSION_CODENAME" = "xenial" ] || [ "$VERSION_CODENAME" = "trusty" ]; then
+      curl -o /tmp/teleport-pubkey.asc https://apt.releases.teleport.dev/gpg
+      sudo apt-key add /tmp/teleport-pubkey.asc
       echo "deb https://apt.releases.teleport.dev/ubuntu ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list
       rm /tmp/teleport-pubkey.asc
     else
-      sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+      sudo curl https://apt.releases.teleport.dev/gpg \
         -o /usr/share/keyrings/teleport-archive-keyring.asc
       echo "deb [signed-by=/usr/share/keyrings/teleport-archive-keyring.asc]  https://apt.releases.teleport.dev/${ID?} ${VERSION_CODENAME?} {{ .RepoChannel }}" | sudo tee /etc/apt/sources.list.d/teleport.list >/dev/null
     fi
     sudo apt-get update
-    sudo apt-get install -y {{ .TeleportPackage }} jq
+    sudo apt-get install -y ${PACKAGE_LIST}
   elif [ "$ID" = "amzn" ] || [ "$ID" = "rhel" ]; then
     if [ "$ID" = "rhel" ]; then
       VERSION_ID=$(echo "$VERSION_ID" | sed 's/\..*//') # convert version numbers like '7.2' to only include the major version
     fi
     sudo yum-config-manager --add-repo \
       "$(rpm --eval "https://yum.releases.teleport.dev/$ID/$VERSION_ID/Teleport/%{_arch}/{{ .RepoChannel }}/teleport.repo")"
-    sudo yum install -y {{ .TeleportPackage }} jq
+    sudo yum install -y ${PACKAGE_LIST}
   else
     echo "Unsupported distro: $ID"
     exit 1
   fi
-  
-  if on_azure ; then
+
+  if on_azure; then
     API_VERSION=$(curl -m5 -sS -H "Metadata:true" --noproxy "*" "http://169.254.169.254/metadata/versions" | jq -r ".apiVersions[-1]")
     INSTANCE_INFO=$(curl -m5 -sS -H "Metadata:true" --noproxy "*" "http://169.254.169.254/metadata/instance?api-version=$API_VERSION&format=json")
 
@@ -65,7 +66,7 @@ on_azure() {
 
     JOIN_METHOD=azure
     LABELS="teleport.internal/vm-id=${VM_ID},teleport.internal/subscription-id=${SUBSCRIPTION_ID},teleport.internal/region=${REGION},teleport.internal/resource-group=${RESOURCE_GROUP}"
-  elif on_ec2 ; then
+  elif on_ec2; then
     IMDS_TOKEN=$(curl -m5 -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
     INSTANCE_INFO=$(curl -m5 -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/dynamic/instance-identity/document)
 

@@ -20,30 +20,27 @@ exports[`can create 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
 }
 
-.c0:active {
-  opacity: 0.56;
-}
-
 .c0:hover,
 .c0:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c0:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c0:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 <div>
@@ -84,30 +81,27 @@ exports[`cannot create 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
 }
 
-.c0:active {
-  opacity: 0.56;
-}
-
 .c0:hover,
 .c0:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c0:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c0:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 <div>
@@ -149,30 +143,27 @@ exports[`cannot create when resource starts with vowel 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
 }
 
-.c0:active {
-  opacity: 0.56;
-}
-
 .c0:hover,
 .c0:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c0:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c0:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 <div>
@@ -214,30 +205,27 @@ exports[`on leaf cluster 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
 }
 
-.c0:active {
-  opacity: 0.56;
-}
-
 .c0:hover,
 .c0:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c0:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c0:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 <div>
@@ -279,30 +267,27 @@ exports[`on leaf cluster when resource starts with vowel 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
 }
 
-.c0:active {
-  opacity: 0.56;
-}
-
 .c0:hover,
 .c0:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c0:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c0:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 <div>

@@ -19,13 +19,16 @@ package config
 import (
 	"bytes"
 	"math"
+	"os"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -33,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/types/installers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/sshutils/x11"
 )
 
@@ -372,6 +376,9 @@ func TestAuthenticationSection(t *testing.T) {
 				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
 					"device_trust": cfgMap{
 						"mode": "required",
+						"ekcert_allowed_cas": []string{
+							"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
+						},
 					},
 				}
 			},
@@ -379,6 +386,26 @@ func TestAuthenticationSection(t *testing.T) {
 			expected: &AuthenticationConfig{
 				DeviceTrust: &DeviceTrust{
 					Mode: "required",
+					EKCertAllowedCAs: []string{
+						"-----BEGIN CERTIFICATE-----\nfake certificate1\n-----END CERTIFICATE-----",
+					},
+				},
+			},
+		}, {
+			desc: "Device Trust with auto-enroll",
+			mutate: func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"device_trust": cfgMap{
+						"mode":        "required",
+						"auto_enroll": "yes",
+					},
+				}
+			},
+			expectError: require.NoError,
+			expected: &AuthenticationConfig{
+				DeviceTrust: &DeviceTrust{
+					Mode:       "required",
+					AutoEnroll: "yes",
 				},
 			},
 		},
@@ -611,6 +638,127 @@ func TestAuthenticationConfig_RequireSessionMFA(t *testing.T) {
 
 			require.NoError(t, err)
 			require.Empty(t, cmp.Diff(cfg.Auth.Authentication.RequireMFAType, tt.expectRequireMFAType))
+		})
+	}
+}
+
+func TestAuthenticationConfig_Parse_deviceTrustPB(t *testing.T) {
+	// Device trust mode=required is an Enterprise feature.
+	modules.SetTestModules(t, &modules.TestModules{
+		TestBuildType: modules.BuildEnterprise,
+	})
+
+	tpmEKCertPath := "testdata/tpm_ekcert_ca.pem"
+	tpmEKCertPEM, err := os.ReadFile(tpmEKCertPath)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name       string
+		configYAML []byte
+		wantErr    bool
+		wantPB     *types.DeviceTrust
+	}{
+		{
+			name: "minimal config",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"device_trust": cfgMap{
+						"mode": "optional",
+					},
+				}
+			}),
+			wantPB: &types.DeviceTrust{
+				Mode: "optional",
+			},
+		},
+		{
+			name: "all fields",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"device_trust": cfgMap{
+						"mode":        "required",
+						"auto_enroll": "yes",
+						"ekcert_allowed_cas": []string{
+							string(tpmEKCertPEM),
+						},
+					},
+				}
+			}),
+			wantPB: &types.DeviceTrust{
+				Mode:       "required",
+				AutoEnroll: true,
+				EKCertAllowedCAs: []string{
+					string(tpmEKCertPEM),
+				},
+			},
+		},
+		{
+			name: "reads ekcert_allowed_cas from path",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"device_trust": cfgMap{
+						"ekcert_allowed_cas": []string{
+							tpmEKCertPath,
+						},
+					},
+				}
+			}),
+			wantPB: &types.DeviceTrust{
+				EKCertAllowedCAs: []string{
+					string(tpmEKCertPEM),
+				},
+			},
+			wantErr: false,
+		},
+		{
+			name: "invalid ekcert_allowed_cas entry",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"device_trust": cfgMap{
+						"ekcert_allowed_cas": []string{
+							"this is not a pem encoded CA",
+						},
+					},
+				}
+			}),
+			wantErr: true,
+		},
+		{
+			name: "auto-enroll invalid",
+			configYAML: editConfig(t, func(cfg cfgMap) {
+				cfg["auth_service"].(cfgMap)["authentication"] = cfgMap{
+					"type":          "local",
+					"second_factor": "off", // uncharacteristic, but not necessary for this test
+					"device_trust": cfgMap{
+						"mode":        "required",
+						"auto_enroll": "NOT A BOOLEAN", // invalid
+					},
+				}
+			}),
+			wantErr: true,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg, err := ReadConfig(bytes.NewBuffer(test.configYAML))
+			require.NoError(t, err, "ReadConfig failed")
+
+			cap, err := cfg.Auth.Authentication.Parse()
+			if test.wantErr {
+				assert.Error(t, err, "ReadConfig error mismatch")
+				assert.True(t, trace.IsBadParameter(err), "ReadConfig returned non-BadParameter error: %v (%T)", err, err)
+				return
+			}
+			require.NoError(t, err, "Parse failed")
+
+			got := cap.GetDeviceTrust()
+			if diff := cmp.Diff(test.wantPB, got, protocmp.Transform()); diff != "" {
+				t.Errorf("Parse mismatch (-want +got)\n%s", diff)
+			}
 		})
 	}
 }
@@ -1006,6 +1154,47 @@ func TestDiscoveryConfig(t *testing.T) {
 				}
 			},
 			expectedDiscoverySection: Discovery{},
+		},
+		{
+			desc:          "AWS section is filled with external_id but empty assume_role_arn is ok for redshift serverless",
+			expectError:   require.NoError,
+			expectEnabled: require.True,
+			mutate: func(cfg cfgMap) {
+				cfg["discovery_service"].(cfgMap)["enabled"] = "yes"
+				cfg["discovery_service"].(cfgMap)["aws"] = []cfgMap{
+					{
+						"types":           []string{"redshift-serverless"},
+						"regions":         []string{"us-west-1"},
+						"assume_role_arn": "",
+						"external_id":     "externalid123",
+						"tags": cfgMap{
+							"discover_teleport": "yes",
+						},
+					},
+				}
+			},
+			expectedDiscoverySection: Discovery{
+				AWSMatchers: []AWSMatcher{
+					{
+						Types:   []string{"redshift-serverless"},
+						Regions: []string{"us-west-1"},
+						Tags: map[string]apiutils.Strings{
+							"discover_teleport": []string{"yes"},
+						},
+						InstallParams: &InstallParams{
+							JoinParams: JoinParams{
+								TokenName: "aws-discovery-iam-token",
+								Method:    types.JoinMethodIAM,
+							},
+							SSHDConfig: "/etc/ssh/sshd_config",
+							ScriptName: "default-installer",
+						},
+						SSM:           AWSSSM{DocumentName: "TeleportDiscoveryInstaller"},
+						AssumeRoleARN: "",
+						ExternalID:    "externalid123",
+					},
+				},
+			},
 		},
 		{
 			desc:          "AWS section is filled with invalid assume_role_arn",

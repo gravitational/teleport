@@ -31,6 +31,13 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		Type: eventType,
 	}
 	if in.Type == types.OpInit {
+		watchStatus, ok := in.Resource.(*types.WatchStatusV1)
+		if !ok {
+			return nil, trace.BadParameter("unexpected resource type %T for Init event", in.Resource)
+		}
+		out.Resource = &proto.Event_WatchStatus{
+			WatchStatus: watchStatus,
+		}
 		return &out, nil
 	}
 	switch r := in.Resource.(type) {
@@ -195,6 +202,14 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_OktaAssignment{
 			OktaAssignment: r,
 		}
+	case *types.IntegrationV1:
+		out.Resource = &proto.Event_Integration{
+			Integration: r,
+		}
+	case *types.HeadlessAuthentication:
+		out.Resource = &proto.Event_HeadlessAuthentication{
+			HeadlessAuthentication: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -225,6 +240,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		Type: eventType,
 	}
 	if eventType == types.OpInit {
+		if r := in.GetWatchStatus(); r != nil {
+			out.Resource = r
+		}
 		return &out, nil
 	}
 	if r := in.GetResourceHeader(); r != nil {
@@ -339,6 +357,12 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetOktaAssignment(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetIntegration(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetHeadlessAuthentication(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

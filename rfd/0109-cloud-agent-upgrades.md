@@ -72,7 +72,7 @@ their control planes are always compatible with the current version targeted by 
 The current `cloud-stable` target version will be served via an `s3` bucket backed by CloudFront. Ex:
 
 ```
-$ VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://update.gravitational.io/v1/cloud-stable/version)"
+$ VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://updates.releases.teleport.dev/v1/cloud/stable/version)"
 ```
 
 Formally, this will be the only definition of what the current "cloud-stable" target is. An agent "downgrade" will
@@ -90,7 +90,7 @@ Rollout of a new version to cloud-stable will generally follow the following ste
 agents that have yet to be upgraded. I.e. if cloud-stable targets `v1` at `T1`, then the control plane must maintain
 compatibility with `v1` until at least `T1 + grace_period`.
 
-Note that in practice, wether or not the ordering/timing of the above steps matters depends entirely on what changes
+Note that in practice, whether or not the ordering/timing of the above steps matters depends entirely on what changes
 were made between versions. Most minor/patch releases don't actually require this kind of procedure, tho its best to
 assume that the procedure is required unless we are rolling out a critical bug fix that was specifically designed to
 be self-contained.
@@ -123,8 +123,8 @@ is treated as non-critical.
 Example usage:
 
 ```bash
-VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://update.gravitational.io/v1/cloud-stable/version)"
-CRITICAL="$(curl --proto '=https' --tlsv1.2 -sSf https://update.gravitational.io/v1/cloud-stable/critical)"
+VERSION="$(curl --proto '=https' --tlsv1.2 -sSf https://updates.releases.teleport.dev/v1/cloud/stable/version)"
+CRITICAL="$(curl --proto '=https' --tlsv1.2 -sSf https://updates.releases.teleport.dev/v1/cloud/stable/critical)"
 
 if [[ "$CRITICAL" == "yes" || "$UPGRADE_WINDOW" == "yes" ]]
 then

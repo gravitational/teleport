@@ -22,7 +22,6 @@ import (
 	"sort"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -313,7 +312,7 @@ func (k *KubernetesClusterV3) String() string {
 
 // Copy returns a copy of this resource.
 func (k *KubernetesClusterV3) Copy() *KubernetesClusterV3 {
-	return proto.Clone(k).(*KubernetesClusterV3)
+	return utils.CloneProtoMsg(k)
 }
 
 // MatchSearch goes through select field values and tries to

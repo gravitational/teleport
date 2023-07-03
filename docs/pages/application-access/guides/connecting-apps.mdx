@@ -9,7 +9,7 @@ and follow the installation [instructions](../../installation.mdx).
 ## Start Auth/Proxy service
 
 Create a configuration file for a Teleport service that will be running
-auth and proxy servers:
+the Auth and Proxy Services:
 
 ```yaml
 teleport:
@@ -72,7 +72,7 @@ comes with a built-in `access` role that grants access to all apps:
 $ tctl --config=/path/to/teleport.yaml users add --roles=access appuser
 ```
 
-## Start application service with CLI flags
+## Start the Application Service with CLI flags
 
 Install Teleport:
 
@@ -91,10 +91,16 @@ $ sudo teleport start \
 ```
 
 Note that the `--auth-server` flag must point to the Teleport cluster's proxy
-endpoint because the application service always connects back to the cluster over
+endpoint because the Application Service always connects back to the cluster over
 a reverse tunnel.
 
 ### Application name
+
+{/*
+Note: this section of the docs is linked to from error messages in the product.
+Please make sure to update lib/srv/servicecfg/app.go if you change this section
+header or move this page.
+*/}
 
 An application name should make a valid sub-domain (\<=63 characters, no spaces, only `a-z 0-9 -` allowed).
 
@@ -103,7 +109,7 @@ e.g. `grafana.teleport.example.com`. You can also override `public_addr` e.g
 `grafana.acme.com` if you configure the appropriate DNS entry to point to the
 Teleport proxy server.
 
-## Start application service with a config file
+## Start the Teleport Application Service with a config file
 
 Example `teleport.yaml` configuration:
 
@@ -151,7 +157,7 @@ proxy_service:
   enabled: "no"
 ```
 
-Start the application service:
+Start the Application Service:
 
 ```code
 $ sudo teleport start --config=/path/to/teleport.yaml

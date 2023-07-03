@@ -304,6 +304,13 @@ func TestUserUpdate(t *testing.T) {
 			},
 		},
 		{
+			name: "new db roles",
+			args: []string{"--set-db-roles", "d7,d8,d9"},
+			wantTraits: map[string][]string{
+				constants.TraitDBRoles: {"d7", "d8", "d9"},
+			},
+		},
+		{
 			name: "new AWS role ARNs",
 			args: []string{"--set-aws-role-arns", "a1,a2,a3"},
 			wantTraits: map[string][]string{

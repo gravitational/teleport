@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -182,6 +183,18 @@ func main() {
 		}
 	} else {
 		setupLog.Info("Login Rules are only available in Teleport Enterprise edition. TeleportLoginRule resources won't be reconciled")
+	}
+
+	if err = resources.NewProvisionTokenReconciler(mgr.GetClient(), bot.GetClient).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TeleportProvisionToken")
+		os.Exit(1)
+	}
+
+	if err = resources.NewOktaImportRuleReconciler(mgr.GetClient(), bot.GetClient).
+		SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "TeleportOktaImportRule")
+		os.Exit(1)
 	}
 
 	//+kubebuilder:scaffold:builder

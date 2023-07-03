@@ -14,10 +14,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import styled from 'styled-components';
 import React from 'react';
 import { Box, LabelInput } from 'design';
-import { SelectAsync, DarkStyledSelect } from 'shared/components/Select';
+import { SelectAsync } from 'shared/components/Select';
 
 import { useConsoleContext } from 'teleport/Console/consoleContextProvider';
 
@@ -75,22 +74,20 @@ export default function ClusterSelector({
   return (
     <Box {...styles}>
       <LabelInput> Clusters </LabelInput>
-      <StyledSelect>
-        <SelectAsync
-          noOptionsMessage={getNoOptionsMessage}
-          value={selectedOption}
-          onChange={onChangeOption}
-          loadOptions={onLoadOptions}
-          defaultMenuIsOpen={defaultMenuIsOpen}
-          hasError={false}
-          maxMenuHeight={400}
-          isSearchable
-          isSimpleValue={false}
-          isClearable={false}
-          defaultOptions
-          cacheOptions
-        />
-      </StyledSelect>
+      <SelectAsync
+        noOptionsMessage={getNoOptionsMessage}
+        value={selectedOption}
+        onChange={onChangeOption}
+        loadOptions={onLoadOptions}
+        defaultMenuIsOpen={defaultMenuIsOpen}
+        hasError={false}
+        maxMenuHeight={400}
+        isSearchable
+        isSimpleValue={false}
+        isClearable={false}
+        defaultOptions
+        cacheOptions
+      />
     </Box>
   );
 }
@@ -103,17 +100,3 @@ function filterOptions(value = '', options: Option[] = []) {
 }
 
 type Option = { value: string; label: string };
-
-const StyledSelect = styled(DarkStyledSelect)(
-  ({ theme }) => `
-  .react-select-container {
-    background: ${theme.colors.levels.surface};
-  }
-
-  .react-select__single-value {
-    color: white;
-    padding: 0 4px;
-    margin: 0;
-  }
-`
-);

@@ -68,3 +68,31 @@ func TestDynamicKnownType(t *testing.T) {
 	printEvent := event.(*events.SessionPrint)
 	require.Equal(t, SessionPrintEvent, printEvent.GetType())
 }
+
+func TestGetTeleportUser(t *testing.T) {
+	tests := []struct {
+		name  string
+		event events.AuditEvent
+		want  string
+	}{
+		{
+			name:  "event without user metadata",
+			event: &events.InstanceJoin{},
+			want:  "",
+		},
+		{
+			name: "event with user metadata",
+			event: &events.SessionStart{
+				UserMetadata: events.UserMetadata{
+					User: "user-1",
+				},
+			},
+			want: "user-1",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.want, GetTeleportUser(tt.event))
+		})
+	}
+}

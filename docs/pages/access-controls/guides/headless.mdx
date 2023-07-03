@@ -177,3 +177,37 @@ alice@server01 $
   for their Headless WebAuthn activitysince the same access rights are granted or denied as if running from
   your local terminal.
 </Notice>
+
+
+## Troubleshooting
+
+### "WARN: Failed to lock system memory for headless login: ..."
+
+When using Headless WebAuthn, `tsh` does not write private key and certificate data
+to disk(`~/.tsh`). Instead, `tsh` holds these secrets in memory for the duration of
+the request. Additionally, it will try to lock the process memory to further protect 
+the secrets from being stolen by other users on a shared machine.
+
+Below are some of the specific warning messages you may run into and how to fix them:
+
+#### "operation not permitted" OR "cannot allocate memory"
+
+In order to lock the process memory, your OS user must have permission to lock
+the amount of memory needed. Use `ulimit -l` to check your OS user's current limit.
+The exact amount of memory needed may vary from system to system, so we recommend
+updating your ulimit to unlimited, with either `ulimit -l unlimited` or by adding
+the line `<os_username> hard memlock unlimited` to your `/etc/security/limits.conf`.
+
+#### "memory locking is not supported on non-linux operating systems"
+
+The `mlockall` syscall is only supported on Linux operating systems. This means
+that on other operating systems, the memory lock attempt will always fail and
+output the warning. We recommend only using Headless WebAuthn on Linux machines
+for the best level of security on shared machines.
+
+#### Disable mlock
+
+If the above solutions are not feasible in your environment, you can also disable
+the memory locking requirement by setting the `--mlock` flag or `TELEPORT_MLOCK_MODE`
+environment variable to `off` or `best_effort`. This is not recommended in production
+environments on shared systems where a memory swap attack is possible.

@@ -24,10 +24,13 @@ import (
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/base64"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
 
+	"github.com/coreos/go-oidc"
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"gopkg.in/square/go-jose.v2"
@@ -35,6 +38,7 @@ import (
 	"gopkg.in/square/go-jose.v2/jwt"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -112,6 +116,15 @@ type SignParams struct {
 
 	// URI is the URI of the recipient application.
 	URI string
+
+	// Audience is the Audience for the Token.
+	Audience string
+
+	// Issuer is the issuer of the token.
+	Issuer string
+
+	// Subject is the system that is going to use the token.
+	Subject string
 }
 
 // Check verifies all the values are valid.
@@ -133,7 +146,7 @@ func (p *SignParams) Check() error {
 }
 
 // sign will return a signed JWT with the passed in claims embedded within.
-func (k *Key) sign(claims Claims) (string, error) {
+func (k *Key) sign(claims any) (string, error) {
 	return k.signAny(claims)
 }
 
@@ -185,6 +198,39 @@ func (k *Key) Sign(p SignParams) (string, error) {
 		Username: p.Username,
 		Roles:    p.Roles,
 		Traits:   p.Traits,
+	}
+
+	return k.sign(claims)
+}
+
+// awsOIDCCustomClaims defines the require claims for the JWT token used in AWS OIDC Integration.
+type awsOIDCCustomClaims struct {
+	jwt.Claims
+
+	// OnBehalfOf identifies the user that is started the request.
+	OnBehalfOf string `json:"obo,omitempty"`
+}
+
+// SignAWSOIDC signs a JWT with claims specific to AWS OIDC Integration.
+// Required Params:
+// - Username: stored as OnBehalfOf (obo) claim with `user:` prefix
+// - Issuer: stored as Issuer (iss) claim
+// - Subject: stored as Subject (sub) claim
+// - Audience: stored as Audience (aud) claim
+// - Expiries: stored as Expiry (exp) claim
+func (k *Key) SignAWSOIDC(p SignParams) (string, error) {
+	// Sign the claims and create a JWT token.
+	claims := awsOIDCCustomClaims{
+		OnBehalfOf: "user:" + p.Username,
+		Claims: jwt.Claims{
+			Issuer:    p.Issuer,
+			Subject:   p.Subject,
+			Audience:  jwt.Audience{p.Audience},
+			ID:        uuid.NewString(),
+			NotBefore: jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+			Expiry:    jwt.NewNumericDate(p.Expires),
+			IssuedAt:  jwt.NewNumericDate(k.config.Clock.Now().Add(-10 * time.Second)),
+		},
 	}
 
 	return k.sign(claims)
@@ -252,6 +298,9 @@ type VerifyParams struct {
 
 	// URI is the URI of the recipient application.
 	URI string
+
+	// Audience is the Audience for the token
+	Audience string
 }
 
 // Check verifies all the values are valid.
@@ -343,6 +392,41 @@ func (k *Key) Verify(p VerifyParams) (*Claims, error) {
 		Issuer:   k.config.ClusterName,
 		Subject:  p.Username,
 		Audience: jwt.Audience{p.URI},
+		Time:     k.config.Clock.Now(),
+	}
+
+	return k.verify(p.RawToken, expectedClaims)
+}
+
+// AWSOIDCVerifyParams are the params required to verify an AWS OIDC Token.
+type AWSOIDCVerifyParams struct {
+	RawToken string
+	Issuer   string
+}
+
+// Check ensures all the required fields are present.
+func (p *AWSOIDCVerifyParams) Check() error {
+	if p.RawToken == "" {
+		return trace.BadParameter("raw token is missing")
+	}
+
+	if p.Issuer == "" {
+		return trace.BadParameter("issuer is missing")
+	}
+
+	return nil
+}
+
+// VerifyAWSOIDC will validate the passed in JWT token for the AWS OIDC Integration
+func (k *Key) VerifyAWSOIDC(p AWSOIDCVerifyParams) (*Claims, error) {
+	if err := p.Check(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	expectedClaims := jwt.Expected{
+		Issuer:   p.Issuer,
+		Subject:  types.IntegrationAWSOIDCSubject,
+		Audience: jwt.Audience{types.IntegrationAWSOIDCAudience},
 		Time:     k.config.Clock.Now(),
 	}
 
@@ -441,4 +525,51 @@ func GenerateKeyPair() ([]byte, []byte, error) {
 	}
 
 	return public, private, nil
+}
+
+// CheckNotBefore ensures the token was not issued in the future.
+// https://www.rfc-editor.org/rfc/rfc7519#section-4.1.5
+// 4.1.5.  "nbf" (Not Before) Claim
+// TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
+func CheckNotBefore(now time.Time, leeway time.Duration, token *oidc.IDToken) error {
+	claims := struct {
+		NotBefore *JSONTime `json:"nbf"`
+	}{}
+	if err := token.Claims(&claims); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if claims.NotBefore != nil {
+		adjustedNow := now.Add(leeway)
+		nbf := time.Time(*claims.NotBefore)
+		if adjustedNow.Before(nbf) {
+			return trace.AccessDenied("token not before in future")
+		}
+	}
+
+	return nil
+}
+
+// JSONTime unmarshaling sourced from https://github.com/gravitational/go-oidc/blob/master/oidc.go#L295
+// TODO(strideynet): upstream support for `nbf` into the go-oidc lib.
+type JSONTime time.Time
+
+func (j *JSONTime) UnmarshalJSON(b []byte) error {
+	var n json.Number
+	if err := json.Unmarshal(b, &n); err != nil {
+		return err
+	}
+	var unix int64
+
+	if t, err := n.Int64(); err == nil {
+		unix = t
+	} else {
+		f, err := n.Float64()
+		if err != nil {
+			return err
+		}
+		unix = int64(f)
+	}
+	*j = JSONTime(time.Unix(unix, 0))
+	return nil
 }

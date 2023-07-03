@@ -18,7 +18,7 @@ import { spawn } from 'child_process';
 
 import path from 'path';
 
-import { app, globalShortcut, shell } from 'electron';
+import { app, globalShortcut, shell, nativeTheme } from 'electron';
 
 import MainProcess from 'teleterm/mainProcess';
 import { getRuntimeSettings } from 'teleterm/mainProcess/runtimeSettings';
@@ -26,7 +26,10 @@ import { enableWebHandlersProtection } from 'teleterm/mainProcess/protocolHandle
 import { LoggerColor, createFileLoggerService } from 'teleterm/services/logger';
 import Logger from 'teleterm/logger';
 import * as types from 'teleterm/types';
-import { createConfigService } from 'teleterm/services/config';
+import {
+  createConfigService,
+  runConfigFileMigration,
+} from 'teleterm/services/config';
 import { createFileStorage } from 'teleterm/services/fileStorage';
 import { WindowsManager } from 'teleterm/mainProcess/windowsManager';
 
@@ -50,11 +53,14 @@ async function initializeApp(): Promise<void> {
     configJsonSchemaFileStorage,
   } = await createFileStorages(settings.userDataDir);
 
+  runConfigFileMigration(configFileStorage);
   const configService = createConfigService({
     configFile: configFileStorage,
     jsonSchemaFile: configJsonSchemaFileStorage,
     platform: settings.platform,
   });
+
+  nativeTheme.themeSource = configService.get('theme').value;
   const windowsManager = new WindowsManager(appStateFileStorage, settings);
 
   process.on('uncaughtException', (error, origin) => {

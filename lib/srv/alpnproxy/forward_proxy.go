@@ -300,7 +300,7 @@ func (h *ForwardToSystemProxyHandler) Handle(ctx context.Context, clientConn net
 
 	// Send original CONNECT request to system proxy.
 	if err = req.WriteProxy(serverConn); err != nil {
-		log.WithError(err).Errorf("Failed to send CONNTECT request to system proxy %q.", systemProxyURL.Host)
+		log.WithError(err).Errorf("Failed to send CONNECT request to system proxy %q.", systemProxyURL.Host)
 		writeHeaderToHijackedConnection(clientConn, req, http.StatusBadGateway)
 		return
 	}

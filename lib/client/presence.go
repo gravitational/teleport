@@ -23,18 +23,51 @@ import (
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/lib/auth"
 )
 
-func runPresenceTask(ctx context.Context, term io.Writer, auth auth.ClientI, tc *TeleportClient, sessionID string) error {
+// PresenceMaintainer allows maintaining presence with the Auth service.
+type PresenceMaintainer interface {
+	MaintainSessionPresence(ctx context.Context) (proto.AuthService_MaintainSessionPresenceClient, error)
+}
+
+const mfaChallengeInterval = time.Second * 30
+
+// presenceOptions allows passing optional overrides
+// to RunPresenceTask. Mainly used by tests.
+type presenceOptions struct {
+	Clock clockwork.Clock
+}
+
+// PresenceOption a functional option for RunPresenceTask.
+type PresenceOption func(p *presenceOptions)
+
+// WithPresenceClock sets the clock to be used by RunPresenceTask.
+func WithPresenceClock(clock clockwork.Clock) PresenceOption {
+	return func(p *presenceOptions) {
+		p.Clock = clock
+	}
+}
+
+// RunPresenceTask periodically performs and MFA ceremony to detect that a user is
+// still present and attentive.
+func RunPresenceTask(ctx context.Context, term io.Writer, maintainer PresenceMaintainer, sessionID string, promptMFAChallenge PromptMFAChallengeHandler, opts ...PresenceOption) error {
 	fmt.Fprintf(term, "\r\nTeleport > MFA presence enabled\r\n")
 
-	ticker := time.NewTicker(mfaChallengeInterval)
+	o := &presenceOptions{
+		Clock: clockwork.NewRealClock(),
+	}
+
+	for _, opt := range opts {
+		opt(o)
+	}
+
+	ticker := o.Clock.NewTicker(mfaChallengeInterval)
 	defer ticker.Stop()
 
-	stream, err := auth.MaintainSessionPresence(ctx)
+	stream, err := maintainer.MaintainSessionPresence(ctx)
 	if err != nil {
 		fmt.Fprintf(term, "\r\nstream error: %v\r\n", err)
 		return trace.Wrap(err)
@@ -42,7 +75,7 @@ func runPresenceTask(ctx context.Context, term io.Writer, auth auth.ClientI, tc 
 
 	for {
 		select {
-		case <-ticker.C:
+		case <-ticker.Chan():
 			req := &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeRequest{
 					ChallengeRequest: &proto.PresenceMFAChallengeRequest{SessionID: sessionID},
@@ -59,10 +92,19 @@ func runPresenceTask(ctx context.Context, term io.Writer, auth auth.ClientI, tc 
 				return trace.Wrap(err)
 			}
 
-			solution, err := solveMFA(ctx, term, tc, challenge)
+			fmt.Fprint(term, "\r\nTeleport > Please tap your MFA key\r\n")
+
+			// This is here to enforce the usage of a MFA device.
+			// We don't support TOTP for live presence.
+			challenge.TOTP = nil
+
+			solution, err := promptMFAChallenge(ctx, "" /* proxyAddr */, challenge)
 			if err != nil {
+				fmt.Fprintf(term, "\r\nTeleport > Failed to confirm presence: %v\r\n", err)
 				return trace.Wrap(err)
 			}
+
+			fmt.Fprint(term, "\r\nTeleport > Received MFA presence confirmation\r\n")
 
 			req = &proto.PresenceMFAChallengeSend{
 				Request: &proto.PresenceMFAChallengeSend_ChallengeResponse{
@@ -78,23 +120,4 @@ func runPresenceTask(ctx context.Context, term io.Writer, auth auth.ClientI, tc 
 			return nil
 		}
 	}
-}
-
-func solveMFA(ctx context.Context, term io.Writer, tc *TeleportClient, challenge *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
-	fmt.Fprint(term, "\r\nTeleport > Please tap your MFA key\r\n")
-
-	// This is here to enforce the usage of a MFA device.
-	// We don't support TOTP for live presence.
-	challenge.TOTP = nil
-
-	response, err := tc.PromptMFAChallenge(ctx, "" /* proxyAddr */, challenge, func(opts *PromptMFAChallengeOpts) {
-		opts.Quiet = true
-	})
-	if err != nil {
-		fmt.Fprintf(term, "\r\nTeleport > Failed to confirm presence: %v\r\n", err)
-		return nil, trace.Wrap(err)
-	}
-
-	fmt.Fprint(term, "\r\nTeleport > Received MFA presence confirmation\r\n")
-	return response, nil
 }

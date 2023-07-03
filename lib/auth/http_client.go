@@ -632,7 +632,7 @@ func (c *HTTPClient) CreateRemoteCluster(rc types.RemoteCluster) error {
 
 // UpsertAuthServer is used by auth servers to report their presence
 // to other auth servers in form of hearbeat expiring after ttl period.
-func (c *HTTPClient) UpsertAuthServer(s types.Server) error {
+func (c *HTTPClient) UpsertAuthServer(ctx context.Context, s types.Server) error {
 	data, err := services.MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
@@ -640,7 +640,7 @@ func (c *HTTPClient) UpsertAuthServer(s types.Server) error {
 	args := &upsertServerRawReq{
 		Server: data,
 	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("authservers"), args)
+	_, err = c.PostJSON(ctx, c.Endpoint("authservers"), args)
 	return trace.Wrap(err)
 }
 
@@ -667,7 +667,7 @@ func (c *HTTPClient) GetAuthServers() ([]types.Server, error) {
 
 // UpsertProxy is used by proxies to report their presence
 // to other auth servers in form of heartbeat expiring after ttl period.
-func (c *HTTPClient) UpsertProxy(s types.Server) error {
+func (c *HTTPClient) UpsertProxy(ctx context.Context, s types.Server) error {
 	data, err := services.MarshalServer(s)
 	if err != nil {
 		return trace.Wrap(err)
@@ -675,7 +675,7 @@ func (c *HTTPClient) UpsertProxy(s types.Server) error {
 	args := &upsertServerRawReq{
 		Server: data,
 	}
-	_, err = c.PostJSON(context.TODO(), c.Endpoint("proxies"), args)
+	_, err = c.PostJSON(ctx, c.Endpoint("proxies"), args)
 	return trace.Wrap(err)
 }
 
@@ -710,11 +710,11 @@ func (c *HTTPClient) DeleteAllProxies() error {
 }
 
 // DeleteProxy deletes proxy by name
-func (c *HTTPClient) DeleteProxy(name string) error {
+func (c *HTTPClient) DeleteProxy(ctx context.Context, name string) error {
 	if name == "" {
 		return trace.BadParameter("missing parameter name")
 	}
-	_, err := c.Delete(context.TODO(), c.Endpoint("proxies", name))
+	_, err := c.Delete(ctx, c.Endpoint("proxies", name))
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -85,7 +85,8 @@ allow:
 deny: {}
 options:
   cert_format: ""
-  create_host_user: null
+  create_db_user: null
+  create_desktop_user: null
   desktop_clipboard: null
   desktop_directory_sharing: null
   forward_agent: false
@@ -135,9 +136,10 @@ func Test_formatJSON(t *testing.T) {
         "record_session": null,
         "desktop_clipboard": null,
         "desktop_directory_sharing": null,
-        "create_host_user": null,
         "pin_source_ip": false,
-        "ssh_file_copy": null
+        "ssh_file_copy": null,
+        "create_desktop_user": null,
+        "create_db_user": null
     },
     "allow": {
         "logins": [

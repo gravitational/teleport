@@ -352,6 +352,13 @@ const (
 	MemoryDBClusterEndpoint = "cluster"
 	// MemoryDBNodeEndpoint is the endpoint of an individual MemoryDB node.
 	MemoryDBNodeEndpoint = "node"
+
+	// OpenSearchDefaultEndpoint is the default endpoint for domain.
+	OpenSearchDefaultEndpoint = "default"
+	// OpenSearchCustomEndpoint is the custom endpoint configured for domain.
+	OpenSearchCustomEndpoint = "custom"
+	// OpenSearchVPCEndpoint is the VPC endpoint for domain.
+	OpenSearchVPCEndpoint = "vpc"
 )
 
 // ParseElastiCacheEndpoint extracts the details from the provided
@@ -656,6 +663,9 @@ const (
 	DynamoDBStreamsServiceName = "streams.dynamodb"
 	// DAXServiceName is the AWS DynamoDB Accelerator service name.
 	DAXServiceName = "dax"
+
+	// OpenSearchServiceName is the AWS OpenSearch service name.
+	OpenSearchServiceName = "es"
 )
 
 // CassandraEndpointURLForRegion returns a Cassandra endpoint based on the provided region.
@@ -721,6 +731,59 @@ func ParseDynamoDBEndpoint(endpoint string) (*DynamoDBEndpointInfo, error) {
 	if info.Region == "" || info.Partition == "" {
 		return nil, trace.BadParameter("invalid DynamoDB endpoint %q", endpoint)
 	}
+	switch {
+	case info.Partition == AWSCNEndpointSuffix && IsCNRegion(info.Region):
+	case info.Partition == AWSEndpointSuffix && !IsCNRegion(info.Region):
+	default:
+		return nil, trace.BadParameter("invalid AWS region %q for AWS partition %q",
+			info.Region, info.Partition)
+	}
+	return info, nil
+}
+
+// OpenSearchEndpointInfo describes info extracted from an AWS endpoint.
+type OpenSearchEndpointInfo struct {
+	// Service is the service subdomain of the endpoint. Only "es" allowed for now.
+	Service string
+	// Region is the AWS region for the endpoint, for example "us-west-1".
+	Region string
+	// Partition is the AWS partition for the endpoint, for example ".amazonaws.com"
+	Partition string
+}
+
+// ParseOpensearchEndpoint parses and extract info from the provided OpenSearch endpoint.
+func ParseOpensearchEndpoint(endpoint string) (*OpenSearchEndpointInfo, error) {
+	endpoint = strings.ToLower(endpoint)
+	parts, partition, err := extractAWSEndpointParts(endpoint)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if len(parts) != 3 {
+		return nil, trace.BadParameter("invalid OpenSearch endpoint %q, wrong number of parts %v", endpoint, len(parts))
+	}
+
+	info := &OpenSearchEndpointInfo{
+		Region:    parts[len(parts)-2],
+		Service:   parts[len(parts)-1],
+		Partition: partition,
+	}
+
+	// check for recognized service name.
+	if info.Service != OpenSearchServiceName {
+		return nil, trace.BadParameter("invalid OpenSearch endpoint %q, invalid service %q", endpoint, info.Service)
+	}
+
+	// check that the partition is valid for the region.
+	switch {
+	case info.Region == "" || info.Partition == "":
+		return nil, trace.BadParameter("invalid OpenSearch endpoint %q, empty partition and region", endpoint)
+	case info.Region == "":
+		return nil, trace.BadParameter("invalid OpenSearch endpoint %q, empty region", endpoint)
+	case info.Partition == "":
+		return nil, trace.BadParameter("invalid OpenSearch endpoint %q, empty partition", endpoint)
+	}
+
 	switch {
 	case info.Partition == AWSCNEndpointSuffix && IsCNRegion(info.Region):
 	case info.Partition == AWSEndpointSuffix && !IsCNRegion(info.Region):

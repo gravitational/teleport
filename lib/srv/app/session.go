@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/gravitational/oxy/forward"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/ttlmap"
 	"github.com/sirupsen/logrus"
@@ -37,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/events/filesessions"
+	"github.com/gravitational/teleport/lib/httplib/reverseproxy"
 	"github.com/gravitational/teleport/lib/services"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv"
@@ -183,19 +183,17 @@ func (s *Server) withJWTTokenForwarder(ctx context.Context, sess *sessionChunk, 
 		return trace.Wrap(err)
 	}
 
-	delegate := forward.NewHeaderRewriter()
-	fwd, err := forward.New(
-		forward.FlushInterval(100*time.Millisecond),
-		forward.RoundTripper(transport),
-		forward.Logger(logrus.StandardLogger()),
-		forward.WebsocketRewriter(common.NewHeaderRewriter(transport.ws, delegate)),
-		forward.WebsocketDial(transport.ws.dialer),
-		forward.Rewriter(common.NewHeaderRewriter(delegate)),
+	delegate := reverseproxy.NewHeaderRewriter()
+	sess.handler, err = reverseproxy.New(
+		reverseproxy.WithFlushInterval(100*time.Millisecond),
+		reverseproxy.WithRoundTripper(transport),
+		reverseproxy.WithLogger(sess.log),
+		reverseproxy.WithRewriter(common.NewHeaderRewriter(delegate)),
 	)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	sess.handler = fwd
+
 	return nil
 }
 
@@ -349,6 +347,7 @@ func (s *Server) createTracker(sess *sessionChunk, identity *tlsca.Identity, app
 		Created:      s.c.Clock.Now(),
 		AppName:      appName, // app name is only present in RouteToApp for CLI sessions
 		AppSessionID: identity.RouteToApp.SessionID,
+		HostID:       s.c.HostID,
 	}
 
 	s.log.Debugf("Creating tracker for session chunk %v", sess.id)

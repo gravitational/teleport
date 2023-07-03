@@ -21,7 +21,7 @@ import { Flex, Box } from 'design';
 
 const Tabs = props => {
   return (
-    <StyledTabs height="40px" color="text.secondary" as="nav" {...props} />
+    <StyledTabs height="40px" color="text.slightlyMuted" as="nav" {...props} />
   );
 };
 
@@ -43,12 +43,12 @@ const StyledTabItem = styled(Box)`
   &:hover,
   &.active,
   &:focus {
-    color: ${props => props.theme.colors.text.contrast};
+    color: ${props => props.theme.colors.text.main};
   }
 
   ${({ theme }) => ({
-    backgroundColor: theme.colors.bgTerminal,
-    color: theme.colors.text.contrast,
+    backgroundColor: theme.colors.levels.sunken,
+    color: theme.colors.text.main,
     fontWeight: 'bold',
     transition: 'none',
   })}
@@ -56,9 +56,9 @@ const StyledTabItem = styled(Box)`
   ${({ theme }) => {
     return {
       border: 'none',
-      borderRight: `1px solid ${theme.colors.bgTerminal}`,
+      borderRight: `1px solid ${theme.colors.levels.sunken}`,
       '&:hover, &:focus': {
-        color: theme.colors.text.contrast,
+        color: theme.colors.text.main,
         transition: 'color .3s',
       },
     };

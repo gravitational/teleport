@@ -105,6 +105,18 @@ type DeviceTrustServiceClient interface {
 	// An enrolled device is allowed, via AuthenticateDevice, to acquire
 	// certificates containing device extensions, thus gaining access to
 	// device-aware actions.
+	//
+	// macOS enrollment flow:
+	// -> EnrollDeviceInit (client)
+	// <- MacOSEnrollChallenge (server)
+	// -> MacOSEnrollChallengeResponse
+	// <- EnrollDeviceSuccess
+	//
+	// TPM enrollment flow:
+	// -> EnrollDeviceInit (client)
+	// <- TPMEnrollChallenge (server)
+	// -> TPMEnrollChallengeResponse
+	// <- EnrollDeviceSuccess
 	EnrollDevice(ctx context.Context, opts ...grpc.CallOption) (DeviceTrustService_EnrollDeviceClient, error)
 	// AuthenticateDevice performs the device authentication ceremony.
 	//
@@ -362,6 +374,18 @@ type DeviceTrustServiceServer interface {
 	// An enrolled device is allowed, via AuthenticateDevice, to acquire
 	// certificates containing device extensions, thus gaining access to
 	// device-aware actions.
+	//
+	// macOS enrollment flow:
+	// -> EnrollDeviceInit (client)
+	// <- MacOSEnrollChallenge (server)
+	// -> MacOSEnrollChallengeResponse
+	// <- EnrollDeviceSuccess
+	//
+	// TPM enrollment flow:
+	// -> EnrollDeviceInit (client)
+	// <- TPMEnrollChallenge (server)
+	// -> TPMEnrollChallengeResponse
+	// <- EnrollDeviceSuccess
 	EnrollDevice(DeviceTrustService_EnrollDeviceServer) error
 	// AuthenticateDevice performs the device authentication ceremony.
 	//

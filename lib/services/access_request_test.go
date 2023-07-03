@@ -1095,6 +1095,7 @@ func TestPruneRequestRoles(t *testing.T) {
 					SearchAsRoles: []string{
 						"node-admins",
 						"node-access",
+						"node-team",
 						"kube-admins",
 						"db-admins",
 						"app-admins",
@@ -1120,6 +1121,14 @@ func TestPruneRequestRoles(t *testing.T) {
 					"owner": {"node-admins"},
 				},
 				Logins: []string{"{{internal.logins}}", "root"},
+			},
+		},
+		"node-team": {
+			// Grants root access to nodes owned by user's team via label
+			// expression.
+			Allow: types.RoleConditions{
+				NodeLabelsExpression: `contains(user.spec.traits["team"], labels["owner"])`,
+				Logins:               []string{"{{internal.logins}}", "root"},
 			},
 		},
 		"kube-admins": {
@@ -1163,6 +1172,7 @@ func TestPruneRequestRoles(t *testing.T) {
 	user := g.user(t, "response-team")
 	g.users[user].SetTraits(map[string][]string{
 		"logins": {"responder"},
+		"team":   {"response-team"},
 	})
 
 	nodeDesc := []struct {
@@ -1179,6 +1189,12 @@ func TestPruneRequestRoles(t *testing.T) {
 			name: "admins-node-2",
 			labels: map[string]string{
 				"owner": "node-admins",
+			},
+		},
+		{
+			name: "responders-node",
+			labels: map[string]string{
+				"owner": "response-team",
 			},
 		},
 		{
@@ -1239,7 +1255,6 @@ func TestPruneRequestRoles(t *testing.T) {
 		desc               string
 		requestResourceIDs []types.ResourceID
 		loginHint          string
-		userTraits         map[string][]string
 		expectRoles        []string
 		expectError        bool
 	}{
@@ -1255,6 +1270,17 @@ func TestPruneRequestRoles(t *testing.T) {
 			// Without the login hint, all roles granting access will be
 			// requested.
 			expectRoles: []string{"node-admins", "node-access"},
+		},
+		{
+			desc: "label expression role",
+			requestResourceIDs: []types.ResourceID{
+				{
+					ClusterName: clusterName,
+					Kind:        types.KindNode,
+					Name:        "responders-node",
+				},
+			},
+			expectRoles: []string{"node-team", "node-access"},
 		},
 		{
 			desc: "user login hint",
@@ -1404,7 +1430,7 @@ func TestPruneRequestRoles(t *testing.T) {
 			},
 			// Request for foreign resource should request all available roles,
 			// we don't know which one is necessary
-			expectRoles: []string{"node-access", "node-admins", "kube-admins", "db-admins", "app-admins", "windows-admins", "empty"},
+			expectRoles: []string{"node-access", "node-admins", "node-team", "kube-admins", "db-admins", "app-admins", "windows-admins", "empty"},
 		},
 	}
 	for _, tc := range testCases {
@@ -1608,6 +1634,116 @@ func TestSessionTTL(t *testing.T) {
 	}
 }
 
+func TestAutoRequest(t *testing.T) {
+	t.Parallel()
+
+	clock := clockwork.NewFakeClock()
+
+	empty, err := types.NewRole("empty", types.RoleSpecV6{})
+	require.NoError(t, err)
+
+	promptRole, err := types.NewRole("prompt", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestPrompt: "test prompt",
+		},
+	})
+	require.NoError(t, err)
+
+	optionalRole, err := types.NewRole("optional", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestAccess: types.RequestStrategyOptional,
+		},
+	})
+	require.NoError(t, err)
+
+	reasonRole, err := types.NewRole("reason", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestAccess: types.RequestStrategyReason,
+		},
+	})
+	require.NoError(t, err)
+
+	alwaysRole, err := types.NewRole("always", types.RoleSpecV6{
+		Options: types.RoleOptions{
+			RequestAccess: types.RequestStrategyAlways,
+		},
+	})
+	require.NoError(t, err)
+
+	cases := []struct {
+		name      string
+		roles     []types.Role
+		assertion func(t *testing.T, validator *RequestValidator)
+	}{
+		{
+			name: "no roles",
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.False(t, validator.autoRequest)
+				require.Empty(t, validator.prompt)
+			},
+		},
+		{
+			name:  "with prompt",
+			roles: []types.Role{empty, optionalRole, promptRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.False(t, validator.autoRequest)
+				require.Equal(t, "test prompt", validator.prompt)
+			},
+		},
+		{
+			name:  "with auto request",
+			roles: []types.Role{alwaysRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.True(t, validator.autoRequest)
+				require.Empty(t, validator.prompt)
+			},
+		},
+		{
+			name:  "with prompt and auto request",
+			roles: []types.Role{promptRole, alwaysRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.False(t, validator.requireReason)
+				require.True(t, validator.autoRequest)
+				require.Equal(t, "test prompt", validator.prompt)
+			},
+		},
+		{
+			name:  "with reason and auto prompt",
+			roles: []types.Role{reasonRole},
+			assertion: func(t *testing.T, validator *RequestValidator) {
+				require.True(t, validator.requireReason)
+				require.True(t, validator.autoRequest)
+				require.Empty(t, validator.prompt)
+			},
+		},
+	}
+
+	for _, test := range cases {
+		user, err := types.NewUser("foo")
+		require.NoError(t, err)
+
+		getter := &mockGetter{
+			users: make(map[string]types.User),
+			roles: make(map[string]types.Role),
+		}
+
+		for _, r := range test.roles {
+			getter.roles[r.GetName()] = r
+			user.AddRole(r.GetName())
+		}
+
+		getter.users[user.GetName()] = user
+
+		validator, err := NewRequestValidator(context.Background(), clock, getter, user.GetName(), ExpandVars(true))
+		require.NoError(t, err)
+		test.assertion(t, &validator)
+	}
+
+}
+
 type mockClusterGetter struct {
 	localCluster   types.ClusterName
 	remoteClusters map[string]types.RemoteCluster
@@ -1678,5 +1814,102 @@ func TestValidateAccessRequestClusterNames(t *testing.T) {
 			}
 			require.NoError(t, err)
 		})
+	}
+}
+
+type mockResourceLister struct {
+	resources []types.ResourceWithLabels
+}
+
+func (m *mockResourceLister) ListResources(ctx context.Context, _ proto.ListResourcesRequest) (*types.ListResourcesResponse, error) {
+	return &types.ListResourcesResponse{
+		Resources: m.resources,
+	}, nil
+}
+
+func TestGetResourceDetails(t *testing.T) {
+	clusterName := "cluster"
+
+	presence := &mockResourceLister{
+		resources: []types.ResourceWithLabels{
+			newNode(t, "node1", "hostname 1"),
+			newApp(t, "app1", "friendly app 1", types.OriginDynamic),
+			newApp(t, "app2", "friendly app 2", types.OriginDynamic),
+			newApp(t, "app3", "friendly app 3", types.OriginOkta),
+			newUserGroup(t, "group1", "friendly group 1", types.OriginOkta),
+		},
+	}
+	resourceIDs := []types.ResourceID{
+		newResourceID(clusterName, types.KindNode, "node1"),
+		newResourceID(clusterName, types.KindApp, "app1"),
+		newResourceID(clusterName, types.KindApp, "app2"),
+		newResourceID(clusterName, types.KindApp, "app3"),
+		newResourceID(clusterName, types.KindUserGroup, "group1"),
+	}
+
+	ctx := context.Background()
+
+	details, err := GetResourceDetails(ctx, clusterName, presence, resourceIDs)
+	require.NoError(t, err)
+
+	// Check the resource details to see if friendly names properly propagated.
+
+	// Node should be named for its hostname.
+	require.Equal(t, "hostname 1", details[types.ResourceIDToString(resourceIDs[0])].FriendlyName)
+
+	// app1 and app2 are expected to be empty because they're not Okta sourced resources.
+	require.Empty(t, details[types.ResourceIDToString(resourceIDs[1])].FriendlyName)
+
+	require.Empty(t, details[types.ResourceIDToString(resourceIDs[2])].FriendlyName)
+
+	// This Okta sourced app should have a friendly name.
+	require.Equal(t, "friendly app 3", details[types.ResourceIDToString(resourceIDs[3])].FriendlyName)
+
+	// This Okta sourced user group should have a friendly name.
+	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(resourceIDs[4])].FriendlyName)
+}
+
+func newNode(t *testing.T, name, hostname string) types.Server {
+	node, err := types.NewServer(name, types.KindNode,
+		types.ServerSpecV2{
+			Hostname: hostname,
+		})
+	require.NoError(t, err)
+	return node
+}
+
+func newApp(t *testing.T, name, description, origin string) types.Application {
+	app, err := types.NewAppV3(types.Metadata{
+		Name:        name,
+		Description: description,
+		Labels: map[string]string{
+			types.OriginLabel: origin,
+		},
+	},
+		types.AppSpecV3{
+			URI:        "https://some-addr.com",
+			PublicAddr: "https://some-addr.com",
+		})
+	require.NoError(t, err)
+	return app
+}
+
+func newUserGroup(t *testing.T, name, description, origin string) types.UserGroup {
+	userGroup, err := types.NewUserGroup(types.Metadata{
+		Name:        name,
+		Description: description,
+		Labels: map[string]string{
+			types.OriginLabel: origin,
+		},
+	}, types.UserGroupSpecV1{})
+	require.NoError(t, err)
+	return userGroup
+}
+
+func newResourceID(clusterName, kind, name string) types.ResourceID {
+	return types.ResourceID{
+		ClusterName: clusterName,
+		Kind:        kind,
+		Name:        name,
 	}
 }

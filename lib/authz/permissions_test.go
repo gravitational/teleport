@@ -37,39 +37,101 @@ import (
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 const clusterName = "test-cluster"
 
 func TestContextLockTargets(t *testing.T) {
 	t.Parallel()
-	authContext := &Context{
-		Identity: BuiltinRole{
-			Role:        types.RoleNode,
-			ClusterName: "cluster",
-			Identity: tlsca.Identity{
-				Username: "node.cluster",
-				Groups:   []string{"role1", "role2"},
-				DeviceExtensions: tlsca.DeviceExtensions{
-					DeviceID: "device1",
-				},
+
+	tests := []struct {
+		role types.SystemRole
+		want []types.LockTarget
+	}{
+		{
+			role: types.RoleNode,
+			want: []types.LockTarget{
+				{Node: "node", ServerID: "node"},
+				{Node: "node.cluster", ServerID: "node.cluster"},
+				{User: "node.cluster"},
+				{Role: "role1"},
+				{Role: "role2"},
+				{Role: "mapped-role"},
+				{Device: "device1"},
 			},
 		},
-		UnmappedIdentity: WrapIdentity(tlsca.Identity{
-			Username: "node.cluster",
-			Groups:   []string{"mapped-role"},
-		}),
+		{
+			role: types.RoleAuth,
+			want: []types.LockTarget{
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
+				{User: "node.cluster"},
+				{Role: "role1"},
+				{Role: "role2"},
+				{Role: "mapped-role"},
+				{Device: "device1"},
+			},
+		},
+		{
+			role: types.RoleProxy,
+			want: []types.LockTarget{
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
+				{User: "node.cluster"},
+				{Role: "role1"},
+				{Role: "role2"},
+				{Role: "mapped-role"},
+				{Device: "device1"},
+			},
+		},
+		{
+			role: types.RoleKube,
+			want: []types.LockTarget{
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
+				{User: "node.cluster"},
+				{Role: "role1"},
+				{Role: "role2"},
+				{Role: "mapped-role"},
+				{Device: "device1"},
+			},
+		},
+		{
+			role: types.RoleDatabase,
+			want: []types.LockTarget{
+				{ServerID: "node"},
+				{ServerID: "node.cluster"},
+				{User: "node.cluster"},
+				{Role: "role1"},
+				{Role: "role2"},
+				{Role: "mapped-role"},
+				{Device: "device1"},
+			},
+		},
 	}
-	expected := []types.LockTarget{
-		{Node: "node"},
-		{Node: "node.cluster"},
-		{User: "node.cluster"},
-		{Role: "role1"},
-		{Role: "role2"},
-		{Role: "mapped-role"},
-		{Device: "device1"},
+	for _, tt := range tests {
+		t.Run(tt.role.String(), func(t *testing.T) {
+			authContext := &Context{
+				Identity: BuiltinRole{
+					Role:        tt.role,
+					ClusterName: "cluster",
+					Identity: tlsca.Identity{
+						Username: "node.cluster",
+						Groups:   []string{"role1", "role2"},
+						DeviceExtensions: tlsca.DeviceExtensions{
+							DeviceID: "device1",
+						},
+					},
+				},
+				UnmappedIdentity: WrapIdentity(tlsca.Identity{
+					Username: "node.cluster",
+					Groups:   []string{"mapped-role"},
+				}),
+			}
+			require.ElementsMatch(t, authContext.LockTargets(), tt.want)
+		})
 	}
-	require.ElementsMatch(t, authContext.LockTargets(), expected)
 }
 
 func TestAuthorizeWithLocksForLocalUser(t *testing.T) {
@@ -140,29 +202,32 @@ func TestAuthorizeWithLocksForBuiltinRole(t *testing.T) {
 	ctx := context.Background()
 
 	client, watcher, authorizer := newTestResources(t)
+	for _, role := range types.LocalServiceMappings() {
+		t.Run(role.String(), func(t *testing.T) {
+			builtinRole := BuiltinRole{
+				Username: "node",
+				Role:     role,
+				Identity: tlsca.Identity{
+					Username: "node",
+				},
+			}
 
-	builtinRole := BuiltinRole{
-		Username: "node",
-		Role:     types.RoleNode,
-		Identity: tlsca.Identity{
-			Username: "node",
-		},
+			// Apply a node lock.
+			nodeLock, err := types.NewLock("node-lock", types.LockSpecV2{
+				Target: types.LockTarget{ServerID: builtinRole.Identity.Username},
+			})
+			require.NoError(t, err)
+			upsertLockWithPutEvent(ctx, t, client, watcher, nodeLock)
+
+			_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, builtinRole))
+			require.Error(t, err)
+			require.True(t, trace.IsAccessDenied(err))
+
+			builtinRole.Identity.Username = ""
+			_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, builtinRole))
+			require.NoError(t, err)
+		})
 	}
-
-	// Apply a node lock.
-	nodeLock, err := types.NewLock("node-lock", types.LockSpecV2{
-		Target: types.LockTarget{Node: builtinRole.Identity.Username},
-	})
-	require.NoError(t, err)
-	upsertLockWithPutEvent(ctx, t, client, watcher, nodeLock)
-
-	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, builtinRole))
-	require.Error(t, err)
-	require.True(t, trace.IsAccessDenied(err))
-
-	builtinRole.Identity.Username = ""
-	_, err = authorizer.Authorize(context.WithValue(ctx, contextUser, builtinRole))
-	require.NoError(t, err)
 }
 
 func upsertLockWithPutEvent(ctx context.Context, t *testing.T, client *testClient, watcher *services.LockWatcher, lock types.Lock) {
@@ -171,15 +236,18 @@ func upsertLockWithPutEvent(ctx context.Context, t *testing.T, client *testClien
 	defer lockWatch.Close()
 
 	require.NoError(t, client.UpsertLock(ctx, lock))
-	select {
-	case event := <-lockWatch.Events():
-		require.Equal(t, types.OpPut, event.Type)
-		require.Empty(t, resourceDiff(lock, event.Resource))
-	case <-lockWatch.Done():
-		t.Fatalf("Watcher exited with error: %v.", lockWatch.Error())
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for lock put.")
-	}
+
+	// Retry a few times to wait for the resource event we expect as the
+	// resource watcher can potentially return events for previously
+	// created resources as well.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-lockWatch.Events():
+			return types.OpPut == event.Type && resourceDiff(lock, event.Resource) == ""
+		case <-lockWatch.Done():
+			return false
+		}
+	}, 2*time.Second, 100*time.Millisecond)
 }
 
 func TestGetClientUserIsSSO(t *testing.T) {
@@ -455,6 +523,73 @@ func TestContext_GetAccessState(t *testing.T) {
 	}
 }
 
+func TestCheckIPPinning(t *testing.T) {
+	testCases := []struct {
+		desc       string
+		clientAddr string
+		pinnedIP   string
+		pinIP      bool
+		wantErr    string
+	}{
+		{
+			desc:       "no IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      false,
+		},
+		{
+			desc:       "IP pinning, no pinned IP",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      true,
+			wantErr:    "pinned IP is required for the user, but is not present on identity",
+		},
+		{
+			desc:       "Pinned IP doesn't match",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      true,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:       "Role doesn't require IP pinning now, but old certificate still pinned",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      false,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:     "IP pinning enabled, missing client IP",
+			pinnedIP: "127.0.0.1",
+			pinIP:    true,
+			wantErr:  "expected type net.Addr, got <nil>",
+		},
+		{
+			desc:       "correct IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.1",
+			pinIP:      true,
+		},
+	}
+
+	for _, tt := range testCases {
+		ctx := context.Background()
+		if tt.clientAddr != "" {
+			ctx = ContextWithClientAddr(ctx, utils.MustParseAddr(tt.clientAddr))
+		}
+		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
+
+		err := CheckIPPinning(ctx, identity, tt.pinIP, nil)
+
+		if tt.wantErr != "" {
+			require.ErrorContains(t, err, tt.wantErr)
+		} else {
+			require.NoError(t, err)
+		}
+
+	}
+}
+
 func TestAuthorizeWithVerbs(t *testing.T) {
 	backend, err := memory.New(memory.Config{})
 	require.NoError(t, err)
@@ -549,6 +684,36 @@ func TestAuthorizeWithVerbs(t *testing.T) {
 			log := logrus.New()
 			_, err = AuthorizeWithVerbs(ctx, log, test.delegate, true, test.kind, test.verbs...)
 			test.errAssertion(t, ConvertAuthorizerError(ctx, log, err))
+		})
+	}
+}
+
+func TestRoleSetForBuiltinRoles(t *testing.T) {
+	tests := []struct {
+		name          string
+		clusterName   string
+		recConfig     types.SessionRecordingConfig
+		roles         []types.SystemRole
+		assertRoleSet func(t *testing.T, rs services.RoleSet)
+	}{
+		{
+			name:        "RoleMDM is mapped",
+			clusterName: clusterName,
+			roles:       []types.SystemRole{types.RoleMDM},
+			assertRoleSet: func(t *testing.T, rs services.RoleSet) {
+				for i, r := range rs {
+					assert.NotEmpty(t, r.GetNamespaces(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no namespaces", i)
+					assert.NotEmpty(t, r.GetRules(types.Allow), "RoleSetForBuiltinRoles: rs[%v]: role has no rules", i)
+				}
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			rs, err := RoleSetForBuiltinRoles(test.clusterName, test.recConfig, test.roles...)
+			require.NoError(t, err, "RoleSetForBuiltinRoles failed")
+			assert.NotEmpty(t, rs, "RoleSetForBuiltinRoles returned a nil RoleSet")
+			test.assertRoleSet(t, rs)
 		})
 	}
 }

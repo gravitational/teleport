@@ -45,92 +45,71 @@ exports[`empty state for enterprise, can create 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   width: 224px;
 }
 
-.c11:active {
-  opacity: 0.56;
-}
-
 .c11:hover,
 .c11:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c11:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c12 {
   line-height: 1.5;
-  border-radius: 4px;
+  margin: 0;
   display: inline-flex;
   justify-content: center;
   align-items: center;
-  border: 1px solid;
   box-sizing: border-box;
-  background-color: transparent;
+  border: none;
+  border-radius: 4px;
   cursor: pointer;
   font-family: inherit;
-  font-weight: bold;
+  font-weight: 600;
   outline: none;
-  opacity: 0.56;
   position: relative;
   text-align: center;
   text-decoration: none;
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  border-color: rgba(255,255,255,0.87);
   color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-left: 24px;
   width: 224px;
-  border-color: rgba(255,255,255,0.87);
-  color: rgba(255,255,255,0.87);
-}
-
-.c12:hover {
-  opacity: 1;
-}
-
-.c12:active {
-  opacity: 0.24;
-}
-
-.c12 > span {
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
 .c12:hover,
 .c12:focus {
-  border-color: #FFFFFF;
-  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
+}
+
+.c12:active {
+  background: rgba(255,255,255,0.13);
 }
 
 .c12:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
-}
-
-.c12:hover,
-.c12:focus {
-  border-color: #FFFFFF;
-  color: #FFFFFF;
+  cursor: auto;
 }
 
 .c8 {
@@ -181,7 +160,7 @@ exports[`empty state for enterprise, can create 1`] = `
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -277,13 +256,12 @@ exports[`empty state for enterprise, can create 1`] = `
           <a
             class="c12"
             href="https://goteleport.com/docs/application-access/getting-started/"
+            kind="border"
             rel="noreferrer"
             target="_blank"
             width="224px"
           >
-            <span>
-              View Documentation
-            </span>
+            View Documentation
           </a>
         </div>
       </div>
@@ -306,21 +284,21 @@ exports[`failed state 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c3 a {
   color: #FFFFFF;
 }
 
-.c7 {
+.c8 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 100%;
 }
 
-.c27 {
+.c30 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -339,65 +317,147 @@ exports[`failed state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
   width: 88px;
 }
 
-.c27:active {
-  opacity: 0.56;
+.c30:hover,
+.c30:focus {
+  background: rgba(255,255,255,0.07);
 }
 
-.c27:hover,
-.c27:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+.c30:active {
+  background: rgba(255,255,255,0.13);
 }
 
-.c27:active {
-  opacity: 0.24;
-}
-
-.c27:disabled {
+.c30:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
-.c18 {
+.c21 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c30 {
+.c33 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 22px;
 }
 
-.c31 {
+.c34 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
-.c36 {
+.c40 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c16 {
+.c38 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c38 .c20 {
+  color: inherit;
+}
+
+.c38:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c38:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c38:hover:enabled,
+.c38:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c38:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c41 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c41 .c20 {
+  color: inherit;
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c41:hover:enabled,
+.c41:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c41:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c19 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -406,7 +466,7 @@ exports[`failed state 1`] = `
   margin: 0px;
 }
 
-.c20 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -417,16 +477,17 @@ exports[`failed state 1`] = `
   color: #FFFFFF;
 }
 
-.c24 {
+.c27 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
   font-weight: 600;
   font-size: 16px;
   margin: 0px;
+  color: #FFFFFF;
 }
 
-.c5 {
+.c6 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -434,18 +495,18 @@ exports[`failed state 1`] = `
   justify-content: space-between;
 }
 
-.c6 {
+.c7 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
 }
 
-.c19 {
+.c22 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c23 {
+.c26 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -456,13 +517,13 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c25 {
+.c28 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
 }
 
-.c28 {
+.c31 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -473,7 +534,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c29 {
+.c32 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -484,7 +545,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c32 {
+.c35 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -495,7 +556,7 @@ exports[`failed state 1`] = `
   justify-content: center;
 }
 
-.c34 {
+.c37 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -509,7 +570,7 @@ exports[`failed state 1`] = `
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -542,49 +603,49 @@ exports[`failed state 1`] = `
   padding-bottom: 24px;
 }
 
-.c21 {
+.c24 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
 }
 
-.c21 > thead > tr > th,
-.c21 > tbody > tr > th,
-.c21 > tfoot > tr > th,
-.c21 > thead > tr > td,
-.c21 > tbody > tr > td,
-.c21 > tfoot > tr > td {
+.c24 > thead > tr > th,
+.c24 > tbody > tr > th,
+.c24 > tfoot > tr > th,
+.c24 > thead > tr > td,
+.c24 > tbody > tr > td,
+.c24 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c21 > thead > tr > th:first-child,
-.c21 > tbody > tr > th:first-child,
-.c21 > tfoot > tr > th:first-child,
-.c21 > thead > tr > td:first-child,
-.c21 > tbody > tr > td:first-child,
-.c21 > tfoot > tr > td:first-child {
+.c24 > thead > tr > th:first-child,
+.c24 > tbody > tr > th:first-child,
+.c24 > tfoot > tr > th:first-child,
+.c24 > thead > tr > td:first-child,
+.c24 > tbody > tr > td:first-child,
+.c24 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c21 > thead > tr > th:last-child,
-.c21 > tbody > tr > th:last-child,
-.c21 > tfoot > tr > th:last-child,
-.c21 > thead > tr > td:last-child,
-.c21 > tbody > tr > td:last-child,
-.c21 > tfoot > tr > td:last-child {
+.c24 > thead > tr > th:last-child,
+.c24 > tbody > tr > th:last-child,
+.c24 > tfoot > tr > th:last-child,
+.c24 > thead > tr > td:last-child,
+.c24 > tbody > tr > td:last-child,
+.c24 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c21 > tbody > tr > td {
+.c24 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c21 > thead > tr > th {
-  background: #111B48;
+.c24 > thead > tr > th {
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -597,26 +658,26 @@ exports[`failed state 1`] = `
   white-space: nowrap;
 }
 
-.c21 > thead > tr > th .c17 {
+.c24 > thead > tr > th .c20 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c21 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+.c24 > tbody > tr > td {
+  color: #FFFFFF;
   line-height: 16px;
 }
 
-.c21 tbody tr {
-  border-bottom: 1px solid #1C254D;
+.c24 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c21 tbody tr:hover {
-  background-color: rgb(37,49,98);
+.c24 tbody tr:hover {
+  background-color: rgba(255,255,255,0.07);
 }
 
-.c4 {
+.c5 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -628,7 +689,7 @@ exports[`failed state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c33 {
+.c36 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -636,11 +697,16 @@ exports[`failed state 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 
-.c26 {
+.c4 {
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.c29 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -649,59 +715,65 @@ exports[`failed state 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
   cursor: pointer;
 }
 
-.c35 {
-  background: none;
-  border: none;
-  cursor: pointer;
+.c29:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
-.c35 .c17 {
+.c39 .c20 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c35:hover .c17,
-.c35:focus .c17 {
-  opacity: 1;
+.c39 .c20:before {
+  padding-left: 1px;
 }
 
-.c35:disabled {
-  cursor: default;
+.c13 {
+  position: relative;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.07);
+  border-radius: 200px;
 }
 
-.c35:disabled .c17 {
-  opacity: 0.1;
-}
-
-.c10 {
+.c12 {
   position: absolute;
   height: 100%;
   right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #2C3A73;
+  background: #222C59;
   border-radius: 200px;
 }
 
-.c8 {
+.c10 {
   position: relative;
   display: flex;
   overflow: hidden;
   width: 100%;
   border-radius: 200px;
   height: 32px;
-  background: #111B48;
+  background: transparent;
 }
 
 .c9 {
+  background: #0C143D;
+  border-radius: 200px;
+  width: 100%;
+  height: 32px;
+}
+
+.c11 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -711,36 +783,35 @@ exports[`failed state 1`] = `
   transition: all 0.2s;
   padding-left: 16px;
   padding-right: 16px;
-  color: rgba(255,255,255,0.87);
-  background: #111B48;
+  color: #FFFFFF;
+  background: #0C143D;
   padding-right: 184px;
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
-  background: #1C254D;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
-  color: rgba(255,255,255,0.87);
+.c11:hover,
+.c11:focus,
+.c11:active {
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
 }
 
-.c9::placeholder {
-  color: rgba(255,255,255,0.24);
+.c11::placeholder {
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c12 {
+.c15 {
   position: relative;
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.c12[disabled] {
+.c15[disabled] {
   cursor: default;
 }
 
-.c15 {
+.c18 {
   width: 32px;
   height: 12px;
   border-radius: 12px;
@@ -749,7 +820,7 @@ exports[`failed state 1`] = `
   flex-shrink: 0;
 }
 
-.c15:before {
+.c18:before {
   content: '';
   position: absolute;
   top: 50%;
@@ -757,32 +828,32 @@ exports[`failed state 1`] = `
   width: 16px;
   height: 16px;
   border-radius: 16px;
-  background: #651FFF;
+  background: #9F85FF;
 }
 
-.c13 {
+.c16 {
   opacity: 0;
   position: absolute;
   cursor: inherit;
 }
 
-.c13:checked + .c14 {
-  background: #512FC9;
+.c16:checked + .c17 {
+  background: rgba(255,255,255,0.13);
 }
 
-.c13:checked + .c14:before {
+.c16:checked + .c17:before {
   transform: translate(16px,-50%);
 }
 
-.c13:disabled + .c14 {
+.c16:disabled + .c17 {
   background: #222C59;
 }
 
-.c13:disabled + .c14:before {
+.c16:disabled + .c17:before {
   background: #455a64;
 }
 
-.c11 {
+.c14 {
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -791,7 +862,7 @@ exports[`failed state 1`] = `
   width: 120px;
 }
 
-.c22 > tbody > tr > td {
+.c25 > tbody > tr > td {
   vertical-align: middle;
 }
 
@@ -816,475 +887,485 @@ exports[`failed state 1`] = `
         some error message
       </div>
     </div>
-    <form
+    <div
       class="c4"
     >
-      <div
+      <form
         class="c5"
-        width="100%"
       >
         <div
           class="c6"
-          style="width: 70%;"
+          width="100%"
         >
           <div
             class="c7"
-            width="100%"
+            style="width: 70%;"
           >
             <div
               class="c8"
+              width="100%"
             >
-              <input
-                class="c9"
-                placeholder="SEARCH..."
-                value=""
-              />
               <div
-                class="c10"
+                class="c9"
               >
                 <div
-                  class="c11"
+                  class="c10"
                 >
-                  <label
+                  <input
+                    class="c11"
+                    placeholder="SEARCH..."
+                    value=""
+                  />
+                  <div
                     class="c12"
                   >
-                    <input
-                      class="c13"
-                      type="checkbox"
-                    />
                     <div
-                      class="c14 c15"
-                    />
-                  </label>
-                  <div
-                    class="c16"
-                  >
-                    Advanced
+                      class="c13"
+                    >
+                      <div
+                        class="c14"
+                      >
+                        <label
+                          class="c15"
+                        >
+                          <input
+                            class="c16"
+                            type="checkbox"
+                          />
+                          <div
+                            class="c17 c18"
+                          />
+                        </label>
+                        <div
+                          class="c19"
+                        >
+                          Advanced
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+            <div
+              style="line-height: 0px;"
+            >
+              <span
+                class="c20 c21 icon icon-info_outline "
+                style="cursor: pointer; font-size: 20px;"
+              />
+            </div>
           </div>
           <div
-            style="line-height: 0px;"
-          >
-            <span
-              class="c17 c18 icon icon-info_outline "
-              color="light"
-              style="cursor: pointer; font-size: 20px;"
-            />
-          </div>
-        </div>
-        <div
-          class="c19"
-        >
-          <div
-            class="c20"
-            color="text.contrast"
-            style="text-transform: uppercase;"
-          >
-            Showing 
-            <strong>
-              1
-            </strong>
-             - 
-            <strong>
-              5
-            </strong>
-             of
-             
-            <strong>
-              5
-            </strong>
-          </div>
-        </div>
-      </div>
-    </form>
-    <table
-      class="c21 c22"
-    >
-      <thead>
-        <tr>
-          <th
-            style="cursor: default;"
-          />
-          <th>
-            <a>
-              Name
-              <span
-                class="c17 c18 icon icon-chevron-up "
-                color="light"
-                title="sort items asc"
-              />
-            </a>
-          </th>
-          <th>
-            <a>
-              Description
-              <span
-                class="c17 c18 icon icon-chevrons-expand-vertical "
-                color="light"
-                title="sort items"
-              />
-            </a>
-          </th>
-          <th
-            style="cursor: default;"
-          >
-            Address
-          </th>
-          <th
-            style="cursor: default;"
-          >
-            Labels
-          </th>
-          <th
-            style="cursor: default;"
-          />
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td
-            style="user-select: none;"
+            class="c22"
           >
             <div
               class="c23"
-              height="32px"
-              width="32px"
+              color="text.main"
+              style="text-transform: uppercase;"
             >
-              <div
-                class="c24"
-                font-size="3"
-              >
-                J
-              </div>
+              Showing 
+              <strong>
+                1
+              </strong>
+               - 
+              <strong>
+                5
+              </strong>
+               of
+               
+              <strong>
+                5
+              </strong>
             </div>
-          </td>
-          <td>
-            Jenkins
-          </td>
-          <td>
-            This is a Jenkins app
-          </td>
-          <td>
-            https://jenkins.teleport-proxy.com
-          </td>
-          <td>
-            <div
-              class="c25"
+          </div>
+        </div>
+      </form>
+      <table
+        class="c24 c25"
+      >
+        <thead>
+          <tr>
+            <th
+              style="cursor: default;"
+            />
+            <th>
+              <a>
+                Name
+                <span
+                  class="c20 c21 icon icon-chevron-up "
+                  title="sort items asc"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Description
+                <span
+                  class="c20 c21 icon icon-chevrons-expand-vertical "
+                  title="sort items"
+                />
+              </a>
+            </th>
+            <th
+              style="cursor: default;"
+            >
+              Address
+            </th>
+            <th
+              style="cursor: default;"
+            >
+              Labels
+            </th>
+            <th
+              style="cursor: default;"
+            />
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td
+              style="user-select: none;"
             >
               <div
                 class="c26"
-                kind="secondary"
+                height="32px"
+                width="32px"
               >
-                env: prod
+                <div
+                  class="c27"
+                  color="light"
+                  font-size="3"
+                >
+                  J
+                </div>
               </div>
+            </td>
+            <td>
+              Jenkins
+            </td>
+            <td>
+              This is a Jenkins app
+            </td>
+            <td>
+              https://jenkins.teleport-proxy.com
+            </td>
+            <td>
               <div
-                class="c26"
-                kind="secondary"
+                class="c28"
               >
-                cluster: one
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
               </div>
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <a
-              class="c27"
-              href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
-              kind="border"
-              rel="noreferrer"
-              target="_blank"
-              width="88px"
+            </td>
+            <td
+              align="right"
             >
-              LAUNCH
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="user-select: none;"
-          >
-            <div
-              class="c28"
-              height="32px"
-              width="32px"
-            >
-              <div
-                class="c24"
-                font-size="3"
+              <a
+                class="c30"
+                href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
               >
-                M
-              </div>
-            </div>
-          </td>
-          <td>
-            Mattermost1
-          </td>
-          <td>
-            This is a Mattermost app
-          </td>
-          <td>
-            https://mattermost.teleport-proxy.com
-          </td>
-          <td>
-            <div
-              class="c25"
-            >
-              <div
-                class="c26"
-                kind="secondary"
-              >
-                env: dev
-              </div>
-              <div
-                class="c26"
-                kind="secondary"
-              >
-                cluster: two
-              </div>
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <a
-              class="c27"
-              href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
-              kind="border"
-              rel="noreferrer"
-              target="_blank"
-              width="88px"
-            >
-              LAUNCH
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="user-select: none;"
-          >
-            <div
-              class="c28"
-              height="32px"
-              width="32px"
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
             >
               <div
-                class="c24"
-                font-size="3"
+                class="c31"
+                height="32px"
+                width="32px"
               >
-                T
+                <div
+                  class="c27"
+                  color="light"
+                  font-size="3"
+                >
+                  M
+                </div>
               </div>
-            </div>
-          </td>
-          <td>
-            TCP
-          </td>
-          <td>
-            This is a TCP app
-          </td>
-          <td>
-            tcp://some-address
-          </td>
-          <td>
-            <div
-              class="c25"
+            </td>
+            <td>
+              Mattermost1
+            </td>
+            <td>
+              This is a Mattermost app
+            </td>
+            <td>
+              https://mattermost.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c28"
+              >
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  env: dev
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  cluster: two
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c30"
+                href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
             >
               <div
-                class="c26"
-                kind="secondary"
+                class="c31"
+                height="32px"
+                width="32px"
               >
-                env: dev
+                <div
+                  class="c27"
+                  color="light"
+                  font-size="3"
+                >
+                  T
+                </div>
               </div>
+            </td>
+            <td>
+              TCP
+            </td>
+            <td>
+              This is a TCP app
+            </td>
+            <td>
+              tcp://some-address
+            </td>
+            <td>
               <div
-                class="c26"
-                kind="secondary"
+                class="c28"
               >
-                cluster: one
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  env: dev
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
               </div>
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c27"
-              disabled=""
-              kind="border"
-              title="Cloud or TCP applications cannot be launched by the browser"
-              width="88px"
+            </td>
+            <td
+              align="right"
             >
-              LAUNCH
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="user-select: none;"
-          >
-            <div
-              class="c29"
-              height="32px"
-              width="32px"
-            >
-              <span
-                class="c17 c30 icon icon-amazonaws "
-                color="light"
-                font-size="6"
-              />
-            </div>
-          </td>
-          <td>
-            aws-console-1
-          </td>
-          <td>
-            This is an AWS Console app
-          </td>
-          <td>
-            https://awsconsole-1.teleport-proxy.com
-          </td>
-          <td>
-            <div
-              class="c25"
-            >
-              <div
-                class="c26"
-                kind="secondary"
+              <button
+                class="c30"
+                disabled=""
+                kind="border"
+                title="Cloud or TCP applications cannot be launched by the browser"
+                width="88px"
               >
-                aws_account_id: A1234
-              </div>
-              <div
-                class="c26"
-                kind="secondary"
-              >
-                env: dev
-              </div>
-              <div
-                class="c26"
-                kind="secondary"
-              >
-                cluster: two
-              </div>
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c27"
-              kind="border"
-              width="88px"
-            >
-              LAUNCH
-              <span
-                class="c17 c31 icon icon-caret-down "
-                color="text.secondary"
-                font-size="2"
-              />
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="user-select: none;"
-          >
-            <div
-              class="c32"
-              height="32px"
-              width="32px"
+                LAUNCH
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
             >
               <div
-                class="c24"
-                font-size="3"
+                class="c32"
+                height="32px"
+                width="32px"
               >
-                C
+                <span
+                  class="c20 c33 icon icon-amazonaws "
+                  font-size="6"
+                />
               </div>
-            </div>
-          </td>
-          <td>
-            Cloud
-          </td>
-          <td>
-            This is a Cloud specific app
-          </td>
-          <td>
-            cloud://some-address
-          </td>
-          <td>
-            <div
-              class="c25"
+            </td>
+            <td>
+              aws-console-1
+            </td>
+            <td>
+              This is an AWS Console app
+            </td>
+            <td>
+              https://awsconsole-1.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c28"
+              >
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  aws_account_id: A1234
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  env: dev
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  cluster: two
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c30"
+                kind="border"
+                width="88px"
+              >
+                LAUNCH
+                <span
+                  class="c20 c34 icon icon-caret-down "
+                  color="text.slightlyMuted"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
             >
               <div
-                class="c26"
-                kind="secondary"
+                class="c35"
+                height="32px"
+                width="32px"
               >
-                env: dev
+                <div
+                  class="c27"
+                  color="light"
+                  font-size="3"
+                >
+                  C
+                </div>
               </div>
+            </td>
+            <td>
+              Cloud
+            </td>
+            <td>
+              This is a Cloud specific app
+            </td>
+            <td>
+              cloud://some-address
+            </td>
+            <td>
               <div
-                class="c26"
-                kind="secondary"
+                class="c28"
               >
-                cluster: one
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  env: dev
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
               </div>
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c27"
-              disabled=""
-              kind="border"
-              title="Cloud or TCP applications cannot be launched by the browser"
-              width="88px"
+            </td>
+            <td
+              align="right"
             >
-              LAUNCH
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <nav
-      class="c33"
-    >
-      <div
-        class="c34"
-        width="100%"
+              <button
+                class="c30"
+                disabled=""
+                kind="border"
+                title="Cloud or TCP applications cannot be launched by the browser"
+                width="88px"
+              >
+                LAUNCH
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <nav
+        class="c36"
       >
         <div
-          class="c19"
+          class="c37"
+          width="100%"
         >
-          <button
-            class="c35"
-            title="Previous page"
+          <div
+            class="c22"
           >
-            <span
-              class="c17 c36 icon icon-arrow-left-circle "
-              color="light"
-              font-size="3"
-            />
-          </button>
-          <button
-            class="c35"
-            title="Next page"
-          >
-            <span
-              class="c17 c36 icon icon-arrow-right-circle "
-              color="light"
-              font-size="3"
-            />
-          </button>
+            <button
+              class="c38 c39"
+              title="Previous page"
+            >
+              <span
+                class="c20 c40 icon icon-arrow-left-circle "
+                font-size="3"
+              />
+            </button>
+            <button
+              class="c41 c39"
+              title="Next page"
+            >
+              <span
+                class="c20 c40 icon icon-arrow-right-circle "
+                font-size="3"
+              />
+            </button>
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+    </div>
   </div>
 </div>
 `;
 
 exports[`loaded state 1`] = `
-.c7 {
+.c8 {
   box-sizing: border-box;
   margin-right: 16px;
   width: 100%;
@@ -1309,33 +1390,30 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   width: 240px;
 }
 
-.c3:active {
-  opacity: 0.56;
-}
-
 .c3:hover,
 .c3:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c3:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c3:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
-.c27 {
+.c30 {
   line-height: 1.5;
   margin: 0;
   display: inline-flex;
@@ -1354,65 +1432,147 @@ exports[`loaded state 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #2C3A73;
-  border: 1px solid #1C254D;
-  opacity: .87;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0);
+  border: 1px solid rgba(255,255,255,0.36);
   font-size: 10px;
   min-height: 24px;
   padding: 0px 16px;
   width: 88px;
 }
 
-.c27:active {
-  opacity: 0.56;
+.c30:hover,
+.c30:focus {
+  background: rgba(255,255,255,0.07);
 }
 
-.c27:hover,
-.c27:focus {
-  background: #2C3A73;
-  border: 1px solid rgba(255,255,255,0.1);
-  opacity: 1;
+.c30:active {
+  background: rgba(255,255,255,0.13);
 }
 
-.c27:active {
-  opacity: 0.24;
-}
-
-.c27:disabled {
+.c30:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
-.c18 {
+.c21 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
 }
 
-.c30 {
+.c33 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 22px;
 }
 
-.c31 {
+.c34 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
-.c36 {
+.c40 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c16 {
+.c38 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+  margin-right: 0px;
+}
+
+.c38 .c20 {
+  color: inherit;
+}
+
+.c38:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c38:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c38:hover:enabled,
+.c38:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c38:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c41 {
+  align-items: center;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  outline: none;
+  border-radius: 50%;
+  overflow: visible;
+  justify-content: center;
+  text-align: center;
+  flex: 0 0 auto;
+  background: transparent;
+  color: inherit;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  font-size: 16px;
+  height: 32px;
+  width: 32px;
+  margin-left: 0px;
+}
+
+.c41 .c20 {
+  color: inherit;
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+}
+
+.c41:disabled {
+  color: rgba(255,255,255,0.36);
+  cursor: default;
+}
+
+.c41:hover:enabled,
+.c41:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c41:active:enabled {
+  background: rgba(255,255,255,0.18);
+}
+
+.c19 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 300;
@@ -1421,7 +1581,7 @@ exports[`loaded state 1`] = `
   margin: 0px;
 }
 
-.c20 {
+.c23 {
   overflow: hidden;
   text-overflow: ellipsis;
   font-weight: 400;
@@ -1432,16 +1592,17 @@ exports[`loaded state 1`] = `
   color: #FFFFFF;
 }
 
-.c24 {
+.c27 {
   overflow: hidden;
   text-overflow: ellipsis;
   text-transform: uppercase;
   font-weight: 600;
   font-size: 16px;
   margin: 0px;
+  color: #FFFFFF;
 }
 
-.c5 {
+.c6 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1449,18 +1610,18 @@ exports[`loaded state 1`] = `
   justify-content: space-between;
 }
 
-.c6 {
+.c7 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
 }
 
-.c19 {
+.c22 {
   box-sizing: border-box;
   display: flex;
 }
 
-.c23 {
+.c26 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -1471,13 +1632,13 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c25 {
+.c28 {
   box-sizing: border-box;
   display: flex;
   flex-wrap: wrap;
 }
 
-.c28 {
+.c31 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -1488,7 +1649,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c29 {
+.c32 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -1499,7 +1660,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c32 {
+.c35 {
   box-sizing: border-box;
   height: 32px;
   width: 32px;
@@ -1510,7 +1671,7 @@ exports[`loaded state 1`] = `
   justify-content: center;
 }
 
-.c34 {
+.c37 {
   box-sizing: border-box;
   width: 100%;
   display: flex;
@@ -1524,7 +1685,7 @@ exports[`loaded state 1`] = `
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -1557,49 +1718,49 @@ exports[`loaded state 1`] = `
   padding-bottom: 24px;
 }
 
-.c21 {
+.c24 {
   background: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-collapse: collapse;
   border-spacing: 0;
+  border-style: hidden;
   font-size: 12px;
   width: 100%;
 }
 
-.c21 > thead > tr > th,
-.c21 > tbody > tr > th,
-.c21 > tfoot > tr > th,
-.c21 > thead > tr > td,
-.c21 > tbody > tr > td,
-.c21 > tfoot > tr > td {
+.c24 > thead > tr > th,
+.c24 > tbody > tr > th,
+.c24 > tfoot > tr > th,
+.c24 > thead > tr > td,
+.c24 > tbody > tr > td,
+.c24 > tfoot > tr > td {
   padding: 8px 8px;
   vertical-align: middle;
 }
 
-.c21 > thead > tr > th:first-child,
-.c21 > tbody > tr > th:first-child,
-.c21 > tfoot > tr > th:first-child,
-.c21 > thead > tr > td:first-child,
-.c21 > tbody > tr > td:first-child,
-.c21 > tfoot > tr > td:first-child {
+.c24 > thead > tr > th:first-child,
+.c24 > tbody > tr > th:first-child,
+.c24 > tfoot > tr > th:first-child,
+.c24 > thead > tr > td:first-child,
+.c24 > tbody > tr > td:first-child,
+.c24 > tfoot > tr > td:first-child {
   padding-left: 24px;
 }
 
-.c21 > thead > tr > th:last-child,
-.c21 > tbody > tr > th:last-child,
-.c21 > tfoot > tr > th:last-child,
-.c21 > thead > tr > td:last-child,
-.c21 > tbody > tr > td:last-child,
-.c21 > tfoot > tr > td:last-child {
+.c24 > thead > tr > th:last-child,
+.c24 > tbody > tr > th:last-child,
+.c24 > tfoot > tr > th:last-child,
+.c24 > thead > tr > td:last-child,
+.c24 > tbody > tr > td:last-child,
+.c24 > tfoot > tr > td:last-child {
   padding-right: 24px;
 }
 
-.c21 > tbody > tr > td {
+.c24 > tbody > tr > td {
   vertical-align: middle;
 }
 
-.c21 > thead > tr > th {
-  background: #111B48;
+.c24 > thead > tr > th {
+  background: rgba(255,255,255,0.07);
   color: #FFFFFF;
   cursor: pointer;
   font-size: 10px;
@@ -1612,26 +1773,26 @@ exports[`loaded state 1`] = `
   white-space: nowrap;
 }
 
-.c21 > thead > tr > th .c17 {
+.c24 > thead > tr > th .c20 {
   font-weight: bold;
   font-size: 8px;
   margin-left: 8px;
 }
 
-.c21 > tbody > tr > td {
-  color: rgba(255,255,255,0.87);
+.c24 > tbody > tr > td {
+  color: #FFFFFF;
   line-height: 16px;
 }
 
-.c21 tbody tr {
-  border-bottom: 1px solid #1C254D;
+.c24 tbody tr {
+  border-bottom: 1px solid rgb(49,58,100);
 }
 
-.c21 tbody tr:hover {
-  background-color: rgb(37,49,98);
+.c24 tbody tr:hover {
+  background-color: rgba(255,255,255,0.07);
 }
 
-.c4 {
+.c5 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1643,7 +1804,7 @@ exports[`loaded state 1`] = `
   border-top-right-radius: 8px;
 }
 
-.c33 {
+.c36 {
   padding: 16px 24px;
   display: flex;
   height: 24px;
@@ -1651,11 +1812,16 @@ exports[`loaded state 1`] = `
   align-items: center;
   justify-content: space-between;
   background: #222C59;
-  border-bottom-right-radius: 8px;
-  border-bottom-left-radius: 8px;
+  border-top: 1px solid rgba(255,255,255,0.07);
 }
 
-.c26 {
+.c4 {
+  box-shadow: 0px 2px 1px -1px rgba(0,0,0,0.2),0px 1px 1px rgba(0,0,0,0.14),0px 1px 3px rgba(0,0,0,0.12);
+  overflow: hidden;
+  border-radius: 8px;
+}
+
+.c29 {
   box-sizing: border-box;
   border-radius: 10px;
   display: inline-block;
@@ -1664,59 +1830,65 @@ exports[`loaded state 1`] = `
   padding: 0 8px;
   margin: 1px 0;
   vertical-align: middle;
-  background-color: #111B48;
-  color: rgba(255,255,255,0.87);
+  background-color: rgba(255,255,255,0.07);
+  color: #FFFFFF;
+  font-weight: 400;
   margin-right: 4px;
   cursor: pointer;
 }
 
-.c35 {
-  background: none;
-  border: none;
-  cursor: pointer;
+.c29:hover {
+  background-color: rgba(255,255,255,0.13);
 }
 
-.c35 .c17 {
+.c39 .c20 {
   font-size: 20px;
-  transition: all 0.3s;
-  opacity: 0.5;
 }
 
-.c35:hover .c17,
-.c35:focus .c17 {
-  opacity: 1;
+.c39 .c20:before {
+  padding-left: 1px;
 }
 
-.c35:disabled {
-  cursor: default;
+.c13 {
+  position: relative;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(255,255,255,0.07);
+  border-radius: 200px;
 }
 
-.c35:disabled .c17 {
-  opacity: 0.1;
-}
-
-.c10 {
+.c12 {
   position: absolute;
   height: 100%;
   right: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #2C3A73;
+  background: #222C59;
   border-radius: 200px;
 }
 
-.c8 {
+.c10 {
   position: relative;
   display: flex;
   overflow: hidden;
   width: 100%;
   border-radius: 200px;
   height: 32px;
-  background: #111B48;
+  background: transparent;
 }
 
 .c9 {
+  background: #0C143D;
+  border-radius: 200px;
+  width: 100%;
+  height: 32px;
+}
+
+.c11 {
   border: none;
   outline: none;
   box-sizing: border-box;
@@ -1726,36 +1898,35 @@ exports[`loaded state 1`] = `
   transition: all 0.2s;
   padding-left: 16px;
   padding-right: 16px;
-  color: rgba(255,255,255,0.87);
-  background: #111B48;
+  color: #FFFFFF;
+  background: #0C143D;
   padding-right: 184px;
 }
 
-.c9:hover,
-.c9:focus,
-.c9:active {
-  background: #1C254D;
-  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
-  color: rgba(255,255,255,0.87);
+.c11:hover,
+.c11:focus,
+.c11:active {
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
 }
 
-.c9::placeholder {
-  color: rgba(255,255,255,0.24);
+.c11::placeholder {
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
-.c12 {
+.c15 {
   position: relative;
   display: flex;
   align-items: center;
   cursor: pointer;
 }
 
-.c12[disabled] {
+.c15[disabled] {
   cursor: default;
 }
 
-.c15 {
+.c18 {
   width: 32px;
   height: 12px;
   border-radius: 12px;
@@ -1764,7 +1935,7 @@ exports[`loaded state 1`] = `
   flex-shrink: 0;
 }
 
-.c15:before {
+.c18:before {
   content: '';
   position: absolute;
   top: 50%;
@@ -1772,32 +1943,32 @@ exports[`loaded state 1`] = `
   width: 16px;
   height: 16px;
   border-radius: 16px;
-  background: #651FFF;
+  background: #9F85FF;
 }
 
-.c13 {
+.c16 {
   opacity: 0;
   position: absolute;
   cursor: inherit;
 }
 
-.c13:checked + .c14 {
-  background: #512FC9;
+.c16:checked + .c17 {
+  background: rgba(255,255,255,0.13);
 }
 
-.c13:checked + .c14:before {
+.c16:checked + .c17:before {
   transform: translate(16px,-50%);
 }
 
-.c13:disabled + .c14 {
+.c16:disabled + .c17 {
   background: #222C59;
 }
 
-.c13:disabled + .c14:before {
+.c16:disabled + .c17:before {
   background: #455a64;
 }
 
-.c11 {
+.c14 {
   display: flex;
   align-items: center;
   justify-content: space-around;
@@ -1806,7 +1977,7 @@ exports[`loaded state 1`] = `
   width: 120px;
 }
 
-.c22 > tbody > tr > td {
+.c25 > tbody > tr > td {
   vertical-align: middle;
 }
 
@@ -1837,469 +2008,479 @@ exports[`loaded state 1`] = `
         </button>
       </a>
     </div>
-    <form
+    <div
       class="c4"
     >
-      <div
+      <form
         class="c5"
-        width="100%"
       >
         <div
           class="c6"
-          style="width: 70%;"
+          width="100%"
         >
           <div
             class="c7"
-            width="100%"
+            style="width: 70%;"
           >
             <div
               class="c8"
+              width="100%"
             >
-              <input
-                class="c9"
-                placeholder="SEARCH..."
-                value=""
-              />
               <div
-                class="c10"
+                class="c9"
               >
                 <div
-                  class="c11"
+                  class="c10"
                 >
-                  <label
+                  <input
+                    class="c11"
+                    placeholder="SEARCH..."
+                    value=""
+                  />
+                  <div
                     class="c12"
                   >
-                    <input
-                      class="c13"
-                      type="checkbox"
-                    />
                     <div
-                      class="c14 c15"
-                    />
-                  </label>
-                  <div
-                    class="c16"
-                  >
-                    Advanced
+                      class="c13"
+                    >
+                      <div
+                        class="c14"
+                      >
+                        <label
+                          class="c15"
+                        >
+                          <input
+                            class="c16"
+                            type="checkbox"
+                          />
+                          <div
+                            class="c17 c18"
+                          />
+                        </label>
+                        <div
+                          class="c19"
+                        >
+                          Advanced
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
+            <div
+              style="line-height: 0px;"
+            >
+              <span
+                class="c20 c21 icon icon-info_outline "
+                style="cursor: pointer; font-size: 20px;"
+              />
+            </div>
           </div>
           <div
-            style="line-height: 0px;"
-          >
-            <span
-              class="c17 c18 icon icon-info_outline "
-              color="light"
-              style="cursor: pointer; font-size: 20px;"
-            />
-          </div>
-        </div>
-        <div
-          class="c19"
-        >
-          <div
-            class="c20"
-            color="text.contrast"
-            style="text-transform: uppercase;"
-          >
-            Showing 
-            <strong>
-              1
-            </strong>
-             - 
-            <strong>
-              5
-            </strong>
-             of
-             
-            <strong>
-              5
-            </strong>
-          </div>
-        </div>
-      </div>
-    </form>
-    <table
-      class="c21 c22"
-    >
-      <thead>
-        <tr>
-          <th
-            style="cursor: default;"
-          />
-          <th>
-            <a>
-              Name
-              <span
-                class="c17 c18 icon icon-chevron-up "
-                color="light"
-                title="sort items asc"
-              />
-            </a>
-          </th>
-          <th>
-            <a>
-              Description
-              <span
-                class="c17 c18 icon icon-chevrons-expand-vertical "
-                color="light"
-                title="sort items"
-              />
-            </a>
-          </th>
-          <th
-            style="cursor: default;"
-          >
-            Address
-          </th>
-          <th
-            style="cursor: default;"
-          >
-            Labels
-          </th>
-          <th
-            style="cursor: default;"
-          />
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td
-            style="user-select: none;"
+            class="c22"
           >
             <div
               class="c23"
-              height="32px"
-              width="32px"
+              color="text.main"
+              style="text-transform: uppercase;"
             >
-              <div
-                class="c24"
-                font-size="3"
-              >
-                J
-              </div>
+              Showing 
+              <strong>
+                1
+              </strong>
+               - 
+              <strong>
+                5
+              </strong>
+               of
+               
+              <strong>
+                5
+              </strong>
             </div>
-          </td>
-          <td>
-            Jenkins
-          </td>
-          <td>
-            This is a Jenkins app
-          </td>
-          <td>
-            https://jenkins.teleport-proxy.com
-          </td>
-          <td>
-            <div
-              class="c25"
+          </div>
+        </div>
+      </form>
+      <table
+        class="c24 c25"
+      >
+        <thead>
+          <tr>
+            <th
+              style="cursor: default;"
+            />
+            <th>
+              <a>
+                Name
+                <span
+                  class="c20 c21 icon icon-chevron-up "
+                  title="sort items asc"
+                />
+              </a>
+            </th>
+            <th>
+              <a>
+                Description
+                <span
+                  class="c20 c21 icon icon-chevrons-expand-vertical "
+                  title="sort items"
+                />
+              </a>
+            </th>
+            <th
+              style="cursor: default;"
+            >
+              Address
+            </th>
+            <th
+              style="cursor: default;"
+            >
+              Labels
+            </th>
+            <th
+              style="cursor: default;"
+            />
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td
+              style="user-select: none;"
             >
               <div
                 class="c26"
-                kind="secondary"
+                height="32px"
+                width="32px"
               >
-                env: prod
+                <div
+                  class="c27"
+                  color="light"
+                  font-size="3"
+                >
+                  J
+                </div>
               </div>
+            </td>
+            <td>
+              Jenkins
+            </td>
+            <td>
+              This is a Jenkins app
+            </td>
+            <td>
+              https://jenkins.teleport-proxy.com
+            </td>
+            <td>
               <div
-                class="c26"
-                kind="secondary"
+                class="c28"
               >
-                cluster: one
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  env: prod
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
               </div>
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <a
-              class="c27"
-              href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
-              kind="border"
-              rel="noreferrer"
-              target="_blank"
-              width="88px"
+            </td>
+            <td
+              align="right"
             >
-              LAUNCH
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="user-select: none;"
-          >
-            <div
-              class="c28"
-              height="32px"
-              width="32px"
-            >
-              <div
-                class="c24"
-                font-size="3"
+              <a
+                class="c30"
+                href="/web/launch/jenkins.one/one/jenkins.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
               >
-                M
-              </div>
-            </div>
-          </td>
-          <td>
-            Mattermost1
-          </td>
-          <td>
-            This is a Mattermost app
-          </td>
-          <td>
-            https://mattermost.teleport-proxy.com
-          </td>
-          <td>
-            <div
-              class="c25"
-            >
-              <div
-                class="c26"
-                kind="secondary"
-              >
-                env: dev
-              </div>
-              <div
-                class="c26"
-                kind="secondary"
-              >
-                cluster: two
-              </div>
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <a
-              class="c27"
-              href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
-              kind="border"
-              rel="noreferrer"
-              target="_blank"
-              width="88px"
-            >
-              LAUNCH
-            </a>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="user-select: none;"
-          >
-            <div
-              class="c28"
-              height="32px"
-              width="32px"
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
             >
               <div
-                class="c24"
-                font-size="3"
+                class="c31"
+                height="32px"
+                width="32px"
               >
-                T
+                <div
+                  class="c27"
+                  color="light"
+                  font-size="3"
+                >
+                  M
+                </div>
               </div>
-            </div>
-          </td>
-          <td>
-            TCP
-          </td>
-          <td>
-            This is a TCP app
-          </td>
-          <td>
-            tcp://some-address
-          </td>
-          <td>
-            <div
-              class="c25"
+            </td>
+            <td>
+              Mattermost1
+            </td>
+            <td>
+              This is a Mattermost app
+            </td>
+            <td>
+              https://mattermost.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c28"
+              >
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  env: dev
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  cluster: two
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <a
+                class="c30"
+                href="/web/launch/mattermost.one/one/mattermost.teleport-proxy.com"
+                kind="border"
+                rel="noreferrer"
+                target="_blank"
+                width="88px"
+              >
+                LAUNCH
+              </a>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
             >
               <div
-                class="c26"
-                kind="secondary"
+                class="c31"
+                height="32px"
+                width="32px"
               >
-                env: dev
+                <div
+                  class="c27"
+                  color="light"
+                  font-size="3"
+                >
+                  T
+                </div>
               </div>
+            </td>
+            <td>
+              TCP
+            </td>
+            <td>
+              This is a TCP app
+            </td>
+            <td>
+              tcp://some-address
+            </td>
+            <td>
               <div
-                class="c26"
-                kind="secondary"
+                class="c28"
               >
-                cluster: one
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  env: dev
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
               </div>
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c27"
-              disabled=""
-              kind="border"
-              title="Cloud or TCP applications cannot be launched by the browser"
-              width="88px"
+            </td>
+            <td
+              align="right"
             >
-              LAUNCH
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="user-select: none;"
-          >
-            <div
-              class="c29"
-              height="32px"
-              width="32px"
-            >
-              <span
-                class="c17 c30 icon icon-amazonaws "
-                color="light"
-                font-size="6"
-              />
-            </div>
-          </td>
-          <td>
-            aws-console-1
-          </td>
-          <td>
-            This is an AWS Console app
-          </td>
-          <td>
-            https://awsconsole-1.teleport-proxy.com
-          </td>
-          <td>
-            <div
-              class="c25"
-            >
-              <div
-                class="c26"
-                kind="secondary"
+              <button
+                class="c30"
+                disabled=""
+                kind="border"
+                title="Cloud or TCP applications cannot be launched by the browser"
+                width="88px"
               >
-                aws_account_id: A1234
-              </div>
-              <div
-                class="c26"
-                kind="secondary"
-              >
-                env: dev
-              </div>
-              <div
-                class="c26"
-                kind="secondary"
-              >
-                cluster: two
-              </div>
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c27"
-              kind="border"
-              width="88px"
-            >
-              LAUNCH
-              <span
-                class="c17 c31 icon icon-caret-down "
-                color="text.secondary"
-                font-size="2"
-              />
-            </button>
-          </td>
-        </tr>
-        <tr>
-          <td
-            style="user-select: none;"
-          >
-            <div
-              class="c32"
-              height="32px"
-              width="32px"
+                LAUNCH
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
             >
               <div
-                class="c24"
-                font-size="3"
+                class="c32"
+                height="32px"
+                width="32px"
               >
-                C
+                <span
+                  class="c20 c33 icon icon-amazonaws "
+                  font-size="6"
+                />
               </div>
-            </div>
-          </td>
-          <td>
-            Cloud
-          </td>
-          <td>
-            This is a Cloud specific app
-          </td>
-          <td>
-            cloud://some-address
-          </td>
-          <td>
-            <div
-              class="c25"
+            </td>
+            <td>
+              aws-console-1
+            </td>
+            <td>
+              This is an AWS Console app
+            </td>
+            <td>
+              https://awsconsole-1.teleport-proxy.com
+            </td>
+            <td>
+              <div
+                class="c28"
+              >
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  aws_account_id: A1234
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  env: dev
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  cluster: two
+                </div>
+              </div>
+            </td>
+            <td
+              align="right"
+            >
+              <button
+                class="c30"
+                kind="border"
+                width="88px"
+              >
+                LAUNCH
+                <span
+                  class="c20 c34 icon icon-caret-down "
+                  color="text.slightlyMuted"
+                  font-size="2"
+                />
+              </button>
+            </td>
+          </tr>
+          <tr>
+            <td
+              style="user-select: none;"
             >
               <div
-                class="c26"
-                kind="secondary"
+                class="c35"
+                height="32px"
+                width="32px"
               >
-                env: dev
+                <div
+                  class="c27"
+                  color="light"
+                  font-size="3"
+                >
+                  C
+                </div>
               </div>
+            </td>
+            <td>
+              Cloud
+            </td>
+            <td>
+              This is a Cloud specific app
+            </td>
+            <td>
+              cloud://some-address
+            </td>
+            <td>
               <div
-                class="c26"
-                kind="secondary"
+                class="c28"
               >
-                cluster: one
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  env: dev
+                </div>
+                <div
+                  class="c29"
+                  kind="secondary"
+                >
+                  cluster: one
+                </div>
               </div>
-            </div>
-          </td>
-          <td
-            align="right"
-          >
-            <button
-              class="c27"
-              disabled=""
-              kind="border"
-              title="Cloud or TCP applications cannot be launched by the browser"
-              width="88px"
+            </td>
+            <td
+              align="right"
             >
-              LAUNCH
-            </button>
-          </td>
-        </tr>
-      </tbody>
-    </table>
-    <nav
-      class="c33"
-    >
-      <div
-        class="c34"
-        width="100%"
+              <button
+                class="c30"
+                disabled=""
+                kind="border"
+                title="Cloud or TCP applications cannot be launched by the browser"
+                width="88px"
+              >
+                LAUNCH
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      <nav
+        class="c36"
       >
         <div
-          class="c19"
+          class="c37"
+          width="100%"
         >
-          <button
-            class="c35"
-            title="Previous page"
+          <div
+            class="c22"
           >
-            <span
-              class="c17 c36 icon icon-arrow-left-circle "
-              color="light"
-              font-size="3"
-            />
-          </button>
-          <button
-            class="c35"
-            title="Next page"
-          >
-            <span
-              class="c17 c36 icon icon-arrow-right-circle "
-              color="light"
-              font-size="3"
-            />
-          </button>
+            <button
+              class="c38 c39"
+              title="Previous page"
+            >
+              <span
+                class="c20 c40 icon icon-arrow-left-circle "
+                font-size="3"
+              />
+            </button>
+            <button
+              class="c41 c39"
+              title="Next page"
+            >
+              <span
+                class="c20 c40 icon icon-arrow-right-circle "
+                font-size="3"
+              />
+            </button>
+          </div>
         </div>
-      </div>
-    </nav>
+      </nav>
+    </div>
   </div>
 </div>
 `;
@@ -2311,7 +2492,7 @@ exports[`readonly empty state 1`] = `
   margin-left: auto;
   margin-right: auto;
   padding: 56px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   text-align: center;
   border-radius: 12px;
 }
@@ -2346,7 +2527,7 @@ exports[`readonly empty state 1`] = `
   align-items: center;
   justify-content: space-between;
   flex-shrink: 0;
-  border-bottom: 1px solid #1C254D;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -2394,7 +2575,7 @@ exports[`readonly empty state 1`] = `
     </div>
     <div
       class="c3"
-      color="text.primary"
+      color="text.main"
     >
       <div
         class="c4"

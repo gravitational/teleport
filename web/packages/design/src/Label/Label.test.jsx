@@ -22,10 +22,10 @@ import Label, { Primary, Secondary, Warning, Danger } from './Label';
 
 describe('design/Label', () => {
   const colors = [
-    theme.colors.brand.main,
-    theme.colors.levels.sunkenSecondary,
-    theme.colors.warning,
-    theme.colors.danger,
+    theme.colors.brand,
+    theme.colors.spotBackground[0],
+    theme.colors.warning.main,
+    theme.colors.error.main,
   ];
 
   test.each`

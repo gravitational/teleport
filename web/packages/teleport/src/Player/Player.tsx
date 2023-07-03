@@ -24,7 +24,6 @@ import { Danger } from 'design/Alert';
 import { useParams, useLocation } from 'teleport/components/Router';
 
 import session from 'teleport/services/websession';
-import { colors } from 'teleport/Console/colors';
 import { UrlPlayerParams } from 'teleport/config';
 import { getUrlParameter } from 'teleport/services/history';
 
@@ -85,14 +84,13 @@ export default function Player() {
 
   return (
     <StyledPlayer>
-      <Flex bg={colors.levels.surface} height="38px">
+      <Flex bg="levels.surface" height="38px">
         <Tabs flex="1 0">
           <TabItem title="Session Player" />
         </Tabs>
         <ActionBar onLogout={onLogout} />
       </Flex>
       <Flex
-        bg={colors.bgTerminal}
         flex="1"
         style={{
           overflow: 'auto',

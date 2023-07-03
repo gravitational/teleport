@@ -35,8 +35,6 @@ import {
   textAlign,
 } from '../system';
 
-import defaultTheme from './../theme';
-
 const Box = styled.div`
   box-sizing: border-box;
   ${maxWidth}
@@ -58,9 +56,6 @@ const Box = styled.div`
 `;
 
 Box.displayName = 'Box';
-Box.defaultProps = {
-  theme: defaultTheme,
-};
 
 Box.propTypes = {
   ...space.propTypes,

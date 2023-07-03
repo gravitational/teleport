@@ -39,12 +39,6 @@ export const InitSelfHostedMySql = () => (
   </MemoryRouter>
 );
 
-export const InitAws = () => (
-  <MemoryRouter>
-    <CreateDatabaseView {...props} dbLocation={DatabaseLocation.Aws} />
-  </MemoryRouter>
-);
-
 export const NoPerm = () => (
   <MemoryRouter>
     <CreateDatabaseView {...props} canCreateDatabase={false} />
@@ -74,10 +68,13 @@ const props: State = {
   attempt: { status: '' },
   clearAttempt: () => null,
   registerDatabase: () => null,
+  fetchDatabaseServers: () => null,
   canCreateDatabase: true,
   pollTimeout: Date.now() + 30000,
   dbEngine: DatabaseEngine.Postgres,
   dbLocation: DatabaseLocation.SelfHosted,
   isDbCreateErr: false,
   prevStep: () => null,
+  nextStep: () => null,
+  createdDb: {} as any,
 };

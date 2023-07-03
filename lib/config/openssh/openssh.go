@@ -49,9 +49,9 @@ Host *.{{ $clusterName }} {{ $dot.ProxyHost }}
 Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
     Port 3022
     {{- if eq $dot.AppName "tsh" }}
-    ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }} %r@%h:%p
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy ssh --cluster={{ $clusterName }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} %r@%h:%p
 {{- end }}{{- if eq $dot.AppName "tbot" }}
-    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }} ssh --cluster={{ $clusterName }}  %r@%h:%p
+    ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
 {{- end }}
 {{- end }}
 
@@ -66,6 +66,7 @@ type SSHConfigParameters struct {
 	IdentityFilePath    string
 	CertificateFilePath string
 	ProxyHost           string
+	ProxyPort           string
 	ExecutablePath      string
 	DestinationDir      string
 }

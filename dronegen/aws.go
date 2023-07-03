@@ -38,15 +38,6 @@ type kubernetesRoleSettings struct {
 	append       bool
 }
 
-// macRoleSettings contains the info necessary to assume an AWS role and save the credentials to a path that later steps can use
-type macRoleSettings struct {
-	awsRoleSettings
-	configPath string
-	name       string
-	profile    string
-	append     bool
-}
-
 // kuberentesS3Settings contains all info needed to download from S3 in a kubernetes pipeline
 type kubernetesS3Settings struct {
 	region       string
@@ -101,23 +92,6 @@ func kubernetesAssumeAwsRoleStep(s kubernetesRoleSettings) step {
 		},
 		Volumes:  []volumeRef{s.configVolume},
 		Commands: assumeRoleCommands(s.profile, configPath, s.append),
-	}
-}
-
-// macAssumeAwsRoleStep builds a step to assume an AWS role and save it to a host path that later steps can use
-func macAssumeAwsRoleStep(s macRoleSettings) step {
-	if s.name == "" {
-		s.name = "Assume AWS Role"
-	}
-	return step{
-		Name: s.name,
-		Environment: map[string]value{
-			"AWS_ACCESS_KEY_ID":           s.awsAccessKeyID,
-			"AWS_SECRET_ACCESS_KEY":       s.awsSecretAccessKey,
-			"AWS_ROLE":                    s.role,
-			"AWS_SHARED_CREDENTIALS_FILE": value{raw: s.configPath},
-		},
-		Commands: assumeRoleCommands(s.profile, s.configPath, s.append),
 	}
 }
 

@@ -1,9 +1,10 @@
 <Admonition type="tip">
 
-To modify an existing user to provide access to the Database Access service, see [Database Access Access Controls](../../database-access/rbac.mdx)
+To modify an existing user to provide access to the Database Service, see [Database Access Access Controls](../../database-access/rbac.mdx)
 
 </Admonition>
 
+<ScopedBlock scope={["oss"]}>
 Create a local Teleport user with the built-in `access` role:
 
 ```code
@@ -13,12 +14,24 @@ $ tctl users add \
   --db-names=\* \
   alice
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+Create a local Teleport user with the built-in `access` and `requester` roles:
 
-| Flag                      | Description                                                                                                                              |
-|---------------------------|------------------------------------------------------------------------------------------------------------------------------------------|
-| <nobr>`--roles`</nobr>    | List of roles to assign to the user. The builtin `access` role allows them to connect to any database server registered with Teleport.   |
-| <nobr>`--db-users`</nobr> | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
-| <nobr>`--db-names`</nobr> | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
+```code
+$ tctl users add \
+  --roles=access,requester \
+  --db-users=\* \
+  --db-names=\* \
+  alice
+```
+</ScopedBlock>
+
+| Flag         | Description                                                                                                                              |
+|--------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `--roles`    | List of roles to assign to the user. The builtin `access` role allows them to connect to any database server registered with Teleport.   |
+| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
+| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
 
 <Admonition type="warning">
   Database names are only enforced for PostgreSQL and MongoDB databases.

@@ -184,18 +184,12 @@ func KubeClusters(ctx context.Context, p KubeServicesPresence) ([]types.KubeClus
 	return extractAndSortKubeClusters(kubeServers), nil
 }
 
-// ListKubeClusterWithFilters returns a sorted list of unique kubernetes clusters
+// ListKubeClustersWithFilters returns a sorted list of unique kubernetes clusters
 // registered in p.
-func ListKubeClustersWithFilters(ctx context.Context, p client.ListResourcesClient, req proto.ListResourcesRequest) ([]types.KubeCluster, error) {
+func ListKubeClustersWithFilters(ctx context.Context, p client.GetResourcesClient, req proto.ListResourcesRequest) ([]types.KubeCluster, error) {
 	req.ResourceType = types.KindKubeServer
-	var kss []types.KubeServer
 
-	resources, err := client.GetResourcesWithFilters(ctx, p, req)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	kss, err = types.ResourcesWithLabels(resources).AsKubeServers()
+	kss, err := client.GetAllResources[types.KubeServer](ctx, p, &req)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

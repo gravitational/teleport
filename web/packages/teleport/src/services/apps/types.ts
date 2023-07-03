@@ -32,9 +32,16 @@ export interface App {
   // addrWithProtocol can either be a public address or
   // if public address wasn't defined, fallback to uri
   addrWithProtocol?: string;
+  friendlyName?: string;
+  userGroups: UserGroupAndDescription[];
 }
 
 export type AwsRole = {
   arn: string;
   display: string;
+};
+
+export type UserGroupAndDescription = {
+  name: string;
+  description: string;
 };

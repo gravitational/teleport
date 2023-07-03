@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/types"

@@ -21,19 +21,12 @@ This parameter contains the host/port combination of the Teleport Proxy
 Service (or the Auth Service if you are configuring your plugin to
 connect to it directly).
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     address: "teleport.example.com:3025"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.address="teleport.example.com:3025"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `teleport.identitySecretName`
 
@@ -60,19 +53,12 @@ Check out the [Access Requests with
 Slack](../../access-controls/access-request-plugins/ssh-approval-slack.mdx) guide
 for more information about how to acquire these credentials.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     identitySecretName: "teleport-plugin-slack-identity"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretName="teleport-plugin-slack-identity"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `teleport.identitySecretPath`
 
@@ -84,19 +70,12 @@ The key in the Kubernetes secret specified by `teleport.identitySecretName` that
 credentials for the connection to your Teleport cluster. If the secret has the path,
 `"auth_id"`, you can omit this field.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     identitySecretPath: "auth_id"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretPath="auth_id"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `slack.token`
 
@@ -109,19 +88,12 @@ messages. Ignored when `slack.tokenFromSecret` is set.
 It's only recommended for testing purposes. Please use
 [`slack.tokenFromSecret`](#slacktokenfromsecret) instead.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   slack:
     token: "xoxb-1234"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set slack.token="xoxb-1234"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `slack.tokenFromSecret`
 
@@ -131,19 +103,12 @@ It's only recommended for testing purposes. Please use
 
 Secret containing the Slack token of the bot user.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   slack:
     tokenFromSecret: "teleport-slack-plugin-token"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set slack.tokenFromSecret="teleport-slack-plugin-token"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `slack.tokenSecretPath`
 
@@ -153,19 +118,12 @@ Secret containing the Slack token of the bot user.
 
 Key where the token is located inside the secret specified by `slack.tokenFromSecret`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   slack:
     tokenSecretPath: "token"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set slack.tokenSecretPath="token"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `roleToRecipients`
 
@@ -176,20 +134,13 @@ Key where the token is located inside the secret specified by `slack.tokenFromSe
 Mapping of roles to a list of channels and Slack emails. It must contain
 a mapping for `*` in case no matching roles are found.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   roleToRecipients:
     dev: ["dev-access-requests", "user@example.com"]
     "*": ["access-requests"]
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set "roleToRecipients.dev[0]=dev-access-requests,roleToRecipients.dev[1]=user@example.com,roleToRecipients.\*[0]=access-requests"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `log.output`
 
@@ -199,19 +150,12 @@ a mapping for `*` in case no matching roles are found.
 
 Logger output. Could be `stdout`, `stderr` or a file name, eg. `/var/log/teleport/slack.log`
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     output: /var/log/teleport/slack.log
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set log.output="/var/log/teleport/slack.log"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `log.severity`
 
@@ -221,16 +165,9 @@ Logger output. Could be `stdout`, `stderr` or a file name, eg. `/var/log/telepor
 
 Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     severity: DEBUG
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set log.severity="DEBUG"
-  ```
-  </TabItem>
-</Tabs>

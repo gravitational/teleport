@@ -19,6 +19,7 @@ package aws
 import (
 	"testing"
 
+	rdsTypesV2 "github.com/aws/aws-sdk-go-v2/service/rds/types"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/service/elasticache"
 	"github.com/aws/aws-sdk-go/service/rds"
@@ -28,51 +29,102 @@ import (
 func TestTagsToLabels(t *testing.T) {
 	t.Parallel()
 
-	inputTags := []*rds.Tag{
-		{
-			Key:   aws.String("Env"),
-			Value: aws.String("dev"),
-		},
-		{
-			Key:   aws.String("aws:cloudformation:stack-id"),
-			Value: aws.String("some-id"),
-		},
-		{
-			Key:   aws.String("Name"),
-			Value: aws.String("test"),
-		},
-	}
-	t.Log(inputTags)
+	t.Run("rds", func(t *testing.T) {
+		inputTags := []*rds.Tag{
+			{
+				Key:   aws.String("Env"),
+				Value: aws.String("dev"),
+			},
+			{
+				Key:   aws.String("aws:cloudformation:stack-id"),
+				Value: aws.String("some-id"),
+			},
+			{
+				Key:   aws.String("Name"),
+				Value: aws.String("test"),
+			},
+		}
 
-	expectLabels := map[string]string{
-		"Name":                        "test",
-		"Env":                         "dev",
-		"aws:cloudformation:stack-id": "some-id",
-	}
+		expectLabels := map[string]string{
+			"Name":                        "test",
+			"Env":                         "dev",
+			"aws:cloudformation:stack-id": "some-id",
+		}
 
-	actuallabels := TagsToLabels(inputTags)
-	require.Equal(t, expectLabels, actuallabels)
+		actuallabels := TagsToLabels(inputTags)
+		require.Equal(t, expectLabels, actuallabels)
+	})
+
+	t.Run("rdsV2", func(t *testing.T) {
+		inputTags := []rdsTypesV2.Tag{
+			{
+				Key:   aws.String("Env"),
+				Value: aws.String("dev"),
+			},
+			{
+				Key:   aws.String("aws:cloudformation:stack-id"),
+				Value: aws.String("some-id"),
+			},
+			{
+				Key:   aws.String("Name"),
+				Value: aws.String("test"),
+			},
+		}
+
+		expectLabels := map[string]string{
+			"Name":                        "test",
+			"Env":                         "dev",
+			"aws:cloudformation:stack-id": "some-id",
+		}
+
+		actuallabels := TagsToLabels(inputTags)
+		require.Equal(t, expectLabels, actuallabels)
+	})
+
 }
 
 func TestLabelsToTags(t *testing.T) {
 	t.Parallel()
 
-	inputLabels := map[string]string{
-		"labelB": "valueB",
-		"labelA": "valueA",
-	}
+	t.Run("elasticcache", func(t *testing.T) {
+		inputLabels := map[string]string{
+			"labelB": "valueB",
+			"labelA": "valueA",
+		}
 
-	expectTags := []*elasticache.Tag{
-		{
-			Key:   aws.String("labelA"),
-			Value: aws.String("valueA"),
-		},
-		{
-			Key:   aws.String("labelB"),
-			Value: aws.String("valueB"),
-		},
-	}
+		expectTags := []*elasticache.Tag{
+			{
+				Key:   aws.String("labelA"),
+				Value: aws.String("valueA"),
+			},
+			{
+				Key:   aws.String("labelB"),
+				Value: aws.String("valueB"),
+			},
+		}
 
-	actualTags := LabelsToTags[elasticache.Tag](inputLabels)
-	require.Equal(t, expectTags, actualTags)
+		actualTags := LabelsToTags[elasticache.Tag](inputLabels)
+		require.Equal(t, expectTags, actualTags)
+	})
+
+	t.Run("rdsV2", func(t *testing.T) {
+		inputLabels := map[string]string{
+			"labelB": "valueB",
+			"labelA": "valueA",
+		}
+
+		expectTags := []rdsTypesV2.Tag{
+			{
+				Key:   aws.String("labelA"),
+				Value: aws.String("valueA"),
+			},
+			{
+				Key:   aws.String("labelB"),
+				Value: aws.String("valueB"),
+			},
+		}
+
+		actualTags := LabelsToRDSV2Tags(inputLabels)
+		require.EqualValues(t, expectTags, actualTags)
+	})
 }

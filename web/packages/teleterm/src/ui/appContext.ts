@@ -27,7 +27,6 @@ import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { TerminalsService } from 'teleterm/ui/services/terminals';
 import { ConnectionTrackerService } from 'teleterm/ui/services/connectionTracker';
-import { QuickInputService } from 'teleterm/ui/services/quickInput';
 import { StatePersistenceService } from 'teleterm/ui/services/statePersistence';
 import { KeyboardShortcutsService } from 'teleterm/ui/services/keyboardShortcuts';
 import { WorkspacesService } from 'teleterm/ui/services/workspacesService/workspacesService';
@@ -48,7 +47,6 @@ export default class AppContext implements IAppContext {
   notificationsService: NotificationsService;
   terminalsService: TerminalsService;
   keyboardShortcutsService: KeyboardShortcutsService;
-  quickInputService: QuickInputService;
   statePersistenceService: StatePersistenceService;
   workspacesService: WorkspacesService;
   mainProcessClient: MainProcessClient;
@@ -117,13 +115,6 @@ export default class AppContext implements IAppContext {
     );
 
     this.commandLauncher = new CommandLauncher(this);
-
-    this.quickInputService = new QuickInputService(
-      this.commandLauncher,
-      this.clustersService,
-      this.resourcesService,
-      this.workspacesService
-    );
 
     this.connectionTracker = new ConnectionTrackerService(
       this.statePersistenceService,

@@ -73,7 +73,7 @@ export function NewPasswordlessDevice(props: Props & SliderProps) {
     <Validation>
       {({ validator }) => (
         <Box px={5} pb={4} pt={5} ref={refCallback} data-testid="passwordless">
-          <Text typography="h4" mb={3} color="light" bold>
+          <Text typography="h4" mb={3} color="text.main" bold>
             Set A Passwordless Device
           </Text>
           {submitAttempt.status === 'failed' && (

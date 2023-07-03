@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/srv/alpnproxy"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -73,6 +74,12 @@ type Config struct {
 	//
 	// Handling of the connection is blocked until OnExpiredCert returns.
 	OnExpiredCert OnExpiredCertFunc
+	// TLSRoutingConnUpgradeRequired indicates that ALPN connection upgrades
+	// are required for making TLS routing requests.
+	TLSRoutingConnUpgradeRequired bool
+	// RootClusterCACertPoolFunc is callback function to fetch Root cluster CAs
+	// when ALPN connection upgrade is required.
+	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is

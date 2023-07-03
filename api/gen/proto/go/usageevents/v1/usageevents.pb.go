@@ -63,6 +63,7 @@ const (
 	DiscoverResource_DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY                DiscoverResource = 34
 	DiscoverResource_DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY        DiscoverResource = 35
 	DiscoverResource_DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION     DiscoverResource = 36
+	DiscoverResource_DISCOVER_RESOURCE_SAML_APPLICATION                      DiscoverResource = 37
 )
 
 var DiscoverResource_name = map[int32]string{
@@ -103,6 +104,7 @@ var DiscoverResource_name = map[int32]string{
 	34: "DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY",
 	35: "DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY",
 	36: "DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION",
+	37: "DISCOVER_RESOURCE_SAML_APPLICATION",
 }
 
 var DiscoverResource_value = map[string]int32{
@@ -143,6 +145,7 @@ var DiscoverResource_value = map[string]int32{
 	"DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY":                34,
 	"DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY":        35,
 	"DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION":     36,
+	"DISCOVER_RESOURCE_SAML_APPLICATION":                      37,
 }
 
 func (x DiscoverResource) String() string {
@@ -193,6 +196,178 @@ func (x DiscoverStatus) String() string {
 
 func (DiscoverStatus) EnumDescriptor() ([]byte, []int) {
 	return fileDescriptor_94cf2ca1c69fd564, []int{1}
+}
+
+// CTA represents teleport web UI's call to action buttons.
+// We can't use prehog.v1alpha.CTA here because AuthService (and thus this file)
+// is generated with gogofast, so we just copy the enum definition here instead.
+// Make sure you update both.
+type CTA int32
+
+const (
+	CTA_CTA_UNSPECIFIED     CTA = 0
+	CTA_CTA_AUTH_CONNECTOR  CTA = 1
+	CTA_CTA_ACTIVE_SESSIONS CTA = 2
+	CTA_CTA_ACCESS_REQUESTS CTA = 3
+	CTA_CTA_PREMIUM_SUPPORT CTA = 4
+	CTA_CTA_TRUSTED_DEVICES CTA = 5
+	CTA_CTA_UPGRADE_BANNER  CTA = 6
+	CTA_CTA_BILLING_SUMMARY CTA = 7
+)
+
+var CTA_name = map[int32]string{
+	0: "CTA_UNSPECIFIED",
+	1: "CTA_AUTH_CONNECTOR",
+	2: "CTA_ACTIVE_SESSIONS",
+	3: "CTA_ACCESS_REQUESTS",
+	4: "CTA_PREMIUM_SUPPORT",
+	5: "CTA_TRUSTED_DEVICES",
+	6: "CTA_UPGRADE_BANNER",
+	7: "CTA_BILLING_SUMMARY",
+}
+
+var CTA_value = map[string]int32{
+	"CTA_UNSPECIFIED":     0,
+	"CTA_AUTH_CONNECTOR":  1,
+	"CTA_ACTIVE_SESSIONS": 2,
+	"CTA_ACCESS_REQUESTS": 3,
+	"CTA_PREMIUM_SUPPORT": 4,
+	"CTA_TRUSTED_DEVICES": 5,
+	"CTA_UPGRADE_BANNER":  6,
+	"CTA_BILLING_SUMMARY": 7,
+}
+
+func (x CTA) String() string {
+	return proto.EnumName(CTA_name, int32(x))
+}
+
+func (CTA) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{2}
+}
+
+// IntegrationEnrollKind represents the types of integration that
+// can be enrolled.
+type IntegrationEnrollKind int32
+
+const (
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_UNSPECIFIED IntegrationEnrollKind = 0
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_SLACK       IntegrationEnrollKind = 1
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_OIDC    IntegrationEnrollKind = 2
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_PAGERDUTY   IntegrationEnrollKind = 3
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_EMAIL       IntegrationEnrollKind = 4
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_JIRA        IntegrationEnrollKind = 5
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_DISCORD     IntegrationEnrollKind = 6
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MATTERMOST  IntegrationEnrollKind = 7
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_MS_TEAMS    IntegrationEnrollKind = 8
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_OPSGENIE    IntegrationEnrollKind = 9
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_OKTA        IntegrationEnrollKind = 10
+	IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_JAMF        IntegrationEnrollKind = 11
+)
+
+var IntegrationEnrollKind_name = map[int32]string{
+	0:  "INTEGRATION_ENROLL_KIND_UNSPECIFIED",
+	1:  "INTEGRATION_ENROLL_KIND_SLACK",
+	2:  "INTEGRATION_ENROLL_KIND_AWS_OIDC",
+	3:  "INTEGRATION_ENROLL_KIND_PAGERDUTY",
+	4:  "INTEGRATION_ENROLL_KIND_EMAIL",
+	5:  "INTEGRATION_ENROLL_KIND_JIRA",
+	6:  "INTEGRATION_ENROLL_KIND_DISCORD",
+	7:  "INTEGRATION_ENROLL_KIND_MATTERMOST",
+	8:  "INTEGRATION_ENROLL_KIND_MS_TEAMS",
+	9:  "INTEGRATION_ENROLL_KIND_OPSGENIE",
+	10: "INTEGRATION_ENROLL_KIND_OKTA",
+	11: "INTEGRATION_ENROLL_KIND_JAMF",
+}
+
+var IntegrationEnrollKind_value = map[string]int32{
+	"INTEGRATION_ENROLL_KIND_UNSPECIFIED": 0,
+	"INTEGRATION_ENROLL_KIND_SLACK":       1,
+	"INTEGRATION_ENROLL_KIND_AWS_OIDC":    2,
+	"INTEGRATION_ENROLL_KIND_PAGERDUTY":   3,
+	"INTEGRATION_ENROLL_KIND_EMAIL":       4,
+	"INTEGRATION_ENROLL_KIND_JIRA":        5,
+	"INTEGRATION_ENROLL_KIND_DISCORD":     6,
+	"INTEGRATION_ENROLL_KIND_MATTERMOST":  7,
+	"INTEGRATION_ENROLL_KIND_MS_TEAMS":    8,
+	"INTEGRATION_ENROLL_KIND_OPSGENIE":    9,
+	"INTEGRATION_ENROLL_KIND_OKTA":        10,
+	"INTEGRATION_ENROLL_KIND_JAMF":        11,
+}
+
+func (x IntegrationEnrollKind) String() string {
+	return proto.EnumName(IntegrationEnrollKind_name, int32(x))
+}
+
+func (IntegrationEnrollKind) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{3}
+}
+
+// DeployMethod describes the method used to deploy a service.
+type UIDiscoverDeployServiceEvent_DeployMethod int32
+
+const (
+	// DEPLOY_METHOD_UNSPECIFIED means there was an existing service
+	// so deploying step got skipped.
+	UIDiscoverDeployServiceEvent_DEPLOY_METHOD_UNSPECIFIED UIDiscoverDeployServiceEvent_DeployMethod = 0
+	// DEPLOY_METHOD_AUTO means Teleport deployed a service for the user.
+	UIDiscoverDeployServiceEvent_DEPLOY_METHOD_AUTO UIDiscoverDeployServiceEvent_DeployMethod = 1
+	// DEPLOY_METHOD_MANUAL means a user deployed a service by themselves.
+	UIDiscoverDeployServiceEvent_DEPLOY_METHOD_MANUAL UIDiscoverDeployServiceEvent_DeployMethod = 2
+)
+
+var UIDiscoverDeployServiceEvent_DeployMethod_name = map[int32]string{
+	0: "DEPLOY_METHOD_UNSPECIFIED",
+	1: "DEPLOY_METHOD_AUTO",
+	2: "DEPLOY_METHOD_MANUAL",
+}
+
+var UIDiscoverDeployServiceEvent_DeployMethod_value = map[string]int32{
+	"DEPLOY_METHOD_UNSPECIFIED": 0,
+	"DEPLOY_METHOD_AUTO":        1,
+	"DEPLOY_METHOD_MANUAL":      2,
+}
+
+func (x UIDiscoverDeployServiceEvent_DeployMethod) String() string {
+	return proto.EnumName(UIDiscoverDeployServiceEvent_DeployMethod_name, int32(x))
+}
+
+func (UIDiscoverDeployServiceEvent_DeployMethod) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{17, 0}
+}
+
+// DeployType describes the type of deployment.
+type UIDiscoverDeployServiceEvent_DeployType int32
+
+const (
+	// DEPLOY_METHOD_UNSPECIFIED means there was an existing service
+	// so deploying step got skipped.
+	UIDiscoverDeployServiceEvent_DEPLOY_TYPE_UNSPECIFIED UIDiscoverDeployServiceEvent_DeployType = 0
+	// DEPLOY_TYPE_INSTALL_SCRIPT means service was deployed using an
+	// install script.
+	UIDiscoverDeployServiceEvent_DEPLOY_TYPE_INSTALL_SCRIPT UIDiscoverDeployServiceEvent_DeployType = 1
+	// DEPLOY_TYPE_AMAZON_ECS means service was deployed using amazon's
+	// elastic container service.
+	UIDiscoverDeployServiceEvent_DEPLOY_TYPE_AMAZON_ECS UIDiscoverDeployServiceEvent_DeployType = 2
+)
+
+var UIDiscoverDeployServiceEvent_DeployType_name = map[int32]string{
+	0: "DEPLOY_TYPE_UNSPECIFIED",
+	1: "DEPLOY_TYPE_INSTALL_SCRIPT",
+	2: "DEPLOY_TYPE_AMAZON_ECS",
+}
+
+var UIDiscoverDeployServiceEvent_DeployType_value = map[string]int32{
+	"DEPLOY_TYPE_UNSPECIFIED":    0,
+	"DEPLOY_TYPE_INSTALL_SCRIPT": 1,
+	"DEPLOY_TYPE_AMAZON_ECS":     2,
+}
+
+func (x UIDiscoverDeployServiceEvent_DeployType) String() string {
+	return proto.EnumName(UIDiscoverDeployServiceEvent_DeployType_name, int32(x))
+}
+
+func (UIDiscoverDeployServiceEvent_DeployType) EnumDescriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{17, 1}
 }
 
 // UIBannerClickEvent is a usage event sent by the UI when the upgrade
@@ -929,14 +1104,10 @@ func (m *UIDiscoverResourceSelectionEvent) GetStatus() *DiscoverStepStatus {
 	return nil
 }
 
-// UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
-// For SSH this is the Teleport 'install-node' script.
-//
-// For Kubernetes this is the teleport-agent helm chart installation.
-//
-// For Database Access this step is the installation of the teleport 'install-db' script.
-// It can be skipped if the cluster already has a Database Service capable of proxying the database.
-type UIDiscoverDeployServiceEvent struct {
+// UIDiscoverIntegrationAWSOIDCConnectEvent is emitted when a user is finished with the step
+// that asks user to setup aws integration or select from a list of existing
+// aws integrations.
+type UIDiscoverIntegrationAWSOIDCConnectEvent struct {
 	Metadata             *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	Resource             *DiscoverResourceMetadata `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
 	Status               *DiscoverStepStatus       `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
@@ -945,11 +1116,206 @@ type UIDiscoverDeployServiceEvent struct {
 	XXX_sizecache        int32                     `json:"-"`
 }
 
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) Reset() {
+	*m = UIDiscoverIntegrationAWSOIDCConnectEvent{}
+}
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) String() string { return proto.CompactTextString(m) }
+func (*UIDiscoverIntegrationAWSOIDCConnectEvent) ProtoMessage()    {}
+func (*UIDiscoverIntegrationAWSOIDCConnectEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{14}
+}
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIDiscoverIntegrationAWSOIDCConnectEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIDiscoverIntegrationAWSOIDCConnectEvent.Merge(m, src)
+}
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIDiscoverIntegrationAWSOIDCConnectEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIDiscoverIntegrationAWSOIDCConnectEvent proto.InternalMessageInfo
+
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) GetMetadata() *DiscoverMetadata {
+	if m != nil {
+		return m.Metadata
+	}
+	return nil
+}
+
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) GetResource() *DiscoverResourceMetadata {
+	if m != nil {
+		return m.Resource
+	}
+	return nil
+}
+
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) GetStatus() *DiscoverStepStatus {
+	if m != nil {
+		return m.Status
+	}
+	return nil
+}
+
+// UIDiscoverDatabaseRDSEnrollEvent is emitted when a user is finished with
+// the step that asks user to select from a list of RDS databases.
+type UIDiscoverDatabaseRDSEnrollEvent struct {
+	Metadata               *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Resource               *DiscoverResourceMetadata `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
+	Status                 *DiscoverStepStatus       `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	SelectedResourcesCount int64                     `protobuf:"varint,4,opt,name=selected_resources_count,json=selectedResourcesCount,proto3" json:"selected_resources_count,omitempty"`
+	XXX_NoUnkeyedLiteral   struct{}                  `json:"-"`
+	XXX_unrecognized       []byte                    `json:"-"`
+	XXX_sizecache          int32                     `json:"-"`
+}
+
+func (m *UIDiscoverDatabaseRDSEnrollEvent) Reset()         { *m = UIDiscoverDatabaseRDSEnrollEvent{} }
+func (m *UIDiscoverDatabaseRDSEnrollEvent) String() string { return proto.CompactTextString(m) }
+func (*UIDiscoverDatabaseRDSEnrollEvent) ProtoMessage()    {}
+func (*UIDiscoverDatabaseRDSEnrollEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{15}
+}
+func (m *UIDiscoverDatabaseRDSEnrollEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIDiscoverDatabaseRDSEnrollEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIDiscoverDatabaseRDSEnrollEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIDiscoverDatabaseRDSEnrollEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIDiscoverDatabaseRDSEnrollEvent.Merge(m, src)
+}
+func (m *UIDiscoverDatabaseRDSEnrollEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIDiscoverDatabaseRDSEnrollEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIDiscoverDatabaseRDSEnrollEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIDiscoverDatabaseRDSEnrollEvent proto.InternalMessageInfo
+
+func (m *UIDiscoverDatabaseRDSEnrollEvent) GetMetadata() *DiscoverMetadata {
+	if m != nil {
+		return m.Metadata
+	}
+	return nil
+}
+
+func (m *UIDiscoverDatabaseRDSEnrollEvent) GetResource() *DiscoverResourceMetadata {
+	if m != nil {
+		return m.Resource
+	}
+	return nil
+}
+
+func (m *UIDiscoverDatabaseRDSEnrollEvent) GetStatus() *DiscoverStepStatus {
+	if m != nil {
+		return m.Status
+	}
+	return nil
+}
+
+func (m *UIDiscoverDatabaseRDSEnrollEvent) GetSelectedResourcesCount() int64 {
+	if m != nil {
+		return m.SelectedResourcesCount
+	}
+	return 0
+}
+
+// UICallToActionClickEvent is emmited when a user clicks a Teleport Web UI's CTA.
+type UICallToActionClickEvent struct {
+	Cta                  CTA      `protobuf:"varint,1,opt,name=cta,proto3,enum=teleport.usageevents.v1.CTA" json:"cta,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *UICallToActionClickEvent) Reset()         { *m = UICallToActionClickEvent{} }
+func (m *UICallToActionClickEvent) String() string { return proto.CompactTextString(m) }
+func (*UICallToActionClickEvent) ProtoMessage()    {}
+func (*UICallToActionClickEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{16}
+}
+func (m *UICallToActionClickEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UICallToActionClickEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UICallToActionClickEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UICallToActionClickEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UICallToActionClickEvent.Merge(m, src)
+}
+func (m *UICallToActionClickEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *UICallToActionClickEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_UICallToActionClickEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UICallToActionClickEvent proto.InternalMessageInfo
+
+func (m *UICallToActionClickEvent) GetCta() CTA {
+	if m != nil {
+		return m.Cta
+	}
+	return CTA_CTA_UNSPECIFIED
+}
+
+// UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
+// For SSH this is the Teleport 'install-node' script.
+//
+// For Kubernetes this is the teleport-agent helm chart installation.
+//
+// For Database Access this step is the installation of the teleport 'install-db' script.
+// It can be skipped if the cluster already has a Database Service capable of proxying the database.
+type UIDiscoverDeployServiceEvent struct {
+	Metadata             *DiscoverMetadata                         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	Resource             *DiscoverResourceMetadata                 `protobuf:"bytes,2,opt,name=resource,proto3" json:"resource,omitempty"`
+	Status               *DiscoverStepStatus                       `protobuf:"bytes,3,opt,name=status,proto3" json:"status,omitempty"`
+	DeployMethod         UIDiscoverDeployServiceEvent_DeployMethod `protobuf:"varint,4,opt,name=deploy_method,json=deployMethod,proto3,enum=teleport.usageevents.v1.UIDiscoverDeployServiceEvent_DeployMethod" json:"deploy_method,omitempty"`
+	DeployType           UIDiscoverDeployServiceEvent_DeployType   `protobuf:"varint,5,opt,name=deploy_type,json=deployType,proto3,enum=teleport.usageevents.v1.UIDiscoverDeployServiceEvent_DeployType" json:"deploy_type,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                                  `json:"-"`
+	XXX_unrecognized     []byte                                    `json:"-"`
+	XXX_sizecache        int32                                     `json:"-"`
+}
+
 func (m *UIDiscoverDeployServiceEvent) Reset()         { *m = UIDiscoverDeployServiceEvent{} }
 func (m *UIDiscoverDeployServiceEvent) String() string { return proto.CompactTextString(m) }
 func (*UIDiscoverDeployServiceEvent) ProtoMessage()    {}
 func (*UIDiscoverDeployServiceEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{14}
+	return fileDescriptor_94cf2ca1c69fd564, []int{17}
 }
 func (m *UIDiscoverDeployServiceEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -999,6 +1365,20 @@ func (m *UIDiscoverDeployServiceEvent) GetStatus() *DiscoverStepStatus {
 	return nil
 }
 
+func (m *UIDiscoverDeployServiceEvent) GetDeployMethod() UIDiscoverDeployServiceEvent_DeployMethod {
+	if m != nil {
+		return m.DeployMethod
+	}
+	return UIDiscoverDeployServiceEvent_DEPLOY_METHOD_UNSPECIFIED
+}
+
+func (m *UIDiscoverDeployServiceEvent) GetDeployType() UIDiscoverDeployServiceEvent_DeployType {
+	if m != nil {
+		return m.DeployType
+	}
+	return UIDiscoverDeployServiceEvent_DEPLOY_TYPE_UNSPECIFIED
+}
+
 // UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
 type UIDiscoverDatabaseRegisterEvent struct {
 	Metadata             *DiscoverMetadata         `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
@@ -1013,7 +1393,7 @@ func (m *UIDiscoverDatabaseRegisterEvent) Reset()         { *m = UIDiscoverDatab
 func (m *UIDiscoverDatabaseRegisterEvent) String() string { return proto.CompactTextString(m) }
 func (*UIDiscoverDatabaseRegisterEvent) ProtoMessage()    {}
 func (*UIDiscoverDatabaseRegisterEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{15}
+	return fileDescriptor_94cf2ca1c69fd564, []int{18}
 }
 func (m *UIDiscoverDatabaseRegisterEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1077,7 +1457,7 @@ func (m *UIDiscoverDatabaseConfigureMTLSEvent) Reset()         { *m = UIDiscover
 func (m *UIDiscoverDatabaseConfigureMTLSEvent) String() string { return proto.CompactTextString(m) }
 func (*UIDiscoverDatabaseConfigureMTLSEvent) ProtoMessage()    {}
 func (*UIDiscoverDatabaseConfigureMTLSEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{16}
+	return fileDescriptor_94cf2ca1c69fd564, []int{19}
 }
 func (m *UIDiscoverDatabaseConfigureMTLSEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1145,7 +1525,7 @@ func (m *UIDiscoverDesktopActiveDirectoryToolsInstallEvent) String() string {
 }
 func (*UIDiscoverDesktopActiveDirectoryToolsInstallEvent) ProtoMessage() {}
 func (*UIDiscoverDesktopActiveDirectoryToolsInstallEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{17}
+	return fileDescriptor_94cf2ca1c69fd564, []int{20}
 }
 func (m *UIDiscoverDesktopActiveDirectoryToolsInstallEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1213,7 +1593,7 @@ func (m *UIDiscoverDesktopActiveDirectoryConfigureEvent) String() string {
 }
 func (*UIDiscoverDesktopActiveDirectoryConfigureEvent) ProtoMessage() {}
 func (*UIDiscoverDesktopActiveDirectoryConfigureEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{18}
+	return fileDescriptor_94cf2ca1c69fd564, []int{21}
 }
 func (m *UIDiscoverDesktopActiveDirectoryConfigureEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1281,7 +1661,7 @@ func (m *UIDiscoverAutoDiscoveredResourcesEvent) Reset() {
 func (m *UIDiscoverAutoDiscoveredResourcesEvent) String() string { return proto.CompactTextString(m) }
 func (*UIDiscoverAutoDiscoveredResourcesEvent) ProtoMessage()    {}
 func (*UIDiscoverAutoDiscoveredResourcesEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{19}
+	return fileDescriptor_94cf2ca1c69fd564, []int{22}
 }
 func (m *UIDiscoverAutoDiscoveredResourcesEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1356,7 +1736,7 @@ func (m *UIDiscoverDatabaseConfigureIAMPolicyEvent) String() string {
 }
 func (*UIDiscoverDatabaseConfigureIAMPolicyEvent) ProtoMessage() {}
 func (*UIDiscoverDatabaseConfigureIAMPolicyEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{20}
+	return fileDescriptor_94cf2ca1c69fd564, []int{23}
 }
 func (m *UIDiscoverDatabaseConfigureIAMPolicyEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1420,7 +1800,7 @@ func (m *UIDiscoverPrincipalsConfigureEvent) Reset()         { *m = UIDiscoverPr
 func (m *UIDiscoverPrincipalsConfigureEvent) String() string { return proto.CompactTextString(m) }
 func (*UIDiscoverPrincipalsConfigureEvent) ProtoMessage()    {}
 func (*UIDiscoverPrincipalsConfigureEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{21}
+	return fileDescriptor_94cf2ca1c69fd564, []int{24}
 }
 func (m *UIDiscoverPrincipalsConfigureEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1485,7 +1865,7 @@ func (m *UIDiscoverTestConnectionEvent) Reset()         { *m = UIDiscoverTestCon
 func (m *UIDiscoverTestConnectionEvent) String() string { return proto.CompactTextString(m) }
 func (*UIDiscoverTestConnectionEvent) ProtoMessage()    {}
 func (*UIDiscoverTestConnectionEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{22}
+	return fileDescriptor_94cf2ca1c69fd564, []int{25}
 }
 func (m *UIDiscoverTestConnectionEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1549,7 +1929,7 @@ func (m *UIDiscoverCompletedEvent) Reset()         { *m = UIDiscoverCompletedEve
 func (m *UIDiscoverCompletedEvent) String() string { return proto.CompactTextString(m) }
 func (*UIDiscoverCompletedEvent) ProtoMessage()    {}
 func (*UIDiscoverCompletedEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{23}
+	return fileDescriptor_94cf2ca1c69fd564, []int{26}
 }
 func (m *UIDiscoverCompletedEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1610,7 +1990,7 @@ func (m *UICreateNewRoleClickEvent) Reset()         { *m = UICreateNewRoleClickE
 func (m *UICreateNewRoleClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UICreateNewRoleClickEvent) ProtoMessage()    {}
 func (*UICreateNewRoleClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{24}
+	return fileDescriptor_94cf2ca1c69fd564, []int{27}
 }
 func (m *UICreateNewRoleClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1650,7 +2030,7 @@ func (m *UICreateNewRoleSaveClickEvent) Reset()         { *m = UICreateNewRoleSa
 func (m *UICreateNewRoleSaveClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UICreateNewRoleSaveClickEvent) ProtoMessage()    {}
 func (*UICreateNewRoleSaveClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{25}
+	return fileDescriptor_94cf2ca1c69fd564, []int{28}
 }
 func (m *UICreateNewRoleSaveClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1690,7 +2070,7 @@ func (m *UICreateNewRoleCancelClickEvent) Reset()         { *m = UICreateNewRole
 func (m *UICreateNewRoleCancelClickEvent) String() string { return proto.CompactTextString(m) }
 func (*UICreateNewRoleCancelClickEvent) ProtoMessage()    {}
 func (*UICreateNewRoleCancelClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{26}
+	return fileDescriptor_94cf2ca1c69fd564, []int{29}
 }
 func (m *UICreateNewRoleCancelClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1734,7 +2114,7 @@ func (m *UICreateNewRoleViewDocumentationClickEvent) String() string {
 }
 func (*UICreateNewRoleViewDocumentationClickEvent) ProtoMessage() {}
 func (*UICreateNewRoleViewDocumentationClickEvent) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{27}
+	return fileDescriptor_94cf2ca1c69fd564, []int{30}
 }
 func (m *UICreateNewRoleViewDocumentationClickEvent) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1762,6 +2142,249 @@ func (m *UICreateNewRoleViewDocumentationClickEvent) XXX_DiscardUnknown() {
 }
 
 var xxx_messageInfo_UICreateNewRoleViewDocumentationClickEvent proto.InternalMessageInfo
+
+// AssistCompletionEvent is an event that is emitted when a completion occurs in the Assistant
+type AssistCompletionEvent struct {
+	// ConversationId is the UUID that identifies a single Assist conversation
+	ConversationId string `protobuf:"bytes,1,opt,name=conversation_id,json=conversationId,proto3" json:"conversation_id,omitempty"`
+	// TotalTokens is the total amount of token used to satisfy this request
+	TotalTokens int64 `protobuf:"varint,2,opt,name=total_tokens,json=totalTokens,proto3" json:"total_tokens,omitempty"`
+	// PromptTokens is the amount of estimated tokens used by the prompt
+	PromptTokens int64 `protobuf:"varint,3,opt,name=prompt_tokens,json=promptTokens,proto3" json:"prompt_tokens,omitempty"`
+	// CompletionTokens is the amount of tokens that the completion response consists of
+	CompletionTokens     int64    `protobuf:"varint,4,opt,name=completion_tokens,json=completionTokens,proto3" json:"completion_tokens,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *AssistCompletionEvent) Reset()         { *m = AssistCompletionEvent{} }
+func (m *AssistCompletionEvent) String() string { return proto.CompactTextString(m) }
+func (*AssistCompletionEvent) ProtoMessage()    {}
+func (*AssistCompletionEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{31}
+}
+func (m *AssistCompletionEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *AssistCompletionEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_AssistCompletionEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *AssistCompletionEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_AssistCompletionEvent.Merge(m, src)
+}
+func (m *AssistCompletionEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *AssistCompletionEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_AssistCompletionEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_AssistCompletionEvent proto.InternalMessageInfo
+
+func (m *AssistCompletionEvent) GetConversationId() string {
+	if m != nil {
+		return m.ConversationId
+	}
+	return ""
+}
+
+func (m *AssistCompletionEvent) GetTotalTokens() int64 {
+	if m != nil {
+		return m.TotalTokens
+	}
+	return 0
+}
+
+func (m *AssistCompletionEvent) GetPromptTokens() int64 {
+	if m != nil {
+		return m.PromptTokens
+	}
+	return 0
+}
+
+func (m *AssistCompletionEvent) GetCompletionTokens() int64 {
+	if m != nil {
+		return m.CompletionTokens
+	}
+	return 0
+}
+
+// IntegrationEnrollMetadata contains common metadata
+// for Integration Enroll related events.
+type IntegrationEnrollMetadata struct {
+	// id is used as a unique identifier to correlate events within the
+	// same enroll wizard run.
+	Id string `protobuf:"bytes,1,opt,name=id,proto3" json:"id,omitempty"`
+	// kind identifies what type of integration the user clicked on to enroll.
+	Kind IntegrationEnrollKind `protobuf:"varint,2,opt,name=kind,proto3,enum=teleport.usageevents.v1.IntegrationEnrollKind" json:"kind,omitempty"`
+	// user_name is anonymized.
+	UserName             string   `protobuf:"bytes,3,opt,name=user_name,json=userName,proto3" json:"user_name,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *IntegrationEnrollMetadata) Reset()         { *m = IntegrationEnrollMetadata{} }
+func (m *IntegrationEnrollMetadata) String() string { return proto.CompactTextString(m) }
+func (*IntegrationEnrollMetadata) ProtoMessage()    {}
+func (*IntegrationEnrollMetadata) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{32}
+}
+func (m *IntegrationEnrollMetadata) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *IntegrationEnrollMetadata) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_IntegrationEnrollMetadata.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *IntegrationEnrollMetadata) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_IntegrationEnrollMetadata.Merge(m, src)
+}
+func (m *IntegrationEnrollMetadata) XXX_Size() int {
+	return m.Size()
+}
+func (m *IntegrationEnrollMetadata) XXX_DiscardUnknown() {
+	xxx_messageInfo_IntegrationEnrollMetadata.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_IntegrationEnrollMetadata proto.InternalMessageInfo
+
+func (m *IntegrationEnrollMetadata) GetId() string {
+	if m != nil {
+		return m.Id
+	}
+	return ""
+}
+
+func (m *IntegrationEnrollMetadata) GetKind() IntegrationEnrollKind {
+	if m != nil {
+		return m.Kind
+	}
+	return IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_UNSPECIFIED
+}
+
+func (m *IntegrationEnrollMetadata) GetUserName() string {
+	if m != nil {
+		return m.UserName
+	}
+	return ""
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// clicks on a integration to enroll.
+type UIIntegrationEnrollStartEvent struct {
+	Metadata             *IntegrationEnrollMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
+}
+
+func (m *UIIntegrationEnrollStartEvent) Reset()         { *m = UIIntegrationEnrollStartEvent{} }
+func (m *UIIntegrationEnrollStartEvent) String() string { return proto.CompactTextString(m) }
+func (*UIIntegrationEnrollStartEvent) ProtoMessage()    {}
+func (*UIIntegrationEnrollStartEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{33}
+}
+func (m *UIIntegrationEnrollStartEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIIntegrationEnrollStartEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIIntegrationEnrollStartEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIIntegrationEnrollStartEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIIntegrationEnrollStartEvent.Merge(m, src)
+}
+func (m *UIIntegrationEnrollStartEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIIntegrationEnrollStartEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIIntegrationEnrollStartEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIIntegrationEnrollStartEvent proto.InternalMessageInfo
+
+func (m *UIIntegrationEnrollStartEvent) GetMetadata() *IntegrationEnrollMetadata {
+	if m != nil {
+		return m.Metadata
+	}
+	return nil
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// completed enrolling an integration.
+type UIIntegrationEnrollCompleteEvent struct {
+	Metadata             *IntegrationEnrollMetadata `protobuf:"bytes,1,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}                   `json:"-"`
+	XXX_unrecognized     []byte                     `json:"-"`
+	XXX_sizecache        int32                      `json:"-"`
+}
+
+func (m *UIIntegrationEnrollCompleteEvent) Reset()         { *m = UIIntegrationEnrollCompleteEvent{} }
+func (m *UIIntegrationEnrollCompleteEvent) String() string { return proto.CompactTextString(m) }
+func (*UIIntegrationEnrollCompleteEvent) ProtoMessage()    {}
+func (*UIIntegrationEnrollCompleteEvent) Descriptor() ([]byte, []int) {
+	return fileDescriptor_94cf2ca1c69fd564, []int{34}
+}
+func (m *UIIntegrationEnrollCompleteEvent) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *UIIntegrationEnrollCompleteEvent) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_UIIntegrationEnrollCompleteEvent.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalToSizedBuffer(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *UIIntegrationEnrollCompleteEvent) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_UIIntegrationEnrollCompleteEvent.Merge(m, src)
+}
+func (m *UIIntegrationEnrollCompleteEvent) XXX_Size() int {
+	return m.Size()
+}
+func (m *UIIntegrationEnrollCompleteEvent) XXX_DiscardUnknown() {
+	xxx_messageInfo_UIIntegrationEnrollCompleteEvent.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_UIIntegrationEnrollCompleteEvent proto.InternalMessageInfo
+
+func (m *UIIntegrationEnrollCompleteEvent) GetMetadata() *IntegrationEnrollMetadata {
+	if m != nil {
+		return m.Metadata
+	}
+	return nil
+}
 
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
@@ -1793,6 +2416,12 @@ type UsageEventOneOf struct {
 	//	*UsageEventOneOf_UiCreateNewRoleSaveClick
 	//	*UsageEventOneOf_UiCreateNewRoleCancelClick
 	//	*UsageEventOneOf_UiCreateNewRoleViewDocumentationClick
+	//	*UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent
+	//	*UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent
+	//	*UsageEventOneOf_UiCallToActionClickEvent
+	//	*UsageEventOneOf_AssistCompletion
+	//	*UsageEventOneOf_UiIntegrationEnrollStartEvent
+	//	*UsageEventOneOf_UiIntegrationEnrollCompleteEvent
 	Event                isUsageEventOneOf_Event `protobuf_oneof:"event"`
 	XXX_NoUnkeyedLiteral struct{}                `json:"-"`
 	XXX_unrecognized     []byte                  `json:"-"`
@@ -1803,7 +2432,7 @@ func (m *UsageEventOneOf) Reset()         { *m = UsageEventOneOf{} }
 func (m *UsageEventOneOf) String() string { return proto.CompactTextString(m) }
 func (*UsageEventOneOf) ProtoMessage()    {}
 func (*UsageEventOneOf) Descriptor() ([]byte, []int) {
-	return fileDescriptor_94cf2ca1c69fd564, []int{28}
+	return fileDescriptor_94cf2ca1c69fd564, []int{35}
 }
 func (m *UsageEventOneOf) XXX_Unmarshal(b []byte) error {
 	return m.Unmarshal(b)
@@ -1913,6 +2542,24 @@ type UsageEventOneOf_UiCreateNewRoleCancelClick struct {
 type UsageEventOneOf_UiCreateNewRoleViewDocumentationClick struct {
 	UiCreateNewRoleViewDocumentationClick *UICreateNewRoleViewDocumentationClickEvent `protobuf:"bytes,26,opt,name=ui_create_new_role_view_documentation_click,json=uiCreateNewRoleViewDocumentationClick,proto3,oneof" json:"ui_create_new_role_view_documentation_click,omitempty"`
 }
+type UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent struct {
+	UiDiscoverIntegrationAwsOidcConnectEvent *UIDiscoverIntegrationAWSOIDCConnectEvent `protobuf:"bytes,27,opt,name=ui_discover_integration_aws_oidc_connect_event,json=uiDiscoverIntegrationAwsOidcConnectEvent,proto3,oneof" json:"ui_discover_integration_aws_oidc_connect_event,omitempty"`
+}
+type UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent struct {
+	UiDiscoverDatabaseRdsEnrollEvent *UIDiscoverDatabaseRDSEnrollEvent `protobuf:"bytes,28,opt,name=ui_discover_database_rds_enroll_event,json=uiDiscoverDatabaseRdsEnrollEvent,proto3,oneof" json:"ui_discover_database_rds_enroll_event,omitempty"`
+}
+type UsageEventOneOf_UiCallToActionClickEvent struct {
+	UiCallToActionClickEvent *UICallToActionClickEvent `protobuf:"bytes,29,opt,name=ui_call_to_action_click_event,json=uiCallToActionClickEvent,proto3,oneof" json:"ui_call_to_action_click_event,omitempty"`
+}
+type UsageEventOneOf_AssistCompletion struct {
+	AssistCompletion *AssistCompletionEvent `protobuf:"bytes,30,opt,name=assist_completion,json=assistCompletion,proto3,oneof" json:"assist_completion,omitempty"`
+}
+type UsageEventOneOf_UiIntegrationEnrollStartEvent struct {
+	UiIntegrationEnrollStartEvent *UIIntegrationEnrollStartEvent `protobuf:"bytes,31,opt,name=ui_integration_enroll_start_event,json=uiIntegrationEnrollStartEvent,proto3,oneof" json:"ui_integration_enroll_start_event,omitempty"`
+}
+type UsageEventOneOf_UiIntegrationEnrollCompleteEvent struct {
+	UiIntegrationEnrollCompleteEvent *UIIntegrationEnrollCompleteEvent `protobuf:"bytes,32,opt,name=ui_integration_enroll_complete_event,json=uiIntegrationEnrollCompleteEvent,proto3,oneof" json:"ui_integration_enroll_complete_event,omitempty"`
+}
 
 func (*UsageEventOneOf_UiBannerClick) isUsageEventOneOf_Event()                                     {}
 func (*UsageEventOneOf_UiOnboardCompleteGoToDashboardClick) isUsageEventOneOf_Event()               {}
@@ -1939,6 +2586,12 @@ func (*UsageEventOneOf_UiCreateNewRoleClick) isUsageEventOneOf_Event()          
 func (*UsageEventOneOf_UiCreateNewRoleSaveClick) isUsageEventOneOf_Event()                          {}
 func (*UsageEventOneOf_UiCreateNewRoleCancelClick) isUsageEventOneOf_Event()                        {}
 func (*UsageEventOneOf_UiCreateNewRoleViewDocumentationClick) isUsageEventOneOf_Event()             {}
+func (*UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent) isUsageEventOneOf_Event()          {}
+func (*UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent) isUsageEventOneOf_Event()                  {}
+func (*UsageEventOneOf_UiCallToActionClickEvent) isUsageEventOneOf_Event()                          {}
+func (*UsageEventOneOf_AssistCompletion) isUsageEventOneOf_Event()                                  {}
+func (*UsageEventOneOf_UiIntegrationEnrollStartEvent) isUsageEventOneOf_Event()                     {}
+func (*UsageEventOneOf_UiIntegrationEnrollCompleteEvent) isUsageEventOneOf_Event()                  {}
 
 func (m *UsageEventOneOf) GetEvent() isUsageEventOneOf_Event {
 	if m != nil {
@@ -2122,6 +2775,48 @@ func (m *UsageEventOneOf) GetUiCreateNewRoleViewDocumentationClick() *UICreateNe
 	return nil
 }
 
+func (m *UsageEventOneOf) GetUiDiscoverIntegrationAwsOidcConnectEvent() *UIDiscoverIntegrationAWSOIDCConnectEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent); ok {
+		return x.UiDiscoverIntegrationAwsOidcConnectEvent
+	}
+	return nil
+}
+
+func (m *UsageEventOneOf) GetUiDiscoverDatabaseRdsEnrollEvent() *UIDiscoverDatabaseRDSEnrollEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent); ok {
+		return x.UiDiscoverDatabaseRdsEnrollEvent
+	}
+	return nil
+}
+
+func (m *UsageEventOneOf) GetUiCallToActionClickEvent() *UICallToActionClickEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_UiCallToActionClickEvent); ok {
+		return x.UiCallToActionClickEvent
+	}
+	return nil
+}
+
+func (m *UsageEventOneOf) GetAssistCompletion() *AssistCompletionEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_AssistCompletion); ok {
+		return x.AssistCompletion
+	}
+	return nil
+}
+
+func (m *UsageEventOneOf) GetUiIntegrationEnrollStartEvent() *UIIntegrationEnrollStartEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_UiIntegrationEnrollStartEvent); ok {
+		return x.UiIntegrationEnrollStartEvent
+	}
+	return nil
+}
+
+func (m *UsageEventOneOf) GetUiIntegrationEnrollCompleteEvent() *UIIntegrationEnrollCompleteEvent {
+	if x, ok := m.GetEvent().(*UsageEventOneOf_UiIntegrationEnrollCompleteEvent); ok {
+		return x.UiIntegrationEnrollCompleteEvent
+	}
+	return nil
+}
+
 // XXX_OneofWrappers is for the internal use of the proto package.
 func (*UsageEventOneOf) XXX_OneofWrappers() []interface{} {
 	return []interface{}{
@@ -2150,12 +2845,22 @@ func (*UsageEventOneOf) XXX_OneofWrappers() []interface{} {
 		(*UsageEventOneOf_UiCreateNewRoleSaveClick)(nil),
 		(*UsageEventOneOf_UiCreateNewRoleCancelClick)(nil),
 		(*UsageEventOneOf_UiCreateNewRoleViewDocumentationClick)(nil),
+		(*UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent)(nil),
+		(*UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent)(nil),
+		(*UsageEventOneOf_UiCallToActionClickEvent)(nil),
+		(*UsageEventOneOf_AssistCompletion)(nil),
+		(*UsageEventOneOf_UiIntegrationEnrollStartEvent)(nil),
+		(*UsageEventOneOf_UiIntegrationEnrollCompleteEvent)(nil),
 	}
 }
 
 func init() {
 	proto.RegisterEnum("teleport.usageevents.v1.DiscoverResource", DiscoverResource_name, DiscoverResource_value)
 	proto.RegisterEnum("teleport.usageevents.v1.DiscoverStatus", DiscoverStatus_name, DiscoverStatus_value)
+	proto.RegisterEnum("teleport.usageevents.v1.CTA", CTA_name, CTA_value)
+	proto.RegisterEnum("teleport.usageevents.v1.IntegrationEnrollKind", IntegrationEnrollKind_name, IntegrationEnrollKind_value)
+	proto.RegisterEnum("teleport.usageevents.v1.UIDiscoverDeployServiceEvent_DeployMethod", UIDiscoverDeployServiceEvent_DeployMethod_name, UIDiscoverDeployServiceEvent_DeployMethod_value)
+	proto.RegisterEnum("teleport.usageevents.v1.UIDiscoverDeployServiceEvent_DeployType", UIDiscoverDeployServiceEvent_DeployType_name, UIDiscoverDeployServiceEvent_DeployType_value)
 	proto.RegisterType((*UIBannerClickEvent)(nil), "teleport.usageevents.v1.UIBannerClickEvent")
 	proto.RegisterType((*UIOnboardCompleteGoToDashboardClickEvent)(nil), "teleport.usageevents.v1.UIOnboardCompleteGoToDashboardClickEvent")
 	proto.RegisterType((*UIOnboardAddFirstResourceClickEvent)(nil), "teleport.usageevents.v1.UIOnboardAddFirstResourceClickEvent")
@@ -2170,6 +2875,9 @@ func init() {
 	proto.RegisterType((*DiscoverStepStatus)(nil), "teleport.usageevents.v1.DiscoverStepStatus")
 	proto.RegisterType((*UIDiscoverStartedEvent)(nil), "teleport.usageevents.v1.UIDiscoverStartedEvent")
 	proto.RegisterType((*UIDiscoverResourceSelectionEvent)(nil), "teleport.usageevents.v1.UIDiscoverResourceSelectionEvent")
+	proto.RegisterType((*UIDiscoverIntegrationAWSOIDCConnectEvent)(nil), "teleport.usageevents.v1.UIDiscoverIntegrationAWSOIDCConnectEvent")
+	proto.RegisterType((*UIDiscoverDatabaseRDSEnrollEvent)(nil), "teleport.usageevents.v1.UIDiscoverDatabaseRDSEnrollEvent")
+	proto.RegisterType((*UICallToActionClickEvent)(nil), "teleport.usageevents.v1.UICallToActionClickEvent")
 	proto.RegisterType((*UIDiscoverDeployServiceEvent)(nil), "teleport.usageevents.v1.UIDiscoverDeployServiceEvent")
 	proto.RegisterType((*UIDiscoverDatabaseRegisterEvent)(nil), "teleport.usageevents.v1.UIDiscoverDatabaseRegisterEvent")
 	proto.RegisterType((*UIDiscoverDatabaseConfigureMTLSEvent)(nil), "teleport.usageevents.v1.UIDiscoverDatabaseConfigureMTLSEvent")
@@ -2184,6 +2892,10 @@ func init() {
 	proto.RegisterType((*UICreateNewRoleSaveClickEvent)(nil), "teleport.usageevents.v1.UICreateNewRoleSaveClickEvent")
 	proto.RegisterType((*UICreateNewRoleCancelClickEvent)(nil), "teleport.usageevents.v1.UICreateNewRoleCancelClickEvent")
 	proto.RegisterType((*UICreateNewRoleViewDocumentationClickEvent)(nil), "teleport.usageevents.v1.UICreateNewRoleViewDocumentationClickEvent")
+	proto.RegisterType((*AssistCompletionEvent)(nil), "teleport.usageevents.v1.AssistCompletionEvent")
+	proto.RegisterType((*IntegrationEnrollMetadata)(nil), "teleport.usageevents.v1.IntegrationEnrollMetadata")
+	proto.RegisterType((*UIIntegrationEnrollStartEvent)(nil), "teleport.usageevents.v1.UIIntegrationEnrollStartEvent")
+	proto.RegisterType((*UIIntegrationEnrollCompleteEvent)(nil), "teleport.usageevents.v1.UIIntegrationEnrollCompleteEvent")
 	proto.RegisterType((*UsageEventOneOf)(nil), "teleport.usageevents.v1.UsageEventOneOf")
 }
 
@@ -2192,145 +2904,198 @@ func init() {
 }
 
 var fileDescriptor_94cf2ca1c69fd564 = []byte{
-	// 2208 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe4, 0x5a, 0xdb, 0x6f, 0xdc, 0x58,
-	0x19, 0x1f, 0x4f, 0x7a, 0x49, 0xcf, 0x6e, 0x53, 0xef, 0xd9, 0x6e, 0x3b, 0x69, 0xee, 0xd3, 0x6b,
-	0xb2, 0x25, 0xd9, 0xb4, 0x65, 0x5b, 0xe8, 0x42, 0xe5, 0xb1, 0x9d, 0xd8, 0x9b, 0x49, 0x3c, 0x7b,
-	0xec, 0x69, 0xc9, 0x4a, 0xe8, 0xc8, 0x99, 0x39, 0x99, 0x5a, 0xf5, 0xd8, 0x23, 0xfb, 0xcc, 0x84,
-	0x08, 0xa1, 0x15, 0x08, 0x21, 0xa4, 0x4a, 0x08, 0xde, 0x90, 0x90, 0x90, 0x10, 0x3c, 0xf0, 0xc0,
-	0x3b, 0xcf, 0xbc, 0xf1, 0xc8, 0x9f, 0x80, 0xfa, 0xce, 0x23, 0x0f, 0x20, 0xd0, 0xa2, 0x39, 0xbe,
-	0xce, 0xd5, 0xde, 0x8a, 0xa7, 0xec, 0x5b, 0x6c, 0xff, 0xbe, 0xf3, 0xfd, 0xbe, 0x8b, 0x8f, 0xcf,
-	0xef, 0xcb, 0x80, 0x75, 0x4a, 0x6c, 0xd2, 0x71, 0x3d, 0xba, 0xd5, 0xf5, 0xcd, 0x16, 0x21, 0x3d,
-	0xe2, 0x50, 0x7f, 0xab, 0xb7, 0x9d, 0xbe, 0xdc, 0xec, 0x78, 0x2e, 0x75, 0xe1, 0xf5, 0x08, 0xba,
-	0x99, 0x7e, 0xd6, 0xdb, 0x2e, 0x6f, 0x00, 0x58, 0x57, 0x2b, 0xa6, 0xe3, 0x10, 0x4f, 0xb4, 0xad,
-	0xc6, 0x2b, 0xb9, 0xff, 0x04, 0x5e, 0x05, 0xe7, 0x4d, 0x9b, 0x78, 0xb4, 0xc4, 0xad, 0x72, 0xf7,
-	0x2e, 0xa1, 0xe0, 0xa2, 0xbc, 0x03, 0xee, 0xd5, 0x55, 0xcd, 0x39, 0x72, 0x4d, 0xaf, 0x29, 0xba,
-	0xed, 0x8e, 0x4d, 0x28, 0xd9, 0x75, 0x0d, 0x57, 0x32, 0xfd, 0x97, 0xc1, 0xcd, 0x64, 0x85, 0x1b,
-	0x60, 0xb6, 0xeb, 0x13, 0xcf, 0x31, 0xdb, 0x24, 0x5c, 0x24, 0xbe, 0x2e, 0xdf, 0x06, 0x37, 0xe3,
-	0x75, 0x84, 0x66, 0x73, 0xc7, 0xf2, 0x7c, 0x8a, 0x88, 0xef, 0x76, 0xbd, 0x06, 0x49, 0x96, 0x28,
-	0x6f, 0xa4, 0xdc, 0x0d, 0xc3, 0xaa, 0x26, 0x4d, 0x13, 0x2e, 0x3f, 0x03, 0x6b, 0x31, 0x56, 0x27,
-	0x54, 0xf4, 0x48, 0x93, 0x38, 0xd4, 0x32, 0x6d, 0xbd, 0x7b, 0xd4, 0xb6, 0x68, 0x36, 0xa7, 0x1f,
-	0x81, 0xdb, 0xf1, 0x02, 0x88, 0xb4, 0x2c, 0xbf, 0xbf, 0xfe, 0x4b, 0xd3, 0xb6, 0x89, 0xd3, 0x22,
-	0x39, 0x17, 0x81, 0xf3, 0x60, 0xb6, 0x7d, 0x6c, 0x62, 0x7a, 0xda, 0x21, 0xa5, 0x22, 0x7b, 0x76,
-	0xb1, 0x7d, 0x6c, 0x1a, 0xa7, 0x1d, 0x02, 0x97, 0x00, 0xb0, 0xdd, 0x96, 0xe5, 0xe0, 0x63, 0xdb,
-	0x3d, 0x29, 0xcd, 0xb0, 0x87, 0x97, 0xd8, 0x9d, 0x1d, 0xdb, 0x3d, 0x09, 0xf8, 0x23, 0xd2, 0x70,
-	0x7b, 0xc4, 0x3b, 0x15, 0xdd, 0x26, 0xf1, 0x45, 0xd7, 0xa1, 0x96, 0xd3, 0x25, 0x39, 0x73, 0xfa,
-	0x14, 0x2c, 0x8d, 0x2c, 0xd0, 0x39, 0xcd, 0x69, 0xfc, 0x09, 0x58, 0x1e, 0x32, 0xae, 0x79, 0x96,
-	0x43, 0x73, 0x5a, 0x97, 0x01, 0x2f, 0x59, 0x3e, 0x33, 0xde, 0x27, 0xd4, 0x6c, 0x9a, 0xd4, 0x84,
-	0x73, 0xa0, 0x68, 0x35, 0x43, 0x64, 0xd1, 0x6a, 0x96, 0x4d, 0x50, 0x8a, 0x30, 0x51, 0x09, 0x63,
-	0xac, 0x0c, 0x66, 0xbd, 0xf0, 0x1e, 0xb3, 0x98, 0x7b, 0xb0, 0xbe, 0x39, 0xa1, 0x5d, 0x37, 0x87,
-	0x17, 0x41, 0xb1, 0x69, 0xf9, 0x15, 0x80, 0xd1, 0x53, 0x9d, 0x92, 0x8e, 0x4e, 0x4d, 0xda, 0xf5,
-	0xe1, 0x33, 0x70, 0xc1, 0x67, 0x7f, 0x85, 0x4b, 0xdf, 0xcd, 0x5c, 0x3a, 0x30, 0x44, 0xa1, 0x59,
-	0xff, 0x55, 0x20, 0x9e, 0xe7, 0x7a, 0x61, 0x41, 0x83, 0x8b, 0xf2, 0x1f, 0x38, 0x70, 0xad, 0xae,
-	0xa6, 0x4c, 0x3c, 0x4a, 0x9a, 0x41, 0xaa, 0x64, 0x30, 0xdb, 0x0e, 0x43, 0x63, 0x3e, 0xdf, 0xc9,
-	0x11, 0x4e, 0x94, 0x0b, 0x14, 0x9b, 0x42, 0x31, 0x26, 0x5e, 0x64, 0x8b, 0x7c, 0x98, 0x83, 0x78,
-	0x14, 0x75, 0x44, 0xbe, 0xfc, 0x5f, 0x0e, 0xac, 0x26, 0x34, 0xa3, 0xa4, 0xe9, 0xc4, 0x26, 0x0d,
-	0x6a, 0xb9, 0xce, 0xff, 0x95, 0xf0, 0x7e, 0xaa, 0x8c, 0x01, 0xe5, 0xed, 0xdc, 0x65, 0x4c, 0x96,
-	0x8b, 0x96, 0x48, 0xc5, 0x3f, 0xf3, 0xf6, 0xf1, 0xff, 0x8b, 0x03, 0x8b, 0x49, 0xfc, 0x12, 0xe9,
-	0xd8, 0xee, 0xa9, 0x4e, 0xbc, 0x9e, 0xd5, 0x20, 0x67, 0x3e, 0xf6, 0xff, 0x70, 0x60, 0x25, 0x15,
-	0xbb, 0x49, 0xcd, 0x23, 0xd3, 0x27, 0xd1, 0xde, 0x76, 0xe6, 0xc3, 0xff, 0x71, 0x11, 0xdc, 0x1a,
-	0x0d, 0x5f, 0x74, 0x9d, 0x63, 0xab, 0xd5, 0xf5, 0xc8, 0xbe, 0x51, 0xd5, 0xcf, 0x7c, 0x0e, 0x7e,
-	0x51, 0x04, 0xdb, 0xe9, 0xf6, 0xf7, 0x5f, 0x51, 0xb7, 0x23, 0x34, 0xa8, 0xd5, 0x23, 0x92, 0xe5,
-	0x91, 0x06, 0x75, 0xbd, 0x53, 0xc3, 0x75, 0x6d, 0x5f, 0x75, 0x7c, 0x6a, 0xda, 0xf6, 0x99, 0x4f,
-	0xc8, 0xeb, 0x22, 0xd8, 0xcc, 0x4a, 0x48, 0xdc, 0x22, 0x67, 0x3e, 0x1b, 0x7f, 0x2a, 0x82, 0x3b,
-	0x49, 0x36, 0x84, 0x2e, 0x75, 0xa3, 0xbf, 0x49, 0x33, 0xf2, 0xed, 0x9f, 0xf5, 0x2c, 0xc0, 0xbb,
-	0xe0, 0x4a, 0xb4, 0xa0, 0x8f, 0x1b, 0x6e, 0xd7, 0xa1, 0xa5, 0x73, 0xab, 0xdc, 0xbd, 0x19, 0x34,
-	0x17, 0xdf, 0x16, 0xfb, 0x77, 0xcb, 0x3f, 0x2b, 0x82, 0xf5, 0x29, 0x3b, 0x8a, 0x2a, 0xec, 0xd7,
-	0x5c, 0xdb, 0x6a, 0x9c, 0x9e, 0xf9, 0xbe, 0xf9, 0x92, 0x03, 0xe5, 0x24, 0x11, 0xfd, 0xa3, 0x62,
-	0xc3, 0xea, 0x98, 0xb6, 0xff, 0xf5, 0x79, 0x73, 0xfe, 0xcd, 0xf5, 0x8f, 0xdb, 0x11, 0xc0, 0x20,
-	0x3e, 0x15, 0x5d, 0xc7, 0xf9, 0x9a, 0x1c, 0xaa, 0xfe, 0xc9, 0x81, 0x52, 0x12, 0x7c, 0x24, 0x04,
-	0x9b, 0x67, 0x3e, 0xee, 0x05, 0x30, 0x5f, 0x57, 0x45, 0x8f, 0x98, 0x94, 0x1c, 0x90, 0x13, 0xe4,
-	0xda, 0x69, 0xb1, 0xba, 0xd2, 0x6f, 0x88, 0x81, 0x87, 0xba, 0xd9, 0x4b, 0x03, 0xd6, 0xfa, 0xa7,
-	0xb1, 0x41, 0x6b, 0xd3, 0x69, 0x10, 0x3b, 0x05, 0xb9, 0x0f, 0x36, 0x86, 0x20, 0xcf, 0x2d, 0x72,
-	0x22, 0xb9, 0x8d, 0x6e, 0x9b, 0x38, 0xd4, 0xec, 0x37, 0x57, 0x0a, 0xfd, 0xe5, 0x02, 0xb8, 0x52,
-	0xef, 0x93, 0x67, 0x97, 0x9a, 0x43, 0xb4, 0x63, 0x58, 0x07, 0x57, 0xba, 0x16, 0x3e, 0x62, 0x72,
-	0x1e, 0x37, 0xfa, 0xd8, 0xb0, 0x08, 0x93, 0x03, 0x1e, 0x55, 0xff, 0x4a, 0x01, 0x5d, 0xee, 0x5a,
-	0xa9, 0xbb, 0xf0, 0x37, 0x1c, 0x58, 0xef, 0x5a, 0xd8, 0x0d, 0xe4, 0x31, 0x6e, 0x84, 0x25, 0xc7,
-	0x2d, 0x17, 0x53, 0x17, 0x37, 0x23, 0xf9, 0x1f, 0x7a, 0x0c, 0x52, 0x2c, 0x4c, 0xf1, 0x98, 0x6f,
-	0x86, 0xa0, 0x14, 0xd0, 0xcd, 0xae, 0x95, 0x89, 0x85, 0xaf, 0x39, 0x70, 0x33, 0xc5, 0xce, 0x6c,
-	0x36, 0xf1, 0xb1, 0xe5, 0xf9, 0x14, 0x47, 0xe5, 0x0f, 0x79, 0x9d, 0x63, 0xbc, 0x3e, 0xc9, 0xe6,
-	0x35, 0x79, 0x26, 0xa1, 0x14, 0xd0, 0x72, 0x4c, 0x69, 0x2c, 0x6c, 0x38, 0x57, 0x63, 0xd8, 0xd8,
-	0x26, 0x8d, 0xab, 0x73, 0x3e, 0x6f, 0xae, 0x32, 0x06, 0x20, 0x03, 0xb9, 0x9a, 0x8c, 0x85, 0x3f,
-	0xe5, 0xc0, 0x6a, 0x8a, 0x9d, 0x4f, 0x28, 0x6e, 0xc4, 0xb3, 0x12, 0xec, 0xb3, 0x39, 0x47, 0xe9,
-	0x02, 0x23, 0xf5, 0xed, 0x6c, 0x52, 0x93, 0x26, 0x2d, 0x4a, 0x01, 0x2d, 0xc6, 0x6c, 0xc6, 0x80,
-	0xe0, 0x2f, 0x39, 0x70, 0x2b, 0x45, 0xc3, 0x0b, 0x45, 0x09, 0x6e, 0x44, 0x13, 0x97, 0x88, 0xca,
-	0x45, 0x46, 0xe5, 0xbb, 0xd9, 0x54, 0xa6, 0xcd, 0x6c, 0x94, 0x02, 0x5a, 0x8d, 0xe9, 0x4c, 0x00,
-	0x46, 0x99, 0xf1, 0xc2, 0x29, 0x08, 0x6e, 0xb8, 0x4d, 0x76, 0x1e, 0x08, 0xa6, 0x30, 0x61, 0xb9,
-	0x66, 0x33, 0x33, 0x93, 0x31, 0xc3, 0x09, 0x32, 0x33, 0x19, 0x04, 0x7f, 0x00, 0x16, 0xc7, 0xb1,
-	0xe8, 0x9c, 0x86, 0x0c, 0x2e, 0x31, 0x06, 0x1f, 0xe7, 0x67, 0x90, 0x1e, 0x02, 0x29, 0x05, 0x54,
-	0x1a, 0xf1, 0x1e, 0x02, 0xe0, 0x0f, 0xc1, 0xd2, 0xa8, 0xe7, 0x8e, 0x67, 0x39, 0x34, 0x74, 0x0d,
-	0x98, 0xeb, 0xc7, 0x79, 0x5d, 0x0f, 0x8d, 0x90, 0x94, 0x02, 0x9a, 0x1f, 0xf2, 0x9d, 0x20, 0xa0,
-	0x0d, 0xe6, 0xbb, 0x16, 0x6e, 0x86, 0x9b, 0x2f, 0xf6, 0x83, 0x81, 0x0a, 0x66, 0x8b, 0x97, 0xde,
-	0x61, 0x8e, 0xb7, 0xa6, 0x38, 0x1e, 0x37, 0x88, 0x51, 0x0a, 0xe8, 0x5a, 0xd7, 0x1a, 0x3b, 0xa2,
-	0x79, 0x1d, 0xb4, 0x5f, 0xec, 0x2e, 0x7e, 0x35, 0xfd, 0x68, 0x32, 0x12, 0x7a, 0x7e, 0x97, 0x79,
-	0xfe, 0x56, 0x0e, 0xcf, 0xe3, 0x67, 0x2b, 0x41, 0xe7, 0x65, 0xcc, 0x5f, 0xbe, 0x60, 0x8d, 0x17,
-	0x93, 0x69, 0xb2, 0x29, 0x05, 0xf6, 0x83, 0x31, 0x45, 0x48, 0xe4, 0x32, 0x23, 0xf2, 0xcd, 0x1c,
-	0x44, 0x46, 0x87, 0x1c, 0x41, 0xcf, 0x4d, 0x19, 0x82, 0xfc, 0x3c, 0xd8, 0x40, 0x13, 0x06, 0xe1,
-	0xd1, 0x36, 0x79, 0x2f, 0x03, 0x12, 0x73, 0x8c, 0xc4, 0x93, 0x3c, 0x24, 0xc6, 0x4d, 0x1b, 0x94,
-	0x02, 0x5a, 0x49, 0xf1, 0x18, 0x3b, 0x90, 0xf8, 0x75, 0xb0, 0x7b, 0x8e, 0x52, 0x69, 0x44, 0x67,
-	0x4b, 0xdc, 0xa6, 0xb6, 0x1f, 0x12, 0xba, 0xc2, 0x08, 0x7d, 0xe7, 0x2b, 0x10, 0x1a, 0xd5, 0xff,
-	0x4a, 0x01, 0xdd, 0x1a, 0x65, 0x95, 0xe0, 0xa8, 0x1d, 0x4a, 0xa0, 0xbf, 0x70, 0xe0, 0xc9, 0x60,
-	0x9d, 0x98, 0x7a, 0xc4, 0x26, 0x93, 0x8f, 0xb8, 0x19, 0xe9, 0x47, 0x4c, 0xfb, 0x8a, 0x1a, 0x5b,
-	0x81, 0xa4, 0x0e, 0x99, 0xf2, 0x8c, 0xe9, 0xa7, 0xb9, 0xea, 0x97, 0x4b, 0xa5, 0x2b, 0x05, 0xb4,
-	0x9d, 0x2e, 0x6a, 0x3e, 0x69, 0xff, 0x67, 0x0e, 0x3c, 0xca, 0x15, 0x43, 0x92, 0xee, 0x80, 0xff,
-	0x7b, 0x8c, 0xff, 0xee, 0x5b, 0xf3, 0x1f, 0x94, 0x06, 0x4a, 0x01, 0x6d, 0x66, 0x91, 0x1f, 0x12,
-	0x13, 0xbf, 0xe5, 0xc0, 0x87, 0x69, 0xe6, 0x66, 0xb7, 0x7f, 0xf2, 0x88, 0xe5, 0x2a, 0x4e, 0x24,
-	0x5c, 0x40, 0x18, 0x32, 0xc2, 0xcf, 0x72, 0x10, 0x9e, 0xa6, 0x7b, 0x95, 0x02, 0xba, 0x93, 0x10,
-	0x9d, 0xaa, 0x90, 0xff, 0xc8, 0x81, 0xad, 0x8c, 0xce, 0xb5, 0xcc, 0x36, 0xee, 0x30, 0x89, 0x18,
-	0x92, 0x7c, 0x9f, 0x91, 0xac, 0xbc, 0x4d, 0xff, 0x0e, 0xaa, 0x4d, 0xa5, 0x80, 0xd6, 0xa7, 0x34,
-	0xb1, 0x6a, 0xb6, 0xd3, 0xd2, 0xf4, 0x57, 0x1c, 0xb8, 0x93, 0xa6, 0xda, 0x89, 0x15, 0xdc, 0x48,
-	0xdd, 0xaf, 0x32, 0x86, 0x4f, 0x73, 0x30, 0x9c, 0x24, 0x03, 0x95, 0x02, 0x2a, 0x27, 0xd4, 0x26,
-	0x8a, 0xc5, 0x9f, 0x70, 0x60, 0x2d, 0xcd, 0x89, 0x12, 0x9f, 0xf6, 0xd9, 0x38, 0x03, 0xfb, 0xf1,
-	0x07, 0x99, 0x5f, 0xbf, 0x29, 0x9a, 0x4c, 0x29, 0xa0, 0xa5, 0x84, 0xc9, 0x38, 0xd1, 0xe6, 0x81,
-	0x85, 0x34, 0x87, 0xe8, 0x9c, 0x1b, 0x7d, 0x87, 0xae, 0x65, 0x08, 0x91, 0x49, 0xa2, 0x28, 0xf8,
-	0xec, 0x4e, 0x10, 0x4c, 0x36, 0x28, 0x75, 0xad, 0xfe, 0x21, 0xcc, 0xa4, 0x04, 0x3b, 0xe4, 0x04,
-	0x7b, 0xae, 0x1d, 0x1d, 0x37, 0xae, 0x33, 0x87, 0x0f, 0xa6, 0x38, 0x9c, 0x20, 0x47, 0x94, 0x02,
-	0xba, 0xda, 0xb5, 0x46, 0x1f, 0xc2, 0x53, 0xf6, 0x91, 0x1f, 0xf6, 0xe6, 0x9b, 0xbd, 0xc8, 0x65,
-	0x29, 0x33, 0xc3, 0x53, 0x44, 0x4e, 0x10, 0xe8, 0x78, 0x00, 0xfc, 0x02, 0xac, 0x8c, 0x0b, 0x94,
-	0x89, 0xa0, 0xd0, 0xf9, 0x7c, 0xe6, 0x07, 0x66, 0xaa, 0x80, 0x52, 0x0a, 0xe8, 0xc6, 0x70, 0xd4,
-	0x09, 0x04, 0xfe, 0x2e, 0xd8, 0x42, 0x86, 0x19, 0xf4, 0x2c, 0x72, 0x82, 0x9b, 0x69, 0x91, 0x15,
-	0xb2, 0xb9, 0xc1, 0xd8, 0x88, 0x79, 0xd9, 0x4c, 0xd1, 0x6a, 0x4a, 0x01, 0xdd, 0x1e, 0x22, 0x36,
-	0x1e, 0x5d, 0xb9, 0x08, 0xce, 0x33, 0x07, 0x9f, 0x9e, 0x9b, 0x2d, 0xf2, 0x33, 0xfd, 0xef, 0x76,
-	0x7c, 0x48, 0x6e, 0x11, 0x1a, 0x9f, 0x8b, 0x18, 0xc1, 0x8d, 0x7f, 0x5c, 0x4e, 0xfe, 0xf3, 0x16,
-	0xed, 0x46, 0x70, 0x0d, 0x2c, 0x49, 0xaa, 0x2e, 0x6a, 0xcf, 0x65, 0x84, 0x91, 0xac, 0x6b, 0x75,
-	0x24, 0xca, 0xb8, 0x7e, 0xa0, 0xd7, 0x64, 0x51, 0xdd, 0x51, 0x65, 0x89, 0x2f, 0xc0, 0x45, 0x50,
-	0x1a, 0x85, 0xe8, 0x32, 0x7a, 0x2e, 0x23, 0x9e, 0x83, 0xab, 0x60, 0x71, 0xf4, 0xe9, 0x5e, 0xbd,
-	0x22, 0xa3, 0x03, 0xd9, 0x90, 0x75, 0xbe, 0x08, 0x1f, 0x82, 0xad, 0x51, 0x84, 0x24, 0x18, 0x42,
-	0x45, 0xd0, 0x65, 0x5c, 0xd3, 0x74, 0x63, 0x17, 0xc9, 0x3a, 0xd6, 0xe5, 0xea, 0x0e, 0x56, 0x34,
-	0xdd, 0x90, 0x25, 0x7e, 0x06, 0x7e, 0x04, 0xee, 0x4f, 0x31, 0xda, 0x3f, 0xd4, 0x3f, 0xab, 0x0e,
-	0x58, 0x9c, 0x83, 0x0f, 0xc0, 0xe6, 0x34, 0x0b, 0xed, 0x60, 0x57, 0x93, 0x2a, 0x03, 0x36, 0xe7,
-	0xe1, 0x87, 0xe0, 0x6e, 0x1e, 0x6a, 0x48, 0xd2, 0xf9, 0x0b, 0xf0, 0x1e, 0xb8, 0x95, 0x49, 0xa9,
-	0x8f, 0xbc, 0x08, 0xef, 0x80, 0xf2, 0x28, 0x52, 0xa8, 0xd5, 0xaa, 0xaa, 0x28, 0x18, 0xaa, 0x76,
-	0x80, 0x15, 0xc3, 0xa8, 0xf1, 0xb3, 0xf0, 0x36, 0x58, 0x9b, 0x8e, 0x33, 0xc4, 0x1a, 0x7f, 0x69,
-	0x3c, 0xec, 0x85, 0x7a, 0x20, 0x69, 0x2f, 0x74, 0x2c, 0xc9, 0xfa, 0x9e, 0xa1, 0xd5, 0x78, 0x00,
-	0xef, 0x83, 0x7b, 0x53, 0xf8, 0xe9, 0x9f, 0x55, 0x83, 0x9a, 0x31, 0x8e, 0xef, 0x64, 0x24, 0x38,
-	0x09, 0x5d, 0x96, 0x74, 0x45, 0xdd, 0x31, 0xf8, 0x77, 0xe1, 0x23, 0xf0, 0x51, 0xae, 0xf5, 0xd3,
-	0x29, 0xbe, 0x9c, 0xe1, 0x07, 0xc9, 0x92, 0x3a, 0x58, 0xfa, 0xb9, 0xbc, 0x45, 0xd9, 0x15, 0x6b,
-	0xfc, 0x95, 0x5c, 0x45, 0xe9, 0x23, 0xf9, 0xdc, 0xe9, 0xe9, 0xa3, 0xdf, 0x83, 0x4f, 0xc1, 0xe3,
-	0xaf, 0x92, 0x9e, 0xf0, 0x7d, 0xa8, 0xca, 0xba, 0xce, 0x43, 0xf8, 0x0d, 0xb0, 0x9e, 0xc7, 0x58,
-	0xf8, 0xbc, 0x8e, 0x64, 0xfe, 0x7d, 0x78, 0x17, 0xdc, 0x9c, 0x02, 0x97, 0x0e, 0x0f, 0x84, 0x7d,
-	0x4d, 0xaa, 0xf0, 0x57, 0x33, 0x5a, 0x5c, 0x14, 0x74, 0x5d, 0x38, 0x90, 0x90, 0x80, 0xf7, 0xe4,
-	0x43, 0xbd, 0x26, 0x88, 0xb2, 0xce, 0x7f, 0x90, 0x51, 0xb5, 0xc4, 0x26, 0x5d, 0x83, 0x6b, 0xf0,
-	0x09, 0x78, 0x34, 0xc5, 0x4a, 0xae, 0x0a, 0xba, 0xa1, 0x8a, 0xba, 0x2c, 0x20, 0x51, 0x19, 0xb0,
-	0xbc, 0x9e, 0xab, 0xde, 0xa1, 0xbd, 0x20, 0x2a, 0x32, 0x5f, 0xca, 0xc8, 0x56, 0x60, 0xb1, 0x2f,
-	0xef, 0x6b, 0xe8, 0x50, 0xaa, 0xf0, 0xf3, 0xb9, 0x1c, 0xb0, 0xcc, 0xe2, 0xc0, 0xc1, 0x8d, 0x8c,
-	0x60, 0x02, 0x0b, 0xb1, 0x5a, 0xd7, 0x8d, 0xa1, 0xe6, 0x5d, 0x80, 0x1b, 0xe0, 0x4e, 0x66, 0x77,
-	0x05, 0x55, 0x5c, 0x84, 0x9b, 0x60, 0x23, 0x57, 0x7f, 0x05, 0xf8, 0xa5, 0x8c, 0x62, 0x26, 0xf8,
-	0x7d, 0x55, 0x44, 0x9a, 0xae, 0xed, 0x18, 0xfc, 0x32, 0xfc, 0x18, 0x3c, 0x98, 0x56, 0x4c, 0x4d,
-	0xdc, 0x43, 0x9a, 0x20, 0x2a, 0x43, 0xfb, 0xdc, 0x4a, 0x46, 0xef, 0x47, 0x7b, 0xa3, 0x60, 0x54,
-	0x05, 0x9d, 0x5f, 0xcd, 0x78, 0xa7, 0xf4, 0x03, 0xed, 0xc5, 0x4e, 0x55, 0xd8, 0x93, 0xf9, 0xb5,
-	0x09, 0xeb, 0x6a, 0x62, 0x2a, 0xbb, 0x92, 0x8e, 0x6b, 0x48, 0xfb, 0xde, 0x21, 0x5f, 0x9e, 0xd0,
-	0x8a, 0x69, 0xb4, 0xa2, 0xee, 0x2a, 0x58, 0x78, 0x2e, 0xa8, 0x55, 0xa1, 0xa2, 0x56, 0x55, 0xe3,
-	0x90, 0xbf, 0x09, 0x1f, 0x83, 0x87, 0x19, 0x56, 0xec, 0x0d, 0x51, 0x45, 0x8c, 0xe4, 0x5d, 0x55,
-	0x37, 0x10, 0xdb, 0x3a, 0xf9, 0x5b, 0x1b, 0xbf, 0xe7, 0xc0, 0xdc, 0xe0, 0xaf, 0x34, 0xe0, 0x0a,
-	0x58, 0x88, 0xd7, 0xd2, 0x0d, 0xc1, 0xa8, 0xeb, 0x43, 0xdf, 0xba, 0x05, 0x70, 0x7d, 0x18, 0xa0,
-	0xd7, 0x45, 0xb1, 0xff, 0x5a, 0x73, 0x63, 0x1f, 0xee, 0xa9, 0xb5, 0x9a, 0x2c, 0xf1, 0x45, 0x38,
-	0x0f, 0x3e, 0x18, 0x7e, 0x28, 0x23, 0xa4, 0x21, 0x7e, 0x66, 0x9c, 0x9d, 0x50, 0xd1, 0x10, 0xfb,
-	0x6c, 0x55, 0xbe, 0xff, 0xd7, 0x37, 0xcb, 0xdc, 0xdf, 0xde, 0x2c, 0x73, 0x7f, 0x7f, 0xb3, 0xcc,
-	0x7d, 0xae, 0xb5, 0x2c, 0xfa, 0xb2, 0x7b, 0xb4, 0xd9, 0x70, 0xdb, 0x5b, 0x2d, 0xcf, 0xec, 0x59,
-	0xc1, 0xd7, 0xde, 0xb4, 0xb7, 0xe2, 0x1f, 0x6f, 0x99, 0x1d, 0x6b, 0xab, 0x45, 0x9c, 0x2d, 0xf6,
-	0x4b, 0xad, 0xad, 0x96, 0x3b, 0xf4, 0x6b, 0xae, 0xa7, 0xa9, 0xcb, 0xde, 0xf6, 0xd1, 0x05, 0x06,
-	0x7b, 0xf8, 0xbf, 0x00, 0x00, 0x00, 0xff, 0xff, 0xce, 0x90, 0x9a, 0x94, 0xfd, 0x25, 0x00, 0x00,
+	// 3053 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe4, 0x5b, 0xdb, 0x6f, 0xdc, 0x58,
+	0x19, 0x1f, 0x4f, 0x9a, 0x36, 0x3d, 0x6d, 0x53, 0xf7, 0xf4, 0x36, 0x69, 0xee, 0xd3, 0x7b, 0xba,
+	0x24, 0xdb, 0xee, 0xb2, 0x5b, 0xe8, 0xc2, 0xe2, 0xd8, 0x4e, 0xec, 0x66, 0x66, 0x3c, 0x7b, 0x8e,
+	0xa7, 0x25, 0x2b, 0xad, 0x8e, 0xdc, 0x99, 0xd3, 0xd4, 0xaa, 0x63, 0x8f, 0x6c, 0x4f, 0x42, 0x84,
+	0xd0, 0x0a, 0x04, 0x08, 0x69, 0x17, 0x04, 0x0f, 0x48, 0x48, 0x48, 0x2b, 0x21, 0x40, 0xe2, 0x81,
+	0x57, 0xb4, 0xcf, 0x3c, 0xc1, 0x23, 0xe2, 0x2f, 0x40, 0xfb, 0x3f, 0xf0, 0x82, 0x40, 0x20, 0x1f,
+	0x5f, 0xc6, 0x73, 0xb3, 0xbd, 0x05, 0x5e, 0xb2, 0x6f, 0xb1, 0xcf, 0xef, 0x9c, 0xef, 0x77, 0xbe,
+	0xef, 0x3b, 0x97, 0xef, 0xe7, 0x09, 0xb8, 0xeb, 0x53, 0x8b, 0x76, 0x1d, 0xd7, 0xdf, 0xe8, 0x79,
+	0xc6, 0x1e, 0xa5, 0x07, 0xd4, 0xf6, 0xbd, 0x8d, 0x83, 0xfb, 0xe9, 0xc7, 0xf5, 0xae, 0xeb, 0xf8,
+	0x0e, 0xbc, 0x1a, 0x43, 0xd7, 0xd3, 0x6d, 0x07, 0xf7, 0xab, 0x6b, 0x00, 0xb6, 0xd4, 0x4d, 0xc3,
+	0xb6, 0xa9, 0x2b, 0x5a, 0x66, 0xfb, 0xa5, 0x1c, 0xb4, 0xc0, 0x4b, 0x60, 0xda, 0xb0, 0xa8, 0xeb,
+	0x57, 0xb8, 0x15, 0xee, 0xce, 0x69, 0x14, 0x3e, 0x54, 0xb7, 0xc0, 0x9d, 0x96, 0xaa, 0xd9, 0xcf,
+	0x1c, 0xc3, 0xed, 0x88, 0xce, 0x7e, 0xd7, 0xa2, 0x3e, 0xdd, 0x76, 0x74, 0x47, 0x32, 0xbc, 0x17,
+	0xe1, 0xcb, 0xfe, 0x08, 0xd7, 0xc0, 0x4c, 0xcf, 0xa3, 0xae, 0x6d, 0xec, 0xd3, 0x68, 0x90, 0xe4,
+	0xb9, 0x7a, 0x13, 0x5c, 0x4f, 0xc6, 0x11, 0x3a, 0x9d, 0x2d, 0xd3, 0xf5, 0x7c, 0x44, 0x3d, 0xa7,
+	0xe7, 0xb6, 0x69, 0x7f, 0x88, 0xea, 0x5a, 0xca, 0xdc, 0x30, 0xac, 0x66, 0xf8, 0x69, 0xc2, 0xd5,
+	0x77, 0xc1, 0x6a, 0x82, 0xc5, 0xd4, 0x17, 0x5d, 0xda, 0xa1, 0xb6, 0x6f, 0x1a, 0x16, 0xee, 0x3d,
+	0xdb, 0x37, 0xfd, 0x7c, 0x4e, 0xdf, 0x01, 0x37, 0x93, 0x01, 0x10, 0xdd, 0x33, 0xbd, 0x60, 0xfc,
+	0x17, 0x86, 0x65, 0x51, 0x7b, 0x8f, 0x16, 0x1c, 0x04, 0xce, 0x81, 0x99, 0xfd, 0xe7, 0x06, 0xf1,
+	0x8f, 0xba, 0xb4, 0x52, 0x66, 0x6d, 0xa7, 0xf6, 0x9f, 0x1b, 0xfa, 0x51, 0x97, 0xc2, 0x45, 0x00,
+	0x2c, 0x67, 0xcf, 0xb4, 0xc9, 0x73, 0xcb, 0x39, 0xac, 0x4c, 0xb1, 0xc6, 0xd3, 0xec, 0xcd, 0x96,
+	0xe5, 0x1c, 0x86, 0xfc, 0x11, 0x6d, 0x3b, 0x07, 0xd4, 0x3d, 0x12, 0x9d, 0x0e, 0xf5, 0x44, 0xc7,
+	0xf6, 0x4d, 0xbb, 0x47, 0x0b, 0xfa, 0xf4, 0x11, 0x58, 0x1c, 0x19, 0xa0, 0x7b, 0x54, 0xb0, 0xf3,
+	0x3b, 0x60, 0x69, 0xa8, 0x73, 0xd3, 0x35, 0x6d, 0xbf, 0x60, 0xef, 0x2a, 0xe0, 0x25, 0xd3, 0x63,
+	0x9d, 0xeb, 0xd4, 0x37, 0x3a, 0x86, 0x6f, 0xc0, 0x59, 0x50, 0x36, 0x3b, 0x11, 0xb2, 0x6c, 0x76,
+	0xaa, 0x06, 0xa8, 0xc4, 0x98, 0x38, 0x84, 0x09, 0x56, 0x06, 0x33, 0x6e, 0xf4, 0x8e, 0xf5, 0x98,
+	0x7d, 0x70, 0x77, 0x7d, 0x42, 0xba, 0xae, 0x0f, 0x0f, 0x82, 0x92, 0xae, 0xd5, 0x97, 0x00, 0xc6,
+	0xad, 0xd8, 0xa7, 0x5d, 0xec, 0x1b, 0x7e, 0xcf, 0x83, 0xef, 0x82, 0x93, 0x1e, 0xfb, 0x2b, 0x1a,
+	0xfa, 0x76, 0xee, 0xd0, 0x61, 0x47, 0x14, 0x75, 0x0b, 0x96, 0x02, 0x75, 0x5d, 0xc7, 0x8d, 0x02,
+	0x1a, 0x3e, 0x54, 0x7f, 0xc3, 0x81, 0x2b, 0x2d, 0x35, 0xd5, 0xc5, 0xf5, 0x69, 0x27, 0x74, 0x95,
+	0x0c, 0x66, 0xf6, 0xa3, 0xa9, 0x31, 0x9b, 0x67, 0x0a, 0x4c, 0x27, 0xf6, 0x05, 0x4a, 0xba, 0x42,
+	0x31, 0x21, 0x5e, 0x66, 0x83, 0xdc, 0x2b, 0x40, 0x3c, 0x9e, 0x75, 0x4c, 0xbe, 0xfa, 0x2f, 0x0e,
+	0xac, 0xf4, 0x69, 0xc6, 0x4e, 0xc3, 0xd4, 0xa2, 0x6d, 0xdf, 0x74, 0xec, 0xff, 0x29, 0xe1, 0x7a,
+	0x2a, 0x8c, 0x21, 0xe5, 0xfb, 0x85, 0xc3, 0xd8, 0x1f, 0x2e, 0x1e, 0x22, 0x35, 0xff, 0xa9, 0x57,
+	0x9f, 0xff, 0x0f, 0xca, 0xc1, 0x1e, 0x12, 0x03, 0x54, 0xdb, 0xa7, 0x7b, 0xae, 0x11, 0xcc, 0x5c,
+	0x78, 0x8a, 0x35, 0x55, 0x12, 0x45, 0xc7, 0xb6, 0x69, 0xdb, 0x3f, 0xf6, 0x7e, 0xf8, 0xb4, 0x9c,
+	0xce, 0x03, 0xc9, 0xf0, 0x8d, 0x67, 0x86, 0x47, 0x91, 0x84, 0x65, 0xdb, 0x75, 0x2c, 0xeb, 0xb8,
+	0xcf, 0x1f, 0x3e, 0x04, 0x15, 0x8f, 0x25, 0x3d, 0xed, 0x90, 0x78, 0x64, 0x8f, 0xb4, 0x9d, 0x9e,
+	0xed, 0x57, 0x4e, 0xac, 0x70, 0x77, 0xa6, 0xd0, 0x95, 0xb8, 0x3d, 0xa6, 0xe2, 0x89, 0x41, 0x6b,
+	0xf5, 0x31, 0xa8, 0xb4, 0x54, 0xd1, 0xb0, 0x2c, 0xdd, 0x11, 0xd8, 0x9a, 0x49, 0x6d, 0x8a, 0xeb,
+	0x60, 0xaa, 0x1d, 0xf9, 0x6a, 0xf6, 0xc1, 0xc2, 0x44, 0x5e, 0xa2, 0x2e, 0xa0, 0x00, 0x58, 0xfd,
+	0xf1, 0x34, 0x58, 0x48, 0x45, 0x81, 0x76, 0x2d, 0xe7, 0x08, 0x53, 0xf7, 0xc0, 0x6c, 0xd3, 0x63,
+	0x1f, 0x81, 0x3d, 0x70, 0xae, 0xc3, 0x26, 0x4c, 0xf6, 0xa9, 0xff, 0xc2, 0xe9, 0x30, 0xb7, 0xcf,
+	0x3e, 0xd8, 0x9c, 0x38, 0x56, 0x96, 0xa3, 0xd6, 0xc3, 0x57, 0x75, 0x36, 0x12, 0x3a, 0xdb, 0x49,
+	0x3d, 0x41, 0x03, 0x9c, 0x89, 0x0c, 0xb1, 0x63, 0x78, 0x9a, 0x99, 0xf9, 0xc6, 0x7f, 0x63, 0x26,
+	0x38, 0xbf, 0x11, 0xe8, 0x24, 0x7f, 0x57, 0x09, 0x38, 0x9b, 0x26, 0x00, 0x17, 0xc1, 0x9c, 0x24,
+	0x37, 0x6b, 0xda, 0x2e, 0xa9, 0xcb, 0xba, 0xa2, 0x49, 0xa4, 0xd5, 0xc0, 0x4d, 0x59, 0x54, 0xb7,
+	0x54, 0x59, 0xe2, 0x4b, 0xf0, 0x0a, 0x80, 0x83, 0xcd, 0x42, 0x4b, 0xd7, 0x78, 0x0e, 0x56, 0xc0,
+	0xa5, 0xc1, 0xf7, 0x75, 0xa1, 0xd1, 0x12, 0x6a, 0x7c, 0xb9, 0x4a, 0x01, 0xe8, 0x9b, 0x86, 0xf3,
+	0xe0, 0x6a, 0x84, 0xd3, 0x77, 0x9b, 0xf2, 0xd0, 0xe0, 0x4b, 0xe0, 0x5a, 0xba, 0x51, 0x6d, 0x60,
+	0x5d, 0xa8, 0xd5, 0x08, 0x16, 0x91, 0xda, 0xd4, 0x79, 0x0e, 0x5e, 0x03, 0x57, 0xd2, 0xed, 0x42,
+	0x5d, 0x78, 0x5f, 0x6b, 0x10, 0x59, 0xc4, 0x7c, 0xb9, 0xfa, 0x4f, 0x0e, 0x2c, 0x8f, 0xd9, 0x15,
+	0xa2, 0xdb, 0xcf, 0xb1, 0xdf, 0x14, 0xbf, 0x5b, 0x06, 0x37, 0x46, 0xa7, 0x2f, 0x3a, 0xf6, 0x73,
+	0x73, 0xaf, 0xe7, 0xd2, 0xba, 0x5e, 0xc3, 0xc7, 0xde, 0x07, 0x3f, 0x29, 0x83, 0xfb, 0xe9, 0x25,
+	0xe0, 0xbd, 0xf4, 0x9d, 0x6e, 0xb0, 0xd1, 0x1d, 0x50, 0xc9, 0x74, 0x69, 0xdb, 0x77, 0xdc, 0x23,
+	0xdd, 0x71, 0x2c, 0x4f, 0xb5, 0x3d, 0xdf, 0x38, 0xfe, 0x27, 0x45, 0xf5, 0xa3, 0x32, 0x58, 0xcf,
+	0x73, 0x48, 0x92, 0x22, 0xc7, 0xde, 0x1b, 0xbf, 0x2f, 0x83, 0x5b, 0x7d, 0x6f, 0x08, 0x3d, 0xdf,
+	0x89, 0xff, 0x4e, 0x1d, 0x94, 0xc7, 0xfe, 0xec, 0xba, 0x0d, 0xce, 0x8f, 0xbf, 0x34, 0xcc, 0xba,
+	0x83, 0x97, 0x85, 0x1f, 0x96, 0xc1, 0xdd, 0x8c, 0x1d, 0x45, 0x15, 0xea, 0x4d, 0xc7, 0x32, 0xdb,
+	0x47, 0xc7, 0x3e, 0x6f, 0xfe, 0xcd, 0x81, 0x6a, 0xdf, 0x11, 0x41, 0x31, 0xd9, 0x36, 0xbb, 0x86,
+	0xe5, 0x7d, 0x71, 0x56, 0xce, 0x3f, 0xb8, 0xa0, 0x20, 0x8f, 0x01, 0x3a, 0xf5, 0xfc, 0xa8, 0xd6,
+	0xf8, 0x22, 0x94, 0x5d, 0x7f, 0xe7, 0x82, 0x5b, 0x73, 0x0c, 0x88, 0xa5, 0xa2, 0xce, 0xb1, 0x9f,
+	0xf7, 0x3c, 0x98, 0x6b, 0xa9, 0xa2, 0x4b, 0x0d, 0x9f, 0x36, 0xe8, 0x21, 0x72, 0xac, 0xb4, 0x9c,
+	0xb5, 0x1c, 0x24, 0xc4, 0x40, 0x23, 0x36, 0x0e, 0xd2, 0x80, 0xd5, 0xe0, 0x36, 0x36, 0xd8, 0xdb,
+	0xb0, 0xdb, 0xd4, 0x4a, 0x41, 0x5e, 0x03, 0x6b, 0x43, 0x90, 0x27, 0x26, 0x3d, 0x94, 0x9c, 0x76,
+	0x6f, 0x9f, 0xda, 0xbe, 0x31, 0x58, 0x9f, 0x54, 0xff, 0xc0, 0x81, 0xcb, 0x82, 0xe7, 0x99, 0x41,
+	0xee, 0xb1, 0x10, 0x24, 0xb9, 0x77, 0x1b, 0x9c, 0x6f, 0x3b, 0xf6, 0x01, 0x75, 0x3d, 0xd6, 0x87,
+	0x24, 0x5a, 0xcd, 0x6c, 0xfa, 0xb5, 0xda, 0x81, 0xab, 0xe0, 0xac, 0xef, 0xf8, 0x86, 0x45, 0x7c,
+	0xe7, 0x25, 0xb5, 0x43, 0x2d, 0x62, 0x0a, 0x9d, 0x61, 0xef, 0x74, 0xf6, 0x0a, 0x5e, 0x07, 0xe7,
+	0xba, 0xae, 0xb3, 0xdf, 0xf5, 0x63, 0xcc, 0x14, 0xc3, 0x9c, 0x0d, 0x5f, 0x46, 0xa0, 0x7b, 0xe0,
+	0x42, 0x3b, 0xe1, 0x10, 0x03, 0xc3, 0x4d, 0x94, 0xef, 0x37, 0x84, 0xe0, 0xea, 0xc7, 0x1c, 0x98,
+	0x4b, 0xd5, 0xea, 0x61, 0x8d, 0x3a, 0x49, 0x5a, 0x82, 0x9b, 0xe0, 0xc4, 0x4b, 0xd3, 0xee, 0x30,
+	0x6a, 0xb3, 0x0f, 0xd6, 0x27, 0xc6, 0x6d, 0x64, 0xc4, 0x1d, 0xd3, 0xee, 0x20, 0xd6, 0x17, 0xce,
+	0x83, 0xd3, 0x3d, 0x8f, 0xba, 0x84, 0xe9, 0x5b, 0x53, 0x7d, 0x7d, 0xab, 0x61, 0xec, 0xd3, 0xaa,
+	0x13, 0x04, 0x6e, 0xa4, 0x37, 0xd3, 0x7c, 0x42, 0x6f, 0x36, 0x46, 0x32, 0xfa, 0x41, 0x71, 0x16,
+	0xa3, 0xa9, 0x5d, 0x75, 0x83, 0x62, 0x7d, 0x04, 0x18, 0x2f, 0xa3, 0xff, 0x8f, 0xcd, 0x4f, 0xaa,
+	0xe0, 0x7c, 0x2b, 0xe8, 0xc6, 0x86, 0xd7, 0x6c, 0xaa, 0x3d, 0x87, 0x2d, 0x70, 0xbe, 0x67, 0x92,
+	0x67, 0x4c, 0x1c, 0x26, 0xed, 0x20, 0xaf, 0x22, 0x53, 0xf7, 0x32, 0xca, 0xa9, 0x61, 0x2d, 0x59,
+	0x29, 0xa1, 0x73, 0x3d, 0x33, 0xf5, 0x16, 0xfe, 0x92, 0x03, 0x77, 0x7b, 0x26, 0x71, 0x42, 0xb1,
+	0x95, 0x44, 0xe1, 0xa7, 0x64, 0xcf, 0x21, 0xbe, 0x43, 0x3a, 0xb1, 0x98, 0x1c, 0x59, 0x0c, 0x97,
+	0xa3, 0x90, 0x61, 0xb1, 0x98, 0x22, 0xad, 0x94, 0xd0, 0xf5, 0x9e, 0x99, 0x8b, 0x85, 0x1f, 0x71,
+	0xe0, 0x7a, 0x8a, 0x9d, 0xd1, 0xe9, 0x90, 0xe7, 0xa6, 0xeb, 0xf9, 0x89, 0x6e, 0x10, 0xf1, 0x3a,
+	0xc1, 0x78, 0xbd, 0x93, 0xcf, 0x6b, 0xb2, 0xc2, 0xad, 0x94, 0xd0, 0x52, 0x42, 0x69, 0x2c, 0x6c,
+	0xd8, 0x57, 0x63, 0xd8, 0x58, 0x86, 0x9f, 0x44, 0x67, 0xba, 0xa8, 0xaf, 0x72, 0xe4, 0xf4, 0x01,
+	0x5f, 0x4d, 0xc6, 0xc2, 0xef, 0x73, 0x60, 0x25, 0xc5, 0xce, 0xa3, 0x3e, 0x69, 0x27, 0xca, 0x3b,
+	0xf1, 0x98, 0x6a, 0x5e, 0x39, 0xc9, 0x48, 0x7d, 0x35, 0x9f, 0xd4, 0x24, 0xdd, 0x5e, 0x29, 0xa1,
+	0x85, 0x84, 0xcd, 0x18, 0x10, 0xfc, 0x29, 0x07, 0x6e, 0xa4, 0x68, 0xb8, 0x51, 0x01, 0x4b, 0xda,
+	0xb1, 0x7e, 0x1f, 0x53, 0x39, 0xc5, 0xa8, 0x7c, 0x3d, 0x9f, 0x4a, 0xd6, 0x17, 0x00, 0xa5, 0x84,
+	0x56, 0x12, 0x3a, 0x13, 0x80, 0xb1, 0x67, 0xdc, 0x48, 0x53, 0x27, 0x6d, 0xa7, 0xc3, 0xee, 0x8e,
+	0xa1, 0xa6, 0x1f, 0x85, 0x6b, 0x26, 0xd7, 0x33, 0x39, 0x5f, 0x04, 0x42, 0xcf, 0x4c, 0x06, 0xc1,
+	0x6f, 0x81, 0x85, 0x71, 0x2c, 0xba, 0x47, 0x11, 0x83, 0xd3, 0x8c, 0xc1, 0x5b, 0xc5, 0x19, 0xa4,
+	0x3f, 0x29, 0x28, 0x25, 0x54, 0x19, 0xb1, 0x1e, 0x01, 0xe0, 0xb7, 0xc1, 0xe2, 0xa8, 0xe5, 0xae,
+	0x6b, 0xda, 0x7e, 0x64, 0x1a, 0x30, 0xd3, 0x6f, 0x17, 0x35, 0x3d, 0xf4, 0x41, 0x42, 0x29, 0xa1,
+	0xb9, 0x21, 0xdb, 0x7d, 0x04, 0xb4, 0xc0, 0x5c, 0xcf, 0x24, 0x9d, 0xe8, 0xa0, 0x26, 0x5e, 0x28,
+	0xcf, 0x13, 0x36, 0x78, 0xe5, 0x0c, 0x33, 0xbc, 0x51, 0x40, 0x11, 0x4a, 0xcb, 0xfa, 0x4a, 0x09,
+	0x5d, 0xe9, 0x99, 0x63, 0x05, 0xff, 0x8f, 0xc2, 0xf4, 0x4b, 0xcc, 0x25, 0x4b, 0xd3, 0x8b, 0x75,
+	0xf6, 0xc8, 0xf2, 0x59, 0x66, 0xf9, 0x2b, 0x05, 0x2c, 0x8f, 0x57, 0xea, 0xc3, 0xcc, 0xcb, 0x51,
+	0xf3, 0x3f, 0x64, 0x89, 0x97, 0x90, 0x89, 0xb4, 0x30, 0x2f, 0x94, 0xb5, 0x22, 0x22, 0xe7, 0x18,
+	0x91, 0x2f, 0xbf, 0x92, 0x28, 0x16, 0xe6, 0x5c, 0x86, 0x88, 0xf9, 0xa3, 0x70, 0x03, 0xed, 0x33,
+	0x88, 0xca, 0xa0, 0xfe, 0xba, 0x0c, 0x49, 0xcc, 0x32, 0x12, 0x0f, 0x8b, 0x90, 0x18, 0xa7, 0x4c,
+	0x29, 0x25, 0xb4, 0x9c, 0xe2, 0x31, 0x56, 0xbc, 0xfa, 0x45, 0xb8, 0x7b, 0x8e, 0x52, 0x69, 0xc7,
+	0x75, 0x08, 0xd9, 0xf7, 0x2d, 0x2f, 0x22, 0x74, 0x9e, 0x11, 0xfa, 0xda, 0xe7, 0x20, 0x34, 0xaa,
+	0x15, 0x29, 0x25, 0x74, 0x63, 0x94, 0x55, 0x1f, 0xe7, 0x5b, 0x51, 0xb9, 0xfc, 0x47, 0x0e, 0x3c,
+	0x1c, 0x8c, 0x13, 0x53, 0x1a, 0x88, 0xc1, 0xa4, 0x06, 0xd2, 0x89, 0xb5, 0x06, 0xe2, 0x3b, 0x8e,
+	0xe5, 0x11, 0x33, 0x94, 0x5f, 0x22, 0xa6, 0x3c, 0x63, 0xfa, 0xb8, 0x50, 0xfc, 0x0a, 0x29, 0x3a,
+	0x4a, 0x09, 0xdd, 0x4f, 0x07, 0xb5, 0x98, 0x0c, 0xf4, 0x29, 0x07, 0xde, 0x2c, 0x34, 0x87, 0xbe,
+	0xbb, 0x43, 0xfe, 0x17, 0x18, 0xff, 0xed, 0x57, 0xe6, 0x3f, 0x58, 0x46, 0x2a, 0x25, 0xb4, 0x9e,
+	0x47, 0x7e, 0xa8, 0xf0, 0xfc, 0x84, 0x03, 0xf7, 0xd2, 0xcc, 0x8d, 0x5e, 0x70, 0xf3, 0x48, 0xa4,
+	0x8d, 0xd4, 0x37, 0x82, 0x90, 0x30, 0x64, 0x84, 0xdf, 0x2d, 0x40, 0x38, 0x4b, 0x23, 0x51, 0x4a,
+	0xe8, 0x56, 0x9f, 0x68, 0xa6, 0x9a, 0xf2, 0x3b, 0x0e, 0x6c, 0xe4, 0x64, 0xae, 0x69, 0xec, 0x93,
+	0x2e, 0x93, 0x13, 0x22, 0x92, 0x17, 0x19, 0xc9, 0xcd, 0x57, 0xc9, 0xdf, 0x41, 0x65, 0x42, 0x29,
+	0xa1, 0xbb, 0x19, 0x49, 0xac, 0x1a, 0xfb, 0x69, 0x19, 0xe3, 0x67, 0x1c, 0xb8, 0x95, 0xa6, 0xda,
+	0x4d, 0xaa, 0xfd, 0x91, 0xb8, 0x5f, 0x62, 0x0c, 0x1f, 0x15, 0x60, 0x38, 0x49, 0x32, 0x50, 0x4a,
+	0xa8, 0xda, 0xa7, 0x36, 0x51, 0x58, 0xf8, 0x1e, 0x07, 0x56, 0xd3, 0x9c, 0x7c, 0xea, 0xf9, 0x01,
+	0x1b, 0x7b, 0x60, 0x3f, 0xbe, 0x9c, 0x7b, 0xfa, 0x65, 0xd4, 0xef, 0x4a, 0x09, 0x2d, 0xf6, 0x99,
+	0x8c, 0x2b, 0xf0, 0x5d, 0x30, 0x9f, 0xe6, 0x10, 0xdf, 0x73, 0xe3, 0x73, 0xe8, 0x4a, 0x4e, 0xd1,
+	0x3a, 0xa9, 0x80, 0x0e, 0x8f, 0xdd, 0x09, 0xc5, 0xb5, 0x05, 0x2a, 0x3d, 0x33, 0xb8, 0x84, 0x19,
+	0x3e, 0x25, 0x36, 0x3d, 0x24, 0xae, 0x63, 0xc5, 0xd7, 0x8d, 0xab, 0x39, 0x65, 0xc2, 0xc4, 0xd2,
+	0x55, 0x29, 0xa1, 0x4b, 0x3d, 0x73, 0xb4, 0x11, 0x1e, 0xb1, 0x43, 0x7e, 0xd8, 0x9a, 0x67, 0x1c,
+	0xc4, 0x26, 0x2b, 0xb9, 0x1e, 0xce, 0x28, 0x88, 0xc3, 0x89, 0x8e, 0x07, 0xc0, 0x0f, 0xc1, 0xf2,
+	0xb8, 0x89, 0xb2, 0x82, 0x39, 0x32, 0x3e, 0x97, 0x7b, 0xc0, 0x64, 0x16, 0xdb, 0x4a, 0x09, 0x5d,
+	0x1b, 0x9e, 0x75, 0x1f, 0x02, 0x7f, 0x15, 0x6e, 0x21, 0xc3, 0x0c, 0x0e, 0x4c, 0x7a, 0x48, 0x3a,
+	0xe9, 0x82, 0x3c, 0x62, 0x73, 0x8d, 0xb1, 0x11, 0x8b, 0xb2, 0xc9, 0xa8, 0xeb, 0x95, 0x12, 0xba,
+	0x39, 0x44, 0x6c, 0x3c, 0x1a, 0xfe, 0x96, 0x03, 0xeb, 0xe9, 0x14, 0x34, 0xfb, 0x85, 0x20, 0x31,
+	0x0e, 0x3d, 0xe2, 0x98, 0x9d, 0x76, 0xbc, 0x2c, 0xa2, 0xac, 0x9c, 0xcf, 0x2d, 0x21, 0x8a, 0x7d,
+	0x4d, 0x57, 0x4a, 0xe8, 0x4e, 0x3f, 0x4b, 0xd3, 0xd8, 0x43, 0x4f, 0x33, 0x3b, 0xed, 0x81, 0x2f,
+	0xef, 0x1f, 0x73, 0xe0, 0xe6, 0xf8, 0x2b, 0x43, 0xc7, 0x23, 0x94, 0x95, 0xac, 0x11, 0xbd, 0x85,
+	0xc2, 0x57, 0xa8, 0xf1, 0x1f, 0xb9, 0x07, 0xaf, 0x50, 0x09, 0xa6, 0xe3, 0xa5, 0x3f, 0x84, 0xfb,
+	0x61, 0x5a, 0x07, 0xe7, 0xad, 0xef, 0xb0, 0xd3, 0x2c, 0x8e, 0x62, 0xc4, 0x62, 0x31, 0x77, 0xe9,
+	0x8e, 0xff, 0x62, 0x1c, 0x65, 0xf4, 0xf8, 0xaf, 0xc9, 0x1f, 0x80, 0x0b, 0x06, 0x13, 0x6b, 0x48,
+	0x5f, 0x10, 0xa9, 0x2c, 0x31, 0x4b, 0x93, 0x45, 0x8d, 0xb1, 0xf2, 0x8e, 0x52, 0x42, 0xbc, 0x31,
+	0xd4, 0x10, 0x6f, 0x89, 0xe9, 0x14, 0x88, 0x3c, 0xcb, 0xae, 0xc7, 0xd1, 0xcc, 0x96, 0x73, 0x17,
+	0x6c, 0x86, 0x10, 0x12, 0x6e, 0x89, 0x59, 0x4a, 0x49, 0x74, 0x55, 0x1e, 0x43, 0x22, 0x51, 0x01,
+	0x42, 0x1e, 0x2b, 0xb9, 0x71, 0xce, 0xd6, 0x47, 0xc2, 0x38, 0x67, 0x63, 0x36, 0x4f, 0x81, 0x69,
+	0x36, 0xe2, 0xe3, 0x13, 0x33, 0x65, 0x7e, 0x2a, 0xb8, 0xd6, 0x26, 0x35, 0xe4, 0x1e, 0xf5, 0x93,
+	0xb2, 0x81, 0x45, 0x7e, 0xed, 0xe7, 0xb3, 0xfd, 0x9f, 0x39, 0xc5, 0x87, 0x35, 0x5c, 0x05, 0x8b,
+	0x92, 0x8a, 0x45, 0xed, 0x89, 0x8c, 0x08, 0x92, 0xb1, 0xd6, 0x42, 0xe2, 0xf0, 0x07, 0xda, 0x05,
+	0x50, 0x19, 0x85, 0x60, 0x19, 0x3d, 0x91, 0x11, 0xcf, 0xc1, 0x15, 0xb0, 0x30, 0xda, 0xba, 0xd3,
+	0xda, 0x94, 0x51, 0x43, 0xd6, 0x65, 0xcc, 0x97, 0xe1, 0x1b, 0x60, 0x63, 0x14, 0x21, 0x09, 0xba,
+	0xb0, 0x29, 0x60, 0x99, 0x34, 0x35, 0xac, 0x6f, 0x23, 0x19, 0x13, 0x2c, 0xd7, 0xb6, 0x88, 0xa2,
+	0x61, 0x5d, 0x96, 0xf8, 0x29, 0xf8, 0x3a, 0x78, 0x2d, 0xa3, 0x53, 0x7d, 0x17, 0xbf, 0x57, 0x1b,
+	0xe8, 0x71, 0x02, 0x3e, 0x00, 0xeb, 0x59, 0x3d, 0xb4, 0xc6, 0xb6, 0x26, 0x6d, 0x0e, 0xf4, 0x99,
+	0x86, 0xf7, 0xc0, 0xed, 0x22, 0xd4, 0x90, 0x84, 0xf9, 0x93, 0xf0, 0x0e, 0xb8, 0x91, 0x4b, 0x29,
+	0x40, 0x9e, 0x82, 0xb7, 0x40, 0x75, 0x14, 0x29, 0x34, 0x9b, 0x35, 0x55, 0x14, 0x74, 0x55, 0x6b,
+	0x10, 0x45, 0xd7, 0x9b, 0xfc, 0x0c, 0xbc, 0x09, 0x56, 0xb3, 0x71, 0xba, 0xd8, 0xe4, 0x4f, 0x8f,
+	0x87, 0x3d, 0x55, 0x1b, 0x92, 0xf6, 0x14, 0x13, 0x49, 0xc6, 0x3b, 0xba, 0xd6, 0xe4, 0x01, 0x7c,
+	0x0d, 0xdc, 0xc9, 0xe0, 0x87, 0xdf, 0xab, 0x85, 0x31, 0x63, 0x1c, 0xcf, 0xe4, 0x38, 0xb8, 0x3f,
+	0x75, 0x59, 0xc2, 0x8a, 0xba, 0xa5, 0xf3, 0x67, 0xe1, 0x9b, 0xe0, 0xf5, 0x42, 0xe3, 0xa7, 0x5d,
+	0x7c, 0x2e, 0xc7, 0x0e, 0x92, 0x25, 0x75, 0x30, 0xf4, 0xb3, 0x45, 0x83, 0xb2, 0x2d, 0x36, 0xf9,
+	0xf3, 0x85, 0x82, 0x12, 0x20, 0xf9, 0xc2, 0xee, 0x09, 0xd0, 0x17, 0xe0, 0x23, 0xf0, 0xf6, 0xe7,
+	0x71, 0x4f, 0xb4, 0x1e, 0x6a, 0x32, 0xc6, 0x3c, 0x84, 0x5f, 0x02, 0x77, 0x8b, 0x74, 0x16, 0xde,
+	0x6f, 0x21, 0x99, 0xbf, 0x08, 0x6f, 0x83, 0xeb, 0x19, 0x70, 0x69, 0xb7, 0x21, 0xd4, 0x35, 0x69,
+	0x93, 0xbf, 0x94, 0x93, 0xe2, 0xa2, 0x80, 0xb1, 0xd0, 0x90, 0x90, 0x40, 0x76, 0xe4, 0x5d, 0xdc,
+	0x14, 0x44, 0x19, 0xf3, 0x97, 0x73, 0xa2, 0xd6, 0xef, 0x93, 0x8e, 0xc1, 0x15, 0xf8, 0x10, 0xbc,
+	0x99, 0xd1, 0x4b, 0xae, 0x09, 0x58, 0x57, 0x45, 0x2c, 0x0b, 0x48, 0x54, 0x06, 0x7a, 0x5e, 0x2d,
+	0x14, 0xef, 0xa8, 0xbf, 0x20, 0x2a, 0x32, 0x5f, 0xc9, 0xf1, 0x56, 0xd8, 0xa3, 0x2e, 0xd7, 0x35,
+	0xb4, 0x2b, 0x6d, 0xf2, 0x73, 0x85, 0x0c, 0x30, 0xcf, 0x92, 0xd0, 0xc0, 0xb5, 0x9c, 0xc9, 0x84,
+	0x3d, 0xc4, 0x5a, 0x0b, 0xeb, 0x43, 0xc9, 0x3b, 0x0f, 0xd7, 0xc0, 0xad, 0xdc, 0xec, 0x0a, 0xa3,
+	0xb8, 0x00, 0xd7, 0xc1, 0x5a, 0xa1, 0xfc, 0x0a, 0xf1, 0x8b, 0x39, 0xc1, 0xec, 0xe3, 0xeb, 0xaa,
+	0x88, 0x34, 0xac, 0x6d, 0xe9, 0xfc, 0x12, 0x7c, 0x0b, 0x3c, 0xc8, 0x0a, 0xa6, 0x26, 0xee, 0x20,
+	0x4d, 0x10, 0x95, 0xa1, 0x7d, 0x6e, 0x39, 0x27, 0xf7, 0xe3, 0xbd, 0x51, 0xd0, 0x6b, 0x02, 0xe6,
+	0x57, 0x72, 0xd6, 0x14, 0x6e, 0x68, 0x4f, 0xb7, 0x6a, 0xc2, 0x8e, 0xcc, 0xaf, 0x4e, 0x18, 0x57,
+	0x13, 0x53, 0xde, 0x95, 0x30, 0x69, 0x22, 0xed, 0x9b, 0xbb, 0x7c, 0x75, 0x42, 0x2a, 0xa6, 0xd1,
+	0x8a, 0xba, 0xad, 0x10, 0xe1, 0x89, 0xa0, 0xd6, 0x84, 0x4d, 0xb5, 0xa6, 0xea, 0xbb, 0xfc, 0x75,
+	0xf8, 0x36, 0x78, 0x23, 0xa7, 0x17, 0x5b, 0x21, 0xaa, 0x48, 0x90, 0xbc, 0xad, 0x62, 0x1d, 0xb1,
+	0xad, 0x93, 0xbf, 0x31, 0x7e, 0x17, 0xc6, 0x42, 0xbd, 0x96, 0xde, 0x62, 0xf9, 0x9b, 0x6b, 0xbf,
+	0xe6, 0xc0, 0xec, 0xe0, 0x4f, 0x67, 0xe1, 0x32, 0x98, 0x4f, 0xba, 0x62, 0x5d, 0xd0, 0x5b, 0x78,
+	0xe8, 0x4c, 0x9c, 0x07, 0x57, 0x87, 0x01, 0xb8, 0x25, 0x8a, 0xc1, 0xf2, 0xe7, 0xc6, 0x36, 0xee,
+	0xa8, 0xcd, 0xa6, 0x2c, 0xf1, 0x65, 0x38, 0x07, 0x2e, 0x0f, 0x37, 0xca, 0x08, 0x69, 0x88, 0x9f,
+	0x1a, 0xd7, 0x4f, 0xd8, 0xd4, 0x10, 0x3b, 0xde, 0xd6, 0xfe, 0xc4, 0x81, 0x29, 0x51, 0x17, 0xe0,
+	0x45, 0x70, 0x5e, 0xd4, 0x85, 0xd1, 0x1f, 0x68, 0x05, 0x2f, 0x85, 0x96, 0xae, 0x10, 0x51, 0x6b,
+	0x34, 0x64, 0x51, 0xd7, 0x82, 0xc3, 0xf9, 0x2a, 0xb8, 0xc8, 0xde, 0x8b, 0xba, 0xfa, 0x24, 0x38,
+	0xb3, 0x31, 0x56, 0xb5, 0x46, 0x70, 0x26, 0x27, 0x0d, 0x01, 0x65, 0x82, 0xe4, 0xf7, 0x5a, 0x32,
+	0xd6, 0x31, 0x3f, 0x15, 0x37, 0x34, 0x91, 0x5c, 0x57, 0x5b, 0x75, 0x82, 0x5b, 0xcd, 0xa6, 0x86,
+	0x74, 0xfe, 0x44, 0xdc, 0xa0, 0xa3, 0x60, 0x9d, 0x48, 0x44, 0x92, 0x9f, 0xa8, 0xc1, 0x06, 0x33,
+	0x1d, 0xdb, 0x6e, 0x35, 0xb7, 0x91, 0x20, 0xc9, 0x64, 0x53, 0x68, 0x34, 0x64, 0xc4, 0x9f, 0x8c,
+	0x3b, 0x6c, 0xaa, 0xb5, 0x9a, 0xda, 0xd8, 0x26, 0xb8, 0x55, 0xaf, 0x0b, 0x68, 0x97, 0x3f, 0xb5,
+	0xf6, 0xd7, 0x29, 0x70, 0x79, 0xec, 0xa7, 0xac, 0x60, 0x23, 0x54, 0x1b, 0xba, 0xbc, 0x1d, 0x86,
+	0x90, 0xc8, 0x0d, 0xa4, 0xd5, 0x6a, 0x64, 0x47, 0x6d, 0x0c, 0xff, 0x20, 0x6d, 0x15, 0x2c, 0x4e,
+	0x02, 0xe2, 0x9a, 0x20, 0xee, 0xf0, 0x1c, 0xbc, 0x01, 0x56, 0x26, 0x41, 0x84, 0xa7, 0x98, 0x04,
+	0xb7, 0x7d, 0xbe, 0x1c, 0x1c, 0xad, 0x93, 0x50, 0x4d, 0x61, 0x5b, 0x46, 0x52, 0x4b, 0xdf, 0xe5,
+	0xa7, 0xb2, 0xec, 0xc9, 0x75, 0x41, 0xad, 0xf1, 0x27, 0x82, 0x7b, 0xd0, 0x24, 0xc8, 0x63, 0x15,
+	0x09, 0xfc, 0x34, 0xbc, 0x0e, 0x96, 0x27, 0x21, 0x58, 0xd8, 0x91, 0xc4, 0x9f, 0x0c, 0x92, 0x76,
+	0x12, 0xa8, 0x2e, 0xe8, 0xba, 0x8c, 0xea, 0x1a, 0xd6, 0xf9, 0x53, 0x59, 0xd3, 0xab, 0x63, 0xa2,
+	0xcb, 0x42, 0x1d, 0xf3, 0x33, 0x59, 0x28, 0xad, 0x89, 0xb7, 0xe5, 0x86, 0x2a, 0xf3, 0xa7, 0xb3,
+	0xa8, 0x6b, 0x3b, 0xba, 0xc0, 0x83, 0xcc, 0xc9, 0x09, 0xf5, 0x2d, 0xfe, 0xcc, 0xe6, 0x07, 0x7f,
+	0xfe, 0x6c, 0x89, 0xfb, 0xcb, 0x67, 0x4b, 0xdc, 0xdf, 0x3e, 0x5b, 0xe2, 0xde, 0xd7, 0xf6, 0x4c,
+	0xff, 0x45, 0xef, 0xd9, 0x7a, 0xdb, 0xd9, 0xdf, 0xd8, 0x73, 0x8d, 0x03, 0x33, 0xac, 0xe9, 0x0c,
+	0x6b, 0x23, 0xf9, 0x87, 0x0f, 0xa3, 0x6b, 0x6e, 0xec, 0x51, 0x7b, 0x83, 0xfd, 0x77, 0xc7, 0xc6,
+	0x9e, 0x33, 0xf4, 0x1f, 0x20, 0x8f, 0x52, 0x8f, 0x07, 0xf7, 0x9f, 0x9d, 0x64, 0xb0, 0x37, 0xfe,
+	0x13, 0x00, 0x00, 0xff, 0xff, 0x99, 0x14, 0xa7, 0x49, 0x31, 0x32, 0x00, 0x00,
 }
 
 func (m *UIBannerClickEvent) Marshal() (dAtA []byte, err error) {
@@ -2858,6 +3623,169 @@ func (m *UIDiscoverResourceSelectionEvent) MarshalToSizedBuffer(dAtA []byte) (in
 	return len(dAtA) - i, nil
 }
 
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Status != nil {
+		{
+			size, err := m.Status.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.Resource != nil {
+		{
+			size, err := m.Resource.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Metadata != nil {
+		{
+			size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UIDiscoverDatabaseRDSEnrollEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIDiscoverDatabaseRDSEnrollEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIDiscoverDatabaseRDSEnrollEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.SelectedResourcesCount != 0 {
+		i = encodeVarintUsageevents(dAtA, i, uint64(m.SelectedResourcesCount))
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.Status != nil {
+		{
+			size, err := m.Status.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.Resource != nil {
+		{
+			size, err := m.Resource.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.Metadata != nil {
+		{
+			size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UICallToActionClickEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UICallToActionClickEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UICallToActionClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Cta != 0 {
+		i = encodeVarintUsageevents(dAtA, i, uint64(m.Cta))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *UIDiscoverDeployServiceEvent) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -2881,6 +3809,16 @@ func (m *UIDiscoverDeployServiceEvent) MarshalToSizedBuffer(dAtA []byte) (int, e
 	if m.XXX_unrecognized != nil {
 		i -= len(m.XXX_unrecognized)
 		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.DeployType != 0 {
+		i = encodeVarintUsageevents(dAtA, i, uint64(m.DeployType))
+		i--
+		dAtA[i] = 0x28
+	}
+	if m.DeployMethod != 0 {
+		i = encodeVarintUsageevents(dAtA, i, uint64(m.DeployMethod))
+		i--
+		dAtA[i] = 0x20
 	}
 	if m.Status != nil {
 		{
@@ -3601,6 +4539,179 @@ func (m *UICreateNewRoleViewDocumentationClickEvent) MarshalToSizedBuffer(dAtA [
 	return len(dAtA) - i, nil
 }
 
+func (m *AssistCompletionEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *AssistCompletionEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *AssistCompletionEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.CompletionTokens != 0 {
+		i = encodeVarintUsageevents(dAtA, i, uint64(m.CompletionTokens))
+		i--
+		dAtA[i] = 0x20
+	}
+	if m.PromptTokens != 0 {
+		i = encodeVarintUsageevents(dAtA, i, uint64(m.PromptTokens))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.TotalTokens != 0 {
+		i = encodeVarintUsageevents(dAtA, i, uint64(m.TotalTokens))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.ConversationId) > 0 {
+		i -= len(m.ConversationId)
+		copy(dAtA[i:], m.ConversationId)
+		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.ConversationId)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *IntegrationEnrollMetadata) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *IntegrationEnrollMetadata) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *IntegrationEnrollMetadata) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if len(m.UserName) > 0 {
+		i -= len(m.UserName)
+		copy(dAtA[i:], m.UserName)
+		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.UserName)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.Kind != 0 {
+		i = encodeVarintUsageevents(dAtA, i, uint64(m.Kind))
+		i--
+		dAtA[i] = 0x10
+	}
+	if len(m.Id) > 0 {
+		i -= len(m.Id)
+		copy(dAtA[i:], m.Id)
+		i = encodeVarintUsageevents(dAtA, i, uint64(len(m.Id)))
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UIIntegrationEnrollStartEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIIntegrationEnrollStartEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIIntegrationEnrollStartEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Metadata != nil {
+		{
+			size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *UIIntegrationEnrollCompleteEvent) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBuffer(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *UIIntegrationEnrollCompleteEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UIIntegrationEnrollCompleteEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i -= len(m.XXX_unrecognized)
+		copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	if m.Metadata != nil {
+		{
+			size, err := m.Metadata.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
 func (m *UsageEventOneOf) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -4184,6 +5295,144 @@ func (m *UsageEventOneOf_UiCreateNewRoleViewDocumentationClick) MarshalToSizedBu
 	}
 	return len(dAtA) - i, nil
 }
+func (m *UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UiDiscoverIntegrationAwsOidcConnectEvent != nil {
+		{
+			size, err := m.UiDiscoverIntegrationAwsOidcConnectEvent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xda
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UiDiscoverDatabaseRdsEnrollEvent != nil {
+		{
+			size, err := m.UiDiscoverDatabaseRdsEnrollEvent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xe2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UsageEventOneOf_UiCallToActionClickEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_UiCallToActionClickEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UiCallToActionClickEvent != nil {
+		{
+			size, err := m.UiCallToActionClickEvent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xea
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UsageEventOneOf_AssistCompletion) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_AssistCompletion) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.AssistCompletion != nil {
+		{
+			size, err := m.AssistCompletion.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xf2
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UsageEventOneOf_UiIntegrationEnrollStartEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_UiIntegrationEnrollStartEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UiIntegrationEnrollStartEvent != nil {
+		{
+			size, err := m.UiIntegrationEnrollStartEvent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xfa
+	}
+	return len(dAtA) - i, nil
+}
+func (m *UsageEventOneOf_UiIntegrationEnrollCompleteEvent) MarshalTo(dAtA []byte) (int, error) {
+	size := m.Size()
+	return m.MarshalToSizedBuffer(dAtA[:size])
+}
+
+func (m *UsageEventOneOf_UiIntegrationEnrollCompleteEvent) MarshalToSizedBuffer(dAtA []byte) (int, error) {
+	i := len(dAtA)
+	if m.UiIntegrationEnrollCompleteEvent != nil {
+		{
+			size, err := m.UiIntegrationEnrollCompleteEvent.MarshalToSizedBuffer(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarintUsageevents(dAtA, i, uint64(size))
+		}
+		i--
+		dAtA[i] = 0x2
+		i--
+		dAtA[i] = 0x82
+	}
+	return len(dAtA) - i, nil
+}
 func encodeVarintUsageevents(dAtA []byte, offset int, v uint64) int {
 	offset -= sovUsageevents(v)
 	base := offset
@@ -4433,6 +5682,72 @@ func (m *UIDiscoverResourceSelectionEvent) Size() (n int) {
 	return n
 }
 
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Metadata != nil {
+		l = m.Metadata.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.Resource != nil {
+		l = m.Resource.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.Status != nil {
+		l = m.Status.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UIDiscoverDatabaseRDSEnrollEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Metadata != nil {
+		l = m.Metadata.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.Resource != nil {
+		l = m.Resource.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.Status != nil {
+		l = m.Status.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.SelectedResourcesCount != 0 {
+		n += 1 + sovUsageevents(uint64(m.SelectedResourcesCount))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UICallToActionClickEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Cta != 0 {
+		n += 1 + sovUsageevents(uint64(m.Cta))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
 func (m *UIDiscoverDeployServiceEvent) Size() (n int) {
 	if m == nil {
 		return 0
@@ -4450,6 +5765,12 @@ func (m *UIDiscoverDeployServiceEvent) Size() (n int) {
 	if m.Status != nil {
 		l = m.Status.Size()
 		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.DeployMethod != 0 {
+		n += 1 + sovUsageevents(uint64(m.DeployMethod))
+	}
+	if m.DeployType != 0 {
+		n += 1 + sovUsageevents(uint64(m.DeployType))
 	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
@@ -4718,6 +6039,86 @@ func (m *UICreateNewRoleViewDocumentationClickEvent) Size() (n int) {
 	}
 	var l int
 	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *AssistCompletionEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ConversationId)
+	if l > 0 {
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.TotalTokens != 0 {
+		n += 1 + sovUsageevents(uint64(m.TotalTokens))
+	}
+	if m.PromptTokens != 0 {
+		n += 1 + sovUsageevents(uint64(m.PromptTokens))
+	}
+	if m.CompletionTokens != 0 {
+		n += 1 + sovUsageevents(uint64(m.CompletionTokens))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *IntegrationEnrollMetadata) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Id)
+	if l > 0 {
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.Kind != 0 {
+		n += 1 + sovUsageevents(uint64(m.Kind))
+	}
+	l = len(m.UserName)
+	if l > 0 {
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UIIntegrationEnrollStartEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Metadata != nil {
+		l = m.Metadata.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *UIIntegrationEnrollCompleteEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Metadata != nil {
+		l = m.Metadata.Size()
+		n += 1 + l + sovUsageevents(uint64(l))
+	}
 	if m.XXX_unrecognized != nil {
 		n += len(m.XXX_unrecognized)
 	}
@@ -5035,6 +6436,78 @@ func (m *UsageEventOneOf_UiCreateNewRoleViewDocumentationClick) Size() (n int) {
 	_ = l
 	if m.UiCreateNewRoleViewDocumentationClick != nil {
 		l = m.UiCreateNewRoleViewDocumentationClick.Size()
+		n += 2 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
+func (m *UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UiDiscoverIntegrationAwsOidcConnectEvent != nil {
+		l = m.UiDiscoverIntegrationAwsOidcConnectEvent.Size()
+		n += 2 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
+func (m *UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UiDiscoverDatabaseRdsEnrollEvent != nil {
+		l = m.UiDiscoverDatabaseRdsEnrollEvent.Size()
+		n += 2 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
+func (m *UsageEventOneOf_UiCallToActionClickEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UiCallToActionClickEvent != nil {
+		l = m.UiCallToActionClickEvent.Size()
+		n += 2 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
+func (m *UsageEventOneOf_AssistCompletion) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.AssistCompletion != nil {
+		l = m.AssistCompletion.Size()
+		n += 2 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
+func (m *UsageEventOneOf_UiIntegrationEnrollStartEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UiIntegrationEnrollStartEvent != nil {
+		l = m.UiIntegrationEnrollStartEvent.Size()
+		n += 2 + l + sovUsageevents(uint64(l))
+	}
+	return n
+}
+func (m *UsageEventOneOf_UiIntegrationEnrollCompleteEvent) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.UiIntegrationEnrollCompleteEvent != nil {
+		l = m.UiIntegrationEnrollCompleteEvent.Size()
 		n += 2 + l + sovUsageevents(uint64(l))
 	}
 	return n
@@ -6330,6 +7803,413 @@ func (m *UIDiscoverResourceSelectionEvent) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *UIDiscoverIntegrationAWSOIDCConnectEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIDiscoverIntegrationAWSOIDCConnectEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIDiscoverIntegrationAWSOIDCConnectEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Metadata == nil {
+				m.Metadata = &DiscoverMetadata{}
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Resource", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Resource == nil {
+				m.Resource = &DiscoverResourceMetadata{}
+			}
+			if err := m.Resource.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Status", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Status == nil {
+				m.Status = &DiscoverStepStatus{}
+			}
+			if err := m.Status.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UIDiscoverDatabaseRDSEnrollEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIDiscoverDatabaseRDSEnrollEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIDiscoverDatabaseRDSEnrollEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Metadata == nil {
+				m.Metadata = &DiscoverMetadata{}
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Resource", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Resource == nil {
+				m.Resource = &DiscoverResourceMetadata{}
+			}
+			if err := m.Resource.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Status", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Status == nil {
+				m.Status = &DiscoverStepStatus{}
+			}
+			if err := m.Status.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SelectedResourcesCount", wireType)
+			}
+			m.SelectedResourcesCount = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.SelectedResourcesCount |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UICallToActionClickEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UICallToActionClickEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UICallToActionClickEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Cta", wireType)
+			}
+			m.Cta = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Cta |= CTA(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *UIDiscoverDeployServiceEvent) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -6467,6 +8347,44 @@ func (m *UIDiscoverDeployServiceEvent) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DeployMethod", wireType)
+			}
+			m.DeployMethod = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DeployMethod |= UIDiscoverDeployServiceEvent_DeployMethod(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 5:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DeployType", wireType)
+			}
+			m.DeployType = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.DeployType |= UIDiscoverDeployServiceEvent_DeployType(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
 		default:
 			iNdEx = preIndex
 			skippy, err := skipUsageevents(dAtA[iNdEx:])
@@ -8143,6 +10061,454 @@ func (m *UICreateNewRoleViewDocumentationClickEvent) Unmarshal(dAtA []byte) erro
 	}
 	return nil
 }
+func (m *AssistCompletionEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: AssistCompletionEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: AssistCompletionEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ConversationId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ConversationId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TotalTokens", wireType)
+			}
+			m.TotalTokens = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.TotalTokens |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field PromptTokens", wireType)
+			}
+			m.PromptTokens = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.PromptTokens |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CompletionTokens", wireType)
+			}
+			m.CompletionTokens = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.CompletionTokens |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *IntegrationEnrollMetadata) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: IntegrationEnrollMetadata: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: IntegrationEnrollMetadata: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Id", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Id = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Kind", wireType)
+			}
+			m.Kind = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Kind |= IntegrationEnrollKind(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UserName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.UserName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UIIntegrationEnrollStartEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIIntegrationEnrollStartEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIIntegrationEnrollStartEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Metadata == nil {
+				m.Metadata = &IntegrationEnrollMetadata{}
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *UIIntegrationEnrollCompleteEvent) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowUsageevents
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: UIIntegrationEnrollCompleteEvent: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: UIIntegrationEnrollCompleteEvent: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Metadata", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Metadata == nil {
+				m.Metadata = &IntegrationEnrollMetadata{}
+			}
+			if err := m.Metadata.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipUsageevents(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -9046,6 +11412,216 @@ func (m *UsageEventOneOf) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Event = &UsageEventOneOf_UiCreateNewRoleViewDocumentationClick{v}
+			iNdEx = postIndex
+		case 27:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UiDiscoverIntegrationAwsOidcConnectEvent", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UIDiscoverIntegrationAWSOIDCConnectEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_UiDiscoverIntegrationAwsOidcConnectEvent{v}
+			iNdEx = postIndex
+		case 28:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UiDiscoverDatabaseRdsEnrollEvent", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UIDiscoverDatabaseRDSEnrollEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_UiDiscoverDatabaseRdsEnrollEvent{v}
+			iNdEx = postIndex
+		case 29:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UiCallToActionClickEvent", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UICallToActionClickEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_UiCallToActionClickEvent{v}
+			iNdEx = postIndex
+		case 30:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field AssistCompletion", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &AssistCompletionEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_AssistCompletion{v}
+			iNdEx = postIndex
+		case 31:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UiIntegrationEnrollStartEvent", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UIIntegrationEnrollStartEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_UiIntegrationEnrollStartEvent{v}
+			iNdEx = postIndex
+		case 32:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field UiIntegrationEnrollCompleteEvent", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowUsageevents
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthUsageevents
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &UIIntegrationEnrollCompleteEvent{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Event = &UsageEventOneOf_UiIntegrationEnrollCompleteEvent{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

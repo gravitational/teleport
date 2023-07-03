@@ -19,6 +19,7 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
@@ -132,33 +133,21 @@ message Event {
     types.OktaAssignmentV1 OktaAssignment = 41 [(gogoproto.jsontag) = "okta_assignment,omitempty"];
     // Integration is an Integration resource.
     types.IntegrationV1 Integration = 42 [(gogoproto.jsontag) = "integration,omitempty"];
+    // WatchStatus is an WatchStatus resource.
+    types.WatchStatusV1 WatchStatus = 43 [(gogoproto.jsontag) = "watch_status,omitempty"];
+    // HeadlessAuthentication is a HeadlessAuthentication resource.
+    types.HeadlessAuthentication HeadlessAuthentication = 44 [(gogoproto.jsontag) = "headless_authentication,omitempty"];
   }
 }
 
 // Watch specifies watch parameters
 message Watch {
   // Kinds specifies object kinds to watch
-  repeated WatchKind Kinds = 1 [
+  repeated types.WatchKind Kinds = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kinds,omitempty"
   ];
-}
-
-// WatchKind specifies resource kind to watch
-message WatchKind {
-  // Kind is a resource kind to watch
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // LoadSecrets specifies whether to load secrets
-  bool LoadSecrets = 2 [(gogoproto.jsontag) = "load_secrets"];
-  // Name is an optional specific resource type to watch,
-  // if specified only the events with a specific resource
-  // name will be sent
-  string Name = 3 [(gogoproto.jsontag) = "name"];
-  // Filter is an optional mapping of custom filter parameters.
-  // Valid values vary by resource kind.
-  map<string, string> Filter = 4 [(gogoproto.jsontag) = "filter,omitempty"];
-  // SubKind is a resource subkind to watch
-  string SubKind = 5 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  bool AllowPartialSuccess = 2 [(gogoproto.jsontag) = "allow_partial_success,omitempty"];
 }
 
 // HostCertsRequest specifies certificate-generation parameters
@@ -211,8 +200,8 @@ message HostCertsRequest {
 // OpenSSHCertRequest specifies certificate-generation parameters
 // for a certificates used to connect to Agentless nodes.
 message OpenSSHCertRequest {
-  // Username is the Teleport username.
-  string Username = 1 [(gogoproto.jsontag) = "username"];
+  reserved 1; // Username, jsontag "username"
+  reserved "Username";
   // PublicKey is the public key to sign.
   bytes PublicKey = 2 [(gogoproto.jsontag) = "public_key"];
   // TTL is the duration the certificate will be valid for.
@@ -220,8 +209,13 @@ message OpenSSHCertRequest {
     (gogoproto.jsontag) = "ttl",
     (gogoproto.casttype) = "Duration"
   ];
-  // Cluster is the Teleport cluster name.
+  // Cluster is the Teleport cluster name the target node is connected to.
   string Cluster = 4 [(gogoproto.jsontag) = "cluster"];
+  // User is the Teleport user the certificate will be generated for.
+  types.UserV2 User = 5 [(gogoproto.jsontag) = "user"];
+  // Roles are the roles of the Teleport user the certificate will be
+  // generated for.
+  repeated types.RoleV6 Roles = 6 [(gogoproto.jsontag) = "roles"];
 }
 
 // OpenSSHCert is a SSH certificate signed by OpenSSH CA.
@@ -328,8 +322,10 @@ message UserCertsRequest {
   enum Requester {
     // UNSPECIFIED is set when the requester in unknown.
     UNSPECIFIED = 0;
-    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh local proxy tunnel.
+    // TSH_DB_LOCAL_PROXY_TUNNEL is set when the request was sent by a tsh db local proxy tunnel.
     TSH_DB_LOCAL_PROXY_TUNNEL = 1;
+    // TSH_KUBE_LOCAL_PROXY is set when the request was sent by a tsh kube local proxy.
+    TSH_KUBE_LOCAL_PROXY = 2;
   }
   // RequesterName identifies who sent the request.
   Requester RequesterName = 17 [(gogoproto.jsontag) = "requester_name"];
@@ -338,6 +334,14 @@ message UserCertsRequest {
   // An optional field, that when provided, the response will be validated
   // and the ID of the validated MFA device will be stored in the certificate.
   MFAAuthenticateResponse MFAResponse = 18 [(gogoproto.jsontag) = "mfa_response,omitempty"];
+
+  // SSHLogin is the OS Login for the SSH session that the certificate will be used for.
+  // This login is used when performing RBAC checks to determine if MFA is required
+  // to access the resource.
+  string SSHLogin = 19;
+
+  // AttestationStatement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -586,6 +590,10 @@ message Features {
   bool Plugins = 15 [(gogoproto.jsontag) = "plugins"];
   // AutomaticUpgrades enables Automatic Upgrades for the agents/services.
   bool AutomaticUpgrades = 16 [(gogoproto.jsontag) = "automatic_upgrades"];
+  // IsUsageBased enables some usage-based billing features
+  bool IsUsageBased = 17 [(gogoproto.jsontag) = "is_usage_based"];
+  // Assist enables the Assistant feature
+  bool Assist = 18 [(gogoproto.jsontag) = "assist"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -964,11 +972,9 @@ message DatabaseCSRRequest {
   bytes CSR = 1 [(gogoproto.jsontag) = "csr"];
   // ClusterName is the name of the cluster the request is for.
   string ClusterName = 2 [(gogoproto.jsontag) = "cluster_name"];
-  // SignWithDatabaseCA if set to true will use Database CA to sign the created certificate.
-  // This flag was created to enable Database CA for new proxies and don't break old one that
-  // are still using UserCA.
-  // DELETE IN 11.0.
-  bool SignWithDatabaseCA = 3 [(gogoproto.jsontag) = "sign_with_database_ca"];
+
+  reserved 3;
+  reserved "SignWithDatabaseCA";
 }
 
 // DatabaseCSRResponse contains the signed database certificate.
@@ -1084,6 +1090,20 @@ enum DeviceUsage {
   DEVICE_USAGE_PASSWORDLESS = 2;
 }
 
+// MFARequired indicates if MFA is required to access a
+// resource.
+enum MFARequired {
+  // Indicates the client/server are either old and don't support
+  // checking if MFA is required during the ceremony or that there
+  // was a catastrophic error checking RBAC to determine if completing
+  // an MFA ceremony will grant access to a resource.
+  MFA_REQUIRED_UNSPECIFIED = 0;
+  // Completing an MFA ceremony will grant access to a resource.
+  MFA_REQUIRED_YES = 1;
+  // Completing an MFA ceremony will not grant access to a resource.
+  MFA_REQUIRED_NO = 2;
+}
+
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 message MFAAuthenticateChallenge {
@@ -1098,6 +1118,11 @@ message MFAAuthenticateChallenge {
   // credentials for the ceremony (one for each U2F or Webauthn device
   // registered by the user).
   webauthn.CredentialAssertion WebauthnChallenge = 3;
+  // MFRequired indicates whether proceeding with the MFA ceremony will
+  // grant access to the resource. If `MFA_REQUIRED_NO` is returned by the
+  // server then the stream will be terminated to prevent a fruitless MFA ceremony from
+  // proceeding.
+  MFARequired MFARequired = 4;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -1596,6 +1621,8 @@ message ChangeUserAuthenticationRequest {
   MFARegisterResponse NewMFARegisterResponse = 3 [(gogoproto.jsontag) = "new_mfa_register_response,omitempty"];
   // NewDeviceName is the name of a new mfa or passwordless device.
   string NewDeviceName = 4 [(gogoproto.jsontag) = "new_device_name,omitempty"];
+  // LoginIP is an IP that will be embedded in the new client's certificate for web session if successful.
+  string LoginIP = 5 [(gogoproto.jsontag) = "login_ip,omitempty"];
 }
 
 // ChangeUserAuthenticationResponse is a response for ChangeUserAuthentication.
@@ -1767,7 +1794,6 @@ message CreateRegisterChallengeRequest {
 
 // PaginatedResource represents one of the supported resources.
 message PaginatedResource {
-  reserved 4;
   // Resource is the resource itself.
   oneof resource {
     // DatabaseServer represents a DatabaseServer resource.
@@ -1786,7 +1812,12 @@ message PaginatedResource {
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
     // DatabaseService represents a DatabaseService resource.
     types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
+    // UserGroup represents a UserGroup resource.
+    types.UserGroupV1 UserGroup = 10 [(gogoproto.jsontag) = "user_group,omitempty"];
   }
+
+  reserved 4;
+  reserved "KubeService";
 }
 
 // ListResourcesRequest defines a request to retrieve resources paginated. Only
@@ -2043,6 +2074,8 @@ message DownstreamInventoryOneOf {
     DownstreamInventoryHello Hello = 1;
     // Ping triggers an upstream pong (used for testing/debug).
     DownstreamInventoryPing Ping = 2;
+    // UpdateLabels updates the instance's labels.
+    DownstreamInventoryUpdateLabels UpdateLabels = 3;
   }
 }
 
@@ -2075,6 +2108,9 @@ message UpstreamInventoryHello {
   // instance can claim its hostname to be). This value exists only to assist users in correlating
   // instance resources with hosts.
   string Hostname = 4;
+  // ExternalUpgrader identifies the external upgrader that the instance is configured to
+  // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
+  string ExternalUpgrader = 5;
 }
 
 // UpstreamInventoryAgentMetadata is the message sent up the inventory control stream containing
@@ -2107,6 +2143,32 @@ message DownstreamInventoryHello {
   string ServerID = 2;
 }
 
+// LabelUpdateKind is the type of service to update labels for.
+enum LabelUpdateKind {
+  // SSHServer is an SSH server.
+  SSHServer = 0;
+}
+
+// InventoryUpdateLabelsRequest is used to request that a specified instance
+// update its labels.
+message InventoryUpdateLabelsRequest {
+  // ServerID advertises the server ID of the instance.
+  string ServerID = 1;
+  // Kind is the type of service to update labels for.
+  LabelUpdateKind Kind = 2;
+  // Labels is the new set of labels for the instance.
+  map<string, string> Labels = 3;
+}
+
+// DownstreamInventoryUpdateLabels is the message sent down the inventory
+// control stream to update the instance's labels.
+message DownstreamInventoryUpdateLabels {
+  // Kind is the type of service to update labels for.
+  LabelUpdateKind Kind = 1;
+  // Labels is the new set of labels for the instance.
+  map<string, string> Labels = 2;
+}
+
 // InventoryHeartbeat announces information about instance state.
 message InventoryHeartbeat {
   // SSHServer is a complete ssh server spec to be heartbeated (note: the full spec is heartbeated
@@ -2128,6 +2190,15 @@ message InventoryStatusSummary {
   // Connected is a summary of the instances connected to the current auth server.  Only set if
   // the Connected flag in the status request is true.
   repeated UpstreamInventoryHello Connected = 1 [(gogoproto.nullable) = false];
+}
+
+// InventoryConnectedServiceCountsRequest requests inventory connected service counts.
+message InventoryConnectedServiceCountsRequest {}
+
+// InventoryConnectedServiceCounts is the connected service counts seen in the inventory.
+message InventoryConnectedServiceCounts {
+  // ServiceCounts is the count of each connected service seen in the inventory.
+  map<string, uint64> ServiceCounts = 1 [(gogoproto.castkey) = "github.com/gravitational/teleport/api/types.SystemRole"];
 }
 
 // InventoryPingRequest is used to request that the specified server be sent an inventory ping
@@ -2247,6 +2318,31 @@ message UpdateHeadlessAuthenticationStateRequest {
   MFAAuthenticateResponse mfa_response = 3;
 }
 
+// ExportUpgradeWindowsRequest encodes parameters for loading the
+// upgrader-facing representations of upcoming agent maintenance windows.
+message ExportUpgradeWindowsRequest {
+  // TeleportVersion is the version of the teleport client making the request.
+  string TeleportVersion = 1;
+  // UpgraderKind represents the kind of upgrader the schedule is intended for.
+  string UpgraderKind = 2;
+}
+
+// ExportUpgradeWindowsResponse encodes an upgrader-facing representation
+// of upcoming agent maintenance windows. Teleport agents periodically export these
+// schedules to external upgraders as part of the externally-managed upgrade system.
+message ExportUpgradeWindowsResponse {
+  // CanonicalSchedule is the teleport-facing schedule repr.
+  types.AgentUpgradeSchedule CanonicalSchedule = 1;
+  // KubeControllerSchedule encodes upcoming upgrade upgrade windows in a format known
+  // to the kube upgrade controller. Teleport agents should treat this value as an
+  // opaque blob.
+  string KubeControllerSchedule = 2;
+  // SystemdUnitSchedule encodes the upcoming upgrade windows in a format known to
+  // the teleport-upgrade systemd unit. Teleport agents should treat this value as an
+  // opaque blob.
+  string SystemdUnitSchedule = 3;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2255,6 +2351,9 @@ service AuthService {
 
   // GetInventoryStatus gets information about current instance inventory.
   rpc GetInventoryStatus(InventoryStatusRequest) returns (InventoryStatusSummary);
+
+  // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+  rpc GetInventoryConnectedServiceCounts(InventoryConnectedServiceCountsRequest) returns (InventoryConnectedServiceCounts);
 
   // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
   rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
@@ -2585,6 +2684,17 @@ service AuthService {
   // GetSSODiagnosticInfo returns SSO diagnostic info records.
   rpc GetSSODiagnosticInfo(GetSSODiagnosticInfoRequest) returns (types.SSODiagnosticInfo);
 
+  // GetServerInfos returns a stream of ServerInfos.
+  rpc GetServerInfos(google.protobuf.Empty) returns (stream types.ServerInfoV1);
+  // GetServerInfo returns a ServerInfo by name.
+  rpc GetServerInfo(types.ResourceRequest) returns (types.ServerInfoV1);
+  // UpsertServerInfo upserts a ServerInfo.
+  rpc UpsertServerInfo(types.ServerInfoV1) returns (google.protobuf.Empty);
+  // DeleteServerInfo deletes a ServerInfo by name.
+  rpc DeleteServerInfo(types.ResourceRequest) returns (google.protobuf.Empty);
+  // DeleteAllServerInfos deletes all ServerInfos.
+  rpc DeleteAllServerInfos(google.protobuf.Empty) returns (google.protobuf.Empty);
+
   // GetTrustedCluster gets a Trusted Cluster resource by name.
   rpc GetTrustedCluster(types.ResourceRequest) returns (types.TrustedClusterV2);
   // GetTrustedClusters gets all current Trusted Cluster resources.
@@ -2893,6 +3003,19 @@ service AuthService {
   // GetHeadlessAuthentication is a request to retrieve a headless authentication from the backend.
   rpc GetHeadlessAuthentication(GetHeadlessAuthenticationRequest) returns (types.HeadlessAuthentication);
 
+  // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+  rpc WatchPendingHeadlessAuthentications(google.protobuf.Empty) returns (stream Event);
+
   // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
   rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);
+
+  // ExportUpgradeWindows is used to load derived maintenance window values for agents that
+  // need to export schedules to external upgraders.
+  rpc ExportUpgradeWindows(ExportUpgradeWindowsRequest) returns (ExportUpgradeWindowsResponse);
+
+  // GetClusterMaintenanceConfig gets the current maintenance window config singleton.
+  rpc GetClusterMaintenanceConfig(google.protobuf.Empty) returns (types.ClusterMaintenanceConfigV1);
+
+  // UpdateClusterMaintenanceConfig updates the current maintenance window config singleton.
+  rpc UpdateClusterMaintenanceConfig(types.ClusterMaintenanceConfigV1) returns (google.protobuf.Empty);
 }

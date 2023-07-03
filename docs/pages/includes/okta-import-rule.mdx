@@ -1,0 +1,42 @@
+```yaml
+kind: okta_import_rule
+version: v1
+metadata:
+  name: test-rule
+  description: "Okta import rule for admins"
+spec:
+  # Okta Import Rules will be applied in the order of the listed priority. Rules
+  # with lower numbers will be applied first. In the event of a conflict, labels
+  # applied by rules with lower priorities will be overwritten by labels associated
+  # with higher priorities.
+  priority: 10
+  # Mappings describes a list of match directives that describe what labels to
+  # apply to specific Okta groups and applications that will be synchronized
+  # into Teleport.
+  mappings:
+  - match:
+    # Individual application IDs can be used to create matches. Imported Okta
+    # applications will be matched based on the app IDs listed here.
+    - app_ids: ["app1", "app2"]
+    # These labels will be added to matching applications.
+    add_labels:
+      app_label: app_label_value
+  - match:
+    # Similarly, group IDs can be used to create matches.
+    - group_ids: ["group1", "group2"]
+    # These labels will be added to the groups.
+    add_labels:
+      label1: value1
+  - match:
+    # Regexes based on the app name can be used to create matches.
+    - app_name_regexes: ["^okta.*$", "app*"]
+    # These labels will be added to matching applications.
+    add_labels:
+      app_label: app_label_value
+  - match:
+    # Similarly, regexes based on the group name can be used as well.
+    - group_name_regexes: ["^okta.*$", "app*"]
+    # These labels will be added to the groups.
+    add_labels:
+      label1: value1
+```

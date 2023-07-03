@@ -128,6 +128,8 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34;
   DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35;
   DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36;
+
+  DISCOVER_RESOURCE_SAML_APPLICATION = 37;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -176,6 +178,44 @@ message UIDiscoverResourceSelectionEvent {
   DiscoverStepStatus status = 3;
 }
 
+// UIDiscoverIntegrationAWSOIDCConnectEvent is emitted when a user is finished with the step
+// that asks user to setup aws integration or select from a list of existing
+// aws integrations.
+message UIDiscoverIntegrationAWSOIDCConnectEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDatabaseRDSEnrollEvent is emitted when a user is finished with
+// the step that asks user to select from a list of RDS databases.
+message UIDiscoverDatabaseRDSEnrollEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+  int64 selected_resources_count = 4;
+}
+
+// UICallToActionClickEvent is emmited when a user clicks a Teleport Web UI's CTA.
+message UICallToActionClickEvent {
+  CTA cta = 1;
+}
+
+// CTA represents teleport web UI's call to action buttons.
+// We can't use prehog.v1alpha.CTA here because AuthService (and thus this file)
+// is generated with gogofast, so we just copy the enum definition here instead.
+// Make sure you update both.
+enum CTA {
+  CTA_UNSPECIFIED = 0;
+  CTA_AUTH_CONNECTOR = 1;
+  CTA_ACTIVE_SESSIONS = 2;
+  CTA_ACCESS_REQUESTS = 3;
+  CTA_PREMIUM_SUPPORT = 4;
+  CTA_TRUSTED_DEVICES = 5;
+  CTA_UPGRADE_BANNER = 6;
+  CTA_BILLING_SUMMARY = 7;
+}
+
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
 // For SSH this is the Teleport 'install-node' script.
 //
@@ -187,6 +227,34 @@ message UIDiscoverDeployServiceEvent {
   DiscoverMetadata metadata = 1;
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
+
+  // DeployMethod describes the method used to deploy a service.
+  enum DeployMethod {
+    // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
+    // so deploying step got skipped.
+    DEPLOY_METHOD_UNSPECIFIED = 0;
+    // DEPLOY_METHOD_AUTO means Teleport deployed a service for the user.
+    DEPLOY_METHOD_AUTO = 1;
+    // DEPLOY_METHOD_MANUAL means a user deployed a service by themselves.
+    DEPLOY_METHOD_MANUAL = 2;
+  }
+
+  DeployMethod deploy_method = 4;
+
+  // DeployType describes the type of deployment.
+  enum DeployType {
+    // DEPLOY_METHOD_UNSPECIFIED means there was an existing service
+    // so deploying step got skipped.
+    DEPLOY_TYPE_UNSPECIFIED = 0;
+    // DEPLOY_TYPE_INSTALL_SCRIPT means service was deployed using an
+    // install script.
+    DEPLOY_TYPE_INSTALL_SCRIPT = 1;
+    // DEPLOY_TYPE_AMAZON_ECS means service was deployed using amazon's
+    // elastic container service.
+    DEPLOY_TYPE_AMAZON_ECS = 2;
+  }
+
+  DeployType deploy_type = 5;
 }
 
 // UIDiscoverDatabaseRegisterEvent is emitted when a user is finished with the step that registers a database resource.
@@ -267,6 +335,59 @@ message UICreateNewRoleCancelClickEvent {}
 // UICreateNewRoleViewDocumentationClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleViewDocumentationClickEvent {}
 
+// AssistCompletionEvent is an event that is emitted when a completion occurs in the Assistant
+message AssistCompletionEvent {
+  // ConversationId is the UUID that identifies a single Assist conversation
+  string conversation_id = 1;
+  // TotalTokens is the total amount of token used to satisfy this request
+  int64 total_tokens = 2;
+  // PromptTokens is the amount of estimated tokens used by the prompt
+  int64 prompt_tokens = 3;
+  // CompletionTokens is the amount of tokens that the completion response consists of
+  int64 completion_tokens = 4;
+}
+
+// IntegrationEnrollKind represents the types of integration that
+// can be enrolled.
+enum IntegrationEnrollKind {
+  INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0;
+  INTEGRATION_ENROLL_KIND_SLACK = 1;
+  INTEGRATION_ENROLL_KIND_AWS_OIDC = 2;
+  INTEGRATION_ENROLL_KIND_PAGERDUTY = 3;
+  INTEGRATION_ENROLL_KIND_EMAIL = 4;
+  INTEGRATION_ENROLL_KIND_JIRA = 5;
+  INTEGRATION_ENROLL_KIND_DISCORD = 6;
+  INTEGRATION_ENROLL_KIND_MATTERMOST = 7;
+  INTEGRATION_ENROLL_KIND_MS_TEAMS = 8;
+  INTEGRATION_ENROLL_KIND_OPSGENIE = 9;
+  INTEGRATION_ENROLL_KIND_OKTA = 10;
+  INTEGRATION_ENROLL_KIND_JAMF = 11;
+}
+
+// IntegrationEnrollMetadata contains common metadata
+// for Integration Enroll related events.
+message IntegrationEnrollMetadata {
+  // id is used as a unique identifier to correlate events within the
+  // same enroll wizard run.
+  string id = 1;
+  // kind identifies what type of integration the user clicked on to enroll.
+  IntegrationEnrollKind kind = 2;
+  // user_name is anonymized.
+  string user_name = 3;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// clicks on a integration to enroll.
+message UIIntegrationEnrollStartEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// completed enrolling an integration.
+message UIIntegrationEnrollCompleteEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
 // UsageEventOneOf is a message that can accept a oneof of any supported
 // external usage event.
 message UsageEventOneOf {
@@ -296,6 +417,12 @@ message UsageEventOneOf {
     UICreateNewRoleSaveClickEvent ui_create_new_role_save_click = 24;
     UICreateNewRoleCancelClickEvent ui_create_new_role_cancel_click = 25;
     UICreateNewRoleViewDocumentationClickEvent ui_create_new_role_view_documentation_click = 26;
+    UIDiscoverIntegrationAWSOIDCConnectEvent ui_discover_integration_aws_oidc_connect_event = 27;
+    UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 28;
+    UICallToActionClickEvent ui_call_to_action_click_event = 29;
+    AssistCompletionEvent assist_completion = 30;
+    UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 31;
+    UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 32;
   }
   reserved 2; //UIOnboardGetStartedClickEvent
   reserved "ui_onboard_get_started_click";

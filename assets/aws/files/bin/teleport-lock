@@ -16,10 +16,9 @@ if [ ! -f /etc/teleport.d/role.auth ]; then
 fi
 
 IMDS_TOKEN=$(curl -sS -X PUT "http://169.254.169.254/latest/api/token" -H "X-aws-ec2-metadata-token-ttl-seconds: 300")
-IMDS_TOKEN_HEADER="-H \"X-aws-ec2-metadata-token: ${IMDS_TOKEN}\""
 NOW=$(date +%s)
 TTL=$((NOW+3660))
-PROCESS=$(curl -sS "${IMDS_TOKEN_HEADER}" http://169.254.169.254/latest/meta-data/local-hostname)
+PROCESS=$(curl -sS -H "X-aws-ec2-metadata-token: ${IMDS_TOKEN}" http://169.254.169.254/latest/meta-data/local-hostname)
 echo Locking $PROCESS for $TTL.
 
 # Either renew the lease if agent still holds it, or grab the lease if it's expired

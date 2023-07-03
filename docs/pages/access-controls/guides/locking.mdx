@@ -1,6 +1,6 @@
 ---
 title: Session and Identity Locking
-description: How to lock compromised users or nodes
+description: How to lock compromised users or agents
 ---
 
 <Details
@@ -15,7 +15,7 @@ description: How to lock compromised users or nodes
   deployment.
 </Details>
 
-System administrators can disable a compromised user or node—or
+System administrators can disable a compromised user or Teleport agent—or
 prevent access during cluster maintenance—by placing a lock
 on a session, user or host identity.
 
@@ -27,10 +27,11 @@ A lock can target the following objects or attributes:
 
 - a Teleport user by the user's name
 - a Teleport [RBAC](../reference.mdx) role by the role's name
-- a Teleport [trusted device](device-trust.mdx#optional-locking-a-device) by the device ID
+- a Teleport [trusted device](
+  ../device-trust/guide.mdx#optional-locking-a-device) by the device ID
 - an MFA device by the device's UUID
 - an OS/UNIX login
-- a Teleport Node by the Node's UUID (effectively unregistering it from the
+- a Teleport agent by the agent's server UUID (effectively unregistering it from the
   cluster)
 - a Windows desktop by the desktop's name
 - an [Access Request](../access-requests.mdx) by UUID
@@ -74,10 +75,10 @@ with one of the following options:
   # Created a lock with name "d6c06a18-e147-4232-9dfe-6f83a28d5850".
   ```
   </TabItem>
-  <TabItem label="Node">
-  All connections to the specified node will be locked.
+  <TabItem label="Agent">
+  All connections to the specified agent will be locked and the agent will be excluded from the Teleport cluster.
   ```code
-  $ tctl lock --node=363256df-f78a-4d99-803c-bae19da9ede4 --message="The node is under investigation." --ttl=10h
+  $ tctl lock --server-id=363256df-f78a-4d99-803c-bae19da9ede4 --message="The server running the Kubernetes Service and Database Service is under investigation." --ttl=10h
   # Created a lock with name "dc7cee9d-fe5e-4534-a90d-db770f0234a1".
   ```
   </TabItem>
@@ -99,7 +100,6 @@ with one of the following options:
 
 <Details
   title="Troubleshooting: failed to create a lock?"
-  opened={false}
 >
 
 If your user is missing a lock permission, you will get an error when creating
@@ -149,7 +149,7 @@ $ tctl lock --user=foo@example.com --message="Please come back tomorrow." --ttl=
 ```
 </Admonition>
 
-<Details title="Under the hood: Lock resource and expiration" opened={false}>
+<Details title="Under the hood: Lock resource and expiration">
 Note that without specifying `--ttl` or `--expires`, the created lock remains in
 force until explicitly removed with `tctl rm`.  Refer to `tctl lock --help` for
 the list of all supported parameters.

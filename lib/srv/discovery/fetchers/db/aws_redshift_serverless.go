@@ -41,6 +41,8 @@ type redshiftServerlessFetcherConfig struct {
 	Region string
 	// Client is the Redshift Serverless API client.
 	Client redshiftserverlessiface.RedshiftServerlessAPI
+	// AssumeRole is the AWS IAM role to assume before discovering databases.
+	AssumeRole types.AssumeRole
 }
 
 // CheckAndSetDefaults validates the config and sets defaults.
@@ -83,6 +85,7 @@ func newRedshiftServerlessFetcher(config redshiftServerlessFetcherConfig) (commo
 			trace.Component: "watch:rss<", // (r)ed(s)hift (s)erver(<)less
 			"labels":        config.Labels,
 			"region":        config.Region,
+			"role":          config.AssumeRole,
 		}),
 	}, nil
 }
@@ -106,6 +109,7 @@ func (f *redshiftServerlessFetcher) Get(ctx context.Context) (types.ResourcesWit
 
 		databases = append(databases, vpcEndpointDatabases...)
 	}
+	applyAssumeRoleToDatabases(databases, f.cfg.AssumeRole)
 	return filterDatabasesByLabels(databases, f.cfg.Labels, f.log).AsResources(), nil
 }
 

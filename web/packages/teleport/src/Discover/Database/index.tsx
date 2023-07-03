@@ -29,13 +29,26 @@ import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
 import { DownloadScript } from 'teleport/Discover/Database/DownloadScript';
 import { MutualTls } from 'teleport/Discover/Database/MutualTls';
 import { TestConnection } from 'teleport/Discover/Database/TestConnection';
-import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
 import { DiscoverEvent } from 'teleport/services/userEvent';
+import { ConnectAwsAccount } from 'teleport/Discover/Database/ConnectAwsAccount';
+import { EnrollRdsDatabase } from 'teleport/Discover/Database/EnrollRdsDatabase';
+import { IamPolicy } from 'teleport/Discover/Database/IamPolicy';
 
 export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
   kind: ResourceKind.Database,
   wrapper(component: React.ReactNode) {
     return <DatabaseWrapper>{component}</DatabaseWrapper>;
+  },
+  shouldPrompt(currentStep, resourceSpec) {
+    if (resourceSpec.dbMeta?.location === DatabaseLocation.Aws) {
+      // Allow user to bypass prompting on this step (Connect AWS Connect)
+      // on exit because users might need to change route to setup an
+      // integration.
+      if (currentStep === 0) {
+        return false;
+      }
+    }
+    return true;
   },
   views(resource) {
     let configureResourceViews;
@@ -44,9 +57,14 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
         case DatabaseLocation.Aws:
           configureResourceViews = [
             {
-              title: 'Register a Database',
-              component: CreateDatabase,
-              eventName: DiscoverEvent.DatabaseRegister,
+              title: 'Connect AWS Account',
+              component: ConnectAwsAccount,
+              eventName: DiscoverEvent.IntegrationAWSOIDCConnectEvent,
+            },
+            {
+              title: 'Enroll RDS Database',
+              component: EnrollRdsDatabase,
+              eventName: DiscoverEvent.DatabaseRDSEnrollEvent,
             },
             {
               title: 'Deploy Database Service',

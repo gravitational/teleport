@@ -18,7 +18,6 @@ package cloud
 
 import (
 	"context"
-	"encoding/base64"
 	"sync"
 	"time"
 
@@ -33,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/db/common/iam"
 )
 
 // IAMConfig is the IAM configurator config.
@@ -160,9 +160,18 @@ func (c *IAM) Teardown(ctx context.Context, database types.Database) error {
 // isSetupRequiredForDatabase returns true if database type is supported.
 func (c *IAM) isSetupRequiredForDatabase(database types.Database) bool {
 	switch database.GetType() {
-	case types.DatabaseTypeRDS, types.DatabaseTypeRDSProxy, types.DatabaseTypeRedshift:
+	case types.DatabaseTypeRDS,
+		types.DatabaseTypeRDSProxy,
+		types.DatabaseTypeRedshift:
 		return true
-
+	case types.DatabaseTypeElastiCache:
+		ok, err := iam.CheckElastiCacheSupportsIAMAuth(database)
+		if err != nil {
+			c.log.WithError(err).Debugf("Assuming database %s supports IAM auth.",
+				database.GetName())
+			return true
+		}
+		return ok
 	default:
 		return false
 	}
@@ -246,10 +255,6 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		return trace.Wrap(err)
 	}
 
-	// Encode the identity as base64 without padding, since the backend Sanetizer
-	// will reject any semaphor with "//" in it.
-	semName := configurator.cfg.identity.String()
-	encodedName := base64.RawStdEncoding.EncodeToString([]byte(semName))
 	// Acquire a semaphore before making changes to the shared IAM policy.
 	//
 	// TODO(greedy52) ideally tasks can be bundled so the semaphore is acquired
@@ -258,9 +263,7 @@ func (c *IAM) processTask(ctx context.Context, task iamTask) error {
 		Service: c.cfg.AccessPoint,
 		Request: types.AcquireSemaphoreRequest{
 			SemaphoreKind: configurator.cfg.policyName,
-			// Use full identity string as the semaphore name, since two roles
-			// may have the same name in different AWS accounts.
-			SemaphoreName: encodedName,
+			SemaphoreName: configurator.cfg.identity.GetName(),
 			MaxLeases:     1,
 			Holder:        c.cfg.HostID,
 

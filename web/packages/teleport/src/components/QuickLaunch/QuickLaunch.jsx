@@ -53,7 +53,7 @@ export default function FieldInputSsh({
       <StyledLabel>SSH:</StyledLabel>
       <StyledInput
         bg="levels.surface"
-        color="text.primary"
+        color="text.main"
         placeholder="login@host:port"
         autoFocus={autoFocus}
         onKeyPress={onKeyPress}
@@ -80,7 +80,8 @@ const StyledBox = styled(Flex)`
   height: 32px;
   border: 1px solid;
   border-radius: 4px;
-  border-color: rgba(255, 255, 255, 0.24);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
+  border-color: ${props => props.theme.colors.spotBackground[1]};
   ${error}
 `;
 
@@ -118,7 +119,7 @@ const StyledInput = styled.input`
 
   ::placeholder {
     opacity: 1;
-    color: ${props => props.theme.colors.text.placeholder};
+    color: ${props => props.theme.colors.text.muted};
     font-size: ${props => props.theme.fontSizes[1]}px;
   }
 

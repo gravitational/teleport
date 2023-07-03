@@ -35,9 +35,11 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/utils/pingconn"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
+	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -393,6 +395,13 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 		return trace.Wrap(err)
 	}
 
+	// We try to do quick early IP pinning check, if possible, and stop it on the proxy, without going further.
+	// It's based only on client cert. Client can still fail full IP pinning check later if their role now requires
+	// IP pinning but cert isn't pinned.
+	if err := checkCertIPPinning(tlsConn); err != nil {
+		return trace.Wrap(err)
+	}
+
 	var handlerConn net.Conn = tlsConn
 	// Check if ping is supported/required by the client.
 	if common.IsPingProtocol(common.Protocol(tlsConn.ConnectionState().NegotiatedProtocol)) {
@@ -407,6 +416,30 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 		return trace.Wrap(p.handleDatabaseConnection(ctx, handlerConn, connInfo))
 	}
 	return trace.Wrap(handlerDesc.handle(ctx, handlerConn, connInfo))
+}
+
+func checkCertIPPinning(tlsConn *tls.Conn) error {
+	state := tlsConn.ConnectionState()
+
+	if len(state.PeerCertificates) == 0 {
+		return nil
+	}
+
+	identity, err := tlsca.FromSubject(state.PeerCertificates[0].Subject, state.PeerCertificates[0].NotAfter)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	clientIP, err := utils.ClientIPFromConn(tlsConn)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if identity.PinnedIP != "" && clientIP != identity.PinnedIP {
+		return trace.Wrap(authz.ErrIPPinningMismatch)
+	}
+
+	return nil
 }
 
 // handlePingConnection starts the server ping routine and returns `pingConn`.

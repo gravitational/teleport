@@ -1,6 +1,6 @@
 ---
 authors: Andrew LeFevre (andrew.lefevre@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 74 - SFTP Support
@@ -29,10 +29,10 @@ by other tools.
 
 ## Details
 
-[github.com/pkg/sftp](https://pkg.go.dev/github.com/pkg/sftp) will be leveraged 
+[github.com/pkg/sftp](https://pkg.go.dev/github.com/pkg/sftp) will be leveraged
 heavily to provide both an SFTP client and server.
 
-SFTP support will be added in three stages. 
+SFTP support will be added in three stages.
 
 1. Adding SFTP subsystem support to Teleport's SSH server.
 When an SFTP request is first received on an SSH connection, the Teleport daemon
@@ -112,14 +112,14 @@ access and modify files they are allowed to.
 
 A new auditing event will be added: a SFTP event that will be emitted whenever
 a SFTP file operation is attempted (ie Open, Read, Write, Close). This will contain
-details of the SFTP request and any errors that result from the Teleport Node handling it.    
+details of the SFTP request and any errors that result from the Teleport Node handling it.
 
 ### UX
 
 The UX of `tsh scp` with SFTP enabled will be very similar to that of `tsh scp`
 with scp/rcp enabled, but there will be some differences of behavior between the
 two. SFTP does not natively support expanding home directories, so absolute paths
-will have to be used for remote paths. Likewise passing quoted commands to be 
+will have to be used for remote paths. Likewise passing quoted commands to be
 remotely executed (ex. ``tsh scp my_file 'user@host:/tmp/`whoami`.txt'``) will
 not work as `teleport sftp` is run without any other arguments.
 

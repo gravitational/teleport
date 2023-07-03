@@ -44,6 +44,7 @@ function SlideTabs({
               onClick={() => setActiveIndex(tabIndex)}
               itemCount={tabs.length}
               key={`${tabName}-${tabIndex}`}
+              className={tabIndex === activeIndex && 'selected'}
             >
               {tabContent}
               <TabInput type="radio" name={name} id={`${name}-${tabName}`} />
@@ -100,7 +101,7 @@ const TabInput = styled.input`
 `;
 
 const TabSlider = styled.div`
-  background-color: ${({ theme }) => theme.colors.brand.main};
+  background-color: ${({ theme }) => theme.colors.brand};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
   box-shadow: 0px 2px 6px rgba(12, 12, 14, 0.1);
   height: ${props => (props.size === 'xlarge' ? '56px' : '40px')};
@@ -115,11 +116,16 @@ const TabSlider = styled.div`
 
 const TabNav = styled.nav`
   align-items: center;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
   display: flex;
   height: ${props => (props.size === 'xlarge' ? '80px' : '47px')};
   justify-content: space-around;
+  color: ${props => props.theme.colors.text.main};
+  .selected {
+    color: ${props => props.theme.colors.text.primaryInverse};
+    transition: color 0.2s ease-in 0s;
+  }
 `;
 
 export default SlideTabs;

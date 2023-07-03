@@ -116,7 +116,19 @@ type License interface {
 	// GetAccountID returns Account ID.
 	//  Note: This is not applicable to all Cloud licenses
 	GetAccountID() string
+
+	// GetFeatureSource returns where the features should be loaded from.
+	GetFeatureSource() FeatureSource
 }
+
+// FeatureSource defines where the list of features enabled
+// by the license is.
+type FeatureSource string
+
+const (
+	FeatureSourceLicense FeatureSource = "license"
+	FeatureSourceCloud   FeatureSource = "cloud"
+)
 
 // NewLicense is a convenience method to create LicenseV3.
 func NewLicense(name string, spec LicenseSpecV3) (License, error) {
@@ -258,6 +270,9 @@ func (c *LicenseV3) setStaticFields() {
 // CheckAndSetDefaults verifies the constraints for License.
 func (c *LicenseV3) CheckAndSetDefaults() error {
 	c.setStaticFields()
+	if c.Spec.FeatureSource == "" {
+		c.Spec.FeatureSource = FeatureSourceLicense
+	}
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -416,6 +431,16 @@ func (c *LicenseV3) String() string {
 	return strings.Join(features, ",")
 }
 
+// GetFeatureSource returns the source Teleport should use to read the features
+func (c *LicenseV3) GetFeatureSource() FeatureSource {
+	// defaults to License for backward compatibility
+	if c.Spec.FeatureSource == "" {
+		return FeatureSourceLicense
+	}
+
+	return c.Spec.FeatureSource
+}
+
 // LicenseSpecV3 is the actual data we care about for LicenseV3. When changing
 // this, keep in mind that other consumers of teleport/api (Houston, Sales
 // Center) might still need to generate or parse licenses for older versions of
@@ -450,4 +475,6 @@ type LicenseSpecV3 struct {
 	SupportsResourceAccessRequests Bool `json:"resource_access_requests,omitempty"`
 	// Trial is true for trial licenses
 	Trial Bool `json:"trial,omitempty"`
+	// FeatureSource is the source of the set of enabled feature
+	FeatureSource FeatureSource `json:"feature_source"`
 }

@@ -367,7 +367,7 @@ func BuildRoleARN(username, region, accountID string) (string, error) {
 		return username, nil
 	}
 	resource := username
-	if !strings.HasPrefix(resource, "role/") {
+	if !IsPartialRoleARN(resource) {
 		resource = fmt.Sprintf("role/%s", username)
 	}
 	roleARN := &arn.ARN{
@@ -415,7 +415,7 @@ func checkRoleARN(parsed *arn.ARN) error {
 	if parts[0] != "role" || parsed.Service != iam.ServiceName {
 		return trace.BadParameter("%q is not an AWS IAM role ARN", parsed)
 	}
-	if len(parts) < 2 {
+	if len(parts) < 2 || len(parts[len(parts)-1]) == 0 {
 		return trace.BadParameter("%q is missing AWS IAM role name", parsed)
 	}
 	if err := apiawsutils.IsValidAccountID(parsed.AccountID); err != nil {
@@ -434,4 +434,48 @@ func CheckARNPartitionAndAccount(ARN *arn.ARN, wantPartition, wantAccountID stri
 		return trace.BadParameter("expected AWS account ID %q but got %q", wantAccountID, ARN.AccountID)
 	}
 	return nil
+}
+
+// IsRoleARN returns true if the provided string is a AWS role ARN.
+func IsRoleARN(roleARN string) bool {
+	if _, err := ParseRoleARN(roleARN); err == nil {
+		return true
+	}
+
+	return IsPartialRoleARN(roleARN)
+}
+
+// IsPartialRoleARN returns true if the provided role ARN only contains the
+// resource name.
+func IsPartialRoleARN(roleARN string) bool {
+	return strings.HasPrefix(roleARN, "role/")
+}
+
+// IsUserARN returns true if the provided string is a AWS user ARN.
+func IsUserARN(userARN string) bool {
+	resourceName := userARN
+	if parsed, err := arn.Parse(userARN); err == nil {
+		resourceName = parsed.Resource
+	}
+
+	return strings.HasPrefix(resourceName, "user/")
+}
+
+// PolicyARN returns the ARN representation of an AWS IAM Policy.
+func PolicyARN(partition, accountID, policy string) string {
+	return iamResourceARN(partition, accountID, "policy", policy)
+}
+
+// RoleARN returns the ARN representation of an AWS IAM Role.
+func RoleARN(partition, accountID, role string) string {
+	return iamResourceARN(partition, accountID, "role", role)
+}
+
+func iamResourceARN(partition, accountID, resourceType, resourceName string) string {
+	return arn.ARN{
+		Partition: partition,
+		Service:   "iam",
+		AccountID: accountID,
+		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceName),
+	}.String()
 }

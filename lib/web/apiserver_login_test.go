@@ -305,7 +305,7 @@ func TestAuthenticate_rateLimiting(t *testing.T) {
 	}{
 		{
 			name:  "/webapi/mfa/login/begin",
-			burst: defaults.LimiterPasswordlessBurst,
+			burst: defaults.LimiterBurst,
 			fn: func(clt *client.WebClient) error {
 				ep := clt.Endpoint("webapi", "mfa", "login", "begin")
 				_, err := clt.PostJSON(ctx, ep, &client.MFAChallengeRequest{})

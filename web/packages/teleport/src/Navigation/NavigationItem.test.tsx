@@ -22,10 +22,14 @@ import { generatePath, Router } from 'react-router';
 
 import { createMemoryHistory } from 'history';
 
+import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import TeleportContext from 'teleport/teleportContext';
+
 import { TeleportFeature } from 'teleport/types';
 import { NavigationCategory } from 'teleport/Navigation/categories';
 import { NavigationItem } from 'teleport/Navigation/NavigationItem';
 import { NavigationItemSize } from 'teleport/Navigation/common';
+import { makeUserContext } from 'teleport/services/user';
 
 class MockFeature implements TeleportFeature {
   category = NavigationCategory.Resources;
@@ -57,15 +61,25 @@ describe('navigation items', () => {
       initialEntries: ['/web/cluster/root/feature'],
     });
 
+    const ctx = new TeleportContext();
+    ctx.storeUser.state = makeUserContext({
+      cluster: {
+        name: 'test-cluster',
+        lastConnected: Date.now(),
+      },
+    });
+
     render(
-      <Router history={history}>
-        <NavigationItem
-          feature={new MockFeature()}
-          size={NavigationItemSize.Large}
-          transitionDelay={100}
-          visible={true}
-        />
-      </Router>
+      <TeleportContextProvider ctx={ctx}>
+        <Router history={history}>
+          <NavigationItem
+            feature={new MockFeature()}
+            size={NavigationItemSize.Large}
+            transitionDelay={100}
+            visible={true}
+          />
+        </Router>
+      </TeleportContextProvider>
     );
 
     expect(screen.getByText('Some Feature').closest('a')).toHaveAttribute(
@@ -79,15 +93,25 @@ describe('navigation items', () => {
       initialEntries: ['/web/cluster/root/feature'],
     });
 
+    const ctx = new TeleportContext();
+    ctx.storeUser.state = makeUserContext({
+      cluster: {
+        name: 'test-cluster',
+        lastConnected: Date.now(),
+      },
+    });
+
     render(
-      <Router history={history}>
-        <NavigationItem
-          feature={new MockFeature()}
-          size={NavigationItemSize.Large}
-          transitionDelay={100}
-          visible={true}
-        />
-      </Router>
+      <TeleportContextProvider ctx={ctx}>
+        <Router history={history}>
+          <NavigationItem
+            feature={new MockFeature()}
+            size={NavigationItemSize.Large}
+            transitionDelay={100}
+            visible={true}
+          />
+        </Router>
+      </TeleportContextProvider>
     );
 
     expect(screen.getByText('Some Feature').closest('a')).toHaveAttribute(

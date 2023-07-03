@@ -4,8 +4,9 @@ exports[`renders 1`] = `
 .c2 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   margin-bottom: 16px;
-  color: #00bfa5;
+  color: #00BFA5;
   font-size: 56px;
 }
 
@@ -17,10 +18,10 @@ exports[`renders 1`] = `
   margin-bottom: 24px;
   padding: 48px;
   width: 540px;
-  background-color: #222C59;
   text-align: center;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c3 {
@@ -38,8 +39,8 @@ exports[`renders 1`] = `
   outline: none;
   margin-left: auto;
   margin-right: auto;
-  margin-top: 40px;
-  margin-bottom: 40px;
+  margin-top: 48px;
+  margin-bottom: 48px;
   max-width: 200px;
   max-height: 120px;
 }

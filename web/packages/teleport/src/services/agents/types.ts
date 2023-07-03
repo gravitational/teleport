@@ -69,6 +69,7 @@ export type AgentIdKind =
   | 'app'
   | 'db'
   | 'kube_cluster'
+  | 'user_group'
   | 'windows_desktop';
 
 // ConnectionDiagnostic describes a connection diagnostic.

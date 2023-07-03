@@ -22,7 +22,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport/api/constants"
@@ -73,6 +72,10 @@ type Application interface {
 	GetAWSAccountID() string
 	// GetAWSExternalID returns the AWS External ID configured for this app.
 	GetAWSExternalID() string
+	// GetUserGroups will get the list of user group IDs associated with the application.
+	GetUserGroups() []string
+	// SetUserGroups will set the list of user group IDs associated with the application.
+	SetUserGroups([]string)
 	// Copy returns a copy of this app resource.
 	Copy() *AppV3
 }
@@ -290,6 +293,16 @@ func (a *AppV3) GetAWSExternalID() string {
 	return a.Spec.AWS.ExternalID
 }
 
+// GetUserGroups will get the list of user group IDss associated with the application.
+func (a *AppV3) GetUserGroups() []string {
+	return a.Spec.UserGroups
+}
+
+// SetUserGroups will set the list of user group IDs associated with the application.
+func (a *AppV3) SetUserGroups(userGroups []string) {
+	a.Spec.UserGroups = userGroups
+}
+
 // String returns the app string representation.
 func (a *AppV3) String() string {
 	return fmt.Sprintf("App(Name=%v, PublicAddr=%v, Labels=%v)",
@@ -298,7 +311,7 @@ func (a *AppV3) String() string {
 
 // Copy returns a copy of this database resource.
 func (a *AppV3) Copy() *AppV3 {
-	return proto.Clone(a).(*AppV3)
+	return utils.CloneProtoMsg(a)
 }
 
 // MatchSearch goes through select field values and tries to

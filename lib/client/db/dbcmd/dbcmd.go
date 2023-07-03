@@ -23,7 +23,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
-	"path/filepath"
+	"path"
 	"runtime"
 	"strconv"
 	"strings"
@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/client/db"
 	"github.com/gravitational/teleport/lib/client/db/mysql"
+	"github.com/gravitational/teleport/lib/client/db/opensearch"
 	"github.com/gravitational/teleport/lib/client/db/postgres"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -67,6 +68,10 @@ const (
 	curlBin = "curl"
 	// elasticsearchSQLBin is the Elasticsearch SQL client program name.
 	elasticsearchSQLBin = "elasticsearch-sql-cli"
+	// openSearchCLIBin is the OpenSearch CLI client program name.
+	openSearchCLIBin = "opensearch-cli"
+	// openSearchSQLBin is the OpenSearch SQL client program name.
+	openSearchSQLBin = "opensearchsql"
 	// awsBin is the aws CLI program name.
 	awsBin = "aws"
 	// oracleBin is the Oracle CLI program name.
@@ -81,8 +86,6 @@ type Execer interface {
 	// LookPath returns a full path to a binary if this one is found in system PATH,
 	// error otherwise.
 	LookPath(file string) (string, error)
-	// Command returns the Cmd struct to execute the named program with the given arguments.
-	Command(name string, arg ...string) *exec.Cmd
 }
 
 // SystemExecer implements execer interface by using Go exec module.
@@ -96,11 +99,6 @@ func (s SystemExecer) RunCommand(name string, arg ...string) ([]byte, error) {
 // LookPath is a wrapper for exec.LookPath(...)
 func (s SystemExecer) LookPath(file string) (string, error) {
 	return exec.LookPath(file)
-}
-
-// Command is a wrapper for exec.Command(...)
-func (s SystemExecer) Command(name string, arg ...string) *exec.Cmd {
-	return exec.Command(name, arg...)
 }
 
 // CLICommandBuilder holds data needed to build a CLI command from args passed to NewCmdBuilder.
@@ -118,7 +116,7 @@ type CLICommandBuilder struct {
 }
 
 func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
-	db *tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
+	db tlsca.RouteToDatabase, rootClusterName string, opts ...ConnectCommandFunc,
 ) *CLICommandBuilder {
 	var options connectionCommandOpts
 	for _, opt := range opts {
@@ -126,7 +124,7 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	}
 
 	// In TLS routing mode a local proxy is started on demand so connect to it.
-	host, port := tc.DatabaseProxyHostPort(*db)
+	host, port := tc.DatabaseProxyHostPort(db)
 	if options.localProxyPort != 0 && options.localProxyHost != "" {
 		host = options.localProxyHost
 		port = options.localProxyPort
@@ -143,7 +141,7 @@ func NewCmdBuilder(tc *client.TeleportClient, profile *client.ProfileStatus,
 	return &CLICommandBuilder{
 		tc:          tc,
 		profile:     profile,
-		db:          db,
+		db:          &db,
 		host:        host,
 		port:        port,
 		options:     options,
@@ -192,6 +190,9 @@ func (c *CLICommandBuilder) GetConnectCommand() (*exec.Cmd, error) {
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchCommand()
 
+	case defaults.ProtocolOpenSearch:
+		return c.getOpenSearchCommand()
+
 	case defaults.ProtocolDynamoDB:
 		return c.getDynamoDBCommand()
 
@@ -216,6 +217,8 @@ func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternativ
 	switch c.db.Protocol {
 	case defaults.ProtocolElasticsearch:
 		return c.getElasticsearchAlternativeCommands(), nil
+	case defaults.ProtocolOpenSearch:
+		return c.getOpenSearchAlternativeCommands(), nil
 	}
 
 	cmd, err := c.GetConnectCommand()
@@ -226,27 +229,8 @@ func (c *CLICommandBuilder) GetConnectCommandAlternatives() ([]CommandAlternativ
 	return []CommandAlternative{{Description: "default command", Command: cmd}}, nil
 }
 
-// GetConnectCommandNoAbsPath works just like GetConnectCommand, with the only difference being that
-// it guarantees that the command will always be in its base form, never in an absolute path
-// resolved to the binary location. This is useful for situations where the resulting command is
-// meant to be copied and then pasted into an interactive shell, rather than being run directly
-// by a tool like tsh.
-func (c *CLICommandBuilder) GetConnectCommandNoAbsPath() (*exec.Cmd, error) {
-	cmd, err := c.GetConnectCommand()
-
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	if filepath.IsAbs(cmd.Path) {
-		cmd.Path = filepath.Base(cmd.Path)
-	}
-
-	return cmd, nil
-}
-
 func (c *CLICommandBuilder) getPostgresCommand() *exec.Cmd {
-	return c.options.exe.Command(postgresBin, c.getPostgresConnString())
+	return exec.Command(postgresBin, c.getPostgresConnString())
 }
 
 func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
@@ -256,7 +240,7 @@ func (c *CLICommandBuilder) getCockroachCommand() *exec.Cmd {
 			cockroachBin, postgresBin, err)
 		return c.getPostgresCommand()
 	}
-	return c.options.exe.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
+	return exec.Command(cockroachBin, "sql", "--url", c.getPostgresConnString())
 }
 
 // getPostgresConnString returns the connection string for postgres.
@@ -333,7 +317,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 	args := c.getMySQLCommonCmdOpts()
 
 	if c.options.noTLS {
-		return c.options.exe.Command(mysqlBin, args...), nil
+		return exec.Command(mysqlBin, args...), nil
 	}
 
 	// defaults-group-suffix must be first.
@@ -357,7 +341,7 @@ func (c *CLICommandBuilder) getMySQLOracleCommand() (*exec.Cmd, error) {
 		args = append(args, fmt.Sprintf("--ssl-mode=%s", mysql.MySQLSSLModeVerifyCA))
 	}
 
-	return c.options.exe.Command(mysqlBin, args...), nil
+	return exec.Command(mysqlBin, args...), nil
 }
 
 // getMySQLCommand returns mariadb command if the binary is on the path. Otherwise,
@@ -366,7 +350,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	// Check if mariadb client is available. Prefer it over mysql client even if connecting to MySQL server.
 	if c.isMariaDBBinAvailable() {
 		args := c.getMariaDBArgs()
-		return c.options.exe.Command(mariadbBin, args...), nil
+		return exec.Command(mariadbBin, args...), nil
 	}
 
 	// Check for mysql binary. In case the caller doesn't tolerate a missing CLI client, return with
@@ -384,7 +368,7 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	mySQLMariaDBFlavor, err := c.isMySQLBinMariaDBFlavor()
 	if mySQLMariaDBFlavor && err == nil {
 		args := c.getMariaDBArgs()
-		return c.options.exe.Command(mysqlBin, args...), nil
+		return exec.Command(mysqlBin, args...), nil
 	}
 
 	// Either we failed to check the flavor or binary comes from Oracle. Regardless return mysql/Oracle command.
@@ -409,9 +393,21 @@ func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
 	return err == nil
 }
 
-// isElasticsearchSqlBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
+// isElasticsearchSQLBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
 func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
 	_, err := c.options.exe.LookPath(elasticsearchSQLBin)
+	return err == nil
+}
+
+// isOpenSearchCLIBinAvailable returns true if "opensearch-cli" binary is found in the system PATH.
+func (c *CLICommandBuilder) isOpenSearchCLIBinAvailable() bool {
+	_, err := c.options.exe.LookPath(openSearchCLIBin)
+	return err == nil
+}
+
+// isOpenSearchCLIBinAvailable returns true if "opensearchsql" binary is found in the system PATH.
+func (c *CLICommandBuilder) isOpenSearchSQLBinAvailable() bool {
+	_, err := c.options.exe.LookPath(openSearchSQLBin)
 	return err == nil
 }
 
@@ -482,11 +478,11 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 
 	// use `mongosh` if available
 	if hasMongosh {
-		return c.options.exe.Command(mongoshBin, args...)
+		return exec.Command(mongoshBin, args...)
 	}
 
 	// fall back to `mongo` if `mongosh` isn't found
-	return c.options.exe.Command(mongoBin, args...)
+	return exec.Command(mongoBin, args...)
 }
 
 func (c *CLICommandBuilder) getMongoAddress() string {
@@ -549,7 +545,7 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 		args = append(args, []string{"-n", c.db.Database}...)
 	}
 
-	return c.options.exe.Command(redisBin, args...)
+	return exec.Command(redisBin, args...)
 }
 
 func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
@@ -566,7 +562,7 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 		args = append(args, "-d", c.db.Database)
 	}
 
-	return c.options.exe.Command(mssqlBin, args...)
+	return exec.Command(mssqlBin, args...)
 }
 
 func (c *CLICommandBuilder) getSnowflakeCommand() *exec.Cmd {
@@ -601,9 +597,40 @@ func (c *CLICommandBuilder) getCassandraCommand() (*exec.Cmd, error) {
 // getElasticsearchCommand returns a command to connect to Elasticsearch. We support `elasticsearch-sql-cli`, but only in non-TLS scenario.
 func (c *CLICommandBuilder) getElasticsearchCommand() (*exec.Cmd, error) {
 	if c.options.noTLS {
-		return c.options.exe.Command(elasticsearchSQLBin, fmt.Sprintf("http://%v:%v/", c.host, c.port)), nil
+		return exec.Command(elasticsearchSQLBin, fmt.Sprintf("http://%v:%v/", c.host, c.port)), nil
 	}
 	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", elasticsearchSQLBin)
+}
+
+// getOpenSearchCommand returns a command to connect to OpenSearch.
+func (c *CLICommandBuilder) getOpenSearchCommand() (*exec.Cmd, error) {
+	if c.options.tolerateMissingCLIClient == false && c.isOpenSearchSQLBinAvailable() == false {
+		return nil, trace.NotFound("%q not found, please make sure it is available in $PATH", openSearchSQLBin)
+	}
+
+	if c.options.noTLS {
+		args := []string{fmt.Sprintf("http://%v:%v", c.host, c.port)}
+		return exec.Command(openSearchSQLBin, args...), nil
+	}
+
+	return nil, trace.BadParameter("%v interactive command is only supported in --tunnel mode.", openSearchSQLBin)
+}
+
+func (c *CLICommandBuilder) getOpenSearchCLICommand() (*exec.Cmd, error) {
+	cfg := opensearch.ConfigNoTLS(c.host, c.port)
+	if !c.options.noTLS {
+		cfg = opensearch.ConfigTLS(c.host, c.port, c.options.caPath, c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName), c.profile.KeyPath())
+	}
+
+	baseDir := path.Join(c.profile.Dir, c.profile.Cluster, c.db.ServiceName)
+	tempCfg, err := opensearch.WriteConfig(baseDir, cfg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	args := []string{"--profile", opensearch.ProfileName, "--config", tempCfg, "curl", "get", "--path", "/"}
+
+	return exec.Command(openSearchCLIBin, args...), nil
 }
 
 func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
@@ -621,7 +648,7 @@ func (c *CLICommandBuilder) getDynamoDBCommand() (*exec.Cmd, error) {
 		"[dynamodb|dynamodbstreams|dax]",
 		"<command>",
 	}
-	return c.options.exe.Command(awsBin, args...), nil
+	return exec.Command(awsBin, args...), nil
 }
 
 type jdbcOracleThinConnection struct {
@@ -651,7 +678,7 @@ func (c *CLICommandBuilder) getOracleCommand() (*exec.Cmd, error) {
 		"-L", // dont retry
 		connString,
 	}
-	return c.options.exe.Command(oracleBin, args...), nil
+	return exec.Command(oracleBin, args...), nil
 }
 
 func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlternative {
@@ -664,7 +691,7 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlter
 
 	var curlCommand *exec.Cmd
 	if c.options.noTLS {
-		curlCommand = c.options.exe.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+		curlCommand = exec.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
 	} else {
 		args := []string{
 			fmt.Sprintf("https://%v:%v/", c.host, c.port),
@@ -686,9 +713,54 @@ func (c *CLICommandBuilder) getElasticsearchAlternativeCommands() []CommandAlter
 			args = append(args, "--http1.1")
 		}
 
-		curlCommand = c.options.exe.Command(curlBin, args...)
+		curlCommand = exec.Command(curlBin, args...)
 	}
 	commands = append(commands, CommandAlternative{Description: "run single request with curl", Command: curlCommand})
+
+	return commands
+}
+
+func (c *CLICommandBuilder) getOpenSearchAlternativeCommands() []CommandAlternative {
+	var commands []CommandAlternative
+	if c.isOpenSearchSQLBinAvailable() {
+		if cmd, err := c.getOpenSearchCommand(); err == nil {
+			commands = append(commands, CommandAlternative{Description: "start interactive session with opensearchsql", Command: cmd})
+		}
+	}
+
+	if c.isOpenSearchCLIBinAvailable() {
+		if cmd, err := c.getOpenSearchCLICommand(); err == nil {
+			commands = append(commands, CommandAlternative{Description: "run request with opensearch-cli", Command: cmd})
+		}
+	}
+
+	var curlCommand *exec.Cmd
+	if c.options.noTLS {
+		curlCommand = exec.Command(curlBin, fmt.Sprintf("http://%v:%v/", c.host, c.port))
+	} else {
+		args := []string{
+			fmt.Sprintf("https://%v:%v/", c.host, c.port),
+			"--key", c.profile.KeyPath(),
+			"--cert", c.profile.DatabaseCertPathForCluster(c.tc.SiteName, c.db.ServiceName),
+		}
+
+		if c.tc.InsecureSkipVerify {
+			args = append(args, "--insecure")
+		}
+
+		if c.options.caPath != "" {
+			args = append(args, []string{"--cacert", c.options.caPath}...)
+		}
+
+		// Force HTTP 1.1 when connecting to remote web proxy. Otherwise, HTTP2 can
+		// be negotiated which breaks the engine.
+		if c.options.localProxyHost == "" {
+			args = append(args, "--http1.1")
+		}
+
+		curlCommand = exec.Command(curlBin, args...)
+	}
+	commands = append(commands, CommandAlternative{Description: "run request with curl", Command: curlCommand})
 
 	return commands
 }

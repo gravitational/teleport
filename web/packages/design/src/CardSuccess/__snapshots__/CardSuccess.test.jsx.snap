@@ -9,17 +9,18 @@ exports[`rendering of CardSuccess components 1`] = `
   margin-bottom: 24px;
   padding: 48px;
   width: 540px;
-  background-color: #222C59;
   text-align: center;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
   display: inline-block;
   transition: color 0.3s;
+  color: #FFFFFF;
   margin-bottom: 16px;
-  color: #00bfa5;
+  color: #00BFA5;
   font-size: 56px;
 }
 

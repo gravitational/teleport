@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/backend/lite"
@@ -885,6 +886,7 @@ func TestListResources_Helpers(t *testing.T) {
 		req := proto.ListResourcesRequest{
 			ResourceType: types.KindNode,
 			Namespace:    namespace,
+			Limit:        -1,
 		}
 		for _, tc := range tests {
 			tc := tc
@@ -1309,4 +1311,85 @@ func TestListResources_DuplicateResourceFilterByLabel(t *testing.T) {
 			require.Equal(t, map[string]string{"env": "dev"}, resp.Resources[0].GetAllLabels())
 		})
 	}
+}
+
+func TestServerInfoCRUD(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	bk, err := lite.New(ctx, backend.Params{"path": t.TempDir()})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, bk.Close()) })
+
+	presence := NewPresenceService(bk)
+
+	serverInfoA, err := types.NewServerInfo(types.Metadata{
+		Name: "server1",
+		Labels: map[string]string{
+			"a": "b",
+			"c": "d",
+		},
+	}, types.ServerInfoSpecV1{
+		AWS: &types.ServerInfoSpecV1_AWSInfo{
+			AccountID:  "abcd",
+			InstanceID: "1234",
+		},
+	})
+	require.NoError(t, err)
+
+	serverInfoB, err := types.NewServerInfo(types.Metadata{
+		Name: "server2",
+	}, types.ServerInfoSpecV1{
+		AWS: &types.ServerInfoSpecV1_AWSInfo{
+			AccountID:  "efgh",
+			InstanceID: "5678",
+		},
+	})
+	require.NoError(t, err)
+
+	// No infos present initially.
+	out, err := stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, out)
+
+	// Create infos.
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoA))
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoB))
+
+	// Get server infos.
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoA, serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	outInfo, err := presence.GetServerInfo(ctx, serverInfoA.GetName())
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff(serverInfoA, outInfo, cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	_, err = presence.GetServerInfo(ctx, "nonexistant")
+	require.True(t, trace.IsNotFound(err))
+
+	// Delete a server info.
+	require.NoError(t, presence.DeleteServerInfo(ctx, serverInfoA.GetName()))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Update server info.
+	serverInfoB.SetStaticLabels(map[string]string{
+		"e": "f",
+		"g": "h",
+	})
+	require.NoError(t, presence.UpsertServerInfo(ctx, serverInfoB))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, cmp.Diff([]types.ServerInfo{serverInfoB}, out,
+		cmpopts.IgnoreFields(types.Metadata{}, "ID")))
+
+	// Delete all server infos.
+	require.NoError(t, presence.DeleteAllServerInfos(ctx))
+	out, err = stream.Collect(presence.GetServerInfos(ctx))
+	require.NoError(t, err)
+	require.Empty(t, out)
 }

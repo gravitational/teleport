@@ -22,7 +22,7 @@ import { SetupAccessWrapper } from './SetupAccessWrapper';
 import type { Props } from './SetupAccessWrapper';
 
 export default {
-  title: 'Teleport/Discover/Shared/SetupAccessContainer',
+  title: 'Teleport/Discover/Shared/SetupAccessWrapper',
 };
 
 export const HasAccessAndTraits = () => (
@@ -94,5 +94,6 @@ const props: Props = {
   traitDescription: 'users and groups',
   hasTraits: true,
   onProceed: () => null,
+  onPrev: () => null,
   children: <div>This is where trait selection children renders</div>,
 };

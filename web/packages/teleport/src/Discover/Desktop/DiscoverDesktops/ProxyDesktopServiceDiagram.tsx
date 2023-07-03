@@ -30,7 +30,9 @@ import { ProxyServerIcon } from './Server';
 const NodeHostname = styled.div`
   font-family: Menlo, DejaVu Sans Mono, Consolas, Lucida Console, monospace;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.7);
+  color: ${props => props.theme.colors.text.primary};
+  max-width: 184px;
+  overflow-wrap: break-word;
 `;
 
 const NodeTitle = styled.div`

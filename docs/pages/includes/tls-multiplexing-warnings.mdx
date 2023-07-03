@@ -1,7 +1,15 @@
-Using Teleport's TLS routing mode behind a layer 7 (HTTP/HTTPS) proxy is generally not supported, due to
+Prior to Teleport `13.0`, using Teleport's TLS routing mode behind a layer 7 (HTTP/HTTPS) proxy is generally not supported, due to
 these proxies terminating TLS themselves and then rewriting their requests to the upstream service, stripping
-the additional SNI/ALPN parts of the request in the process. In order for ALPN to work correctly, the Teleport
-proxy must terminate TLS itself.
+the additional SNI/ALPN parts of the request in the process.
+
+Support for TLS routing behind layer 7 (HTTP/HTTPS) load balancers and reverse
+proxies is available in Preview starting from Teleport `13.0`. Please ensure
+your Teleport cluster and Teleport clients are up to date. If the problem
+persists, please submit a [GitHub
+issue](https://github.com/gravitational/teleport/issues/new/choose).
+
+For older versions, in order for ALPN to work correctly, the Teleport Proxy
+Service must terminate TLS itself.
 
 Broadly, this means that Teleport's TLS routing functionality is incompatible with:
 - AWS ALBs (Application Load Balancers)

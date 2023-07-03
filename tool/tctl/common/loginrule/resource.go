@@ -15,12 +15,12 @@
 package loginrule
 
 import (
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -105,7 +105,7 @@ func ProtoToResource(rule *loginrulepb.LoginRule) *Resource {
 		ResourceHeader: types.ResourceHeader{
 			Kind:     types.KindLoginRule,
 			Version:  rule.Version,
-			Metadata: *proto.Clone(rule.Metadata).(*types.Metadata),
+			Metadata: *apiutils.CloneProtoMsg(rule.Metadata),
 		},
 		Spec: spec{
 			Priority:         rule.Priority,
@@ -118,7 +118,7 @@ func ProtoToResource(rule *loginrulepb.LoginRule) *Resource {
 
 func resourceToProto(r *Resource) *loginrulepb.LoginRule {
 	return &loginrulepb.LoginRule{
-		Metadata:         proto.Clone(&r.Metadata).(*types.Metadata),
+		Metadata:         apiutils.CloneProtoMsg(&r.Metadata),
 		Version:          r.Version,
 		Priority:         r.Spec.Priority,
 		TraitsMap:        traitsMapResourceToProto(r.Spec.TraitsMap),

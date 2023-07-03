@@ -20,13 +20,15 @@ import React, {
   useMemo,
   useRef,
   useState,
+  useCallback,
 } from 'react';
-import styled from 'styled-components';
-
+import { Flex } from 'design';
+import styled, { css } from 'styled-components';
 import { Attempt } from 'shared/hooks/useAsync';
-import { Box } from 'design';
 
 import LinearProgress from 'teleterm/ui/components/LinearProgress';
+
+import { AddWindowEventListener } from '../SearchContext';
 
 type ResultListProps<T> = {
   /**
@@ -36,22 +38,32 @@ type ResultListProps<T> = {
    */
   attempts: Attempt<T[]>[];
   /**
-   * NoResultsComponent is the element that's going to be rendered instead of the list if the
-   * attempt has successfully finished but there's no results to show.
+   * ExtraTopComponent is the element that is rendered above the items.
    */
-  NoResultsComponent?: ReactElement;
+  ExtraTopComponent?: ReactElement;
   onPick(item: T): void;
   onBack(): void;
   render(item: T): { Component: ReactElement; key: string };
+  addWindowEventListener: AddWindowEventListener;
 };
 
 export function ResultList<T>(props: ResultListProps<T>) {
-  const { attempts, NoResultsComponent, onPick, onBack } = props;
+  const {
+    attempts,
+    ExtraTopComponent,
+    onPick,
+    onBack,
+    addWindowEventListener,
+  } = props;
   const activeItemRef = useRef<HTMLDivElement>();
   const [activeItemIndex, setActiveItemIndex] = useState(0);
-  const shouldShowNoResultsCopy =
-    NoResultsComponent &&
-    attempts.every(a => a.status === 'success' && a.data.length === 0);
+  const pickAndResetActiveItem = useCallback(
+    (item: T) => {
+      setActiveItemIndex(0);
+      onPick(item);
+    },
+    [onPick]
+  );
 
   const items = useMemo(() => {
     return attempts.map(a => a.data || []).flat();
@@ -80,7 +92,7 @@ export function ResultList<T>(props: ResultListProps<T>) {
 
           const item = items[activeItemIndex];
           if (item) {
-            onPick(item);
+            pickAndResetActiveItem(item);
           }
           break;
         }
@@ -103,82 +115,102 @@ export function ResultList<T>(props: ResultListProps<T>) {
       }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [items, onPick, onBack, activeItemIndex]);
+    const { cleanup } = addWindowEventListener('keydown', handleKeyDown, {
+      capture: true,
+    });
+    return cleanup;
+  }, [
+    items,
+    pickAndResetActiveItem,
+    onBack,
+    activeItemIndex,
+    addWindowEventListener,
+  ]);
 
   return (
-    <StyledGlobalSearchResults role="menu">
-      {attempts.some(a => a.status === 'processing') && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 0,
-            height: '1px',
-            left: 0,
-            right: 0,
-          }}
-        >
+    <>
+      <Separator>
+        {attempts.some(a => a.status === 'processing') && (
           <LinearProgress transparentBackground={true} />
-        </div>
-      )}
-      {items.map((r, index) => {
-        const isActive = index === activeItemIndex;
-        const { Component, key } = props.render(r);
+        )}
+      </Separator>
+      <Overflow role="menu">
+        {ExtraTopComponent}
+        {items.map((r, index) => {
+          const isActive = index === activeItemIndex;
+          const { Component, key } = props.render(r);
 
-        return (
-          <StyledItem
-            ref={isActive ? activeItemRef : null}
-            role="menuitem"
-            $active={isActive}
-            key={key}
-            onClick={() => props.onPick(r)}
-          >
-            {Component}
-          </StyledItem>
-        );
-      })}
-      {shouldShowNoResultsCopy && NoResultsComponent}
-    </StyledGlobalSearchResults>
+          return (
+            <InteractiveItem
+              ref={isActive ? activeItemRef : null}
+              role="menuitem"
+              active={isActive}
+              key={key}
+              onClick={() => pickAndResetActiveItem(r)}
+            >
+              {Component}
+            </InteractiveItem>
+          );
+        })}
+      </Overflow>
+    </>
   );
 }
 
-const StyledItem = styled.div`
-  &:hover,
-  &:focus {
-    cursor: pointer;
-    background: ${props => props.theme.colors.levels.elevated};
-  }
-
+export const NonInteractiveItem = styled.div`
   & mark {
     color: inherit;
-    background-color: ${props => props.theme.colors.brand.accent};
+    background-color: rgba(0, 158, 255, 0.4); // Accent/Link at 40%
   }
 
   :not(:last-of-type) {
-    border-bottom: 2px solid
-      ${props => props.theme.colors.levels.surfaceSecondary};
+    border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   }
 
   padding: ${props => props.theme.space[2]}px;
-  color: ${props => props.theme.colors.text.contrast};
-  background: ${props =>
-    props.$active
-      ? props.theme.colors.levels.elevated
-      : props.theme.colors.levels.surface};
+  color: ${props => props.theme.colors.text.main};
 `;
 
-export const EmptyListCopy = styled(Box)`
-  width: 100%;
-  height: 100%;
-  padding: ${props => props.theme.space[2]}px;
-  line-height: 1.5em;
+const InteractiveItem = styled(NonInteractiveItem)`
+  cursor: pointer;
 
-  ul {
-    margin: 0;
-    padding-inline-start: 2em;
+  &:hover,
+  &:focus {
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
+
+  ${props => {
+    if (props.active) {
+      return css`
+        background: ${props => props.theme.colors.spotBackground[0]};
+      `;
+    }
+  }}
 `;
+
+/**
+ * IconAndContent is supposed to be used within InteractiveItem & NonInteractiveItem.
+ */
+export function IconAndContent(
+  props: React.PropsWithChildren<{
+    Icon: React.ComponentType<{
+      color: string;
+      fontSize: string;
+      lineHeight: string;
+    }>;
+    iconColor: string;
+  }>
+) {
+  return (
+    <Flex alignItems="flex-start" gap={2}>
+      {/* lineHeight of the icon needs to match the line height of the first row of props.children */}
+      <props.Icon color={props.iconColor} fontSize="20px" lineHeight="24px" />
+      <Flex flexDirection="column" gap={1} minWidth={0} flex="1">
+        {props.children}
+      </Flex>
+    </Flex>
+  );
+}
 
 function getNext(selectedIndex = 0, max = 0) {
   let index = selectedIndex % max;
@@ -188,26 +220,17 @@ function getNext(selectedIndex = 0, max = 0) {
   return index;
 }
 
-const StyledGlobalSearchResults = styled.div(({ theme }) => {
-  return {
-    boxShadow: '8px 8px 18px rgb(0 0 0)',
-    color: theme.colors.text.contrast,
-    background: theme.colors.levels.surface,
-    boxSizing: 'border-box',
-    // Account for border.
-    width: 'calc(100% + 2px)',
-    // Careful, this is hardcoded based on the input height.
-    marginTop: '38px',
-    display: 'block',
-    position: 'absolute',
-    border: '1px solid ' + theme.colors.action.hover,
-    fontSize: '12px',
-    listStyle: 'none outside none',
-    textShadow: 'none',
-    zIndex: '1000',
-    maxHeight: '350px',
-    overflow: 'auto',
-    // Hardcoded to height of the shortest item.
-    minHeight: '42px',
-  };
-});
+const Separator = styled.div`
+  position: relative;
+  background: ${props => props.theme.colors.spotBackground[0]};
+  height: 1px;
+`;
+
+const Overflow = styled.div`
+  overflow: auto;
+  height: 100%;
+  list-style: none outside none;
+  max-height: 350px;
+  // Hardcoded to height of the shortest item.
+  min-height: 40px;
+`;

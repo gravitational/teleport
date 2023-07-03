@@ -9,8 +9,7 @@ how to forward Teleport audit events to Datadog using Fluentd.
 The Teleport Event Handler is designed to communicate with Fluentd using mTLS
 to establish a secure channel. In this setup, the Event Handler sends events to Fluentd, which forwards them to Datadog using an API key to authenticate.
 
-{/*
-The Graph below is made with this mermaidjs logic:
+```mermaid
 graph LR
 style e fill: #a379ff,color: #ffffff
 style f fill: #a379ff,color: #ffffff
@@ -45,9 +44,7 @@ subgraph local [Local Network]
 end
 e-->c
 d-->h(Datadog)
-*/}
-
-![Flowchart of Teleport with events forwarded to Datadog](../../../img/management/datadog-flowchart.png)
+```
 
 ## Prerequisites
 
@@ -78,36 +75,7 @@ from Teleport's events API, and forwards them to Fluentd.
 
 ## Step 3/6. Create a user and role for reading audit events
 
-The `configure` command generates a file called `teleport-event-handler-role.yaml`
-that defines a `teleport-event-handler` role and a user with read-only access
-to the `event` API:
-
-```yaml
-kind: role
-metadata:
-  name: teleport-event-handler
-spec:
-  allow:
-    rules:
-      - resources: ['event']
-        verbs: ['list','read']
-version: v5
----
-kind: user
-metadata:
-  name: teleport-event-handler
-spec:
-  roles: ['teleport-event-handler']
-version: v2
-```
-
-Use `tctl` to create the role and the user:
-
-```code
-$ tctl create -f teleport-event-handler-role.yaml
-# user "teleport-event-handler" has been created
-# role 'teleport-event-handler' has been created
-```
+(!docs/pages/includes/plugins/event-handler-role-user.mdx!)
 
 ## Step 4/6. Create teleport-event-handler credentials
 
@@ -271,7 +239,7 @@ identity = "identity"
 To start the event handler, run the following command:
 
 ```code
-$ ./teleport-event-handler start --config teleport-event-handler.toml
+$ teleport-event-handler start --config teleport-event-handler.toml
 ```
 
 </TabItem>
@@ -297,7 +265,7 @@ identity = "identity"
 To start the event handler, run the following command:
 
 ```code
-$ ./teleport-event-handler start --config teleport-event-handler.toml
+$ teleport-event-handler start --config teleport-event-handler.toml
 ```
 
 </TabItem>
@@ -345,7 +313,7 @@ $ helm install teleport-plugin-event-handler teleport/teleport-plugin-event-hand
 This example will start exporting from `May 5th 2021`:
 
 ```code
-$ ./teleport-event-handler start --config teleport-event-handler.toml --start-time "2022-02-02T00:00:00Z"
+$ teleport-event-handler start --config teleport-event-handler.toml --start-time "2022-02-02T00:00:00Z"
 ```
 
 The start time can be set only once, on the first run of the tool.
@@ -381,7 +349,7 @@ Teleport Cluster, ensure that:
 ## Next steps
 
 - Read more about
-[impersonation](https://goteleport.com/docs/access-controls/guides/impersonation/)
+[impersonation](../../access-controls/guides/impersonation.mdx)
 here.
 - While this guide uses the `tctl auth sign` command to issue credentials for the
 Teleport Event Handler, production clusters should use Machine ID for safer,

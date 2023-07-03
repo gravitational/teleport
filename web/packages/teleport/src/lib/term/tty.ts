@@ -36,6 +36,7 @@ class Tty extends EventEmitterWebAuthnSender {
   _attachSocketBuffer: string;
   _addressResolver = null;
   _proto = new Protobuf();
+  _pendingUploads = {};
 
   constructor(addressResolver, props = {}) {
     super();
@@ -77,7 +78,47 @@ class Tty extends EventEmitterWebAuthnSender {
   }
 
   sendWebAuthn(data: WebauthnAssertionResponse) {
-    this.send(JSON.stringify(data));
+    const encoded = this._proto.encodeChallengeResponse(JSON.stringify(data));
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
+  _sendFileTransferRequest(message: string) {
+    const encoded = this._proto.encodeFileTransferRequest(message);
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
+  }
+
+  sendFileDownloadRequest(location: string) {
+    const message = JSON.stringify({
+      event: EventType.FILE_TRANSFER_REQUEST,
+      download: true,
+      location,
+    });
+    this._sendFileTransferRequest(message);
+  }
+
+  sendFileUploadRequest(location: string, file: File) {
+    const locationAndName = location + file.name;
+    this._pendingUploads[locationAndName] = file;
+    const message = JSON.stringify({
+      event: EventType.FILE_TRANSFER_REQUEST,
+      download: false,
+      location,
+      filename: file.name,
+    });
+    this._sendFileTransferRequest(message);
+  }
+
+  approveFileTransferRequest(requestId: string, approved: boolean) {
+    const message = JSON.stringify({
+      event: EventType.FILE_TRANSFER_DECISION,
+      requestId,
+      approved,
+    });
+    const encoded = this._proto.encodeFileTransferDecision(message);
+    const bytearray = new Uint8Array(encoded);
+    this.socket.send(bytearray);
   }
 
   // part of the flow control
@@ -168,12 +209,45 @@ class Tty extends EventEmitterWebAuthnSender {
 
   _processAuditPayload(payload) {
     const event = JSON.parse(payload);
+    // received a new/updated file transfer request
+    if (event.event === EventType.FILE_TRANSFER_REQUEST) {
+      this.emit(EventType.FILE_TRANSFER_REQUEST, event);
+    }
+
+    // received a file transfer approval
+    if (event.event === EventType.FILE_TRANSFER_REQUEST_APPROVE) {
+      const isDownload = event.download === true;
+      let pendingFile: File = null;
+      // if the approval is for an upload, fetch the file pending upload
+      if (!isDownload) {
+        const locationAndName = event.location + event.filename;
+        pendingFile = this._getPendingFile(locationAndName);
+        // cleanup if file exists. It's ok if it doesn't exist, we check thaat in the handler
+        if (pendingFile) {
+          delete this._pendingUploads[locationAndName];
+        }
+      }
+      this.emit(EventType.FILE_TRANSFER_REQUEST_APPROVE, event, pendingFile);
+    }
+
+    // received a file transfer denial
+    if (event.event === EventType.FILE_TRANSFER_REQUEST_DENY) {
+      const locationAndName = event.location + event.filename;
+      delete this._pendingUploads[locationAndName];
+      this.emit(EventType.FILE_TRANSFER_REQUEST_DENY, event);
+    }
+
+    // received a window resize
     if (event.event === EventType.RESIZE) {
       let [w, h] = event.size.split(':');
       w = Number(w);
       h = Number(h);
       this.emit(TermEvent.RESIZE, { w, h });
     }
+  }
+
+  _getPendingFile(location: string) {
+    return this._pendingUploads[location];
   }
 }
 

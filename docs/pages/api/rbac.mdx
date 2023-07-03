@@ -323,7 +323,7 @@ Request a token that the Kubernetes Service will use to join your Teleport
 cluster:
 
 ```code
-$ tctl nodes add --roles=kube --ttl=10000h --format=json
+$ tctl tokens add --type=kube --ttl=10000h --format=json
 ```
 
 Copy this token so you can use it when running the Teleport Kubernetes Service.
@@ -445,7 +445,7 @@ Here are the packages our client application imports from Go's standard library:
 
 |Package|Description|
 |---|---|
-| <nobr>`context`</nobr> |Includes the `context.Context` type. `context.Context` is an abstraction for controlling long-running routines, such as connections to external services, that might fail or time out. Programs can cancel contexts or assign them timeouts and metadata.|
+| `context`|Includes the `context.Context` type. `context.Context` is an abstraction for controlling long-running routines, such as connections to external services, that might fail or time out. Programs can cancel contexts or assign them timeouts and metadata.|
 |`fmt`|Formatting data for printing, strings, or errors.|
 |`io`|Dealing with I/O operations, e.g., reading files or network sockets.|
 |`os`|Interacting with the operating system, e.g., to open files.|
@@ -455,12 +455,12 @@ The client imports the following third-party code:
 
 |Package|Description|
 |---|---|
-|`github.com/gravitational/`<nobr>`teleport/api/client`</nobr>|A library for authenticating to the Auth Service's gRPC API and making requests, aliased as `teleport`.|
-|`github.com/gravitational/`<nobr>`teleport/api/types`</nobr>|Types used in the Auth Service API, e.g., Application Service records.|
+|`github.com/gravitational/teleport/api/client`|A library for authenticating to the Auth Service's gRPC API and making requests, aliased as `teleport`.|
+|`github.com/gravitational/teleport/api/types`|Types used in the Auth Service API, e.g., Application Service records.|
 |`github.com/gravitational/trace`|Presenting errors with more useful detail than the standard library provides.|
 |`google.golang.org/grpc`|The gRPC client and server library.|
 |`k8s.io/api/rbac/v1`|The Kubernetes RBAC API client library.|
-|`k8s.io/apimachinery/`<nobr>`pkg/apis/meta/v1`</nobr>|Code common to Kubernetes' API client libraries.|
+|`k8s.io/apimachinery/pkg/apis/meta/v1`|Code common to Kubernetes' API client libraries.|
 |`k8s.io/client-go/kubernetes`|Setting up an general-purpose Kubernetes client.|
 |`k8s.io/client-go/kubernetes/typed/rbac/v1`|Types for the Kubernetes RBAC API.|
 |`k8s.io/client-go/tools/clientcmd`|Another general-purpose Kubernetes client library.|
@@ -490,7 +490,7 @@ want to change later, including:
 |`initTimeout`|The timeout for connecting to the Teleport cluster. We have defined this as 30 seconds.|
 |`identityFilePath`|The path to the Teleport identity file you created earlier.|
 |`clusterName`|The name of the Kubernetes cluster you will fetch RBAC resources from. In this guide, the cluster's name is `minikube`.|
-|<nobr>`roleAnnotationKey`</nobr>|In Kubernetes, annotations are arbitrary key/value pairs that you can add to resources. The role and cluster role bindings we created earlier have the annotation key we specify here so our client application can fetch them.|
+|`roleAnnotationKey`|In Kubernetes, annotations are arbitrary key/value pairs that you can add to resources. The role and cluster role bindings we created earlier have the annotation key we specify here so our client application can fetch them.|
 
 ### Initializing a Kubernetes RBAC client
 
@@ -615,7 +615,7 @@ client's role type, based on the cluster role binding:
 |---|---|---|
 |`allow.kubernetes_labels`|Labels for Teleport-registered Kubernetes clusters that a user with this role is allowed to access.|Based on the Teleport-registered Kubernetes cluster that the cluster role binding belongs to.|
 |`allow.kubernetes_resources`|Kubernetes pods in specific namespaces that that a user with this role is allowed to access.|Allow access to all namespaces, since cluster role bindings are not restricted by namespace.|
-|<nobr>`allow.kubernetes_users`</nobr> and `allow.kubernetes_groups`|The Kubernetes groups and users that a Teleport user with this role will assume when interacting with the Kubernetes cluster.|Supply the names of any users or groups connected to the cluster role binding.|
+|`allow.kubernetes_users` and `allow.kubernetes_groups`|The Kubernetes groups and users that a Teleport user with this role will assume when interacting with the Kubernetes cluster.|Supply the names of any users or groups connected to the cluster role binding.|
 
 ### Creating a Teleport role from a Kubernetes role binding
 
@@ -748,9 +748,6 @@ func main() {
 	teleport, err := client.New(ctx, client.Config{
 		Addrs:       []string{proxyAddr},
 		Credentials: []client.Credentials{creds},
-		DialOpts: []grpc.DialOption{
-			grpc.WithReturnConnectionError(),
-		},
 	})
 	if err != nil {
 		panic(err)
@@ -782,10 +779,6 @@ initializes a Teleport client by calling `client.LoadIdentityFile` to obtain a
 `client.Credentials`. It then uses the `client.Credentials` to call
 `client.New`, which connects to the Teleport Proxy Service specified in the
 `Addrs` field using the provided identity file.
-
-In this example, we are passing the `grpc.WithReturnConnectionError()` function
-call to `client.New`, which instructs the gRPC client to return more detailed
-connection errors.
 
 <Admonition type="warning">
 

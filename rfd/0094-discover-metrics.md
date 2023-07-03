@@ -1,6 +1,6 @@
 ---
 authors: Roman Tkachenko (roman@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0094 - Teleport Discover Metrics
@@ -393,4 +393,3 @@ Event properties:
 - `tp.discover.resource.name`
 - `tp.discover.step.status`
 - `tp.discover.step.error`
-

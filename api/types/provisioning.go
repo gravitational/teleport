@@ -59,6 +59,9 @@ const (
 	// join method. Documentation regarding implementation of this
 	// can be found in lib/gitlab
 	JoinMethodGitLab JoinMethod = "gitlab"
+	// JoinMethodGCP indicates that the node will join with the GCP join method.
+	// Documentation regarding implementation of this can be found in lib/gcp.
+	JoinMethodGCP JoinMethod = "gcp"
 )
 
 var JoinMethods = []JoinMethod{
@@ -70,6 +73,7 @@ var JoinMethods = []JoinMethod{
 	JoinMethodKubernetes,
 	JoinMethodAzure,
 	JoinMethodGitLab,
+	JoinMethodGCP,
 }
 
 func ValidateJoinMethod(method JoinMethod) error {
@@ -83,7 +87,7 @@ func ValidateJoinMethod(method JoinMethod) error {
 
 // ProvisionToken is a provisioning token
 type ProvisionToken interface {
-	Resource
+	ResourceWithOrigin
 	// SetMetadata sets resource metatada
 	SetMetadata(meta Metadata)
 	// GetRoles returns a list of teleport roles
@@ -283,6 +287,17 @@ func (p *ProvisionTokenV2) CheckAndSetDefaults() error {
 		if err := providerCfg.checkAndSetDefaults(); err != nil {
 			return trace.Wrap(err)
 		}
+	case JoinMethodGCP:
+		providerCfg := p.Spec.GCP
+		if providerCfg == nil {
+			return trace.BadParameter(
+				`"gcp" configuration must be provided for the join method %q`,
+				JoinMethodGCP,
+			)
+		}
+		if err := providerCfg.checkAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("unknown join method %q", p.Spec.JoinMethod)
 	}
@@ -360,6 +375,16 @@ func (p *ProvisionTokenV2) GetMetadata() Metadata {
 // SetMetadata sets resource metatada
 func (p *ProvisionTokenV2) SetMetadata(meta Metadata) {
 	p.Metadata = meta
+}
+
+// Origin returns the origin value of the resource.
+func (p *ProvisionTokenV2) Origin() string {
+	return p.Metadata.Origin()
+}
+
+// SetOrigin sets the origin value of the resource.
+func (p *ProvisionTokenV2) SetOrigin(origin string) {
+	p.Metadata.SetOrigin(origin)
 }
 
 // GetSuggestedLabels returns the labels the resource should set when using this token
@@ -608,6 +633,21 @@ func (a *ProvisionTokenSpecV2GitLab) checkAndSetDefaults() error {
 		if strings.Contains(a.Domain, "/") {
 			return trace.BadParameter(
 				"'spec.gitlab.domain' should not contain the scheme or path",
+			)
+		}
+	}
+	return nil
+}
+
+func (a *ProvisionTokenSpecV2GCP) checkAndSetDefaults() error {
+	if len(a.Allow) == 0 {
+		return trace.BadParameter("the %q join method requires at least one token allow rule", JoinMethodGCP)
+	}
+	for _, allowRule := range a.Allow {
+		if len(allowRule.ProjectIDs) == 0 {
+			return trace.BadParameter(
+				"the %q join method requires gcp allow rules with at least one project ID",
+				JoinMethodGCP,
 			)
 		}
 	}

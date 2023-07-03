@@ -93,6 +93,9 @@ export const eventCodes = {
   CASSANDRA_EXECUTE_EVENT: 'TCA03I',
   CASSANDRA_REGISTER_EVENT: 'TCA04I',
   ELASTICSEARCH_REQUEST: 'TES00I',
+  ELASTICSEARCH_REQUEST_FAILURE: 'TES00E',
+  OPENSEARCH_REQUEST: 'TOS00I',
+  OPENSEARCH_REQUEST_FAILURE: 'TOS00E',
   DYNAMODB_REQUEST: 'TDY01I',
   DYNAMODB_REQUEST_FAILURE: 'TDY01E',
   DESKTOP_SESSION_STARTED: 'TDP00I',
@@ -228,6 +231,13 @@ export const eventCodes = {
   SAML_IDP_SERVICE_PROVIDER_DELETE_FAILURE: 'TSI003W',
   SAML_IDP_SERVICE_PROVIDER_DELETE_ALL: 'TSI004I',
   SAML_IDP_SERVICE_PROVIDER_DELETE_ALL_FAILURE: 'TSI004W',
+  OKTA_GROUPS_UPDATE: 'TOK001I',
+  OKTA_APPLICATIONS_UPDATE: 'TOK002I',
+  OKTA_SYNC_FAILURE: 'TOK003E',
+  OKTA_ASSIGNMENT_PROCESS: 'TOK004I',
+  OKTA_ASSIGNMENT_PROCESS_FAILURE: 'TOK004E',
+  OKTA_ASSIGNMENT_CLEANUP: 'TOK005I',
+  OKTA_ASSIGNMENT_CLEANUP_FAILURE: 'TOK005E',
 } as const;
 
 /**
@@ -618,6 +628,7 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       db_user: string;
+      db_roles: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_STARTED_FAILURE]: RawEvent<
@@ -627,6 +638,7 @@ export type RawEvents = {
       db_service: string;
       db_name: string;
       db_user: string;
+      db_roles: string[];
     }
   >;
   [eventCodes.DATABASE_SESSION_ENDED]: RawEvent<
@@ -881,6 +893,42 @@ export type RawEvents = {
   >;
   [eventCodes.ELASTICSEARCH_REQUEST]: RawEvent<
     typeof eventCodes.ELASTICSEARCH_REQUEST,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
+  >;
+  [eventCodes.ELASTICSEARCH_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.ELASTICSEARCH_REQUEST_FAILURE,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
+  >;
+  [eventCodes.OPENSEARCH_REQUEST]: RawEvent<
+    typeof eventCodes.OPENSEARCH_REQUEST,
+    {
+      name: string;
+      db_service: string;
+      db_name: string;
+      category: number;
+      target: string;
+      query: string;
+      path: string;
+    }
+  >;
+  [eventCodes.OPENSEARCH_REQUEST_FAILURE]: RawEvent<
+    typeof eventCodes.OPENSEARCH_REQUEST_FAILURE,
     {
       name: string;
       db_service: string;
@@ -1204,6 +1252,51 @@ export type RawEvents = {
       updated_by: string;
     }
   >;
+  [eventCodes.OKTA_GROUPS_UPDATE]: RawEvent<
+    typeof eventCodes.OKTA_GROUPS_UPDATE,
+    {
+      added: number;
+      updated: number;
+      deleted: number;
+    }
+  >;
+  [eventCodes.OKTA_APPLICATIONS_UPDATE]: RawEvent<
+    typeof eventCodes.OKTA_APPLICATIONS_UPDATE,
+    {
+      added: number;
+      updated: number;
+      deleted: number;
+    }
+  >;
+  [eventCodes.OKTA_SYNC_FAILURE]: RawEvent<typeof eventCodes.OKTA_SYNC_FAILURE>;
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    {
+      name: string;
+      source: string;
+    }
+  >;
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE,
+    {
+      name: string;
+      source: string;
+    }
+  >;
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_PROCESS,
+    {
+      name: string;
+      source: string;
+    }
+  >;
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: RawEvent<
+    typeof eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE,
+    {
+      name: string;
+      source: string;
+    }
+  >;
 };
 
 /**
@@ -1252,8 +1345,10 @@ type RawDeviceEvent<T extends EventCode> = RawEvent<
   T,
   {
     device: { asset_tag: string; device_id: string; os_type: number };
-    status: { success: boolean };
-    user: { user: string };
+    success?: boolean;
+    user?: string;
+    // status from "legacy" event format.
+    status?: { success: boolean };
   }
 >;
 

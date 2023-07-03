@@ -18,8 +18,6 @@ import styled, { useTheme } from 'styled-components';
 import { Text, TopNav, Flex } from 'design';
 import { Clipboard, FolderShared } from 'design/Icon';
 
-import { colors } from 'teleport/Console/colors';
-
 import ActionMenu from './ActionMenu';
 import { WarningDropdown } from './WarningDropdown';
 
@@ -40,19 +38,19 @@ export default function TopBar(props: Props) {
 
   const primaryOnTrue = (b: boolean): any => {
     return {
-      color: b ? theme.colors.text.primary : theme.colors.text.secondary,
+      color: b ? theme.colors.text.main : theme.colors.text.slightlyMuted,
     };
   };
 
   return (
     <TopNav
       height={`${TopBarHeight}px`}
-      bg={colors.dark}
+      bg="levels.deep"
       style={{
         justifyContent: 'space-between',
       }}
     >
-      <Text px={3} style={{ color: theme.colors.text.secondary }}>
+      <Text px={3} style={{ color: theme.colors.text.slightlyMuted }}>
         {userHost}
       </Text>
 

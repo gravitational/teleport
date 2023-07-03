@@ -29,17 +29,17 @@ export const ListItem = styled.li`
   padding: 0 16px;
   font-weight: ${props => props.theme.regular};
   font-family: ${props => props.theme.font};
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   height: 34px;
   background: inherit;
   border: none;
   border-radius: 4px;
 
-  background: ${props => (props.isActive ? 'rgba(255, 255, 255, 0.05)' : null)};
+  background: ${props =>
+    props.isActive ? props.theme.colors.spotBackground[0] : null};
 
   &:focus,
   &:hover {
-    background: rgba(255, 255, 255, 0.05);
-    color: ${props => props.theme.colors.text.contrast};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;

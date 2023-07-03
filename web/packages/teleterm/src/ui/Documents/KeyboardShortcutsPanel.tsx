@@ -73,11 +73,13 @@ export function KeyboardShortcutsPanel() {
 function Entry(props: { title: string; accelerator: string }) {
   return (
     <>
-      <Text textAlign="right" color="light" typography="subtitle1" py="4px">
+      <Text textAlign="right" typography="subtitle1" py="4px">
         {props.title}
       </Text>
       <MonoText
-        bg="levels.surfaceSecondary"
+        css={`
+          background: ${props => props.theme.colors.spotBackground[0]};
+        `}
         textAlign="left"
         px="12px"
         py="4px"
@@ -89,9 +91,7 @@ function Entry(props: { title: string; accelerator: string }) {
 }
 
 const MonoText = styled(Text)`
-  font-family: ${props => props.theme.fonts.mono};
   width: fit-content;
-  opacity: 0.7;
   border-radius: 4px;
 `;
 

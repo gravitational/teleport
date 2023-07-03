@@ -20,6 +20,7 @@ import (
 	"context"
 	"errors"
 	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -64,7 +65,6 @@ func TestCheckImpersonationPermissions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Log(tt.desc)
 		mock := &mockSARClient{
 			err:              tt.sarErr,
 			allowedVerbs:     tt.allowedVerbs,
@@ -120,14 +120,13 @@ func failsForCluster(clusterName string) servicecfg.ImpersonationPermissionsChec
 }
 
 func TestGetKubeCreds(t *testing.T) {
+	t.Parallel()
+	logger := utils.NewLoggerForTests()
 	ctx := context.TODO()
 	const teleClusterName = "teleport-cluster"
-
-	tmpFile, err := os.CreateTemp("", "teleport")
-	require.NoError(t, err)
-	defer os.Remove(tmpFile.Name())
-	kubeconfigPath := tmpFile.Name()
-	_, err = tmpFile.Write([]byte(`
+	dir := t.TempDir()
+	kubeconfigPath := filepath.Join(dir, "kubeconfig")
+	data := []byte(`
 apiVersion: v1
 kind: Config
 clusters:
@@ -150,9 +149,9 @@ contexts:
 users:
 - name: creds
 current-context: foo
-`))
+`)
+	err := os.WriteFile(kubeconfigPath, data, 0o600)
 	require.NoError(t, err)
-	require.NoError(t, tmpFile.Close())
 
 	tests := []struct {
 		desc               string
@@ -278,8 +277,10 @@ current-context: foo
 		},
 	}
 	for _, tt := range tests {
+		tt := tt
 		t.Run(tt.desc, func(t *testing.T) {
-			got, err := getKubeDetails(ctx, utils.NewLoggerForTests(), teleClusterName, "", tt.kubeconfigPath, tt.serviceType, tt.impersonationCheck)
+			t.Parallel()
+			got, err := getKubeDetails(ctx, logger, teleClusterName, "", tt.kubeconfigPath, tt.serviceType, tt.impersonationCheck)
 			tt.assertErr(t, err)
 			if err != nil {
 				return

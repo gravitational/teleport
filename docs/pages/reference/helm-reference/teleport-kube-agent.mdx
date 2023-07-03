@@ -5,7 +5,7 @@ description: Values that can be set using the teleport-kube-agent Helm chart
 
 The `teleport-kube-agent` Helm chart is used to configure a Teleport agent that
 runs in a remote Kubernetes cluster to provide access to resources in your
-infrastructure. 
+infrastructure.
 
 You can [browse the source on
 GitHub](https://github.com/gravitational/teleport/tree/branch/v(=teleport.major_version=)/examples/chart/teleport-kube-agent).
@@ -30,11 +30,11 @@ The `teleport-kube-agent` chart can run any or all of three Teleport services:
 
 Releases of this chart installed before version 11 are considered legacy
 releases, which launch the Teleport pod as a `Deployment` if no storage was
-configured. 
+configured.
 
 In version 11 and above, the chart launches the Teleport pod as a `StatefulSet`
 even when the chart is configured not to use external storage, and the Teleport pod
-reads its state from a Kubernetes `Secret`. 
+reads its state from a Kubernetes `Secret`.
 
 While the Teleport pod does not require external storage, you can still use the
 [`storage.enabled`](#storageenabled) field to configure the way the Teleport pod
@@ -51,7 +51,7 @@ The `teleport-kube-agent` chart deploys the following Kubernetes resources:
 | Kind                  | Default Name                                               | Description                                                                                                                                                                                                                                                                                             | When Deployed                                                                                                     |
 |-----------------------|------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-------------------------------------------------------------------------------------------------------------------|
 | `StatefulSet`         | The release name                                           | Running a user-configured Teleport pod.                                                                                                                                                                                                                                                                 | Always.                                                                                                           |
-| `Secret`              | `secretName` (default: `teleport-kube-agent-join-token`)   | Used for managing the state of the Teleport pod.                                                                                                                                                                                                                                                        | `authToken` or `joinParams.tokenName` is provided.                                                                |
+| `Secret`              | `joinTokenSecret.name` (default: `teleport-kube-agent-join-token`)   | Used for managing the state of the Teleport pod.                                                                                                                                                                                                                                              | `joinTokenSecret.secret` is `true`.                                                                |
 | `Deployment`          | The release name                                           | Runs a user-configured Teleport pod.                                                                                                                                                                                                                                                                    | `storage.enabled` is `false` and the chart is being upgraded. Fresh installs will deploy a `StatefulSet` instead. |
 | `Role`                | The `roleName` option, if given, or the release name.      | Used to manage the state of the Teleport pod via Kubernetes secrets.                                                                                                                                                                                                                                    | Always.                                                                                                           |
 | `ClusterRole`         | `clusterRoleName`, if given, or the release name.          | Allows impersonating users, groups, and service accounts, getting pods, and creating [`SelfSubjectAccessReview`s](https://www.pulumi.com/registry/packages/kubernetes/api-docs/authorization/v1/selfsubjectaccessreview/) so the Teleport pod can manage access to resources in its Kubernetes cluster. | Always.                                                                                                           |
@@ -84,35 +84,37 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 | Teleport Application service | `app`             | [`apps`](#apps)                             |
 | Teleport Database service    | `db`              | [`databases`](#databases)                   |
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   roles: kube,app,db
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set roles=kube\,app\,db
-  ```
+  
+## `enterprise`
 
-  <Admonition type="note">
-    When specifying multiple roles using `--set` syntax, you must escape the commas using a backslash (`\`).
+| Type     | Default value |
+|----------|---------------|
+| `bool`   | `false`       |
 
-    This is a quirk of Helm's CLI parser.
-  </Admonition>
+When `enterprise` is set to `true`, the container image used for Teleport agent
+pods run by the `teleport-kube-agent` chart will be the enterprise version.
+This should be set to `true` for connecting to Teleport Cloud and self-hosted
+Teleport Enterprise clusters to use enterprise features within the Kube Agent. 
 
-  </TabItem>
-</Tabs>
+`values.yaml` example:
 
-If you specify a role here, you may also need to specify some other settings which are detailed in this reference.
-
+  ```yaml
+  enterprise: true
+  ```  
+  
 ## `updater`
 
 `updater` controls whether the Kube Agent Updater should be deployed alongside
 the `teleport-kube-agent`. The updater fetches the target version, validates the
-image signature, and updates the teleport deployment.
+image signature, and updates the teleport deployment. The `enterprise` value should 
+have been set to `true`.
 
-All kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
+All Kubernetes-specific fields such as `tolerations`, `affinity`, `nodeSelector`,
 ... default to the agent values. However, they can be overridden from the
 `updater` object. For example:
 
@@ -155,14 +157,14 @@ You can enable this when:
 You must not enable this if:
 
 - you are a Teleport Cloud customer not enrolled in automatic updates.
-- you are a self-hosted Teleport user and have not set up your Teleport cluster to 
+- you are a self-hosted Teleport user and have not set up your Teleport cluster to
   support automatic updates.
 
 ### `updater.versionServer`
 
-| Type     | Default value                         | Required?                       |
-|----------|---------------------------------------|---------------------------------|
-| `string` | "https://update.gravitational.io/v1/" | Yes if not using Teleport Cloud |
+| Type     | Default value                               | Required?                       |
+|----------|---------------------------------------------|---------------------------------|
+| `string` | "https://updates.releases.teleport.dev/v1/" | Yes if not using Teleport Cloud |
 
 `updater.versionServer` is the URL of the version server the agent fetches the
 target version from. The complete version endpoint is built by concatenating
@@ -209,25 +211,17 @@ than a Teleport-published image.
 
 `roleBindingName` provides a custom name for the `RoleBinding` resource that the
 `teleport-kube-agent` chart creates for the Teleport pod. By default, the
-`RoleBinding` has the name of the Helm release. 
+`RoleBinding` has the name of the Helm release.
 
 You should set this value if there is a `RoleBinding` resource in the namespace
 of your `teleport-kube-agent` resources with the same name as your
 `teleport-kube-agent` release.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   roleBindingName: myrolebinding
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set roleBindingName=myrolebinding
-  ```
-
-  </TabItem>
-</Tabs>
 
 ## `roleName`
 
@@ -237,25 +231,17 @@ of your `teleport-kube-agent` resources with the same name as your
 
 `roleName` provides a custom name for the `Role` resource that the
 `teleport-kube-agent` chart creates for the Teleport pod. By default, the `Role`
-has the name of the Helm release. 
+has the name of the Helm release.
 
 You should set this value if there is a `Role` resource in the namespace of your
 `teleport-kube-agent` resources with the same name as your `teleport-kube-agent`
 release.
 
-<Tabs>
-  <TabItem label="values.yaml">
-  ```yaml
-  roleName: myrole 
-  ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set roleName=myrole
-  ```
+`values.yaml` example:
 
-  </TabItem>
-</Tabs>
+  ```yaml
+  roleName: myrole
+  ```
 
 ## `serviceAccountName`
 
@@ -274,7 +260,7 @@ The value `joinParams` supports more methods to join the Teleport cluster and ta
 and `joinParams` are set.
 
 A token must be specified for the agent to join the Teleport cluster, either though `authToken`,
-[`joinParams`](#joinparams), or [an existing Kubernetes Secret](#secretname).
+[`joinParams`](#joinparams), or [an existing Kubernetes Secret](#joinTokenSecret).
 
 | Services                          | Service Name  | `tctl tokens add` example            | `teleport.yaml` static token example        |
 |-----------------------------------|---------------|--------------------------------------|---------------------------------------------|
@@ -295,18 +281,11 @@ A token must be specified for the agent to join the Teleport cluster, either tho
 If you do not have the correct services (Teleport refers to these internally as `Roles`) assigned to your join token, the Teleport instance will
 fail to join the Teleport cluster.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   authToken: <replace-with-actual-token>
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set authToken=<replace-with-actual-token>
-  ```
-  </TabItem>
-</Tabs>
 
 ## `joinParams`
 
@@ -321,10 +300,12 @@ These sub-values must be configured for the agent to connect to a cluster.
 `joinParams.method` defines which join method will be used to join the Teleport cluster.
 Possible values are `token`, `iam` and `ec2`.
 
-- For `iam`, see [Joining Nodes Via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx).
-- For `ec2`, see [Joining Nodes Via AWS IAM Role](../../management/guides/joining-nodes-aws-ec2.mdx).
+- For `iam`, see [Joining Nodes Via AWS IAM
+  Role](../../agents/join-services-to-your-cluster/aws-iam.mdx).
+- For `ec2`, see [Joining Nodes Via AWS IAM
+  Role](../../agents/join-services-to-your-cluster/aws-ec2.mdx).
 - For `token` (default value), the token must be provided through `joinParams.tokenName` or
-  [through an existing Kubernetes Secret](#secretName).
+  [through an existing Kubernetes Secret](#joinTokenSecret).
 
 <Admonition type="note" title="IAM joining requirements">
 Using the IAM joining method requires either the pods to have access to [instance
@@ -336,19 +317,12 @@ set up on the pods's service account. For access to instance metadata (the quick
 pods](https://aws.github.io/aws-eks-best-practices/security/docs/iam/#restrict-access-to-the-instance-profile-assigned-to-the-worker-node).
 </Admonition>
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   joinParams:
     method: "token"|"ec2"|"iam"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set joinParams.method="token"|"ec2"|"iam"
-  ```
-  </TabItem>
-</Tabs>
 
 ### `joinParams.tokenName`
 | Type     | Default value | Required? |
@@ -363,21 +337,14 @@ the value is sensitive and is automatically stored in a Kubernetes Secret instea
 agent's configuration.
 
 If method is `token`, `joinParams.tokenName` can be empty if the token is provided through an existing Kubernetes
-Secret, see [`secretName`](#secretName) for more details and instructions.
+Secret, see [`joinTokenSecret`](#joinTokenSecret) for more details and instructions.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   joinParams:
     tokenName: "my-token"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set joinParams.token="my-token"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `proxyAddr`
 
@@ -406,18 +373,11 @@ Here are a few examples:
 `kubeClusterName` sets the name used for the Kubernetes cluster proxied by the Teleport agent. This name will be shown to Teleport users
 connecting to the cluster.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   kubeClusterName: my-gke-cluster
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set kubeClusterName=my-gke-cluster
-  ```
-  </TabItem>
-</Tabs>
 
 ## `apps`
 
@@ -429,8 +389,8 @@ connecting to the cluster.
 
 You can specify multiple apps by adding additional list elements.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   apps:
   - name: grafana
@@ -443,25 +403,6 @@ You can specify multiple apps by adding additional list elements.
       purpose: ci
   ```
 
-  (!docs/pages/includes/yaml-lint-note.mdx!)
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set "apps[0].name=grafana" \
-  --set "apps[0].uri=http://localhost:3000" \
-  --set "apps[0].purpose=monitoring" \
-  --set "apps[1].name=grafana" \
-  --set "apps[1].uri=http://jenkins:8080" \
-  --set "apps[1].purpose=ci"
-  ```
-
-  <Admonition type="note">
-    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
-  </Admonition>
-
-  </TabItem>
-</Tabs>
-
 <Admonition type="tip" title="Supported values">
   You can see a list of all the supported [values which can be used in a Teleport application access configuration here](../../application-access/reference.mdx#configuration).
 </Admonition>
@@ -472,12 +413,12 @@ You can specify multiple apps by adding additional list elements.
 |--------|---------------|--------------------------------------------------------------------------------------|
 | `list` | `[]`          | When `app` chart role is used at least one of `apps` and `appResources` is required. |
 
-`appResources` is a YAML list object detailing the resource selectors of the applications that should be proxied by Teleport Application Access.
+`appResources` is a YAML list object detailing the resource selectors of the applications that should be proxied by the Teleport Application Service.
 
 You can specify multiple selectors by including additional list elements.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   appResources:
   - labels:
@@ -485,20 +426,6 @@ You can specify multiple selectors by including additional list elements.
   - labels:
       "env": "test"
   ```
-
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set "appResources[0].labels.env=prod" \
-  --set "appResources[1].labels.env=test"
-  ```
-
-  <Admonition type="note">
-    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
-  </Admonition>
-
-  </TabItem>
-</Tabs>
 
 <Admonition type="tip" title="Example">
   Once `appResources` is set, you can dynamically register application with `tsh` by following [this guide](../../application-access/guides/dynamic-registration.mdx).
@@ -534,8 +461,8 @@ You can specify multiple database filters by adding additional list elements.
 - `regions` is a list of AWS regions which should be scanned for databases.
 - `tags` can be used to set AWS tags that must be matched for databases to be discovered.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   roles: db
   awsDatabases:
@@ -555,10 +482,6 @@ You can specify multiple database filters by adding additional list elements.
     serviceAccount:
       eks.amazonaws.com/role-arn: arn:aws:iam::1234567890:role/my-rds-autodiscovery-role
   ```
-
-  (!docs/pages/includes/yaml-lint-note.mdx!)
-  </TabItem>
-</Tabs>
 
 ## `azureDatabases`
 
@@ -616,8 +539,8 @@ The default for each of these optional settings is `*`, which will auto-discover
 subscriptions, regions, or resource groups accessible by the Teleport service
 principal in Azure.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   roles: db
   azureDatabases:
@@ -644,10 +567,6 @@ principal in Azure.
     value: "11111111-2222-3333-4444-555555555555"
   ```
 
-  (!docs/pages/includes/yaml-lint-note.mdx!)
-  </TabItem>
-</Tabs>
-
 ## `databases`
 
 | Type   | Default value | Required?                                                                                                                             |
@@ -658,8 +577,8 @@ principal in Azure.
 
 You can specify multiple databases by adding additional list elements.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   databases:
   - name: aurora-postgres
@@ -677,29 +596,6 @@ You can specify multiple databases by adding additional list elements.
     static_labels:
       env: staging
   ```
-
-  (!docs/pages/includes/yaml-lint-note.mdx!)
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set "databases[0].name=aurora" \
-  --set "databases[0].uri=postgres-aurora-instance-1.xxx.us-east-1.rds.amazonaws.com:5432" \
-  --set "databases[0].protocol=postgres" \
-  --set "databases[0].aws.region=us-east-1" \
-  --set "databases[0].static_labels.env=staging" \
-  --set "databases[1].name=mysql" \
-  --set "databases[1].uri=mysql-instance-1.xxx.us-east-1.rds.amazonaws.com:3306" \
-  --set "databases[1].protocol=mysql" \
-  --set "databases[1].aws.region=us-east-1" \
-  --set "databases[1].static_labels.env=staging"
-  ```
-
-  <Admonition type="note">
-    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
-  </Admonition>
-
-  </TabItem>
-</Tabs>
 
 <Admonition type="tip" title="Supported values">
   You can see a list of all the supported [values which can be used in a Teleport database service configuration here](../../database-access/reference/configuration.mdx).
@@ -739,12 +635,12 @@ You can specify multiple databases by adding additional list elements.
 |--------|---------------|---------------------------------------------------------------------------------------------------------------------------------------|
 | `list` | `[]`          | When the `db` chart role is used at least one of `databases`, `awsDatabases`,<br/> `azureDatabases`, `databaseResources` is required. |
 
-`databaseResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by Teleport Database Access.
+`databaseResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by the Teleport Database Service.
 
 You can specify multiple selectors by adding elements to the list.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   databaseResources:
   - labels:
@@ -754,23 +650,6 @@ You can specify multiple selectors by adding elements to the list.
       "env": "test"
       "engine": "mysql"
   ```
-
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $
-  --set "databaseResources[0].labels.env=prod" \
-  --set "databaseResources[0].labels.engine=postgres" \
-  --set "databaseResources[1].labels.env=test" \
-  --set "databaseResources[0].labels.engine=mysql"
-  ```
-
-  <Admonition type="note">
-    Note that when using `--set` syntax, YAML list elements must be indexed starting at `0`.
-  </Admonition>
-
-  </TabItem>
-</Tabs>
 
 <Admonition type="tip" title="Example">
   Once `databaseResources` is set, you can dynamically register database with `tsh` by following [this guide](../../database-access/guides/dynamic-registration.mdx).
@@ -782,30 +661,27 @@ You can specify multiple selectors by adding elements to the list.
 |----------|---------------|
 | `string` | `nil`         |
 
-Normally the version of Teleport being used will match the version of the chart being installed. If you install chart version
-10.0.0, you'll be using Teleport 10.0.0.
+Normally the version of Teleport being used will match the version of the chart
+being installed. If you install chart version 10.0.0, you'll be using Teleport
+10.0.0. Upgrading the Helm chart will use the latest version from the repo.
 
-You can optionally override this to use a different published Teleport Docker image tag like `10.2.2` or `11`.
+You can optionally override this to use a different published Teleport Docker
+image tag like `10.1.2` or `11`.
 
-See [this link for information on Community Docker image versions](../../management/guides/docker.mdx#step-14-pick-your-image).
+<Admonition type="danger">
+`teleportVersionOverride` is intended for development and MUST NOT be used to control the Teleport version in a typical deployment.
+This chart is designed to run a specific Teleport version. You will face
+compatibility issues trying to run a different Teleport version with it.
 
-<Admonition type="note">
-  The `teleport-kube-agent` chart always runs using Teleport Community edition as it does not require any Enterprise features, so it does
-  not require a Teleport license file to be provided.
+If you want to run Teleport version `X.Y.Z`, you should use
+`helm --version X.Y.Z` instead.
 </Admonition>
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleportVersionOverride: "11"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleportVersionOverride="11"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `caPin`
 
@@ -816,24 +692,17 @@ See [this link for information on Community Docker image versions](../../managem
 When `caPin` is set, the Teleport pod will use its values to check the
 Auth Service's identity when first joining a cluster. This enables a more secure
 way of adding new Teleport instances to a cluster. See
-["Adding Nodes to the Cluster"](../../management/admin/adding-nodes.mdx).
+["Adding Nodes to the Cluster"](../../agents/join-services-to-your-cluster/join-token.mdx).
 
 Each list element can be the pin itself (recommended, works out of the box),
 or a path to a file containing the pin. For the latter it is your
 responsibility to mount the file using [`extraVolumes`](#extraVolumes).
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   caPin: ["sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"]
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set caPin[0]="sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `insecureSkipProxyTLSVerify`
 
@@ -846,18 +715,11 @@ Proxy Service specified using [`proxyAddr`](#proxyaddr).
 
 This can be used for joining a Teleport instance to a Teleport cluster which does not have valid TLS certificates for testing.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   insecureSkipProxyTLSVerify: false
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set insecureSkipProxyTLSVerify=false
-  ```
-  </TabItem>
-</Tabs>
 
 <Admonition type="warning">
   Using a self-signed TLS certificate and disabling TLS verification is OK for testing, but is not viable when running a production Teleport
@@ -913,19 +775,12 @@ $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.p
   The key containing the root CA in the secret must be `ca.pem`.
 </Notice>
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   tls:
     existingCASecretName: my-root-ca
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```shell
-  --set tls.existingSecretName=my-root-ca
-  ```
-  </TabItem>
-</Tabs>
 
 ## `existingDataVolume`
 
@@ -935,18 +790,11 @@ $ kubectl create secret generic my-root-ca --from-file=ca.pem=/path/to/root-ca.p
 
 When `existingDataVolume` is set to the name of an existing volume, the `/var/lib/teleport` mount will use this volume instead of creating a new `emptyDir` volume.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   existingDataVolume: my-volume
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  --set existingDataVolume=my-volume
-  ```
-  </TabItem>
-</Tabs>
 
 ## `podSecurityPolicy`
 
@@ -968,19 +816,12 @@ To disable PSP creation, you can set `enabled` to `false`.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/policy/pod-security-policy/)
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   podSecurityPolicy:
     enabled: false
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set podSecurityPolicy.enabled=false
-  ```
-  </TabItem>
-</Tabs>
 
 ## `labels`
 
@@ -1005,21 +846,13 @@ These labels can then be used with Teleport's RBAC policies to define access rul
   For more information on how to set static/dynamic labels for Teleport services, see [labelling nodes and applications](../../management/admin/labels.mdx).
 </Admonition>
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   labels:
     environment: production
     region: us-east
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set labels.environment=production \
-  --set labels.region=us-east
-  ```
-  </TabItem>
-</Tabs>
 
 ## `storage`
 
@@ -1051,7 +884,7 @@ hook](https://helm.sh/docs/topics/charts_hooks/), and the upgrade finishes.
 If `storage.enabled` is `true`, then during the upgrade, the
 `teleport-kube-agent` chart will use the existing `StatefulSet` resource to run
 the Teleport pod. The chart will import the pod's identify from the previously
-configured external storage into a Kubernetes `Secret`. 
+configured external storage into a Kubernetes `Secret`.
 
 #### New chart installations
 
@@ -1072,19 +905,12 @@ If `storage.enabled` is `false`, the chart configures the Teleport pod to manage
 its data with a temporary directory that exists until the Teleport pod stops
 running.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   storage:
     enabled: true
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  --set storage.enabled=true
-  ```
-  </TabItem>
-</Tabs>
 
 ### `storage.storageClassName`
 
@@ -1097,19 +923,12 @@ name needs to exist on the Kubernetes cluster for Teleport to use.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/storage-classes/)
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   storage:
     storageClassName: teleport-storage-class
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  --set storage.storageClassName=teleport-storage-class
-  ```
-  </TabItem>
-</Tabs>
 
 ### `storage.requests`
 
@@ -1119,19 +938,12 @@ name needs to exist on the Kubernetes cluster for Teleport to use.
 
 The size of persistent volume to create.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   storage:
     requests: 128Mi
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  --set storage.requests=128Mi
-  ```
-  </TabItem>
-</Tabs>
 
 ## `image`
 
@@ -1152,42 +964,28 @@ For this reason, it is strongly discouraged to set a custom image when
 connecting to a Teleport Cloud instance enrolled in automatic updates.
 </Admonition>
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   image: my.docker.registry/teleport-image-name
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set image=my.docker.registry/teleport-image-name
-  ```
-  </TabItem>
-</Tabs>
 
 ## `imagePullSecrets`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)
 
 A list of secrets containing authorization tokens which can be optionally used to access a private Docker registry.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   imagePullSecrets:
   - name: my-docker-registry-key
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```shell
-  --set "imagePullSecrets[0].name=my-docker-registry-key"
-  ```
-  </TabItem>
-</Tabs>
 
 ### `highAvailability`
 
@@ -1208,19 +1006,12 @@ Set to a number higher than `1` for a high availability mode where multiple Tele
   clusters with more traffic.
 </Admonition>
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   highAvailability:
     replicaCount: 3
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```shell
-  --set highAvailability.replicaCount=3
-  ```
-  </TabItem>
-</Tabs>
 
 ## `highAvailability.requireAntiAffinity`
 
@@ -1244,19 +1035,12 @@ Teleport pods must not be scheduled on the same physical host.
   This setting only has any effect when `highAvailability.replicaCount` is greater than `1`.
 </Admonition>
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   highAvailability:
     requireAntiAffinity: true
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```shell
-  --set highAvailability.requireAntiAffinity=true
-  ```
-  </TabItem>
-</Tabs>
 
 ## `highAvailability.podDisruptionBudget`
 
@@ -1270,20 +1054,13 @@ Teleport pods must not be scheduled on the same physical host.
 
 Enable a Pod Disruption Budget for the Teleport Pod to ensure HA during voluntary disruptions.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   highAvailability:
     podDisruptionBudget:
       enabled: true
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```shell
-  --set highAvailability.podDisruptionBudget.enabled=true
-  ```
-  </TabItem>
-</Tabs>
 
 ### `highAvailability.podDisruptionBudget.minAvailable`
 
@@ -1295,20 +1072,13 @@ Enable a Pod Disruption Budget for the Teleport Pod to ensure HA during voluntar
 
 Ensures that this number of replicas is available during voluntary disruptions, can be a number of replicas or a percentage.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   highAvailability:
     podDisruptionBudget:
       minAvailable: 1
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```shell
-  --set highAvailability.podDisruptionBudget.minAvailable=1
-  ```
-  </TabItem>
-</Tabs>
 
 ## `clusterRoleName`
 
@@ -1322,18 +1092,11 @@ Ensures that this number of replicas is available during voluntary disruptions, 
   Most users will not need to change this.
 </Admonition>
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   clusterRoleName: kubernetes-clusterrole
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set clusterRoleName=kubernetes-clusterrole
-  ```
-  </TabItem>
-</Tabs>
 
 ## `clusterRoleBindingName`
 
@@ -1347,18 +1110,11 @@ Ensures that this number of replicas is available during voluntary disruptions, 
 
 `clusterRoleBindingName` can be optionally used to override the name of the Kubernetes `ClusterRoleBinding` used by the `teleport-kube-agent` chart's `ServiceAccount`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   clusterRoleBindingName: kubernetes-clusterrolebinding
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set clusterRoleBindingName=kubernetes-clusterrolebinding
-  ```
-  </TabItem>
-</Tabs>
 
 ## `priorityClassName`
 
@@ -1368,84 +1124,74 @@ Ensures that this number of replicas is available during voluntary disruptions, 
 
 `priorityClassName` allows to specify a priority class for the `teleport-kube-agent` deployment/statefulset.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   priorityClassName: "teleport-kube-agent"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set priorityClassName=teleport-kube-agent
-  ```
-  </TabItem>
-</Tabs>
 
 ## `serviceAccount.create`
 
-| Type      | Default value | Required? | Can be used in `custom` mode? |
-|-----------|---------------|-----------|-------------------------------|
-| `boolean` | `true`        | No        | ✅                             |
+| Type      | Default value | Required? |
+|-----------|---------------|-----------|
+| `boolean` | `true`        | No        |
 
 [Kubernetes reference](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
 
 Boolean value to control whether Helm Chart should create the `ServiceAccount`.
 When off, the `serviceAccount.name` parameter should be set to the existing `ServiceAccount` name.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   serviceAccount:
     create: false
     name: kubernetes-serviceaccount
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set serviceAccount.create=false
-  $ --set serviceAccount.name=kubernetes-serviceaccount
-  ```
-  </TabItem>
-</Tabs>
 
 ## `serviceAccount.name`
 
-| Type     | Default value | Required? | Can be used in `custom` mode? |
-|----------|---------------|-----------|-------------------------------|
-| `string` | `""`          | No        | ✅                             |
+| Type     | Default value | Required? |
+|----------|---------------|-----------|
+| `string` | `""`          | No        |
 
 `serviceAccount.name` provides a custom name for the `ServiceAccount` resource
 that the `teleport-kube-agent` chart creates for the Teleport pod. By default,
-the `ServiceAccount` has the name of the Helm release. 
+the `ServiceAccount` has the name of the Helm release.
 
 You should set this value if there is a `ServiceAccount` resource in the
 namespace of your `teleport-kube-agent` resources with the same name as your
 `teleport-kube-agent` release.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   serviceAccount:
     name: kubernetes-serviceaccount
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set serviceAccount.name=kubernetes-serviceaccount
-  ```
-  </TabItem>
-</Tabs>
 
-## `secretName`
+## `joinTokenSecret`
+
+### `joinTokenSecret.create`
+
+| Type     | Default value                    |
+|----------|----------------------------------|
+| `bool`   | `true`                           |
+
+
+Boolean value to control whether Helm Chart should create the `Secret`.
+When off, the `joinTokenSecret.name` parameter should be set to the existing `Secret` name.
+
+### `joinTokenSecret.name`
 
 | Type     | Default value                    |
 |----------|----------------------------------|
 | `string` | `teleport-kube-agent-join-token` |
 
-`secretName` is the name of the Kubernetes Secret containing the Teleport join token used by the chart.
+`name` is the name of the Kubernetes Secret containing the Teleport join token used by the chart.
 
-If `joinParams.method` is `token` and you set both `authToken` and `joinParams.tokenName` to a blank value, the chart
-will not attempt to create the secret itself. Instead, it will read the value from an existing secret. `secretName`
+If `joinTokenSecret.create` is `false`, the chart will not attempt to create the secret itself.
+Instead, it will read the value from an existing secret. `joinTokenSecret.name`
 configures the name of this secret. This allows you to configure this secret externally and avoid having a plaintext
 join token stored in your Teleport chart values.
 
@@ -1459,23 +1205,17 @@ $ kubectl --namespace teleport create secret generic teleport-kube-agent-join-to
   The key used for the auth token inside the secret must be `auth-token`, as in the command above.
 </Admonition>
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
-  secretName: "secret-i-created-before"
+  joinTokenSecret:
+    create: false
+    name: "secret-i-created-before"
+
   joinParams:
     method: "token"
     tokenName: ""
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set secretName="secret-i-created-before" \
-    --set joinParams.method="token" \
-    --set joinParams.tokenName=""
-  ```
-  </TabItem>
-</Tabs>
 
 ## `log`
 
@@ -1497,25 +1237,18 @@ The default is `INFO`, which is recommended in production.
 
 `DEBUG` is useful during first-time setup or to see more detailed logs for debugging.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     level: DEBUG
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  --set log.level=DEBUG
-  ```
-  </TabItem>
-</Tabs>
 
 ### `log.output`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
-|----------|---------------|-------------------------------|----------------------------|
-| `string` | `stderr`      | ❌                             | `teleport.log.output`      |
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `string` | `stderr`      | `teleport.log.output`      |
 
 `log.output` sets the output destination for the Teleport process.
 
@@ -1523,68 +1256,46 @@ This can be set to any of the built-in values: `stdout`, `stderr` or `syslog` to
 
 The value can also be set to a file path (such as `/var/log/teleport.log`) to write logs to a file. Bear in mind that a few service startup messages will still go to `stderr` for resilience.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     output: stderr
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  --set log.output=stderr
-  ```
-  </TabItem>
-</Tabs>
 
 ### `log.format`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent   |
-|----------|---------------|-------------------------------|------------------------------|
-| `string` | `text`        | ❌                             | `teleport.log.format.output` |
+| Type     | Default value | `teleport.yaml` equivalent   |
+|----------|---------------|------------------------------|
+| `string` | `text`        | `teleport.log.format.output` |
 
 `log.format` sets the output type for the Teleport process.
 
 Possible values are `text` (default) or `json`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     format: json
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  --set log.format=json
-  ```
-  </TabItem>
-</Tabs>
 
 ### `log.extraFields`
 
-| Type   | Default value                                   | Can be used in `custom` mode? | `teleport.yaml` equivalent         |
-|--------|-------------------------------------------------|-------------------------------|------------------------------------|
-| `list` | `["timestamp", "level", "component", "caller"]` | ❌                             | `teleport.log.format.extra_fields` |
+| Type   | Default value                                   | `teleport.yaml` equivalent         |
+|--------|-------------------------------------------------|------------------------------------|
+| `list` | `["timestamp", "level", "component", "caller"]` | `teleport.log.format.extra_fields` |
 
 `log.extraFields` sets the fields used in logging for the Teleport process.
 
 See the [Teleport config file reference](../../reference/config.mdx) for more details on possible values for `extra_fields`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     extraFields: ["timestamp", "level"]
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  --set "log.extraFields[0]=timestamp" \
-  --set "log.extraFields[1]=level"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `affinity`
 
@@ -1600,8 +1311,8 @@ Kubernetes affinity to set for pod assignments.
   You cannot set both `affinity` and `highAvailability.requireAntiAffinity` as they conflict with each other.
 </Admonition>
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   affinity:
     nodeAffinity:
@@ -1613,15 +1324,6 @@ Kubernetes affinity to set for pod assignments.
             values:
             - teleport
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].key=gravitational.io/dedicated \
-  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].operator=In \
-  --set affinity.nodeAffinity.requiredDuringSchedulingIgnoredDuringExecution.nodeSelectorTerms[0].matchExpressions[0].values[0]=teleport
-  ```
-  </TabItem>
-</Tabs>
 
 ## `dnsConfig`
 
@@ -1670,21 +1372,13 @@ nodes that Teleport pods will run on.
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/scheduling-eviction/assign-pod-node/)
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   nodeSelector:
     role: node
     region: us-east
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  --set nodeSelector.role=node \
-  --set nodeSelector.region=us-east
-  ```
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.clusterRole`
 
@@ -1696,24 +1390,13 @@ nodes that Teleport pods will run on.
 
 Kubernetes labels that should be applied to the `ClusterRole` created by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     clusterRole:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.clusterRole."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.clusterRoleBinding`
 
@@ -1725,24 +1408,13 @@ Kubernetes labels that should be applied to the `ClusterRole` created by the cha
 
 Kubernetes labels that should be applied to the `ClusterRoleBinding` created by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     clusterRoleBinding:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.clusterRoleBinding."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.role`
 
@@ -1755,24 +1427,13 @@ Kubernetes labels that should be applied to the `ClusterRoleBinding` created by 
 Kubernetes labels that should be applied to the `Role` created by the chart for
 the Teleport pod.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     role:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.role."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.roleBinding`
 
@@ -1785,24 +1446,13 @@ the Teleport pod.
 Kubernetes labels that should be applied to the `RoleBinding` created by the
 chart for the Teleport pod.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     roleBinding:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.roleBinding."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.config`
 
@@ -1814,24 +1464,13 @@ chart for the Teleport pod.
 
 Kubernetes labels that should be applied to the `ConfigMap` created by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     config:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.config."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.deployment`
 
@@ -1843,24 +1482,13 @@ Kubernetes labels that should be applied to the `ConfigMap` created by the chart
 
 Kubernetes labels that should be applied to the `Deployment` or `StatefulSet` created by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     deployment:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.deployment."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.pod`
 
@@ -1872,24 +1500,13 @@ Kubernetes labels that should be applied to the `Deployment` or `StatefulSet` cr
 
 Kubernetes labels that should be applied to every `Pod` in the `Deployment` or `StatefulSet` created by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     pod:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.pod."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.podDisruptionBudget`
 
@@ -1901,24 +1518,13 @@ Kubernetes labels that should be applied to every `Pod` in the `Deployment` or `
 
 Kubernetes labels that should be applied to the `PodDisruptionBudget` created by the chart (if enabled).
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     podDisruptionBudget:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.podDisruptionBudget."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.podSecurityPolicy`
 
@@ -1930,24 +1536,13 @@ Kubernetes labels that should be applied to the `PodDisruptionBudget` created by
 
 Kubernetes labels that should be applied to the `PodSecurityPolicy` created by the chart (if enabled).
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     podSecurityPolicy:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.podSecurityPolicy."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.secret`
 
@@ -1959,24 +1554,13 @@ Kubernetes labels that should be applied to the `PodSecurityPolicy` created by t
 
 Kubernetes labels that should be applied to the `Secret` created by the chart (if enabled).
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     secret:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.secret."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraLabels.serviceAccount`
 
@@ -1989,173 +1573,105 @@ Kubernetes labels that should be applied to the `Secret` created by the chart (i
 Kubernetes labels that should be applied to the `ServiceAccount` created by the
 chart for the Teleport pod.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraLabels:
     serviceAccount:
       app.kubernetes.io/name: teleport-kube-agent
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set extraLabels.serviceAccount."app\.kubernetes\.io\/name"=teleport-kube-agent
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `annotations.config`
 
-| Type     | Default value | Can be used in `custom` mode? | `teleport.yaml` equivalent |
-|----------|---------------|-------------------------------|----------------------------|
-| `object` | `{}`          | ❌                             | None                       |
+| Type     | Default value | `teleport.yaml` equivalent |
+|----------|---------------|----------------------------|
+| `object` | `{}`          | None                       |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `ConfigMap` created by the chart.
 
-<Admonition type="note">
-  These annotations will not be applied in `custom` mode, as the `ConfigMap` is not managed by the chart.
-  In this instance, you should apply annotations manually to your created `ConfigMap`.
-</Admonition>
+`values.yaml` example:
 
-<Tabs>
-  <TabItem label="values.yaml">
   ```yaml
   annotations:
     config:
       kubernetes.io/annotation: value
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set annotations.config."kubernetes\.io\/annotation"=value
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `annotations.deployment`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `Deployment` created by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   annotations:
     deployment:
       kubernetes.io/annotation: value
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set annotations.deployment."kubernetes\.io\/annotation"=value
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `annotations.pod`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to each `Pod` created by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   annotations:
     pod:
       kubernetes.io/annotation: value
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set annotations.pod."kubernetes\.io\/annotation"=value
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `annotations.serviceAccount`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/overview/working-with-objects/annotations/)
 
 Kubernetes annotations which should be applied to the `ServiceAccount` created by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   annotations:
     serviceAccount:
       kubernetes.io/annotation: value
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set annotations.serviceAccount."kubernetes\.io\/annotation"=value
-  ```
-  <Admonition type="warning" title="Escaping values">
-    You must escape values entered on the command line correctly for Helm's CLI to understand them. We recommend
-    using a `values.yaml` file instead to avoid confusion and errors.
-  </Admonition>
-  </TabItem>
-</Tabs>
 
 ## `extraVolumes`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
 A list of extra Kubernetes `Volumes` which should be available to any `Pod` created by the chart. These volumes
 will also be available to any `initContainers` configured by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraVolumes:
   - name: myvolume
     secret:
       secretName: mysecret
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set "extraVolumes[0].name=myvolume" \
-  --set "extraVolumes[0].secret.secretName=mysecret"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `extraArgs`
 
@@ -2165,19 +1681,12 @@ will also be available to any `initContainers` configured by the chart.
 
 A list of extra arguments to pass to the `teleport start` command when running a Teleport Pod.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraArgs:
   - "--debug"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set "extraArgs={--debug}"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `extraEnv`
 
@@ -2189,127 +1698,112 @@ A list of extra arguments to pass to the `teleport start` command when running a
 
 A list of extra environment variables to be set on the main Teleport container.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraEnv:
   - name: HTTPS_PROXY
     value: "http://username:password@my.proxy.host:3128"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set "extraEnv[0].name=HTTPS_PROXY" \
-  --set "extraEnv[0].value=\"http://username:password@my.proxy.host:3128\""
-  ```
-  </TabItem>
-</Tabs>
 
 ## `extraVolumeMounts`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/storage/volumes/)
 
 A list of extra Kubernetes volume mounts which should be mounted into any `Pod` created by the chart. These volume
 mounts will also be mounted into any `initContainers` configured by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   extraVolumeMounts:
   - name: myvolume
     mountPath: /path/to/mount/volume
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set "extraVolumeMounts[0].name=myvolume" \
-  --set "extraVolumeMounts[0].path=/path/to/mount/volume"
-  ```
-  </TabItem>
-</Tabs>
+
+## `hostAliases`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+Configure aliases in the pod's `/etc/hosts`.
+This can be used to have the agent join the Teleport cluster through a different
+non-public route, or to allow the agent to access applications or databases that
+are not resolvable. See [the Kubernetes documentation
+](https://kubernetes.io/docs/tasks/network/customize-hosts-file-for-pods/) for
+more details.
+
+```yaml
+hostAliases:
+  - ip: "127.0.0.1"
+    hostnames:
+      - "foo.local"
+      - "bar.local"
+  - ip: "10.1.2.3"
+    hostnames:
+      - "foo.remote"
+      - "bar.remote"
+```
 
 ## `imagePullPolicy`
 
-| Type     | Default value  | Can be used in `custom` mode? |
-|----------|----------------|-------------------------------|
-| `string` | `IfNotPresent` | ✅                             |
+| Type     | Default value  |
+|----------|----------------|
+| `string` | `IfNotPresent` |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#updating-images)
 
 Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   imagePullPolicy: Always
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set imagePullPolicy=Always
-  ```
-  </TabItem>
-</Tabs>
 
 ## `initContainers`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/workloads/pods/init-containers/)
 
 A list of `initContainers` which will be run before the main Teleport container in any pod created by the chart.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   initContainers:
   - name: teleport-init
     image: alpine
     args: ['echo test']
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set "initContainers[0].name=teleport-init" \
-  --set "initContainers[0].image=alpine" \
-  --set "initContainers[0].args={echo test}"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `resources`
 
-| Type     | Default value | Can be used in `custom` mode? |
-|----------|---------------|-------------------------------|
-| `object` | `{}`          | ✅                             |
+| Type     | Default value |
+|----------|---------------|
+| `object` | `{}`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/)
 
 Resource requests/limits which should be configured for each container inside the pod. These resource limits
 will also be applied to `initContainers`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   resources:
     requests:
       cpu: 1
       memory: 2Gi
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set resources.requests.cpu=1 \
-  --set resources.requests.memory=2Gi
-  ```
-  </TabItem>
-</Tabs>
 
 ## `initSecurityContext`
 
@@ -2351,16 +1845,16 @@ To unset the security context, set it to `null` or `~`.
 
 ## `tolerations`
 
-| Type   | Default value | Can be used in `custom` mode? |
-|--------|---------------|-------------------------------|
-| `list` | `[]`          | ✅                             |
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
 
 [Kubernetes reference](https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/)
 
 Kubernetes Tolerations to set for pod assignment.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   tolerations:
   - key: "dedicated"
@@ -2368,16 +1862,6 @@ Kubernetes Tolerations to set for pod assignment.
     value: "teleport"
     effect: "NoSchedule"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set tolerations[0].key=dedicated \
-  --set tolerations[0].operator=Equal \
-  --set tolerations[0].value=teleport \
-  --set tolerations[0].effect=NoSchedule
-  ```
-  </TabItem>
-</Tabs>
 
 ## `probeTimeoutSeconds`
 
@@ -2389,15 +1873,8 @@ Kubernetes Tolerations to set for pod assignment.
 
 Kubernetes timeouts for the liveness and readiness probes.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   probeTimeoutSeconds: 5
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set probeTimeoutSeconds=5
-  ```
-  </TabItem>
-</Tabs>

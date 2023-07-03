@@ -41,15 +41,6 @@ import {
 
 import { ResourceKind } from './Shared';
 
-const crypto = require('crypto');
-
-// eslint-disable-next-line jest/require-hook
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
-  },
-});
-
 describe('discover', () => {
   function create(initialEntry: string, userAcl: Acl) {
     const ctx = createTeleportContext({ customAcl: userAcl });

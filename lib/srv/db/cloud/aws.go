@@ -24,7 +24,6 @@ import (
 	"github.com/aws/aws-sdk-go/service/iam"
 	"github.com/aws/aws-sdk-go/service/iam/iamiface"
 	"github.com/aws/aws-sdk-go/service/rds"
-	"github.com/aws/aws-sdk-go/service/rds/rdsiface"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -68,37 +67,55 @@ func newAWS(ctx context.Context, config awsConfig) (*awsClient, error) {
 	if err := config.Check(); err != nil {
 		return nil, trace.Wrap(err)
 	}
-	meta := config.database.GetAWS()
-	rds, err := config.clients.GetAWSRDSClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+
+	logger := logrus.WithFields(logrus.Fields{
+		trace.Component: "aws",
+		"db":            config.database.GetName(),
+	})
+	dbConfigurator, err := getDBConfigurator(ctx, logger, config.clients, config.database)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	meta := config.database.GetAWS()
 	iam, err := config.clients.GetAWSIAMClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	return &awsClient{
-		cfg: config,
-		rds: rds,
-		iam: iam,
-		log: logrus.WithFields(logrus.Fields{
-			trace.Component: "aws",
-			"db":            config.database.GetName(),
-		}),
+		cfg:            config,
+		dbConfigurator: dbConfigurator,
+		iam:            iam,
+		log:            logger,
 	}, nil
 }
 
-type awsClient struct {
-	cfg awsConfig
-	rds rdsiface.RDSAPI
-	iam iamiface.IAMAPI
-	log logrus.FieldLogger
+type dbIAMAuthConfigurator interface {
+	// ensureIAMAuth enables DB IAM auth if it isn't already enabled.
+	ensureIAMAuth(context.Context, types.Database) error
 }
 
-// setupIAM configures IAM for RDS, Aurora or Redshift database.
+// getDBConfigurator returns a database IAM Auth configurator.
+func getDBConfigurator(ctx context.Context, log logrus.FieldLogger, clients cloud.Clients, db types.Database) (dbIAMAuthConfigurator, error) {
+	if db.IsRDS() {
+		// Only setting for RDS instances and Aurora clusters.
+		return &rdsDBConfigurator{clients: clients, log: log}, nil
+	}
+	// IAM Auth for Redshift, ElastiCache, and RDS Proxy is always enabled.
+	return &nopDBConfigurator{}, nil
+}
+
+type awsClient struct {
+	cfg            awsConfig
+	dbConfigurator dbIAMAuthConfigurator
+	iam            iamiface.IAMAPI
+	log            logrus.FieldLogger
+}
+
+// setupIAM configures IAM for RDS, Aurora, ElastiCache or Redshift database.
 func (r *awsClient) setupIAM(ctx context.Context) error {
 	var errors []error
-	if err := r.ensureIAMAuth(ctx); err != nil {
+	if err := r.dbConfigurator.ensureIAMAuth(ctx, r.cfg.database); err != nil {
 		if trace.IsAccessDenied(err) { // Permission errors are expected.
 			r.log.Debugf("No permissions to enable IAM auth: %v.", err)
 		} else {
@@ -126,46 +143,6 @@ func (r *awsClient) teardownIAM(ctx context.Context) error {
 		}
 	}
 	return trace.NewAggregate(errors...)
-}
-
-// ensureIAMAuth enables RDS instance IAM auth if it isn't enabled.
-func (r *awsClient) ensureIAMAuth(ctx context.Context) error {
-	// IAM Auth for Redshift and RDS Proxy is always enabled.
-	// Only setting for RDS instances and Aurora clusters.
-	if r.cfg.database.IsRDS() {
-		if r.cfg.database.GetAWS().RDS.IAMAuth {
-			r.log.Debug("IAM auth already enabled.")
-			return nil
-		}
-		if err := r.enableIAMAuthForRDS(ctx); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-	return nil
-}
-
-// enableIAMAuthForRDS turns on IAM auth setting on the RDS instance.
-func (r *awsClient) enableIAMAuthForRDS(ctx context.Context) error {
-	r.log.Debug("Enabling IAM auth for RDS.")
-	var err error
-	meta := r.cfg.database.GetAWS()
-	if meta.RDS.ClusterID != "" {
-		_, err = r.rds.ModifyDBClusterWithContext(ctx, &rds.ModifyDBClusterInput{
-			DBClusterIdentifier:             aws.String(meta.RDS.ClusterID),
-			EnableIAMDatabaseAuthentication: aws.Bool(true),
-			ApplyImmediately:                aws.Bool(true),
-		})
-		return awslib.ConvertIAMError(err)
-	}
-	if meta.RDS.InstanceID != "" {
-		_, err = r.rds.ModifyDBInstanceWithContext(ctx, &rds.ModifyDBInstanceInput{
-			DBInstanceIdentifier:            aws.String(meta.RDS.InstanceID),
-			EnableIAMDatabaseAuthentication: aws.Bool(true),
-			ApplyImmediately:                aws.Bool(true),
-		})
-		return awslib.ConvertIAMError(err)
-	}
-	return trace.BadParameter("no RDS cluster ID or instance ID for %v", r.cfg.database)
 }
 
 // ensureIAMPolicy adds database connect permissions to the agent's policy.
@@ -303,4 +280,55 @@ func (r *awsClient) detachIAMPolicy(ctx context.Context) error {
 		return trace.BadParameter("can only detach policies from roles or users, got %v", r.cfg.identity)
 	}
 	return awslib.ConvertIAMError(err)
+}
+
+type rdsDBConfigurator struct {
+	clients cloud.Clients
+	log     logrus.FieldLogger
+}
+
+// ensureIAMAuth enables RDS instance IAM auth if it isn't already enabled.
+func (r *rdsDBConfigurator) ensureIAMAuth(ctx context.Context, db types.Database) error {
+	if db.GetAWS().RDS.IAMAuth {
+		r.log.Debug("IAM auth already enabled.")
+		return nil
+	}
+	if err := r.enableIAMAuth(ctx, db); err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+// enableIAMAuth turns on IAM auth setting on the RDS instance.
+func (r *rdsDBConfigurator) enableIAMAuth(ctx context.Context, db types.Database) error {
+	r.log.Debug("Enabling IAM auth for RDS.")
+	meta := db.GetAWS()
+	rdsClt, err := r.clients.GetAWSRDSClient(ctx, meta.Region, cloud.WithAssumeRoleFromAWSMeta(meta))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if meta.RDS.ClusterID != "" {
+		_, err = rdsClt.ModifyDBClusterWithContext(ctx, &rds.ModifyDBClusterInput{
+			DBClusterIdentifier:             aws.String(meta.RDS.ClusterID),
+			EnableIAMDatabaseAuthentication: aws.Bool(true),
+			ApplyImmediately:                aws.Bool(true),
+		})
+		return awslib.ConvertIAMError(err)
+	}
+	if meta.RDS.InstanceID != "" {
+		_, err = rdsClt.ModifyDBInstanceWithContext(ctx, &rds.ModifyDBInstanceInput{
+			DBInstanceIdentifier:            aws.String(meta.RDS.InstanceID),
+			EnableIAMDatabaseAuthentication: aws.Bool(true),
+			ApplyImmediately:                aws.Bool(true),
+		})
+		return awslib.ConvertIAMError(err)
+	}
+	return trace.BadParameter("no RDS cluster ID or instance ID for %v", db)
+}
+
+type nopDBConfigurator struct{}
+
+// ensureIAMAuth is a no-op.
+func (c *nopDBConfigurator) ensureIAMAuth(context.Context, types.Database) error {
+	return nil
 }

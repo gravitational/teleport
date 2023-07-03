@@ -15,21 +15,21 @@ limitations under the License.
 */
 
 import styled from 'styled-components';
+import { border } from 'styled-system';
 import { Flex, Text } from 'design';
-import defaultTheme from 'design/theme';
 
 /**
  * Header
  */
 const FeatureHeader = styled(Flex)`
   flex-shrink: 0;
-  border-bottom: 1px solid
-    ${props => props.theme.colors.levels.surfaceSecondary};
+  border-bottom: 1px solid ${props => props.theme.colors.spotBackground[0]};
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
   padding-left: 40px;
   padding-right: 40px;
+  ${border}
 `;
 
 FeatureHeader.defaultProps = {
@@ -69,7 +69,6 @@ const FeatureBox = styled(Flex)`
 `;
 
 FeatureBox.defaultProps = {
-  theme: defaultTheme,
   px: 6,
 };
 
@@ -90,7 +89,7 @@ const AppHorizontalSplit = styled.div`
 `;
 
 const TabItem = styled.button`
-  color: ${props => props.theme.colors.text.secondary};
+  color: ${props => props.theme.colors.text.slightlyMuted};
   cursor: pointer;
   display: inline-flex;
   font-size: 14px;
@@ -103,15 +102,15 @@ const TabItem = styled.button`
     background: ${props =>
       props.active
         ? props.theme.colors.levels.surface
-        : 'rgba(255, 255, 255, .06)'};
+        : props.theme.colors.spotBackground[0]};
   }
 
   &.active {
-    color: ${props => props.theme.colors.light};
+    color: ${props => props.theme.colors.text.main};
   }
 
   &.active:after {
-    background-color: ${props => props.theme.colors.brand.accent};
+    background-color: ${props => props.theme.colors.brand};
     content: '';
     position: absolute;
     bottom: 0;

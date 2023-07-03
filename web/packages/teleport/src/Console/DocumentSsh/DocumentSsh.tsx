@@ -15,116 +15,106 @@ limitations under the License.
 */
 
 import React, { useRef, useEffect } from 'react';
+import { useTheme } from 'styled-components';
 
 import { Indicator, Box } from 'design';
 
 import {
   FileTransferActionBar,
   FileTransfer,
+  FileTransferRequests,
   FileTransferContextProvider,
 } from 'shared/components/FileTransfer';
 
 import * as stores from 'teleport/Console/stores';
-import { colors } from 'teleport/Console/colors';
 
 import AuthnDialog from 'teleport/components/AuthnDialog';
 import useWebAuthn from 'teleport/lib/useWebAuthn';
 
 import Document from '../Document';
 
-import Terminal from './Terminal';
+import { Terminal, TerminalRef } from './Terminal';
 import useSshSession from './useSshSession';
-import { getHttpFileTransferHandlers } from './httpFileTransferHandlers';
-import useGetScpUrl from './useGetScpUrl';
+import { useFileTransfer } from './useFileTransfer';
 
-export default function DocumentSsh({ doc, visible }: PropTypes) {
-  const refTerminal = useRef<Terminal>();
-  const { tty, status, closeDocument } = useSshSession(doc);
-  const webauthn = useWebAuthn(tty);
-  const { getScpUrl, attempt: getMfaResponseAttempt } = useGetScpUrl(
-    webauthn.addMfaToScpUrls
+export default function DocumentSshWrapper(props: PropTypes) {
+  return (
+    <FileTransferContextProvider>
+      <DocumentSsh {...props} />
+    </FileTransferContextProvider>
   );
+}
+
+function DocumentSsh({ doc, visible }: PropTypes) {
+  const terminalRef = useRef<TerminalRef>();
+  const { tty, status, closeDocument, session } = useSshSession(doc);
+  const webauthn = useWebAuthn(tty);
+  const {
+    getMfaResponseAttempt,
+    getDownloader,
+    getUploader,
+    fileTransferRequests,
+  } = useFileTransfer(tty, session, doc, webauthn.addMfaToScpUrls);
+  const theme = useTheme();
 
   function handleCloseFileTransfer() {
-    refTerminal.current.terminal.term.focus();
+    terminalRef.current?.focus();
+  }
+
+  function handleFileTransferDecision(requestId: string, approve: boolean) {
+    tty.approveFileTransferRequest(requestId, approve);
   }
 
   useEffect(() => {
-    if (refTerminal?.current) {
-      // when switching tabs or closing tabs, focus on visible terminal
-      refTerminal.current.terminal.term.focus();
-    }
+    // when switching tabs or closing tabs, focus on visible terminal
+    terminalRef.current?.focus();
   }, [visible, webauthn.requested]);
 
   return (
     <Document visible={visible} flexDirection="column">
-      <FileTransferContextProvider>
-        <FileTransferActionBar isConnected={doc.status === 'connected'} />
-        {status === 'loading' && (
-          <Box textAlign="center" m={10}>
-            <Indicator />
-          </Box>
-        )}
-        {webauthn.requested && (
-          <AuthnDialog
-            onContinue={webauthn.authenticate}
-            onCancel={closeDocument}
-            errorText={webauthn.errorText}
-          />
-        )}
-        {status === 'initialized' && <Terminal tty={tty} ref={refTerminal} />}
-        <FileTransfer
-          beforeClose={() =>
-            window.confirm('Are you sure you want to cancel file transfers?')
-          }
-          errorText={
-            getMfaResponseAttempt.status === 'failed'
-              ? getMfaResponseAttempt.statusText
-              : null
-          }
-          afterClose={handleCloseFileTransfer}
-          backgroundColor={colors.levels.surface}
-          transferHandlers={{
-            getDownloader: async (location, abortController) => {
-              const url = await getScpUrl({
-                location,
-                clusterId: doc.clusterId,
-                serverId: doc.serverId,
-                login: doc.login,
-                filename: location,
-              });
-              if (!url) {
-                // if we return nothing here, the file transfer will not be added to the
-                // file transfer list. If we add it to the list, the file will continue to
-                // start the download and return another here. This prevents a second network
-                // request that we know will fail.
-                return;
-              }
-              return getHttpFileTransferHandlers().download(
-                url,
-                abortController
-              );
-            },
-            getUploader: async (location, file, abortController) => {
-              const url = await getScpUrl({
-                location,
-                clusterId: doc.clusterId,
-                serverId: doc.serverId,
-                login: doc.login,
-                filename: file.name,
-              });
-              if (!url) {
-                return;
-              }
-              return getHttpFileTransferHandlers().upload(
-                url,
-                file,
-                abortController
-              );
-            },
-          }}
+      <FileTransferActionBar isConnected={doc.status === 'connected'} />
+      {status === 'loading' && (
+        <Box textAlign="center" m={10}>
+          <Indicator />
+        </Box>
+      )}
+      {webauthn.requested && (
+        <AuthnDialog
+          onContinue={webauthn.authenticate}
+          onCancel={closeDocument}
+          errorText={webauthn.errorText}
         />
-      </FileTransferContextProvider>
+      )}
+      {status === 'initialized' && (
+        <Terminal
+          ref={terminalRef}
+          tty={tty}
+          fontFamily={theme.fonts.mono}
+          theme={theme.colors.terminal}
+        />
+      )}
+      <FileTransfer
+        FileTransferRequestsComponent={
+          <FileTransferRequests
+            onDeny={handleFileTransferDecision}
+            onApprove={handleFileTransferDecision}
+            requests={fileTransferRequests}
+          />
+        }
+        beforeClose={() =>
+          window.confirm('Are you sure you want to cancel file transfers?')
+        }
+        errorText={
+          getMfaResponseAttempt.status === 'failed'
+            ? getMfaResponseAttempt.statusText
+            : null
+        }
+        afterClose={handleCloseFileTransfer}
+        transferHandlers={{
+          getDownloader,
+          getUploader,
+        }}
+      />
     </Document>
   );
 }

@@ -90,31 +90,45 @@ func (forest *Forest) addFile(fileDesc *gogodesc.FileDescriptorProto) *File {
 
 	// Build messages list.
 	for i, msgDesc := range msgs {
-		msgDesc.GetName()
-		flds := msgDesc.GetField()
-		message := Message{
-			index:    i,
-			desc:     msgDesc,
-			parent:   &file,
-			Fields:   make([]*Field, 0, len(flds)),
-			fieldMap: make(map[string]*Field, len(flds)),
-		}
-		for j, fld := range flds {
-			field := Field{
-				index:  j,
-				parent: &message,
-				desc:   fld,
-			}
-			message.Fields = append(message.Fields, &field)
-			message.fieldMap[field.Name()] = &field
-		}
-		file.Messages[i] = &message
-		file.messageMap[msgDesc] = &message
-		file.messageByName[message.Name()] = &message
-		forest.messageMap[msgDesc] = &message
+		message := forest.addMessageFromDesc(msgDesc, i, &file, nil)
+		file.Messages[i] = message
+		file.messageMap[msgDesc] = message
+		file.messageByName[message.Name()] = message
 	}
 
 	return &file
+}
+
+// addMessageFromDesc generates a message from a gogodesc.DescriptorProto and registers the message into the forest messageMap.
+// This function will recursively register all nested messages if any, but only returns the root message.
+func (forest *Forest) addMessageFromDesc(msgDesc *gogodesc.DescriptorProto, index int, file *File, parentMsg *Message) *Message {
+	msgDesc.GetName()
+	flds := msgDesc.GetField()
+	message := Message{
+		index:     index,
+		desc:      msgDesc,
+		parent:    file,
+		parentMsg: parentMsg,
+		Fields:    make([]*Field, 0, len(flds)),
+		fieldMap:  make(map[string]*Field, len(flds)),
+	}
+	for j, fld := range flds {
+		field := Field{
+			index:  j,
+			parent: &message,
+			desc:   fld,
+		}
+		message.Fields = append(message.Fields, &field)
+		message.fieldMap[field.Name()] = &field
+	}
+	forest.messageMap[msgDesc] = &message
+
+	for i, nestedType := range msgDesc.GetNestedType() {
+		forest.addMessageFromDesc(nestedType, i, file, &message)
+	}
+
+	return &message
+
 }
 
 func (file File) Forest() *Forest {

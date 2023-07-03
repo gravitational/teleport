@@ -39,6 +39,9 @@ spec:
       {{- if .Values.dnsPolicy }}
       dnsPolicy: {{ .Values.dnsPolicy | quote }}
       {{- end }}
+      {{- if .Values.hostAliases }}
+      hostAliases: {{- toYaml .Values.hostAliases | nindent 8 }}
+      {{- end }}
       securityContext:
         fsGroup: 9807
       {{- if or .Values.affinity (gt (int $replicaCount) 1) }}
@@ -122,6 +125,10 @@ spec:
         imagePullPolicy: {{ toYaml .Values.imagePullPolicy }}
         {{- end }}
         env:
+          # This variable is set for telemetry purposes.
+          # Telemetry is opt-in and controlled at the auth level.
+          - name: TELEPORT_INSTALL_METHOD_HELM_KUBE_AGENT
+            value: "true"
           - name: TELEPORT_REPLICA_NAME
             valueFrom:
               fieldRef:
@@ -132,6 +139,10 @@ spec:
                 fieldPath: metadata.namespace
           - name: RELEASE_NAME
             value: {{ .Release.Name }}
+          {{- if .Values.updater.enabled }}
+          - name: TELEPORT_EXT_UPGRADER
+            value: kube
+          {{- end }}
           {{- if .Values.tls.existingCASecretName }}
           - name: SSL_CERT_FILE
             value: /etc/teleport-tls-ca/ca.pem
@@ -202,7 +213,7 @@ spec:
           name: {{ .Release.Name }}
       - name: "auth-token"
         secret:
-          secretName: {{ .Values.secretName }}
+          secretName: {{ coalesce .Values.secretName .Values.joinTokenSecret.name }}
 {{- if not .Values.storage.enabled }}
       - name: "data"
         emptyDir: {}

@@ -197,3 +197,30 @@ func (w *TrackingWriter) Write(b []byte) (int, error) {
 	atomic.AddUint64(&w.count, uint64(n))
 	return n, trace.Wrap(err)
 }
+
+// ConnWithSrcAddr is a net.Conn wrapper that allows us to specify remote client address
+type ConnWithSrcAddr struct {
+	net.Conn
+	clientSrcAddr net.Addr
+}
+
+// RemoteAddr returns specified client source address
+func (c *ConnWithSrcAddr) RemoteAddr() net.Addr {
+	if c.clientSrcAddr == nil {
+		return c.Conn.RemoteAddr()
+	}
+	return c.clientSrcAddr
+}
+
+// NetConn returns the underlying net.Conn.
+func (c *ConnWithSrcAddr) NetConn() net.Conn {
+	return c.Conn
+}
+
+// NewConnWithSrcAddr wraps provided connection and overrides client remote address
+func NewConnWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *ConnWithSrcAddr {
+	return &ConnWithSrcAddr{
+		Conn:          conn,
+		clientSrcAddr: clientSrcAddr,
+	}
+}

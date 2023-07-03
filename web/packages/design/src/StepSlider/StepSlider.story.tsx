@@ -27,8 +27,8 @@ export default {
 const singleFlow = { default: [Body1, Body2] };
 export const SingleStaticFlow = () => {
   return (
-    <Card bg="levels.surface" my="5" mx="auto" width={464}>
-      <Text typography="h3" pt={5} textAlign="center" color="light">
+    <Card my="5" mx="auto" width={464}>
+      <Text typography="h3" pt={5} textAlign="center" color="text.main">
         Static Title
       </Text>
       <StepSlider<typeof singleFlow>
@@ -61,7 +61,7 @@ export const MultiCardFlow = () => {
   }
 
   return (
-    <Card as="form" bg="levels.surface" mx="auto" width={464}>
+    <Card as="form" mx="auto" width={464}>
       <StepSlider<typeof multiflows>
         flows={multiflows}
         currFlow={flow}
@@ -76,7 +76,7 @@ export const MultiCardFlow = () => {
 function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
   return (
     <Box p="6" ref={refCallback} data-testid="multi-primary1">
-      <Text typography="h2" mb={3} textAlign="center" color="light" bold>
+      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         First Step
       </Text>
       <Text mb={3}>
@@ -111,7 +111,7 @@ function MainStep1({ next, refCallback, changeFlow }: ViewProps) {
 function MainStep2({ next, prev, refCallback }: ViewProps) {
   return (
     <Box p="6" ref={refCallback} data-testid="multi-primary2">
-      <Text typography="h2" mb={3} textAlign="center" color="light" bold>
+      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         Second Step
       </Text>
       <Text mb={3}>
@@ -164,7 +164,7 @@ function MainStep2({ next, prev, refCallback }: ViewProps) {
 function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
   return (
     <Box p="6" ref={refCallback} data-testid="multi-secondary1">
-      <Text typography="h2" mb={3} textAlign="center" color="light" bold>
+      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         Some Other Flow Title
       </Text>
       <Text mb={3}>
@@ -201,7 +201,7 @@ function OtherStep1({ changeFlow, next: onNext, refCallback }: ViewProps) {
 function FinalStep({ prev, refCallback }: ViewProps) {
   return (
     <Box p="6" ref={refCallback} data-testid="multi-final">
-      <Text typography="h2" mb={3} textAlign="center" color="light" bold>
+      <Text typography="h2" mb={3} textAlign="center" color="text.main" bold>
         Done Step
       </Text>
       <Text mb={3}>

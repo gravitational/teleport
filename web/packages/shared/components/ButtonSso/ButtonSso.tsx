@@ -30,7 +30,7 @@ const ButtonSso = (props: Props) => {
     <StyledButton color={color} block {...rest}>
       {Boolean(Icon) && (
         <IconBox>
-          <Icon data-testid="icon" />
+          <Icon data-testid="icon" color="white" />
         </IconBox>
       )}
       {title}
@@ -103,6 +103,7 @@ const StyledButton = styled(Button)`
   display: block;
   width: 100%;
   border: 1px solid transparent;
+  color: white;
 
   &:hover,
   &:focus {

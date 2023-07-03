@@ -1,6 +1,6 @@
 ---
 title: Database Access with Self-Hosted PostgreSQL
-description: How to configure Teleport Database Access with self-hosted PostgreSQL.
+description: How to configure Teleport database access with self-hosted PostgreSQL.
 ---
 
 This guide will help you to:
@@ -26,13 +26,9 @@ This guide will help you to:
   Service.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/5. Set up the Teleport Database Service
+## Step 1/5. Create a Teleport token and user
 
 (!docs/pages/includes/database-access/token.mdx!)
-
-Install Teleport on the host where you will run the Teleport Database Service:
-
-(!docs/pages/includes/install-linux.mdx!)
 
 ### Create a Teleport user
 
@@ -86,99 +82,28 @@ certificate-based Teleport login will fail.
 See [The pg_hba.conf File](https://www.postgresql.org/docs/current/auth-pg-hba-conf.html)
 in the PostgreSQL documentation for more details.
 
-## Step 4/5. Start the Database Service
+## Step 4/5. Configure and Start the Database Service
 
-On the host where you will run the Teleport Database Service, start Teleport
-with the appropriate configuration.
+Install and configure Teleport where you will run the Teleport Database Service:
 
 <Tabs>
-<TabItem label="With CLI flags">
+<TabItem label="Linux Server">
 
-You can start the Teleport Database Service without configuration file using a
-CLI command:
+(!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-$ teleport db start \
-   --token=/tmp/token \
-   --auth-server=teleport.example.com:3080 \
-   --name=test \
-   --protocol=postgres \
-   --uri=postgres.example.com:5432 \
-   --labels=env=dev
-```
-
-Note that the `--auth-server` flag must point to the Teleport cluster's Proxy
-Service endpoint because the Database Service always connects back to the
-cluster over a reverse tunnel.
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ teleport db start \
-   --token=/tmp/token \
-   --auth-server=mytenant.teleport.sh:443 \
-   --name=test \
-   --protocol=postgres \
-   --uri=postgres.example.com:5432 \
-   --labels=env=dev
-```
-
-Note that the `--auth-server` flag must point to your Teleport Cloud tenant
-address.
-
-</ScopedBlock>
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-postgres" dbProtocol="postgres" databaseAddress="postgres.example.com:5432" !)
 
 </TabItem>
-<TabItem label="Using a config file">
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-$ teleport db configure create \
-   -o file \
-   --token=/tmp/token \
-   --proxy=teleport.example.com:3080 \
-   --name=test \
-   --protocol=postgres \
-   --uri=postgres.example.com:5432 \
-   --labels=env=dev
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ teleport db configure create \
-   -o file \
-   --token=/tmp/token \
-   --proxy=mytenant.teleport.sh:443 \
-   --name=test \
-   --protocol=postgres \
-   --uri=postgres.example.com:5432 \
-   --labels=env=dev
-```
-
-</ScopedBlock>
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  A single Teleport process can run multiple different services, for example
-  multiple Database Service agents as well as the SSH Service or Application
-  Service.
-  
-</Admonition>
-
-(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
-
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-postgres" dbProtocol="postgres" databaseAddress="postgres.example.com:5432" !)
 </TabItem>
 </Tabs>
+
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 ## Step 5/5. Connect
 
@@ -188,22 +113,22 @@ databases:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-$ tsh login --proxy=teleport.example.com --user=testuser
+$ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
-# Name    Description        Labels
-# ------- ------------------ --------
-# example Example PostgreSQL env=dev
+# Name             Description        Labels
+# ---------------- ------------------ --------
+# example-postgres Example PostgreSQL env=dev
 ```
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=testuser
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
-# Name    Description        Labels
-# ------- ------------------ --------
-# example Example PostgreSQL env=dev
+# Name             Description        Labels
+# ---------------- ------------------ --------
+# example-postgres Example PostgreSQL env=dev
 ```
 
 </ScopedBlock>
@@ -214,21 +139,25 @@ Note that you will only be able to see databases your role has access to. See
 To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db connect example
+$ tsh db connect example-postgres
 ```
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db connect --db-user=postgres --db-name=postgres example
+$ tsh db connect --db-user=postgres --db-name=postgres example-postgres
 ```
 
 To log out of the database and remove credentials:
 
 ```code
 # Remove credentials for a particular database instance.
-$ tsh db logout example
+$ tsh db logout example-postgres
 # Remove credentials for all database instances.
 $ tsh db logout
 ```
+
+## Next steps
+
+- Set up [automatic database user provisioning](../rbac/configuring-auto-user-provisioning.mdx).

@@ -79,7 +79,7 @@ export function ReAuthenticate({
           <form>
             <DialogHeader style={{ flexDirection: 'column' }}>
               <DialogTitle>Verify your identity</DialogTitle>
-              <Text textAlign="center" color="text.secondary">
+              <Text textAlign="center" color="text.slightlyMuted">
                 You must verify your identity with one of your existing
                 two-factor devices before {actionText}.
               </Text>
@@ -104,6 +104,7 @@ export function ReAuthenticate({
                   mr={3}
                   mb={0}
                   isDisabled={attempt.status === 'processing'}
+                  elevated={true}
                 />
                 <Box width="50%">
                   {mfaOption.value === 'otp' && (

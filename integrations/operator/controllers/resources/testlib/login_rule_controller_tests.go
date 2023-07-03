@@ -30,7 +30,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	resourcesv1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
-	v1 "github.com/gravitational/teleport/integrations/operator/apis/resources/v1"
 )
 
 type loginRuleTestingPrimitives struct {
@@ -68,7 +67,7 @@ func (l *loginRuleTestingPrimitives) CreateTeleportResource(ctx context.Context,
 	return trace.Wrap(err)
 }
 
-func (l *loginRuleTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*v1.LoginRuleResource, error) {
+func (l *loginRuleTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (*resourcesv1.LoginRuleResource, error) {
 	lrClient := l.setup.TeleportClient.LoginRuleClient()
 	loginRule, err := lrClient.GetLoginRule(ctx, &loginrulepb.GetLoginRuleRequest{
 		Name: name,
@@ -85,12 +84,12 @@ func (l *loginRuleTestingPrimitives) DeleteTeleportResource(ctx context.Context,
 }
 
 func (l *loginRuleTestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
-	rule := v1.TeleportLoginRule{
+	rule := resourcesv1.TeleportLoginRule{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: l.setup.Namespace.Name,
 		},
-		Spec: v1.TeleportLoginRuleSpec{
+		Spec: resourcesv1.TeleportLoginRuleSpec{
 			Priority: 1,
 			TraitsMap: map[string][]string{
 				"logins": {"external.logins"},
@@ -102,7 +101,7 @@ func (l *loginRuleTestingPrimitives) CreateKubernetesResource(ctx context.Contex
 }
 
 func (l *loginRuleTestingPrimitives) DeleteKubernetesResource(ctx context.Context, name string) error {
-	rule := v1.TeleportLoginRule{
+	rule := resourcesv1.TeleportLoginRule{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
 			Namespace: l.setup.Namespace.Name,
@@ -111,8 +110,8 @@ func (l *loginRuleTestingPrimitives) DeleteKubernetesResource(ctx context.Contex
 	return trace.Wrap(l.setup.K8sClient.Delete(ctx, &rule))
 }
 
-func (l *loginRuleTestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*v1.TeleportLoginRule, error) {
-	rule := &v1.TeleportLoginRule{}
+func (l *loginRuleTestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv1.TeleportLoginRule, error) {
+	rule := &resourcesv1.TeleportLoginRule{}
 	obj := kclient.ObjectKey{
 		Name:      name,
 		Namespace: l.setup.Namespace.Name,
@@ -130,7 +129,9 @@ func (l *loginRuleTestingPrimitives) ModifyKubernetesResource(ctx context.Contex
 	return trace.Wrap(l.setup.K8sClient.Update(ctx, rule))
 }
 
-func (l *loginRuleTestingPrimitives) CompareTeleportAndKubernetesResource(tResource *v1.LoginRuleResource, kubeResource *v1.TeleportLoginRule) (bool, string) {
+func (l *loginRuleTestingPrimitives) CompareTeleportAndKubernetesResource(
+	tResource *resourcesv1.LoginRuleResource,
+	kubeResource *resourcesv1.TeleportLoginRule) (bool, string) {
 	diff := cmp.Diff(tResource, kubeResource.ToTeleport(),
 		cmpopts.IgnoreUnexported(loginrulepb.LoginRule{}),
 		cmpopts.IgnoreFields(types.Metadata{}, "ID", "Labels"),
@@ -140,15 +141,15 @@ func (l *loginRuleTestingPrimitives) CompareTeleportAndKubernetesResource(tResou
 
 func LoginRuleCreationTest(t *testing.T, clt *client.Client) {
 	test := &loginRuleTestingPrimitives{}
-	ResourceCreationTest[*v1.LoginRuleResource, *v1.TeleportLoginRule](t, test, WithTeleportClient(clt))
+	ResourceCreationTest[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](t, test, WithTeleportClient(clt))
 }
 
 func LoginRuleDeletionDriftTest(t *testing.T, clt *client.Client) {
 	test := &loginRuleTestingPrimitives{}
-	ResourceDeletionDriftTest[*v1.LoginRuleResource, *resourcesv1.TeleportLoginRule](t, test, WithTeleportClient(clt))
+	ResourceDeletionDriftTest[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](t, test, WithTeleportClient(clt))
 }
 
 func LoginRuleUpdateTest(t *testing.T, clt *client.Client) {
 	test := &loginRuleTestingPrimitives{}
-	ResourceUpdateTest[*v1.LoginRuleResource, *resourcesv1.TeleportLoginRule](t, test, WithTeleportClient(clt))
+	ResourceUpdateTest[*resourcesv1.LoginRuleResource, *resourcesv1.TeleportLoginRule](t, test, WithTeleportClient(clt))
 }

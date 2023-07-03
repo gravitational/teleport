@@ -125,9 +125,9 @@ const Dropzone = styled.button`
   justify-content: center;
   width: 100%;
   color: inherit;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   margin-top: ${props => props.theme.space[3]}px;
-  border: 1px dashed rgba(255, 255, 255, 0.1);
+  border: 1px dashed ${props => props.theme.colors.text.muted};
   height: 128px;
   text-align: center;
   cursor: pointer;
@@ -137,6 +137,6 @@ const Dropzone = styled.button`
   font-family: inherit;
 
   :focus {
-    border-color: ${props => props.theme.colors.action.selected};
+    border-color: ${props => props.theme.colors.spotBackground[1]};
   }
 `;

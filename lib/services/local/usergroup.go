@@ -27,7 +27,8 @@ import (
 	"github.com/gravitational/teleport/lib/services/local/generic"
 )
 
-const groupMaxPageSize = 200
+// GroupMaxPageSize is the max page size of the group.
+const GroupMaxPageSize = 200
 
 // UserGroupService manages user groups in the Backend.
 type UserGroupService struct {
@@ -38,7 +39,7 @@ type UserGroupService struct {
 func NewUserGroupService(backend backend.Backend) (*UserGroupService, error) {
 	svc, err := generic.NewService(&generic.ServiceConfig[types.UserGroup]{
 		Backend:       backend,
-		PageLimit:     groupMaxPageSize,
+		PageLimit:     GroupMaxPageSize,
 		ResourceKind:  types.KindUserGroup,
 		BackendPrefix: userGroupPrefix,
 		MarshalFunc:   services.MarshalUserGroup,

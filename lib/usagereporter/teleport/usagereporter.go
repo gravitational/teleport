@@ -27,8 +27,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	prehogv1ac "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha/prehogv1alphaconnect"
@@ -117,11 +119,6 @@ func (t *StreamingUsageReporter) Run(ctx context.Context) {
 }
 
 type SubmitFunc = usagereporter.SubmitFunc[prehogv1a.SubmitEventRequest]
-
-// TODO(espadolini): change the call in e/lib/prehog/prehog.go:InitPreHogUsageReporting
-func NewTeleportUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*StreamingUsageReporter, error) {
-	return NewStreamingUsageReporter(log, clusterName, submitter)
-}
 
 func NewStreamingUsageReporter(log logrus.FieldLogger, clusterName types.ClusterName, submitter SubmitFunc) (*StreamingUsageReporter, error) {
 	if log == nil {
@@ -223,4 +220,25 @@ var _ UsageReporter = DiscardUsageReporter{}
 // AnonymizeAndSubmit implements [UsageReporter]
 func (DiscardUsageReporter) AnonymizeAndSubmit(...Anonymizable) {
 	// do nothing
+}
+
+// EmitEditorChangeEvent emits an editor change event if the editor role was added or removed.
+func EmitEditorChangeEvent(username string, prevRoles, newRoles []string, submit func(...Anonymizable)) {
+	prevEditor := slices.Contains(prevRoles, teleport.PresetEditorRoleName)
+	newEditor := slices.Contains(newRoles, teleport.PresetEditorRoleName)
+
+	// don't emit event if editor role wasn't added/removed
+	if prevEditor == newEditor {
+		return
+	}
+
+	eventType := prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_GRANTED
+	if prevEditor {
+		eventType = prehogv1a.EditorChangeStatus_EDITOR_CHANGE_STATUS_ROLE_REMOVED
+	}
+
+	submit(&EditorChangeEvent{
+		UserName: username,
+		Status:   eventType,
+	})
 }

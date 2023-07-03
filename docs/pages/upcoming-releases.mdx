@@ -1,0 +1,169 @@
+---
+title: Teleport Upcoming Releases
+description: A timeline of upcoming Teleport releases.
+h1: Upcoming Teleport Releases
+---
+
+The Teleport team delivers a new major release roughly every 3 months.
+
+## Teleport
+
+### Teleport 12.3.0
+
+#### (Preview) Automatic user creation for Desktop Access
+
+Teleport's passwordless access for local users will provide the ability to
+create Windows users on demand, similar to how host-user creation works for SSH
+servers.
+
+#### SFTP UX enhancements
+
+Will include fixes for wildcard patterns, excessive audit logging and PyCharm
+compatibility. [#22748](https://github.com/gravitational/teleport/issues/22748)
+[#21518](https://github.com/gravitational/teleport/issues/21518)
+[#22982](https://github.com/gravitational/teleport/issues/22982)
+[#22263](https://github.com/gravitational/teleport/issues/22263)
+[#20863](https://github.com/gravitational/teleport/issues/20863)
+[#23593](https://github.com/gravitational/teleport/issues/23593)
+
+| Version | Date          |
+|---------|---------------|
+| 12.3.0  | May 1st, 2023 |
+
+### Teleport 13.0.0
+
+| Version        | Date             |
+|----------------|------------------|
+| 13.0.0-alpha.1 | April 17th, 2023 |
+| 13.0.0         | May 8th, 2023    |
+
+#### (Preview) Automatic upgrades
+
+Users will be able to configure Teleport agents to upgrade automatically.
+
+#### (Preview) TLS routing through ALB for server access and Kubernetes access
+
+Teleport will support server access and Kubernetes access through load
+balancers in TLS routing mode.
+
+#### (Preview) Ability to import applications and groups from Okta to Application Access
+
+Teleport will be able to imports Okta apps and groups and users will be able to
+use Access Requests with Okta apps and groups.
+
+#### (Preview) AWS OpenSearch support for Database Access
+
+Database access will add support for connecting to AWS OpenSearch.
+
+#### Cross-Cluster Search for Teleport Connect
+
+Teleport Connect will include a new search experience, allowing you to search
+for and connect to resources across all logged-in clusters.
+
+#### Kubernetes access performance improvements
+
+Users will experience better performance when interacting with Kubernetes clusters.
+
+#### Universal binaries (including Apple Silicon) for macOS
+
+Teleport will run natively on ARM Macs, without the need for Rosetta emulation.
+
+#### Simplified RDS onboarding flow in Access Management UI
+
+Teleport Access Management UI will provide ability to connect to AWS account
+and select RDS databases for onboarding.
+
+#### Light theme for Web UI
+
+Teleport's web UI will ship with an optional light theme.
+
+#### Other
+
+In addition, the following improvements
+
+- Improved SQL Server PKINIT Auth support
+- Session recording video export support for Desktop Access
+- Add support for locking to Web UI
+- Device listing in Web UI
+
+### 13.1.0
+
+#### (Preview) GCP Auto-Discovery for Server Access
+
+Teleport will be able to automatically enroll GCP VM for server access.
+
+#### (Preview) OpsGenie Access Request Plugin
+
+Teleport will include OpsGenie access plugin.
+
+*Delayed from Teleport 13.0.0.*
+
+| Version | Date           |
+|---------|----------------|
+| 12.3.0  | June 1st, 2023 |
+
+## Teleport Cloud
+
+The key deliverables for Teleport Cloud in the next quarter:
+
+| Week of          | Description                                          |
+|------------------|------------------------------------------------------|
+| April 10th, 2023 | Teleport 12.2 begins to roll out for Cloud customers |
+| May 8th, 2023    | Add support for hosted Access Request plugins        |
+| June 5th, 2023   | Teleport 13.1 begins to roll out for Cloud customers |
+| June 5th, 2023   | Advanced Audit Log rollout begins                    |
+
+## Production readiness
+
+Teleport follows [semantic versioning](https://semver.org) for pre-releases and
+releases.
+
+### Pre-releases
+
+Pre-releases of Teleport (versions with suffixes like `-alpha`, `-beta`, `-rc`)
+should not be run in production environments.
+
+Pre-releases of Teleport are great for testing new features, breaking changes,
+and backwards incompatibility issues either in development or staging
+environments.
+
+### Major Releases
+
+Major releases look like `(=teleport.major_version=).0.0`.
+
+Major releases of Teleport contain many large new features and may contain
+breaking changes.
+
+Due to the scope and quantity of changes in a major release, we encourage
+deploying to staging first to verify your usage pattern has not changed.
+
+### Minor Releases
+
+Minor releases look like `(=teleport.major_version=).X.0`.
+
+Minor releases of Teleport typically contain smaller features and improvements.
+Minor releases can typically be deployed directly to production.
+
+Most customers upgrade to the next major version of Teleport during the first
+minor release, such as (=teleport.major_version=).1.0.
+
+### Patch Releases
+
+Patch releases contain small bug fixes and can typically be deployed directly
+to production.
+
+## Preview Policy
+
+A product or feature may be marked as "Preview" if any of the following is
+true.
+
+- The product or feature is missing key functionality. For example, Microsoft
+  SQL Server support for database access initially shipped without audit
+  logging support.
+- The product or feature has NOT been adopted by at least 2 existing customers.
+- The product or feature has NOT been through a security audit.
+- The documentation for the product or feature is incomplete.
+- Assets (e.g. binaries) associated with the feature are not published to our
+  official downloads page.
+
+Use preview features in production if the above issues are not a concern.

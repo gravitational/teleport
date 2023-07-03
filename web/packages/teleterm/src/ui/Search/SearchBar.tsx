@@ -17,7 +17,6 @@
 import React, { useRef, useEffect } from 'react';
 import styled from 'styled-components';
 import { Box, Flex } from 'design';
-import { space, width, color, height } from 'styled-system';
 
 import {
   SearchContextProvider,
@@ -31,8 +30,7 @@ import {
 
 import { useAppContext } from '../appContextProvider';
 
-const OPEN_COMMAND_BAR_SHORTCUT_ACTION: KeyboardShortcutAction =
-  'openCommandBar';
+const OPEN_SEARCH_BAR_SHORTCUT_ACTION: KeyboardShortcutAction = 'openSearchBar';
 
 export function SearchBarConnected() {
   const { workspacesService } = useAppContext();
@@ -55,36 +53,71 @@ function SearchBar() {
   const {
     activePicker,
     inputValue,
-    onInputValueChange,
+    setInputValue,
     inputRef,
-    opened,
+    isOpen,
     open,
     close,
+    closeWithoutRestoringFocus,
+    addWindowEventListener,
+    makeEventListener,
   } = useSearchContext();
   const ctx = useAppContext();
   ctx.clustersService.useState();
 
   useKeyboardShortcuts({
-    [OPEN_COMMAND_BAR_SHORTCUT_ACTION]: () => {
+    [OPEN_SEARCH_BAR_SHORTCUT_ACTION]: () => {
       open();
     },
   });
 
+  // Handle outside click when the search bar is open.
   useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
     const onClickOutside = e => {
       if (!e.composedPath().includes(containerRef.current)) {
         close();
       }
     };
-    if (opened) {
-      window.addEventListener('click', onClickOutside);
-      return () => window.removeEventListener('click', onClickOutside);
-    }
-  }, [close, opened]);
 
-  function handleOnFocus(e: React.FocusEvent) {
-    open(e.relatedTarget);
-  }
+    const { cleanup } = addWindowEventListener('click', onClickOutside, {
+      capture: true,
+    });
+    return cleanup;
+  }, [close, isOpen, addWindowEventListener]);
+
+  // closeIfAnotherElementReceivedFocus handles a scenario where the focus shifts from the search
+  // input to another element on page. It does nothing if there's no other element that receives
+  // focus, i.e. the user clicks on an unfocusable element (for example, the empty space between the
+  // search bar and the profile selector).
+  //
+  // If that element is present though, onBlur takes precedence over onClickOutside. For example,
+  // clicking on a button outside of the search bar will trigger onBlur and will not trigger
+  // onClickOutside.
+  const closeIfAnotherElementReceivedFocus = makeEventListener(
+    (event: FocusEvent) => {
+      const elementReceivingFocus = event.relatedTarget;
+
+      if (!(elementReceivingFocus instanceof Node)) {
+        // event.relatedTarget might be undefined if the user clicked on an element that is not
+        // focusable. The element might or might not be inside the search bar, however we have no way
+        // of knowing that. Instead of closing the search bar, we defer this responsibility to the
+        // onClickOutside handler and return early.
+        //
+        return;
+      }
+
+      const isElementReceivingFocusOutsideOfSearchBar =
+        !containerRef.current.contains(elementReceivingFocus);
+
+      if (isElementReceivingFocusOutsideOfSearchBar) {
+        closeWithoutRestoringFocus(); // without restoring focus
+      }
+    }
+  );
 
   const defaultInputProps = {
     ref: inputRef,
@@ -92,8 +125,12 @@ function SearchBar() {
     placeholder: activePicker.placeholder,
     value: inputValue,
     onChange: e => {
-      onInputValueChange(e.target.value);
+      setInputValue(e.target.value);
     },
+    onFocus: (e: React.FocusEvent) => {
+      open(e.relatedTarget);
+    },
+    onBlur: closeIfAnotherElementReceivedFocus,
     spellCheck: false,
   };
 
@@ -105,25 +142,39 @@ function SearchBar() {
         flex-shrink: 1;
         min-width: calc(${props => props.theme.space[7]}px * 2);
         height: 100%;
-        background: ${props => props.theme.colors.levels.surface};
-        border: 1px ${props => props.theme.colors.action.disabledBackground}
-          solid;
+        border: 1px ${props => props.theme.colors.buttons.border.border} solid;
+        border-radius: ${props => props.theme.radii[2]}px;
+
+        &:hover {
+          background: ${props => props.theme.colors.spotBackground[0]};
+        }
       `}
       justifyContent="center"
       ref={containerRef}
-      onFocus={handleOnFocus}
     >
-      {!opened && (
-        <>
-          <Input {...defaultInputProps} />
-          <Shortcut>
-            {getAccelerator(OPEN_COMMAND_BAR_SHORTCUT_ACTION)}
-          </Shortcut>
-        </>
+      {!isOpen && (
+        <Flex alignItems="center" flex={1}>
+          <Input
+            {...defaultInputProps}
+            // Adds `text-overflow: ellipsis` only to the closed state.
+            // Generally, ellipsis does not work when the input is focused.
+            // This causes flickering when an item is selected by clicking -
+            // the input loses focus, the ellipsis activates for a moment,
+            // and after a fraction of a second is removed when the input receives focus back.
+            css={`
+              text-overflow: ellipsis;
+            `}
+          />
+          <Shortcut>{getAccelerator(OPEN_SEARCH_BAR_SHORTCUT_ACTION)}</Shortcut>
+        </Flex>
       )}
-      {opened && (
+      {isOpen && (
         <activePicker.picker
-          // autofocusing cannot be done in `open` function as it would focus the input from closed state
+          // When the search bar transitions from closed to open state, `inputRef.current` within
+          // the `open` function refers to the input element from when the search bar was closed.
+          //
+          // Thus, calling `focus()` on it would have no effect. Instead, we add `autoFocus` on the
+          // input when the search bar is open.
           input={<Input {...defaultInputProps} autoFocus={true} />}
         />
       )}
@@ -131,42 +182,28 @@ function SearchBar() {
   );
 }
 
-const Input = styled.input(props => {
-  const { theme } = props;
-  return {
-    height: '100%',
-    background: theme.colors.levels.sunkenSecondary,
-    boxSizing: 'border-box',
-    color: theme.colors.text.primary,
-    width: '100%',
-    outline: 'none',
-    border: 'none',
-    padding: `${theme.space[1]}px ${theme.space[2]}px`,
-    '&:hover, &:focus': {
-      color: theme.colors.text.contrast,
-      background: theme.colors.levels.surface,
+const Input = styled.input`
+  height: 38px;
+  width: 100%;
+  min-width: calc(${props => props.theme.space[9]}px * 2);
+  background: transparent;
+  color: inherit;
+  box-sizing: border-box;
+  outline: none;
+  border: none;
+  font-size: 14px;
+  border-radius: ${props => props.theme.radii[2]}px;
+  padding-inline: ${props => props.theme.space[2]}px;
 
-      opacity: 1,
-    },
-    '::placeholder': {
-      color: theme.colors.text.secondary,
-    },
+  ::placeholder {
+    color: ${props => props.theme.colors.text.slightlyMuted};
+  }
+`;
 
-    ...space(props),
-    ...width(props),
-    ...height(props),
-    ...color(props),
-  };
-});
-
-const Shortcut = styled(Box).attrs({ p: 1 })`
-  position: absolute;
-  right: ${props => props.theme.space[2]}px;
-  top: 50%;
-  transform: translate(0, -50%);
-  color: ${({ theme }) => theme.colors.text.secondary};
-  background-color: ${({ theme }) => theme.colors.levels.surface};
+const Shortcut = styled(Box).attrs({ p: 1, mr: 2 })`
+  color: ${({ theme }) => theme.colors.text.slightlyMuted};
+  background-color: ${({ theme }) => theme.colors.spotBackground[0]};
   line-height: 12px;
   font-size: 12px;
-  border-radius: 2px;
+  border-radius: ${props => props.theme.radii[2]}px;
 `;

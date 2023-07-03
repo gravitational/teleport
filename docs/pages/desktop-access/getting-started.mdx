@@ -33,7 +33,7 @@ an [Active Directory domain](./active-directory.mdx).
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-- A Linux server to run the Teleport Desktop Access service on.
+- A Linux server to run the Teleport Desktop Service on.
   You can reuse an existing server running any other Teleport instance.
 - A server or virtual machine running a Windows operating system with
   Remote Desktop enabled and the RDP port available to the Linux server.
@@ -46,18 +46,19 @@ to your Windows system, and prepare it for passwordless access through Teleport.
 
 ### Import the Teleport root certificate
 
-Export the Teleport user certificate authority by running the following from your Windows system:
+Export the Teleport user certificate authority by running the following from
+`cmd.exe` on your Windows system:
 
 ```code
-$ curl 'https://teleport-proxy.example.com:443/webapi/auth/export?type=windows' > teleport.cer
+$ curl -o teleport.cer https://teleport-proxy.example.com/webapi/auth/export?type=windows
 ```
 
 ### Install the Teleport service for Windows
 
 From the Windows system, download the [Teleport Windows Auth
-Setup](https://github.com/gravitational/teleport/releases/tag/v12.1.1-passwordless-windows).
-Extract the `.exe` file from the archive and run it. When prompted, select the
-Teleport certificate file from the previous step. Once complete, reboot the system.
+Setup](https://cdn.teleport.dev/teleport-windows-auth-setup-v(=teleport.version=)-amd64.exe).
+Run the installer. When prompted, select the Teleport certificate file from the previous step.
+Once complete, reboot the system.
 
 <Admonition type="tip" title="Headless Installation">
 The Teleport Windows Auth Setup can be run in a shell environment with elevated
@@ -92,7 +93,7 @@ Copy the token to the Linux host where you will run the Desktop service as `/tmp
 
 (!docs/pages/includes/install-linux.mdx!)
 
-Create `/etc/teleport.yaml` and configure it for Desktop Access. Update the `proxy_server`
+Create `/etc/teleport.yaml` and configure it for desktop access. Update the `proxy_server`
 value to your Teleport proxy service or cloud tenant, and put the Windows machine address
 under `non_ad_hosts`:
 
@@ -195,6 +196,6 @@ You can now connect to your Windows desktops from the Teleport Web UI:
 ## Next Steps
 
 - See the [RBAC page](./rbac.mdx) for more information about setting up
-Windows Desktop Access permissions.
+Windows desktop access permissions.
 - See the [Access Controls Getting Started](../access-controls/getting-started.mdx#step-13-add-local-users-with-preset-roles)
 guide for instructions on how to create or update a user with a given role.

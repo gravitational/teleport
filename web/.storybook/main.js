@@ -38,6 +38,7 @@ module.exports = {
   typescript: {
     reactDocgen: false,
   },
+  addons: ['@storybook/addon-toolbars'],
   stories,
   webpackFinal: async (storybookConfig, { configType }) => {
     // configType has a value of 'DEVELOPMENT' or 'PRODUCTION'

@@ -32,6 +32,8 @@ import (
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/cache"
+	kclient "sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	"github.com/gravitational/teleport/integrations/kube-agent-updater/pkg/controller"
@@ -70,7 +72,7 @@ func main() {
 	flag.DurationVar(&syncPeriod, "sync-period", 10*time.Hour, "Operator sync period (format: https://pkg.go.dev/time#ParseDuration)")
 	flag.BoolVar(&insecureNoVerify, "insecure-no-verify-image", false, "Disable image signature verification.")
 	flag.BoolVar(&disableLeaderElection, "disable-leader-election", false, "Disable leader election, used when running the kube-agent-updater outside of Kubernetes.")
-	flag.StringVar(&versionServer, "version-server", "https://update.gravitational.io/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
+	flag.StringVar(&versionServer, "version-server", "https://updates.releases.teleport.dev/v1/", "URL of the HTTP server advertising target version and critical maintenances. Trailing slash is optional.")
 	flag.StringVar(&versionChannel, "version-channel", "cloud/stable", "Version channel to get updates from.")
 	flag.StringVar(&baseImageName, "base-image", "public.ecr.aws/gravitational/teleport", "Image reference containing registry and repository.")
 
@@ -84,30 +86,27 @@ func main() {
 
 	if agentName == "" {
 		ctrl.Log.Error(trace.BadParameter("--agent-name empty"), "agent-name must be provided")
+		os.Exit(1)
 	}
 	if agentNamespace == "" {
 		ctrl.Log.Error(trace.BadParameter("--agent-namespace empty"), "agent-namespace must be provided")
+		os.Exit(1)
 	}
 
 	mgr, err := ctrl.NewManager(ctrl.GetConfigOrDie(), ctrl.Options{
 		Scheme:                 scheme,
 		MetricsBindAddress:     metricsAddr,
-		Port:                   9443,
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         !disableLeaderElection,
 		LeaderElectionID:       agentName,
-		Namespace:              agentNamespace,
-		SyncPeriod:             &syncPeriod,
-		NewCache: cache.BuilderWithOptions(cache.Options{
-			SelectorsByObject: cache.SelectorsByObject{
-				&appsv1.Deployment{}: {
-					Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName}),
-				},
-				&appsv1.StatefulSet{}: {
-					Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName}),
-				},
+		Cache: cache.Options{
+			Namespaces: []string{agentNamespace},
+			SyncPeriod: &syncPeriod,
+			ByObject: map[kclient.Object]cache.ByObject{
+				&appsv1.Deployment{}:  {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
+				&appsv1.StatefulSet{}: {Field: fields.SelectorFromSet(fields.Set{"metadata.name": agentName})},
 			},
-		}),
+		},
 	})
 	if err != nil {
 		ctrl.Log.Error(err, "failed to create new manager, exiting")
@@ -167,6 +166,15 @@ func main() {
 
 	if err := statefulsetController.SetupWithManager(mgr); err != nil {
 		ctrl.Log.Error(err, "failed to setup statefulset controller, exiting")
+		os.Exit(1)
+	}
+
+	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
+		ctrl.Log.Error(err, "unable to set up health check")
+		os.Exit(1)
+	}
+	if err := mgr.AddReadyzCheck("readyz", healthz.Ping); err != nil {
+		ctrl.Log.Error(err, "unable to set up ready check")
 		os.Exit(1)
 	}
 

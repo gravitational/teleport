@@ -187,11 +187,6 @@ func extractKubeCreds(ctx context.Context, cluster string, clientCfg *rest.Confi
 // newDirectTransports creates a new http.Transport that will be used to connect to the Kubernetes API server.
 // It is a direct connection, not going through a proxy.
 func newDirectTransports(tlsConfig *tls.Config, transportConfig *transport.Config) (httpTransport, error) {
-	h1Transport, err := wrapTransport(newH1Transport(tlsConfig, nil), transportConfig)
-	if err != nil {
-		return httpTransport{}, trace.Wrap(err)
-	}
-
 	h2HTTPTransport, err := newH2Transport(tlsConfig, nil)
 	if err != nil {
 		return httpTransport{}, trace.Wrap(err)
@@ -202,8 +197,7 @@ func newDirectTransports(tlsConfig *tls.Config, transportConfig *transport.Confi
 	}
 
 	return httpTransport{
-		h1Transport: h1Transport,
-		h2Transport: h2Transport,
+		transport: h2Transport,
 	}, nil
 }
 

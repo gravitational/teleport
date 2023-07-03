@@ -277,7 +277,7 @@ func TestHeartbeatAnnounce(t *testing.T) {
 			require.Equal(t, hb.state, HeartbeatStateAnnounceWait)
 
 			// advance time, and heartbeat will move to announce
-			clock.Advance(hb.AnnouncePeriod * time.Second)
+			clock.Advance(hb.AnnouncePeriod + time.Second)
 			err = hb.fetch()
 			require.NoError(t, err)
 			require.Equal(t, hb.state, HeartbeatStateAnnounce)
@@ -353,12 +353,12 @@ func (f *fakeAnnouncer) UpsertNode(ctx context.Context, s types.Server) (*types.
 	return &types.KeepAlive{}, nil
 }
 
-func (f *fakeAnnouncer) UpsertProxy(s types.Server) error {
+func (f *fakeAnnouncer) UpsertProxy(ctx context.Context, s types.Server) error {
 	f.upsertCalls[HeartbeatModeProxy]++
 	return f.err
 }
 
-func (f *fakeAnnouncer) UpsertAuthServer(s types.Server) error {
+func (f *fakeAnnouncer) UpsertAuthServer(ctx context.Context, s types.Server) error {
 	f.upsertCalls[HeartbeatModeAuth]++
 	return f.err
 }

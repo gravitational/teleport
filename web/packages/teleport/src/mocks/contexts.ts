@@ -36,7 +36,7 @@ export const fullAccess: Access = {
   remove: true,
 };
 
-const allAccessAcl: Acl = {
+export const allAccessAcl: Acl = {
   tokens: fullAccess,
   appServers: fullAccess,
   kubeServers: fullAccess,
@@ -60,7 +60,11 @@ const allAccessAcl: Acl = {
   license: fullAccess,
   download: fullAccess,
   plugins: fullAccess,
+  integrations: { ...fullAccess, use: true },
   deviceTrust: fullAccess,
+  lock: fullAccess,
+  assist: fullAccess,
+  samlIdpServiceProvider: fullAccess,
 };
 
 export function getAcl(cfg?: { noAccess: boolean }) {
@@ -70,7 +74,7 @@ export function getAcl(cfg?: { noAccess: boolean }) {
   return makeAcl(allAccessAcl);
 }
 
-const baseContext = {
+export const baseContext = {
   authType: 'local',
   userName: 'llama',
   accessCapabilities: {
@@ -83,7 +87,8 @@ const baseContext = {
     lastConnected: '2020-09-26T17:30:23.512876876Z',
     status: 'online',
     nodeCount: 1,
-    publicURL: 'localhost',
+    publicURL:
+      'some-long-cluster-public-url-name.cloud.teleport.gravitational.io:1234',
     authVersion: '4.4.0-dev',
     proxyVersion: '4.4.0-dev',
   },

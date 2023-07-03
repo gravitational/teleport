@@ -177,8 +177,12 @@ func newProxySubsys(ctx *srv.ServerContext, srv *Server, req proxySubsysRequest)
 		req.clusterName = ctx.Identity.RouteToCluster
 	}
 	if req.clusterName != "" && srv.proxyTun != nil {
-		_, err := srv.tunnelWithAccessChecker(ctx).GetSite(req.clusterName)
+		checker, err := srv.tunnelWithAccessChecker(ctx)
 		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if _, err := checker.GetSite(req.clusterName); err != nil {
 			return nil, trace.BadParameter("invalid format for proxy request: unknown cluster %q", req.clusterName)
 		}
 	}
@@ -259,14 +263,14 @@ func (t *proxySubsys) proxyToSite(ctx context.Context, ch ssh.Channel, clusterNa
 func (t *proxySubsys) proxyToHost(ctx context.Context, ch ssh.Channel, clientSrcAddr, clientDstAddr net.Addr) error {
 	t.log.Debugf("proxy connecting to host=%v port=%v, exact port=%v", t.host, t.port, t.SpecifiedPort())
 
-	aGetter := t.ctx.StartAgentChannel
-
-	client, err := t.router.GetSiteClient(ctx, t.clusterName)
+	authClient, err := t.router.GetSiteClient(ctx, t.localCluster)
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	identity := t.ctx.Identity
 
-	signer := agentless.SignerFromSSHCertificate(t.ctx.Identity.Certificate, client)
+	signer := agentless.SignerFromSSHCertificate(identity.Certificate, authClient, t.clusterName, identity.TeleportUser)
+	aGetter := t.ctx.StartAgentChannel
 	conn, teleportVersion, err := t.router.DialHost(ctx, clientSrcAddr, clientDstAddr, t.host, t.port, t.clusterName, t.ctx.Identity.AccessChecker, aGetter, signer)
 	if err != nil {
 		return trace.Wrap(err)

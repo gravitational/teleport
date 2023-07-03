@@ -38,6 +38,7 @@ import (
 	"github.com/jackc/pgconn"
 	"github.com/jonboulle/clockwork"
 	mssql "github.com/microsoft/go-mssqldb"
+	opensearchclt "github.com/opensearch-project/opensearch-go/v2"
 	"github.com/stretchr/testify/require"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/mongo"
@@ -60,7 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -71,6 +72,7 @@ import (
 	"github.com/gravitational/teleport/lib/srv/db/elasticsearch"
 	"github.com/gravitational/teleport/lib/srv/db/mongodb"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
+	"github.com/gravitational/teleport/lib/srv/db/opensearch"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
 	"github.com/gravitational/teleport/lib/srv/db/redis"
 	"github.com/gravitational/teleport/lib/srv/db/secrets"
@@ -86,6 +88,7 @@ func TestMain(m *testing.M) {
 	native.PrecomputeTestKeys(m)
 	registerTestSnowflakeEngine()
 	registerTestElasticsearchEngine()
+	registerTestOpenSearchEngine()
 	registerTestSQLServerEngine()
 	registerTestDynamoDBEngine()
 	os.Exit(m.Run())
@@ -278,13 +281,18 @@ func TestAccessMySQL(t *testing.T) {
 // TestAccessRedis verifies access scenarios to a Redis database based
 // on the configured RBAC rules.
 func TestAccessRedis(t *testing.T) {
-	ctx := context.Background()
-	testCtx := setupTestContext(ctx, t, withSelfHostedRedis("redis"))
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	testCtx := setupTestContext(ctx, t,
+		withSelfHostedRedis("redis"),
+		withAzureRedis("azure-redis", azureRedisToken))
 	go testCtx.startHandlingConnections()
 
 	tests := []struct {
 		// desc is the test case description.
 		desc string
+		// dbService is the name of the database service to connect to.
+		dbService string
 		// user is the Teleport local username the test will use.
 		user string
 		// role is the Teleport role name to create and assign to the user.
@@ -298,6 +306,7 @@ func TestAccessRedis(t *testing.T) {
 	}{
 		{
 			desc:         "has access to all database users",
+			dbService:    "redis",
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{types.Wildcard},
@@ -305,6 +314,7 @@ func TestAccessRedis(t *testing.T) {
 		},
 		{
 			desc:         "has access to nothing",
+			dbService:    "redis",
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{},
@@ -313,6 +323,7 @@ func TestAccessRedis(t *testing.T) {
 		},
 		{
 			desc:         "access allowed to specific user",
+			dbService:    "redis",
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
@@ -320,11 +331,29 @@ func TestAccessRedis(t *testing.T) {
 		},
 		{
 			desc:         "access denied to specific user",
+			dbService:    "redis",
 			user:         "alice",
 			role:         "admin",
 			allowDbUsers: []string{"alice"},
 			dbUser:       "root",
 			err:          "access to db denied",
+		},
+		{
+			desc:         "azure access allowed to default user",
+			dbService:    "azure-redis",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{"default"},
+			dbUser:       "default",
+		},
+		{
+			desc:         "azure access denied to non-default user",
+			dbService:    "azure-redis",
+			user:         "alice",
+			role:         "admin",
+			allowDbUsers: []string{"alice"},
+			dbUser:       "alice",
+			err:          "access denied to non-default db user",
 		},
 	}
 
@@ -333,9 +362,8 @@ func TestAccessRedis(t *testing.T) {
 			// Create user/role with the requested permissions.
 			testCtx.createUserAndRole(ctx, t, test.user, test.role, test.allowDbUsers, []string{types.Wildcard})
 
-			ctx := context.Background()
 			// Try to connect to the database as this user.
-			redisClient, err := testCtx.redisClient(ctx, test.user, "redis", test.dbUser)
+			redisClient, err := testCtx.redisClient(ctx, test.user, test.dbService, test.dbUser)
 			if test.err != "" {
 				require.Error(t, err)
 				require.Contains(t, err.Error(), test.err)
@@ -779,13 +807,15 @@ func TestAccessMongoDB(t *testing.T) {
 		opts []mongodb.TestServerOption
 	}{
 		{
-			name: "new server",
-			opts: []mongodb.TestServerOption{},
+			name: "current server",
+			opts: []mongodb.TestServerOption{
+				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion),
+			},
 		},
 		{
-			name: "old server",
+			name: "mongodb 3.6 server",
 			opts: []mongodb.TestServerOption{
-				mongodb.TestServerWireVersion(wiremessage.OpmsgWireVersion - 1),
+				mongodb.TestServerWireVersion(6),
 			},
 		},
 	}
@@ -1224,7 +1254,7 @@ type testContext struct {
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
 	webListener    *multiplexer.WebListener
-	fakeRemoteSite *reversetunnel.FakeRemoteSite
+	fakeRemoteSite *reversetunnelclient.FakeRemoteSite
 	server         *Server
 	emitter        *eventstest.ChannelEmitter
 	databaseCA     types.CertAuthority
@@ -1244,6 +1274,8 @@ type testContext struct {
 	cassandra map[string]testCassandra
 	// elasticsearch is a collection of Elasticsearch databases the test uses.
 	elasticsearch map[string]testElasticsearch
+	// opensearch is a collection of OpenSearch databases the test uses.
+	opensearch map[string]testOpenSearch
 	// dynamodb is a collection of DynamoDB databases the test uses.
 	dynamodb map[string]testDynamoDB
 	// clock to override clock in tests.
@@ -1309,6 +1341,13 @@ type testElasticsearch struct {
 	// db is the test elasticsearch database server.
 	db *elasticsearch.TestServer
 	// resource is the resource representing this elasticsearch database.
+	resource types.Database
+}
+
+type testOpenSearch struct {
+	// db is the test OpenSearch database server.
+	db *opensearch.TestServer
+	// resource is the resource representing this OpenSearch database.
 	resource types.Database
 }
 
@@ -1744,6 +1783,34 @@ func (c *testContext) elasticsearchClient(ctx context.Context, teleportUser, dbS
 	return db, proxy, nil
 }
 
+// openSearchClient returns an OpenSearch test DB client.
+func (c *testContext) openSearchClient(ctx context.Context, teleportUser, dbService, dbUser string) (*opensearchclt.Client, *alpnproxy.LocalProxy, error) {
+	route := tlsca.RouteToDatabase{
+		ServiceName: dbService,
+		Protocol:    defaults.ProtocolOpenSearch,
+		Username:    dbUser,
+	}
+
+	proxy, err := c.startLocalALPNProxy(ctx, c.webListener.Addr().String(), teleportUser, route)
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	db, err := opensearch.MakeTestClient(ctx, common.TestClientConfig{
+		AuthClient:      c.authClient,
+		AuthServer:      c.authServer,
+		Address:         proxy.GetAddr(),
+		Cluster:         c.clusterName,
+		Username:        teleportUser,
+		RouteToDatabase: route,
+	})
+	if err != nil {
+		return nil, nil, trace.Wrap(err)
+	}
+
+	return db, proxy, nil
+}
+
 // dynamodbClient returns a DynamoDB test client.
 func (c *testContext) dynamodbClient(ctx context.Context, teleportUser, dbService, dbUser string) (*dynamodb.Client, *alpnproxy.LocalProxy, error) {
 	route := tlsca.RouteToDatabase{
@@ -1833,6 +1900,7 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 		sqlServer:     make(map[string]testSQLServer),
 		snowflake:     make(map[string]testSnowflake),
 		elasticsearch: make(map[string]testElasticsearch),
+		opensearch:    make(map[string]testOpenSearch),
 		cassandra:     make(map[string]testCassandra),
 		dynamodb:      make(map[string]testDynamoDB),
 		clock:         clockwork.NewFakeClockAt(time.Now()),
@@ -1922,10 +1990,10 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.fakeRemoteSite = reversetunnel.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
+	testCtx.fakeRemoteSite = reversetunnelclient.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
 	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
-	tunnel := &reversetunnel.FakeServer{
-		Sites: []reversetunnel.RemoteSite{
+	tunnel := &reversetunnelclient.FakeServer{
+		Sites: []reversetunnelclient.RemoteSite{
 			testCtx.fakeRemoteSite,
 		},
 	}
@@ -1984,6 +2052,8 @@ type agentParams struct {
 	NoStart bool
 	// GCPSQL defines the GCP Cloud SQL mock to use for GCP API calls.
 	GCPSQL *mocks.GCPSQLAdminClientMock
+	// ElastiCache defines the AWS ElastiCache mock to use for ElastiCache API calls.
+	ElastiCache *mocks.ElastiCacheMock
 	// OnHeartbeat defines a heartbeat function that generates heartbeat events.
 	OnHeartbeat func(error)
 	// CADownloader defines the CA downloader.
@@ -1991,9 +2061,9 @@ type agentParams struct {
 	// CloudClients is the cloud API clients for database service.
 	CloudClients clients.Clients
 	// AWSMatchers is a list of AWS databases matchers.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2011,6 +2081,9 @@ func (p *agentParams) setDefaults(c *testContext) {
 			},
 		}
 	}
+	if p.ElastiCache == nil {
+		p.ElastiCache = &mocks.ElastiCacheMock{}
+	}
 	if p.CADownloader == nil {
 		p.CADownloader = &fakeDownloader{
 			cert: []byte(fixtures.TLSCACertPEM),
@@ -2023,7 +2096,7 @@ func (p *agentParams) setDefaults(c *testContext) {
 			RDS:                &mocks.RDSMock{},
 			Redshift:           &mocks.RedshiftMock{},
 			RedshiftServerless: &mocks.RedshiftServerlessMock{},
-			ElastiCache:        &mocks.ElastiCacheMock{},
+			ElastiCache:        p.ElastiCache,
 			MemoryDB:           &mocks.MemoryDBMock{},
 			SecretsManager:     secrets.NewMockSecretsManagerClient(secrets.MockSecretsManagerClientConfig{}),
 			IAM:                &mocks.IAMMock{},
@@ -2112,6 +2185,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		CloudClients:             p.CloudClients,
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
+		ShutdownPollPeriod:       100 * time.Millisecond,
 		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
 	})
 	require.NoError(t, err)
@@ -2126,7 +2200,9 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 
 type withDatabaseOption func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database
 
-func withSelfHostedPostgres(name string) withDatabaseOption {
+type databaseOption func(*types.DatabaseV3)
+
+func withSelfHostedPostgres(name string, dbOpts ...databaseOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		postgresServer, err := postgres.NewTestServer(common.TestServerConfig{
 			Name:       name,
@@ -2144,6 +2220,9 @@ func withSelfHostedPostgres(name string) withDatabaseOption {
 			DynamicLabels: dynamicLabels,
 		})
 		require.NoError(t, err)
+		for _, dbOpt := range dbOpts {
+			dbOpt(database)
+		}
 		testCtx.postgres[name] = testPostgres{
 			db:       postgresServer,
 			resource: database,
@@ -2457,6 +2536,40 @@ func withAzureMySQL(name, authUser, authToken string) withDatabaseOption {
 	}
 }
 
+func withAtlasMongo(name, authUser, authSession string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+			AuthUser:   authUser,
+			AuthToken:  authSession,
+		})
+		require.NoError(t, err)
+		go mongoServer.Serve()
+		t.Cleanup(func() { mongoServer.Close() })
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolMongoDB,
+			URI:           net.JoinHostPort("localhost", mongoServer.Port()),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				AccountID: "000000000000",
+			},
+			MongoAtlas: types.MongoAtlas{
+				Name: "test",
+			},
+			CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+		})
+		require.NoError(t, err)
+		testCtx.mongo[name] = testMongoDB{
+			db:       mongoServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
 func withSelfHostedMongo(name string, opts ...mongodb.TestServerOption) withDatabaseOption {
 	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
 		mongoServer, err := mongodb.NewTestServer(common.TestServerConfig{
@@ -2526,6 +2639,43 @@ func withSQLServer(name string) withDatabaseOption {
 		require.NoError(t, err)
 		testCtx.sqlServer[name] = testSQLServer{
 			db:       sqlServer,
+			resource: database,
+		}
+		return database
+	}
+}
+
+func withElastiCacheRedis(name string, token, engineVersion string) withDatabaseOption {
+	return func(t *testing.T, ctx context.Context, testCtx *testContext) types.Database {
+		redisServer, err := redis.NewTestServer(t, common.TestServerConfig{
+			Name:       name,
+			AuthClient: testCtx.authClient,
+		}, redis.TestServerPassword(token))
+		require.NoError(t, err)
+
+		database, err := types.NewDatabaseV3(types.Metadata{
+			Name: name,
+			Labels: map[string]string{
+				"engine-version": engineVersion,
+			},
+		}, types.DatabaseSpecV3{
+			Protocol:      defaults.ProtocolRedis,
+			URI:           fmt.Sprintf("rediss://%s", net.JoinHostPort("localhost", redisServer.Port())),
+			DynamicLabels: dynamicLabels,
+			AWS: types.AWS{
+				Region: "us-west-1",
+				ElastiCache: types.ElastiCache{
+					ReplicationGroupID: "example-cluster",
+				},
+			},
+			// Set CA cert to pass cert validation.
+			TLS: types.DatabaseTLS{
+				CACert: string(testCtx.databaseCA.GetActiveKeys().TLS[0].Cert),
+			},
+		})
+		require.NoError(t, err)
+		testCtx.redis[name] = testRedis{
+			db:       redisServer,
 			resource: database,
 		}
 		return database

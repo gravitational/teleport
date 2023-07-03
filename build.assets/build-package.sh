@@ -26,7 +26,7 @@ while getopts ":t:v:p:a:r:s:b:n" o; do
             ;;
         a)
             a=${OPTARG}
-            if [[ ${a} != "amd64" && ${a} != "x86_64" && ${a} != "386" && ${a} != "i386" && ${a} != "arm" && ${a} != "arm64" ]]; then usage; fi
+            if [[ ${a} != "amd64" && ${a} != "x86_64" && ${a} != "386" && ${a} != "i386" && ${a} != "arm" && ${a} != "arm64" && ${a} != "universal" ]]; then usage; fi
             ;;
         r)
             r=${OPTARG}
@@ -101,16 +101,11 @@ if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
         echo "You must be running on OS X to build .pkg files"
         exit 4
     fi
-    if [[ "${ARCH}" != "" ]]; then
-        echo "arch parameter is ignored when building for OS X"
-        unset ARCH
-    fi
     if [[ "${RUNTIME}" != "" ]]; then
         echo "runtime parameter is ignored when building for OS X"
         unset RUNTIME
     fi
     PLATFORM="darwin"
-    ARCH="amd64"
     if [[ ! $(type pkgbuild) ]]; then
         echo "You need to install pkgbuild"
         echo "Run: xcode-select --install"
@@ -136,6 +131,7 @@ else
     fi
 fi
 
+PACKAGE_ARCH=""
 # handle differences between 'gravitational' arch and system arch
 if [[ "${ARCH}" == "386" || "${ARCH}" == "i386" ]]; then
     TEXT_ARCH="32-bit x86"
@@ -147,6 +143,7 @@ if [[ "${ARCH}" == "386" || "${ARCH}" == "i386" ]]; then
 elif [[ "${ARCH}" == "amd64" || "${ARCH}" == "x86_64" ]]; then
     TEXT_ARCH="64-bit x86"
     TARBALL_ARCH="amd64"
+    PACKAGE_ARCH="amd64"
     DEB_PACKAGE_ARCH="amd64"
     DEB_OUTPUT_ARCH="amd64"
     RPM_PACKAGE_ARCH="x86_64"
@@ -162,10 +159,14 @@ elif [[ "${ARCH}" == "arm" ]]; then
 elif [[ "${ARCH}" == "arm64" ]]; then
     TEXT_ARCH="64-bit ARM"
     TARBALL_ARCH="arm64"
+    PACKAGE_ARCH="arm64"
     DEB_PACKAGE_ARCH="arm64"
     DEB_OUTPUT_ARCH="arm64"
     RPM_PACKAGE_ARCH="aarch64"
     RPM_OUTPUT_ARCH="arm64" # backwards compatibility
+elif [[ "${ARCH}" == "universal" ]]; then
+    TARBALL_ARCH="universal"
+    PACKAGE_ARCH="universal"
 fi
 
 # amd64 RPMs should use CentOS 7 compatible artifacts
@@ -203,13 +204,22 @@ fi
 
 # set file list
 if [[ "${PACKAGE_TYPE}" == "pkg" ]]; then
+    if [[ -z "${PACKAGE_ARCH}" ]]; then
+        echo "Unsupported architecture: ${ARCH}"
+        exit 1
+    fi
+    # No architecture tag on package filename for universal (multi-arch) binaries.
+    ARCH_TAG=""
+    if [[ "${PACKAGE_ARCH}" != "universal" ]]; then
+        ARCH_TAG="-${PACKAGE_ARCH}"
+    fi
     SIGN_PKG="true"
     FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot"
     BUNDLE_ID="${b:-com.gravitational.teleport}"
     if [[ "${TELEPORT_TYPE}" == "ent" ]]; then
-        PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
+        PKG_FILENAME="teleport-ent-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     else
-        PKG_FILENAME="teleport-${TELEPORT_VERSION}.${PACKAGE_TYPE}"
+        PKG_FILENAME="teleport-${TELEPORT_VERSION}${ARCH_TAG}.${PACKAGE_TYPE}"
     fi
 else
     FILE_LIST="${TAR_PATH}/tsh ${TAR_PATH}/tctl ${TAR_PATH}/teleport ${TAR_PATH}/tbot ${TAR_PATH}/examples/systemd/teleport.service"

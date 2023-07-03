@@ -15,6 +15,7 @@ limitations under the License.
 */
 
 import React from 'react';
+import { MemoryRouter } from 'react-router';
 
 import { State } from './useDesktops';
 import { Desktops } from './Desktops';
@@ -26,20 +27,30 @@ export default {
 };
 
 export const Loading = () => (
-  <Desktops {...props} attempt={{ status: 'processing' }} />
+  <MemoryRouter>
+    <Desktops {...props} attempt={{ status: 'processing' }} />
+  </MemoryRouter>
 );
 
-export const Loaded = () => <Desktops {...props} />;
+export const Loaded = () => (
+  <MemoryRouter>
+    <Desktops {...props} />
+  </MemoryRouter>
+);
 
 export const Empty = () => (
-  <Desktops {...props} fetchedData={{ agents: [] }} isSearchEmpty={true} />
+  <MemoryRouter>
+    <Desktops {...props} fetchedData={{ agents: [] }} isSearchEmpty={true} />
+  </MemoryRouter>
 );
 
 export const Failed = () => (
-  <Desktops
-    {...props}
-    attempt={{ status: 'failed', statusText: 'Server Error' }}
-  />
+  <MemoryRouter>
+    <Desktops
+      {...props}
+      attempt={{ status: 'failed', statusText: 'Server Error' }}
+    />
+  </MemoryRouter>
 );
 
 export const props: State = {

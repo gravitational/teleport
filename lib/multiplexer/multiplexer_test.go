@@ -538,8 +538,9 @@ func TestMux(t *testing.T) {
 		defer cancel()
 
 		mux, err := New(Config{
-			Context:  ctx,
-			Listener: listener,
+			Context:                     ctx,
+			Listener:                    listener,
+			EnableExternalProxyProtocol: true,
 		})
 		require.NoError(t, err)
 		go mux.Serve()
@@ -548,20 +549,36 @@ func TestMux(t *testing.T) {
 		// register listener before establishing frontend connection
 		dblistener := mux.DB()
 
-		// Connect to the listener and send Postgres SSLRequest which is what
-		// psql or other Postgres client will do.
-		conn, err := net.Dial("tcp", listener.Addr().String())
-		require.NoError(t, err)
-		defer conn.Close()
+		check := func(t *testing.T, expectedAddr string, proxyLine []byte) {
+			// Connect to the listener and send Postgres SSLRequest which is what
+			// psql or other Postgres client will do.
+			conn, err := net.Dial("tcp", listener.Addr().String())
+			require.NoError(t, err)
+			defer conn.Close()
 
-		frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
-		err = frontend.Send(&pgproto3.SSLRequest{})
-		require.NoError(t, err)
+			_, err = conn.Write(sampleProxyV2Line)
+			require.NoError(t, err)
 
-		// This should not hang indefinitely since we set timeout on the mux context above.
-		conn, err = dblistener.Accept()
-		require.NoError(t, err, "detected Postgres connection")
-		require.Equal(t, ProtoPostgres, conn.(*Conn).Protocol())
+			frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
+			err = frontend.Send(&pgproto3.SSLRequest{})
+			require.NoError(t, err)
+
+			// This should not hang indefinitely since we set timeout on the mux context above.
+			dbConn, err := dblistener.Accept()
+			require.NoError(t, err, "detected Postgres connection")
+			require.Equal(t, ProtoPostgres, dbConn.(*Conn).Protocol())
+			if expectedAddr != "" {
+				require.Equal(t, expectedAddr, dbConn.RemoteAddr().String())
+			}
+		}
+
+		t.Run("without proxy line", func(t *testing.T) {
+			check(t, "", nil)
+		})
+
+		t.Run("with proxy line", func(t *testing.T) {
+			check(t, "127.0.0.1:12345", sampleProxyV2Line)
+		})
 	})
 
 	// WebListener verifies web listener correctly multiplexes connections
@@ -882,6 +899,36 @@ func TestMux(t *testing.T) {
 
 			_, err = utils.RoundtripWithConn(clt)
 			require.Error(t, err)
+		})
+		t.Run("proxy line with non-teleport TLV", func(t *testing.T) {
+			conn, err := net.Dial("tcp", listener4.Addr().String())
+			require.NoError(t, err)
+			defer conn.Close()
+
+			awsProxyLine := ProxyLine{
+				Protocol:    TCP4,
+				Source:      addr1,
+				Destination: addr2,
+				TLVs: []TLV{
+					{
+						Type:  PP2TypeAWS,
+						Value: []byte{0x42, 0x84, 0x42, 0x84},
+					},
+				},
+				IsVerified: false,
+			}
+
+			header, err := awsProxyLine.Bytes()
+			require.NoError(t, err)
+
+			_, err = conn.Write(header)
+			require.NoError(t, err)
+
+			clt := tls.Client(conn, clientConfig(backend4))
+
+			out, err := utils.RoundtripWithConn(clt)
+			require.NoError(t, err)
+			require.Equal(t, addr1.String(), out)
 		})
 	})
 	// Ensures that we can correctly send and verify signed PROXY header

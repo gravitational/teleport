@@ -25,10 +25,12 @@ export function RegisterSuccess({
   redirect,
   resetMode = false,
   username = '',
+  isDashboard,
 }: {
   redirect(): void;
   resetMode: boolean;
   username?: string;
+  isDashboard: boolean;
 }) {
   const actionTxt = resetMode ? 'reset' : 'registration';
 
@@ -63,13 +65,13 @@ export function RegisterSuccess({
       <Flex justifyContent="center" mb={3}>
         <Image src={shieldCheck} width="200px" height="143px" />
       </Flex>
-      <Text fontSize={2} color="text.secondary" mb={4}>
+      <Text fontSize={2} color="text.slightlyMuted" mb={4}>
         Congratulations your {actionTxt} is completed.
         <br />
         Proceed to access your account.
       </Text>
       <ButtonPrimary width="100%" size="large" onClick={handleRedirect}>
-        Go to Dashboard
+        Go to {isDashboard ? 'Dashboard' : 'Cluster'}
       </ButtonPrimary>
     </Card>
   );

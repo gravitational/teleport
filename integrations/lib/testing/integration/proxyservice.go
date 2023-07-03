@@ -20,6 +20,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os/exec"
@@ -151,7 +152,7 @@ func (proxy *ProxyService) Run(ctx context.Context) error {
 		stdout := bufio.NewReader(stdoutPipe)
 		for {
 			line, err := stdout.ReadString('\n')
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			if err := trace.Wrap(err); err != nil {
@@ -187,7 +188,7 @@ func (proxy *ProxyService) Run(ctx context.Context) error {
 		for {
 			n, err := stderr.Read(data)
 			proxy.saveStderr(data[:n])
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return
 			}
 			if err := trace.Wrap(err); err != nil {

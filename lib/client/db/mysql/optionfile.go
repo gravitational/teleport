@@ -17,7 +17,7 @@ limitations under the License.
 package mysql
 
 import (
-	"os/user"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -25,8 +25,13 @@ import (
 	"github.com/gravitational/trace"
 	"gopkg.in/ini.v1"
 
+	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/lib/client/db/profile"
 )
+
+func init() {
+	ini.PrettyFormat = false // Pretty format breaks mysql.
+}
 
 // OptionFile represents MySQL option file.
 //
@@ -40,11 +45,16 @@ type OptionFile struct {
 
 func DefaultConfigPath() (string, error) {
 	// Default location is .my.cnf file in the user's home directory.
-	usr, err := user.Current()
-	if err != nil {
-		return "", trace.ConvertSystemError(err)
+	home, err := os.UserHomeDir()
+	if err != nil || home == "" {
+		usr, err := utils.CurrentUser()
+		if err != nil {
+			return "", trace.ConvertSystemError(err)
+		}
+		home = usr.HomeDir
 	}
-	return filepath.Join(usr.HomeDir, mysqlOptionFile), nil
+
+	return filepath.Join(home, mysqlOptionFile), nil
 }
 
 // Load loads MySQL option file from the default location.
@@ -100,7 +110,6 @@ func (o *OptionFile) Upsert(profile profile.ConnectProfile) error {
 	section.NewKey("ssl-ca", strings.ReplaceAll(profile.CACertPath, `\`, `\\`))
 	section.NewKey("ssl-cert", strings.ReplaceAll(profile.CertPath, `\`, `\\`))
 	section.NewKey("ssl-key", strings.ReplaceAll(profile.KeyPath, `\`, `\\`))
-	ini.PrettyFormat = false
 	return o.iniFile.SaveTo(o.path)
 }
 

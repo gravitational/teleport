@@ -22,11 +22,13 @@ import { State as ResourceState } from 'teleport/components/useResources';
 
 export default function EmptyList({ onCreate }: Props) {
   return (
-    <Card maxWidth="700px" p={6} as={Flex} alignItems="center">
+    <Card maxWidth="700px" p={4} as={Flex} alignItems="center">
       <Icons.Github
         style={{ textAlign: 'center' }}
         fontSize="150px"
-        color="levels.elevated"
+        css={`
+          color: ${props => props.theme.colors.spotBackground[1]};
+        `}
         mr={5}
       />
       <Box>
@@ -42,7 +44,7 @@ export default function EmptyList({ onCreate }: Props) {
           Open Source Teleport supports only GitHub connectors. Please{' '}
           <Text
             as="a"
-            color="light"
+            color="text.main"
             href="https://goteleport.com/docs/setup/admin/github-sso/"
             target="_blank"
           >

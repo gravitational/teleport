@@ -1,6 +1,6 @@
 ---
 authors: Andrey Bulgakov (andrey.bulgakov@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 0114 - Partial cache healthiness
@@ -212,7 +212,7 @@ the client should assume that all requested resources will be included in the ev
 API method would have simply failed.
 
 
-### Generic readGuard[G]
+### Generic readGuard[RD]
 
 Read guard should now make the routing decision based on the resource kind that's being accessed.
 
@@ -226,31 +226,31 @@ Another option suggested in that issue is to leverage generics to make `readGuar
 the requested kind. Here's how that could look:
 
 ```go
-// collectionGetter extends collection interface which can return an appropriate getter interface,
+// collectionReader extends collection interface which can return an appropriate reader interface,
 // e.g. AppGetter, implemented by either cache or API client, depending on the passed in cacheOK.
-// The same instances of genericCollection would satisfy collection and collectionGetter, but can't modify the original interface
+// The same instances of genericCollection would satisfy collection and collectionReader, but can't modify the original interface
 // because we'd still need to have a map[resourceKind]collection and go generics don't support type variance.
-type collectionGetter[G any] interface {
+type collectionReader[RD any] interface {
 	collection
-	getter(cacheOK bool) G
+	getReader(cacheOK bool) RD
 }
 
 // executor gets updated with a new type parameter and a method.
 // e.g., executor[types.Application, services.AppGetter]
-type executor[R types.Resource, G any] interface {
+type executor[R types.Resource, RD any] interface {
    getAll(ctx context.Context, cache *Cache, loadSecrets bool) ([]R, error)
    upsert(ctx context.Context, cache *Cache, value R) error
    deleteAll(ctx context.Context, cache *Cache) error
    delete(ctx context.Context, cache *Cache, resource types.Resource) error
    isSingleton() bool
 
-   // *NEW* getter will return a cached implementation G or one powered by the API client.
+   // *NEW* getReader will return a cached implementation RD or one powered by the API client.
    // cacheOK here indicates health of the specific collection.
-   getter(cache *Cache, cacheOK bool) G
+   getReader(cache *Cache, cacheOK bool) RD
 }
 
-// getter is an example of an implementation of getter in a resource executor
-func (appExecutor) getter(cache *Cache, cacheOK bool) services.AppGetter {
+// getReader is an example of an implementation of getReader in a resource executor
+func (appExecutor) getReader(cache *Cache, cacheOK bool) services.AppGetter {
    if cacheOK {
        return cache.appsCache
    }
@@ -258,28 +258,28 @@ func (appExecutor) getter(cache *Cache, cacheOK bool) services.AppGetter {
 }
 
 
-// genericCollection also gets a new type parameter for the getter type and an extra method to satisfy collectionGetter
-type genericCollection[R types.Resource, G any, E executor[R, G]] struct {
+// genericCollection also gets a new type parameter for the reader type and an extra method to satisfy collectionReader
+type genericCollection[R types.Resource, RD any, E executor[R, RD]] struct {
    cache *Cache
    watch types.WatchKind
    exec  E
 }
 
-// getter is a simple method that satisfies collectionGetter and delegates the decision to the executor.
-func (c *genericCollection[_, G, _]) getter(cacheOK bool) G {
-    return c.exec.getter(c.cache, cacheOK)
+// getReader is a simple method that satisfies collectionReader and delegates the decision to the executor.
+func (c *genericCollection[_, RD, _]) getReader(cacheOK bool) RD {
+    return c.exec.getReader(c.cache, cacheOK)
 }
 
 // readCache is a replacement of (*Cache).read(). It has to become a package function because Go doesn't support
-// generic methods with new type variables. collectionGetter[G] provides watchKind() for routing decisions and the getter
-// type G for constructing a generic readGuard[G].
-// The value of cacheOK passed to collection.getter() will depend on both overall cache health and whether
+// generic methods with new type variables. collectionReader[RD] provides watchKind() for routing decisions and the reader
+// type RD for constructing a generic readGuard[RD].
+// The value of cacheOK passed to collection.getReader() will depend on both overall cache health and whether
 // the resource kind was confirmed during the initialization.  
-func readCache[G any](cache *Cache, collection collectionGetter[G]) (readGuard[G], error) { ... }
+func readCache[RD any](cache *Cache, collection collectionReader[RD]) (readGuard[RD], error) { ... }
 
 // readGuard now has only one generic field instead of listing all possible services.  
-type readGuard[G any] struct {
-   getter   G
+type readGuard[RD any] struct {
+   reader   RD
    release  func()
    released bool
 }
@@ -289,11 +289,11 @@ type readGuard[G any] struct {
 type cacheCollections struct {
     // byKind is the former c.collections map
    byKind       map[resourceKind]collection
-   // apps is a typed collectionGetter reference that can be passed to readCache()
-   apps         collectionGetter[services.AppGetter]
+   // apps is a typed collectionReader reference that can be passed to readCache()
+   apps         collectionReader[services.AppGetter]
    // kubeClusters is another one
-   kubeClusters collectionGetter[services.KubernetesGetter]
-   // ... long list of other typed collectionGetters ...
+   kubeClusters collectionReader[services.KubernetesGetter]
+   // ... long list of other typed collectionReaders ...
 }
 
 // GetApps is finally an example of how all of this would work together
@@ -303,7 +303,7 @@ func (c *Cache) GetApps(ctx context.Context) ([]types.Application, error) {
        return nil, trace.Wrap(err)
    }
    defer rg.Release()
-   return rg.getter.GetApps(ctx)
+   return rg.reader.GetApps(ctx)
 }
 ```
 

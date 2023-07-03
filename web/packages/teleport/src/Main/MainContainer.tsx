@@ -22,7 +22,6 @@ import styled from 'styled-components';
 // odd issues around the MainContainer component being available at certain
 // times.
 export const MainContainer = styled.div`
-  width: 100%;
   display: flex;
   flex: 1;
   min-height: 0;

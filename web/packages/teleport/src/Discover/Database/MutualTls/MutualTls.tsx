@@ -69,6 +69,7 @@ export function MutualTlsView({
           <Flex minHeight="195px" mt={3}>
             <TextEditor
               readOnly={true}
+              bg="levels.deep"
               data={[{ content: dbCU, type: 'yaml' }]}
             />
           </Flex>
@@ -290,7 +291,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 20px;
 `;

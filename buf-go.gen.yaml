@@ -1,16 +1,24 @@
 version: v1
 plugins:
   - name: go
+    strategy: all
     path:
       - go
       - run
       - google.golang.org/protobuf/cmd/protoc-gen-go
     out: .
-    opt: module=github.com/gravitational/teleport
+    opt:
+      - module=github.com/gravitational/teleport
+      # needed by teleport/lib/teleterm/v1/usage_events.proto
+      - Mprehog/v1alpha/connect.proto=github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha
   - name: go-grpc
+    strategy: all
     path:
       - go
       - run
       - google.golang.org/grpc/cmd/protoc-gen-go-grpc
     out: .
-    opt: module=github.com/gravitational/teleport
+    opt:
+      - module=github.com/gravitational/teleport
+      # needed by teleport/lib/teleterm/v1/usage_events.proto
+      - Mprehog/v1alpha/connect.proto=github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha;prehogv1alpha

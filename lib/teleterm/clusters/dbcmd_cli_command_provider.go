@@ -15,8 +15,7 @@
 package clusters
 
 import (
-	"fmt"
-	"strings"
+	"os/exec"
 
 	"github.com/gravitational/trace"
 
@@ -43,10 +42,10 @@ func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Exece
 	}
 }
 
-func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, error) {
+func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (*exec.Cmd, error) {
 	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI())
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
 	routeToDb := tlsca.RouteToDatabase{
@@ -56,7 +55,7 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 		Database:    gateway.TargetSubresourceName(),
 	}
 
-	cmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, &routeToDb,
+	cmd, err := dbcmd.NewCmdBuilder(cluster.clusterClient, &cluster.status, routeToDb,
 		// TODO(ravicious): Pass the root cluster name here. cluster.Name returns leaf name for leaf
 		// clusters.
 		//
@@ -70,12 +69,10 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway *gateway.Gateway) (string, e
 		dbcmd.WithPrintFormat(),
 		dbcmd.WithTolerateMissingCLIClient(),
 		dbcmd.WithExecer(d.execer),
-	).GetConnectCommandNoAbsPath()
+	).GetConnectCommand()
 	if err != nil {
-		return "", trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	cmdString := strings.TrimSpace(fmt.Sprintf("%s %s", strings.Join(cmd.Env, " "), cmd.String()))
-
-	return cmdString, nil
+	return cmd, nil
 }

@@ -40,13 +40,16 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/auth"
+	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/client"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnel"
-	"github.com/gravitational/teleport/lib/srv/desktop"
+	"github.com/gravitational/teleport/lib/multiplexer"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/desktop/tdp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web/scripts"
@@ -58,7 +61,7 @@ func (h *Handler) desktopConnectHandle(
 	r *http.Request,
 	p httprouter.Params,
 	sctx *SessionContext,
-	site reversetunnel.RemoteSite,
+	site reversetunnelclient.RemoteSite,
 ) (interface{}, error) {
 	desktopName := p.ByName("desktopName")
 	if desktopName == "" {
@@ -92,7 +95,7 @@ func (h *Handler) createDesktopConnection(
 	clusterName string,
 	log *logrus.Entry,
 	sctx *SessionContext,
-	site reversetunnel.RemoteSite,
+	site reversetunnelclient.RemoteSite,
 ) error {
 	upgrader := websocket.Upgrader{
 		ReadBufferSize:  1024,
@@ -165,11 +168,14 @@ func (h *Handler) createDesktopConnection(
 		validServiceIDs[i], validServiceIDs[j] = validServiceIDs[j], validServiceIDs[i]
 	})
 
+	clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(r.Context())
+
 	c := &connector{
-		log:      log,
-		clt:      clt,
-		site:     site,
-		userAddr: r.RemoteAddr,
+		log:           log,
+		clt:           clt,
+		site:          site,
+		clientSrcAddr: clientSrcAddr,
+		clientDstAddr: clientDstAddr,
 	}
 	serviceConn, err := c.connectToWindowsService(clusterName, validServiceIDs)
 	if err != nil {
@@ -177,7 +183,7 @@ func (h *Handler) createDesktopConnection(
 	}
 	defer serviceConn.Close()
 
-	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username)
+	pc, err := proxyClient(r.Context(), sctx, h.ProxyHostPort(), username, h.cfg.PROXYSigner)
 	if err != nil {
 		return sendTDPError(trace.Wrap(err))
 	}
@@ -211,7 +217,7 @@ func (h *Handler) createDesktopConnection(
 	return nil
 }
 
-func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser string) (*client.ProxyClient, error) {
+func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser string, proxySigner multiplexer.PROXYHeaderSigner) (*client.ProxyClient, error) {
 	cfg, err := makeTeleportClientConfig(ctx, sessCtx)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -221,6 +227,8 @@ func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser
 	// Unix user Teleport is running as (which doesn't work in containerized
 	// environments where we're running as an arbitrary UID)
 	cfg.HostLogin = windowsUser
+
+	cfg.PROXYSigner = proxySigner
 
 	if err := cfg.ParseProxyHost(addr); err != nil {
 		return nil, trace.Wrap(err)
@@ -236,16 +244,24 @@ func proxyClient(ctx context.Context, sessCtx *SessionContext, addr, windowsUser
 	return pc, nil
 }
 
+const (
+	// SNISuffix is the server name suffix used during SNI to specify the
+	// target desktop to connect to. The client (proxy_service) will use SNI
+	// like "${UUID}.desktop.teleport.cluster.local" to pass the UUID of the
+	// desktop.
+	// This is a copy of the same constant in `lib/srv/desktop/desktop.go` to
+	// prevent depending on `lib/srv` in `lib/web`.
+	SNISuffix = ".desktop." + constants.APIDomain
+)
+
 func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyClient, sessCtx *SessionContext, desktopName, username, siteName string) (*tls.Config, error) {
 	pk, err := keys.ParsePrivateKey(sessCtx.cfg.Session.GetPriv())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	stream, err := NewTerminalStream(ws)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
+	codec := tdpMFACodec{}
+
 	key, err := pc.IssueUserCertsWithMFA(ctx, client.ReissueParams{
 		RouteToWindowsDesktop: proto.RouteToWindowsDesktop{
 			WindowsDesktop: desktopName,
@@ -258,7 +274,33 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 			TLSCert:             sessCtx.cfg.Session.GetTLSCert(),
 			WindowsDesktopCerts: make(map[string][]byte),
 		},
-	}, promptMFAChallenge(stream, tdpMFACodec{}))
+	}, func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+		challenge := &client.MFAAuthenticateChallenge{
+			WebauthnChallenge: wanlib.CredentialAssertionFromProto(c.WebauthnChallenge),
+		}
+
+		// Send the challenge over the socket.
+		msg, err := codec.encode(challenge, defaults.WebsocketWebauthnChallenge)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if err := ws.WriteMessage(websocket.BinaryMessage, msg); err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		ty, buf, err := ws.ReadMessage()
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		if ty != websocket.BinaryMessage {
+			return nil, trace.BadParameter("received unexpected web socket message type %d", ty)
+		}
+
+		resp, err := codec.decodeResponse(buf, defaults.WebsocketWebauthnChallenge)
+		return resp, trace.Wrap(err)
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -276,15 +318,16 @@ func desktopTLSConfig(ctx context.Context, ws *websocket.Conn, pc *client.ProxyC
 	}
 	tlsConfig.Certificates = []tls.Certificate{certConf}
 	// Pass target desktop name via SNI.
-	tlsConfig.ServerName = desktopName + desktop.SNISuffix
+	tlsConfig.ServerName = desktopName + SNISuffix
 	return tlsConfig, nil
 }
 
 type connector struct {
-	log      *logrus.Entry
-	clt      auth.ClientI
-	site     reversetunnel.RemoteSite
-	userAddr string
+	log           *logrus.Entry
+	clt           auth.ClientI
+	site          reversetunnelclient.RemoteSite
+	clientSrcAddr net.Addr
+	clientDstAddr net.Addr
 }
 
 // connectToWindowsService tries to make a connection to a Windows Desktop Service
@@ -317,12 +360,13 @@ func (c *connector) tryConnect(clusterName, desktopServiceID string) (net.Conn, 
 
 	*c.log = *c.log.WithField("windows-service-uuid", service.GetName())
 	*c.log = *c.log.WithField("windows-service-addr", service.GetAddr())
-	return c.site.DialTCP(reversetunnel.DialParams{
-		From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: c.userAddr},
-		To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
-		ConnType: types.WindowsDesktopTunnel,
-		ServerID: service.GetName() + "." + clusterName,
-		ProxyIDs: service.GetProxyIDs(),
+	return c.site.DialTCP(reversetunnelclient.DialParams{
+		From:                  c.clientSrcAddr,
+		To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: service.GetAddr()},
+		ConnType:              types.WindowsDesktopTunnel,
+		ServerID:              service.GetName() + "." + clusterName,
+		ProxyIDs:              service.GetProxyIDs(),
+		OriginalClientDstAddr: c.clientDstAddr,
 	})
 }
 

@@ -125,7 +125,7 @@ func TestRootHostUsersBackend(t *testing.T) {
 		require.NoError(t, err)
 		invalidSudoersEntry := []byte("yipee i broke sudo!!!!")
 		err = backend.CheckSudoers(invalidSudoersEntry)
-		require.EqualError(t, err, "parse error in stdin near line 1\n\n\tvisudo: invalid sudoers file")
+		require.Contains(t, err.Error(), "visudo: invalid sudoers file")
 		// test sudoers entry containing . or ~
 		require.NoError(t, backend.WriteSudoersFile("user.name", validSudoersEntry))
 		_, err = os.Stat(filepath.Join(sudoersTestDir, "teleport-hostuuid-user_name"))
@@ -175,7 +175,7 @@ func TestRootHostUsers(t *testing.T) {
 		users := srv.NewHostUsers(context.Background(), presence, "host_uuid")
 
 		testGroups := []string{"group1", "group2"}
-		_, closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups})
+		closer, err := users.CreateUser(testuser, &services.HostUsersInfo{Groups: testGroups, Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
 		require.NoError(t, err)
 
 		testGroups = append(testGroups, types.TeleportServiceGroup)
@@ -205,9 +205,10 @@ func TestRootHostUsers(t *testing.T) {
 			os.Remove(sudoersPath(testuser, uuid))
 			host.UserDel(testuser)
 		})
-		_, closer, err := users.CreateUser(testuser,
+		closer, err := users.CreateUser(testuser,
 			&services.HostUsersInfo{
 				Sudoers: []string{"ALL=(ALL) ALL"},
+				Mode:    types.CreateHostUserMode_HOST_USER_MODE_DROP,
 			})
 		require.NoError(t, err)
 		_, err = os.Stat(sudoersPath(testuser, uuid))
@@ -219,9 +220,10 @@ func TestRootHostUsers(t *testing.T) {
 		require.True(t, os.IsNotExist(err))
 
 		// ensure invalid sudoers entries dont get written
-		_, closer, err = users.CreateUser(testuser,
+		closer, err = users.CreateUser(testuser,
 			&services.HostUsersInfo{
 				Sudoers: []string{"badsudoers entry!!!"},
+				Mode:    types.CreateHostUserMode_HOST_USER_MODE_DROP,
 			})
 		require.Error(t, err)
 		defer closer.Close()
@@ -235,11 +237,16 @@ func TestRootHostUsers(t *testing.T) {
 
 		deleteableUsers := []string{"teleport-user1", "teleport-user2", "teleport-user3"}
 		for _, user := range deleteableUsers {
-			_, _, err := users.CreateUser(user, &services.HostUsersInfo{})
+			_, err := users.CreateUser(user, &services.HostUsersInfo{Mode: types.CreateHostUserMode_HOST_USER_MODE_DROP})
 			require.NoError(t, err)
 		}
-		_, err = host.UserAdd("teleport-user4", []string{})
+
+		// this user should not be in the service group as it was created with mode keep.
+		closer, err := users.CreateUser("teleport-user4", &services.HostUsersInfo{
+			Mode: types.CreateHostUserMode_HOST_USER_MODE_KEEP,
+		})
 		require.NoError(t, err)
+		require.Nil(t, closer)
 
 		t.Cleanup(cleanupUsersAndGroups(
 			[]string{"teleport-user1", "teleport-user2", "teleport-user3", "teleport-user4"},

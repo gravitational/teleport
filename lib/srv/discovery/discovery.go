@@ -25,7 +25,8 @@ import (
 
 	"github.com/Azure/azure-sdk-for-go/sdk/resourcemanager/compute/armcompute/v3"
 	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/ec2"
+	"github.com/aws/aws-sdk-go/aws/awserr"
+	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/exp/slices"
@@ -49,11 +50,11 @@ type Config struct {
 	// Clients is an interface for retrieving cloud clients.
 	Clients cloud.Clients
 	// AWSMatchers is a list of AWS EC2 matchers.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure matchers to discover resources.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 	// GCPMatchers is a list of GCP matchers to discover resources.
-	GCPMatchers []services.GCPMatcher
+	GCPMatchers []types.GCPMatcher
 	// Emitter is events emitter, used to submit discrete events
 	Emitter apievents.Emitter
 	// AccessPoint is a discovery access point
@@ -62,6 +63,16 @@ type Config struct {
 	Log logrus.FieldLogger
 	// onDatabaseReconcile is called after each database resource reconciliation.
 	onDatabaseReconcile func()
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string
+	// ClusterName is the name of the Teleport cluster.
+	ClusterName string
 }
 
 func (c *Config) CheckAndSetDefaults() error {
@@ -114,6 +125,8 @@ type Server struct {
 	kubeFetchers []common.Fetcher
 	// databaseFetchers holds all database fetchers.
 	databaseFetchers []common.Fetcher
+	// caRotationCh receives nodes that need to have their CAs rotated.
+	caRotationCh chan []types.Server
 }
 
 // New initializes a discovery Server
@@ -151,7 +164,7 @@ func New(ctx context.Context, cfg *Config) (*Server, error) {
 }
 
 // initAWSWatchers starts AWS resource watchers based on types provided.
-func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
+func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 	ec2Matchers, otherMatchers := splitAWSMatchers(matchers, func(matcherType string) bool {
 		return matcherType == services.AWSMatcherEC2
 	})
@@ -159,10 +172,12 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 	// start ec2 watchers
 	var err error
 	if len(ec2Matchers) > 0 {
-		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.Clients)
+		s.caRotationCh = make(chan []types.Server)
+		s.ec2Watcher, err = server.NewEC2Watcher(s.ctx, ec2Matchers, s.Clients, s.caRotationCh)
 		if err != nil {
 			return trace.Wrap(err)
 		}
+
 		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
 			Emitter: s.Emitter,
 		})
@@ -180,12 +195,23 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 
 	// Add kube fetchers.
 	for _, matcher := range otherMatchers {
+		matcherAssumeRole := &types.AssumeRole{}
+		if matcher.AssumeRole != nil {
+			matcherAssumeRole = matcher.AssumeRole
+		}
+
 		for _, t := range matcher.Types {
 			for _, region := range matcher.Regions {
 				switch t {
 				case services.AWSMatcherEKS:
-					// TODO(gavin): support assume_role_arn for AWS EKS.
-					client, err := s.Clients.GetAWSEKSClient(s.ctx, region)
+					client, err := s.Clients.GetAWSEKSClient(
+						s.ctx,
+						region,
+						cloud.WithAssumeRole(
+							matcherAssumeRole.RoleARN,
+							matcherAssumeRole.ExternalID,
+						),
+					)
 					if err != nil {
 						return trace.Wrap(err)
 					}
@@ -210,7 +236,7 @@ func (s *Server) initAWSWatchers(matchers []services.AWSMatcher) error {
 }
 
 // initAzureWatchers starts Azure resource watchers based on types provided.
-func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.AzureMatcher) error {
+func (s *Server) initAzureWatchers(ctx context.Context, matchers []types.AzureMatcher) error {
 	vmMatchers, otherMatchers := splitAzureMatchers(matchers, func(matcherType string) bool {
 		return matcherType == services.AzureMatcherVM
 	})
@@ -271,7 +297,7 @@ func (s *Server) initAzureWatchers(ctx context.Context, matchers []services.Azur
 }
 
 // initGCPWatchers starts GCP resource watchers based on types provided.
-func (s *Server) initGCPWatchers(ctx context.Context, matchers []services.GCPMatcher) error {
+func (s *Server) initGCPWatchers(ctx context.Context, matchers []types.GCPMatcher) error {
 	// return early if there are no matchers as GetGCPGKEClient causes
 	// an error if there are no credentials present
 	if len(matchers) == 0 {
@@ -314,13 +340,13 @@ func (s *Server) filterExistingEC2Nodes(instances *server.EC2Instances) {
 		return accountOK && instanceOK
 	})
 
-	var filtered []*ec2.Instance
+	var filtered []server.EC2Instance
 outer:
 	for _, inst := range instances.Instances {
 		for _, node := range nodes {
 			match := types.MatchLabels(node, map[string]string{
 				types.AWSAccountIDLabel:  instances.AccountID,
-				types.AWSInstanceIDLabel: aws.StringValue(inst.InstanceId),
+				types.AWSInstanceIDLabel: inst.InstanceID,
 			})
 			if match {
 				continue outer
@@ -331,9 +357,9 @@ outer:
 	instances.Instances = filtered
 }
 
-func genEC2InstancesLogStr(instances []*ec2.Instance) string {
-	return genInstancesLogStr(instances, func(i *ec2.Instance) string {
-		return aws.StringValue(i.InstanceId)
+func genEC2InstancesLogStr(instances []server.EC2Instance) string {
+	return genInstancesLogStr(instances, func(i server.EC2Instance) string {
+		return i.InstanceID
 	})
 }
 
@@ -360,15 +386,17 @@ func genInstancesLogStr[T any](instances []T, getID func(T) string) string {
 }
 
 func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
-	// TODO(amk): once agentless node inventory management is
-	//            implemented, create nodes after a successful SSM run
-
 	// TODO(gavin): support assume_role_arn for ec2.
 	ec2Client, err := s.Clients.GetAWSSSMClient(s.ctx, instances.Region)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	s.filterExistingEC2Nodes(instances)
+	// instances.Rotation is true whenever the instances received need
+	// to be rotated, we don't want to filter out existing OpenSSH nodes as
+	// they all need to have the command run on them
+	if !instances.Rotation {
+		s.filterExistingEC2Nodes(instances)
+	}
 	if len(instances.Instances) == 0 {
 		return trace.NotFound("all fetched nodes already enrolled")
 	}
@@ -387,6 +415,87 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	return trace.Wrap(s.ec2Installer.Run(s.ctx, req))
 }
 
+func (s *Server) logHandleInstancesErr(err error) {
+	var aErr awserr.Error
+	if errors.As(err, &aErr) && aErr.Code() == ssm.ErrCodeInvalidInstanceId {
+		s.Log.WithError(err).Error("SSM SendCommand failed with ErrCodeInvalidInstanceId. Make sure that the instances have AmazonSSMManagedInstanceCore policy assigned. Also check that SSM agent is running and registered with the SSM endpoint on that instance and try restarting or reinstalling it in case of issues. See https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors for more details.")
+	} else if trace.IsNotFound(err) {
+		s.Log.Debug("All discovered EC2 instances are already part of the cluster.")
+	} else {
+		s.Log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
+	}
+}
+
+func (s *Server) watchCARotation(ctx context.Context) {
+	ticker := time.NewTicker(time.Minute * 10)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			nodes, err := s.findUnrotatedEC2Nodes(ctx)
+			if err != nil {
+				if trace.IsNotFound(err) {
+					s.Log.Debug("No OpenSSH nodes require CA rotation")
+					continue
+				}
+				s.Log.Errorf("Error finding OpenSSH nodes requiring CA rotation: %s", err)
+				continue
+			}
+			s.Log.Debugf("Found %d nodes requiring rotation", len(nodes))
+			s.caRotationCh <- nodes
+		case <-s.ctx.Done():
+			return
+		}
+	}
+}
+
+func (s *Server) getMostRecentRotationForCAs(ctx context.Context, caTypes ...types.CertAuthType) (time.Time, error) {
+	var mostRecentUpdate time.Time
+	for _, caType := range caTypes {
+		ca, err := s.AccessPoint.GetCertAuthority(ctx, types.CertAuthID{
+			Type:       caType,
+			DomainName: s.ClusterName,
+		}, false)
+		if err != nil {
+			return time.Time{}, trace.Wrap(err)
+		}
+		caRot := ca.GetRotation()
+		if caRot.State == types.RotationStateInProgress && caRot.Started.After(mostRecentUpdate) {
+			mostRecentUpdate = caRot.Started
+		}
+
+		if caRot.LastRotated.After(mostRecentUpdate) {
+			mostRecentUpdate = caRot.LastRotated
+		}
+	}
+	return mostRecentUpdate, nil
+}
+
+func (s *Server) findUnrotatedEC2Nodes(ctx context.Context) ([]types.Server, error) {
+	mostRecentCertRotation, err := s.getMostRecentRotationForCAs(ctx, types.OpenSSHCA, types.HostCA)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	found := s.nodeWatcher.GetNodes(ctx, func(n services.Node) bool {
+		if n.GetSubKind() != types.SubKindOpenSSHNode {
+			return false
+		}
+		if _, ok := n.GetLabel(types.AWSAccountIDLabel); !ok {
+			return false
+		}
+		if _, ok := n.GetLabel(types.AWSInstanceIDLabel); !ok {
+			return false
+		}
+
+		return mostRecentCertRotation.After(n.GetRotation().LastRotated)
+	})
+
+	if len(found) == 0 {
+		return nil, trace.NotFound("no unrotated nodes found")
+	}
+	return found, nil
+}
+
 func (s *Server) handleEC2Discovery() {
 	if err := s.nodeWatcher.WaitInitialization(); err != nil {
 		s.Log.WithError(err).Error("Failed to initialize nodeWatcher.")
@@ -394,6 +503,8 @@ func (s *Server) handleEC2Discovery() {
 	}
 
 	go s.ec2Watcher.Run()
+	go s.watchCARotation(s.ctx)
+
 	for {
 		select {
 		case instances := <-s.ec2Watcher.InstancesC:
@@ -402,12 +513,7 @@ func (s *Server) handleEC2Discovery() {
 				instances.AccountID, genEC2InstancesLogStr(ec2Instances.Instances))
 
 			if err := s.handleEC2Instances(ec2Instances); err != nil {
-				if trace.IsNotFound(err) {
-					s.Log.Debug("All discovered EC2 instances are already part of the cluster.")
-				} else {
-					s.Log.WithError(err).Error("Failed to enroll discovered EC2 instances.")
-				}
-
+				s.logHandleInstancesErr(err)
 			}
 		case <-s.ctx.Done():
 			s.ec2Watcher.Stop()
@@ -578,7 +684,7 @@ func splitSlice(ss []string, check func(string) bool) (split, other []string) {
 }
 
 // splitAWSMatchers splits the AWS matchers by checking the matcher types.
-func splitAWSMatchers(matchers []services.AWSMatcher, matcherTypeCheck func(string) bool) (split, other []services.AWSMatcher) {
+func splitAWSMatchers(matchers []types.AWSMatcher, matcherTypeCheck func(string) bool) (split, other []types.AWSMatcher) {
 	for _, matcher := range matchers {
 		splitTypes, otherTypes := splitSlice(matcher.Types, matcherTypeCheck)
 
@@ -593,7 +699,7 @@ func splitAWSMatchers(matchers []services.AWSMatcher, matcherTypeCheck func(stri
 }
 
 // splitAzureMatchers splits the Azure matchers by checking the matcher types.
-func splitAzureMatchers(matchers []services.AzureMatcher, matcherTypeCheck func(string) bool) (split, other []services.AzureMatcher) {
+func splitAzureMatchers(matchers []types.AzureMatcher, matcherTypeCheck func(string) bool) (split, other []types.AzureMatcher) {
 	for _, matcher := range matchers {
 		splitTypes, otherTypes := splitSlice(matcher.Types, matcherTypeCheck)
 
@@ -608,14 +714,14 @@ func splitAzureMatchers(matchers []services.AzureMatcher, matcherTypeCheck func(
 }
 
 // copyAWSMatcherWithNewTypes copies an AWS Matcher and replaces the types with newTypes
-func copyAWSMatcherWithNewTypes(matcher services.AWSMatcher, newTypes []string) services.AWSMatcher {
+func copyAWSMatcherWithNewTypes(matcher types.AWSMatcher, newTypes []string) types.AWSMatcher {
 	newMatcher := matcher
 	newMatcher.Types = newTypes
 	return newMatcher
 }
 
 // copyAzureMatcherWithNewTypes copies an Azure Matcher and replaces the types with newTypes.
-func copyAzureMatcherWithNewTypes(matcher services.AzureMatcher, newTypes []string) services.AzureMatcher {
+func copyAzureMatcherWithNewTypes(matcher types.AzureMatcher, newTypes []string) types.AzureMatcher {
 	newMatcher := matcher
 	newMatcher.Types = newTypes
 	return newMatcher

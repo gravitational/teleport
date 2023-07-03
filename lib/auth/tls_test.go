@@ -870,6 +870,152 @@ func TestAppTokenRotation(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestOIDCIdPTokenRotation checks that OIDC IdP JWT tokens can be rotated and tokens can
+// be validated at the appropriate phase.
+func TestOIDCIdPTokenRotation(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	tt := setupAuthContext(ctx, t)
+
+	clt, err := tt.server.NewClient(TestAdmin())
+	require.NoError(t, err)
+
+	user1, _, err := CreateUserAndRole(clt, "user1", nil, []types.Rule{
+		types.NewRule(types.KindIntegration, []string{types.VerbUse}),
+	})
+	require.NoError(t, err)
+
+	client, err := tt.server.NewClient(TestUser(user1.GetName()))
+	require.NoError(t, err)
+
+	// Create a JWT using the current CA, this will become the "old" CA during
+	// rotation.
+	oldJWT, err := client.GenerateAWSOIDCToken(ctx,
+		types.GenerateAWSOIDCTokenRequest{
+			Issuer: "http://localhost:8080",
+		},
+	)
+	require.NoError(t, err)
+
+	// Check that the "old" CA can be used to verify tokens.
+	oldCA, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 1)
+
+	// Verify that the JWT token validates with the JWT authority.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err, tt.clock.Now())
+
+	// Start rotation and move to initial phase. A new CA will be added (for
+	// verification), but requests will continue to be signed by the old CA.
+	gracePeriod := time.Hour
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseInit,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// At this point in rotation, two JWT key pairs should exist.
+	oldCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, oldCA.GetRotation().Phase, types.RotationPhaseInit)
+	require.Len(t, oldCA.GetTrustedJWTKeyPairs(), 2)
+
+	// Verify that the JWT token validates with the JWT authority.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), oldCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err)
+
+	// Move rotation into the update client phase. In this phase, requests will
+	// be signed by the new CA, but the old CA will be around to verify requests.
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseUpdateClients,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// New tokens should now fail to validate with the old key.
+	newJWT, err := client.GenerateAWSOIDCToken(ctx,
+		types.GenerateAWSOIDCTokenRequest{
+			Issuer: "http://localhost:8080",
+		},
+	)
+	require.NoError(t, err)
+
+	// New tokens will validate with the new key.
+	newCA, err := tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateClients)
+	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
+
+	// Both JWT should now validate.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err)
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	require.NoError(t, err)
+
+	// Move rotation into update servers phase.
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseUpdateServers,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// At this point only the phase on the CA should have changed.
+	newCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseUpdateServers)
+	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 2)
+
+	// Both JWT should continue to validate.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.NoError(t, err)
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	require.NoError(t, err)
+
+	// Complete rotation. The old CA will be removed.
+	err = tt.server.Auth().RotateCertAuthority(ctx, RotateRequest{
+		Type:        types.OIDCIdPCA,
+		GracePeriod: &gracePeriod,
+		TargetPhase: types.RotationPhaseStandby,
+		Mode:        types.RotationModeManual,
+	})
+	require.NoError(t, err)
+
+	// The new CA should now only have a single key.
+	newCA, err = tt.server.Auth().GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
+	}, true)
+	require.NoError(t, err)
+	require.Equal(t, newCA.GetRotation().Phase, types.RotationPhaseStandby)
+	require.Len(t, newCA.GetTrustedJWTKeyPairs(), 1)
+
+	// Old token should no longer validate.
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), oldJWT)
+	require.Error(t, err)
+	_, err = verifyJWTAWSOIDC(tt.clock, tt.server.ClusterName(), newCA.GetTrustedJWTKeyPairs(), newJWT)
+	require.NoError(t, err)
+}
+
 // TestRemoteUser tests scenario when remote user connects to the local
 // auth server and some edge cases.
 func TestRemoteUser(t *testing.T) {
@@ -1579,8 +1725,8 @@ func TestWebSessionWithApprovedAccessRequestAndSwitchback(t *testing.T) {
 		AccessRequestID: accessReq.GetMetadata().Name,
 	})
 	require.NoError(t, err)
-	require.Equal(t, sess1.Expiry(), tt.clock.Now().Add(time.Minute*10))
-	require.Equal(t, sess1.GetLoginTime(), initialSession.GetLoginTime())
+	require.WithinDuration(t, tt.clock.Now().Add(time.Minute*10), sess1.Expiry(), time.Second)
+	require.WithinDuration(t, sess1.GetLoginTime(), initialSession.GetLoginTime(), time.Second)
 
 	sshcert, err := sshutils.ParseCertificate(sess1.GetPub())
 	require.NoError(t, err)
@@ -1734,17 +1880,23 @@ func TestGetCertAuthority(t *testing.T) {
 	_, err = proxyClt.GetCertAuthority(ctx, hostCAID, true)
 	require.True(t, trace.IsAccessDenied(err))
 
-	// proxy can fetch SAML IdP CA with secrets
+	// proxy can't fetch SAML IdP CA with secrets
 	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: tt.server.ClusterName(),
 		Type:       types.SAMLIDPCA,
 	}, true)
-	require.NoError(t, err)
+	require.True(t, trace.IsAccessDenied(err))
 
 	// proxy can't fetch anything else with secrets
 	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
 		DomainName: tt.server.ClusterName(),
 		Type:       types.DatabaseCA,
+	}, true)
+	require.True(t, trace.IsAccessDenied(err))
+
+	_, err = proxyClt.GetCertAuthority(ctx, types.CertAuthID{
+		DomainName: tt.server.ClusterName(),
+		Type:       types.OIDCIdPCA,
 	}, true)
 	require.True(t, trace.IsAccessDenied(err))
 
@@ -1884,6 +2036,8 @@ func TestGenerateCerts(t *testing.T) {
 	priv, pub, err := testauthority.New().GenerateKeyPair()
 	require.NoError(t, err)
 
+	clock := srv.Auth().GetClock()
+
 	// make sure we can parse the private and public key
 	privateKey, err := ssh.ParseRawPrivateKey(priv)
 	require.NoError(t, err)
@@ -1972,7 +2126,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = nopClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -1989,7 +2143,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -2000,13 +2154,16 @@ func TestGenerateCerts(t *testing.T) {
 		parsedCert, err := sshutils.ParseCertificate(sshCert)
 		require.NoError(t, err)
 		validBefore := time.Unix(int64(parsedCert.ValidBefore), 0)
-		return parsedCert, time.Until(validBefore)
+		return parsedCert, validBefore.Sub(clock.Now())
 	}
 
-	clock := srv.Auth().GetClock()
 	t.Run("ImpersonateAllow", func(t *testing.T) {
 		// Super impersonator impersonate anyone and login as root
 		maxSessionTTL := 300 * time.Hour
+		authPref, err := srv.Auth().GetAuthPreference(ctx)
+		require.NoError(t, err)
+		authPref.SetDefaultSessionTTL(types.Duration(maxSessionTTL))
+		srv.Auth().SetAuthPreference(ctx, authPref)
 		superImpersonatorRole, err := types.NewRole("superimpersonator", types.RoleSpecV6{
 			Options: types.RoleOptions{
 				MaxSessionTTL: types.Duration(maxSessionTTL),
@@ -2054,7 +2211,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		_, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(diff), int64(iUser.TTL))
+		require.LessOrEqual(t, diff, maxSessionTTL)
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
@@ -2062,8 +2219,8 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 
 		// Because the original request has maxed out the possible max
-		// session TTL, it will be adjusted to exactly the value
-		require.Equal(t, identity.Expires.Sub(clock.Now()), maxSessionTTL)
+		// session TTL, it will be adjusted to exactly the value (within rounding errors)
+		require.WithinDuration(t, clock.Now().Add(maxSessionTTL), identity.Expires, time.Second)
 		require.Equal(t, impersonator.GetName(), identity.Impersonator)
 		require.Equal(t, superImpersonator.GetName(), identity.Username)
 
@@ -2089,7 +2246,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = impersonatedClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.Error(t, err)
@@ -2115,7 +2272,7 @@ func TestGenerateCerts(t *testing.T) {
 		require.NoError(t, err)
 		identity, err = tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
-		require.Equal(t, identity.Expires.Sub(clock.Now()), time.Hour)
+		require.WithinDuration(t, identity.Expires, clock.Now().Add(time.Hour), time.Second)
 		require.Equal(t, impersonator.GetName(), identity.Impersonator)
 		require.Equal(t, superImpersonator.GetName(), identity.Username)
 	})
@@ -2137,20 +2294,20 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc1.GetName(),
 		})
 		require.NoError(t, err)
 
 		_, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(diff), int64(testUser2.TTL))
+		require.LessOrEqual(t, diff, testUser2.TTL)
 
 		tlsCert, err := tlsca.ParseCertificatePEM(userCerts.TLS)
 		require.NoError(t, err)
 		identity, err := tlsca.FromSubject(tlsCert.Subject, tlsCert.NotAfter)
 		require.NoError(t, err)
-		require.True(t, identity.Expires.Before(time.Now().Add(testUser2.TTL)))
+		require.WithinDuration(t, clock.Now().Add(testUser2.TTL), identity.Expires, time.Second)
 		require.Equal(t, identity.RouteToCluster, rc1.GetName())
 	})
 
@@ -2162,13 +2319,13 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(40 * time.Hour).UTC(),
+			Expires:   clock.Now().Add(40 * time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
 
 		parsedCert, diff := parseCert(userCerts.SSH)
-		require.Less(t, int64(apidefaults.MaxCertDuration), int64(diff))
+		require.Less(t, apidefaults.MaxCertDuration, diff)
 
 		// user should have agent forwarding (default setting)
 		require.Contains(t, parsedCert.Extensions, teleport.CertExtensionPermitAgentForwarding)
@@ -2187,7 +2344,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(1 * time.Hour).UTC(),
+			Expires:   clock.Now().Add(1 * time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
@@ -2203,7 +2360,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err = adminClient.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey: pub,
 			Username:  user1.GetName(),
-			Expires:   time.Now().Add(time.Hour).UTC(),
+			Expires:   clock.Now().Add(time.Hour).UTC(),
 			Format:    constants.CertificateFormatStandard,
 		})
 		require.NoError(t, err)
@@ -2217,7 +2374,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: "unknown_cluster",
 		})
@@ -2236,7 +2393,7 @@ func TestGenerateCerts(t *testing.T) {
 		_, err = userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc2.GetName(),
 		})
@@ -2250,7 +2407,7 @@ func TestGenerateCerts(t *testing.T) {
 		userCerts, err := userClient2.GenerateUserCerts(ctx, proto.UserCertsRequest{
 			PublicKey:      pub,
 			Username:       user2.GetName(),
-			Expires:        time.Now().Add(100 * time.Hour).UTC(),
+			Expires:        clock.Now().Add(100 * time.Hour).UTC(),
 			Format:         constants.CertificateFormatStandard,
 			RouteToCluster: rc2.GetName(),
 		})
@@ -3127,11 +3284,22 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	err = adminClt.UpsertClusterAlert(ctx, alert2)
 	require.NoError(t, err)
 
-	// verify that admin client can see all alerts
-	alerts, err := adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	// verify that admin client can see all alerts due to resource-level permissions
+	alerts, err := adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		WithUntargeted: true,
+	})
 	require.NoError(t, err)
 	require.Len(t, alerts, 2)
 	expectAlerts(alerts, "alert-1", "alert-2")
+
+	// verify that WithUntargeted=false admin only observes the alert that specifies
+	// that it should be shown to all
+	alerts, err = adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		WithUntargeted: false,
+	})
+	require.NoError(t, err)
+	require.Len(t, alerts, 1)
+	expectAlerts(alerts, "alert-2")
 
 	// verify that some other client with no alert-specific permissions can
 	// see the "permit-all" subset of alerts (using role node here, but any
@@ -3140,10 +3308,16 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	require.NoError(t, err)
 	defer otherClt.Close()
 
-	alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
-	require.NoError(t, err)
-	require.Len(t, alerts, 1)
-	expectAlerts(alerts, "alert-2")
+	// untargeted and targeted should result in the same behavior since otherClt
+	// does not have resource-level permissions for the cluster_alert type.
+	for _, untargeted := range []bool{true, false} {
+		alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+			WithUntargeted: untargeted,
+		})
+		require.NoError(t, err)
+		require.Len(t, alerts, 1)
+		expectAlerts(alerts, "alert-2")
+	}
 
 	// verify that we still reject unauthenticated clients
 	nopClt, err := tt.server.NewClient(TestBuiltin(types.RoleNop))
@@ -3174,11 +3348,21 @@ func TestClusterAlertAccessControls(t *testing.T) {
 	err = adminClt.UpsertClusterAlert(ctx, alert4)
 	require.NoError(t, err)
 
-	// verify that admin client can see all alerts
-	alerts, err = adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
+	// verify that admin client can see all alerts in untargeted read mode
+	alerts, err = adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		WithUntargeted: true,
+	})
 	require.NoError(t, err)
 	require.Len(t, alerts, 4)
 	expectAlerts(alerts, "alert-1", "alert-2", "alert-3", "alert-4")
+
+	// verify that admin client can see all targeted alerts in targeted mode
+	alerts, err = adminClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
+		WithUntargeted: false,
+	})
+	require.NoError(t, err)
+	require.Len(t, alerts, 3)
+	expectAlerts(alerts, "alert-2", "alert-3", "alert-4")
 
 	// verify that node client can only see one of the two new alerts
 	alerts, err = otherClt.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{})
@@ -3378,6 +3562,93 @@ func TestEventsPermissions(t *testing.T) {
 
 	for _, tc := range testCases {
 		tryWatch(tc)
+	}
+}
+
+// TestEventsPermissionsPartialSuccess verifies that in partial success mode NewWatcher can still succeed
+// if caller lacks permission to watch only some of the requested resource kinds.
+func TestEventsPermissionsPartialSuccess(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name                   string
+		watch                  types.Watch
+		expectedConfirmedKinds []types.WatchKind
+	}{
+		{
+			name: "no permission for any of the requested kinds",
+			watch: types.Watch{
+				Kinds: []types.WatchKind{
+					{Kind: types.KindUser},
+					{Kind: types.KindRole},
+				},
+				AllowPartialSuccess: true,
+			},
+		},
+		{
+			name: "has permission only for some of the requested kinds",
+			watch: types.Watch{
+				Kinds: []types.WatchKind{
+					{Kind: types.KindUser},
+					{Kind: types.KindRole},
+					{Kind: types.KindStaticTokens},
+				},
+				AllowPartialSuccess: true,
+			},
+			expectedConfirmedKinds: []types.WatchKind{
+				{Kind: types.KindStaticTokens},
+			},
+		},
+		{
+			name: "has permission only for some kinds but partial success is not enabled",
+			watch: types.Watch{
+				Kinds: []types.WatchKind{
+					{Kind: types.KindUser},
+					{Kind: types.KindRole},
+					{Kind: types.KindStaticTokens},
+				},
+			},
+		},
+	}
+
+	ctx := context.Background()
+	tt := setupAuthContext(ctx, t)
+	testUser, testRole, err := CreateUserAndRole(tt.server.Auth(), "test", nil, []types.Rule{
+		types.NewRule(types.KindStaticTokens, services.RO()),
+	})
+	require.NoError(t, err)
+	require.NoError(t, tt.server.Auth().UpsertRole(ctx, testRole))
+	testIdentity := TestUser(testUser.GetName())
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := tt.server.NewClient(testIdentity)
+			require.NoError(t, err)
+			defer client.Close()
+
+			w, err := client.NewWatcher(ctx, tc.watch)
+			require.NoError(t, err)
+			defer w.Close()
+
+			select {
+			case event := <-w.Events():
+				if len(tc.expectedConfirmedKinds) > 0 {
+					require.Equal(t, event.Type, types.OpInit)
+					watchStatus, ok := event.Resource.(types.WatchStatus)
+					require.True(t, ok)
+					require.Equal(t, tc.expectedConfirmedKinds, watchStatus.GetKinds())
+				} else {
+					t.Fatal("unexpected event from watcher that is supposed to fail")
+				}
+			case <-w.Done():
+				if len(tc.expectedConfirmedKinds) > 0 {
+					t.Fatalf("Watcher exited with error %v", w.Error())
+				}
+				require.Error(t, w.Error())
+			case <-time.After(2 * time.Second):
+				t.Fatal("Timeout waiting for watcher")
+			}
+		})
 	}
 }
 
@@ -4067,10 +4338,43 @@ func verifyJWT(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyP
 	return nil, trace.NewAggregate(errs...)
 }
 
+// verifyJWTAWSOIDC verifies that the token was signed by one the passed in key pair.
+func verifyJWTAWSOIDC(clock clockwork.Clock, clusterName string, pairs []*types.JWTKeyPair, token string) (*jwt.Claims, error) {
+	errs := []error{}
+	for _, pair := range pairs {
+		publicKey, err := utils.ParsePublicKey(pair.PublicKey)
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+
+		key, err := jwt.New(&jwt.Config{
+			Clock:       clock,
+			PublicKey:   publicKey,
+			Algorithm:   defaults.ApplicationTokenAlgorithm,
+			ClusterName: clusterName,
+		})
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+		claims, err := key.VerifyAWSOIDC(jwt.AWSOIDCVerifyParams{
+			RawToken: token,
+			Issuer:   "http://localhost:8080",
+		})
+		if err != nil {
+			errs = append(errs, trace.Wrap(err))
+			continue
+		}
+		return claims, nil
+	}
+	return nil, trace.NewAggregate(errs...)
+}
+
 func newTestTLSServer(t testing.TB) *TestTLSServer {
 	as, err := NewTestAuthServer(TestAuthServerConfig{
 		Dir:   t.TempDir(),
-		Clock: clockwork.NewFakeClock(),
+		Clock: clockwork.NewFakeClockAt(time.Now().Round(time.Second).UTC()),
 	})
 	require.NoError(t, err)
 

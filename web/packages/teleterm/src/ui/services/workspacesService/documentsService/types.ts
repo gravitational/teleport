@@ -16,14 +16,9 @@ limitations under the License.
 
 import * as uri from 'teleterm/ui/uri';
 
-export type Kind =
-  | 'doc.access_requests'
-  | 'doc.cluster'
-  | 'doc.blank'
-  | 'doc.gateway'
-  | 'doc.terminal_shell'
-  | 'doc.terminal_tsh_node'
-  | 'doc.terminal_tsh_kube';
+import type * as tsh from 'teleterm/services/tshd/types';
+
+export type Kind = Document['kind'];
 
 export type DocumentOrigin =
   | 'resource_table'
@@ -43,6 +38,12 @@ export interface DocumentBlank extends DocumentBase {
 
 export type DocumentTshNode =
   | DocumentTshNodeWithServerId
+  // DELETE IN 14.0.0
+  //
+  // Logging in to an arbitrary host was removed in 13.0 together with the command bar.
+  // However, there's a slight chance that some users upgrading from 12.x to 13.0 still have
+  // documents with loginHost in the app state (e.g. if the doc failed to connect to the server).
+  // Let's just remove this in 14.0.0 instead to make sure those users can safely upgrade the app.
   | DocumentTshNodeWithLoginHost;
 
 interface DocumentTshNodeBase extends DocumentBase {
@@ -104,6 +105,34 @@ export interface DocumentGateway extends DocumentBase {
   origin: DocumentOrigin;
 }
 
+/**
+ * DocumentGatewayCliClient is the tab that opens a CLI tool which targets the given gateway.
+ *
+ * The gateway is found by matching targetUri and targetUser rather than gatewayUri. gatewayUri
+ * changes between app restarts while targetUri and targetUser won't.
+ */
+export interface DocumentGatewayCliClient extends DocumentBase {
+  kind: 'doc.gateway_cli_client';
+  // rootClusterId and leafClusterId are tech debt. They could be read from targetUri, but
+  // useDocumentTerminal expects these fields to be set on the doc.
+  rootClusterId: string;
+  leafClusterId: string | undefined;
+  // The four target properties are needed in order to call connectToDatabase from within
+  // DocumentGatewayCliClient. targetName is needed to set a proper tab title.
+  //
+  // targetUri and targetUser are also needed to find a gateway providing the connection to the
+  // target.
+  targetUri: tsh.Gateway['targetUri'];
+  targetUser: tsh.Gateway['targetUser'];
+  targetName: tsh.Gateway['targetName'];
+  targetProtocol: tsh.Gateway['protocol'];
+  // status is used merely to show a progress bar when the doc waits for the gateway to be created.
+  // It will be changed to 'connected' as soon as the CLI client prints something out. Some clients
+  // type something out immediately after starting while others only after they actually connect to
+  // a resource.
+  status: '' | 'connecting' | 'connected' | 'error';
+}
+
 export interface DocumentCluster extends DocumentBase {
   kind: 'doc.cluster';
   clusterUri: uri.ClusterUri;
@@ -119,13 +148,21 @@ export interface DocumentAccessRequests extends DocumentBase {
 export interface DocumentPtySession extends DocumentBase {
   kind: 'doc.terminal_shell';
   cwd?: string;
-  initCommand?: string;
   rootClusterId?: string;
   leafClusterId?: string;
 }
 
+export interface DocumentConnectMyComputerSetup extends DocumentBase {
+  kind: 'doc.connect_my_computer_setup';
+  // `DocumentConnectMyComputerSetup` always operates on the root cluster, so in theory `rootClusterUri` is not needed.
+  // However, there are a few components in the system, such as `getResourceUri`, which need to determine the relation
+  // between a document and a cluster just by looking at the document fields.
+  rootClusterUri: uri.RootClusterUri;
+}
+
 export type DocumentTerminal =
   | DocumentPtySession
+  | DocumentGatewayCliClient
   | DocumentTshNode
   | DocumentTshKube;
 
@@ -134,7 +171,8 @@ export type Document =
   | DocumentBlank
   | DocumentGateway
   | DocumentCluster
-  | DocumentTerminal;
+  | DocumentTerminal
+  | DocumentConnectMyComputerSetup;
 
 export function isDocumentTshNodeWithLoginHost(
   doc: Document
@@ -181,9 +219,3 @@ export type CreateAccessRequestDocumentOpts = {
 };
 
 export type AccessRequestDocumentState = 'browsing' | 'creating' | 'reviewing';
-
-export type CreateNewTerminalOpts = {
-  initCommand?: string;
-  rootClusterId: string;
-  leafClusterId?: string;
-};

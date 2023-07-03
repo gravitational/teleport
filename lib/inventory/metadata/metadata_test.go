@@ -97,7 +97,7 @@ func TestFetchInstallMethods(t *testing.T) {
 					return nil, trace.NotFound("command does not exist")
 				}
 				output := `
-● teleport.service - Teleport SSH Service
+● teleport.service - Teleport Service
 Loaded: loaded (/lib/systemd/system/teleport.service; enabled; vendor preset: enabled)
 Active: active (running) since Wed 2022-11-09 10:52:49 UTC; 3 months 22 days ago
 Main PID: 1815 (teleport)
@@ -255,11 +255,10 @@ func TestFetchContainerOrchestrator(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			c := &fetchConfig{
-				context: context.Background(),
-				getenv:  tc.getenv,
-				httpDo:  tc.httpDo,
+				getenv: tc.getenv,
+				httpDo: tc.httpDo,
 			}
-			require.Equal(t, tc.expected, c.fetchContainerOrchestrator())
+			require.Equal(t, tc.expected, c.fetchContainerOrchestrator(context.Background()))
 		})
 	}
 }
@@ -352,10 +351,9 @@ func TestFetchCloudEnvironment(t *testing.T) {
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			c := &fetchConfig{
-				context: context.Background(),
-				httpDo:  tc.httpDo,
+				httpDo: tc.httpDo,
 			}
-			require.Equal(t, tc.expected, c.fetchCloudEnvironment())
+			require.Equal(t, tc.expected, c.fetchCloudEnvironment(context.Background()))
 		})
 	}
 }

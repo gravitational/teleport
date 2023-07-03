@@ -21,19 +21,12 @@ This reference details available values for the `teleport-plugin-mattermost` cha
 
 This parameter contains the host/port combination of the Teleport Auth Service or Proxy Service.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     address: "teleport.example.com:3025"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.address="teleport.example.com:3025"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `teleport.identitySecretName`
 
@@ -58,19 +51,12 @@ data:
 Check out the [Access Requests with Mattermost](../../access-controls/access-request-plugins/ssh-approval-mattermost.mdx) guide
 for more information about how to acquire these credentials.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     identitySecretName: "teleport-plugin-mattermost-identity"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretName="teleport-plugin-mattermost-identity"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `teleport.identitySecretPath`
 
@@ -82,19 +68,12 @@ The key in the Kubernetes secret specified by `teleport.identitySecretName` that
 credentials for the connection to your Teleport cluster. If the secret has the path,
 `"auth_id"`, you can omit this field.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     identitySecretPath: "auth_id"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretPath="auth_id"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `mattermost.url`
 
@@ -104,19 +83,12 @@ credentials for the connection to your Teleport cluster. If the secret has the p
 
 Base URL of the Mattermost instance.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   mattermost:
     url: "https://mattermost.example.com/"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set mattermost.url="https://mattermost.example.com/"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `mattermost.token`
 
@@ -129,19 +101,12 @@ messages. Ignored when `mattermost.tokenFromSecret` is set.
 It's only recommended for testing purposes. Please use
 [`mattermost.tokenFromSecret`](#mattermosttokenfromsecret) instead.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   mattermost:
     token: "xoxb-1234"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set mattermost.token="xoxb-1234"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `mattermost.tokenFromSecret`
 
@@ -151,19 +116,12 @@ It's only recommended for testing purposes. Please use
 
 Secret containing the Mattermost token of the bot user.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   mattermost:
     tokenFromSecret: "teleport-mattermost-plugin-token"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set mattermost.tokenFromSecret="teleport-mattermost-plugin-token"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `mattermost.tokenSecretPath`
 
@@ -173,19 +131,12 @@ Secret containing the Mattermost token of the bot user.
 
 Key where the token is located inside the secret specified by `mattermost.tokenFromSecret`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   mattermost:
     tokenSecretPath: "token"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set mattermost.tokenSecretPath="token"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `mattermost.recipients`
 
@@ -195,21 +146,14 @@ Key where the token is located inside the secret specified by `mattermost.tokenF
 
 List of recipients who will receive notifications about Access Requests.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   mattermost:
     recipients:
       - user1@example.com
       - user2@example.com
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set mattermost.recipients[0]="user1@example.com",mattermost.recipients[0]="user1@example.com"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `log.output`
 
@@ -219,19 +163,12 @@ List of recipients who will receive notifications about Access Requests.
 
 Logger output. Could be `stdout`, `stderr` or a file name, eg. `/var/log/teleport/mattermost.log`
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     output: /var/log/teleport/mattermost.log
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set log.output="/var/log/teleport/mattermost.log"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `log.severity`
 
@@ -241,16 +178,9 @@ Logger output. Could be `stdout`, `stderr` or a file name, eg. `/var/log/telepor
 
 Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     severity: DEBUG
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set log.severity="DEBUG"
-  ```
-  </TabItem>
-</Tabs>

@@ -35,7 +35,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func getCredentialData(idFile *identityfile.IdentityFile) ([]byte, error) {
+func getCredentialData(idFile *identityfile.IdentityFile, currentTime time.Time) ([]byte, error) {
 	cert, err := tlsca.ParseCertificatePEM(idFile.Certs.TLS)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -44,7 +44,7 @@ func getCredentialData(idFile *identityfile.IdentityFile) ([]byte, error) {
 	// Indicate slightly earlier expiration to avoid the cert expiring
 	// mid-request, if possible.
 	expiry := cert.NotAfter
-	if time.Until(expiry) > time.Minute {
+	if expiry.Sub(currentTime) > time.Minute {
 		expiry = expiry.Add(-1 * time.Minute)
 	}
 	resp := &clientauthentication.ExecCredential{
@@ -62,23 +62,13 @@ func getCredentialData(idFile *identityfile.IdentityFile) ([]byte, error) {
 	return data, nil
 }
 
-func onKubeCredentialsCommand(cfg *config.BotConfig, cf *config.CLIConf) error {
-	destination, err := tshwrap.GetDestination(cfg, cf)
+func onKubeCredentialsCommand(cfg *config.BotConfig) error {
+	destination, err := tshwrap.GetDestinationDirectory(cfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	identityTemplate, err := tshwrap.GetIdentityTemplate(destination)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	destImpl, err := destination.GetDestination()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	idData, err := destImpl.Read(identityTemplate.FileName)
+	idData, err := destination.Read(config.IdentityFilePath)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -88,7 +78,7 @@ func onKubeCredentialsCommand(cfg *config.BotConfig, cf *config.CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	data, err := getCredentialData(idFile)
+	data, err := getCredentialData(idFile, time.Now())
 	if err != nil {
 		return trace.Wrap(err)
 	}

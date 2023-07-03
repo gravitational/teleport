@@ -18,267 +18,328 @@ package local_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/backend"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
-func TestHeadlessAuthenticationWatcher(t *testing.T) {
+type headlessAuthenticationWatcherTestEnv struct {
+	watcher       *local.HeadlessAuthenticationWatcher
+	watcherCancel context.CancelFunc
+	identity      *local.IdentityService
+}
+
+func newHeadlessAuthenticationWatcherTestEnv(t *testing.T, clock clockwork.Clock) *headlessAuthenticationWatcherTestEnv {
+	identity := newIdentityService(t, clock)
+
+	watcherCtx, watcherCancel := context.WithCancel(context.Background())
+	t.Cleanup(watcherCancel)
+
+	w, err := local.NewHeadlessAuthenticationWatcher(watcherCtx, local.HeadlessAuthenticationWatcherConfig{
+		Clock:   clock,
+		Backend: identity.Backend,
+	})
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	require.NoError(t, w.WaitInit(ctx))
+
+	return &headlessAuthenticationWatcherTestEnv{
+		watcher:       w,
+		watcherCancel: watcherCancel,
+		identity:      identity,
+	}
+}
+
+func TestHeadlessAuthenticationWatcher_Subscribe(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
+
 	pubUUID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
+	username := "username"
 
-	type testEnv struct {
-		watcher       *local.HeadlessAuthenticationWatcher
-		watcherClock  clockwork.FakeClock
-		watcherCancel context.CancelFunc
-		identity      *local.IdentityService
-		buf           *backend.CircularBuffer
+	newHeadlessAuthn := func(t *testing.T, s *headlessAuthenticationWatcherTestEnv) *types.HeadlessAuthentication {
+		headlessAuthn, err := types.NewHeadlessAuthentication(username, pubUUID, s.watcher.Clock.Now().Add(time.Minute))
+		require.NoError(t, err)
+		headlessAuthn.User = username
+		return headlessAuthn
 	}
 
-	newTestEnv := func(t *testing.T) *testEnv {
-		identity := newIdentityService(t, clockwork.NewFakeClock())
+	t.Run("Updates", func(t *testing.T) {
+		t.Parallel()
+		s := newHeadlessAuthenticationWatcherTestEnv(t, clockwork.NewFakeClock())
+		headlessAuthn := newHeadlessAuthn(t, s)
 
-		// use a standalone buffer as a watcher service.
-		buf := backend.NewCircularBuffer()
-		buf.SetInit()
+		sub, err := s.watcher.Subscribe(ctx, username, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(sub.Close)
 
-		watcherCtx, watcherCancel := context.WithCancel(ctx)
-		t.Cleanup(watcherCancel)
+		err = s.identity.UpsertHeadlessAuthentication(ctx, headlessAuthn)
+		assert.NoError(t, err)
 
-		watcherClock := clockwork.NewFakeClock()
-		w, err := local.NewHeadlessAuthenticationWatcher(watcherCtx, local.HeadlessAuthenticationWatcherConfig{
-			Clock:          watcherClock,
-			WatcherService: buf,
-			Backend:        identity.Backend,
-		})
+		for {
+			select {
+			case update := <-sub.Updates():
+				// We should receive the update.
+				require.Equal(t, headlessAuthn, update)
+				return
+			case <-time.After(time.Second):
+				t.Fatal("Expected subscriber to receive an update")
+			}
+		}
+	})
+
+	t.Run("Stale", func(t *testing.T) {
+		t.Parallel()
+		s := newHeadlessAuthenticationWatcherTestEnv(t, clockwork.NewFakeClock())
+		headlessAuthn := newHeadlessAuthn(t, s)
+
+		sub, err := s.watcher.Subscribe(ctx, username, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(sub.Close)
+
+		// Create a second subscriber to wait for the update below. Since this
+		// subscriber was created second, it should receive the update second.
+		drain, err := s.watcher.Subscribe(ctx, username, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(drain.Close)
+
+		// Create 2 updates without servicing the subscriber's Updates channel.
+		// The backend update should be dropped in favor of the second update.
+		err = s.identity.UpsertHeadlessAuthentication(ctx, headlessAuthn)
 		require.NoError(t, err)
 
-		return &testEnv{
-			watcher:       w,
-			watcherClock:  watcherClock,
-			watcherCancel: watcherCancel,
-			identity:      identity,
-			buf:           buf,
-		}
-	}
+		replace := *headlessAuthn
+		replace.PublicKey = []byte(sshPubKey)
+		replace.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+		swapped, err := s.identity.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replace)
+		require.NoError(t, err)
 
-	waitInGoroutine := func(ctx context.Context, t *testing.T, watcher *local.HeadlessAuthenticationWatcher, name string, cond func(*types.HeadlessAuthentication) (bool, error),
-	) (headlessAuthnC chan *types.HeadlessAuthentication, firstEventReceivedC chan struct{}, errC chan error) {
-		waitCtx, waitCancel := context.WithTimeout(ctx, 5*time.Second)
-		t.Cleanup(waitCancel)
-
-		headlessAuthnC = make(chan *types.HeadlessAuthentication, 1)
-		errC = make(chan error, 1)
-		firstEventReceivedC = make(chan struct{})
-		go func() {
-			headlessAuthn, err := watcher.Wait(waitCtx, name, func(ha *types.HeadlessAuthentication) (bool, error) {
-				select {
-				case <-firstEventReceivedC:
-				default:
-					close(firstEventReceivedC)
+		// Drain updates and wait for the second update. Depending on the speed
+		// of the watcher above, we may see one or both updates.
+	DRAIN:
+		for {
+			select {
+			case update := <-drain.Updates():
+				if assert.ObjectsAreEqual(swapped, update) {
+					break DRAIN
 				}
-				return cond(ha)
-			})
-			errC <- err
-			headlessAuthnC <- headlessAuthn
-		}()
-		return headlessAuthnC, firstEventReceivedC, errC
-	}
-
-	// The waiter may miss put events during initialization, so we continuously emit them until one is caught.
-	// This can also be used to wait until a waiter is fully initialized.
-	waitForPutEvent := func(t *testing.T, s *testEnv, ha *types.HeadlessAuthentication, firstEventReceivedC chan struct{}) {
-		item, err := local.MarshalHeadlessAuthenticationToItem(ha)
-		require.NoError(t, err)
-
-		require.Eventually(t, func() bool {
-			s.buf.Emit(backend.Event{
-				Type: types.OpPut,
-				Item: *item,
-			})
-
-			select {
-			case <-firstEventReceivedC:
-				return true
-			default:
-				return false
+			case <-time.After(time.Second):
+				t.Fatal("Expected subscriber to receive an update")
 			}
-		}, 2*time.Second, 100*time.Millisecond)
-	}
-
-	t.Run("WaitEventWithConditionMet", func(t *testing.T) {
-		t.Parallel()
-		s := newTestEnv(t)
-
-		headlessAuthnCh, firstEventReceivedC, errC := waitInGoroutine(ctx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			return ha.User != "", nil
-		})
-
-		// Emit put event that passes the condition.
-		stub, err := types.NewHeadlessAuthenticationStub(pubUUID, time.Now())
-		require.NoError(t, err)
-		stub.User = "user"
-
-		waitForPutEvent(t, s, stub, firstEventReceivedC)
-
-		require.NoError(t, <-errC)
-		require.Equal(t, stub, <-headlessAuthnCh)
-	})
-
-	t.Run("WaitEventWithConditionUnmet", func(t *testing.T) {
-		t.Parallel()
-		s := newTestEnv(t)
-
-		waitCtx, waitCancel := context.WithCancel(ctx)
-		t.Cleanup(waitCancel)
-
-		headlessAuthnCh, firstEventReceivedC, errC := waitInGoroutine(waitCtx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			return ha.User != "", nil
-		})
-
-		// Emit put event that doesn't pass the condition (user not set). The waiter should ignore these events.
-		stub, err := types.NewHeadlessAuthenticationStub(pubUUID, time.Now())
-		require.NoError(t, err)
-
-		waitForPutEvent(t, s, stub, firstEventReceivedC)
-
-		// Ensure that the waiter did not finish with the condition unmet.
-		select {
-		case err := <-errC:
-			t.Errorf("Expected waiter to continue but instead the waiter returned with err: %v", err)
-		default:
-			waitCancel()
 		}
 
-		require.Error(t, <-errC)
-		require.Nil(t, <-headlessAuthnCh)
-	})
-
-	t.Run("WaitBackend", func(t *testing.T) {
-		t.Parallel()
-		s := newTestEnv(t)
-
-		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
-		require.NoError(t, err)
-
-		waitCtx, waitCancel := context.WithTimeout(ctx, 5*time.Second)
-		t.Cleanup(waitCancel)
-
-		// Wait should immediately check the backend and return the existing headless authentication stub.
-		headlessAuthn, err := s.watcher.Wait(waitCtx, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			return true, nil
-		})
-
-		require.NoError(t, err)
-		require.Equal(t, stub, headlessAuthn)
-	})
-
-	t.Run("WaitTimeout", func(t *testing.T) {
-		t.Parallel()
-		s := newTestEnv(t)
-
-		waitCtx, waitCancel := context.WithTimeout(ctx, 10*time.Millisecond)
-		t.Cleanup(waitCancel)
-
-		_, err := s.watcher.Wait(waitCtx, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) { return true, nil })
-		require.Error(t, err)
-		require.Equal(t, waitCtx.Err(), err)
-	})
-
-	t.Run("StaleCheck", func(t *testing.T) {
-		t.Parallel()
-		s := newTestEnv(t)
-
-		// Create a waiter that we can block/unblock.
-		blockWaiter := make(chan struct{})
-		t.Cleanup(func() {
-			select {
-			case <-blockWaiter:
-			default:
-				close(blockWaiter)
-			}
-		})
-
-		_, blockedWaiterEventReceived, blockedWaiterErrC := waitInGoroutine(ctx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			<-blockWaiter
-			return false, nil
-		})
-
-		// Emit stub put event and wait for it to be caught by the waiter.
-		stub, err := types.NewHeadlessAuthenticationStub(pubUUID, time.Now())
-		require.NoError(t, err)
-
-		waitForPutEvent(t, s, stub, blockedWaiterEventReceived)
-
-		// Create a second waiter to catch a second put event.
-		_, freeWaiterEventReceivedC, freeWaiterErrC := waitInGoroutine(ctx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			return true, nil
-		})
-
-		waitForPutEvent(t, s, stub, freeWaiterEventReceivedC)
-		require.NoError(t, <-freeWaiterErrC)
-
-		// unblock the waiter. It should perform a stale check and return a not found error.
-		close(blockWaiter)
-		err = <-blockedWaiterErrC
-		require.True(t, trace.IsNotFound(err), "Expected a not found error from Wait but got %v", err)
+		select {
+		case update := <-sub.Updates():
+			// The first update should be replaced by the second.
+			require.Equal(t, swapped, update)
+			return
+		default:
+			t.Fatal("Expected subscriber to receive an update")
+		}
 	})
 
 	t.Run("WatchReset", func(t *testing.T) {
 		t.Parallel()
-		s := newTestEnv(t)
+		clock := clockwork.NewFakeClock()
+		s := newHeadlessAuthenticationWatcherTestEnv(t, clock)
+		headlessAuthn := newHeadlessAuthn(t, s)
 
-		headlessAuthnCh, firstEventReceivedC, errC := waitInGoroutine(ctx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			return services.ValidateHeadlessAuthentication(ha) == nil, nil
-		})
+		sub, err := s.watcher.Subscribe(ctx, username, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(sub.Close)
 
-		stub, err := s.identity.CreateHeadlessAuthenticationStub(ctx, pubUUID)
+		// Closed watchers should be handled gracefully and reset.
+		s.identity.Backend.CloseWatchers()
+		clock.BlockUntil(1)
+
+		err = s.identity.UpsertHeadlessAuthentication(ctx, headlessAuthn)
 		require.NoError(t, err)
 
-		waitForPutEvent(t, s, stub, firstEventReceivedC)
+		// Reset the watcher. Make sure we are servicing the updates channel first.
+		readyForUpdate := make(chan struct{})
+		go func() {
+			<-readyForUpdate
+			clock.Advance(s.watcher.MaxRetryPeriod)
+		}()
 
-		// closed watchers should be handled gracefully and reset.
-		s.buf.Clear()
-		s.watcherClock.BlockUntil(1)
+		readyForUpdate <- struct{}{}
+		select {
+		case update := <-sub.Updates():
+			// We should receive an update of the current backend state on watcher reset.
+			require.Equal(t, headlessAuthn, update)
+			return
+		case <-time.After(time.Second):
+			t.Fatal("Expected subscriber to receive an update")
+		}
+	})
+}
 
-		// The watcher should notify waiters of backend state on watcher reset.
-		replace := *stub
-		replace.PublicKey = []byte(sshPubKey)
-		replace.User = "user"
-		swapped, err := s.identity.CompareAndSwapHeadlessAuthentication(ctx, stub, &replace)
+func TestHeadlessAuthenticationWatcher_WaitForUpdate(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	pubUUID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
+	username := "username"
+
+	newHeadlessAuthn := func(t *testing.T, s *headlessAuthenticationWatcherTestEnv) *types.HeadlessAuthentication {
+		headlessAuthn, err := types.NewHeadlessAuthentication(username, pubUUID, s.watcher.Clock.Now().Add(time.Minute))
+		require.NoError(t, err)
+		headlessAuthn.User = username
+		return headlessAuthn
+	}
+
+	deniedErr := errors.New("headless authentication denied")
+	conditionFunc := func(ha *types.HeadlessAuthentication) (bool, error) {
+		switch ha.State {
+		case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING:
+			return false, nil
+		case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED:
+			return true, nil
+		case types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED:
+			return false, deniedErr
+		}
+		return false, nil
+	}
+
+	t.Run("ConditionMet", func(t *testing.T) {
+		t.Parallel()
+		s := newHeadlessAuthenticationWatcherTestEnv(t, clockwork.NewFakeClock())
+		headlessAuthn := newHeadlessAuthn(t, s)
+
+		sub, err := s.watcher.Subscribe(ctx, username, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(sub.Close)
+
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		t.Cleanup(cancel)
+
+		headlessAuthnCh := make(chan *types.HeadlessAuthentication, 1)
+		errC := make(chan error, 1)
+		go func() {
+			ha, err := sub.WaitForUpdate(ctx, conditionFunc)
+			headlessAuthnCh <- ha
+			errC <- err
+		}()
+
+		// Make an update that passes the condition.
+		headlessAuthn.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+		err = s.identity.UpsertHeadlessAuthentication(ctx, headlessAuthn)
 		require.NoError(t, err)
 
-		s.watcherClock.Advance(s.watcher.MaxRetryPeriod)
 		require.NoError(t, <-errC)
-		require.Equal(t, swapped, <-headlessAuthnCh)
+		require.Equal(t, headlessAuthn, <-headlessAuthnCh)
+	})
+
+	t.Run("ConditionUnmet", func(t *testing.T) {
+		t.Parallel()
+		s := newHeadlessAuthenticationWatcherTestEnv(t, clockwork.NewFakeClock())
+		headlessAuthn := newHeadlessAuthn(t, s)
+
+		sub, err := s.watcher.Subscribe(ctx, username, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(sub.Close)
+
+		// Make an update that doesn't pass the condition (pending).
+		// The waiter should ignore this update and timeout.
+		err = s.identity.UpsertHeadlessAuthentication(ctx, headlessAuthn)
+		require.NoError(t, err)
+
+		timeoutCtx, cancel := context.WithTimeout(ctx, 100*time.Millisecond)
+		t.Cleanup(cancel)
+
+		_, err = sub.WaitForUpdate(timeoutCtx, conditionFunc)
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
+
+		// Make an update that causes the condition to error (denied).
+		// The waiter should return the condition error during the initial backend check.
+		headlessAuthn.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED
+		err = s.identity.UpsertHeadlessAuthentication(ctx, headlessAuthn)
+		require.NoError(t, err)
+
+		waitCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		t.Cleanup(cancel)
+
+		_, err = sub.WaitForUpdate(waitCtx, conditionFunc)
+		require.Error(t, err)
+		require.ErrorIs(t, err, deniedErr)
+	})
+
+	t.Run("InitialBackendCheck", func(t *testing.T) {
+		t.Parallel()
+		s := newHeadlessAuthenticationWatcherTestEnv(t, clockwork.NewFakeClock())
+		headlessAuthn := newHeadlessAuthn(t, s)
+
+		// Create a headless authentication that passes the condition before starting WaitForUpdate.
+		headlessAuthn.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
+		err := s.identity.UpsertHeadlessAuthentication(ctx, headlessAuthn)
+		require.NoError(t, err)
+
+		waitCtx, waitCancel := context.WithTimeout(ctx, 5*time.Second)
+		t.Cleanup(waitCancel)
+
+		sub, err := s.watcher.Subscribe(ctx, username, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(sub.Close)
+
+		// WaitForUpdate should immediately check the backend and return the existing headless authentication.
+		headlessAuthnUpdate, err := sub.WaitForUpdate(waitCtx, conditionFunc)
+
+		require.NoError(t, err)
+		require.Equal(t, headlessAuthn, headlessAuthnUpdate)
+	})
+
+	t.Run("Timeout", func(t *testing.T) {
+		t.Parallel()
+		s := newHeadlessAuthenticationWatcherTestEnv(t, clockwork.NewFakeClock())
+
+		sub, err := s.watcher.Subscribe(ctx, username, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(sub.Close)
+
+		waitCtx, waitCancel := context.WithTimeout(ctx, 10*time.Millisecond)
+		t.Cleanup(waitCancel)
+
+		_, err = sub.WaitForUpdate(waitCtx, func(ha *types.HeadlessAuthentication) (bool, error) { return true, nil })
+		require.Error(t, err)
+		require.ErrorIs(t, err, context.DeadlineExceeded)
 	})
 
 	t.Run("WatcherClosed", func(t *testing.T) {
 		t.Parallel()
-		s := newTestEnv(t)
+		s := newHeadlessAuthenticationWatcherTestEnv(t, clockwork.NewFakeClock())
 
-		_, _, errC := waitInGoroutine(ctx, t, s.watcher, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) {
-			return true, nil
-		})
+		sub, err := s.watcher.Subscribe(ctx, username, pubUUID)
+		require.NoError(t, err)
+		t.Cleanup(sub.Close)
+
+		errC := make(chan error)
+		go func() {
+			_, err := sub.WaitForUpdate(ctx, func(ha *types.HeadlessAuthentication) (bool, error) {
+				return true, nil
+			})
+			errC <- err
+		}()
 
 		s.watcherCancel()
 
-		// waiters should be notified to close and result in ctx error
+		// WaitForUpdate should end with closed watcher error.
 		waitErr := <-errC
 		require.Error(t, waitErr)
-		require.Equal(t, waitErr.Error(), "headless authentication watcher closed")
+		require.ErrorIs(t, waitErr, local.ErrHeadlessAuthenticationWatcherClosed)
 
-		// New waiters should be prevented.
-		_, err := s.watcher.Wait(ctx, pubUUID, func(ha *types.HeadlessAuthentication) (bool, error) { return true, nil })
+		// New subscribers should be prevented.
+		_, err = s.watcher.Subscribe(ctx, username, pubUUID)
 		require.Error(t, err)
 	})
 }

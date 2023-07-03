@@ -1,6 +1,6 @@
 ---
 title: Database Access with Cassandra and ScyllaDB
-description: How to configure Teleport Database Access with Cassandra and ScyllaDB.
+description: How to configure Teleport database access with Cassandra and ScyllaDB.
 ---
 
 <Details
@@ -20,10 +20,10 @@ This guide will help you to:
 - Connect to your database through Teleport.
 
 <ScopedBlock scope={["oss", "enterprise"]}>
-![Teleport Database Access Redis Self-Hosted](../../../img/database-access/guides/cassandra_selfhosted.png)
+![Teleport Database Access Cassandra Self-Hosted](../../../img/database-access/guides/cassandra_selfhosted.png)
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
-![Teleport Database Access Redis Cloud](../../../img/database-access/guides/cassandra_cloud.png)
+![Teleport Database Access Cassandra Cloud](../../../img/database-access/guides/cassandra_cloud.png)
 </ScopedBlock>
 
 ## Prerequisites
@@ -38,55 +38,26 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Install Teleport on the host where you will run the Teleport Database Service:
+Install and configure Teleport where you will run the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Linux Server">
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="cassandra" dbProtocol="cassandra" databaseAddress="cassandra.example.com:9042" !)
 
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Proxy Service:
+</TabItem>
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=teleport.example.com:3080 \
-  --name=example-cassandra \
-  --protocol=cassandra \
-  --uri=cassandra.example.com:9042 \
-  --labels=env=dev
-```
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-<Admonition type="note">
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="cassandra" dbProtocol="cassandra" databaseAddress="cassandra.example.com:9042" !)
+</TabItem>
+</Tabs>
 
-The `--auth-server` flag must point to the Teleport cluster's Proxy Service
-endpoint because the Database Service always connects back to the cluster over a
-reverse tunnel.
-
-</Admonition>
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Cloud tenant:
-
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh:443 \
-  --name=example-cassandra \
-  --protocol=cassandra \
-  --uri=cassandra.example.com:9042 \
-  --labels=env=dev
-```
-
-</ScopedBlock>
-
-<Admonition type="tip">
-  You can start the Database Service using a configuration file instead of CLI flags.
-  See the [YAML reference](../reference/configuration.mdx) for details.
-</Admonition>
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 ## Step 2/5. Create a Teleport user
 
@@ -174,7 +145,7 @@ databases:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
   ```code
-  $ tsh login --proxy=teleport.example.com --user=testuser
+  $ tsh login --proxy=teleport.example.com --user=alice
   $ tsh db ls
   # Name      Description       Allowed Users Labels  Connect
   # --------- ----------------- ------------- ------- -------
@@ -185,7 +156,7 @@ databases:
 <ScopedBlock scope={["cloud"]}>
 
   ```code
-  $ tsh login --proxy=mytenant.teleport.sh --user=testuser
+  $ tsh login --proxy=mytenant.teleport.sh --user=alice
   $ tsh db ls
   # Name      Description       Allowed Users Labels  Connect
   # --------- ----------------- ------------- ------- -------

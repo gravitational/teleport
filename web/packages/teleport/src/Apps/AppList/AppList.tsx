@@ -133,7 +133,7 @@ function renderAppIcon({ name, awsConsole }: App) {
         {awsConsole ? (
           <AmazonAws fontSize={6} />
         ) : (
-          <Text fontSize={3} bold caps>
+          <Text fontSize={3} color="light" bold caps>
             {name[0]}
           </Text>
         )}

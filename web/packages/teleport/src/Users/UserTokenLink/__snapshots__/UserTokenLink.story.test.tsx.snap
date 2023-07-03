@@ -20,29 +20,26 @@ exports[`reset link dialog 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c11:active {
-  opacity: 0.56;
-}
-
 .c11:hover,
 .c11:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c11:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c13 {
@@ -64,25 +61,26 @@ exports[`reset link dialog 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c13:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -93,7 +91,7 @@ exports[`reset link dialog 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c7 {
@@ -114,6 +112,7 @@ exports[`reset link dialog 1`] = `
 .c9 {
   box-sizing: border-box;
   padding: 8px;
+  color: #FFFFFF;
   background-color: #010B1C;
   border-radius: 4px;
   display: flex;
@@ -163,8 +162,8 @@ exports[`reset link dialog 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -217,7 +216,7 @@ exports[`reset link dialog 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Share Link
         </div>
@@ -240,6 +239,7 @@ exports[`reset link dialog 1`] = `
         </div>
         <div
           class="c9"
+          color="light"
         >
           <div
             class="c10"
@@ -293,29 +293,26 @@ exports[`reset link dialog as invite 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c11:active {
-  opacity: 0.56;
-}
-
 .c11:hover,
 .c11:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c11:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c11:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c13 {
@@ -337,25 +334,26 @@ exports[`reset link dialog as invite 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c13:active {
-  opacity: 0.56;
-}
-
 .c13:hover,
 .c13:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c13:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c13:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -366,7 +364,7 @@ exports[`reset link dialog as invite 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c7 {
@@ -387,6 +385,7 @@ exports[`reset link dialog as invite 1`] = `
 .c9 {
   box-sizing: border-box;
   padding: 8px;
+  color: #FFFFFF;
   background-color: #010B1C;
   border-radius: 4px;
   display: flex;
@@ -436,8 +435,8 @@ exports[`reset link dialog as invite 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -490,7 +489,7 @@ exports[`reset link dialog as invite 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Share Link
         </div>
@@ -513,6 +512,7 @@ exports[`reset link dialog as invite 1`] = `
         </div>
         <div
           class="c9"
+          color="light"
         >
           <div
             class="c10"

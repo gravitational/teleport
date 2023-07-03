@@ -73,7 +73,7 @@ created with a TTL of five minutes:
 
 ```code
 # Generate a short-lived invitation token for a new node:
-$ tctl nodes add --ttl=5m --roles=node
+$ tctl tokens add --ttl=5m --type=node
 # The invite token: (=presets.tokens.first=)
 
 # You can also list all generated non-expired tokens:
@@ -165,7 +165,7 @@ Node Name    Address    Labels
 bdcb47b87ad6 ⟵ Tunnel environment=dev
 ```
 
-<Details title="Don't see your Node?" opened={false}>
+<Details title="Don't see your Node?">
 
 First, check the logs for your Node to ensure the SSH Service is running. Your logs should resemble the following:
 
@@ -181,7 +181,7 @@ your Node.
 
 Run the following command to get the current logins for your user:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```code
 $ tsh status
@@ -196,6 +196,21 @@ $ tsh status
 ```
 
 </ScopedBlock>
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ tsh status
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       myuser
+  Cluster:            teleport.example.com
+  Roles:              access, editor, reviewer
+  Logins:             -teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe
+  Kubernetes:         enabled
+  Valid until:        2022-04-27 22:26:50 -0400 EDT [valid for 11h40m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
@@ -203,7 +218,7 @@ tsh status
 > Profile URL:        https://mytenant.teleport.sh:443
   Logged in as:       myuser
   Cluster:            mytenant.teleport.sh
-  Roles:              access, editor
+  Roles:              access, editor, reviewer
   Logins:             -teleport-nologin-d4bc1dad-ce49-4bbe-925d-a67f8d2d6afe
   Kubernetes:         enabled
   Valid until:        2022-04-27 22:26:50 -0400 EDT [valid for 11h40m0s]
@@ -248,7 +263,7 @@ you run `tsh ls`.
 
 </Details>
 
-<Details title="Hidden labels" opened={false}>
+<Details title="Hidden labels">
 
 If you wish to use labels for RBAC purposes but don't want to see the labels
 in the UI, you can put them in the hidden namespace by prefixing the label's
@@ -371,7 +386,7 @@ ip-192-0-2-0      ⟵ Tunnel arch=x86_64,hostname=ip-172-30-156-233
 
 <Details title="Problems re-joining the Node?">
 
-Try creating another invite token using the `tctl nodes add` command from earlier
+Try creating another invite token using the `tctl tokens add` command from earlier
 and starting your Node again.
 
 If this doesn't work, delete the directory your Node uses to maintain its state,

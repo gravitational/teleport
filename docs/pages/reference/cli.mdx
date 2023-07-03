@@ -12,6 +12,36 @@ Teleport is made up of four CLI tools.
 
 (!docs/pages/includes/permission-warning.mdx!)
 
+<Details title="Improve the CLI experience: enable shell completion">
+
+  Teleport's CLI tools can provide completion hints for bash and zsh.
+  For example, typing `tsh` and pressing `Tab` will show all available
+  subcommands, typing `tsh --` and pressing `Tab` will show all available flags.
+
+  To enable completion, add an additional statement to your shell configuration file.
+
+  Example (`.bashrc`):
+
+  ```sh
+  eval "$(tsh --completion-script-bash)"
+  ```
+
+  Example (`.zshrc`):
+
+  ```sh
+  # enable completion feature
+  autoload -Uz compinit
+  compinit
+
+  eval "$(tsh --completion-script-zsh)"
+  ```
+
+  Reload your shell to see the changes.
+
+  You can repeat the same process for `tctl`, `teleport`, and `tbot`.
+
+</Details>
+
 (!docs/pages/includes/backup-warning.mdx!)
 
 ## teleport
@@ -54,7 +84,7 @@ For more information on subcommands when working with the `teleport` cli, use th
 The `teleport start` command includes a large number of optional configuration flags.
 
 While configuration flags for `teleport start` can be used to set parameters for Teleport's configuration,
-we recommend using a [configuration file](https://goteleport.com/docs/reference/config/) in production.
+we recommend using a [configuration file](./config.mdx) in production.
 
 #### Flags
 
@@ -140,14 +170,15 @@ information about the cluster.
 | `--user` | `$USER` | none | The Teleport username |
 | `--ttl` | `720` (12 hours) | integer | Number of minutes a certificate issued for the `tsh` user will be valid for |
 | `-i, --identity` | none | **string** filepath | Identity file |
-| `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format |
+| `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format. `oldssh` supports older versions of OpenSSH servers that do not allow for custom metadata, which is how Teleport encodes a user's roles in their SSH certificate. |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
-| `--auth` | `local` | any defined [authentication connector](./authentication.mdx), including `local` and `passwordless` | Specify the type of authentication connector to use. |
+| `--auth` | `local` | Any defined [authentication connector](./authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | Specify the type of authentication connector to use. |
 | `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
 | `-J, --jumphost` | none | A jump host | SSH jumphost |
 | `--headless` | none | none | Use Headless WebAuthn for authentication |
+| `--mlock` | `auto` | `auto`, `off`, `best_effort`, `strict` | Lock process memory to protect client secrets stored in memory from being swapped to disk. |
 
 ### tsh help
 
@@ -300,7 +331,7 @@ $ tsh gcloud [--app] [<command>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| <nobr>`--app`</nobr> | Currently logged in Google Cloud application | The name of a Google Cloud application as listed via `tsh apps ls`. | The Google Cloud application to run the command against, if logged in to multiple Google Cloud applications. |
+| `--app` | Currently logged in Google Cloud application | The name of a Google Cloud application as listed via `tsh apps ls`. | The Google Cloud application to run the command against, if logged in to multiple Google Cloud applications. |
 
 #### Global flags
 
@@ -332,7 +363,7 @@ $ tsh gsutil [--app] [<command>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| <nobr>`--app`</nobr> | Currently logged in Google Cloud application | The name of a Google Cloud application as listed via `tsh apps ls`. | The Google Cloud application to run the command against, if logged in to multiple Google Cloud applications. |
+| `--app` | Currently logged in Google Cloud application | The name of a Google Cloud application as listed via `tsh apps ls`. | The Google Cloud application to run the command against, if logged in to multiple Google Cloud applications. |
 
 #### Global flags
 
@@ -627,7 +658,7 @@ $ ssh myuser@node1.example.com
 
 ### tsh proxy app
 
-Starts a local TLS proxy for Application Access connections.
+Starts a local TLS proxy for Application Service connections.
 You can use this proxy to connect to an application repeatedly after a single login to your Teleport cluster,
 which is especially useful for interacting with an application via a CLI.
 
@@ -710,6 +741,7 @@ Access](../application-access/cloud-apis/azure.mdx).
 This command does not accept any arguments.
 
 #### Flags
+
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--app` | none | string | Name of the Teleport application representing Azure (i.e., based on `tsh apps ls`). Use this flag if your Teleport user has access to multiple Azure applications. |
@@ -735,9 +767,9 @@ $ tsh proxy aws [<flags>]
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--app` | Currently logged in AWS app | string | Optional name of the AWS application (as shown in `tsh apps ls`) to use if logged in to multiple |
-| `-p, --port` | none | port number | Specify the source port for the local proxy |
-| ` -e, --endpoint-url` | HTTP Proxy | Endpoint URL | Run the local proxy to serve as an AWS endpoint URL. If not specified, the local proxy serves as an HTTPS proxy. |
-| `-f, --format` | unix | `text`, `unix`, `command-prompt`, or `powershell` | Optional format for printing environment variables for the AWS proxy |
+| `-p`, `--port` | none | port number | Specify the source port for the local proxy |
+| `-e`, `--endpoint-url` | HTTP Proxy | Endpoint URL | Run the local proxy to serve as an AWS endpoint URL. If not specified, the local proxy serves as an HTTPS proxy. |
+| `-f`, `--format` | unix | `text`, `unix`, `command-prompt`, or `powershell` | Optional format for printing environment variables for the AWS proxy |
 
 #### [Global Flags](#tsh-global-flags)
 
@@ -775,9 +807,9 @@ $ tsh proxy gcloud [<flags>]
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
 | `--app` | Currently logged in Google Cloud app | string | Optional name of the Google Cloud application (as shown in `tsh apps ls`) to use if logged in to multiple |
-| `-p, --port` | none | port number | Specify the source port for the local proxy |
-| <nobr>`-e, --endpoint-url`</nobr> | HTTP Proxy | Endpoint URL | Run the local proxy to serve as a Google Cloud endpoint URL. If not specified, the local proxy serves as an HTTPS proxy. |
-| `-f, --format` | unix | `text`, `unix`, `command-prompt`, or `powershell` | Optional format for printing environment variables for the Google Cloud proxy |
+| `-p`, `--port` | none | port number | Specify the source port for the local proxy |
+| `-e`, `--endpoint-url` | HTTP Proxy | Endpoint URL | Run the local proxy to serve as a Google Cloud endpoint URL. If not specified, the local proxy serves as an HTTPS proxy. |
+| `-f`, `--format` | unix | `text`, `unix`, `command-prompt`, or `powershell` | Optional format for printing environment variables for the Google Cloud proxy |
 
 #### [Global Flags](#tsh-global-flags)
 
@@ -820,7 +852,7 @@ $ tsh scp [<flags>] <source>... <dest>
 
 #### Global flags
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 #### Examples
@@ -828,6 +860,10 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 ```code
 $ tsh --proxy=proxy.example.com scp example.txt user@host:/destination/dir
 ```
+
+<Admonition type="note">
+  `tsh scp` will not work from the CLI if the user requires session moderation. You can transfer files in a moderated session by joining the SSH session from the Web UI and requesting the file transfer there. Both the session initiator and moderators must be present in the Web UI in order to approve the file transfer request.
+</Admonition>
 
 ### tsh ls
 
@@ -837,17 +873,16 @@ List cluster nodes:
 $ tsh ls [<flags>] [<label>]
 ```
 
-<Details title="Not seeing Nodes?" opened={false}>
+<Details title="Not seeing Nodes?">
 
 (!docs/pages/includes/node-logins.mdx!)
 
 </Details>
 
-{/* TODO: label? or labels? seems like it only supports one label at a time */}
-
 #### Arguments
 
-- `<label>` - `key=value` label to filer nodes by
+- `<labels>` - comma-separated list of `key=value` labels to filter nodes by,
+  e.g., `env=dev,host=foo`.
 
 #### Flags
 
@@ -857,7 +892,7 @@ $ tsh ls [<flags>] [<label>]
 
 #### Global flags
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 #### Examples
@@ -920,7 +955,7 @@ $ tsh clusters [<flags>]
 
 #### Global flags
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags).
 
 #### Examples
@@ -977,7 +1012,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 *The proxy endpoint can take a https and ssh port in this format `host:https_port[,ssh_proxy_port]`*
 
 ```code
-# Try Toboth ports 443 and 3080 for https
+# Try both ports 443 and 3080 for https
 $ tsh --proxy=proxy.example.com login
 
 # Use ports 8080 and 8023 for https and SSH proxy:
@@ -1281,7 +1316,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined local, SAML, OIDC, or GitHub auth connector | okta |
+| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector (or a local user) | okta |
 | TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
@@ -1388,6 +1423,93 @@ To troubleshoot aliases, set the `TELEPORT_DEBUG=1` environment variable. This w
 $ TELEPORT_DEBUG=1 tsh status
 DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.go:203
 ...
+```
+
+#### Proxy Templates
+
+With Proxy Templates, `tsh` will dynamically determine the address of the
+Proxy Service to connect to based on the address of the destination host
+in your `tsh ssh` or `tsh proxy ssh` command.
+
+```yaml
+proxy_templates:
+
+# Regular expression that the host server address `%h:%p` is matched against.
+# The "replace rules" below can reference capturing groups from this regular
+# expression (`$1`, `$2`, etc.).
+- template: '^(\w+)\.(\w+):([0-9]+)$' # <nodename>.<clustername>:<port>
+
+  # Optional web proxy address to use for proxy jump (`--jumphost`, `-J`).
+  #
+  # Proxy Jump can be used to reduce latency in regionally distributed trusted
+  # clusters by connecting to a leaf node through the leaf proxy instead of the
+  # root proxy.
+  proxy: "$2.eu.example.com:443"
+
+  # Optional cluster name to connect to (`--cluster`).
+  #
+  # Cluster can be used to connect to leaf nodes from the root proxy without
+  # first logging in to the leaf cluster. This may be useful in cases where
+  # proxy jump is not applicable, such as when the leaf clusters do not have
+  # their own public proxies.
+  cluster: "$2"
+
+  # Optional host server address to connect to (`%h:%p`).
+  #
+  # Port defaults to 3022 if not explicitly provided with `--port`.
+  host: "$1:$3"
+
+# Multiple templates can be provided. They are evaluated in order and the first
+# one matching will take effect.
+- template: ... 
+```
+
+`tsh -J {{proxy}} ssh` and `tsh -J {{proxy}} proxy ssh` will attempt to match the 
+host server address `%h:%p` with the configured templates. For each replace rule set, 
+the corresponding cli value will be set.
+
+If leaf certificates are required to connect to the node, `tsh` will automatically
+retrieve leaf certificates from the root cluster.
+
+```bash
+$ tsh ssh -J {{proxy}} node1.leaf1
+# becomes
+$ tsh ssh -J leaf1.eu.example.com:443 --cluster leaf1 node1
+```
+
+If there is no template matched, an error is returned.
+
+```bash
+$ tsh ssh -J {{proxy}} node1.none.example.com
+ERROR: proxy jump contains {{proxy}} variable but did not match any of the templates in tsh config
+```
+
+If the proxy variable `-J {{proxy}}` is not explicitly provided, then `tsh` will 
+still attempt to match a template, but will not fail when there is no match.
+Additionally, it will not replace the `proxy` value when explicitly set by the
+client.
+
+```bash
+$ tsh ssh -J leaf2.us.example.com:443 node1.leaf2
+# becomes
+$ tsh ssh -J leaf2.us.example.com:443 --cluster leaf2 node1
+```
+
+Proxy Templates can also be used with OpenSSH by setting the `ProxyCommand` 
+in `~/.ssh/config` to use `tsh proxy ssh`.
+
+```txt
+Host *.example.com
+    Port 3022
+    ProxyCommand tsh proxy ssh -J {{proxy}} %r@%h:%p
+```
+
+As a result, you can use `tsh ssh` and `ssh` interchangeably.
+
+```bash
+$ tsh ssh node1.leaf1
+# is equivalent to
+$ ssh node1.leaf1
 ```
 
 ## tctl
@@ -1552,9 +1674,9 @@ These flags are available for all commands `--debug, --config`. Run
 ```code
 # Adds teleport user "joe" with mappings to
 # OS users and {{ internal.logins }} to "joe" and "ubuntu"
-$ tctl users add joe --roles=access joe,ubuntu
+$ tctl users add joe --roles=access,requester joe,ubuntu
 # Adds Teleport user "joe" with mappings to the editor role
-$ tctl users add joe --roles=editor
+$ tctl users add joe --roles=editor,reviewer
 ```
 
 ### tctl users update
@@ -1777,10 +1899,11 @@ $ tctl tokens add --type=TYPE [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
+| <nobr>`--format`</nobr> | none | `text`, `json`, `yaml` | Output format |
+| `--labels` | none | `text` | Sets token labels |
+| `--ttl` | 1h | Duration like 5s, 2m, or 3h | Sets how long the token is valid for. |
 | `--type` | none | `proxy`, `auth`, `trusted_cluster`, `node`,  `db`, `kube`, `app`, `windowsdesktop` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
-| `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
-| `--format` | none | `text`, `json`, `yaml` | Output format |
 
 #### Global flags
 
@@ -1793,7 +1916,7 @@ These flags are available for all commands `--debug, --config` . Run
 # Generate an invite token for a trusted_cluster
 $ tctl tokens add --type=trusted_cluster --ttl=5m
 # Generate an invite token for a trusted_cluster with labels
-$ tctl tokens add --type=trusted_cluster --labels=env=prod
+$ tctl tokens add --type=trusted_cluster --labels=env=prod,region=us-west
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 $ tctl tokens add --type=node
@@ -1888,6 +2011,13 @@ $ tctl auth export --type tls
 
 ### tctl auth sign
 
+<Admonition type="tip" title="Automation">
+`tctl auth sign` is commonly used to generate long-lived certificates for
+automation purposes. On supported platforms,
+[Machine ID](../machine-id/introduction.mdx) is a more secure alternative that
+generates short-lived certificates for automation workflows.
+</Admonition>
+
 Create an identity file(s) for a given user:
 
 ```code
@@ -1911,7 +2041,7 @@ $ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags
 | `--leaf-cluster` | `""` | The name of a leaf cluster. | |
 | `--kube-cluster-name` | `""` | Kubernetes Cluster Name | |
 | `--app-name` | `""` | application name | Generate a certificate for accessing the specified web application |
-| `--db-service` | `""` | database service name | Generate a certificate for accessing the specified database service |
+| `--db-service` | `""` | Database Service name | Generate a certificate for accessing the specified Database Service instance |
 | `--db-user` | `""` | database user | When `--db-service` is specified, encode this database user in the certificate |
 | `--db-name` | `""` | database name | When `--db-service` is specified, encode this database name in the certificate |
 
@@ -2068,10 +2198,10 @@ Configure the GitHub auth connector.
 Required params `--id` and `--secret` come from registering a GitHub OAuth app, which you can read about in the [GitHub documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app).
 
 The flag `--teams-to-roles` can be provided multiple times to specify which GitHub Teams are assigned which roles.
-In this example, members of the `octocats` team in GitHub will be assigned the `devs`, `access`, and `editor` roles in Teleport.
+In this example, members of the `devs` team in the GitHub org `octocats` will be assigned the `access`, and `editor` roles in Teleport.
 
 ```code
-$ tctl sso test --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
+$ tctl sso configure github --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
 ```
 
 #### Arguments
@@ -2192,7 +2322,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](https://goteleport.com/docs/enterprise/sso/google-workspace/#how-teleport-uses-google-workspace-apis) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../access-controls/sso/google-workspace.mdx#how-teleport-uses-google-workspace-apis) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 #### Global flags
@@ -2584,6 +2714,65 @@ $ tctl alerts create \
     --severity=low \
     --ttl=4h \
     "The system is under maintenance, functionality may be limited."
+```
+
+### tctl alerts list
+
+Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--verbose` (`-v`) | false |boolean | If set, display detailed alert info (including acknowledged alerts) |
+| `--labels` | none | Comma-separated strings | A list of labels to filter by |
+
+### tctl alerts ack
+
+Temporarily acknowledges a cluster alert, preventing the alert from being
+displayed to users. Acknowledgements last for 24 hours by default. Users
+will begin seeing the alert again when the acknowledgement expires.
+
+```code
+$ tctl alerts ack [<flags>] <id>
+```
+
+#### Arguments
+
+- `<id>`: the ID of the cluster alert to acknowledge
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--ttl` | 24h | Any duration | Time duration to acknowledge the alert for |
+| `--clear` | none | | Clear an existing alert acknowledgement |
+| `--reason` | none | | The reason for suppressing this alert |
+
+#### Examples
+
+Suppress the cluster alert notifying users that an upgrade is available:
+
+```code
+$ tctl alerts ack --reason="upgrade scheduled" upgrade-suggestion
+Successfully acknowledged alert 'upgrade-suggestion'. Alerts with this ID won't be pushed for 24h0m0s.
+```
+
+Clear an existing alert acknowledgement:
+
+```code
+$ tctl alerts ack --clear upgrade-suggestion
+```
+
+### tctl alerts ack ls
+
+Lists alert acknowledgements.
+
+```code
+$ tctl alerts ack ls
+ID                 Reason                 Expires
+------------------ ---------------------- --------------------
+upgrade-suggestion "upgrade is scheduled" Wed Apr 12 16:52 UTC
 ```
 
 ### tctl devices add

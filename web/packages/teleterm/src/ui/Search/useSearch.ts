@@ -34,6 +34,12 @@ import {
 
 import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
 
+export type CrossClusterResourceSearchResult = {
+  results: resourcesServiceTypes.SearchResult[];
+  errors: resourcesServiceTypes.ResourceSearchError[];
+  search: string;
+};
+
 /**
  * useResourceSearch returns a function which searches for the given list of space-separated keywords across
  * all root and leaf clusters that the user is currently logged in to.
@@ -43,27 +49,48 @@ import type * as resourcesServiceTypes from 'teleterm/ui/services/resources';
  */
 export function useResourceSearch() {
   const { clustersService, resourcesService } = useAppContext();
-  clustersService.useState();
 
   return useCallback(
-    async (search: string, restrictions: SearchFilter[]) => {
-      // useResourceSearch has to return _something_ when the input is empty. Imagine this scenario:
-      //
-      // 1. The user types in 'data' into the search bar.
-      // 2. The search bar immediately returns filters plus it starts a resource search for 'foo'.
-      // 3. The user selects one of the filters before the backend response comes back.
-      //
-      // The request for 'foo' that was in flight needs to be canceled somehow. We can do that by
-      // issuing another one for empty input and making `useResourceSearch` return an empty array
-      // in that scenario.
-      if (!search) {
-        return { results: [], search };
+    async (
+      search: string,
+      filters: SearchFilter[]
+    ): Promise<CrossClusterResourceSearchResult> => {
+      const searchMode = getResourceSearchMode(search, filters);
+      let limit = 100;
+
+      switch (searchMode) {
+        // useResourceSearch has to return _something_ even when we don't want to perform a search.
+        // Imagine this scenario:
+        //
+        // 1. The user types in 'dat' into the search bar.
+        // 2. The search bar immediately returns filters and it starts a resource search for 'dat'.
+        // 3. The user selects the database filter before the backend response comes back.
+        //
+        // The request for 'dat' that was in flight needs to be canceled by useAsync somehow. We can
+        // do that by calling useResourceSearch again, even with empty input.
+        case 'no-search': {
+          return { results: [], errors: [], search };
+        }
+        case 'preview': {
+          // In preview mode we know that the user didn't specify any search terms. So instead of
+          // fetching all 100 resources for each request, we fetch only a bunch of them to show
+          // example results in the UI.
+          limit = 5;
+          break;
+        }
+        case 'full-search': {
+          // noop, limit remains at 100.
+          break;
+        }
+        default: {
+          assertUnreachable(searchMode);
+        }
       }
 
-      const clusterSearchFilter = restrictions.find(
+      const clusterSearchFilter = filters.find(
         s => s.filter === 'cluster'
       ) as ClusterSearchFilter;
-      const resourceTypeSearchFilter = restrictions.find(
+      const resourceTypeSearchFilter = filters.find(
         s => s.filter === 'resource-type'
       ) as ResourceTypeSearchFilter;
 
@@ -76,16 +103,38 @@ export function useResourceSearch() {
           )
         : connectedClusters;
 
-      const searchPromises = clustersToSearch.map(cluster =>
-        resourcesService.searchResources(
-          cluster.uri,
-          search,
-          resourceTypeSearchFilter
+      // ResourcesService.searchResources uses Promise.allSettled so the returned promise will never
+      // get rejected.
+      const promiseResults = (
+        await Promise.all(
+          clustersToSearch.map(cluster =>
+            resourcesService.searchResources({
+              clusterUri: cluster.uri,
+              search,
+              filter: resourceTypeSearchFilter,
+              limit,
+            })
+          )
         )
-      );
-      const results = (await Promise.all(searchPromises)).flat().slice(0, 10);
+      ).flat();
 
-      return { results, search };
+      const results: resourcesServiceTypes.SearchResult[] = [];
+      const errors: resourcesServiceTypes.ResourceSearchError[] = [];
+
+      for (const promiseResult of promiseResults) {
+        switch (promiseResult.status) {
+          case 'fulfilled': {
+            results.push(...promiseResult.value);
+            break;
+          }
+          case 'rejected': {
+            errors.push(promiseResult.reason);
+            break;
+          }
+        }
+      }
+
+      return { results, errors, search };
     },
     [clustersService, resourcesService]
   );
@@ -97,16 +146,15 @@ export function useResourceSearch() {
  */
 export function useFilterSearch() {
   const { clustersService, workspacesService } = useAppContext();
-  clustersService.useState();
-  workspacesService.useState();
 
   return useCallback(
-    async (
-      search: string,
-      restrictions: SearchFilter[]
-    ): Promise<{ results: FilterSearchResult[]; search: string }> => {
+    (search: string, filters: SearchFilter[]): FilterSearchResult[] => {
       const getClusters = () => {
         let clusters = clustersService.getClusters();
+        // Cluster filter should not be visible if there is only one cluster
+        if (clusters.length === 1) {
+          return [];
+        }
         if (search) {
           clusters = clusters.filter(cluster =>
             cluster.name
@@ -133,9 +181,9 @@ export function useFilterSearch() {
       };
       const getResourceType = () => {
         let resourceTypes = [
-          'kubes' as const,
           'servers' as const,
           'databases' as const,
+          'kubes' as const,
         ];
         if (search) {
           resourceTypes = resourceTypes.filter(resourceType =>
@@ -150,10 +198,8 @@ export function useFilterSearch() {
         }));
       };
 
-      const shouldReturnClusters = !restrictions.some(
-        r => r.filter === 'cluster'
-      );
-      const shouldReturnResourceTypes = !restrictions.some(
+      const shouldReturnClusters = !filters.some(r => r.filter === 'cluster');
+      const shouldReturnResourceTypes = !filters.some(
         r => r.filter === 'resource-type'
       );
 
@@ -168,13 +214,14 @@ export function useFilterSearch() {
           return b.score - a.score;
         });
 
-      return { results, search };
+      return results;
     },
     [clustersService, workspacesService]
   );
 }
 
-export function sortResults(
+/** Sorts and then returns top 10 results. */
+export function rankResults(
   searchResults: resourcesServiceTypes.SearchResult[],
   search: string
 ): ResourceSearchResult[] {
@@ -207,7 +254,8 @@ export function sortResults(
         // Highest score first.
         b.score - a.score ||
         collator.compare(mainResourceName(a), mainResourceName(b))
-    );
+    )
+    .slice(0, 10);
 }
 
 function populateMatches(
@@ -305,6 +353,27 @@ function calculateScore(
   }
 
   return { ...searchResult, labelMatches, score: searchResultScore };
+}
+
+type ResourceSearchMode = 'no-search' | 'preview' | 'full-search';
+
+function getResourceSearchMode(
+  search: string,
+  filters: SearchFilter[]
+): ResourceSearchMode {
+  // Trim the search to avoid sending requests with limit set to 100 if the user just pressed some
+  // spaces.
+  const trimmedSearch = search.trim();
+
+  if (!trimmedSearch) {
+    // The preview should be fetched only when at least one filter is selected. Otherwise we'd send
+    // three requests for each connected cluster when the search bar gets open.
+    if (filters.length >= 1) {
+      return 'preview';
+    }
+    return 'no-search';
+  }
+  return 'full-search';
 }
 
 function getLengthScore(searchTerm: string, matchedValue: string): number {

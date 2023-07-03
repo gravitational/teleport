@@ -58,6 +58,26 @@ type EnvsReq struct {
 	EnvsJSON []byte `json:"envs"`
 }
 
+// FileTransferReq contains parameters used to create a file transfer
+// request to be stored in the SSH server
+type FileTransferReq struct {
+	// Download is true if the file transfer requests a download, false if upload
+	Download bool
+	// Location is the location of the file to be downloaded, or directory to upload a file
+	Location string
+	// Filename is the name of the file to be uploaded
+	Filename string
+}
+
+// FileTransferDecisionReq contains parameters used to approve or deny an active
+// file transfer request on the SSH server
+type FileTransferDecisionReq struct {
+	// RequestID is the ID of the file transfer request being responded to
+	RequestID string
+	// Approved is true if approved, false if denied.
+	Approved bool
+}
+
 // ContextFromRequest extracts any tracing data provided via an Envelope
 // in the ssh.Request payload. If the payload contains an Envelope, then
 // the context returned will have tracing data populated from the remote

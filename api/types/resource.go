@@ -57,9 +57,21 @@ type Resource interface {
 	CheckAndSetDefaults() error
 }
 
+// IsSystemResource checks to see if the given resource is considered
+// part of the teleport system, as opposed to some user created resource
+// or preset.
+func IsSystemResource(r Resource) bool {
+	metadata := r.GetMetadata()
+	if t, ok := metadata.Labels[TeleportInternalResourceType]; ok {
+		return t == SystemResource
+	}
+	return false
+}
+
 // ResourceDetails includes details about the resource
 type ResourceDetails struct {
-	Hostname string
+	Hostname     string
+	FriendlyName string
 }
 
 // ResourceWithSecrets includes additional properties which must
@@ -243,6 +255,19 @@ func (r ResourcesWithLabels) AsKubeServers() ([]KubeServer, error) {
 		servers = append(servers, server)
 	}
 	return servers, nil
+}
+
+// AsUserGroups converts each resource into type UserGroup.
+func (r ResourcesWithLabels) AsUserGroups() ([]UserGroup, error) {
+	userGroups := make([]UserGroup, 0, len(r))
+	for _, resource := range r {
+		userGroup, ok := resource.(UserGroup)
+		if !ok {
+			return nil, trace.BadParameter("expected types.UserGroup, got: %T", resource)
+		}
+		userGroups = append(userGroups, userGroup)
+	}
+	return userGroups, nil
 }
 
 // GetVersion returns resource version

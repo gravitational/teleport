@@ -27,13 +27,10 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"strings"
 
 	elastic "github.com/elastic/go-elasticsearch/v8/typedapi/types"
-	"github.com/ghodss/yaml"
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	"github.com/gravitational/teleport/lib/events"
@@ -146,186 +143,53 @@ func (e *Engine) HandleConnection(ctx context.Context, sessionCtx *common.Sessio
 	}
 }
 
-func copyRequest(ctx context.Context, req *http.Request, body io.Reader) (*http.Request, error) {
-	reqCopy, err := http.NewRequestWithContext(ctx, req.Method, req.URL.String(), body)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	reqCopy.Header = req.Header.Clone()
-
-	return reqCopy, nil
-}
-
 // process reads request from connected elasticsearch client, processes the requests/responses and send data back
 // to the client.
 func (e *Engine) process(ctx context.Context, sessionCtx *common.Session, req *http.Request, client *http.Client) error {
-	body, err := io.ReadAll(io.LimitReader(req.Body, teleport.MaxHTTPRequestSize))
+	payload, err := utils.GetAndReplaceRequestBody(req)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	reqCopy, err := copyRequest(ctx, req, bytes.NewReader(body))
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer req.Body.Close()
-
-	e.emitAuditEvent(reqCopy, body)
+	copiedReq := req.Clone(ctx)
+	copiedReq.RequestURI = ""
+	copiedReq.Body = io.NopCloser(bytes.NewReader(payload))
 
 	// force HTTPS, set host URL.
-	reqCopy.URL.Scheme = "https"
-	reqCopy.URL.Host = sessionCtx.Database.GetURI()
+	copiedReq.URL.Scheme = "https"
+	copiedReq.URL.Host = sessionCtx.Database.GetURI()
+	copiedReq.Host = sessionCtx.Database.GetURI()
+
+	// emit an audit event regardless of failure
+	var responseStatusCode uint32
+	defer func() {
+		e.emitAuditEvent(copiedReq, payload, responseStatusCode, err == nil)
+	}()
 
 	// Send the request to elasticsearch API
-	resp, err := client.Do(reqCopy)
+	resp, err := client.Do(copiedReq)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	defer resp.Body.Close()
+	responseStatusCode = uint32(resp.StatusCode)
 
 	return trace.Wrap(e.sendResponse(resp))
 }
 
-// parsePath returns (optional) target of query as well as the event category.
-func parsePath(path string) (string, apievents.ElasticsearchCategory) {
-	parts := strings.Split(path, "/")
-
-	if len(parts) < 2 {
-		return "", apievents.ElasticsearchCategory_GENERAL
-	}
-
-	// first term starts with _
-	switch parts[1] {
-	case "_security", "_ssl":
-		return "", apievents.ElasticsearchCategory_SECURITY
-	case
-		"_search",       // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html
-		"_async_search", // https://www.elastic.co/guide/en/elasticsearch/reference/master/async-search.html
-		"_pit",          // https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html
-		"_msearch",      // https://www.elastic.co/guide/en/elasticsearch/reference/master/multi-search-template.html, https://www.elastic.co/guide/en/elasticsearch/reference/master/search-multi-search.html
-		"_render",       // https://www.elastic.co/guide/en/elasticsearch/reference/master/render-search-template-api.html
-		"_field_caps":   // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-field-caps.html
-		return "", apievents.ElasticsearchCategory_SEARCH
-	case "_sql":
-		return "", apievents.ElasticsearchCategory_SQL
-	}
-
-	// starts with _, but we don't handle it explicitly
-	if strings.HasPrefix("_", parts[1]) {
-		return "", apievents.ElasticsearchCategory_GENERAL
-	}
-
-	if len(parts) < 3 {
-		return "", apievents.ElasticsearchCategory_GENERAL
-	}
-
-	// a number of APIs are invoked by providing a target first, e.g. /<target>/_search, where <target> is an index or expression matching a group of indices.
-	switch parts[2] {
-	case
-		"_search",        // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html
-		"_async_search",  // https://www.elastic.co/guide/en/elasticsearch/reference/master/async-search.html
-		"_pit",           // https://www.elastic.co/guide/en/elasticsearch/reference/master/point-in-time-api.html
-		"_knn_search",    // https://www.elastic.co/guide/en/elasticsearch/reference/master/knn-search-api.html
-		"_msearch",       // https://www.elastic.co/guide/en/elasticsearch/reference/master/multi-search-template.html, https://www.elastic.co/guide/en/elasticsearch/reference/master/search-multi-search.html
-		"_search_shards", // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-shards.html
-		"_count",         // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-count.html
-		"_validate",      // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-validate.html
-		"_terms_enum",    // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-terms-enum.html
-		"_explain",       // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-explain.html
-		"_field_caps",    // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-field-caps.html
-		"_rank_eval",     // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-rank-eval.html
-		"_mvt":           // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-vector-tile-api.html
-		return parts[1], apievents.ElasticsearchCategory_SEARCH
-	}
-
-	return "", apievents.ElasticsearchCategory_GENERAL
-}
-
-// getQueryFromRequestBody attempts to find the actual query from the request body, to be shown to the interested user.
-func (e *Engine) getQueryFromRequestBody(contentType string, body []byte) string {
-	// Elasticsearch APIs have no shared schema, but the ones we support have the query either
-	// as 'query' or as 'knn'.
-	// We will attempt to deserialize the query as 'q' to discover these fields.
-	// The type for those is 'any': both strings and objects can be found.
-	var q struct {
-		Query any `json:"query" yaml:"query"`
-		Knn   any `json:"knn" yaml:"knn"`
-	}
-
-	switch contentType {
-	// CBOR and Smile are officially supported by Elasticsearch:
-	// https://www.elastic.co/guide/en/elasticsearch/reference/master/api-conventions.html#_content_type_requirements
-	// We don't support introspection of these content types, at least for now.
-	case "application/cbor":
-		e.Log.Warnf("Content type not supported: %q.", contentType)
-		return ""
-
-	case "application/smile":
-		e.Log.Warnf("Content type not supported: %q.", contentType)
-		return ""
-
-	case "application/yaml":
-		if len(body) == 0 {
-			e.Log.WithField("content-type", contentType).Infof("Empty request body.")
-			return ""
-		}
-		err := yaml.Unmarshal(body, &q)
-		if err != nil {
-			e.Log.WithError(err).Warnf("Error decoding request body as %q.", contentType)
-			return ""
-		}
-
-	case "application/json":
-		if len(body) == 0 {
-			e.Log.WithField("content-type", contentType).Infof("Empty request body.")
-			return ""
-		}
-		err := json.Unmarshal(body, &q)
-		if err != nil {
-			e.Log.WithError(err).Warnf("Error decoding request body as %q.", contentType)
-			return ""
-		}
-
-	default:
-		e.Log.Warnf("Unknown or missing 'Content-Type': %q, assuming 'application/json'.", contentType)
-		if len(body) == 0 {
-			e.Log.WithField("content-type", contentType).Infof("Empty request body.")
-			return ""
-		}
-
-		err := json.Unmarshal(body, &q)
-		if err != nil {
-			e.Log.WithError(err).Warnf("Error decoding request body as %q.", contentType)
-			return ""
-		}
-	}
-
-	result := q.Query
-	if result == nil {
-		result = q.Knn
-	}
-
-	if result == nil {
-		return ""
-	}
-
-	switch qt := result.(type) {
-	case string:
-		return qt
-	default:
-		marshal, err := json.Marshal(result)
-		if err != nil {
-			e.Log.WithError(err).Warnf("Error encoding query to json; body: %x, content type: %v.", body, contentType)
-			return ""
-		}
-		return string(marshal)
-	}
-}
-
 // emitAuditEvent writes the request and response to audit stream.
-func (e *Engine) emitAuditEvent(req *http.Request, body []byte) {
+func (e *Engine) emitAuditEvent(req *http.Request, body []byte, statusCode uint32, noErr bool) {
+	var eventCode string
+	if noErr && statusCode != 0 {
+		eventCode = events.ElasticsearchRequestCode
+	} else {
+		eventCode = events.ElasticsearchRequestFailureCode
+	}
+
+	// Normally the query is passed as request body, and body content type as a header.
+	// Yet it can also be passed as `source` and `source_content_type` URL params, and we handle that here.
 	contentType := req.Header.Get("Content-Type")
+
 	source := req.URL.Query().Get("source")
 	if len(source) > 0 {
 		e.Log.Infof("'source' parameter found, overriding request body.")
@@ -342,25 +206,25 @@ func (e *Engine) emitAuditEvent(req *http.Request, body []byte) {
 	// - we may not support given content encoding
 	query := req.URL.Query().Get("q")
 	if query == "" {
-		query = e.getQueryFromRequestBody(contentType, body)
+		query = GetQueryFromRequestBody(e.EngineConfig, contentType, body)
 	}
 
 	ev := &apievents.ElasticsearchRequest{
 		Metadata: common.MakeEventMetadata(e.sessionCtx,
 			events.DatabaseSessionElasticsearchRequestEvent,
-			events.ElasticsearchRequestCode),
+			eventCode),
 		UserMetadata:     common.MakeUserMetadata(e.sessionCtx),
 		SessionMetadata:  common.MakeSessionMetadata(e.sessionCtx),
 		DatabaseMetadata: common.MakeDatabaseMetadata(e.sessionCtx),
+		StatusCode:       statusCode,
 		Method:           req.Method,
 		Path:             req.URL.Path,
 		RawQuery:         req.URL.RawQuery,
 		Body:             body,
 		Headers:          wrappers.Traits(req.Header),
-
-		Category: category,
-		Target:   target,
-		Query:    query,
+		Category:         category,
+		Target:           target,
+		Query:            query,
 	}
 
 	e.Audit.EmitEvent(req.Context(), ev)

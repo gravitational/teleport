@@ -7,14 +7,14 @@ exports[`render ConsoleTabs 1`] = `
   color: #FFFFFF;
 }
 
-.c10 {
+.c11 {
   display: inline-block;
   transition: color 0.3s;
   color: #FFFFFF;
   font-size: 16px;
 }
 
-.c9 {
+.c10 {
   align-items: center;
   border: none;
   cursor: pointer;
@@ -35,22 +35,26 @@ exports[`render ConsoleTabs 1`] = `
   margin-left: 8px;
 }
 
-.c9 .c6 {
+.c10 .c6 {
   color: inherit;
 }
 
-.c9:disabled {
-  color: rgba(255,255,255,0.3);
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
 }
 
-.c9:disabled {
-  color: rgba(255,255,255,0.3);
+.c10:disabled {
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
-.c9:hover:enabled,
-.c9:focus:enabled {
-  background: rgba(255,255,255,0.1);
+.c10:hover:enabled,
+.c10:focus:enabled {
+  background: rgba(255,255,255,0.13);
+}
+
+.c10:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c4 {
@@ -66,7 +70,6 @@ exports[`render ConsoleTabs 1`] = `
   margin: -16px;
   height: 100%;
   width: 100%;
-  background-color: #010B1C;
   display: flex;
 }
 
@@ -77,8 +80,8 @@ exports[`render ConsoleTabs 1`] = `
   max-width: 200px;
   height: 100%;
   border: none;
-  border-right: 1px solid #010B1C;
-  background-color: #010B1C;
+  border-right: 1px solid #0C143D;
+  background-color: #0C143D;
   color: #FFFFFF;
   font-weight: bold;
   transition: none;
@@ -90,18 +93,18 @@ exports[`render ConsoleTabs 1`] = `
   transition: color .3s;
 }
 
-.c8 {
+.c9 {
   box-sizing: border-box;
   display: flex;
   align-items: center;
   max-width: 200px;
   height: 100%;
   border: none;
-  border-right: 1px solid #010B1C;
+  border-right: 1px solid #0C143D;
 }
 
-.c8:hover,
-.c8:focus {
+.c9:hover,
+.c9:focus {
   color: #FFFFFF;
   transition: color .3s;
 }
@@ -114,7 +117,6 @@ exports[`render ConsoleTabs 1`] = `
   text-decoration: none;
   outline: none;
   margin: 0;
-  text-decoration: none;
   color: inherit;
   line-height: 32px;
   background-color: transparent;
@@ -126,6 +128,9 @@ exports[`render ConsoleTabs 1`] = `
 }
 
 .c5 {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   background: transparent;
   border-radius: 2px;
   border: none;
@@ -139,15 +144,21 @@ exports[`render ConsoleTabs 1`] = `
 }
 
 .c5:hover {
-  background: #f50057;
+  color: #000000;
+  background: #FF6257;
+}
+
+.c8 {
+  transition: none;
+  color: inherit;
 }
 
 .c1 {
   box-sizing: border-box;
   height: 32px;
   width: 100%;
-  color: rgba(255,255,255,0.56);
-  background: #01172C;
+  color: rgba(255,255,255,0.72);
+  background: #222C59;
   min-height: 32px;
   border-radius: 4px;
   display: flex;
@@ -168,7 +179,7 @@ exports[`render ConsoleTabs 1`] = `
 >
   <nav
     class="c1"
-    color="text.secondary"
+    color="text.slightlyMuted"
     height="32px"
     width="100%"
   >
@@ -191,13 +202,12 @@ exports[`render ConsoleTabs 1`] = `
         title="Close"
       >
         <span
-          class="c6 c7 icon icon-close "
-          color="light"
+          class="c6 c7 icon icon-close c8"
         />
       </button>
     </div>
     <div
-      class="c8"
+      class="c9"
       style="flex: 1; flex-basis: 0px; flex-grow: 1;"
     >
       <button
@@ -215,13 +225,12 @@ exports[`render ConsoleTabs 1`] = `
         title="Close"
       >
         <span
-          class="c6 c7 icon icon-close "
-          color="light"
+          class="c6 c7 icon icon-close c8"
         />
       </button>
     </div>
     <div
-      class="c8"
+      class="c9"
       style="flex: 1; flex-basis: 0px; flex-grow: 1;"
     >
       <button
@@ -239,18 +248,16 @@ exports[`render ConsoleTabs 1`] = `
         title="Close"
       >
         <span
-          class="c6 c7 icon icon-close "
-          color="light"
+          class="c6 c7 icon icon-close c8"
         />
       </button>
     </div>
     <button
-      class="c9"
+      class="c10"
       title="New Tab"
     >
       <span
-        class="c6 c10 icon icon-add "
-        color="light"
+        class="c6 c11 icon icon-add "
         font-size="16px"
       />
     </button>

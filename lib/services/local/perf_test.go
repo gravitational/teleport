@@ -108,8 +108,7 @@ func insertNodes(ctx context.Context, b *testing.B, svc services.Presence, nodeC
 				Labels:    labels,
 			},
 			Spec: types.ServerSpecV2{
-				Addr:       addr,
-				PublicAddr: addr,
+				Addr: addr,
 			},
 		}
 		_, err := svc.UpsertNode(ctx, node)

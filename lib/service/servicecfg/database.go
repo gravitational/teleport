@@ -37,9 +37,9 @@ type DatabasesConfig struct {
 	// ResourceMatchers match cluster database resources.
 	ResourceMatchers []services.ResourceMatcher
 	// AWSMatchers match AWS hosted databases.
-	AWSMatchers []services.AWSMatcher
+	AWSMatchers []types.AWSMatcher
 	// AzureMatchers match Azure hosted databases.
-	AzureMatchers []services.AzureMatcher
+	AzureMatchers []types.AzureMatcher
 	// Limiter limits the connection and request rates.
 	Limiter limiter.Config
 }
@@ -70,6 +70,14 @@ type Database struct {
 	AD DatabaseAD
 	// Azure contains Azure database configuration.
 	Azure DatabaseAzure
+	// AdminUser contains information about database admin user.
+	AdminUser DatabaseAdminUser
+}
+
+// DatabaesAdminUser contains information about database admin user.
+type DatabaseAdminUser struct {
+	// Name is the database admin username (e.g. "postgres").
+	Name string
 }
 
 // CheckAndSetDefaults validates the database proxy configuration.
@@ -140,6 +148,9 @@ func (d *Database) ToDatabase() (types.Database, error) {
 		},
 		MySQL: types.MySQLOptions{
 			ServerVersion: d.MySQL.ServerVersion,
+		},
+		AdminUser: &types.DatabaseAdminUser{
+			Name: d.AdminUser.Name,
 		},
 		AWS: types.AWS{
 			AccountID:     d.AWS.AccountID,

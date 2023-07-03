@@ -39,30 +39,30 @@ func TestCircuitBreaker_generation(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	generation, state := cb.currentState(clock.Now().UTC())
+	generation, state := cb.currentState(clock.Now())
 	require.Equal(t, uint64(1), generation)
 	require.Equal(t, StateStandby, state)
-	require.Equal(t, clock.Now().UTC().Add(time.Second), cb.expiry)
+	require.Equal(t, clock.Now().Add(time.Second), cb.expiry)
 
 	clock.Advance(500 * time.Millisecond)
-	generation, state = cb.currentState(clock.Now().UTC())
+	generation, state = cb.currentState(clock.Now())
 	require.Equal(t, uint64(1), generation)
 	require.Equal(t, StateStandby, state)
 	clock.Advance(501 * time.Millisecond)
-	generation, state = cb.currentState(clock.Now().UTC())
+	generation, state = cb.currentState(clock.Now())
 	require.Equal(t, uint64(2), generation)
 	require.Equal(t, StateStandby, state)
-	require.Equal(t, clock.Now().UTC().Add(time.Second), cb.expiry)
+	require.Equal(t, clock.Now().Add(time.Second), cb.expiry)
 
 	for i := 0; i < 1000; i++ {
-		prevGeneration, prevState := cb.currentState(clock.Now().UTC())
-		cb.nextGeneration(clock.Now().UTC())
-		generation, state := cb.currentState(clock.Now().UTC())
+		prevGeneration, prevState := cb.currentState(clock.Now())
+		cb.nextGeneration(clock.Now())
+		generation, state := cb.currentState(clock.Now())
 		require.NotEqual(t, prevGeneration, generation)
 		require.Equal(t, prevState, state)
 	}
 
-	generation, state = cb.currentState(clock.Now().UTC())
+	generation, state = cb.currentState(clock.Now())
 	require.Equal(t, uint64(1002), generation)
 	require.Equal(t, StateStandby, state)
 }
@@ -258,8 +258,8 @@ func TestCircuitBreaker_success(t *testing.T) {
 			require.NoError(t, err)
 			cb.state = tt.initialState
 
-			generation, state := cb.currentState(clock.Now().UTC())
-			cb.success(tt.successState, clock.Now().UTC())
+			generation, state := cb.currentState(clock.Now())
+			cb.success(tt.successState, clock.Now())
 			require.Equal(t, tt.expectedState, cb.state)
 			if tt.expectedState != state {
 				require.NotEqual(t, generation, cb.generation)
@@ -340,8 +340,8 @@ func TestCircuitBreaker_failure(t *testing.T) {
 			require.NoError(t, err)
 			cb.state = tt.initialState
 
-			generation, state := cb.currentState(clock.Now().UTC())
-			cb.failure(tt.failureState, clock.Now().UTC())
+			generation, state := cb.currentState(clock.Now())
+			cb.failure(tt.failureState, clock.Now())
 			require.Equal(t, tt.expectedState, cb.state)
 			if tt.expectedState != state {
 				require.NotEqual(t, generation, cb.generation)
@@ -492,7 +492,7 @@ func TestCircuitBreaker_Execute(t *testing.T) {
 			clock.Advance(tt.advance)
 			_, err := cb.Execute(tt.exec)
 			tt.errorAssertion(t, err)
-			generation, state := cb.currentState(clock.Now().UTC())
+			generation, state := cb.currentState(clock.Now())
 			require.Equal(t, tt.expectedGeneration, generation, "incorrect generation")
 			require.Equal(t, tt.expectedState, state, "incorrect state")
 

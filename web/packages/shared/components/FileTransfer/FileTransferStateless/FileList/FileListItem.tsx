@@ -90,7 +90,7 @@ export function FileListItem(props: FileListItemProps) {
 
 const Error: FC = props => {
   return (
-    <Text color="error.light" typography="body2" mt={1}>
+    <Text color="error.hover" typography="body2" mt={1}>
       <Warning mr={1} color="inherit" />
       {props.children}
     </Text>
@@ -110,7 +110,7 @@ const Li = styled.li`
 
 const ProgressBackground = styled.div`
   border-radius: 50px;
-  background: rgba(255, 255, 255, 0.05);
+  background: ${props => props.theme.colors.spotBackground[0]};
   width: 100%;
 `;
 

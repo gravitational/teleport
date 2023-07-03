@@ -14,14 +14,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+import { DeprecatedThemeOption } from 'design/theme/types';
+
 import { BearerToken } from 'teleport/services/websession';
 import { OnboardDiscover } from 'teleport/services/user';
 
+import {
+  ThemePreference,
+  UserPreferences,
+} from 'teleport/services/userPreferences/types';
+
 import { KeysEnum } from './types';
+
+// This is an array of local storage `KeysEnum` that are kept when a user logs out
+const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
+  KeysEnum.THEME,
+  KeysEnum.SHOW_ASSIST_POPUP,
+  KeysEnum.USER_PREFERENCES,
+];
 
 const storage = {
   clear() {
-    window.localStorage.clear();
+    Object.keys(window.localStorage).forEach(key => {
+      if (!KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT.includes(key)) {
+        window.localStorage.removeItem(key);
+      }
+    });
   },
 
   subscribe(fn) {
@@ -78,6 +96,43 @@ const storage = {
       return JSON.parse(item);
     }
     return null;
+  },
+
+  getUserPreferences(): UserPreferences {
+    const preferences = window.localStorage.getItem(KeysEnum.USER_PREFERENCES);
+    if (preferences) {
+      return JSON.parse(preferences);
+    }
+    return null;
+  },
+
+  setUserPreferences(preferences: UserPreferences) {
+    const json = JSON.stringify(preferences);
+
+    window.localStorage.setItem(KeysEnum.USER_PREFERENCES, json);
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: KeysEnum.USER_PREFERENCES,
+        newValue: json,
+      })
+    );
+  },
+
+  getThemePreference(): ThemePreference {
+    const userPreferences = storage.getUserPreferences();
+    if (userPreferences) {
+      return userPreferences.theme;
+    }
+
+    const theme = window.localStorage.getItem(
+      KeysEnum.THEME
+    ) as DeprecatedThemeOption;
+    if (theme) {
+      return theme === 'light' ? ThemePreference.Light : ThemePreference.Dark;
+    }
+
+    return ThemePreference.Light;
   },
 
   broadcast(messageType, messageBody) {

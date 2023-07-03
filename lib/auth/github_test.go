@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	authority "github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/backend"
@@ -115,7 +116,6 @@ func TestPopulateClaims(t *testing.T) {
 		},
 		Teams: []string{"team1", "team2", "team1"},
 	}))
-
 }
 
 func TestCreateGithubUser(t *testing.T) {
@@ -213,11 +213,13 @@ func TestValidateGithubAuthCallbackEventsEmitted(t *testing.T) {
 	diagCtx := ssoDiagContextFixture(false /* testFlow */)
 	m.mockValidateGithubAuthCallback = func(ctx context.Context, diagCtx *SSODiagContext, q url.Values) (*GithubAuthResponse, error) {
 		diagCtx.Info.GithubClaims = claims
+		diagCtx.Info.AppliedLoginRules = []string{"login-rule"}
 		return auth, nil
 	}
 	_, _ = validateGithubAuthCallbackHelper(context.Background(), m, diagCtx, nil, tt.a.emitter)
 	require.Equal(t, tt.mockEmitter.LastEvent().GetType(), events.UserLoginEvent)
 	require.Equal(t, tt.mockEmitter.LastEvent().GetCode(), events.UserSSOLoginCode)
+	require.Equal(t, tt.mockEmitter.LastEvent().(*apievents.UserLogin).AppliedLoginRules, []string{"login-rule"})
 	require.Equal(t, ssoDiagInfoCalls, 0)
 	tt.mockEmitter.Reset()
 
@@ -280,7 +282,9 @@ func TestCalculateGithubUserNoTeams(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	_, err = a.calculateGithubUser(ctx, connector, &types.GithubClaims{
+	diagCtx := &SSODiagContext{}
+
+	_, err = a.calculateGithubUser(ctx, diagCtx, connector, &types.GithubClaims{
 		Username: "octocat",
 		OrganizationToTeams: map[string][]string{
 			"org1": {"team1", "team2"},
@@ -325,6 +329,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 	}
 	mockEvaluator := &mockLoginRuleEvaluator{
 		outputTraits: evaluatedTraits,
+		ruleNames:    []string{"mock"},
 	}
 	a.SetLoginRuleEvaluator(mockEvaluator)
 
@@ -340,7 +345,9 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	userParams, err := a.calculateGithubUser(ctx, connector, &types.GithubClaims{
+	diagCtx := &SSODiagContext{}
+
+	userParams, err := a.calculateGithubUser(ctx, diagCtx, connector, &types.GithubClaims{
 		Username: "octocat",
 		OrganizationToTeams: map[string][]string{
 			"org1": {"team1"},
@@ -359,6 +366,7 @@ func TestCalculateGithubUserWithLoginRules(t *testing.T) {
 		SessionTTL:    defaults.MaxCertDuration,
 	}, userParams, "user params does not match expected")
 	require.Equal(t, 1, mockEvaluator.evaluatedCount, "login rules were not evaluated exactly once")
+	require.Equal(t, mockEvaluator.ruleNames, diagCtx.Info.AppliedLoginRules)
 }
 
 type mockRoleCache struct {
@@ -373,12 +381,14 @@ func (m *mockRoleCache) GetRole(_ context.Context, name string) (types.Role, err
 type mockLoginRuleEvaluator struct {
 	outputTraits   map[string][]string
 	evaluatedCount int
+	ruleNames      []string
 }
 
 func (m *mockLoginRuleEvaluator) Evaluate(context.Context, *loginrule.EvaluationInput) (*loginrule.EvaluationOutput, error) {
 	m.evaluatedCount++
 	return &loginrule.EvaluationOutput{
-		Traits: m.outputTraits,
+		Traits:       m.outputTraits,
+		AppliedRules: m.ruleNames,
 	}, nil
 }
 
@@ -517,6 +527,71 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 				require.Error(t, err)
 				require.True(t, tt.errFunc(err))
 			}
+		})
+	}
+}
+
+func TestGithubURLFormat(t *testing.T) {
+	tts := []struct {
+		host   string
+		path   string
+		expect string
+	}{
+		{
+			host:   "example.com",
+			path:   "foo/bar",
+			expect: "https://example.com/foo/bar",
+		},
+		{
+			host:   "example.com",
+			path:   "/foo/bar?spam=eggs",
+			expect: "https://example.com/foo/bar?spam=eggs",
+		},
+		{
+			host:   "example.com",
+			path:   "/foo/bar",
+			expect: "https://example.com/foo/bar",
+		},
+	}
+
+	for _, tt := range tts {
+		require.Equal(t, tt.expect, formatGithubURL(tt.host, tt.path))
+	}
+}
+
+func TestBuildAPIEndpoint(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "no path",
+			input:    "https://github.com",
+			expected: "github.com",
+		},
+		{
+			name:     "with path",
+			input:    "https://mykewlapiendpoint/apage",
+			expected: "mykewlapiendpoint/apage",
+		},
+		{
+			name:     "with path and double slashes",
+			input:    "https://mykewlapiendpoint//apage//",
+			expected: "mykewlapiendpoint/apage/",
+		},
+		{
+			name:     "with path and query",
+			input:    "https://mykewlapiendpoint/apage?legit=nope",
+			expected: "mykewlapiendpoint/apage",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := buildAPIEndpoint(tt.input)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, got)
 		})
 	}
 }

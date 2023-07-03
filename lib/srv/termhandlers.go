@@ -23,6 +23,7 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/crypto/ssh"
 
+	tracingssh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	rsession "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/sshutils"
 )
@@ -129,6 +130,50 @@ func (t *TermHandlers) HandleShell(ctx context.Context, ch ssh.Channel, req *ssh
 	return nil
 }
 
+// HandleFileTransferDecision handles requests of type "file-transfer-decision@goteleport.com" which will
+// approve or deny an existing file transfer request. This response will update an active file transfer request
+// accordingly and emit the updated file transfer request state to other members in the party.
+func (t *TermHandlers) HandleFileTransferDecision(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
+	params, err := parseFileTransferDecisionRequest(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	session := scx.getSession()
+	if session == nil {
+		t.SessionRegistry.log.Debug("Unable to create file transfer Request, no session found in context.")
+		return nil
+	}
+
+	if params.Approved {
+		_, err := session.approveFileTransferRequest(params, scx)
+		return trace.Wrap(err)
+	}
+
+	_, err = session.denyFileTransferRequest(params, scx)
+	return trace.Wrap(err)
+}
+
+// HandleFileTransferRequest handles requests of type "file-transfer-request" which will
+// create a FileTransferRequest that will be sent to other members in the party to be
+// reviewed and approved/denied.
+func (t *TermHandlers) HandleFileTransferRequest(ctx context.Context, ch ssh.Channel, req *ssh.Request, scx *ServerContext) error {
+	params, err := parseFileTransferRequest(req)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	params.Requester = scx.Identity.TeleportUser
+
+	session := scx.getSession()
+	if session == nil {
+		t.SessionRegistry.log.Debug("Unable to create file transfer Request, no session found in context.")
+		return nil
+	}
+
+	session.addFileTransferRequest(params, scx)
+	return nil
+}
+
 // HandleWinChange handles requests of type "window-change" which update the
 // size of the PTY running on the server and update any other members in the
 // party.
@@ -211,4 +256,31 @@ func parseWinChange(req *ssh.Request) (*rsession.TerminalParams, error) {
 
 	params, err := rsession.NewTerminalParamsFromUint32(r.W, r.H)
 	return params, trace.Wrap(err)
+}
+
+func parseFileTransferRequest(req *ssh.Request) (*rsession.FileTransferRequestParams, error) {
+	var r tracingssh.FileTransferReq
+	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	params := &rsession.FileTransferRequestParams{
+		Location: r.Location,
+		Filename: r.Filename,
+		Download: r.Download,
+	}
+	return params, nil
+}
+
+func parseFileTransferDecisionRequest(req *ssh.Request) (*rsession.FileTransferDecisionParams, error) {
+	var r tracingssh.FileTransferDecisionReq
+	if err := ssh.Unmarshal(req.Payload, &r); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	params := &rsession.FileTransferDecisionParams{
+		RequestID: r.RequestID,
+		Approved:  r.Approved,
+	}
+	return params, nil
 }

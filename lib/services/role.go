@@ -88,6 +88,10 @@ var ErrTrustedDeviceRequired = trace.AccessDenied("access to resource requires a
 // requires an MFA check.
 var ErrSessionMFARequired = trace.AccessDenied("access to resource requires MFA")
 
+// ErrSessionMFANotRequired indicates that per session mfa will not grant
+// access to a resource.
+var ErrSessionMFANotRequired = trace.AccessDenied("MFA is not required to access resource")
+
 // RoleNameForUser returns role name associated with a user.
 func RoleNameForUser(name string) string {
 	return "user:" + name
@@ -143,6 +147,7 @@ func RoleForUser(u types.User) types.Role {
 			Namespaces:            []string{defaults.Namespace},
 			NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
 			AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+			GroupLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
 			KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 			DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -163,6 +168,7 @@ func RoleForUser(u types.User) types.Role {
 				types.NewRule(types.KindConnectionDiagnostic, RW()),
 				types.NewRule(types.KindKubernetesCluster, RW()),
 				types.NewRule(types.KindSessionTracker, RO()),
+				types.NewRule(types.KindUserGroup, RW()),
 			},
 			JoinSessions: []*types.SessionJoinPolicy{
 				{
@@ -207,32 +213,128 @@ func ValidateRoleName(role types.Role) error {
 	return nil
 }
 
+type validateRoleOptions struct {
+	warningReporter func(error)
+}
+
+func defaultValidateRoleOptions() validateRoleOptions {
+	return validateRoleOptions{
+		warningReporter: func(error) {},
+	}
+}
+
+type validateRoleOption func(*validateRoleOptions)
+
+// withWarningReporter is meant for tests to assert the presence of expected
+// warnings.
+func withWarningReporter(f func(error)) validateRoleOption {
+	return func(opts *validateRoleOptions) {
+		opts.warningReporter = f
+	}
+}
+
 // ValidateRole parses validates the role, and sets default values.
-func ValidateRole(r types.Role) error {
+func ValidateRole(r types.Role, opts ...validateRoleOption) error {
+	options := defaultValidateRoleOptions()
+	for _, opt := range opts {
+		opt(&options)
+	}
+
 	if err := r.CheckAndSetDefaults(); err != nil {
 		return err
 	}
 
-	// if we find {{ or }} but the syntax is invalid, the role is invalid
-	for _, condition := range []types.RoleConditionType{types.Allow, types.Deny} {
-		for _, login := range r.GetLogins(condition) {
-			if strings.Contains(login, "{{") || strings.Contains(login, "}}") {
-				_, err := parse.NewExpression(login)
+	// Expression parsers in new versions sometimes get smarter/more strict and
+	// catch more syntax or type errors that previously would only be caught
+	// when they were evaluated. To avoid any possibility of bricking a cluster
+	// by making all roles invalid due to a buggy expression that may not even
+	// be used, only log expression parse errors as a warning.
+	if err := validateRoleExpressions(r); err != nil {
+		options.warningReporter(err)
+		log.Warnf("Detected invalid role %q: %v", r.GetName(), err)
+	}
+	return nil
+}
+
+func validateRoleExpressions(r types.Role) error {
+	var errs []error
+	for _, condition := range []struct {
+		name      string
+		condition types.RoleConditionType
+	}{
+		{"allow", types.Allow},
+		{"deny", types.Deny},
+	} {
+		for _, rule := range r.GetRules(condition.condition) {
+			if err := validateRule(rule); err != nil {
+				err = trace.BadParameter("parsing %s rule: %v", condition.name, err)
+				errs = append(errs, err)
+			}
+		}
+
+		for _, values := range []struct {
+			name   string
+			values []string
+		}{
+			{"logins", r.GetLogins(condition.condition)},
+			{"windows_desktop_logins", r.GetWindowsLogins(condition.condition)},
+			{"aws_role_arns", r.GetAWSRoleARNs(condition.condition)},
+			{"azure_identities", r.GetAzureIdentities(condition.condition)},
+			{"gcp_service_accounts", r.GetGCPServiceAccounts(condition.condition)},
+			{"kubernetes_groups", r.GetKubeGroups(condition.condition)},
+			{"kubernetes_users", r.GetKubeUsers(condition.condition)},
+			{"db_names", r.GetDatabaseNames(condition.condition)},
+			{"db_users", r.GetDatabaseUsers(condition.condition)},
+			{"host_groups", r.GetHostGroups(condition.condition)},
+			{"host_sudeoers", r.GetHostSudoers(condition.condition)},
+			{"desktop_groups", r.GetDesktopGroups(condition.condition)},
+			{"impersonate.users", r.GetImpersonateConditions(condition.condition).Users},
+			{"impersonate.roles", r.GetImpersonateConditions(condition.condition).Roles},
+		} {
+			for _, value := range values.values {
+				_, err := parse.NewTraitsTemplateExpression(value)
 				if err != nil {
-					return trace.BadParameter("invalid login found: %v", login)
+					err = trace.BadParameter("parsing %s.%s expression: %v", condition.name, values.name, err)
+					errs = append(errs, err)
+				}
+			}
+		}
+
+		for _, labels := range []struct {
+			name string
+			kind string
+		}{
+			{"cluster_labels", types.KindRemoteCluster},
+			{"node_labels", types.KindNode},
+			{"kubernetes_labels", types.KindKubernetesCluster},
+			{"app_labels", types.KindApp},
+			{"db_labels", types.KindDatabase},
+			{"db_service_labels", types.KindDatabaseService},
+			{"windows_desktop_labels", types.KindWindowsDesktop},
+			{"group_labels", types.KindUserGroup},
+		} {
+			labelMatchers, err := r.GetLabelMatchers(condition.condition, labels.kind)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			for _, labelValues := range labelMatchers.Labels {
+				for _, label := range labelValues {
+					_, err := parse.NewTraitsTemplateExpression(label)
+					if err != nil {
+						err = trace.BadParameter("parsing %s.%s template expression: %v", condition.name, labels.name, err)
+						errs = append(errs, err)
+					}
+				}
+			}
+			if len(labelMatchers.Expression) > 0 {
+				if _, err := parseLabelExpression(labelMatchers.Expression); err != nil {
+					err = trace.BadParameter("parsing %s.%s_expression: %v", condition.name, labels.name, err)
+					errs = append(errs, err)
 				}
 			}
 		}
 	}
-
-	rules := append(r.GetRules(types.Allow), r.GetRules(types.Deny)...)
-	for _, rule := range rules {
-		if err := validateRule(rule); err != nil {
-			return trace.Wrap(err)
-		}
-	}
-
-	return nil
+	return trace.NewAggregate(errs...)
 }
 
 // validateRule parses the where and action fields to validate the rule.
@@ -264,19 +366,20 @@ func validateRule(r types.Rule) error {
 }
 
 func filterInvalidUnixLogins(candidates []string) []string {
-	// The tests for `ApplyTraits()` require that an empty list is nil
-	// rather than a 0-size slice, and I don't understand the potential
-	// knock-on effects of changing that, so the  default value is `nil`
-	output := []string(nil)
+	var output []string
 
 	for _, candidate := range candidates {
-		if !cstrings.IsValidUnixUser(candidate) {
-			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+		if cstrings.IsValidUnixUser(candidate) {
+			// A valid variable was found in the traits, append it to the list of logins.
+			output = append(output, candidate)
 			continue
 		}
 
-		// A valid variable was found in the traits, append it to the list of logins.
-		output = append(output, candidate)
+		// Log any invalid logins which were added by a user but ignore any
+		// Teleport internal logins which are known to be invalid.
+		if candidate != teleport.SSHSessionJoinPrincipal && !strings.HasPrefix(candidate, "no-login-") {
+			log.Debugf("Skipping login %v, not a valid Unix login.", candidate)
+		}
 	}
 	return output
 }
@@ -320,8 +423,9 @@ func MatchValidAzureIdentity(identity string) bool {
 
 // ApplyTraits applies the passed in traits to any variables within the role
 // and returns itself.
-func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
+func ApplyTraits(r types.Role, traits map[string][]string) (types.Role, error) {
 	for _, condition := range []types.RoleConditionType{types.Allow, types.Deny} {
+
 		inLogins := r.GetLogins(condition)
 		outLogins := applyValueTraitsSlice(inLogins, traits, "login")
 		outLogins = filterInvalidUnixLogins(outLogins)
@@ -365,40 +469,36 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		outDbUsers := applyValueTraitsSlice(inDbUsers, traits, "database user")
 		r.SetDatabaseUsers(condition, apiutils.Deduplicate(outDbUsers))
 
-		// apply templates to node labels
-		inLabels := r.GetNodeLabels(condition)
-		if inLabels != nil {
-			r.SetNodeLabels(condition, applyLabelsTraits(inLabels, traits))
-		}
+		// apply templates to database roles
+		inDbRoles := r.GetDatabaseRoles(condition)
+		outDbRoles := applyValueTraitsSlice(inDbRoles, traits, "database role")
+		r.SetDatabaseRoles(condition, apiutils.Deduplicate(outDbRoles))
 
-		// apply templates to cluster labels
-		inLabels = r.GetClusterLabels(condition)
-		if inLabels != nil {
-			r.SetClusterLabels(condition, applyLabelsTraits(inLabels, traits))
-		}
-
-		// apply templates to kube labels
-		inLabels = r.GetKubernetesLabels(condition)
-		if inLabels != nil {
-			r.SetKubernetesLabels(condition, applyLabelsTraits(inLabels, traits))
-		}
-
-		// apply templates to app labels
-		inLabels = r.GetAppLabels(condition)
-		if inLabels != nil {
-			r.SetAppLabels(condition, applyLabelsTraits(inLabels, traits))
-		}
-
-		// apply templates to database labels
-		inLabels = r.GetDatabaseLabels(condition)
-		if inLabels != nil {
-			r.SetDatabaseLabels(condition, applyLabelsTraits(inLabels, traits))
-		}
-
-		// apply templates to windows desktop labels
-		inLabels = r.GetWindowsDesktopLabels(condition)
-		if inLabels != nil {
-			r.SetWindowsDesktopLabels(condition, applyLabelsTraits(inLabels, traits))
+		for _, kind := range []string{
+			types.KindRemoteCluster,
+			types.KindNode,
+			types.KindKubernetesCluster,
+			types.KindApp,
+			types.KindDatabase,
+			types.KindDatabaseService,
+			types.KindWindowsDesktop,
+			types.KindUserGroup,
+		} {
+			labelMatchers, err := r.GetLabelMatchers(condition, kind)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			// Only labelMatchers.Labels is templated, if empty we can skip
+			// these label matchers. labelMatchers.Expression can reference user
+			// traits later during the access check through the expression
+			// environment, they are not templated in here.
+			if len(labelMatchers.Labels) == 0 {
+				continue
+			}
+			labelMatchers.Labels = applyLabelsTraits(labelMatchers.Labels, traits)
+			if err := r.SetLabelMatchers(condition, kind, labelMatchers); err != nil {
+				return nil, trace.Wrap(err)
+			}
 		}
 
 		r.SetHostGroups(condition,
@@ -406,6 +506,9 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 
 		r.SetHostSudoers(condition,
 			applyValueTraitsSlice(r.GetHostSudoers(condition), traits, "host_sudoers"))
+
+		r.SetDesktopGroups(condition,
+			applyValueTraitsSlice(r.GetDesktopGroups(condition), traits, "desktop_groups"))
 
 		options := r.GetOptions()
 		for i, ext := range options.CertExtensions {
@@ -430,7 +533,7 @@ func ApplyTraits(r types.Role, traits map[string][]string) types.Role {
 		r.SetImpersonateConditions(condition, outCond)
 	}
 
-	return r
+	return r, nil
 }
 
 // applyValueTraitsSlice iterates over a slice of input strings, calling
@@ -497,7 +600,7 @@ func applyLabelsTraits(inLabels types.Labels, traits map[string][]string) types.
 // at least one value in case if return value is nil
 func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) {
 	// Extract the variable from the role variable.
-	expr, err := parse.NewExpression(val)
+	expr, err := parse.NewTraitsTemplateExpression(val)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -508,7 +611,7 @@ func ApplyValueTraits(val string, traits map[string][]string) ([]string, error) 
 			switch name {
 			case constants.TraitLogins, constants.TraitWindowsLogins,
 				constants.TraitKubeGroups, constants.TraitKubeUsers,
-				constants.TraitDBNames, constants.TraitDBUsers,
+				constants.TraitDBNames, constants.TraitDBUsers, constants.TraitDBRoles,
 				constants.TraitAWSRoleARNs, constants.TraitAzureIdentities,
 				constants.TraitGCPServiceAccounts, teleport.TraitJWT:
 			default:
@@ -690,15 +793,6 @@ func (set RuleSet) Slice() []types.Rule {
 	return out
 }
 
-// HostUsersInfo keeps information about groups and sudoers entries
-// for a particular host user
-type HostUsersInfo struct {
-	// Groups is the list of groups to include host users in
-	Groups []string
-	// Sudoers is a list of entries for a users sudoers file
-	Sudoers []string
-}
-
 // RoleFromSpec returns new Role created from spec
 func RoleFromSpec(name string, spec types.RoleSpecV6) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
@@ -784,7 +878,11 @@ func FetchRoleList(roleNames []string, access RoleGetter, traits map[string][]st
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		roles = append(roles, ApplyTraits(role, traits))
+		role, err = ApplyTraits(role, traits)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		roles = append(roles, role)
 	}
 
 	return roles, nil
@@ -797,50 +895,6 @@ func FetchRoles(roleNames []string, access RoleGetter, traits map[string][]strin
 	roles, err := FetchRoleList(roleNames, access, traits)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-	return NewRoleSet(roles...), nil
-}
-
-// CurrentUserRoleGetter limits the interface of auth.ClientI to methods needed by FetchAllClusterRoles.
-type CurrentUserRoleGetter interface {
-	GetCurrentUser(context.Context) (types.User, error)
-	GetCurrentUserRoles(context.Context) ([]types.Role, error)
-	RoleGetter
-}
-
-// FetchAllClusterRoles fetches all roles available to the user on the
-// specified cluster, applies traits, and adds runtime roles like the default
-// implicit role to RoleSet.
-func FetchAllClusterRoles(ctx context.Context, access CurrentUserRoleGetter, defaultRoleNames []string, defaultTraits wrappers.Traits) (RoleSet, error) {
-	user, err := access.GetCurrentUser(ctx)
-	if err != nil {
-		// DELETE IN 12.0.0
-		if trace.IsNotImplemented(err) {
-			// get the role definition for all roles of user.
-			// this may only fail if the role which we are looking for does not exist, or we don't have access to it.
-			// example scenario when this may happen:
-			// 1. we have set of roles [foo bar] from profile.
-			// 2. the cluster is remote and maps the [foo, bar] roles to single role [guest]
-			// 3. the remote cluster doesn't implement GetCurrentUser(), so we have no way to learn of [guest].
-			// 4. FetchRoles([foo bar], ..., ...) fails as [foo bar] does not exist on remote cluster.
-			roleSet, err := FetchRoles(defaultRoleNames, access, defaultTraits)
-			return roleSet, trace.Wrap(err)
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	roles, err := access.GetCurrentUserRoles(ctx)
-	if err != nil {
-		// DELETE IN 12.0
-		if trace.IsNotImplemented(err) {
-			roleSet, err := FetchRoles(user.GetRoles(), access, user.GetTraits())
-			return roleSet, trace.Wrap(err)
-		}
-		return nil, trace.Wrap(err)
-	}
-
-	for i := range roles {
-		roles[i] = ApplyTraits(roles[i], user.GetTraits())
 	}
 	return NewRoleSet(roles...), nil
 }
@@ -912,12 +966,12 @@ func (result *EnumerationResult) filtered(value bool) []string {
 	return filtered
 }
 
-// Denied returns all explicitly denied users.
+// Denied returns all explicitly denied entities.
 func (result *EnumerationResult) Denied() []string {
 	return result.filtered(false)
 }
 
-// Allowed returns all known allowed users.
+// Allowed returns all known allowed entities.
 func (result *EnumerationResult) Allowed() []string {
 	if result.WildcardDenied() {
 		return nil
@@ -925,12 +979,12 @@ func (result *EnumerationResult) Allowed() []string {
 	return result.filtered(true)
 }
 
-// WildcardAllowed is true if there * username allowed for given rule set.
+// WildcardAllowed is true if the * entity is allowed for a given rule set.
 func (result *EnumerationResult) WildcardAllowed() bool {
 	return result.wildcardAllowed && !result.wildcardDenied
 }
 
-// WildcardDenied is true if there * username deny for given rule set.
+// WildcardDenied is true if the * entity is denied for a given rule set.
 func (result *EnumerationResult) WildcardDenied() bool {
 	return result.wildcardDenied
 }
@@ -942,120 +996,6 @@ func NewEnumerationResult() EnumerationResult {
 		wildcardAllowed:  false,
 		wildcardDenied:   false,
 	}
-}
-
-// EnumerateDatabaseUsers works on a given role set to return a minimal description of allowed set of usernames.
-// It is biased towards *allowed* usernames; It is meant to describe what the user can do, rather than cannot do.
-// For that reason if the user isn't allowed to pick *any* entities, the output will be empty.
-//
-// In cases where * is listed in set of allowed users, it may be hard for users to figure out the expected username.
-// For this reason the parameter extraUsers provides an extra set of users to be checked against RoleSet.
-// This extra set of users may be sourced e.g. from user connection history.
-func (set RoleSet) EnumerateDatabaseUsers(database types.Database, extraUsers ...string) EnumerationResult {
-	result := NewEnumerationResult()
-
-	// gather users for checking from the roles, check wildcards.
-	var users []string
-	for _, role := range set {
-		wildcardAllowed := false
-		wildcardDenied := false
-
-		for _, user := range role.GetDatabaseUsers(types.Allow) {
-			if user == types.Wildcard {
-				wildcardAllowed = true
-			} else {
-				users = append(users, user)
-			}
-		}
-
-		for _, user := range role.GetDatabaseUsers(types.Deny) {
-			if user == types.Wildcard {
-				wildcardDenied = true
-			} else {
-				users = append(users, user)
-			}
-		}
-
-		result.wildcardDenied = result.wildcardDenied || wildcardDenied
-
-		if err := NewRoleSet(role).checkAccess(database, AccessState{MFAVerified: true}); err == nil {
-			result.wildcardAllowed = result.wildcardAllowed || wildcardAllowed
-		}
-
-	}
-
-	users = apiutils.Deduplicate(append(users, extraUsers...))
-
-	// check each individual user against the database.
-	for _, user := range users {
-		err := set.checkAccess(database, AccessState{MFAVerified: true}, NewDatabaseUserMatcher(database, user))
-		result.allowedDeniedMap[user] = err == nil
-	}
-
-	return result
-}
-
-// GetAllowedLoginsForResource returns all of the allowed logins for the passed resource.
-//
-// Supports the following resource types:
-//
-// - types.Server with GetKind() == types.KindNode
-//
-// - types.KindWindowsDesktop
-func (set RoleSet) GetAllowedLoginsForResource(resource AccessCheckable) ([]string, error) {
-	// Create a map indexed by all logins in the RoleSet,
-	// mapped to false if any role has it in its deny section,
-	// true otherwise.
-	mapped := make(map[string]bool)
-
-	for _, role := range set {
-		var loginGetter func(types.RoleConditionType) []string
-
-		switch resource.GetKind() {
-		case types.KindNode:
-			loginGetter = role.GetLogins
-		case types.KindWindowsDesktop:
-			loginGetter = role.GetWindowsLogins
-		default:
-			return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
-		}
-
-		for _, login := range loginGetter(types.Allow) {
-			mapped[login] = true
-		}
-		for _, login := range loginGetter(types.Deny) {
-			mapped[login] = false
-		}
-	}
-
-	// Create a list of only the logins not denied by a role in the set.
-	var notDenied []string
-	for login, isNotDenied := range mapped {
-		if isNotDenied {
-			notDenied = append(notDenied, login)
-		}
-	}
-
-	var newLoginMatcher func(login string) RoleMatcher
-	switch resource.GetKind() {
-	case types.KindNode:
-		newLoginMatcher = NewLoginMatcher
-	case types.KindWindowsDesktop:
-		newLoginMatcher = NewWindowsLoginMatcher
-	default:
-		return nil, trace.BadParameter("received unsupported resource kind: %s", resource.GetKind())
-	}
-
-	// Filter the not-denied logins for those allowed to be used with the given resource.
-	var allowed []string
-	for _, login := range notDenied {
-		err := set.checkAccess(resource, AccessState{MFAVerified: true}, newLoginMatcher(login))
-		if err == nil {
-			allowed = append(allowed, login)
-		}
-	}
-
-	return allowed, nil
 }
 
 // MatchNamespace returns true if given list of namespace matches
@@ -1135,9 +1075,12 @@ func MatchLabels(selector types.Labels, target map[string]string) (bool, string,
 	return MatchLabelGetter(selector, mapLabelGetter(target))
 }
 
-// LabelGetter allows retrieving a particular label by name.
+// LabelGetter allows retrieving a particular label by name or retreiving all
+// labels at once. Prefer to use GetLabel when possible to avoid unnecessary
+// copies.
 type LabelGetter interface {
 	GetLabel(key string) (value string, ok bool)
+	GetAllLabels() map[string]string
 }
 
 type mapLabelGetter map[string]string
@@ -1145,6 +1088,10 @@ type mapLabelGetter map[string]string
 func (m mapLabelGetter) GetLabel(key string) (value string, ok bool) {
 	v, ok := m[key]
 	return v, ok
+}
+
+func (m mapLabelGetter) GetAllLabels() map[string]string {
+	return map[string]string(m)
 }
 
 // MatchLabelGetter matches selector against labelGetter. Empty selector matches
@@ -1651,75 +1598,6 @@ func (set RoleSet) GetLoginsForTTL(ttl time.Duration) (logins []string, matchedT
 	return apiutils.Deduplicate(logins), matchedTTL
 }
 
-// CheckAccessToRemoteCluster checks if a role has access to remote cluster. Deny rules are
-// checked first then allow rules. Access to a cluster is determined by
-// namespaces, labels, and logins.
-func (set RoleSet) CheckAccessToRemoteCluster(rc types.RemoteCluster) error {
-	if len(set) == 0 {
-		return trace.AccessDenied("access to cluster denied")
-	}
-
-	// Note: logging in this function only happens in debug mode, this is because
-	// adding logging to this function (which is called on every server returned
-	// by GetRemoteClusters) can slow down this function by 50x for large clusters!
-	isDebugEnabled, debugf := rbacDebugLogger()
-
-	rcLabels := rc.GetMetadata().Labels
-
-	// For backwards compatibility, if there is no role in the set with labels and the cluster
-	// has no labels, assume that the role set has access to the cluster.
-	usesLabels := false
-	for _, role := range set {
-		if len(role.GetClusterLabels(types.Allow)) != 0 || len(role.GetClusterLabels(types.Deny)) != 0 {
-			usesLabels = true
-			break
-		}
-	}
-
-	if !usesLabels && len(rcLabels) == 0 {
-		debugf("Grant access to cluster %v - no role in %v uses cluster labels and the cluster is not labeled.",
-			rc.GetName(), set.RoleNames())
-		return nil
-	}
-
-	// Check deny rules first: a single matching label from
-	// the deny role set prohibits access.
-	var errs []error
-	for _, role := range set {
-		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(types.Deny), rcLabels)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchLabels {
-			// This condition avoids formatting calls on large scale.
-			debugf("Access to cluster %v denied, deny rule in %v matched; match(label=%v)",
-				rc.GetName(), role.GetName(), labelsMessage)
-			return trace.AccessDenied("access to cluster denied")
-		}
-	}
-
-	// Check allow rules: label has to match in any role in the role set to be granted access.
-	for _, role := range set {
-		matchLabels, labelsMessage, err := MatchLabels(role.GetClusterLabels(types.Allow), rcLabels)
-		debugf("Check access to role(%v) rc(%v, labels=%v) matchLabels=%v, msg=%v, err=%v allow=%v rcLabels=%v",
-			role.GetName(), rc.GetName(), rcLabels, matchLabels, labelsMessage, err, role.GetClusterLabels(types.Allow), rcLabels)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-		if matchLabels {
-			return nil
-		}
-		if isDebugEnabled {
-			deniedError := trace.AccessDenied("role=%v, match(label=%v)",
-				role.GetName(), labelsMessage)
-			errs = append(errs, deniedError)
-		}
-	}
-
-	debugf("Access to cluster %v denied, no allow rule matched; %v", rc.GetName(), errs)
-	return trace.AccessDenied("access to cluster denied")
-}
-
 func (set RoleSet) hasPossibleLogins() bool {
 	for _, role := range set {
 		if role.GetName() == constants.DefaultImplicitRole {
@@ -2145,6 +2023,13 @@ type databaseUserMatcher struct {
 // NewDatabaseUserMatcher creates a RoleMatcher that checks whether the role's
 // database users match the specified condition.
 func NewDatabaseUserMatcher(db types.Database, user string) RoleMatcher {
+	if db.SupportAWSIAMRoleARNAsUsers() {
+		return &databaseUserMatcher{
+			user:             user,
+			alternativeNames: makeUsernamesForAWSRoleARN(db, user),
+		}
+	}
+
 	if db.RequireAWSIAMRolesAsUsers() {
 		return &databaseUserMatcher{
 			user:             user,
@@ -2198,6 +2083,31 @@ func makeAlternativeNamesForAWSRole(db types.Database, user string) []string {
 		return nil
 	}
 	return []string{roleARN}
+}
+
+// makeUsernamesForAWSRoleARN builds ARN alternatives for database users who are full or
+// partial ARN.
+func makeUsernamesForAWSRoleARN(db types.Database, user string) []string {
+	if !awsutils.IsRoleARN(user) {
+		return nil
+	}
+
+	metadata := db.GetAWS()
+	if metadata.Region != "" && metadata.AccountID != "" && awsutils.IsPartialRoleARN(user) {
+		roleARN, err := awsutils.BuildRoleARN(user, metadata.Region, metadata.AccountID)
+		if err != nil {
+			return nil
+		}
+
+		return []string{roleARN}
+	}
+
+	roleARN, err := awsutils.ParseRoleARN(user)
+	if err != nil {
+		return nil
+	}
+
+	return []string{roleARN.Resource}
 }
 
 // DatabaseNameMatcher matches a role against database name.
@@ -2260,6 +2170,7 @@ func (l *windowsLoginMatcher) Match(role types.Role, typ types.RoleConditionType
 
 type kubernetesClusterLabelMatcher struct {
 	clusterLabels map[string]string
+	userTraits    wrappers.Traits
 }
 
 // NewKubeResourcesMatcher creates a new KubeResourcesMatcher matcher that
@@ -2347,19 +2258,26 @@ func (m *KubernetesResourceMatcher) String() string {
 
 // NewKubernetesClusterLabelMatcher creates a RoleMatcher that checks whether a role's
 // Kubernetes service labels match.
-func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string) RoleMatcher {
-	return &kubernetesClusterLabelMatcher{clusterLabels: clustersLabels}
+func NewKubernetesClusterLabelMatcher(clustersLabels map[string]string, userTraits wrappers.Traits) RoleMatcher {
+	return &kubernetesClusterLabelMatcher{clusterLabels: clustersLabels, userTraits: userTraits}
 }
 
 // Match matches a Kubernetes cluster labels against a role.
 func (l *kubernetesClusterLabelMatcher) Match(role types.Role, typ types.RoleConditionType) (bool, error) {
-	ok, _, err := MatchLabels(l.getKubeLabels(role, typ), l.clusterLabels)
+	labelMatchers, err := l.getKubeLabelMatchers(role, typ)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	ok, _, err := checkLabelsMatch(typ, labelMatchers, l.userTraits, mapLabelGetter(l.clusterLabels), false)
 	return ok, trace.Wrap(err)
 }
 
-// getKubeLabels returns kubernetes_labels based on resource version and role type.
-func (l kubernetesClusterLabelMatcher) getKubeLabels(role types.Role, typ types.RoleConditionType) types.Labels {
-	labels := role.GetKubernetesLabels(typ)
+// getKubeLabelMatchers returns kubernetes_labels based on resource version and role type.
+func (l kubernetesClusterLabelMatcher) getKubeLabelMatchers(role types.Role, typ types.RoleConditionType) (types.LabelMatchers, error) {
+	labelMatchers, err := role.GetLabelMatchers(typ, types.KindKubernetesCluster)
+	if err != nil {
+		return types.LabelMatchers{}, trace.Wrap(err)
+	}
 
 	// After the introduction of https://github.com/gravitational/teleport/pull/9759 the
 	// kubernetes_labels started to be respected. Former role behavior evaluated deny rules
@@ -2368,10 +2286,10 @@ func (l kubernetesClusterLabelMatcher) getKubeLabels(role types.Role, typ types.
 	// Default wildcard rules should be added to  deny.kubernetes_labels if
 	// deny.kubernetes_labels is empty to ensure that deny rule will be evaluated
 	// even if kubernetes_labels are empty.
-	if len(labels) == 0 && typ == types.Deny {
-		return map[string]apiutils.Strings{types.Wildcard: []string{types.Wildcard}}
+	if labelMatchers.Empty() && typ == types.Deny {
+		labelMatchers.Labels = types.Labels{types.Wildcard: []string{types.Wildcard}}
 	}
-	return labels
+	return labelMatchers, nil
 }
 
 // AccessCheckable is the subset of types.Resource required for the RBAC checks.
@@ -2380,6 +2298,7 @@ type AccessCheckable interface {
 	GetName() string
 	GetMetadata() types.Metadata
 	GetLabel(key string) (value string, ok bool)
+	GetAllLabels() map[string]string
 }
 
 // rbacDebugLogger creates a debug logger for Teleport's RBAC component.
@@ -2391,9 +2310,7 @@ func rbacDebugLogger() (debugEnabled bool, debugf func(format string, args ...in
 	return isDebugEnabled, log.Tracef
 }
 
-// checkAccess checks if this role set has access to a particular resource r,
-// based on the passed AccessState, the resource's labels, and the passed matchers.
-func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ...RoleMatcher) error {
+func (set RoleSet) checkAccess(r AccessCheckable, traits wrappers.Traits, state AccessState, matchers ...RoleMatcher) error {
 	// Note: logging in this function only happens in debug mode. This is because
 	// adding logging to this function (which is called on every resource returned
 	// by the backend) can slow down this function by 50x for large clusters!
@@ -2409,30 +2326,15 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 	// Additional message depending on kind of resource
 	// so there's more context on why the user might not have access.
 	additionalDeniedMessage := ""
-
-	var getRoleLabels func(types.Role, types.RoleConditionType) types.Labels
-
 	switch r.GetKind() {
 	case types.KindDatabase:
-		getRoleLabels = types.Role.GetDatabaseLabels
 		additionalDeniedMessage = "Confirm database user and name."
-	case types.KindDatabaseService:
-		getRoleLabels = types.Role.GetDatabaseServiceLabels
-	case types.KindApp:
-		getRoleLabels = types.Role.GetAppLabels
 	case types.KindNode:
-		getRoleLabels = types.Role.GetNodeLabels
 		additionalDeniedMessage = "Confirm SSH login."
 	case types.KindKubernetesCluster:
-		getRoleLabels = types.Role.GetKubernetesLabels
 		additionalDeniedMessage = "Confirm Kubernetes user or group."
 	case types.KindWindowsDesktop:
-		getRoleLabels = types.Role.GetWindowsDesktopLabels
 		additionalDeniedMessage = "Confirm Windows user."
-	case types.KindWindowsDesktopService:
-		getRoleLabels = types.Role.GetWindowsDesktopLabels
-	default:
-		return trace.BadParameter("cannot match labels for kind %v", r.GetKind())
 	}
 
 	// Check deny rules.
@@ -2442,12 +2344,12 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			continue
 		}
 
-		matchLabels, labelsMessage, err := MatchLabelGetter(getRoleLabels(role, types.Deny), r)
+		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Deny, role, traits, r, isDebugEnabled)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 		if matchLabels {
-			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, label=%v)",
+			debugf("Access to %v %q denied, deny rule in role %q matched; match(namespace=%v, %s)",
 				r.GetKind(), r.GetName(), role.GetName(), namespaceMessage, labelsMessage)
 			return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 				r.GetKind(), additionalDeniedMessage)
@@ -2486,14 +2388,14 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 			continue
 		}
 
-		matchLabels, labelsMessage, err := MatchLabelGetter(getRoleLabels(role, types.Allow), r)
+		matchLabels, labelsMessage, err := checkRoleLabelsMatch(types.Allow, role, traits, r, isDebugEnabled)
 		if err != nil {
 			return trace.Wrap(err)
 		}
 
 		if !matchLabels {
 			if isDebugEnabled {
-				errs = append(errs, trace.AccessDenied("role=%v, match(label=%v)",
+				errs = append(errs, trace.AccessDenied("role=%v, match(%s)",
 					role.GetName(), labelsMessage))
 			}
 			continue
@@ -2557,6 +2459,118 @@ func (set RoleSet) checkAccess(r AccessCheckable, state AccessState, matchers ..
 	debugf("Access to %v %q denied, no allow rule matched; %v", r.GetKind(), r.GetName(), errs)
 	return trace.AccessDenied("access to %v denied. User does not have permissions. %v",
 		r.GetKind(), additionalDeniedMessage)
+}
+
+// checkRoleLabelsMatch checks if the [role] matches the labels of [resource]
+// for [condition].
+// It considers both the role labels (<kind>_labels) and label expression
+// (<kind>_labels_expression).
+//
+// Returns a match boolean, a debug message, and any unexpected error.
+//
+// If [condition] is types.Deny, the match is greedy, if either one matches it's
+// considered a match.
+//
+// If [condition] is types.Allow, the match is not greedy, if either doesn't
+// match it's not considered a match.
+//
+// If neither is set, it's not a match in either case.
+func checkRoleLabelsMatch(
+	condition types.RoleConditionType,
+	role types.Role,
+	userTraits wrappers.Traits,
+	resource AccessCheckable,
+	debug bool,
+) (bool, string, error) {
+	labelMatchers, err := role.GetLabelMatchers(condition, resource.GetKind())
+	if err != nil {
+		return false, "", trace.Wrap(err)
+	}
+	return checkLabelsMatch(condition, labelMatchers, userTraits, resource, debug)
+}
+
+// checkLabelsMatch checks if the [labelMatchers] match the labels of [resource]
+// for [condition].
+// It considers both [labelMatchers.Labels] and [labelMatchers.Expression].
+//
+// Returns a match boolean, a debug message, and any unexpected error.
+//
+// If [condition] is types.Deny, the match is greedy, if either one matches it's
+// considered a match.
+//
+// If [condition] is types.Allow, the match is not greedy, if either doesn't
+// match it's not considered a match.
+//
+// If neither is set, it's not a match in either case.
+func checkLabelsMatch(
+	condition types.RoleConditionType,
+	labelMatchers types.LabelMatchers,
+	userTraits wrappers.Traits,
+	resource LabelGetter,
+	debug bool,
+) (bool, string, error) {
+	if labelMatchers.Empty() {
+		return false, "no label matchers or label expression", nil
+	}
+
+	var message string
+	labelsUnsetOrMatch, expressionUnsetOrMatch := true, true
+
+	if len(labelMatchers.Labels) > 0 {
+		match, msg, err := MatchLabelGetter(labelMatchers.Labels, resource)
+		if err != nil {
+			return false, "", trace.Wrap(err)
+		}
+		if debug {
+			message += "label=" + msg
+		}
+		// Deny rules are greedy, if either matches, it's a match.
+		if condition == types.Deny && match {
+			return true, message, nil
+		}
+		labelsUnsetOrMatch = match
+	}
+
+	if len(labelMatchers.Expression) > 0 {
+		match, msg, err := matchLabelExpression(labelMatchers.Expression, resource, userTraits)
+		if err != nil {
+			return false, "", trace.Wrap(err)
+		}
+		if debug {
+			message = strings.Join([]string{message, "expression=" + msg}, ", ")
+		}
+		// Deny rules are greedy, if either matches, it's a match.
+		if condition == types.Deny {
+			return match, message, nil
+		}
+		expressionUnsetOrMatch = match
+	}
+
+	if condition == types.Deny {
+		// Either branch would have returned if it was a match.
+		return false, message, nil
+	}
+
+	// Allow rules are not greedy, both must match if they are set.
+	return labelsUnsetOrMatch && expressionUnsetOrMatch, message, nil
+}
+
+func matchLabelExpression(labelExpression string, resource LabelGetter, userTraits wrappers.Traits) (bool, string, error) {
+	parsedExpr, err := parseLabelExpression(labelExpression)
+	if err != nil {
+		return false, "", trace.Wrap(err)
+	}
+	match, err := parsedExpr.Evaluate(labelExpressionEnv{
+		resourceLabelGetter: resource,
+		userTraits:          userTraits,
+	})
+	if err != nil {
+		return false, "", trace.Wrap(err, "evaluating label expression %q", labelExpression)
+	}
+	if match {
+		return true, "matched", nil
+	}
+	return false, "no match", nil
 }
 
 // CanForwardAgents returns true if role set allows forwarding agents.
@@ -2699,60 +2713,6 @@ func (set RoleSet) EnhancedRecordingSet() map[string]bool {
 	return m
 }
 
-// HostUsers returns host user information matching a server or nil if
-// a role disallows host user creation
-func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
-	groups := make(map[string]struct{})
-	sudoers := make(map[string]struct{})
-	serverLabels := s.GetAllLabels()
-	for _, role := range set {
-		result, _, err := MatchLabels(role.GetNodeLabels(types.Allow), serverLabels)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		// skip nodes that dont have matching labels
-		if !result {
-			continue
-		}
-		createHostUser := role.GetOptions().CreateHostUser
-		// if any of the matching roles do not enable create host
-		// user, the user should not be allowed on
-		if createHostUser == nil || !createHostUser.Value {
-			return nil, trace.AccessDenied("user is not allowed to create host users")
-		}
-		for _, group := range role.GetHostGroups(types.Allow) {
-			groups[group] = struct{}{}
-		}
-		for _, sudoer := range role.GetHostSudoers(types.Allow) {
-			sudoers[sudoer] = struct{}{}
-		}
-	}
-	for _, role := range set {
-		result, _, err := MatchLabels(role.GetNodeLabels(types.Deny), serverLabels)
-		if err != nil {
-			return nil, trace.Wrap(err)
-		}
-		if !result {
-			continue
-		}
-		for _, group := range role.GetHostGroups(types.Deny) {
-			delete(groups, group)
-		}
-		for _, sudoer := range role.GetHostSudoers(types.Deny) {
-			if sudoer == "*" {
-				sudoers = nil
-				break
-			}
-			delete(sudoers, sudoer)
-		}
-	}
-
-	return &HostUsersInfo{
-		Groups:  utils.StringsSliceFromSet(groups),
-		Sudoers: utils.StringsSliceFromSet(sudoers),
-	}, nil
-}
-
 // certificatePriority returns the priority of the certificate format. The
 // most permissive has lowest value.
 func certificatePriority(s string) int {
@@ -2845,9 +2805,9 @@ func (set RoleSet) CheckAccessToRule(ctx RuleContext, namespace string, resource
 }
 
 // GetKubeResources returns allowed and denied list of Kubernetes Resources configured in the RoleSet.
-func (set RoleSet) GetKubeResources(cluster types.KubeCluster) (allowed, denied []types.KubernetesResource) {
+func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappers.Traits) (allowed, denied []types.KubernetesResource) {
 	for _, role := range set {
-		matchLabels, _, err := MatchLabels(role.GetKubernetesLabels(types.Allow), cluster.GetAllLabels())
+		matchLabels, _, err := checkRoleLabelsMatch(types.Allow, role, userTraits, cluster, false)
 		if err != nil || !matchLabels {
 			continue
 		}
@@ -2855,11 +2815,12 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster) (allowed, denied 
 	}
 
 	for _, role := range set {
-		matchLabels, _, err := MatchLabels(role.GetKubernetesLabels(types.Deny), cluster.GetAllLabels())
-		if err != nil || !matchLabels {
-			continue
-		}
-
+		// deny rules are not checked for labels because they are greedy. It means that
+		// if there is a deny rule for a cluster, it will deny access to all resources
+		// in that cluster, regardless of kubernetes_resources (i.e. making them irrelevant).
+		// If the goal is to deny access to a specific resource, it should be done by collecting
+		// all kube resources in deny rules and ignoring if the role matches or not
+		// the cluster (i.e. no labels check).
 		denied = append(denied, role.GetKubeResources(types.Deny)...)
 	}
 
@@ -3140,6 +3101,8 @@ func UnmarshalRole(bytes []byte, opts ...MarshalOption) (types.Role, error) {
 	}
 
 	switch h.Version {
+	case types.V7:
+		fallthrough
 	case types.V6:
 		fallthrough
 	case types.V5:
@@ -3192,23 +3155,5 @@ func MarshalRole(role types.Role, opts ...MarshalOption) ([]byte, error) {
 		return utils.FastMarshal(role)
 	default:
 		return nil, trace.BadParameter("unrecognized role version %T", role)
-	}
-}
-
-// DowngradeToV5 converts a V6 role to V5 so that it will be compatible with
-// older instances. Makes a shallow copy if the conversion is necessary. The
-// passed in role will not be mutated.
-// DELETE IN 13.0.0
-func DowngradeRoleToV5(r *types.RoleV6) (*types.RoleV6, error) {
-	switch r.Version {
-	case types.V3, types.V4, types.V5:
-		return r, nil
-	case types.V6:
-		var downgraded types.RoleV6
-		downgraded = *r
-		downgraded.Version = types.V5
-		return &downgraded, nil
-	default:
-		return nil, trace.BadParameter("unrecognized role version %T", r.Version)
 	}
 }

@@ -54,8 +54,9 @@ type SlackSuite struct {
 		reviewer2 string
 		plugin    string
 	}
-	raceNumber int
-	fakeSlack  *FakeSlack
+	raceNumber     int
+	fakeSlack      *FakeSlack
+	fakeStatusSink *fakeStatusSink
 
 	clients          map[string]*integration.Client
 	teleportFeatures *proto.Features
@@ -190,11 +191,14 @@ func (s *SlackSuite) SetupTest() {
 
 	s.fakeSlack.StoreUser(User{Name: "Vladimir", Profile: UserProfile{Email: s.userNames.requestor}})
 
+	s.fakeStatusSink = &fakeStatusSink{}
+
 	var conf Config
 	conf.Teleport = s.teleportConfig
 	conf.Slack.Token = "000000"
 	conf.Slack.APIURL = s.fakeSlack.URL() + "/"
 	conf.AccessTokenProvider = auth.NewStaticAccessTokenProvider(conf.Slack.Token)
+	conf.StatusSink = s.fakeStatusSink
 
 	s.appConfig = &conf
 	s.SetContextTimeout(5 * time.Second)
@@ -313,6 +317,8 @@ func (s *SlackSuite) TestMessagePosting() {
 	statusLine, err := getStatusLine(messages[0])
 	require.NoError(t, err)
 	assert.Equal(t, "*Status*: ⏳ PENDING", statusLine)
+
+	assert.Equal(t, types.PluginStatusCode_RUNNING, s.fakeStatusSink.Get().GetCode())
 }
 
 func (s *SlackSuite) TestRecipientsConfig() {

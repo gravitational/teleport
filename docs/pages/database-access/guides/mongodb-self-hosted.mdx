@@ -1,12 +1,12 @@
 ---
 title: Database Access with Self-Hosted MongoDB
-description: How to configure Teleport Database Access with self-hosted MongoDB.
+description: How to configure Teleport database access with self-hosted MongoDB.
 videoBanner: 6lgVObxoLkc
 ---
 
 In this guide you will:
 
-1. Install and configure Teleport for Database Access.
+1. Install and configure Teleport for database access.
 2. Configure mutual TLS authentication between Teleport and your MongoDB cluster.
 3. Connect to your MongoDB instance via Teleport.
 
@@ -24,7 +24,7 @@ In this guide you will:
 - MongoDB cluster (standalone or replica set) version `(=mongodb.min_version=)` or newer.
 
 <Admonition type="note">
-  Teleport Database Access supports MongoDB `(=mongodb.min_version=)` and newer.
+  Teleport database access supports MongoDB `(=mongodb.min_version=)` and newer.
   Older versions have not been tested and are not guaranteed to work. MongoDB
   `(=mongodb.min_version=)` was released in November 2017 and reached EOL in
   April 2021 so if you're still using an older version, consider upgrading.
@@ -38,50 +38,26 @@ In this guide you will:
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Install Teleport on the host where you will run the Teleport Database Service:
+Install and configure Teleport where you will run the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Linux Server">
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-mongo" dbProtocol="mongodb" databaseAddress="mongo.example.com:27017" !)
 
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Proxy Service:
+</TabItem>
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=teleport.example.com:3080 \
-  --name=example-mongo \
-  --protocol=mongodb \
-  --uri=mongo.example.com:27017 \
-  --labels=env=dev
-```
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-<Admonition type="note">
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-mongo" dbProtocol="mongodb" databaseAddress="mongo.example.com:27017" !)
+</TabItem>
+</Tabs>
 
-The `--auth-server` flag must point to the Teleport cluster's Proxy Service
-endpoint because the Database Service always connects back to the cluster over a
-reverse tunnel.
-
-</Admonition>
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Cloud tenant:
-
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh:443 \
-  --name=example-mongo \
-  --protocol=mongodb \
-  --uri=mongo.example.com:27017 \
-  --labels=env=dev
-```
-
-</ScopedBlock>
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 You can specify either a single connection address or a MongoDB
 [connection string](https://docs.mongodb.com/manual/reference/connection-string/)
@@ -99,14 +75,11 @@ connection string setting:
 $ --uri="mongodb://mongo1.example.com:27017,mongo2.example.com:27017/?replicaSet=rs0&readPreference=secondary"
 ```
 
-<Admonition type="tip">
-  You can start the Database Service using a configuration file instead of CLI flags.
-  See the [YAML reference](../reference/configuration.mdx) for details.
-</Admonition>
-
 ### Create a Teleport user
 
 (!docs/pages/includes/database-access/create-user.mdx!)
+
+(!docs/pages/includes/database-access/mongodb-required-database-access.mdx!)
 
 ## Step 2/3. Configure MongoDB
 

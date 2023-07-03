@@ -49,23 +49,23 @@ export const PrivateKeyLoginDisabledCard = ({
   // lost password or two-factor device.
   onRecover?: (isRecoverPassword: boolean) => void;
 }) => (
-  <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
-    <Text typography="h3" pt={4} textAlign="center" color="light">
+  <Card my="5" mx="auto" width="464px" px={5} pb={4}>
+    <Text typography="h3" pt={4} textAlign="center" color="text.main">
       {title}
     </Text>
     <Danger my={5}>Web UI Login Disabled</Danger>
     <Text mb={2} typography="paragraph2">
       This Teleport Cluster requires that user{' '}
-      <Link color="light" href={LINK_HARDWARE_KEY_SUPPORT} target="_blank">
+      <Link color="text.main" href={LINK_HARDWARE_KEY_SUPPORT} target="_blank">
         private keys
       </Link>{' '}
       be stored on hardware authentication devices. Since these keys are not
       accessible by web browsers, Web UI login has been disabled. Please use{' '}
-      <Link color="light" href={LINK_CONNECT} target="_blank">
+      <Link color="text.main" href={LINK_CONNECT} target="_blank">
         Teleport Connect
       </Link>{' '}
       or{' '}
-      <Link color="light" href={LINK_TSH} target="_blank">
+      <Link color="text.main" href={LINK_TSH} target="_blank">
         tsh
       </Link>{' '}
       to log in.
@@ -116,15 +116,19 @@ export function PrivateKeyAccessRequestDialogue({
       <DialogContent>
         <Text mb={4}>
           This access requires use of hardware backed{' '}
-          <Link color="light" href={LINK_HARDWARE_KEY_SUPPORT} target="_blank">
+          <Link
+            color="text.main"
+            href={LINK_HARDWARE_KEY_SUPPORT}
+            target="_blank"
+          >
             private keys
           </Link>{' '}
           which are not supported in the web. Please use{' '}
-          <Link color="light" href={LINK_TSH} target="_blank">
+          <Link color="text.main" href={LINK_TSH} target="_blank">
             tsh
           </Link>{' '}
           to login with the approved request ID or use{' '}
-          <Link color="light" href={LINK_CONNECT} target="_blank">
+          <Link color="text.main" href={LINK_CONNECT} target="_blank">
             Teleport Connect
           </Link>
           .

@@ -8,28 +8,14 @@ description: How to upgrade an existing Teleport cluster to single-port TLS rout
   opened={true}
   scope={["oss", "enterprise"]}
   scopeOnly={true}
-  min="8.0"
+  min="13.0"
 >
-  TLS routing is available starting from Teleport `8.0`.
+  Support for TLS routing behind layer 7 (HTTP/HTTPS) load balancers and
+  reverse proxies is available in Preview starting from Teleport `13.0`.
 </Details>
 
-<Admonition scope={["cloud"]} type="tip" scopeOnly>
-
-Teleport Cloud manages the Proxy Service's networking configuration for you.
-
-To see which ports and networking settings the Proxy Service is configured to
-use in your Teleport Cloud tenant, run the following command, replacing
-`mytenant.teleport.sh` with your tenant address:
-
-```code
-$ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
-```
-
-</Admonition>
-
-Starting from version `8.0` Teleport supports TLS routing. In this mode, all
-client connections are wrapped in TLS and multiplexed on one Teleport proxy
-port.
+In TLS routing mode, all Teleport client connections are wrapped in TLS and
+multiplexed on one Teleport Proxy Service port.
 
 TLS routing has multiple benefits compared to the deployment where each protocol
 is served on a separate port:
@@ -41,27 +27,32 @@ is served on a separate port:
 - Users are able to tunnel protocols that may normally be blocked on the
   internal network like SSH.
 
-Existing clusters upgraded to `8.0` will not utilize TLS routing by default and
+Upgrading Teleport will not enable TLS routing by default and the cluster will
 keep working in backwards-compatibility mode. Follow this guide to migrate your
 Teleport installation to TLS routing.
 
-## Requirements
+<Notice type="tip">
 
-For TLS routing to work, Teleport proxy needs to terminate all client
-connections.
+Teleport Team manages the Proxy Service's networking configuration for you.
+Get started with a [free trial](https://goteleport.com/signup?t_source=docs) of
+Teleport Team.
 
-Thus, it will not work with application load balancers (such as AWS ALB) or load
-balancers that do TLS termination. Use plain TCP passthrough load balancers
-(such as AWS NLB) to take advantage of TLS routing.
+To see which ports and networking settings the Proxy Service is configured to
+use in your Teleport Cloud tenant, run the following command, replacing
+`mytenant.teleport.sh` with your tenant address:
 
-## Step 1/7. Upgrade to Teleport `8.0`
+```code
+$ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
+```
 
-Download Teleport `8.0` or later from the [downloads page](https://goteleport.com/download)
-or your enterprise portal and follow the standard [upgrade procedure](./upgrading.mdx).
-Make sure to upgrade both root and leaf clusters as well as `tsh` client.
+</Notice>
 
-Pre-8.0 cluster configurations are fully backwards compatible with TLS routing.
-Existing Trusted Cluster and reverse tunnel connections won't be affected.
+## Step 1/7. Upgrade Teleport
+
+Download Teleport from the [downloads page](https://goteleport.com/download) or
+your enterprise portal and follow the standard [upgrade
+procedure](./upgrading.mdx). Make sure to upgrade both root and leaf clusters
+as well as `tsh` client.
 
 ## Step 2/7. Enable proxy multiplexing
 

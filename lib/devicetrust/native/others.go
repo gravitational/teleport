@@ -1,4 +1,4 @@
-//go:build !darwin
+//go:build !darwin && !windows
 
 // Copyright 2022 Gravitational, Inc
 //
@@ -17,27 +17,39 @@
 package native
 
 import (
-	"errors"
-
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	"github.com/gravitational/teleport/lib/devicetrust"
 )
 
-// trace.NotImplemented avoided on purpose: we use NotImplemented errors to
-// detect the lack of a server-side Device Trust implementation.
-var errPlatformNotSupported = errors.New("platform not supported")
-
 func enrollDeviceInit() (*devicepb.EnrollDeviceInit, error) {
-	return nil, errPlatformNotSupported
+	return nil, devicetrust.ErrPlatformNotSupported
 }
 
 func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
-	return nil, errPlatformNotSupported
+	return nil, devicetrust.ErrPlatformNotSupported
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
-	return nil, errPlatformNotSupported
+	return nil, devicetrust.ErrPlatformNotSupported
 }
 
 func getDeviceCredential() (*devicepb.DeviceCredential, error) {
-	return nil, errPlatformNotSupported
+	return nil, devicetrust.ErrPlatformNotSupported
+}
+
+func solveTPMEnrollChallenge(
+	_ *devicepb.TPMEnrollChallenge,
+	_ bool,
+) (*devicepb.TPMEnrollChallengeResponse, error) {
+	return nil, devicetrust.ErrPlatformNotSupported
+}
+
+func solveTPMAuthnDeviceChallenge(
+	_ *devicepb.TPMAuthenticateDeviceChallenge,
+) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return nil, devicetrust.ErrPlatformNotSupported
+}
+
+func handleTPMActivateCredential(_, _ string) error {
+	return devicetrust.ErrPlatformNotSupported
 }

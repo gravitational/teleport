@@ -39,11 +39,14 @@ import (
 	"github.com/aws/aws-sdk-go/service/ec2/ec2iface"
 	"github.com/aws/aws-sdk-go/service/eks"
 	"github.com/aws/aws-sdk-go/service/eks/eksiface"
+	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
 	"github.com/aws/aws-sdk-go/service/ssm"
 	"github.com/aws/aws-sdk-go/service/ssm/ssmiface"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
@@ -58,6 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	libevents "github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/server"
 )
 
 type mockSSMClient struct {
@@ -300,7 +304,7 @@ func TestDiscoveryServer(t *testing.T) {
 			logHandler: func(t *testing.T, logs io.Reader, done chan struct{}) {
 				scanner := bufio.NewScanner(logs)
 				instances := genEC2Instances(58)
-				findAll := []string{genEC2InstancesLogStr(instances[:50]), genEC2InstancesLogStr(instances[50:])}
+				findAll := []string{genEC2InstancesLogStr(server.ToEC2Instances(instances[:50])), genEC2InstancesLogStr(server.ToEC2Instances(instances[50:]))}
 				index := 0
 				for scanner.Scan() {
 					if index == len(findAll) {
@@ -360,11 +364,14 @@ func TestDiscoveryServer(t *testing.T) {
 			server, err := New(context.Background(), &Config{
 				Clients:     &testClients,
 				AccessPoint: tlsServer.Auth(),
-				AWSMatchers: []services.AWSMatcher{{
+				AWSMatchers: []types.AWSMatcher{{
 					Types:   []string{"ec2"},
 					Regions: []string{"eu-central-1"},
 					Tags:    map[string]utils.Strings{"teleport": {"yes"}},
-					SSM:     &services.AWSSSM{DocumentName: "document"},
+					SSM:     &types.AWSSSM{DocumentName: "document"},
+					Params: &types.InstallerParams{
+						InstallTeleport: true,
+					},
 				}},
 				Emitter: tc.emitter,
 				Log:     logger,
@@ -406,20 +413,26 @@ func TestDiscoveryServer(t *testing.T) {
 }
 
 func TestDiscoveryKube(t *testing.T) {
+	const (
+		mainDiscoveryGroup  = "main"
+		otherDiscoveryGroup = "other"
+	)
 	t.Parallel()
 	tcs := []struct {
 		name                          string
 		existingKubeClusters          []types.KubeCluster
-		awsMatchers                   []services.AWSMatcher
-		azureMatchers                 []services.AzureMatcher
-		gcpMatchers                   []services.GCPMatcher
+		awsMatchers                   []types.AWSMatcher
+		azureMatchers                 []types.AzureMatcher
+		gcpMatchers                   []types.GCPMatcher
 		expectedClustersToExistInAuth []types.KubeCluster
 		clustersNotUpdated            []string
+		expectedAssumedRoles          []string
+		expectedExternalIDs           []string
 	}{
 		{
 			name:                 "no clusters in auth server, import 2 prod clusters from EKS",
 			existingKubeClusters: []types.KubeCluster{},
-			awsMatchers: []services.AWSMatcher{
+			awsMatchers: []types.AWSMatcher{
 				{
 					Types:   []string{"eks"},
 					Regions: []string{"eu-west-1"},
@@ -427,14 +440,44 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
+		},
+		{
+			name:                 "no clusters in auth server, import 2 prod clusters from EKS with assumed roles",
+			existingKubeClusters: []types.KubeCluster{},
+			awsMatchers: []types.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+					AssumeRole: &types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role",
+						ExternalID: "external-id",
+					},
+				},
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+					AssumeRole: &types.AssumeRole{
+						RoleARN:    "arn:aws:iam::123456789012:role/teleport-role2",
+						ExternalID: "external-id2",
+					},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+			},
+			expectedAssumedRoles: []string{"arn:aws:iam::123456789012:role/teleport-role", "arn:aws:iam::123456789012:role/teleport-role2"},
+			expectedExternalIDs:  []string{"external-id", "external-id2"},
 		},
 		{
 			name:                 "no clusters in auth server, import 2 stg clusters from EKS",
 			existingKubeClusters: []types.KubeCluster{},
-			awsMatchers: []services.AWSMatcher{
+			awsMatchers: []types.AWSMatcher{
 				{
 					Types:   []string{"eks"},
 					Regions: []string{"eu-west-1"},
@@ -442,16 +485,16 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[2]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[3]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[2], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], mainDiscoveryGroup),
 			},
 		},
 		{
 			name: "1 cluster in auth server not updated + import 1 prod cluster from EKS",
 			existingKubeClusters: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
 			},
-			awsMatchers: []services.AWSMatcher{
+			awsMatchers: []types.AWSMatcher{
 				{
 					Types:   []string{"eks"},
 					Regions: []string{"eu-west-1"},
@@ -459,17 +502,17 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
 			clustersNotUpdated: []string{"eks-cluster1"},
 		},
 		{
-			name: "1 cluster in auth that no longer matches (deleted) + import 2 prod clusters from EKS",
+			name: "1 cluster in auth that belongs the same discovery group but has unmatched labels + import 2 prod clusters from EKS",
 			existingKubeClusters: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[3]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], mainDiscoveryGroup),
 			},
-			awsMatchers: []services.AWSMatcher{
+			awsMatchers: []types.AWSMatcher{
 				{
 					Types:   []string{"eks"},
 					Regions: []string{"eu-west-1"},
@@ -477,18 +520,17 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
 			clustersNotUpdated: []string{},
 		},
 		{
-			name: "1 cluster in auth that matches but must be updated + import 1 prod clusters from EKS",
+			name: "1 cluster in auth that belongs to a different discovery group + import 2 prod clusters from EKS",
 			existingKubeClusters: []types.KubeCluster{
-				// add an extra static label to force update in auth server
-				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1])),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], otherDiscoveryGroup),
 			},
-			awsMatchers: []services.AWSMatcher{
+			awsMatchers: []types.AWSMatcher{
 				{
 					Types:   []string{"eks"},
 					Regions: []string{"eu-west-1"},
@@ -496,8 +538,28 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[3], otherDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+			},
+			clustersNotUpdated: []string{},
+		},
+		{
+			name: "1 cluster in auth that must be updated + import 1 prod clusters from EKS",
+			existingKubeClusters: []types.KubeCluster{
+				// add an extra static label to force update in auth server
+				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup)),
+			},
+			awsMatchers: []types.AWSMatcher{
+				{
+					Types:   []string{"eks"},
+					Regions: []string{"eu-west-1"},
+					Tags:    map[string]utils.Strings{"env": {"prod"}},
+				},
+			},
+			expectedClustersToExistInAuth: []types.KubeCluster{
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
 			},
 			clustersNotUpdated: []string{},
 		},
@@ -505,17 +567,17 @@ func TestDiscoveryKube(t *testing.T) {
 			name: "2 clusters in auth that matches but one must be updated +  import 2 prod clusters, 1 from EKS and other from AKS",
 			existingKubeClusters: []types.KubeCluster{
 				// add an extra static label to force update in auth server
-				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1])),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0]),
+				modifyKubeCluster(mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup)),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup),
 			},
-			awsMatchers: []services.AWSMatcher{
+			awsMatchers: []types.AWSMatcher{
 				{
 					Types:   []string{"eks"},
 					Regions: []string{"eu-west-1"},
 					Tags:    map[string]utils.Strings{"env": {"prod"}},
 				},
 			},
-			azureMatchers: []services.AzureMatcher{
+			azureMatchers: []types.AzureMatcher{
 				{
 					Types:          []string{"aks"},
 					ResourceTags:   map[string]utils.Strings{"env": {"prod"}},
@@ -525,17 +587,17 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertEKSToKubeCluster(t, eksMockClusters[0]),
-				mustConvertEKSToKubeCluster(t, eksMockClusters[1]),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0]),
-				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1]),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[0], mainDiscoveryGroup),
+				mustConvertEKSToKubeCluster(t, eksMockClusters[1], mainDiscoveryGroup),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][0], mainDiscoveryGroup),
+				mustConvertAKSToKubeCluster(t, aksMockClusters["group1"][1], mainDiscoveryGroup),
 			},
 			clustersNotUpdated: []string{"aks-cluster1"},
 		},
 		{
 			name:                 "no clusters in auth server, import 2 prod clusters from GKE",
 			existingKubeClusters: []types.KubeCluster{},
-			gcpMatchers: []services.GCPMatcher{
+			gcpMatchers: []types.GCPMatcher{
 				{
 					Types:      []string{"gke"},
 					Locations:  []string{"*"},
@@ -544,8 +606,8 @@ func TestDiscoveryKube(t *testing.T) {
 				},
 			},
 			expectedClustersToExistInAuth: []types.KubeCluster{
-				mustConvertGKEToKubeCluster(t, gkeMockClusters[0]),
-				mustConvertGKEToKubeCluster(t, gkeMockClusters[1]),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[0], mainDiscoveryGroup),
+				mustConvertGKEToKubeCluster(t, gkeMockClusters[1], mainDiscoveryGroup),
 			},
 		},
 	}
@@ -554,8 +616,9 @@ func TestDiscoveryKube(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-
+			sts := &mocks.STSMock{}
 			testClients := cloud.TestCloudClients{
+				STS:            sts,
 				AzureAKSClient: newPopulatedAKSMock(),
 				EKS:            newPopulatedEKSMock(),
 				GCPGKE:         newPopulatedGCPMock(),
@@ -619,13 +682,14 @@ func TestDiscoveryKube(t *testing.T) {
 			discServer, err := New(
 				ctx,
 				&Config{
-					Clients:       &testClients,
-					AccessPoint:   tlsServer.Auth(),
-					AWSMatchers:   tc.awsMatchers,
-					AzureMatchers: tc.azureMatchers,
-					GCPMatchers:   tc.gcpMatchers,
-					Emitter:       authClient,
-					Log:           logger,
+					Clients:        &testClients,
+					AccessPoint:    tlsServer.Auth(),
+					AWSMatchers:    tc.awsMatchers,
+					AzureMatchers:  tc.azureMatchers,
+					GCPMatchers:    tc.gcpMatchers,
+					Emitter:        authClient,
+					Log:            logger,
+					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
 			require.NoError(t, err)
@@ -664,6 +728,9 @@ func TestDiscoveryKube(t *testing.T) {
 				}
 				return len(clustersNotUpdated) == 0 && clustersFoundInAuth
 			}, 5*time.Second, 200*time.Millisecond)
+
+			require.Equal(t, tc.expectedAssumedRoles, sts.GetAssumedRoleARNs(), "roles incorrectly assumed")
+			require.Equal(t, tc.expectedExternalIDs, sts.GetAssumedRoleExternalIDs(), "external IDs incorrectly assumed")
 		})
 	}
 }
@@ -823,15 +890,17 @@ var eksMockClusters = []*eks.Cluster{
 	},
 }
 
-func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster) types.KubeCluster {
+func mustConvertEKSToKubeCluster(t *testing.T, eksCluster *eks.Cluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := services.NewKubeClusterFromAWSEKS(eksCluster)
 	require.NoError(t, err)
+	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	return cluster
 }
 
-func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster) types.KubeCluster {
+func mustConvertAKSToKubeCluster(t *testing.T, azureCluster *azure.AKSCluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := services.NewKubeClusterFromAzureAKS(azureCluster)
 	require.NoError(t, err)
+	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	return cluster
 }
 
@@ -901,9 +970,10 @@ var gkeMockClusters = []gcp.GKECluster{
 	},
 }
 
-func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster) types.KubeCluster {
+func mustConvertGKEToKubeCluster(t *testing.T, gkeCluster gcp.GKECluster, discoveryGroup string) types.KubeCluster {
 	cluster, err := services.NewKubeClusterFromGCPGKE(gkeCluster)
 	require.NoError(t, err)
+	cluster.GetStaticLabels()[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
 	return cluster
 }
 
@@ -917,10 +987,26 @@ func (m *mockGKEAPI) ListClusters(ctx context.Context, projectID string, locatio
 }
 
 func TestDiscoveryDatabase(t *testing.T) {
-	awsRedshiftResource, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1")
-	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US")
+	const (
+		mainDiscoveryGroup = "main"
+	)
+	awsRedshiftResource, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", mainDiscoveryGroup)
+	awsRDSInstance, awsRDSDB := makeRDSInstance(t, "aws-rds", "us-west-1", mainDiscoveryGroup)
+	azRedisResource, azRedisDB := makeAzureRedisServer(t, "az-redis", "sub1", "group1", "East US", mainDiscoveryGroup)
+
+	role := types.AssumeRole{RoleARN: "arn:aws:iam::123456789012:role/test-role", ExternalID: "test123"}
+	awsRDSDBWithRole := awsRDSDB.Copy()
+	awsRDSDBWithRole.SetAWSAssumeRole("arn:aws:iam::123456789012:role/test-role")
+	awsRDSDBWithRole.SetAWSExternalID("test123")
 
 	testClients := &cloud.TestCloudClients{
+		STS: &mocks.STSMock{},
+		RDS: &mocks.RDSMock{
+			DBInstances: []*rds.DBInstance{awsRDSInstance},
+			DBEngineVersions: []*rds.DBEngineVersion{
+				{Engine: aws.String(services.RDSEnginePostgres)},
+			},
+		},
 		Redshift: &mocks.RedshiftMock{
 			Clusters: []*redshift.Cluster{awsRedshiftResource},
 		},
@@ -936,13 +1022,13 @@ func TestDiscoveryDatabase(t *testing.T) {
 	tcs := []struct {
 		name              string
 		existingDatabases []types.Database
-		awsMatchers       []services.AWSMatcher
-		azureMatchers     []services.AzureMatcher
+		awsMatchers       []types.AWSMatcher
+		azureMatchers     []types.AzureMatcher
 		expectDatabases   []types.Database
 	}{
 		{
 			name: "discover AWS database",
-			awsMatchers: []services.AWSMatcher{{
+			awsMatchers: []types.AWSMatcher{{
 				Types:   []string{services.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions: []string{"us-east-1"},
@@ -950,8 +1036,18 @@ func TestDiscoveryDatabase(t *testing.T) {
 			expectDatabases: []types.Database{awsRedshiftDB},
 		},
 		{
+			name: "discover AWS database with assumed role",
+			awsMatchers: []types.AWSMatcher{{
+				Types:      []string{services.AWSMatcherRDS},
+				Tags:       map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions:    []string{"us-west-1"},
+				AssumeRole: &role,
+			}},
+			expectDatabases: []types.Database{awsRDSDBWithRole},
+		},
+		{
 			name: "discover Azure database",
-			azureMatchers: []services.AzureMatcher{{
+			azureMatchers: []types.AzureMatcher{{
 				Types:          []string{services.AzureMatcherRedis},
 				ResourceTags:   map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions:        []string{types.Wildcard},
@@ -966,13 +1062,18 @@ func TestDiscoveryDatabase(t *testing.T) {
 				mustNewDatabase(t, types.Metadata{
 					Name:        "aws-redshift",
 					Description: "should be updated",
-					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
+					Labels:      map[string]string{types.OriginLabel: types.OriginCloud, types.TeleportInternalDiscoveryGroupName: mainDiscoveryGroup},
 				}, types.DatabaseSpecV3{
 					Protocol: "redis",
 					URI:      "should.be.updated.com:12345",
+					AWS: types.AWS{
+						Redshift: types.Redshift{
+							ClusterID: "aws-redshift",
+						},
+					},
 				}),
 			},
-			awsMatchers: []services.AWSMatcher{{
+			awsMatchers: []types.AWSMatcher{{
 				Types:   []string{services.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
 				Regions: []string{"us-east-1"},
@@ -980,23 +1081,52 @@ func TestDiscoveryDatabase(t *testing.T) {
 			expectDatabases: []types.Database{awsRedshiftDB},
 		},
 		{
+			name: "update existing database with assumed role",
+			existingDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "aws-rds",
+					Description: "should be updated",
+					Labels:      map[string]string{types.OriginLabel: types.OriginCloud, types.TeleportInternalDiscoveryGroupName: mainDiscoveryGroup},
+				}, types.DatabaseSpecV3{
+					Protocol: "postgres",
+					URI:      "should.be.updated.com:12345",
+				}),
+			},
+			awsMatchers: []types.AWSMatcher{{
+				Types:      []string{services.AWSMatcherRDS},
+				Tags:       map[string]utils.Strings{types.Wildcard: {types.Wildcard}},
+				Regions:    []string{"us-west-1"},
+				AssumeRole: &role,
+			}},
+			expectDatabases: []types.Database{awsRDSDBWithRole},
+		},
+		{
 			name: "delete existing database",
 			existingDatabases: []types.Database{
 				mustNewDatabase(t, types.Metadata{
 					Name:        "aws-redshift",
-					Description: "should be deleted",
+					Description: "should not be deleted",
 					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
 				}, types.DatabaseSpecV3{
 					Protocol: "redis",
-					URI:      "should.be.deleted.com:12345",
+					URI:      "should.not.be.deleted.com:12345",
 				}),
 			},
-			awsMatchers: []services.AWSMatcher{{
+			awsMatchers: []types.AWSMatcher{{
 				Types:   []string{services.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{"do-not-match": {"do-not-match"}},
 				Regions: []string{"us-east-1"},
 			}},
-			expectDatabases: []types.Database{},
+			expectDatabases: []types.Database{
+				mustNewDatabase(t, types.Metadata{
+					Name:        "aws-redshift",
+					Description: "should not be deleted",
+					Labels:      map[string]string{types.OriginLabel: types.OriginCloud},
+				}, types.DatabaseSpecV3{
+					Protocol: "redis",
+					URI:      "should.not.be.deleted.com:12345",
+				}),
+			},
 		},
 		{
 			name: "skip self-hosted database",
@@ -1010,7 +1140,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					URI:      "localhost:12345",
 				}),
 			},
-			awsMatchers: []services.AWSMatcher{{
+			awsMatchers: []types.AWSMatcher{{
 				Types:   []string{services.AWSMatcherRedshift},
 				Tags:    map[string]utils.Strings{"do-not-match": {"do-not-match"}},
 				Regions: []string{"us-east-1"},
@@ -1069,6 +1199,7 @@ func TestDiscoveryDatabase(t *testing.T) {
 					onDatabaseReconcile: func() {
 						waitForReconcile <- struct{}{}
 					},
+					DiscoveryGroup: mainDiscoveryGroup,
 				})
 
 			require.NoError(t, err)
@@ -1091,7 +1222,28 @@ func TestDiscoveryDatabase(t *testing.T) {
 	}
 }
 
-func makeRedshiftCluster(t *testing.T, name, region string) (*redshift.Cluster, types.Database) {
+func makeRDSInstance(t *testing.T, name, region string, discoveryGroup string) (*rds.DBInstance, types.Database) {
+	instance := &rds.DBInstance{
+		DBInstanceArn:        aws.String(fmt.Sprintf("arn:aws:rds:%v:123456789012:db:%v", region, name)),
+		DBInstanceIdentifier: aws.String(name),
+		DbiResourceId:        aws.String(uuid.New().String()),
+		Engine:               aws.String(services.RDSEnginePostgres),
+		DBInstanceStatus:     aws.String("available"),
+		Endpoint: &rds.Endpoint{
+			Address: aws.String("localhost"),
+			Port:    aws.Int64(5432),
+		},
+	}
+	database, err := services.NewDatabaseFromRDSInstance(instance)
+	require.NoError(t, err)
+	database.SetOrigin(types.OriginCloud)
+	staticLabels := database.GetStaticLabels()
+	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	database.SetStaticLabels(staticLabels)
+	return instance, database
+}
+
+func makeRedshiftCluster(t *testing.T, name, region string, discoveryGroup string) (*redshift.Cluster, types.Database) {
 	t.Helper()
 	cluster := &redshift.Cluster{
 		ClusterIdentifier:   aws.String(name),
@@ -1106,10 +1258,13 @@ func makeRedshiftCluster(t *testing.T, name, region string) (*redshift.Cluster, 
 	database, err := services.NewDatabaseFromRedshiftCluster(cluster)
 	require.NoError(t, err)
 	database.SetOrigin(types.OriginCloud)
+	staticLabels := database.GetStaticLabels()
+	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	database.SetStaticLabels(staticLabels)
 	return cluster, database
 }
 
-func makeAzureRedisServer(t *testing.T, name, subscription, group, region string) (*armredis.ResourceInfo, types.Database) {
+func makeAzureRedisServer(t *testing.T, name, subscription, group, region string, discoveryGroup string) (*armredis.ResourceInfo, types.Database) {
 	t.Helper()
 	resourceInfo := &armredis.ResourceInfo{
 		Name:     to.Ptr(name),
@@ -1125,6 +1280,9 @@ func makeAzureRedisServer(t *testing.T, name, subscription, group, region string
 	database, err := services.NewDatabaseFromAzureRedis(resourceInfo)
 	require.NoError(t, err)
 	database.SetOrigin(types.OriginCloud)
+	staticLabels := database.GetStaticLabels()
+	staticLabels[types.TeleportInternalDiscoveryGroupName] = discoveryGroup
+	database.SetStaticLabels(staticLabels)
 	return resourceInfo, database
 }
 
@@ -1319,7 +1477,7 @@ func TestAzureVMDiscovery(t *testing.T) {
 			server, err := New(context.Background(), &Config{
 				Clients:     &testClients,
 				AccessPoint: tlsServer.Auth(),
-				AzureMatchers: []services.AzureMatcher{{
+				AzureMatchers: []types.AzureMatcher{{
 					Types:          []string{"vm"},
 					Subscriptions:  []string{"testsub"},
 					ResourceGroups: []string{"testrg"},
@@ -1365,4 +1523,80 @@ func TestAzureVMDiscovery(t *testing.T) {
 		})
 
 	}
+}
+
+// TestServer_onCreate tests the update of the discovery_group of a resource
+// when it differs from the one in the database.
+// TODO(tigrato): DELETE in 14.0.0
+func TestServer_onCreate(t *testing.T) {
+	_, awsRedshiftDB := makeRedshiftCluster(t, "aws-redshift", "us-east-1", "test")
+	accessPoint := &fakeAccessPoint{}
+	s := &Server{
+		Config: &Config{
+			AccessPoint: accessPoint,
+			Log:         logrus.New(),
+		},
+	}
+	type args struct {
+		resource types.ResourceWithLabels
+		onCreate func(context.Context, types.ResourceWithLabels) error
+	}
+	tests := []struct {
+		name   string
+		args   args
+		verify func(t *testing.T, accessPoint *fakeAccessPoint)
+	}{
+		{
+			name: "onCreate update kube",
+			args: args{
+				resource: mustConvertEKSToKubeCluster(t, eksMockClusters[0], "test-cluster"),
+				onCreate: s.onKubeCreate,
+			},
+			verify: func(t *testing.T, accessPoint *fakeAccessPoint) {
+				require.True(t, accessPoint.updateKube)
+			},
+		},
+		{
+			name: "onCreate update database",
+			args: args{
+				resource: awsRedshiftDB,
+				onCreate: s.onDatabaseCreate,
+			},
+			verify: func(t *testing.T, accessPoint *fakeAccessPoint) {
+				require.True(t, accessPoint.updateDatabase)
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.args.onCreate(context.Background(), tt.args.resource)
+			require.NoError(t, err)
+			tt.verify(t, accessPoint)
+		})
+	}
+}
+
+type fakeAccessPoint struct {
+	auth.DiscoveryAccessPoint
+	updateKube     bool
+	updateDatabase bool
+}
+
+func (f *fakeAccessPoint) CreateDatabase(ctx context.Context, database types.Database) error {
+	return trace.AlreadyExists("already exists")
+}
+
+func (f *fakeAccessPoint) UpdateDatabase(ctx context.Context, database types.Database) error {
+	f.updateDatabase = true
+	return nil
+}
+
+func (f *fakeAccessPoint) CreateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	return trace.AlreadyExists("already exists")
+}
+
+// UpdateKubernetesCluster updates existing kubernetes cluster resource.
+func (f *fakeAccessPoint) UpdateKubernetesCluster(ctx context.Context, cluster types.KubeCluster) error {
+	f.updateKube = true
+	return nil
 }

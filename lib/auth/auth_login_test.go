@@ -16,10 +16,12 @@ package auth
 
 import (
 	"context"
+	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/api/client/proto"
@@ -34,12 +36,6 @@ import (
 func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
-
-	svr := newTestTLSServer(t)
-	authServer := svr.Auth()
-	mfa := configureForMFA(t, svr)
-	username := mfa.User
-	password := mfa.Password
 
 	tests := []struct {
 		name            string
@@ -105,13 +101,13 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 					AppID: "https://myoldappid.com",
 				},
 				Webauthn: &types.Webauthn{
-					RPID: "myexplicitid",
+					RPID: "localhost",
 				},
 			},
 			assertChallenge: func(challenge *proto.MFAAuthenticateChallenge) {
 				require.Empty(t, challenge.GetTOTP())
 				require.NotEmpty(t, challenge.GetWebauthnChallenge())
-				require.Equal(t, "myexplicitid", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
+				require.Equal(t, "localhost", challenge.GetWebauthnChallenge().GetPublicKey().GetRpId())
 			},
 		},
 		{
@@ -144,7 +140,16 @@ func TestServer_CreateAuthenticateChallenge_authPreference(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
+		test := test
 		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			svr := newTestTLSServer(t)
+			authServer := svr.Auth()
+			mfa := configureForMFA(t, svr)
+			username := mfa.User
+			password := mfa.Password
+
 			authPreference, err := types.NewAuthPreference(*test.spec)
 			require.NoError(t, err)
 			require.NoError(t, authServer.SetAuthPreference(ctx, authPreference))
@@ -552,12 +557,40 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 	proxyClient, err := svr.NewClient(TestBuiltin(types.RoleProxy))
 	require.NoError(t, err)
 
+	// used to keep track of calls to login hooks.
+	var loginHookCounter atomic.Int32
+	var loginHook LoginHook = func(_ context.Context, _ types.User) error {
+		loginHookCounter.Add(1)
+		return nil
+	}
+
 	tests := []struct {
 		name         string
+		loginHooks   []LoginHook
 		authenticate func(t *testing.T, resp *wanlib.CredentialAssertionResponse)
 	}{
 		{
 			name: "ssh",
+			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
+					AuthenticateUserRequest: AuthenticateUserRequest{
+						Webauthn:  resp,
+						PublicKey: []byte(sshPubKey),
+					},
+					TTL: 24 * time.Hour,
+				})
+				require.NoError(t, err, "Failed to perform passwordless authentication")
+				require.NotNil(t, loginResp, "SSH response nil")
+				require.NotEmpty(t, loginResp.Cert, "SSH certificate empty")
+				require.Equal(t, user, loginResp.Username, "Unexpected username")
+			},
+		},
+		{
+			name: "ssh with login hooks",
+			loginHooks: []LoginHook{
+				loginHook,
+				loginHook,
+			},
 			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
 				loginResp, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 					AuthenticateUserRequest: AuthenticateUserRequest{
@@ -582,9 +615,28 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 				require.Equal(t, user, session.GetUser(), "Unexpected username")
 			},
 		},
+		{
+			name: "web with login hooks",
+			loginHooks: []LoginHook{
+				loginHook,
+			},
+			authenticate: func(t *testing.T, resp *wanlib.CredentialAssertionResponse) {
+				session, err := proxyClient.AuthenticateWebUser(ctx, AuthenticateUserRequest{
+					Webauthn: resp,
+				})
+				require.NoError(t, err, "Failed to perform passwordless authentication")
+				require.Equal(t, user, session.GetUser(), "Unexpected username")
+			},
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
+			svr.Auth().ResetLoginHooks()
+			loginHookCounter.Store(0)
+			for _, hook := range test.loginHooks {
+				svr.Auth().RegisterLoginHook(hook)
+			}
+
 			// Fail a login attempt so have a non-empty list of attempts.
 			_, err := proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
@@ -620,6 +672,8 @@ func TestServer_Authenticate_passwordless(t *testing.T) {
 			attempts, err = authServer.GetUserLoginAttempts(user)
 			require.NoError(t, err)
 			require.Empty(t, attempts, "Login attempts not reset")
+
+			require.Equal(t, len(test.loginHooks), int(loginHookCounter.Load()))
 		})
 	}
 }
@@ -708,34 +762,9 @@ func TestServer_Authenticate_headless(t *testing.T) {
 	ctx := context.Background()
 	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
 
-	type updateHeadlessAuthnFn func(*types.HeadlessAuthentication, *types.MFADevice)
-	updateHeadlessAuthnInGoroutine := func(ctx context.Context, srv *TestTLSServer, mfa *types.MFADevice, update updateHeadlessAuthnFn) chan error {
-		errC := make(chan error)
-		go func() {
-			defer close(errC)
-
-			headlessAuthn, err := srv.Auth().GetHeadlessAuthentication(ctx, headlessID)
-			if err != nil {
-				errC <- err
-				return
-			}
-
-			// create a shallow copy and update for the compare and swap below.
-			replaceHeadlessAuthn := *headlessAuthn
-			update(&replaceHeadlessAuthn, mfa)
-
-			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
-			if err != nil {
-				errC <- err
-				return
-			}
-		}()
-		return errC
-	}
-
 	for _, tc := range []struct {
 		name      string
-		update    updateHeadlessAuthnFn
+		update    func(*types.HeadlessAuthentication, *types.MFADevice)
 		expectErr bool
 	}{
 		{
@@ -748,14 +777,6 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			name: "NOK approved without MFA",
 			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
 				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
-			},
-			expectErr: true,
-		}, {
-			name: "NOK user mismatch",
-			update: func(ha *types.HeadlessAuthentication, mfa *types.MFADevice) {
-				ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED
-				ha.MfaDevice = mfa
-				ha.User = "other-user"
 			},
 			expectErr: true,
 		}, {
@@ -797,10 +818,36 @@ func TestServer_Authenticate_headless(t *testing.T) {
 			require.NoError(t, err)
 			require.NotEmpty(t, attempts, "Want at least one failed login attempt")
 
-			ctx, cancel := context.WithTimeout(ctx, 2*time.Second)
+			ctx, cancel := context.WithTimeout(ctx, 3*time.Second)
 			defer cancel()
 
-			errC := updateHeadlessAuthnInGoroutine(ctx, srv, mfa.WebDev.MFA, tc.update)
+			// Start a goroutine to catch the headless authentication attempt and update with test case values.
+			errC := make(chan error)
+			go func() {
+				defer close(errC)
+
+				err := srv.Auth().UpsertHeadlessAuthenticationStub(ctx, username)
+				if err != nil {
+					errC <- err
+					return
+				}
+
+				headlessAuthn, err := srv.Auth().GetHeadlessAuthenticationFromWatcher(ctx, username, headlessID)
+				if err != nil {
+					errC <- err
+					return
+				}
+
+				// create a shallow copy and update for the compare and swap below.
+				replaceHeadlessAuthn := *headlessAuthn
+				tc.update(&replaceHeadlessAuthn, mfa.WebDev.MFA)
+
+				if _, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn); err != nil {
+					errC <- err
+					return
+				}
+			}()
+
 			_, err = proxyClient.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 				AuthenticateUserRequest: AuthenticateUserRequest{
 					// HeadlessAuthenticationID should take precedence over WebAuthn and OTP fields.
@@ -815,7 +862,9 @@ func TestServer_Authenticate_headless(t *testing.T) {
 				},
 				TTL: defaults.CallbackTimeout,
 			})
-			require.NoError(t, <-errC)
+
+			// Use assert so that we also output any test failures below.
+			assert.NoError(t, <-errC, "Failed to get and update headless authentication in background")
 
 			if tc.expectErr {
 				require.Error(t, err)

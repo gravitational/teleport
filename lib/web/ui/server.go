@@ -70,14 +70,14 @@ func (s sortedLabels) Swap(i, j int) {
 }
 
 // MakeServers creates server objects for webapp
-func MakeServers(clusterName string, servers []types.Server, userRoles services.RoleSet) ([]Server, error) {
+func MakeServers(clusterName string, servers []types.Server, accessChecker services.AccessChecker) ([]Server, error) {
 	uiServers := []Server{}
 	for _, server := range servers {
 		serverLabels := server.GetStaticLabels()
 		serverCmdLabels := server.GetCmdLabels()
 		uiLabels := makeLabels(serverLabels, transformCommandLabels(serverCmdLabels))
 
-		serverLogins, err := userRoles.GetAllowedLoginsForResource(server)
+		serverLogins, err := accessChecker.GetAllowedLoginsForResource(server)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -109,14 +109,14 @@ type KubeCluster struct {
 }
 
 // MakeKubeClusters creates ui kube objects and returns a list.
-func MakeKubeClusters(clusters []types.KubeCluster, userRoles services.RoleSet) []KubeCluster {
+func MakeKubeClusters(clusters []types.KubeCluster, accessChecker services.AccessChecker) []KubeCluster {
 	uiKubeClusters := make([]KubeCluster, 0, len(clusters))
 	for _, cluster := range clusters {
 		staticLabels := cluster.GetStaticLabels()
 		dynamicLabels := cluster.GetDynamicLabels()
 		uiLabels := makeLabels(staticLabels, transformCommandLabels(dynamicLabels))
 
-		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(userRoles, cluster)
+		kubeUsers, kubeGroups := getAllowedKubeUsersAndGroupsForCluster(accessChecker, cluster)
 
 		uiKubeClusters = append(uiKubeClusters, KubeCluster{
 			Name:       cluster.GetName(),
@@ -170,14 +170,14 @@ func MakeKubeResources(resources []*types.KubernetesResourceV1, cluster string) 
 // This function ignores any verification of the TTL associated with
 // each Role, and focuses only on listing all users and groups that the user may
 // have access to.
-func getAllowedKubeUsersAndGroupsForCluster(roles services.RoleSet, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
-	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels())
+func getAllowedKubeUsersAndGroupsForCluster(accessChecker services.AccessChecker, kube types.KubeCluster) (kubeUsers []string, kubeGroups []string) {
+	matcher := services.NewKubernetesClusterLabelMatcher(kube.GetAllLabels(), accessChecker.Traits())
 	// We ignore the TTL verification because we want to include every possibility.
 	// Later, if the user certificate expiration is longer than the maximum allowed TTL
 	// for the role that defines the `kubernetes_*` principals the request will be
 	// denied by Kubernetes Service.
 	// We ignore the returning error since we are only interested in allowed users and groups.
-	kubeGroups, kubeUsers, _ = roles.CheckKubeGroupsAndUsers(0, true /* force ttl override*/, matcher)
+	kubeGroups, kubeUsers, _ = accessChecker.CheckKubeGroupsAndUsers(0, true /* force ttl override*/, matcher)
 	return
 }
 
@@ -238,17 +238,35 @@ type Database struct {
 	Labels []Label `json:"labels"`
 	// Hostname is the database connection endpoint (URI) hostname (without port and protocol).
 	Hostname string `json:"hostname"`
+	// URI of the database.
+	URI string `json:"uri"`
 	// DatabaseUsers is the list of allowed Database RBAC users that the user can login.
 	DatabaseUsers []string `json:"database_users,omitempty"`
 	// DatabaseNames is the list of allowed Database RBAC names that the user can login.
 	DatabaseNames []string `json:"database_names,omitempty"`
+	// AWS contains AWS specific fields.
+	AWS *AWS `json:"aws,omitempty"`
 }
+
+// AWS contains AWS specific fields.
+type AWS struct {
+	// embeds types.AWS fields into this struct when des/serializing.
+	types.AWS `json:""`
+	// Status describes the current server status as reported by AWS.
+	// Currently this field is populated for AWS RDS Databases when Listing Databases using the AWS OIDC Integration
+	Status string `json:"status,omitempty"`
+}
+
+const (
+	// LabelStatus is the label key containing the database status, e.g. "available"
+	LabelStatus = "status"
+)
 
 // MakeDatabase creates database objects.
 func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 	uiLabels := makeLabels(database.GetAllLabels())
 
-	return Database{
+	db := Database{
 		Name:          database.GetName(),
 		Desc:          database.GetDescription(),
 		Protocol:      database.GetProtocol(),
@@ -257,7 +275,21 @@ func MakeDatabase(database types.Database, dbUsers, dbNames []string) Database {
 		DatabaseUsers: dbUsers,
 		DatabaseNames: dbNames,
 		Hostname:      stripProtocolAndPort(database.GetURI()),
+		URI:           database.GetURI(),
 	}
+
+	if database.IsAWSHosted() {
+		dbStatus := ""
+		if statusLabel, ok := database.GetAllLabels()[LabelStatus]; ok {
+			dbStatus = statusLabel
+		}
+		db.AWS = &AWS{
+			AWS:    database.GetAWS(),
+			Status: dbStatus,
+		}
+	}
+
+	return db
 }
 
 // MakeDatabases creates database objects.
@@ -315,7 +347,7 @@ type Desktop struct {
 }
 
 // MakeDesktop converts a desktop from its API form to a type the UI can display.
-func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet) (Desktop, error) {
+func MakeDesktop(windowsDesktop types.WindowsDesktop, accessChecker services.AccessChecker) (Desktop, error) {
 	// stripRdpPort strips the default rdp port from an ip address since it is unimportant to display
 	stripRdpPort := func(addr string) string {
 		splitAddr := strings.Split(addr, ":")
@@ -327,7 +359,7 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet
 
 	uiLabels := makeLabels(windowsDesktop.GetAllLabels())
 
-	logins, err := userRoles.GetAllowedLoginsForResource(windowsDesktop)
+	logins, err := accessChecker.GetAllowedLoginsForResource(windowsDesktop)
 	if err != nil {
 		return Desktop{}, trace.Wrap(err)
 	}
@@ -343,11 +375,11 @@ func MakeDesktop(windowsDesktop types.WindowsDesktop, userRoles services.RoleSet
 }
 
 // MakeDesktops converts desktops from their API form to a type the UI can display.
-func MakeDesktops(windowsDesktops []types.WindowsDesktop, userRoles services.RoleSet) ([]Desktop, error) {
+func MakeDesktops(windowsDesktops []types.WindowsDesktop, accessChecker services.AccessChecker) ([]Desktop, error) {
 	uiDesktops := make([]Desktop, 0, len(windowsDesktops))
 
 	for _, windowsDesktop := range windowsDesktops {
-		uiDesktop, err := MakeDesktop(windowsDesktop, userRoles)
+		uiDesktop, err := MakeDesktop(windowsDesktop, accessChecker)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}

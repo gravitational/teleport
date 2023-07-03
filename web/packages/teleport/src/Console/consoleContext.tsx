@@ -32,6 +32,8 @@ import serviceSession, {
 } from 'teleport/services/session';
 import ServiceNodes from 'teleport/services/nodes';
 import serviceClusters from 'teleport/services/clusters';
+import { StoreUserContext } from 'teleport/stores';
+import usersService from 'teleport/services/user';
 
 import { StoreParties, StoreDocs, DocumentSsh, Document } from './stores';
 
@@ -47,6 +49,7 @@ export default class ConsoleContext {
   storeDocs = new StoreDocs();
   storeParties = new StoreParties();
   nodesService = new ServiceNodes();
+  storeUser = new StoreUserContext();
 
   constructor() {
     // always initialize the console with 1 document
@@ -56,6 +59,15 @@ export default class ConsoleContext {
       clusterId: cfg.proxyCluster,
       created: new Date(),
     });
+  }
+
+  async initStoreUser() {
+    const user = await usersService.fetchUserContext();
+    this.storeUser.setState(user);
+  }
+
+  getStoreUser() {
+    return this.storeUser.state;
   }
 
   getActiveDocId(url: string) {

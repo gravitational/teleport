@@ -33,7 +33,7 @@ interface NavigationSectionProps {
 const Title = styled.h3`
   font-size: 13px;
   line-height: 14px;
-  color: rgba(255, 255, 255, 0.5);
+  color: ${props => props.theme.colors.text.slightlyMuted};
   margin-left: 32px;
   transition: transform 0.3s cubic-bezier(0.19, 1, 0.22, 1),
     opacity 0.15s ease-in;

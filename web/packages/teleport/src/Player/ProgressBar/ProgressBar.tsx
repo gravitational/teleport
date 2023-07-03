@@ -18,8 +18,6 @@ import React from 'react';
 import styled from 'styled-components';
 import * as Icons from 'design/Icon';
 
-import { colors } from 'teleport/Console/colors';
-
 import Slider from './Slider';
 
 export default function ProgressBar(props: ProgressBarProps) {
@@ -103,8 +101,7 @@ function PlaySpeedSelector(props: { onChange?: (speed: number) => void }) {
 const PlaySpeedSelectorItem = styled.select`
   margin-left: 8px;
   border: none;
-  background: ${colors.dark};
-  color: ${colors.light};
+  background: inherit;
 `;
 
 const SliderContainer = styled.div`
@@ -125,9 +122,8 @@ const TimeText = styled.div(
 );
 
 const ActionButton = styled.button`
-  background: ${colors.dark};
+  background: inherit;
   border: none;
-  color: ${colors.light};
   cursor: pointer;
   font-size: 24px;
   height: 24px;
@@ -142,7 +138,7 @@ const ActionButton = styled.button`
     opacity: 1;
 
     .icon {
-      color: ${colors.progressBarColor};
+      color: ${props => props.theme.colors.success};
     }
   }
 
@@ -153,9 +149,9 @@ const ActionButton = styled.button`
 `;
 
 const StyledProgessBar = styled.div`
-  background-color: ${colors.dark};
+  background: ${props => props.theme.colors.levels.surface};
   display: flex;
-  color: ${colors.light};
+  color: ${props => props.theme.colors.text.main};
   padding: 16px;
 
   .grv-slider {
@@ -171,7 +167,7 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .handle {
-    background-color: ${colors.light};
+    background-color: ${props => props.theme.colors.text.main};
     border-radius: 200px;
     box-shadow: 0 0 4px rgba(0, 0, 0, 0.12), 0 4px 4px rgba(0, 0, 0, 0.24);
     width: 16px;
@@ -181,11 +177,11 @@ const StyledProgessBar = styled.div`
   }
 
   .grv-slider .bar-0 {
-    background-color: ${colors.success};
+    background-color: ${props => props.theme.colors.success};
     box-shadow: none;
   }
 
   .grv-slider .bar-1 {
-    background-color: ${colors.text};
+    background-color: ${props => props.theme.colors.spotBackground[2]};
   }
 `;

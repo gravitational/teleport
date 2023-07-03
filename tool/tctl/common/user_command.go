@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 
@@ -50,6 +50,7 @@ type UserCommand struct {
 	allowedKubeGroups         []string
 	allowedDatabaseUsers      []string
 	allowedDatabaseNames      []string
+	allowedDatabaseRoles      []string
 	allowedAWSRoleARNs        []string
 	allowedAzureIdentities    []string
 	allowedGCPServiceAccounts []string
@@ -72,9 +73,9 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	const helpPrefix string = "[Teleport DB users only]"
 
 	u.config = config
-	users := app.Command("users", "Manage user accounts")
+	users := app.Command("users", "Manage user accounts.")
 
-	u.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix)
+	u.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix+".")
 	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 
 	u.userAdd.Flag("logins", "List of allowed SSH logins for the new user").StringsVar(&u.allowedLogins)
@@ -83,6 +84,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	u.userAdd.Flag("kubernetes-groups", "List of allowed Kubernetes groups for the new user").StringsVar(&u.allowedKubeGroups)
 	u.userAdd.Flag("db-users", "List of allowed database users for the new user").StringsVar(&u.allowedDatabaseUsers)
 	u.userAdd.Flag("db-names", "List of allowed database names for the new user").StringsVar(&u.allowedDatabaseNames)
+	u.userAdd.Flag("db-roles", "List of database roles for automatic database user provisioning").StringsVar(&u.allowedDatabaseRoles)
 	u.userAdd.Flag("aws-role-arns", "List of allowed AWS role ARNs for the new user").StringsVar(&u.allowedAWSRoleARNs)
 	u.userAdd.Flag("azure-identities", "List of allowed Azure identities for the new user").StringsVar(&u.allowedAzureIdentities)
 	u.userAdd.Flag("gcp-service-accounts", "List of allowed GCP service accounts for the new user").StringsVar(&u.allowedGCPServiceAccounts)
@@ -95,7 +97,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	u.userAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 	u.userAdd.Alias(AddUserHelp)
 
-	u.userUpdate = users.Command("update", "Update user account")
+	u.userUpdate = users.Command("update", "Update user account.")
 	u.userUpdate.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userUpdate.Flag("set-roles", "List of roles for the user to assume, replaces current roles").
 		StringsVar(&u.allowedRoles)
@@ -111,6 +113,8 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 		StringsVar(&u.allowedDatabaseUsers)
 	u.userUpdate.Flag("set-db-names", "List of allowed database names for the user, replaces current database names").
 		StringsVar(&u.allowedDatabaseNames)
+	u.userUpdate.Flag("set-db-roles", "List of allowed database roles for automatic database user provisioning, replaces current database roles").
+		StringsVar(&u.allowedDatabaseRoles)
 	u.userUpdate.Flag("set-aws-role-arns", "List of allowed AWS role ARNs for the user, replaces current AWS role ARNs").
 		StringsVar(&u.allowedAWSRoleARNs)
 	u.userUpdate.Flag("set-azure-identities", "List of allowed Azure identities for the user, replaces current Azure identities").
@@ -121,11 +125,11 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *servicecfg.Co
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 
-	u.userDelete = users.Command("rm", "Deletes user accounts").Alias("del")
+	u.userDelete = users.Command("rm", "Deletes user accounts.").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
 		Required().StringVar(&u.login)
 
-	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token "+helpPrefix)
+	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token "+helpPrefix+".")
 	u.userResetPassword.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).
@@ -253,6 +257,7 @@ func (u *UserCommand) Add(ctx context.Context, client auth.ClientI) error {
 		constants.TraitKubeGroups:         flattenSlice(u.allowedKubeGroups),
 		constants.TraitDBUsers:            flattenSlice(u.allowedDatabaseUsers),
 		constants.TraitDBNames:            flattenSlice(u.allowedDatabaseNames),
+		constants.TraitDBRoles:            flattenSlice(u.allowedDatabaseRoles),
 		constants.TraitAWSRoleARNs:        flattenSlice(u.allowedAWSRoleARNs),
 		constants.TraitAzureIdentities:    azureIdentities,
 		constants.TraitGCPServiceAccounts: gcpServiceAccounts,
@@ -365,6 +370,16 @@ func (u *UserCommand) Update(ctx context.Context, client auth.ClientI) error {
 		dbNames := flattenSlice(u.allowedDatabaseNames)
 		user.SetDatabaseNames(dbNames)
 		updateMessages["database names"] = dbNames
+	}
+	if len(u.allowedDatabaseRoles) > 0 {
+		dbRoles := flattenSlice(u.allowedDatabaseRoles)
+		for _, role := range dbRoles {
+			if role == types.Wildcard {
+				return trace.BadParameter("database role can't be a wildcard")
+			}
+		}
+		user.SetDatabaseRoles(dbRoles)
+		updateMessages["database roles"] = dbRoles
 	}
 	if len(u.allowedAWSRoleARNs) > 0 {
 		awsRoleARNs := flattenSlice(u.allowedAWSRoleARNs)

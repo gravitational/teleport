@@ -20,30 +20,27 @@ exports[`another session active 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
   margin-right: 16px;
 }
 
-.c8:active {
-  opacity: 0.56;
-}
-
 .c8:hover,
 .c8:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c8:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c8:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c9 {
@@ -65,25 +62,26 @@ exports[`another session active 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c9:active {
-  opacity: 0.56;
-}
-
 .c9:hover,
 .c9:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c9:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -94,7 +92,7 @@ exports[`another session active 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c1 {
@@ -133,8 +131,8 @@ exports[`another session active 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -187,7 +185,7 @@ exports[`another session active 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Another Session Is Active
         </div>
@@ -238,8 +236,8 @@ exports[`connected settings false 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -247,36 +245,33 @@ exports[`connected settings false 1`] = `
   padding-right: 8px;
 }
 
-.c10:active {
-  opacity: 0.56;
-}
-
 .c10:hover,
 .c10:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c10:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c6 {
   display: inline-block;
   transition: color 0.3s;
-  padding-right: 16px;
   color: #FFFFFF;
+  padding-right: 16px;
 }
 
 .c13 {
   display: inline-block;
   transition: color 0.3s;
-  margin-right: 8px;
   color: #FFFFFF;
+  margin-right: 8px;
 }
 
 .c16 {
@@ -304,7 +299,7 @@ exports[`connected settings false 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 .c5 {
@@ -312,17 +307,21 @@ exports[`connected settings false 1`] = `
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.36);
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
 .c15:hover:enabled,
 .c15:focus:enabled {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.13);
+}
+
+.c15:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c2 {
@@ -342,7 +341,7 @@ exports[`connected settings false 1`] = `
 .c1 {
   box-sizing: border-box;
   height: 40px;
-  background-color: #000;
+  background-color: #000000;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -372,18 +371,21 @@ exports[`connected settings false 1`] = `
 .c14 {
   font-weight: 600;
   font-size: 14px;
+  color: inherit;
+  transition: none;
   align-self: 'center';
 }
 
 .c11 {
+  color: #FFFFFF;
   min-height: 0;
   height: 24px;
-  background-color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c11:hover,
 .c11:focus {
-  background-color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.18);
 }
 
 .c9 {
@@ -413,7 +415,7 @@ exports[`connected settings false 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -425,14 +427,12 @@ exports[`connected settings false 1`] = `
         >
           <span
             class="c5 c6 icon icon-folder-shared c7"
-            color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
-            color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Clipboard Sharing Disabled"
           />
           <div
@@ -448,7 +448,6 @@ exports[`connected settings false 1`] = `
               >
                 <span
                   class="c5 c13 icon icon-warning c14"
-                  color="light"
                 />
                  
                 0
@@ -461,13 +460,12 @@ exports[`connected settings false 1`] = `
         >
           <button
             class="c15"
-            color="text.secondary"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
               class="c5 c16 icon icon-ellipsis "
-              color="light"
             />
           </button>
         </div>
@@ -500,8 +498,8 @@ exports[`connected settings true 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -509,36 +507,33 @@ exports[`connected settings true 1`] = `
   padding-right: 8px;
 }
 
-.c10:active {
-  opacity: 0.56;
-}
-
 .c10:hover,
 .c10:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c10:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c6 {
   display: inline-block;
   transition: color 0.3s;
-  padding-right: 16px;
   color: #FFFFFF;
+  padding-right: 16px;
 }
 
 .c13 {
   display: inline-block;
   transition: color 0.3s;
-  margin-right: 8px;
   color: #FFFFFF;
+  margin-right: 8px;
 }
 
 .c16 {
@@ -566,7 +561,7 @@ exports[`connected settings true 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 .c5 {
@@ -574,17 +569,21 @@ exports[`connected settings true 1`] = `
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.36);
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
 .c15:hover:enabled,
 .c15:focus:enabled {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.13);
+}
+
+.c15:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c2 {
@@ -604,7 +603,7 @@ exports[`connected settings true 1`] = `
 .c1 {
   box-sizing: border-box;
   height: 40px;
-  background-color: #000;
+  background-color: #000000;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -634,18 +633,21 @@ exports[`connected settings true 1`] = `
 .c14 {
   font-weight: 600;
   font-size: 14px;
+  color: inherit;
+  transition: none;
   align-self: 'center';
 }
 
 .c11 {
+  color: #FFFFFF;
   min-height: 0;
   height: 24px;
-  background-color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c11:hover,
 .c11:focus {
-  background-color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.18);
 }
 
 .c9 {
@@ -675,7 +677,7 @@ exports[`connected settings true 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -687,14 +689,12 @@ exports[`connected settings true 1`] = `
         >
           <span
             class="c5 c6 icon icon-folder-shared c7"
-            color="light"
-            style="color: rgba(255, 255, 255, 0.87);"
+            style="color: rgb(255, 255, 255);"
             title="Directory Sharing Enabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
-            color="light"
-            style="color: rgba(255, 255, 255, 0.87);"
+            style="color: rgb(255, 255, 255);"
             title="Clipboard Sharing Enabled"
           />
           <div
@@ -710,7 +710,6 @@ exports[`connected settings true 1`] = `
               >
                 <span
                   class="c5 c13 icon icon-warning c14"
-                  color="light"
                 />
                  
                 0
@@ -723,13 +722,12 @@ exports[`connected settings true 1`] = `
         >
           <button
             class="c15"
-            color="text.secondary"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
               class="c5 c16 icon icon-ellipsis "
-              color="light"
             />
           </button>
         </div>
@@ -762,26 +760,27 @@ exports[`connection error 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 30%;
 }
 
-.c9:active {
-  opacity: 0.56;
-}
-
 .c9:hover,
 .c9:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c9:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c7 {
@@ -797,8 +796,8 @@ exports[`connection error 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c7 a {
@@ -813,7 +812,7 @@ exports[`connection error 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c1 {
@@ -852,8 +851,8 @@ exports[`connection error 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -906,7 +905,7 @@ exports[`connection error 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -958,8 +957,8 @@ exports[`disconnected 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -967,22 +966,19 @@ exports[`disconnected 1`] = `
   padding-right: 8px;
 }
 
-.c10:active {
-  opacity: 0.56;
-}
-
 .c10:hover,
 .c10:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c10:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c17 {
@@ -994,15 +990,15 @@ exports[`disconnected 1`] = `
 .c6 {
   display: inline-block;
   transition: color 0.3s;
-  padding-right: 16px;
   color: #FFFFFF;
+  padding-right: 16px;
 }
 
 .c13 {
   display: inline-block;
   transition: color 0.3s;
-  margin-right: 8px;
   color: #FFFFFF;
+  margin-right: 8px;
 }
 
 .c16 {
@@ -1030,7 +1026,7 @@ exports[`disconnected 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 .c5 {
@@ -1038,17 +1034,21 @@ exports[`disconnected 1`] = `
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.36);
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
 .c15:hover:enabled,
 .c15:focus:enabled {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.13);
+}
+
+.c15:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c2 {
@@ -1074,7 +1074,7 @@ exports[`disconnected 1`] = `
 .c1 {
   box-sizing: border-box;
   height: 40px;
-  background-color: #000;
+  background-color: #000000;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -1104,18 +1104,21 @@ exports[`disconnected 1`] = `
 .c14 {
   font-weight: 600;
   font-size: 14px;
+  color: inherit;
+  transition: none;
   align-self: 'center';
 }
 
 .c11 {
+  color: #FFFFFF;
   min-height: 0;
   height: 24px;
-  background-color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c11:hover,
 .c11:focus {
-  background-color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.18);
 }
 
 .c9 {
@@ -1145,7 +1148,7 @@ exports[`disconnected 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -1157,14 +1160,12 @@ exports[`disconnected 1`] = `
         >
           <span
             class="c5 c6 icon icon-folder-shared c7"
-            color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
-            color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Clipboard Sharing Disabled"
           />
           <div
@@ -1180,7 +1181,6 @@ exports[`disconnected 1`] = `
               >
                 <span
                   class="c5 c13 icon icon-warning c14"
-                  color="light"
                 />
                  
                 0
@@ -1193,13 +1193,12 @@ exports[`disconnected 1`] = `
         >
           <button
             class="c15"
-            color="text.secondary"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
               class="c5 c16 icon icon-ellipsis "
-              color="light"
             />
           </button>
         </div>
@@ -1241,26 +1240,27 @@ exports[`fetch error 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 30%;
 }
 
-.c9:active {
-  opacity: 0.56;
-}
-
 .c9:hover,
 .c9:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c9:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c7 {
@@ -1276,8 +1276,8 @@ exports[`fetch error 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c7 a {
@@ -1292,7 +1292,7 @@ exports[`fetch error 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c1 {
@@ -1331,8 +1331,8 @@ exports[`fetch error 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -1385,7 +1385,7 @@ exports[`fetch error 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -1437,26 +1437,27 @@ exports[`invalid processing 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 30%;
 }
 
-.c9:active {
-  opacity: 0.56;
-}
-
 .c9:hover,
 .c9:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c9:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c7 {
@@ -1472,8 +1473,8 @@ exports[`invalid processing 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c7 a {
@@ -1488,7 +1489,7 @@ exports[`invalid processing 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c1 {
@@ -1527,8 +1528,8 @@ exports[`invalid processing 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -1581,7 +1582,7 @@ exports[`invalid processing 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -1633,8 +1634,8 @@ exports[`processing 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -1642,22 +1643,19 @@ exports[`processing 1`] = `
   padding-right: 8px;
 }
 
-.c10:active {
-  opacity: 0.56;
-}
-
 .c10:hover,
 .c10:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c10:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c17 {
@@ -1669,15 +1667,15 @@ exports[`processing 1`] = `
 .c6 {
   display: inline-block;
   transition: color 0.3s;
-  padding-right: 16px;
   color: #FFFFFF;
+  padding-right: 16px;
 }
 
 .c13 {
   display: inline-block;
   transition: color 0.3s;
-  margin-right: 8px;
   color: #FFFFFF;
+  margin-right: 8px;
 }
 
 .c16 {
@@ -1705,7 +1703,7 @@ exports[`processing 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 .c5 {
@@ -1713,17 +1711,21 @@ exports[`processing 1`] = `
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.36);
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
 .c15:hover:enabled,
 .c15:focus:enabled {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.13);
+}
+
+.c15:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c2 {
@@ -1743,7 +1745,7 @@ exports[`processing 1`] = `
 .c1 {
   box-sizing: border-box;
   height: 40px;
-  background-color: #000;
+  background-color: #000000;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -1773,18 +1775,21 @@ exports[`processing 1`] = `
 .c14 {
   font-weight: 600;
   font-size: 14px;
+  color: inherit;
+  transition: none;
   align-self: 'center';
 }
 
 .c11 {
+  color: #FFFFFF;
   min-height: 0;
   height: 24px;
-  background-color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c11:hover,
 .c11:focus {
-  background-color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.18);
 }
 
 .c9 {
@@ -1814,7 +1819,7 @@ exports[`processing 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -1826,14 +1831,12 @@ exports[`processing 1`] = `
         >
           <span
             class="c5 c6 icon icon-folder-shared c7"
-            color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
-            color="light"
-            style="color: rgba(255, 255, 255, 0.87);"
+            style="color: rgb(255, 255, 255);"
             title="Clipboard Sharing Enabled"
           />
           <div
@@ -1849,7 +1852,6 @@ exports[`processing 1`] = `
               >
                 <span
                   class="c5 c13 icon icon-warning c14"
-                  color="light"
                 />
                  
                 0
@@ -1862,13 +1864,12 @@ exports[`processing 1`] = `
         >
           <button
             class="c15"
-            color="text.secondary"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
               class="c5 c16 icon icon-ellipsis "
-              color="light"
             />
           </button>
         </div>
@@ -1904,8 +1905,8 @@ exports[`tdp processing 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -1913,22 +1914,19 @@ exports[`tdp processing 1`] = `
   padding-right: 8px;
 }
 
-.c10:active {
-  opacity: 0.56;
-}
-
 .c10:hover,
 .c10:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c10:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c17 {
@@ -1940,15 +1938,15 @@ exports[`tdp processing 1`] = `
 .c6 {
   display: inline-block;
   transition: color 0.3s;
-  padding-right: 16px;
   color: #FFFFFF;
+  padding-right: 16px;
 }
 
 .c13 {
   display: inline-block;
   transition: color 0.3s;
-  margin-right: 8px;
   color: #FFFFFF;
+  margin-right: 8px;
 }
 
 .c16 {
@@ -1976,7 +1974,7 @@ exports[`tdp processing 1`] = `
   height: 24px;
   width: 24px;
   margin-left: 24px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c15 .c5 {
@@ -1984,17 +1982,21 @@ exports[`tdp processing 1`] = `
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.36);
 }
 
 .c15:disabled {
-  color: rgba(255,255,255,0.3);
+  color: rgba(255,255,255,0.36);
   cursor: default;
 }
 
 .c15:hover:enabled,
 .c15:focus:enabled {
-  background: rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.13);
+}
+
+.c15:active:enabled {
+  background: rgba(255,255,255,0.18);
 }
 
 .c2 {
@@ -2014,7 +2016,7 @@ exports[`tdp processing 1`] = `
 .c1 {
   box-sizing: border-box;
   height: 40px;
-  background-color: #000;
+  background-color: #000000;
   flex: 0 0 auto;
   display: flex;
   align-items: center;
@@ -2044,18 +2046,21 @@ exports[`tdp processing 1`] = `
 .c14 {
   font-weight: 600;
   font-size: 14px;
+  color: inherit;
+  transition: none;
   align-self: 'center';
 }
 
 .c11 {
+  color: #FFFFFF;
   min-height: 0;
   height: 24px;
-  background-color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.13);
 }
 
 .c11:hover,
 .c11:focus {
-  background-color: rgba(255,255,255,0.3);
+  background-color: rgba(255,255,255,0.18);
 }
 
 .c9 {
@@ -2085,7 +2090,7 @@ exports[`tdp processing 1`] = `
     >
       <div
         class="c2"
-        style="color: rgba(255, 255, 255, 0.56);"
+        style="color: rgba(255, 255, 255, 0.72);"
       >
         user@host.com
       </div>
@@ -2097,14 +2102,12 @@ exports[`tdp processing 1`] = `
         >
           <span
             class="c5 c6 icon icon-folder-shared c7"
-            color="light"
-            style="color: rgba(255, 255, 255, 0.56);"
+            style="color: rgba(255, 255, 255, 0.72);"
             title="Directory Sharing Disabled"
           />
           <span
             class="c5 c6 icon icon-clipboard-text c8"
-            color="light"
-            style="color: rgba(255, 255, 255, 0.87);"
+            style="color: rgb(255, 255, 255);"
             title="Clipboard Sharing Enabled"
           />
           <div
@@ -2120,7 +2123,6 @@ exports[`tdp processing 1`] = `
               >
                 <span
                   class="c5 c13 icon icon-warning c14"
-                  color="light"
                 />
                  
                 0
@@ -2133,13 +2135,12 @@ exports[`tdp processing 1`] = `
         >
           <button
             class="c15"
-            color="text.secondary"
+            color="text.slightlyMuted"
             data-testid="button"
             style="font-size: 20px;"
           >
             <span
               class="c5 c16 icon icon-ellipsis "
-              color="light"
             />
           </button>
         </div>
@@ -2175,26 +2176,27 @@ exports[`unintended disconnect 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 40px;
   font-size: 12px;
   padding: 0px 40px;
   width: 30%;
 }
 
-.c9:active {
-  opacity: 0.56;
-}
-
 .c9:hover,
 .c9:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c9:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c7 {
@@ -2210,8 +2212,8 @@ exports[`unintended disconnect 1`] = `
   overflow: auto;
   word-break: break-word;
   line-height: 1.5;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c7 a {
@@ -2226,7 +2228,7 @@ exports[`unintended disconnect 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
 }
 
 .c1 {
@@ -2265,8 +2267,8 @@ exports[`unintended disconnect 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -2319,7 +2321,7 @@ exports[`unintended disconnect 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Error
         </div>
@@ -2371,8 +2373,8 @@ exports[`webauthn prompt 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #512FC9;
-  color: rgba(255,255,255,0.87);
+  color: #000000;
+  background: #9F85FF;
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
@@ -2380,22 +2382,19 @@ exports[`webauthn prompt 1`] = `
   width: 130px;
 }
 
-.c9:active {
-  opacity: 0.56;
-}
-
 .c9:hover,
 .c9:focus {
-  background: #651FFF;
+  background: #B29DFF;
 }
 
 .c9:active {
-  background: #354AA4;
+  background: #C5B6FF;
 }
 
 .c9:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c10 {
@@ -2417,25 +2416,26 @@ exports[`webauthn prompt 1`] = `
   text-transform: uppercase;
   transition: all 0.3s;
   -webkit-font-smoothing: antialiased;
-  background: #222C59;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
+  background: rgba(255,255,255,0.07);
   min-height: 32px;
   font-size: 12px;
   padding: 0px 24px;
 }
 
-.c10:active {
-  opacity: 0.56;
-}
-
 .c10:hover,
 .c10:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.13);
+}
+
+.c10:active {
+  background: rgba(255,255,255,0.18);
 }
 
 .c10:disabled {
   background: rgba(255,255,255,0.12);
   color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c5 {
@@ -2446,7 +2446,7 @@ exports[`webauthn prompt 1`] = `
   line-height: 32px;
   text-transform: uppercase;
   margin: 0px;
-  color: rgba(255,255,255,0.87);
+  color: #FFFFFF;
   text-align: center;
 }
 
@@ -2493,8 +2493,8 @@ exports[`webauthn prompt 1`] = `
 .c3 {
   padding: 32px;
   padding-top: 24px;
-  background: #1C254D;
-  color: rgba(255,255,255,0.87);
+  background: #222C59;
+  color: #FFFFFF;
   border-radius: 8px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.24);
   display: flex;
@@ -2548,7 +2548,7 @@ exports[`webauthn prompt 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Multi-factor authentication
         </div>

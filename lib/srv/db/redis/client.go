@@ -140,6 +140,9 @@ func newClient(ctx context.Context, connectionOptions *connection.Options, tlsCo
 // client makes a new connection.
 type onClientConnectFunc func(context.Context, *redis.Conn) error
 
+// fetchCredentialsFunc fetches credentials for a new connection.
+type fetchCredentialsFunc func(ctx context.Context) (username, password string, err error)
+
 // authWithPasswordOnConnect returns an onClientConnectFunc that sends "auth"
 // with provided username and password.
 func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
@@ -148,9 +151,12 @@ func authWithPasswordOnConnect(username, password string) onClientConnectFunc {
 	}
 }
 
-// fetchUserPasswordOnConnect returns an onClientConnectFunc that fetches user
-// password on the fly then uses it for "auth".
-func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users, audit common.Audit) onClientConnectFunc {
+// fetchCredentialsOnConnect returns an onClientConnectFunc that does an
+// authorization check, calls a provided credential fetcher callback func,
+// then logs an AUTH query to the audit log once and and uses the credentials to
+// auth a new connection.
+func fetchCredentialsOnConnect(closeCtx context.Context, sessionCtx *common.Session, audit common.Audit, fetchCreds fetchCredentialsFunc) onClientConnectFunc {
+	// audit log one time, to avoid excessive audit logs from reconnects.
 	var auditOnce sync.Once
 	return func(ctx context.Context, conn *redis.Conn) error {
 		err := sessionCtx.Checker.CheckAccess(sessionCtx.Database,
@@ -163,17 +169,60 @@ func fetchUserPasswordOnConnect(sessionCtx *common.Session, users common.Users, 
 		if err != nil {
 			return trace.Wrap(err)
 		}
+		username, password, err := fetchCreds(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		auditOnce.Do(func() {
+			var query string
+			if username == "" {
+				query = "AUTH ******"
+			} else {
+				query = fmt.Sprintf("AUTH %s ******", username)
+			}
+			audit.OnQuery(closeCtx, sessionCtx, common.Query{Query: query})
+		})
+		return authConnection(ctx, conn, username, password)
+	}
+}
 
+// managedUserCredFetchFunc fetches user password on the fly.
+func managedUserCredFetchFunc(sessionCtx *common.Session, auth common.Auth, users common.Users) fetchCredentialsFunc {
+	return func(ctx context.Context) (string, string, error) {
 		username := sessionCtx.DatabaseUser
 		password, err := users.GetPassword(ctx, sessionCtx.Database, username)
 		if err != nil {
-			return trace.AccessDenied("failed to get password for %v: %v.", username, err)
+			return "", "", trace.AccessDenied("failed to get password for %v: %v.",
+				username, err)
 		}
+		return username, password, nil
+	}
+}
 
-		auditOnce.Do(func() {
-			audit.OnQuery(ctx, sessionCtx, common.Query{Query: fmt.Sprintf("AUTH %s ******", username)})
-		})
-		return authConnection(ctx, conn, username, password)
+// azureAccessKeyFetchFunc Azure access key for the "default" user.
+func azureAccessKeyFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
+	return func(ctx context.Context) (string, string, error) {
+		// Retrieve the auth token for Azure Cache for Redis. Use default user.
+		password, err := auth.GetAzureCacheForRedisToken(ctx, sessionCtx)
+		if err != nil {
+			return "", "", trace.AccessDenied("failed to get Azure access key: %v", err)
+		}
+		// Azure doesn't support ACL yet, so username is left blank.
+		return "", password, nil
+	}
+}
+
+// elasticacheIAMTokenFetchFunc fetches an AWS ElastiCache IAM auth token.
+func elasticacheIAMTokenFetchFunc(sessionCtx *common.Session, auth common.Auth) fetchCredentialsFunc {
+	return func(ctx context.Context) (string, string, error) {
+		// Retrieve the auth token for AWS IAM ElastiCache.
+		password, err := auth.GetElastiCacheRedisToken(ctx, sessionCtx)
+		if err != nil {
+			return "", "", trace.AccessDenied(
+				"failed to get AWS ElastiCache IAM auth token for %v: %v",
+				sessionCtx.DatabaseUser, err)
+		}
+		return sessionCtx.DatabaseUser, password, nil
 	}
 }
 

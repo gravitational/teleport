@@ -40,6 +40,7 @@ import (
 	utilnet "k8s.io/apimachinery/pkg/util/net"
 	"k8s.io/apimachinery/third_party/forked/golang/netutil"
 
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -47,11 +48,7 @@ import (
 // multiplexed streams. After RoundTrip() is invoked, Conn will be set
 // and usable. SpdyRoundTripper implements the UpgradeRoundTripper interface.
 type SpdyRoundTripper struct {
-	// tlsConfig holds the TLS configuration settings to use when connecting
-	// to the remote server.
-	tlsConfig *tls.Config
-
-	authCtx authContext
+	roundTripperConfig
 
 	/* TODO according to http://golang.org/pkg/net/http/#RoundTripper, a RoundTripper
 	   must be safe for use by multiple concurrent goroutines. If this is absolutely
@@ -61,16 +58,6 @@ type SpdyRoundTripper struct {
 	*/
 	// conn is the underlying network connection to the remote server.
 	conn net.Conn
-
-	// dialWithContext is the function used connect to remote address
-	dialWithContext func(context context.Context, network, address string) (net.Conn, error)
-
-	// ctx is a context for this round tripper
-	ctx context.Context
-
-	pingPeriod time.Duration
-	// originalHeaders are the headers that were passed from the original request.
-	originalHeaders http.Header
 }
 
 var (
@@ -79,22 +66,34 @@ var (
 	_ utilnet.Dialer                 = &SpdyRoundTripper{}
 )
 
-// DialWithContext is the function used to dial to remote endpoints
-type DialWithContext func(context context.Context, network, address string) (net.Conn, error)
-
 type roundTripperConfig struct {
-	ctx             context.Context
-	authCtx         authContext
-	dial            DialWithContext
-	tlsConfig       *tls.Config
-	pingPeriod      time.Duration
+	// ctx is a context for this round tripper
+	ctx context.Context
+	// authCtx is the auth context to use for this round tripper
+	authCtx authContext
+	// dialWithContext is the function used connect to remote address
+	dialWithContext dialContextFunc
+	// tlsConfig holds the TLS configuration settings to use when connecting
+	// to the remote server.
+	tlsConfig *tls.Config
+	// pingPeriod is the period at which to send pings to the remote server to
+	// keep the SPDY connection alive.
+	pingPeriod time.Duration
+	// originalHeaders are the headers that were passed from the original request.
+	// These headers are used to set the headers on the new request if the user
+	// requested Kubernetes impersonation.
 	originalHeaders http.Header
+	// useIdentityForwarding controls whether the proxy should forward the
+	// identity of the user making the request to the remote server using the
+	// auth.TeleportImpersonateUserHeader and auth.TeleportImpersonateIPHeader
+	// headers instead of relying on the certificate to transport it.
+	useIdentityForwarding bool
 }
 
 // NewSpdyRoundTripperWithDialer creates a new SpdyRoundTripper that will use
 // the specified tlsConfig. This function is mostly meant for unit tests.
 func NewSpdyRoundTripperWithDialer(cfg roundTripperConfig) *SpdyRoundTripper {
-	return &SpdyRoundTripper{tlsConfig: cfg.tlsConfig, dialWithContext: cfg.dial, ctx: cfg.ctx, authCtx: cfg.authCtx, pingPeriod: cfg.pingPeriod, originalHeaders: cfg.originalHeaders}
+	return &SpdyRoundTripper{roundTripperConfig: cfg}
 }
 
 // TLSClientConfig implements pkg/util/net.TLSClientConfigHolder for proper TLS checking during
@@ -137,7 +136,7 @@ func (s *SpdyRoundTripper) dial(url *url.URL) (net.Conn, error) {
 	if s.dialWithContext == nil {
 		conn, err = tls.Dial("tcp", dialAddr, s.tlsConfig)
 	} else {
-		conn, err = utils.TLSDial(s.ctx, s.dialWithContext, "tcp", dialAddr, s.tlsConfig)
+		conn, err = utils.TLSDial(s.ctx, utils.DialWithContextFunc(s.dialWithContext), "tcp", dialAddr, s.tlsConfig)
 	}
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -172,6 +171,14 @@ func (s *SpdyRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 		rawResponse []byte
 		err         error
 	)
+
+	// If we're using identity forwarding, we need to add the impersonation
+	// headers to the request before we send the request.
+	if s.useIdentityForwarding {
+		if header, err = auth.IdentityForwardingHeaders(s.ctx, header); err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
 
 	clone := utilnet.CloneRequest(req)
 	clone.Header = header

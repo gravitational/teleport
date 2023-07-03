@@ -5,18 +5,6 @@ exports[`support Cloud 1`] = `
   box-sizing: border-box;
 }
 
-.c9 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border: 1px solid;
-  border-radius: 8px;
-  border-color: #222C59;
-}
-
 .c6 {
   display: inline-block;
   transition: color 0.3s;
@@ -29,9 +17,9 @@ exports[`support Cloud 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -83,18 +71,6 @@ exports[`support Cloud 1`] = `
   flex-wrap: wrap;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  border-bottom: 1px solid;
-  border-color: #111B48;
-  display: flex;
-  align-items: center;
-}
-
 .c11 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -117,6 +93,17 @@ exports[`support Cloud 1`] = `
   padding-bottom: 24px;
 }
 
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.13);
+}
+
 .c8 {
   display: block;
   color: #FFFFFF;
@@ -132,7 +119,18 @@ exports[`support Cloud 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.07);
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.18);
 }
 
 <div
@@ -157,7 +155,6 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
-              color="light"
             />
           </div>
           <h5
@@ -204,7 +201,6 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
-              color="light"
             />
           </div>
           <h5
@@ -267,7 +263,6 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-graph "
-              color="light"
             />
           </div>
           <h5
@@ -298,7 +293,6 @@ exports[`support Cloud 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
-              color="light"
             />
           </div>
           <h5
@@ -392,18 +386,6 @@ exports[`support Enterprise 1`] = `
   box-sizing: border-box;
 }
 
-.c9 {
-  box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border: 1px solid;
-  border-radius: 8px;
-  border-color: #222C59;
-}
-
 .c6 {
   display: inline-block;
   transition: color 0.3s;
@@ -416,9 +398,9 @@ exports[`support Enterprise 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -470,18 +452,6 @@ exports[`support Enterprise 1`] = `
   flex-wrap: wrap;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  border-bottom: 1px solid;
-  border-color: #111B48;
-  display: flex;
-  align-items: center;
-}
-
 .c11 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -504,6 +474,17 @@ exports[`support Enterprise 1`] = `
   padding-bottom: 24px;
 }
 
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.13);
+}
+
 .c8 {
   display: block;
   color: #FFFFFF;
@@ -519,7 +500,18 @@ exports[`support Enterprise 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.07);
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.18);
 }
 
 <div
@@ -544,7 +536,6 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
-              color="light"
             />
           </div>
           <h5
@@ -599,7 +590,6 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
-              color="light"
             />
           </div>
           <h5
@@ -662,7 +652,6 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-graph "
-              color="light"
             />
           </div>
           <h5
@@ -693,7 +682,6 @@ exports[`support Enterprise 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
-              color="light"
             />
           </div>
           <h5
@@ -782,21 +770,53 @@ exports[`support Enterprise 1`] = `
 </div>
 `;
 
-exports[`support OSS 1`] = `
+exports[`support Enterprise with CTA 1`] = `
 .c3 {
   box-sizing: border-box;
 }
 
 .c9 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
   box-sizing: border-box;
-  margin-top: 24px;
-  padding-left: 32px;
-  padding-right: 32px;
-  padding-top: 24px;
-  padding-bottom: 24px;
-  border: 1px solid;
-  border-radius: 8px;
-  border-color: #222C59;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  color: #000000;
+  background: #9F85FF;
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  width: 100%;
+}
+
+.c9:hover,
+.c9:focus {
+  background: #B29DFF;
+}
+
+.c9:active {
+  background: #C5B6FF;
+}
+
+.c9:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+  cursor: auto;
 }
 
 .c6 {
@@ -811,9 +831,422 @@ exports[`support OSS 1`] = `
   padding-top: 4px;
   padding-left: 32px;
   padding-right: 32px;
-  background-color: #222C59;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
+}
+
+.c5 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 18px;
+  margin: 0px;
+  padding-right: 8px;
+}
+
+.c7 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  margin: 0px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: uppercase;
+  margin: 0px;
+  margin-bottom: 24px;
+  font-weight: 600;
+}
+
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
+.c16 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+}
+
+.c2 {
+  box-sizing: border-box;
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+}
+
+.c10 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c14 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  display: flex;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-top: 24px;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c11 {
+  color: inherit;
+  font-weight: 500;
+  font-size: 15px;
+  margin-right: 10px;
+}
+
+.c12 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.13);
+}
+
+.c8 {
+  display: block;
+  color: #FFFFFF;
+  border-radius: 4px;
+  text-decoration: none;
+  margin-bottom: 8px;
+  padding: 4px 8px;
+  transition: all 0.3s;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+}
+
+.c8:hover,
+.c8:focus {
+  background: rgba(255,255,255,0.07);
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.18);
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      <div
+        class="c3"
+      >
+        <div
+          class="c4"
+          width="210"
+        >
+          <div
+            class="c5"
+            font-size="18"
+          >
+            <span
+              class="c6 icon icon-local_play "
+            />
+          </div>
+          <h5
+            class="c7"
+          >
+            Support
+          </h5>
+        </div>
+        <a
+          class="c8"
+          href="https://github.com/gravitational/teleport/discussions"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Ask the Community Questions
+        </a>
+        <a
+          class="c8"
+          href="https://github.com/gravitational/teleport/issues/new/choose"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Request a New Feature
+        </a>
+        <a
+          class="c8"
+          href="mailto:support@goteleport.com"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Send Product Feedback
+        </a>
+        <a
+          class="c9"
+          href="https://goteleport.com/r/upgrade-team?4.4.0-dev&utm_campaign=CTA_PREMIUM_SUPPORT"
+          kind="primary"
+          rel="noreferrer"
+          style="text-transform: none;"
+          target="blank"
+          width="100%"
+        >
+          <div
+            class="c10"
+          >
+            <span
+              class="c6 icon icon-unlock c11"
+              data-testid="locked-icon"
+            />
+            Unlock Premium Support w/Enterprise
+          </div>
+        </a>
+      </div>
+      <div
+        class="c3"
+      >
+        <div
+          class="c4"
+          width="210"
+        >
+          <div
+            class="c5"
+            font-size="18"
+          >
+            <span
+              class="c6 icon icon-list3 "
+            />
+          </div>
+          <h5
+            class="c7"
+          >
+            Resources
+          </h5>
+        </div>
+        <a
+          class="c8"
+          href="https://goteleport.com/docs/getting-started?product=teleport&version=e_4.4.0-dev"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Quickstart Guide
+        </a>
+        <a
+          class="c8"
+          href="https://goteleport.com/docs/server-access/guides/tsh?product=teleport&version=e_4.4.0-dev"
+          rel="noreferrer"
+          target="_blank"
+        >
+          tsh User Guide
+        </a>
+        <a
+          class="c8"
+          href="https://goteleport.com/docs/setup/admin?product=teleport&version=e_4.4.0-dev"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Admin Guide
+        </a>
+        <a
+          class="c8"
+          href="https://dashboard.gravitational.com/web/downloads"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Download Page
+        </a>
+        <a
+          class="c8"
+          href="https://goteleport.com/docs/faq?product=teleport&version=e_4.4.0-dev"
+          rel="noreferrer"
+          target="_blank"
+        >
+          FAQ
+        </a>
+      </div>
+      <div
+        class="c3"
+      >
+        <div
+          class="c4"
+          width="210"
+        >
+          <div
+            class="c5"
+            font-size="18"
+          >
+            <span
+              class="c6 icon icon-graph "
+            />
+          </div>
+          <h5
+            class="c7"
+          >
+            Troubleshooting
+          </h5>
+        </div>
+        <a
+          class="c8"
+          href="https://goteleport.com/docs/setup/admin/troubleshooting?product=teleport&version=e_4.4.0-dev"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Monitoring & Debugging
+        </a>
+      </div>
+      <div
+        class="c3"
+      >
+        <div
+          class="c4"
+          width="210"
+        >
+          <div
+            class="c5"
+            font-size="18"
+          >
+            <span
+              class="c6 icon icon-notifications_active "
+            />
+          </div>
+          <h5
+            class="c7"
+          >
+            Updates
+          </h5>
+        </div>
+        <a
+          class="c8"
+          href="https://github.com/gravitational/teleport/blob/master/CHANGELOG.md"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Product Changelog
+        </a>
+        <a
+          class="c8"
+          href="https://goteleport.com/blog/"
+          rel="noreferrer"
+          target="_blank"
+        >
+          Teleport Blog
+        </a>
+      </div>
+    </div>
+  </div>
+  <div
+    class="c12"
+  >
+    <h5
+      class="c13"
+      font-weight="bold"
+    >
+      Cluster Information
+    </h5>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        style="width: 130px;"
+      >
+        Cluster Name
+        :
+      </div>
+      <div
+        class="c16"
+      >
+        test
+      </div>
+    </div>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        style="width: 130px;"
+      >
+        Teleport Version
+        :
+      </div>
+      <div
+        class="c16"
+      >
+        4.4.0-dev
+      </div>
+    </div>
+    <div
+      class="c14"
+    >
+      <div
+        class="c15"
+        style="width: 130px;"
+      >
+        Public Address
+        :
+      </div>
+      <div
+        class="c16"
+      >
+        localhost:3080
+      </div>
+    </div>
+  </div>
+</div>
+`;
+
+exports[`support OSS 1`] = `
+.c3 {
+  box-sizing: border-box;
+}
+
+.c6 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c1 {
+  box-sizing: border-box;
+  padding-bottom: 40px;
+  padding-top: 4px;
+  padding-left: 32px;
+  padding-right: 32px;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
+  border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c5 {
@@ -865,18 +1298,6 @@ exports[`support OSS 1`] = `
   flex-wrap: wrap;
 }
 
-.c4 {
-  box-sizing: border-box;
-  margin-bottom: 16px;
-  margin-top: 24px;
-  padding-bottom: 8px;
-  width: 210px;
-  border-bottom: 1px solid;
-  border-color: #111B48;
-  display: flex;
-  align-items: center;
-}
-
 .c11 {
   box-sizing: border-box;
   margin-bottom: 16px;
@@ -899,6 +1320,17 @@ exports[`support OSS 1`] = `
   padding-bottom: 24px;
 }
 
+.c9 {
+  box-sizing: border-box;
+  margin-top: 24px;
+  padding-left: 32px;
+  padding-right: 32px;
+  padding-top: 24px;
+  padding-bottom: 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.13);
+}
+
 .c8 {
   display: block;
   color: #FFFFFF;
@@ -914,7 +1346,18 @@ exports[`support OSS 1`] = `
 
 .c8:hover,
 .c8:focus {
-  background: #2C3A73;
+  background: rgba(255,255,255,0.07);
+}
+
+.c4 {
+  box-sizing: border-box;
+  margin-bottom: 16px;
+  margin-top: 24px;
+  padding-bottom: 8px;
+  width: 210px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid rgba(255,255,255,0.18);
 }
 
 <div
@@ -939,7 +1382,6 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-local_play "
-              color="light"
             />
           </div>
           <h5
@@ -986,7 +1428,6 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-list3 "
-              color="light"
             />
           </div>
           <h5
@@ -1049,7 +1490,6 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-graph "
-              color="light"
             />
           </div>
           <h5
@@ -1080,7 +1520,6 @@ exports[`support OSS 1`] = `
           >
             <span
               class="c6 icon icon-notifications_active "
-              color="light"
             />
           </div>
           <h5

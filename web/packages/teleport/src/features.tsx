@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React from 'react';
+import React, { lazy } from 'react';
 
 import {
   ActiveSessionsIcon,
@@ -25,6 +25,7 @@ import {
   LockIcon,
   DatabasesIcon,
   DesktopsIcon,
+  IntegrationsIcon,
   KubernetesIcon,
   ManageClustersIcon,
   RolesIcon,
@@ -45,59 +46,27 @@ import {
 
 import type { TeleportFeature, FeatureFlags } from './types';
 
-const Audit = React.lazy(
-  () => import(/* webpackChunkName: "audit" */ './Audit')
-);
-const Nodes = React.lazy(
-  () => import(/* webpackChunkName: "nodes" */ './Nodes')
-);
-const Sessions = React.lazy(
-  () => import(/* webpackChunkName: "sessions" */ './Sessions')
-);
-const Account = React.lazy(
-  () => import(/* webpackChunkName: "account" */ './Account')
-);
-const Applications = React.lazy(
-  () => import(/* webpackChunkName: "apps" */ './Apps')
-);
-const Kubes = React.lazy(
-  () => import(/* webpackChunkName: "kubes" */ './Kubes')
-);
-const Support = React.lazy(
-  () => import(/* webpackChunkName: "support" */ './Support')
-);
-const Clusters = React.lazy(
-  () => import(/* webpackChunkName: "clusters" */ './Clusters')
-);
-const Trust = React.lazy(
-  () => import(/* webpackChunkName: "trusted-clusters" */ './TrustedClusters')
-);
-const Users = React.lazy(
-  () => import(/* webpackChunkName: "users" */ './Users')
-);
-const Roles = React.lazy(
-  () => import(/* webpackChunkName: "roles" */ './Roles')
-);
-const Recordings = React.lazy(
-  () => import(/* webpackChunkName: "recordings" */ './Recordings')
-);
-const AuthConnectors = React.lazy(
-  () => import(/* webpackChunkName: "auth-connectors" */ './AuthConnectors')
-);
-const Locks = React.lazy(
-  () => import(/* webpackChunkName: "lazy" */ './Locks')
-);
-const NewLock = React.lazy(
-  () => import(/* webpackChunkName: "newLock" */ './Locks/NewLock')
-);
-const Databases = React.lazy(
-  () => import(/* webpackChunkName: "databases" */ './Databases')
-);
-const Desktops = React.lazy(
-  () => import(/* webpackChunkName: "desktop" */ './Desktops')
-);
-const Discover = React.lazy(
-  () => import(/* webpackChunkName: "discover" */ './Discover')
+const Audit = lazy(() => import('./Audit'));
+const Nodes = lazy(() => import('./Nodes'));
+const Sessions = lazy(() => import('./Sessions'));
+const Account = lazy(() => import('./Account'));
+const Applications = lazy(() => import('./Apps'));
+const Kubes = lazy(() => import('./Kubes'));
+const Support = lazy(() => import('./Support'));
+const Clusters = lazy(() => import('./Clusters'));
+const Trust = lazy(() => import('./TrustedClusters'));
+const Users = lazy(() => import('./Users'));
+const Roles = lazy(() => import('./Roles'));
+const Recordings = lazy(() => import('./Recordings'));
+const AuthConnectors = lazy(() => import('./AuthConnectors'));
+const Locks = lazy(() => import('./LocksV2/Locks'));
+const NewLock = lazy(() => import('./LocksV2/NewLock'));
+const Databases = lazy(() => import('./Databases'));
+const Desktops = lazy(() => import('./Desktops'));
+const Discover = lazy(() => import('./Discover'));
+const Integrations = lazy(() => import('./Integrations'));
+const IntegrationEnroll = lazy(
+  () => import('@gravitational/teleport/src/Integrations/Enroll')
 );
 
 // ****************************
@@ -334,22 +303,22 @@ export class FeatureLocks implements TeleportFeature {
   section = ManagementSection.Access;
 
   route = {
-    title: 'Session & Identity Locks',
+    title: 'Manage Session & Identity Locks',
     path: cfg.routes.locks,
     exact: true,
     component: Locks,
   };
 
-  hasAccess() {
-    return true;
+  hasAccess(flags: FeatureFlags) {
+    return flags.locks;
   }
 
   navigationItem = {
     title: 'Session & Identity Locks',
     icon: <LockIcon />,
     exact: false,
-    getLink(clusterId: string) {
-      return cfg.getLocksRoute(clusterId);
+    getLink() {
+      return cfg.getLocksRoute();
     },
   };
 }
@@ -362,8 +331,14 @@ export class FeatureNewLock implements TeleportFeature {
     component: NewLock,
   };
 
-  hasAccess() {
-    return true;
+  hasAccess(flags: FeatureFlags) {
+    return flags.newLocks;
+  }
+
+  // getRoute allows child class extending this
+  // parent class to refer to this parent's route.
+  getRoute() {
+    return this.route;
   }
 }
 
@@ -389,6 +364,69 @@ export class FeatureDiscover implements TeleportFeature {
 
   hasAccess(flags: FeatureFlags) {
     return flags.discover;
+  }
+
+  getRoute() {
+    return this.route;
+  }
+}
+
+export class FeatureIntegrations implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.integrations;
+  }
+
+  route = {
+    title: 'Manage Integrations',
+    path: cfg.routes.integrations,
+    exact: true,
+    component: () => <Integrations />,
+  };
+
+  navigationItem = {
+    title: 'Integrations',
+    icon: <IntegrationsIcon />,
+    exact: true,
+    getLink() {
+      return cfg.routes.integrations;
+    },
+  };
+
+  getRoute() {
+    return this.route;
+  }
+}
+
+export class FeatureIntegrationEnroll implements TeleportFeature {
+  category = NavigationCategory.Management;
+  section = ManagementSection.Access;
+
+  route = {
+    title: 'Enroll New Integration',
+    path: cfg.routes.integrationEnroll,
+    exact: false,
+    component: () => <IntegrationEnroll />,
+  };
+
+  hasAccess(flags: FeatureFlags) {
+    return flags.enrollIntegrations;
+  }
+
+  navigationItem = {
+    title: 'Enroll New Integration',
+    icon: <AddIcon />,
+    getLink() {
+      return cfg.getIntegrationEnrollRoute(null);
+    },
+  };
+
+  // getRoute allows child class extending this
+  // parent class to refer to this parent's route.
+  getRoute() {
+    return this.route;
   }
 }
 
@@ -556,7 +594,9 @@ export function getOSSFeatures(): TeleportFeature[] {
     new FeatureAuthConnectors(),
     new FeatureLocks(),
     new FeatureNewLock(),
+    new FeatureIntegrations(),
     new FeatureDiscover(),
+    new FeatureIntegrationEnroll(),
 
     // - Activity
     new FeatureRecordings(),

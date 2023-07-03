@@ -17,7 +17,6 @@ limitations under the License.
 import React from 'react';
 import styled from 'styled-components';
 import Popover from 'design/Popover';
-import theme from 'design/theme';
 import { Box } from 'design';
 import { debounce } from 'shared/utils/highbar';
 
@@ -80,7 +79,7 @@ export default function JoinedUsers(props) {
       >
         <Box
           minWidth="200px"
-          bg="white"
+          bg="levels.elevated"
           borderRadius="8px"
           onMouseLeave={handleClose}
         >
@@ -103,13 +102,16 @@ const StyledUsers = styled.div`
   border-radius: 50%;
   justify-content: center;
   margin-right: 3px;
+  color: ${props => props.theme.colors.text.primaryInverse};
   background-color: ${props =>
-    props.active ? theme.colors.brand.accent : theme.colors.grey[900]};
+    props.active
+      ? props.theme.colors.brand
+      : props.theme.colors.text.slightlyMuted};
 `;
 
 const StyledAvatar = styled.div`
-  background: ${props => props.theme.colors.brand.accent};
-  color: ${props => props.theme.colors.light};
+  background: ${props => props.theme.colors.buttons.primary.default};
+  color: ${props => props.theme.colors.buttons.primary.text};
   border-radius: 50%;
   display: flex;
   justify-content: center;
@@ -122,8 +124,8 @@ const StyledAvatar = styled.div`
 `;
 
 const UserItem = styled.div`
-  border-bottom: 1px solid ${theme.colors.grey[50]};
-  color: ${theme.colors.grey[600]};
+  border-bottom: 1px solid ${props => props.theme.colors.spotBackground[1]};
+  color: ${props => props.theme.colors.text.main};
   font-size: 12px;
   align-items: center;
   display: flex;

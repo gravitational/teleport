@@ -89,25 +89,23 @@ type RegexpConfig struct {
 
 // KubeResourceMatchesRegex checks whether the input matches any of the given
 // expressions.
-// This function returns as soon as it finds the first match or when matchString
+// This function returns as soon as it finds the first match or when MatchString
 // returns an error.
 // This function supports regex expressions in the Name and Namespace fields,
 // but not for the Kind field.
 // The wildcard (*) expansion is also supported.
 func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.KubernetesResource) (bool, error) {
 	for _, resource := range resources {
-		// TODO(tigrato): evaluate if we should support wildcards as well
-		// for future compatibility.
-		if input.Kind != resource.Kind {
+		if input.Kind != resource.Kind && resource.Kind != types.Wildcard {
 			continue
 		}
-		switch ok, err := matchString(input.Name, resource.Name); {
+		switch ok, err := MatchString(input.Name, resource.Name); {
 		case err != nil:
 			return false, trace.Wrap(err)
 		case !ok:
 			continue
 		}
-		if ok, err := matchString(input.Namespace, resource.Namespace); err != nil || ok {
+		if ok, err := MatchString(input.Namespace, resource.Namespace); err != nil || ok {
 			return ok, trace.Wrap(err)
 		}
 	}
@@ -119,12 +117,31 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 // match is always evaluated as a regex either an exact match or regexp.
 func SliceMatchesRegex(input string, expressions []string) (bool, error) {
 	for _, expression := range expressions {
-		result, err := matchString(input, expression)
+		result, err := MatchString(input, expression)
 		if err != nil || result {
 			return result, trace.Wrap(err)
 		}
 	}
 
+	return false, nil
+}
+
+// RegexMatchesAny returns true if [expression] matches any element of
+// [inputs]. [expression] support globbing ("env-*") or normal regexp syntax if
+// surrounded with ^$ ("^env-.*$").
+func RegexMatchesAny(inputs []string, expression string) (bool, error) {
+	expr, err := compileRegexCached(expression)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	for _, input := range inputs {
+		// Since the expression is always surrounded by ^ and $ this is an exact
+		// match for either a plain string (for example ^hello$) or for a regexp
+		// (for example ^hel*o$).
+		if expr.MatchString(input) {
+			return true, nil
+		}
+	}
 	return false, nil
 }
 
@@ -139,16 +156,26 @@ func mustCache[K comparable, V any](size int) *lru.Cache[K, V] {
 	return cache
 }
 
-// exprCache interns compiled regular expressions created in matchString
+// exprCache interns compiled regular expressions created in MatchString
 // to improve performance.
 var exprCache = mustCache[string, *regexp.Regexp](1000)
 
-func matchString(input, expression string) (bool, error) {
-	if expr, ok := exprCache.Get(expression); ok {
-		return expr.MatchString(input), nil
+// MatchString will match an input against the given expression. The expression is cached for later use.
+func MatchString(input, expression string) (bool, error) {
+	expr, err := compileRegexCached(expression)
+	if err != nil {
+		return false, trace.BadParameter(err.Error())
 	}
 
-	original := expression
+	// Since the expression is always surrounded by ^ and $ this is an exact
+	// match for either a plain string (for example ^hello$) or for a regexp
+	// (for example ^hel*o$).
+	return expr.MatchString(input), nil
+}
+
+// CompileExpression compiles the given regex expression with Teleport's custom globbing
+// and quoting logic.
+func CompileExpression(expression string) (*regexp.Regexp, error) {
 	if !strings.HasPrefix(expression, "^") || !strings.HasSuffix(expression, "$") {
 		// replace glob-style wildcards with regexp wildcards
 		// for plain strings, and quote all characters that could
@@ -158,15 +185,24 @@ func matchString(input, expression string) (bool, error) {
 
 	expr, err := regexp.Compile(expression)
 	if err != nil {
-		return false, trace.BadParameter(err.Error())
+		return nil, trace.BadParameter(err.Error())
 	}
 
-	exprCache.Add(original, expr)
+	return expr, nil
+}
 
-	// Since the expression is always surrounded by ^ and $ this is an exact
-	// match for either a plain string (for example ^hello$) or for a regexp
-	// (for example ^hel*o$).
-	return expr.MatchString(input), nil
+func compileRegexCached(expression string) (*regexp.Regexp, error) {
+	if expr, ok := exprCache.Get(expression); ok {
+		return expr, nil
+	}
+
+	expr, err := CompileExpression(expression)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	exprCache.Add(expression, expr)
+	return expr, nil
 }
 
 var (

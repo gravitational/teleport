@@ -19,9 +19,10 @@ import { useLocation, useHistory } from 'react-router';
 
 import * as Icons from 'design/Icon';
 import styled from 'styled-components';
-import { Box, Flex, Text, Popover, Link } from 'design';
+import { Box, Flex, Text, Link } from 'design';
 
 import useTeleport from 'teleport/useTeleport';
+import { ToolTipNoPermBadge } from 'teleport/components/ToolTipNoPermBadge';
 import { Acl } from 'teleport/services/user';
 import {
   ResourceKind,
@@ -33,6 +34,9 @@ import {
   getResourcePretitle,
   RESOURCES,
 } from 'teleport/Discover/SelectResource/resources';
+import AddApp from 'teleport/Apps/AddApp';
+
+import { icons } from './icons';
 
 import type { ResourceSpec } from './types';
 import type { AddButtonResourceKind } from 'teleport/components/AgentButtonAdd/AgentButtonAdd';
@@ -41,7 +45,7 @@ interface SelectResourceProps {
   onSelect: (resource: ResourceSpec) => void;
 }
 
-export function SelectResource(props: SelectResourceProps) {
+export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
   const location = useLocation<{ entity: AddButtonResourceKind }>();
   const history = useHistory();
@@ -49,6 +53,7 @@ export function SelectResource(props: SelectResourceProps) {
   const [search, setSearch] = useState('');
   const [resources, setResources] = useState<ResourceSpec[]>([]);
   const [defaultResources, setDefaultResources] = useState<ResourceSpec[]>([]);
+  const [showApp, setShowApp] = useState(false);
 
   function onSearch(s: string, customList?: ResourceSpec[]) {
     const list = customList || defaultResources;
@@ -81,7 +86,8 @@ export function SelectResource(props: SelectResourceProps) {
       ...updatedResources.filter(r => r.hasAccess),
       ...updatedResources.filter(r => !r.hasAccess),
     ];
-    setDefaultResources(filteredResourcesByPerm);
+    const sortedResources = sortResources(filteredResourcesByPerm);
+    setDefaultResources(sortedResources);
 
     // A user can come to this screen by clicking on
     // a `add <specific-resource-type>` button.
@@ -92,11 +98,11 @@ export function SelectResource(props: SelectResourceProps) {
     if (resourceKindSpecifiedByUrlLoc) {
       const sortedResourcesByKind = sortResourcesByKind(
         resourceKindSpecifiedByUrlLoc,
-        filteredResourcesByPerm
+        sortedResources
       );
       onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
     } else {
-      setResources(filteredResourcesByPerm);
+      setResources(sortedResources);
     }
 
     // Processing of the lists should only happen once on init.
@@ -130,45 +136,64 @@ export function SelectResource(props: SelectResourceProps) {
               const title = r.name;
               const pretitle = getResourcePretitle(r);
 
-              // There can be two types of click behavior with the resource cards:
+              let resourceCardProps;
+              if (r.kind === ResourceKind.Application) {
+                resourceCardProps = {
+                  onClick: () => {
+                    if (r.hasAccess) {
+                      setShowApp(true);
+                      onSelect(r);
+                    }
+                  },
+                };
+              } else if (r.unguidedLink) {
+                resourceCardProps = {
+                  as: Link,
+                  href: r.hasAccess ? r.unguidedLink : null,
+                  target: '_blank',
+                  style: { textDecoration: 'none' },
+                };
+              } else {
+                resourceCardProps = {
+                  onClick: () => r.hasAccess && onSelect(r),
+                };
+              }
+
+              // There can be three types of click behavior with the resource cards:
               //  1) If the resource has no interactive UI flow ("unguided"),
               //     clicking on the card will take a user to our docs page
               //     on a new tab.
               //  2) If the resource is guided, we start the "flow" by
               //     taking user to the next step.
+              //  3) If the resource is kind 'Application', it will render the legacy
+              //     popup modal where it shows user to add app manually or automatically.
               return (
                 <ResourceCard
                   data-testid={r.kind}
                   key={`${index}${pretitle}${title}`}
                   hasAccess={r.hasAccess}
-                  as={r.unguidedLink ? Link : null}
-                  href={r.hasAccess ? r.unguidedLink : null}
-                  target={r.unguidedLink ? '_blank' : null}
-                  onClick={() => r.hasAccess && props.onSelect(r)}
-                  className={r.unguidedLink ? 'unguided' : ''}
+                  {...resourceCardProps}
                 >
                   {!r.unguidedLink && r.hasAccess && (
                     <BadgeGuided>Guided</BadgeGuided>
                   )}
                   {!r.hasAccess && (
-                    <ToolTip
-                      children={
-                        <PermissionsErrorMessage resourceKind={r.kind} />
-                      }
+                    <ToolTipNoPermBadge
+                      children={<PermissionsErrorMessage resource={r} />}
                     />
                   )}
                   <Flex px={2} alignItems="center">
                     <Flex mr={3} justifyContent="center" width="24px">
-                      {r.Icon}
+                      {icons[r.icon]}
                     </Flex>
                     <Box>
                       {pretitle && (
-                        <Text fontSize="12px" color="#a8afb2">
+                        <Text fontSize="12px" color="text.slightlyMuted">
                           {pretitle}
                         </Text>
                       )}
                       {r.unguidedLink ? (
-                        <Text bold color="white">
+                        <Text bold color="text.main">
                           {title}
                         </Text>
                       ) : (
@@ -192,6 +217,7 @@ export function SelectResource(props: SelectResourceProps) {
           </Text>
         </>
       )}
+      {showApp && <AddApp onClose={() => setShowApp(false)} />}
     </Box>
   );
 }
@@ -217,67 +243,16 @@ const ClearSearch = ({ onClick }: { onClick(): void }) => {
         ml={1}
         width="18px"
         height="18px"
-        bg="#2d3762"
         borderRadius="4px"
         textAlign="center"
+        css={`
+          background: ${props => props.theme.colors.error.main};
+        `}
       >
-        <Icons.Close fontSize="15px" />
+        <Icons.Close fontSize="18px" />
       </Box>
       <Text>Clear search</Text>
     </Flex>
-  );
-};
-
-const ToolTip: React.FC = ({ children }) => {
-  const [anchorEl, setAnchorEl] = useState();
-  const open = Boolean(anchorEl);
-
-  function handlePopoverOpen(event) {
-    setAnchorEl(event.currentTarget);
-  }
-
-  function handlePopoverClose() {
-    setAnchorEl(null);
-  }
-
-  return (
-    <>
-      <div
-        aria-owns={open ? 'mouse-over-popover' : undefined}
-        onMouseEnter={handlePopoverOpen}
-        onMouseLeave={handlePopoverClose}
-        css={`
-          position: absolute;
-          background: red;
-          padding: 0px 6px;
-          border-top-right-radius: 8px;
-          border-bottom-left-radius: 8px;
-          top: 0px;
-          right: 0px;
-          font-size: 10px;
-        `}
-      >
-        Lacking Permissions
-      </div>
-      <Popover
-        modalCss={() => `pointer-events: none;`}
-        onClose={handlePopoverClose}
-        open={open}
-        anchorEl={anchorEl}
-        anchorOrigin={{
-          vertical: 'bottom',
-          horizontal: 'left',
-        }}
-        transformOrigin={{
-          vertical: 'top',
-          horizontal: 'left',
-        }}
-      >
-        <StyledOnHover px={3} py={2}>
-          {children}
-        </StyledOnHover>
-      </Popover>
-    </>
   );
 };
 
@@ -298,6 +273,8 @@ function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
       return acl.kubeServers.read && acl.kubeServers.list;
     case ResourceKind.Server:
       return acl.nodes.list;
+    case ResourceKind.SamlApplication:
+      return acl.samlIdpServiceProvider.create;
     default:
       return false;
   }
@@ -343,6 +320,25 @@ function sortResourcesByKind(
   return sorted;
 }
 
+// Sort the resources alphabetically and with the Guided resources listed first.
+export function sortResources(resources: ResourceSpec[]) {
+  const sortedResources = [...resources];
+  sortedResources.sort((a, b) => {
+    if (!a.unguidedLink && a.hasAccess && !b.unguidedLink && b.hasAccess) {
+      return a.name.localeCompare(b.name);
+    }
+    if (!b.unguidedLink && b.hasAccess) {
+      return 1;
+    }
+    if (!a.unguidedLink && a.hasAccess) {
+      return -1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  return sortedResources;
+}
+
 function makeResourcesWithHasAccessField(acl: Acl): ResourceSpec[] {
   return RESOURCES.map(r => {
     const hasAccess = checkHasAccess(acl, r.kind);
@@ -366,29 +362,26 @@ const ResourceCard = styled.div`
   display: flex;
   position: relative;
   align-items: center;
-  background: rgba(255, 255, 255, 0.05);
+  background: ${props => props.theme.colors.spotBackground[0]};
   transition: all 0.3s;
 
   border-radius: 8px;
   padding: 12px 12px 12px 12px;
-  color: white;
+  color: ${props => props.theme.colors.text.main};
   cursor: pointer;
   height: 48px;
 
   opacity: ${props => (props.hasAccess ? '1' : '0.45')};
 
-  &.unguided {
-    text-decoration: none;
-  }
-
   :hover {
-    background: rgba(255, 255, 255, 0.09);
+    background: ${props => props.theme.colors.spotBackground[1]};
   }
 `;
 
 const BadgeGuided = styled.div`
   position: absolute;
-  background: rgb(81, 48, 201);
+  background: ${props => props.theme.colors.brand};
+  color: ${props => props.theme.colors.text.primaryInverse};
   padding: 0px 6px;
   border-top-right-radius: 8px;
   border-bottom-left-radius: 8px;
@@ -397,20 +390,14 @@ const BadgeGuided = styled.div`
   font-size: 10px;
 `;
 
-const StyledOnHover = styled(Text)`
-  background-color: white;
-  color: black;
-  max-width: 350px;
-`;
-
 const InputWrapper = styled.div`
   border-radius: 200px;
   height: 40px;
-  border: 1px solid #ffffff1c;
+  border: 1px solid ${props => props.theme.colors.spotBackground[2]};
   &:hover,
   &:focus,
   &:active {
-    background: ${props => props.theme.colors.levels.surfaceSecondary};
+    background: ${props => props.theme.colors.spotBackground[0]};
   }
 `;
 
@@ -421,14 +408,9 @@ const StyledInput = styled.input`
   height: 100%;
   width: 100%;
   transition: all 0.2s;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   background: transparent;
   margin-right: ${props => props.theme.space[3]}px;
   margin-bottom: ${props => props.theme.space[2]}px;
   padding: ${props => props.theme.space[3]}px;
-  opacity: 0.8;
-  &:placeholder {
-    color: white;
-    opacity: 0.6;
-  }
 `;

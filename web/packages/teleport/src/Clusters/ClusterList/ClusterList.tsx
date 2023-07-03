@@ -99,7 +99,7 @@ function renderActionCell({ clusterId }: Cluster, flags: MenuFlags) {
 
 function renderMenuItem(name: string, url: string) {
   return (
-    <MenuItem as={NavLink} to={url} key={name}>
+    <MenuItem as={NavLink} color="text.main" to={url} key={name}>
       {name}
     </MenuItem>
   );

@@ -139,6 +139,7 @@ func withTestEventsChannel(ch chan testEvent) ControllerOption {
 // messages are processed by invoking the appropriate methods on the Auth interface.
 type Controller struct {
 	store              *Store
+	serviceCounter     *serviceCounter
 	auth               Auth
 	authID             string
 	serverKeepAlive    time.Duration
@@ -162,6 +163,7 @@ func NewController(auth Auth, usageReporter usagereporter.UsageReporter, opts ..
 	ctx, cancel := context.WithCancel(context.Background())
 	return &Controller{
 		store:              NewStore(),
+		serviceCounter:     &serviceCounter{},
 		serverKeepAlive:    options.serverKeepAlive,
 		serverTTL:          apidefaults.ServerAnnounceTTL,
 		instanceHBInterval: options.instanceHBInterval,
@@ -207,6 +209,16 @@ func (c *Controller) Iter(fn func(UpstreamHandle)) {
 	c.store.Iter(fn)
 }
 
+// ConnectedServiceCounts returns the number of each connected service seen in the inventory.
+func (c *Controller) ConnectedServiceCounts() map[types.SystemRole]uint64 {
+	return c.serviceCounter.counts()
+}
+
+// ConnectedServiceCount returns the number of a particular connected service in the inventory.
+func (c *Controller) ConnectedServiceCount(systemRole types.SystemRole) uint64 {
+	return c.serviceCounter.get(systemRole)
+}
+
 func (c *Controller) testEvent(event testEvent) {
 	if c.testEvents == nil {
 		return
@@ -218,7 +230,15 @@ func (c *Controller) testEvent(event testEvent) {
 // and also manages keepalives for previously heartbeated state.
 func (c *Controller) handleControlStream(handle *upstreamHandle) {
 	c.testEvent(handlerStart)
+
+	for _, service := range handle.hello.Services {
+		c.serviceCounter.increment(service)
+	}
+
 	defer func() {
+		for _, service := range handle.hello.Services {
+			c.serviceCounter.decrement(service)
+		}
 		c.store.Remove(handle)
 		handle.Close() // no effect if CloseWithError was called below
 		handle.ticker.Stop()

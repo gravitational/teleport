@@ -67,11 +67,17 @@ func Setup(conf Config) error {
 		log.SetLevel(log.DebugLevel)
 	case "warn", "warning":
 		log.SetLevel(log.WarnLevel)
+	case "trace":
+		log.SetLevel(log.TraceLevel)
 	default:
 		return trace.BadParameter("unsupported logger severity: '%v'", conf.Severity)
 	}
 
 	return nil
+}
+
+func WithLogger(ctx context.Context, logger log.FieldLogger) context.Context {
+	return withLogger(ctx, logger)
 }
 
 func withLogger(ctx context.Context, logger log.FieldLogger) context.Context {

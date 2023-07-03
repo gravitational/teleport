@@ -1,6 +1,6 @@
 ---
 title: Database Access with Self-Hosted MySQL/MariaDB
-description: How to configure Teleport Database Access with self-hosted MySQL/MariaDB.
+description: How to configure Teleport database access with self-hosted MySQL/MariaDB.
 ---
 
 This guide will help you to:
@@ -25,19 +25,15 @@ This guide will help you to:
   Service.
 - (!docs/pages/includes/tctl.mdx!)
 
-## Step 1/4. Set up the Teleport Database Service
+## Step 1/4. Create the Teleport Database Token
 
 (!docs/pages/includes/database-access/token.mdx!)
-
-Install Teleport on the host where you will run the Teleport Database Service:
-
-(!docs/pages/includes/install-linux.mdx!)
 
 ## Step 2/4. Create a certificate/key pair
 
 (!docs/pages/includes/database-access/tctl-auth-sign.mdx!)
 
-Create the secrets:
+From your local workstation, create the secrets:
 
 ```code
 # Export Teleport's certificate authority and generate certificate/key pair
@@ -48,7 +44,8 @@ $ tctl auth sign --format=db --host=db.example.com --out=server --ttl=2190h
 (!docs/pages/includes/database-access/ttl-note.mdx!)
 
 The command will create 3 files: `server.cas`, `server.crt` and `server.key`
-which you'll need to enable mutual TLS on your MySQL server.
+which you'll need to enable mutual TLS on your MySQL server. Copy these files
+to the environment running MySQL
 
 ## Step 3/4. Configure MySQL/MariaDB
 
@@ -136,100 +133,28 @@ in the MariaDB documentation for more details.
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
-### Start the Database Service
+### Configure and Start the Database Service
 
-You can configure Teleport to start the Database Service and access MySQL or
-MariaDB by running the `teleport` daemon either with CLI flags or a
-configuration file.
+Install and configure Teleport where you will run the Teleport Database Service:
 
 <Tabs>
-<TabItem label="Using CLI flags">
+<TabItem label="Linux Server">
 
-On the host where you will run the Teleport Database Service, run the following
-command:
+(!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-$ teleport db start \
-   --token=/tmp/token \
-   --auth-server=teleport.example.com:3080 \
-   --name=test \
-   --protocol=mysql \
-   --uri=mysql.example.com:3306 \
-   --labels=env=dev
-```
-
-Note that the `--auth-server` flag must point to the Teleport cluster's Proxy
-Service endpoint because Database Service always connects back to the cluster
-over a reverse tunnel.
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ teleport db start \
-   --token=/tmp/token \
-   --auth-server=mytenant.teleport.sh:443 \
-   --name=test \
-   --protocol=mysql \
-   --uri=mysql.example.com:3306 \
-   --labels=env=dev
-```
-
-Note that the `--auth-server` flag must point to your Teleport Cloud tenant
-address.
-
-</ScopedBlock>
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-mysql" dbProtocol="mysql" databaseAddress="mysql.example.com:3306" !)
 
 </TabItem>
-<TabItem label="Using a config file">
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-On the host where you will run the Teleport Database Service, create a
-configuration file at `/etc/teleport.yaml`:
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-```code
-$ teleport db configure create \
-   -o file \
-   --token=/tmp/token \
-   --proxy=teleport.example.com:3080 \
-   --name=test \
-   --protocol=mysql \
-   --uri=mysql.example.com:3306 \
-   --labels=env=dev
-```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-$ teleport db configure create \
-   -o file \
-   --token=/tmp/token \
-   --proxy=mytenant.teleport.sh:443 \
-   --name=test \
-   --protocol=mysql \
-   --uri=mysql.example.com:3306 \
-   --labels=env=dev
-```
-
-</ScopedBlock>
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  A single Teleport process can run multiple services, for example
-  multiple Database Access instances as well as other services such the
-  SSH Service or Application Service.
-</Admonition>
-
-(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
-
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-mysql" dbProtocol="mysql" databaseAddress="mysql.example.com:3306" !)
 </TabItem>
 </Tabs>
+
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 ## Step 4/4. Connect
 
@@ -239,22 +164,22 @@ databases:
 <ScopedBlock scope={["oss", "enterprise"]}>
 
 ```code
-$ tsh login --proxy=teleport.example.com --user=testuser
+$ tsh login --proxy=teleport.example.com --user=alice
 $ tsh db ls
-# Name    Description   Labels
-# ------- ------------- --------
-# example Example MySQL env=dev
+# Name          Description   Labels
+# ------------- ------------- --------
+# example-mysql Example MySQL env=dev
 ```
 
 </ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
-$ tsh login --proxy=mytenant.teleport.sh --user=testuser
+$ tsh login --proxy=mytenant.teleport.sh --user=alice
 $ tsh db ls
-# Name    Description   Labels
-# ------- ------------- --------
-# example Example MySQL env=dev
+# Name          Description   Labels
+# ------------- ------------- --------
+# example-mysql Example MySQL env=dev
 ```
 
 </ScopedBlock>
@@ -265,14 +190,14 @@ the [RBAC](../rbac.mdx) guide for more details.
 To retrieve credentials for a database and connect to it:
 
 ```code
-$ tsh db connect example
+$ tsh db connect example-mysql
 ```
 
 You can optionally specify the database name and the user to use by default
 when connecting to the database instance:
 
 ```code
-$ tsh db connect --db-user=root --db-name=mysql example
+$ tsh db connect --db-user=root --db-name=mysql example-mysql
 ```
 
 <Admonition type="note" title="Note">
@@ -284,7 +209,7 @@ To log out of the database and remove credentials:
 
 ```code
 # Remove credentials for a particular database instance.
-$ tsh db logout example
+$ tsh db logout example-mysql
 # Remove credentials for all database instances.
 $ tsh db logout
 ```

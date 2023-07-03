@@ -489,6 +489,10 @@ const (
 	// a generic request.
 	DatabaseSessionElasticsearchRequestEvent = "db.session.elasticsearch.request"
 
+	// DatabaseSessionOpenSearchRequestEvent is emitted when OpenSearch client sends
+	// a request.
+	DatabaseSessionOpenSearchRequestEvent = "db.session.opensearch.request"
+
 	// DatabaseSessionDynamoDBRequestEvent is emitted when DynamoDB client sends
 	// a request via database-access.
 	DatabaseSessionDynamoDBRequestEvent = "db.session.dynamodb.request"
@@ -586,7 +590,30 @@ const (
 	SSMRunEvent = "ssm.run"
 
 	// DeviceEvent is the catch-all event for Device Trust events.
+	// Deprecated: Use one of the more specific event codes below.
 	DeviceEvent = "device"
+	// DeviceCreateEvent is emitted on device registration.
+	// This is an inventory management event.
+	DeviceCreateEvent = "device.create"
+	// DeviceDeleteEvent is emitted on device deletion.
+	// This is an inventory management event.
+	DeviceDeleteEvent = "device.delete"
+	// DeviceUpdateEvent is emitted on device updates.
+	// This is an inventory management event.
+	DeviceUpdateEvent = "device.update"
+	// DeviceEnrollEvent is emitted when a device is enrolled.
+	// Enrollment events are issued due to end-user action, using the trusted
+	// device itself.
+	DeviceEnrollEvent = "device.enroll"
+	// DeviceAuthenticateEvent is emitted when a device is authenticated.
+	// Authentication events are issued due to end-user action, using the trusted
+	// device itself.
+	DeviceAuthenticateEvent = "device.authenticate"
+	// DeviceEnrollTokenCreateEvent is emitted when a new enrollment token is
+	// issued for a device.
+	// Device enroll tokens are issued by either a device admin or during
+	// client-side auto-enrollment.
+	DeviceEnrollTokenCreateEvent = "device.token.create"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
@@ -612,6 +639,21 @@ const (
 
 	// SAMLIdPServiceProviderDeleteAllEvent is emitted when all service providers have been deleted.
 	SAMLIdPServiceProviderDeleteAllEvent = "saml.idp.service.provider.delete_all"
+
+	// OktaGroupsUpdate event is emitted when the groups synced from Okta have been updated.
+	OktaGroupsUpdateEvent = "okta.groups.update"
+
+	// OktaApplicationsUpdateEvent is emitted when the applications synced from Okta have been updated.
+	OktaApplicationsUpdateEvent = "okta.applications.update"
+
+	// OktaSyncFailureEvent is emitted when the Okta synchronization fails.
+	OktaSyncFailureEvent = "okta.sync.failure"
+
+	// OktaAssignmentProcessEvent is emitted when an assignment is processed.
+	OktaAssignmentProcessEvent = "okta.assignment.process"
+
+	// OktaAssignmentCleanupEvent is emitted when an assignment is cleaned up.
+	OktaAssignmentCleanupEvent = "okta.assignment.cleanup"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent
@@ -799,6 +841,42 @@ type SessionStreamer interface {
 	StreamSessionEvents(ctx context.Context, sessionID session.ID, startIndex int64) (chan apievents.AuditEvent, chan error)
 }
 
+type SearchEventsRequest struct {
+	// From is oldest date of returned events, can be zero.
+	From time.Time
+	// To is the newest date of returned events.
+	To time.Time
+	// EventTypes is optional, if not set, returns all events.
+	EventTypes []string
+	// Limit is the maximum amount of events returned.
+	Limit int
+	// Order specifies an ascending or descending order of events.
+	Order types.EventOrder
+	// StartKey is used to resume a query in order to enable pagination.
+	// If the previous response had LastKey set then this should be
+	// set to its value. Otherwise leave empty.
+	StartKey string
+}
+
+type SearchSessionEventsRequest struct {
+	// From is oldest date of returned events, can be zero.
+	From time.Time
+	// To is the newest date of returned events.
+	To time.Time
+	// Limit is the maximum amount of events returned.
+	Limit int
+	// Order specifies an ascending or descending order of events.
+	Order types.EventOrder
+	// StartKey is used to resume a query in order to enable pagination.
+	// If the previous response had LastKey set then this should be
+	// set to its value. Otherwise leave empty.
+	StartKey string
+	// Cond can be used to pass additional expression to query, can be empty.
+	Cond *types.WhereExpr
+	// SessionID is optional parameter to return session events only to given session.
+	SessionID string
+}
+
 // AuditLogger defines which methods need to implemented by audit loggers.
 type AuditLogger interface {
 	// Closer releases connection and resources associated with log if any
@@ -815,7 +893,7 @@ type AuditLogger interface {
 	// The only mandatory requirement is a date range (UTC).
 	//
 	// This function may never return more than 1 MiB of event data.
-	SearchEvents(fromUTC, toUTC time.Time, namespace string, eventTypes []string, limit int, order types.EventOrder, startKey string) ([]apievents.AuditEvent, string, error)
+	SearchEvents(ctx context.Context, req SearchEventsRequest) ([]apievents.AuditEvent, string, error)
 
 	// SearchSessionEvents is a flexible way to find session events.
 	// Only session.end events are returned by this function.
@@ -825,7 +903,7 @@ type AuditLogger interface {
 	// a query to be resumed.
 	//
 	// This function may never return more than 1 MiB of event data.
-	SearchSessionEvents(fromUTC, toUTC time.Time, limit int, order types.EventOrder, startKey string, cond *types.WhereExpr, sessionID string) ([]apievents.AuditEvent, string, error)
+	SearchSessionEvents(ctx context.Context, req SearchSessionEventsRequest) ([]apievents.AuditEvent, string, error)
 }
 
 // EventFields instance is attached to every logged event

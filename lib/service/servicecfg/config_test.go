@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/backend/lite"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/fixtures"
@@ -476,23 +477,23 @@ func TestHostLabelMatching(t *testing.T) {
 
 func TestValidateConfig(t *testing.T) {
 	tests := []struct {
-		desc   string
-		config *Config
-		err    string
+		desc    string
+		config  *Config
+		wantErr string
 	}{
 		{
 			desc: "invalid version",
 			config: &Config{
 				Version: "v1.1",
 			},
-			err: fmt.Sprintf("version must be one of %s", strings.Join(defaults.TeleportConfigVersions, ", ")),
+			wantErr: fmt.Sprintf("version must be one of %s", strings.Join(defaults.TeleportConfigVersions, ", ")),
 		},
 		{
 			desc: "no service enabled",
 			config: &Config{
 				Version: defaults.TeleportConfigVersionV2,
 			},
-			err: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, or okta_service",
+			wantErr: "config: enable at least one of auth_service, ssh_service, proxy_service, app_service, database_service, kubernetes_service, windows_desktop_service, discovery_service, okta_service ",
 		},
 		{
 			desc: "no auth_servers or proxy_server specified",
@@ -502,7 +503,7 @@ func TestValidateConfig(t *testing.T) {
 					Enabled: true,
 				},
 			},
-			err: "config: auth_server or proxy_server is required",
+			wantErr: "config: auth_server or proxy_server is required",
 		},
 		{
 			desc: "no auth_servers specified",
@@ -512,7 +513,7 @@ func TestValidateConfig(t *testing.T) {
 					Enabled: true,
 				},
 			},
-			err: "config: auth_servers is required",
+			wantErr: "config: auth_servers is required",
 		},
 		{
 			desc: "specifying proxy_server with the wrong config version",
@@ -523,7 +524,7 @@ func TestValidateConfig(t *testing.T) {
 				},
 				ProxyServer: *utils.MustParseAddr("0.0.0.0"),
 			},
-			err: "config: proxy_server is supported from config version v3 onwards",
+			wantErr: "config: proxy_server is supported from config version v3 onwards",
 		},
 		{
 			desc: "specifying auth_server when app_service is enabled",
@@ -535,7 +536,7 @@ func TestValidateConfig(t *testing.T) {
 				DataDir:     "/",
 				authServers: []utils.NetAddr{*utils.MustParseAddr("0.0.0.0")},
 			},
-			err: "config: when app_service is enabled, proxy_server must be specified instead of auth_server",
+			wantErr: "config: when app_service is enabled, proxy_server must be specified instead of auth_server",
 		},
 		{
 			desc: "specifying auth_server when db_service is enabled",
@@ -547,17 +548,17 @@ func TestValidateConfig(t *testing.T) {
 				DataDir:     "/",
 				authServers: []utils.NetAddr{*utils.MustParseAddr("0.0.0.0")},
 			},
-			err: "config: when db_service is enabled, proxy_server must be specified instead of auth_server",
+			wantErr: "config: when db_service is enabled, proxy_server must be specified instead of auth_server",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			err := ValidateConfig(test.config)
-			if test.err == "" {
+			if test.wantErr == "" {
 				require.NoError(t, err)
 			} else {
-				require.EqualError(t, err, test.err)
+				require.ErrorContains(t, err, test.wantErr)
 			}
 		})
 	}
@@ -615,10 +616,24 @@ func TestVerifyEnabledService(t *testing.T) {
 			errAssertionFunc: require.NoError,
 		},
 		{
+			desc: "jamf enabled",
+			config: &Config{
+				Jamf: JamfConfig{
+					Spec: &types.JamfSpecV1{
+						Enabled:     true,
+						ApiEndpoint: "https://example.jamfcloud.com",
+						Username:    "llama",
+						Password:    "supersecret!!1!ONE",
+					},
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
 			desc:   "nothing enabled",
 			config: &Config{},
-			errAssertionFunc: func(tt require.TestingT, err error, i ...interface{}) {
-				require.True(t, trace.IsBadParameter(err))
+			errAssertionFunc: func(t require.TestingT, err error, _ ...interface{}) {
+				require.True(t, trace.IsBadParameter(err), "err is not a BadParameter error: %T", err)
 			},
 		},
 	}
@@ -626,6 +641,49 @@ func TestVerifyEnabledService(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
 			test.errAssertionFunc(t, verifyEnabledService(test.config))
+		})
+	}
+}
+
+func TestWebPublicAddr(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   ProxyConfig
+		expected string
+	}{
+		{
+			name:     "no public address specified",
+			expected: "https://<proxyhost>:3080",
+		},
+		{
+			name: "default port",
+			config: ProxyConfig{
+				PublicAddrs: []utils.NetAddr{
+					{Addr: "0.0.0.0", AddrNetwork: "tcp"},
+				},
+			},
+			expected: "https://0.0.0.0:3080",
+		},
+		{
+			name: "non-default port",
+			config: ProxyConfig{
+				PublicAddrs: []utils.NetAddr{
+					{Addr: "0.0.0.0:443", AddrNetwork: "tcp"},
+				},
+			},
+			expected: "https://0.0.0.0:443",
+		},
+	}
+
+	for _, test := range tests {
+		test := test
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, err := test.config.WebPublicAddr()
+			require.NoError(t, err)
+
+			require.Equal(t, test.expected, out)
 		})
 	}
 }

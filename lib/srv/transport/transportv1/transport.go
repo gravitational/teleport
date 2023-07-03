@@ -18,17 +18,18 @@ import (
 	"context"
 	"io"
 	"net"
+	"net/netip"
 	"sync"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
-	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
 
 	transportv1pb "github.com/gravitational/teleport/api/gen/proto/go/teleport/transport/v1"
 	streamutils "github.com/gravitational/teleport/api/utils/grpc/stream"
+	"github.com/gravitational/teleport/lib/agentless"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
@@ -39,13 +40,13 @@ import (
 // Dialer is the interface that groups basic dialing methods.
 type Dialer interface {
 	DialSite(ctx context.Context, cluster string, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error)
-	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer func(context.Context) (ssh.Signer, error)) (_ net.Conn, teleportVersion string, err error)
+	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error)
 }
 
-// ConnMonitor monitors authorized connnections and terminates them when
+// ConnectionMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnectionMonitor interface {
-	MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, error)
+	MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ServerConfig holds creation parameters for Service.
@@ -58,7 +59,7 @@ type ServerConfig struct {
 	// Dialer is used to establish remote connections.
 	Dialer Dialer
 	// SignerFn is used to create an [ssh.Signer] for an authenticated connection.
-	SignerFn func(authzCtx *authz.Context) func(context.Context) (ssh.Signer, error)
+	SignerFn func(authzCtx *authz.Context, clusterName string) agentless.SignerCreator
 	// ConnectionMonitor is used to monitor the connection for activity and terminate it
 	// when conditions are met.
 	ConnectionMonitor ConnectionMonitor
@@ -146,7 +147,12 @@ func (s *Service) ProxyCluster(stream transportv1pb.TransportService_ProxyCluste
 		return trace.BadParameter("unable to find peer")
 	}
 
-	conn, err := s.cfg.Dialer.DialSite(ctx, req.Cluster, p.Addr, s.cfg.LocalAddr)
+	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
+	if err != nil {
+		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+	}
+
+	conn, err := s.cfg.Dialer.DialSite(ctx, req.Cluster, p.Addr, clientDst)
 	if err != nil {
 		return trace.Wrap(err, "failed dialing cluster %q", req.Cluster)
 	}
@@ -267,8 +273,13 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 		return trace.Wrap(err, "failed constructing ssh streamer")
 	}
 
-	signer := s.cfg.SignerFn(authzContext)
-	hostConn, _, err := s.cfg.Dialer.DialHost(ctx, p.Addr, s.cfg.LocalAddr, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
+	clientDst, err := getDestinationAddress(p.Addr, s.cfg.LocalAddr)
+	if err != nil {
+		return trace.Wrap(err, "could get not client destination address; listener address %q, client source address %q", s.cfg.LocalAddr.String(), p.Addr.String())
+	}
+
+	signer := s.cfg.SignerFn(authzContext, req.DialTarget.Cluster)
+	hostConn, _, err := s.cfg.Dialer.DialHost(ctx, p.Addr, clientDst, host, port, req.DialTarget.Cluster, authzContext.Checker, s.cfg.agentGetterFn(agentStreamRW), signer)
 	if err != nil {
 		return trace.Wrap(err, "failed to dial target host")
 	}
@@ -285,8 +296,8 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	// monitor the user connection
-	userConn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
-	monitorCtx, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, userConn)
+	conn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
+	monitorCtx, userConn, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -301,6 +312,38 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 
 	// copy data to/from the host/user
 	return trace.Wrap(utils.ProxyConn(monitorCtx, hostConn, userConn))
+}
+
+// getDestinationAddress is used to get client destination for connection coming from gRPC. We don't have a way to get
+// real connection dst address, but we rely on listener address to be that. Returned IP version always have to match
+// IP version of src address. If IP versions don't match or if listener is unspecified address we return loopback.
+func getDestinationAddress(clientSrc, listenerAddr net.Addr) (net.Addr, error) {
+	la, err := netip.ParseAddrPort(listenerAddr.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	ca, err := netip.ParseAddrPort(clientSrc.String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// If listener address is specified and matches IP version of source address, we just return it
+	if !la.Addr().IsUnspecified() && la.Addr().Is4() == ca.Addr().Is4() {
+		return listenerAddr, nil
+	}
+
+	// Otherwise we return loopback with matching IP version of source address
+	if ca.Addr().Is4() {
+		return &net.TCPAddr{
+			IP:   net.ParseIP("127.0.0.1"),
+			Port: int(la.Port()),
+		}, nil
+	}
+
+	return &net.TCPAddr{
+		IP:   net.IPv6loopback,
+		Port: int(la.Port()),
+	}, nil
 }
 
 // sshStream implements the [streamutils.Source] interface

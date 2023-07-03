@@ -55,7 +55,10 @@ export const InitWithLabels = () => {
         {...props}
         agentMeta={{
           ...props.agentMeta,
-          agentMatcherLabels: [{ name: 'env', value: 'prod' }],
+          agentMatcherLabels: [
+            { name: 'env', value: 'staging' },
+            { name: 'os', value: 'windows' },
+          ],
         }}
       />
     </Provider>

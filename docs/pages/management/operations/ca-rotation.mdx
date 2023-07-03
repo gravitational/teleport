@@ -9,13 +9,15 @@ description: How to rotate Teleport's certificate authority
 
 - (!docs/pages/includes/tctl.mdx!)
 
-## Certificate Authority rotation
+## Certificate authority rotation
 
-This section will show you how to implement certificate rotation in practice.
+This section will show you how to rotate Teleport's certificate authority.
 
-If you are using [CA Pinning](../admin/adding-nodes.mdx#obtain-a-ca-pin)
-when adding new nodes, the CA pin will change after the rotation. Make sure you
-use the *new* CA pin when adding nodes after rotation.
+If you are joining Teleport processes to a cluster via the Teleport Auth Service
+using a [join token](../../agents/join-services-to-your-cluster/join-token.mdx), each
+Teleport process will need a CA pin to trust the Auth Service. The CA pin will
+change after each CA rotation. Make sure you use the *new* CA pin when adding
+Teleport services after rotation.
 
 <Admonition type="warning" title="Desktop Access">
 Teleport signs Windows Desktop certificates with the user certificate authority.

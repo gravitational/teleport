@@ -33,7 +33,6 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/client/proto"
-	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apiutils "github.com/gravitational/teleport/api/utils"
@@ -42,7 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/limiter"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/srv/db/common"
 	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
@@ -68,10 +67,10 @@ type ProxyServer struct {
 	log logrus.FieldLogger
 }
 
-// ConnMonitor monitors authorized connnections and terminates them when
+// ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error)
+	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ProxyServerConfig is the proxy configuration.
@@ -83,7 +82,7 @@ type ProxyServerConfig struct {
 	// Authorizer is responsible for authorizing user identities.
 	Authorizer authz.Authorizer
 	// Tunnel is the reverse tunnel server.
-	Tunnel reversetunnel.Server
+	Tunnel reversetunnelclient.Server
 	// TLSConfig is the proxy server TLS configuration.
 	TLSConfig *tls.Config
 	// Limiter is the connection/rate limiter.
@@ -93,6 +92,8 @@ type ProxyServerConfig struct {
 	// ConnectionMonitor monitors and closes connections if session controls
 	// prevent the connections.
 	ConnectionMonitor ConnMonitor
+	// MySQLServerVersion  allows to override the default MySQL Engine Version propagated by Teleport Proxy.
+	MySQLServerVersion string
 }
 
 // ShuffleFunc defines a function that shuffles a list of database servers.
@@ -402,6 +403,7 @@ func (s *ProxyServer) MySQLProxy() *mysql.Proxy {
 		Limiter:         s.cfg.Limiter,
 		Log:             s.log,
 		IngressReporter: s.cfg.IngressReporter,
+		ServerVersion:   s.cfg.MySQLServerVersion,
 	}
 }
 
@@ -443,9 +445,9 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 			return nil, trace.Wrap(err)
 		}
 
-		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnel.DialParams{
+		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnelclient.DialParams{
 			From:                  clientSrcAddr,
-			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnelclient.LocalNode},
 			OriginalClientDstAddr: clientDstAddr,
 			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
 			ConnType:              types.DatabaseTunnel,
@@ -472,7 +474,7 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 // the reverse tunnel connection is down e.g. because the agent is down.
 func isReverseTunnelDownError(err error) bool {
 	return trace.IsConnectionProblem(err) ||
-		strings.Contains(err.Error(), reversetunnel.NoDatabaseTunnel)
+		strings.Contains(err.Error(), reversetunnelclient.NoDatabaseTunnel)
 }
 
 // Proxy starts proxying all traffic received from database client between
@@ -482,7 +484,8 @@ func isReverseTunnelDownError(err error) bool {
 func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
 	// Wrap a client connection with a monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	ctx, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, proxyCtx.AuthContext, clientConn)
+	var err error
+	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, proxyCtx.AuthContext, clientConn)
 	if err != nil {
 		clientConn.Close()
 		serviceConn.Close()
@@ -503,11 +506,6 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
-
-	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
-	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
-		return nil, trace.Wrap(err)
-	}
 
 	if params.User != "" {
 		identity.RouteToDatabase.Username = params.User
@@ -532,7 +530,7 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 
 // getDatabaseServers finds database servers that proxy the database instance
 // encoded in the provided identity.
-func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Identity) (reversetunnel.RemoteSite, []types.DatabaseServer, error) {
+func (s *ProxyServer) getDatabaseServers(ctx context.Context, identity tlsca.Identity) (reversetunnelclient.RemoteSite, []types.DatabaseServer, error) {
 	cluster, err := s.cfg.Tunnel.GetSite(identity.RouteToCluster)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -578,18 +576,9 @@ func (s *ProxyServer) getConfigForServer(ctx context.Context, identity tlsca.Ide
 		return nil, trace.Wrap(err)
 	}
 
-	// DatabaseCA was introduced in Teleport 10. Older versions require database certificate signed
-	// with UserCA where Teleport 10+ uses DatabaseCA.
-	ver10orAbove, err := utils.MinVerWithoutPreRelease(server.GetTeleportVersion(), constants.DatabaseCAMinVersion)
-	if err != nil {
-		return nil, trace.Wrap(err, "failed to parse Teleport version: %q", server.GetTeleportVersion())
-	}
-
 	response, err := s.cfg.AuthClient.SignDatabaseCSR(ctx, &proto.DatabaseCSRRequest{
 		CSR:         csr,
 		ClusterName: identity.RouteToCluster,
-		// TODO: Remove in Teleport 11.
-		SignWithDatabaseCA: ver10orAbove,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)

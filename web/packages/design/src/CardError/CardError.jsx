@@ -23,8 +23,8 @@ import { Text, Alert, Card } from 'design';
 export default function CardError(props) {
   return (
     <Card
-      color="text.primaryInverse"
-      bg="light"
+      color="text.main"
+      bg="levels.elevated"
       width="540px"
       mx="auto"
       my={6}
@@ -110,5 +110,5 @@ LoginFailed.propTypes = {
 };
 
 const HyperLink = styled.a`
-  color: ${({ theme }) => theme.colors.link};
+  color: ${({ theme }) => theme.colors.buttons.link.default};
 `;

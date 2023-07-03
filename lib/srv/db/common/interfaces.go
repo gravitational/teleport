@@ -22,7 +22,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/authz"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
 )
@@ -59,7 +59,7 @@ type ProxyContext struct {
 	// Identity is the authorized client Identity.
 	Identity tlsca.Identity
 	// Cluster is the remote Cluster running the database server.
-	Cluster reversetunnel.RemoteSite
+	Cluster reversetunnelclient.RemoteSite
 	// Servers is a list of database Servers that proxy the requested database.
 	Servers []types.DatabaseServer
 	// AuthContext is a context of authenticated user.
@@ -83,4 +83,13 @@ type Engine interface {
 // Users defines an interface for managing database users.
 type Users interface {
 	GetPassword(ctx context.Context, database types.Database, userName string) (string, error)
+}
+
+// AutoUsers defines an interface for automatic user provisioning
+// a particular database engine should implement.
+type AutoUsers interface {
+	// ActivateUser creates or enables a database user.
+	ActivateUser(context.Context, *Session) error
+	// DeactivateUser disables a database user.
+	DeactivateUser(context.Context, *Session) error
 }

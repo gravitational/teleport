@@ -18,6 +18,8 @@ import { ResourceKind } from '../Shared/ResourceKind';
 
 import type { DiscoverEventResource } from 'teleport/services/userEvent';
 
+import type { ResourceIconName } from './icons';
+
 export enum DatabaseLocation {
   Aws,
   SelfHosted,
@@ -31,7 +33,9 @@ export enum DatabaseLocation {
 // DatabaseEngine represents the db "protocol".
 export enum DatabaseEngine {
   Postgres,
+  AuroraPostgres,
   MySql,
+  AuroraMysql,
   MongoDb,
   Redis,
   CoackroachDb,
@@ -50,7 +54,7 @@ export interface ResourceSpec {
   name: string;
   popular?: boolean;
   kind: ResourceKind;
-  Icon: React.ReactElement;
+  icon: ResourceIconName;
   // keywords are filter words that user may use to search for
   // this resource.
   keywords: string;
@@ -61,6 +65,9 @@ export interface ResourceSpec {
   // It is used as a flag, that when defined, means that
   // this resource is not "guided" (has no UI interactive flow).
   unguidedLink?: string;
+  // isDialog is whether or not the flow for this resource is a popover dialog as opposed to a Discover flow.
+  // This is the case for the 'Application' resource.
+  isDialog?: boolean;
   // event is the expected backend enum event name that describes
   // the type of this resource (eg. server v. kubernetes),
   // used for usage reporting.

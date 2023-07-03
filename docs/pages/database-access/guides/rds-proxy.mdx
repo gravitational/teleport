@@ -1,6 +1,6 @@
 ---
 title: Database Access with AWS RDS Proxy
-description: How to configure Teleport Database Access with AWS RDS Proxy.
+description: How to configure Teleport database access with AWS RDS Proxy.
 ---
 
 This guide will help you to set up Teleport to access your AWS RDS proxies.
@@ -30,6 +30,8 @@ Teleport currently supports RDS Proxy instances with engine family
 ## Step 1/5. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
 Install Teleport on the host where you will run the Teleport Database Service:
 
@@ -106,7 +108,8 @@ example:
                 "arn:aws:secretsmanager:us-west-1:account_id:secret:rdsproxy_anotheruser"
             ]
         },
-        {
+        {   
+            "Effect": "Allow",
             "Action": "kms:Decrypt",
             "Resource": "arn:aws:kms:us-west-1:account_id:key/key_id",
             "Condition": {

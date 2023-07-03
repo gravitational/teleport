@@ -27,37 +27,16 @@ UI).
 WebAuthn is disabled by default. To enable WebAuthn support, update your
 Teleport configuration as below:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
 <Tabs>
-  <TabItem label="Static Config">
-    Auth Server `teleport.yaml` file:
+  <TabItem label="Dynamic resources" scope={["oss", "enterprise", "cloud"]}>
 
-    ```yaml
-    # snippet from /etc/teleport.yaml:
-    auth_service:
-      authentication:
-        type: local
-        # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-        second_factor: on
-        webauthn:
-          rp_id: example.com
-          attestation_allowed_cas:
-          - "/path/to/allowed_ca.pem"
-          attestation_denied_cas:
-          - "/path/to/denied_ca.pem"
-    ```
-  </TabItem>
-  <TabItem label="Dynamic resources">
-
-  Obtain your existing `cluster_auth_preference` resource:
+  Edit the `cluster_auth_preference` resource:
 
   ```code
-  $ tctl get cap > cap.yaml
+  $ tctl edit cap
   ```
 
-  If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
-  Ensure that `cap.yaml` includes the following content:
+ Update the `cluster_auth_preference` definition to include the following content:
 
   ```yaml
   kind: cluster_auth_preference
@@ -69,66 +48,78 @@ Teleport configuration as below:
     # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
     second_factor: "on"
     webauthn:
+      # Required, replace with proxy web address (example.com, mytenant.teleport.sh).
+      # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
+      # (https://) and port number.
       rp_id: example.com
+      # Optional, attestation_allowed_cas is an optional allow list
+      # of certificate authorities.
       attestation_allowed_cas:
+      # Entries can be paths to certificate files:
       - "/path/to/allowed_ca.pem"
+      # Entries can also be inline certificates:
+      - |
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
+      # Optional, attestation_denied_cas is an optional deny list
+      # of certificate authorities.
       attestation_denied_cas:
+      # Entries can be paths to certificate files:
       - "/path/to/denied_ca.pem"
+      # Entries can also be inline certificates:
+      - |
+        -----BEGIN CERTIFICATE-----
+        ...
+        -----END CERTIFICATE-----
   ```
 
-  Update the configuration:
+  Save and exit the file. `tctl` will update the remote definition:
 
-  ```code
-  $ tctl create -f cap.yaml
-  # cluster auth preference has been updated
+  ```text
+  cluster auth preference has been updated
+  ```
+
+  </TabItem>
+  <TabItem label="Static Config" scope={["oss", "enterprise"]}>
+  Edit the Auth Server's `teleport.yaml` file and restart all Auth Services:
+
+  ```yaml
+  # snippet from /etc/teleport.yaml:
+  auth_service:
+    authentication:
+      type: local
+      # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
+      second_factor: on
+      webauthn:
+        # Required, replace with proxy web address (example.com, mytenant.teleport.sh).
+        # rp_id is the public domain of the Teleport Proxy Service, *excluding* protocol
+        # (https://) and port number.
+        rp_id: example.com
+        # Optional, attestation_allowed_cas is an optional allow list
+        # of certificate authorities.
+        attestation_allowed_cas:
+        # Entries can be paths to certificate files:
+        - "/path/to/allowed_ca.pem"
+        # Entries can also be inline certificates:
+        - |
+          -----BEGIN CERTIFICATE-----
+          ...
+          -----END CERTIFICATE-----
+        # Optional, attestation_denied_cas is an optional deny list
+        # of certificate authorities.
+        attestation_denied_cas:
+        # Entries can be paths to certificate files:
+        - "/path/to/denied_ca.pem"
+        # Entries can also be inline certificates:
+        - |
+          -----BEGIN CERTIFICATE-----
+          ...
+          -----END CERTIFICATE-----
   ```
 
   </TabItem>
 </Tabs>
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud"]}>
-
-Obtain your existing `cluster_auth_preference` resource:
-
-```code
-$ tctl get cap > cap.yaml
-```
-
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
-Ensure that `cap.yaml` includes the following content:
-
-```yaml
-kind: cluster_auth_preference
-version: v2
-metadata:
-  name: cluster-auth-preference
-spec:
-  type: local
-  # To enable WebAuthn support, set this field to 'on', 'optional' or 'webauthn'
-  second_factor: "on"
-  webauthn:
-    rp_id: example.com
-    attestation_allowed_cas:
-    - |
-      -----BEGIN CERTIFICATE-----
-      ...
-      -----END CERTIFICATE-----
-    attestation_denied_cas:
-    - |
-      -----BEGIN CERTIFICATE-----
-      ...
-      -----END CERTIFICATE-----
-```
-
-Update the configuration:
-
-```code
-$ tctl create -f cap.yaml
-# cluster auth preference has been updated
-```
-</ScopedBlock>
 
 <Details
   title="Using U2F?"
@@ -136,6 +127,8 @@ $ tctl create -f cap.yaml
 >
   Starting on Teleport v10, WebAuthn replaces U2F. See the [U2F](#u2f) section.
 </Details>
+
+### `webauthn` fields definitions
 
 `rp_id` is the public domain of the Teleport Proxy Service, *excluding* protocol
   (`https://`) and port number.
@@ -186,7 +179,8 @@ Reference](../../reference/cli.mdx#tsh-global-flags) page.
 
 Once a WebAuthn device is registered, the user will be prompted for it on login:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["oss"]}>
+
 ```code
 $ tsh login --proxy=example.com
 # Enter password for Teleport user codingllama:
@@ -200,9 +194,29 @@ $ tsh login --proxy=example.com
 #   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
 #   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
+
+</ScopedBlock>
+
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ tsh login --proxy=example.com
+# Enter password for Teleport user codingllama:
+# Tap any security key or enter a code from a OTP device:
+# > Profile URL:        https://example.com
+#   Logged in as:       codingllama
+#   Cluster:            example.com
+#   Roles:              access, editor, reviewer
+#   Logins:             codingllama
+#   Kubernetes:         enabled
+#   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
+#   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
 </ScopedBlock>
 
 <ScopedBlock scope={["cloud"]}>
+
 ```code
 $ tsh login --proxy=mytenant.teleport.sh
 # Enter password for Teleport user codingllama:
@@ -210,12 +224,13 @@ $ tsh login --proxy=mytenant.teleport.sh
 # > Profile URL:        https://mytenant.teleport.sh
 #   Logged in as:       codingllama
 #   Cluster:            mytenant.teleport.sh
-#   Roles:              access, editor
+#   Roles:              access, editor, reviewer
 #   Logins:             codingllama
 #   Kubernetes:         enabled
 #   Valid until:        2021-10-04 23:32:29 -0700 PDT [valid for 12h0m0s]
 #   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
+
 </ScopedBlock>
 
 <Admonition type="note">
@@ -260,6 +275,7 @@ The migrated WebAuthn configuration is:
 <ScopedBlock scope={["oss", "enterprise"]}>
 <Tabs>
   <TabItem label="Static Config">
+
     ```yaml
     # snippet from /etc/teleport.yaml:
     auth_service:
@@ -276,8 +292,10 @@ The migrated WebAuthn configuration is:
           attestation_allowed_cas:
           - "/path/to/u2f_attestation_ca.pem"
     ```
+
   </TabItem>
   <TabItem label="Dynamic resources">
+
     ```yaml
     kind: cluster_auth_preference
     version: v2
@@ -296,11 +314,13 @@ The migrated WebAuthn configuration is:
         attestation_allowed_cas:
         - "/path/to/u2f_attestation_ca.pem"
     ```
+
   </TabItem>
 </Tabs>
 </ScopedBlock>
 
 <ScopedBlock scope={["cloud"]}>
+
 ```yaml
 kind: cluster_auth_preference
 version: v2
@@ -319,6 +339,7 @@ spec:
     attestation_allowed_cas:
     - "/path/to/u2f_attestation_ca.pem"
 ```
+
 </ScopedBlock>
 
 ## Next steps

@@ -15,14 +15,34 @@
 package athena
 
 import (
+	"context"
+	"errors"
+	"io"
 	"net/url"
+	"os"
+	"sort"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
+
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/backend"
+	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/utils"
 )
+
+func TestMain(m *testing.M) {
+	utils.InitLoggerForTests()
+	os.Exit(m.Run())
+}
 
 func TestConfig_SetFromURL(t *testing.T) {
 	tests := []struct {
@@ -54,12 +74,13 @@ func TestConfig_SetFromURL(t *testing.T) {
 		},
 		{
 			name: "params to querier - part 2",
-			url:  "athena://db.tbl/?getQueryResultsInterval=200ms&limiterRate=0.642&limiterBurst=3",
+			url:  "athena://db.tbl/?getQueryResultsInterval=200ms&limiterRefillAmount=2&&limiterRefillTime=2s&limiterBurst=3",
 			want: Config{
 				TableName:               "tbl",
 				Database:                "db",
 				GetQueryResultsInterval: 200 * time.Millisecond,
-				LimiterRate:             0.642,
+				LimiterRefillAmount:     2,
+				LimiterRefillTime:       2 * time.Second,
 				LimiterBurst:            3,
 			},
 		},
@@ -80,9 +101,9 @@ func TestConfig_SetFromURL(t *testing.T) {
 			wantErr: "invalid athena address, supported format is 'athena://database.table'",
 		},
 		{
-			name:    "invalid limiterRate format",
-			url:     "athena://db.tbl/?limiterRate=abc",
-			wantErr: "invalid limiterRate value (it must be float32)",
+			name:    "invalid limiterRefillAmount format",
+			url:     "athena://db.tbl/?limiterRefillAmount=abc",
+			wantErr: "invalid limiterRefillAmount value (it must be int)",
 		},
 	}
 	for _, tt := range tests {
@@ -93,7 +114,7 @@ func TestConfig_SetFromURL(t *testing.T) {
 			err = cfg.SetFromURL(u)
 			if tt.wantErr == "" {
 				require.NoError(t, err, "SetFromURL return unexpected err")
-				require.Empty(t, cmp.Diff(tt.want, *cfg, cmpopts.EquateApprox(0, 0.0001)))
+				require.Empty(t, cmp.Diff(tt.want, *cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreUnexported(Config{})))
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}
@@ -102,6 +123,10 @@ func TestConfig_SetFromURL(t *testing.T) {
 }
 
 func TestConfig_CheckAndSetDefaults(t *testing.T) {
+	type mockBackend struct {
+		backend.Backend
+	}
+
 	validConfig := Config{
 		Database:      "db",
 		TableName:     "tbl",
@@ -109,6 +134,8 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 		LargeEventsS3: "s3://large-payloads-bucket",
 		LocationS3:    "s3://events-bucket",
 		QueueURL:      "https://queue-url",
+		AWSConfig:     &aws.Config{},
+		Backend:       mockBackend{},
 	}
 	tests := []struct {
 		name    string
@@ -126,11 +153,42 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				TableName:               "tbl",
 				TopicARN:                "arn:topic",
 				LargeEventsS3:           "s3://large-payloads-bucket",
+				largeEventsBucket:       "large-payloads-bucket",
 				LocationS3:              "s3://events-bucket",
+				locationS3Bucket:        "events-bucket",
 				QueueURL:                "https://queue-url",
 				GetQueryResultsInterval: 100 * time.Millisecond,
 				BatchMaxItems:           20000,
 				BatchMaxInterval:        1 * time.Minute,
+				AWSConfig:               &aws.Config{},
+				Backend:                 mockBackend{},
+			},
+		},
+		{
+			name: "valid config with limiter, check defaults refillTime",
+			input: func() Config {
+				cfg := validConfig
+				cfg.LimiterBurst = 10
+				cfg.LimiterRefillAmount = 5
+				return cfg
+			},
+			want: Config{
+				Database:                "db",
+				TableName:               "tbl",
+				TopicARN:                "arn:topic",
+				LargeEventsS3:           "s3://large-payloads-bucket",
+				largeEventsBucket:       "large-payloads-bucket",
+				LocationS3:              "s3://events-bucket",
+				locationS3Bucket:        "events-bucket",
+				QueueURL:                "https://queue-url",
+				GetQueryResultsInterval: 100 * time.Millisecond,
+				BatchMaxItems:           20000,
+				BatchMaxInterval:        1 * time.Minute,
+				AWSConfig:               &aws.Config{},
+				Backend:                 mockBackend{},
+				LimiterRefillTime:       1 * time.Second,
+				LimiterBurst:            10,
+				LimiterRefillAmount:     5,
 			},
 		},
 		{
@@ -176,7 +234,7 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 				cfg.LocationS3 = "https://abc"
 				return cfg
 			},
-			wantErr: "LocationS3 must be valid url and start with s3",
+			wantErr: "LocationS3 must starts with s3://",
 		},
 		{
 			name: "missing QueueURL",
@@ -197,36 +255,146 @@ func TestConfig_CheckAndSetDefaults(t *testing.T) {
 			wantErr: "QueueURL must be valid url and start with https",
 		},
 		{
-			name: "invalid LimiterBurst and LimiterRate combination",
+			name: "invalid LimiterBurst and LimiterRefillAmount combination",
 			input: func() Config {
 				cfg := validConfig
 				cfg.LimiterBurst = 0
-				cfg.LimiterRate = 2.5
+				cfg.LimiterRefillAmount = 2
 				return cfg
 			},
-			wantErr: "LimiterBurst must be greater than 0 if LimiterRate is used",
+			wantErr: "LimiterBurst must be greater than 0 if LimiterRefillAmount is used",
 		},
 		{
-			name: "invalid LimiterRate and LimiterBurst combination",
+			name: "invalid LimiterRefillAmount and LimiterBurst combination",
 			input: func() Config {
 				cfg := validConfig
 				cfg.LimiterBurst = 3
-				cfg.LimiterRate = 0
+				cfg.LimiterRefillAmount = 0
 				return cfg
 			},
-			wantErr: "LimiterRate must be greater than 0 if LimiterBurst is used",
+			wantErr: "LimiterRefillAmount must be greater than 0 if LimiterBurst is used",
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := tt.input()
-			err := cfg.CheckAndSetDefaults()
+			err := cfg.CheckAndSetDefaults(context.Background())
 			if tt.wantErr == "" {
 				require.NoError(t, err, "CheckAndSetDefaults return unexpected err")
-				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator")))
+				require.Empty(t, cmp.Diff(tt.want, cfg, cmpopts.EquateApprox(0, 0.0001), cmpopts.IgnoreFields(Config{}, "Clock", "UIDGenerator", "LogEntry", "Tracer"), cmp.AllowUnexported(Config{})))
 			} else {
 				require.ErrorContains(t, err, tt.wantErr)
 			}
 		})
 	}
+}
+
+func TestPublisherConsumer(t *testing.T) {
+	fS3 := newFakeS3manager()
+	fq := newFakeQueue()
+	p := &publisher{
+		PublisherConfig: PublisherConfig{
+			SNSPublisher: fq,
+			Uploader:     fS3,
+		},
+	}
+
+	smallEvent := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Now().UTC(),
+			Type: events.AppCreateEvent,
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-small",
+		},
+	}
+
+	largeEvent := &apievents.AppCreate{
+		Metadata: apievents.Metadata{
+			ID:   uuid.NewString(),
+			Time: time.Now().UTC(),
+			Type: events.AppCreateEvent,
+			Code: strings.Repeat("d", 2*maxSNSMessageSize),
+		},
+		AppMetadata: apievents.AppMetadata{
+			AppName: "app-large",
+		},
+	}
+
+	cfg := validCollectCfgForTests(t)
+	cfg.sqsReceiver = fq
+	cfg.payloadDownloader = fS3
+	cfg.batchMaxItems = 2
+	require.NoError(t, cfg.CheckAndSetDefaults())
+	c := newSqsMessagesCollector(cfg)
+
+	eventsChan := c.getEventsChan()
+
+	ctx := context.Background()
+	readSQSCtx, readCancel := context.WithCancel(ctx)
+	defer readCancel()
+
+	go c.fromSQS(readSQSCtx)
+
+	// receiver is used to read messages from eventsChan.
+	r := &receiver{}
+	go r.Do(eventsChan)
+
+	err := p.EmitAuditEvent(ctx, smallEvent)
+	require.NoError(t, err)
+	err = p.EmitAuditEvent(ctx, largeEvent)
+	require.NoError(t, err)
+	require.Eventually(t, func() bool {
+		return len(r.GetMsgs()) == 2
+	}, 200*time.Millisecond, 1*time.Millisecond, "missing events, got %d", len(r.GetMsgs()))
+
+	requireEventsEqualInAnyOrder(t, []apievents.AuditEvent{smallEvent, largeEvent}, eventAndAckIDToAuditEvents(r.GetMsgs()))
+	// S3 for uplodad should be called only once.
+	require.Equal(t, 1, fS3.uploadCount)
+}
+
+// requireEventsEqualInAnyOrder compares slices of auditevents ignoring order.
+// It's useful in tests because consumer does not guarantee order.
+func requireEventsEqualInAnyOrder(t *testing.T, want, got []apievents.AuditEvent) {
+	sort.Slice(want, func(i, j int) bool {
+		return want[i].GetID() < want[j].GetID()
+	})
+	sort.Slice(got, func(i, j int) bool {
+		return got[i].GetID() < got[j].GetID()
+	})
+	require.Empty(t, cmp.Diff(want, got))
+}
+
+type fakeS3manager struct {
+	objects     map[string][]byte
+	uploadCount int
+}
+
+func newFakeS3manager() *fakeS3manager {
+	return &fakeS3manager{
+		objects: map[string][]byte{},
+	}
+}
+
+func (f *fakeS3manager) Upload(ctx context.Context, input *s3.PutObjectInput, opts ...func(*manager.Uploader)) (*manager.UploadOutput, error) {
+	data, err := io.ReadAll(input.Body)
+	if err != nil {
+		return nil, err
+	}
+	f.objects[*input.Key] = data
+	f.uploadCount++
+	return &manager.UploadOutput{Key: input.Key}, nil
+}
+
+func (f *fakeS3manager) Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (int64, error) {
+	data, ok := f.objects[*input.Key]
+	if !ok {
+		return 0, errors.New("object not found")
+	}
+	n, err := w.WriteAt(data, 0)
+	if err != nil {
+		return 0, err
+	}
+	return int64(n), nil
 }

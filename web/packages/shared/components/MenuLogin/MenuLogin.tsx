@@ -81,7 +81,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
           onClick={onOpen}
         >
           CONNECT
-          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.secondary" />
+          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           anchorOrigin={anchorOrigin}
@@ -144,9 +144,8 @@ function getLoginItemListContent(
     case 'processing':
       return (
         <Indicator
-          css={({ theme }) => `
+          css={`
             align-self: center;
-            color: ${theme.colors.brand.secondaryAccent}
           `}
         />
       );
@@ -178,6 +177,7 @@ function getLoginItemListContent(
 }
 
 const StyledButton = styled.button`
+  font-family: inherit;
   color: inherit;
   border: none;
   flex: 1;
@@ -185,13 +185,10 @@ const StyledButton = styled.button`
 
 const StyledMenuItem = styled(MenuItem)(
   ({ theme }) => `
-  color: ${theme.colors.grey[400]};
+  background: transparent;
   font-size: 12px;
-  border-bottom: 1px solid ${theme.colors.subtle};
+  border-bottom: 1px solid ${theme.colors.spotBackground[0]};
   min-height: 32px;
-  &:hover {
-    color: ${theme.colors.link};
-  }
 
   :last-child {
     border-bottom: none;
@@ -202,22 +199,22 @@ const StyledMenuItem = styled(MenuItem)(
 
 const Input = styled.input(
   ({ theme }) => `
-  background: ${theme.colors.subtle};
-  border: 1px solid ${theme.colors.subtle};
+  background: transparent;
+  border: 1px solid ${theme.colors.text.muted};
   border-radius: 4px;
   box-sizing: border-box;
-  color: ${theme.colors.grey[900]};
+  color: ${theme.colors.text.main};
   height: 32px;
   outline: none;
 
-  &:focus {
-    background: ${theme.colors.light};
-    border 1px solid ${theme.colors.link};
-    box-shadow: inset 0 1px 3px rgba(0, 0, 0, .24);
+  &:focus, &:hover {
+    border 1px solid ${theme.colors.text.slightlyMuted};
+    outline: none;
   }
 
   ::placeholder {
-    color: ${theme.colors.grey[100]};
+    color: ${theme.colors.text.muted};
+    opacity: 1;
   }
 `,
   space

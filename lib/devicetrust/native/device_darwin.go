@@ -22,12 +22,21 @@ package native
 import "C"
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"crypto/x509"
+	"errors"
+	"fmt"
+	"io/fs"
+	"os/exec"
+	"os/user"
+	"strings"
+	"sync"
 	"unsafe"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	log "github.com/sirupsen/logrus"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
@@ -91,17 +100,105 @@ func pubKeyToCredential(id string, pubKeyRaw []byte) (*devicepb.DeviceCredential
 
 func collectDeviceData() (*devicepb.DeviceCollectedData, error) {
 	var dd C.DeviceData
-	defer func() { C.free(unsafe.Pointer(dd.serial_number)) }()
+	defer func() {
+		C.free(unsafe.Pointer(dd.serial_number))
+		C.free(unsafe.Pointer(dd.model))
+		C.free(unsafe.Pointer(dd.os_version_string))
+	}()
 
 	if res := C.DeviceCollectData(&dd); res != 0 {
 		return nil, trace.Wrap(statusErrorFromC(res))
 	}
 
+	osUser, err := user.Current()
+	if err != nil {
+		return nil, trace.Wrap(err, "reading current user")
+	}
+
+	// Run exec-ed commands concurrently.
+	var wg sync.WaitGroup
+	// Note: We could read the OS build from dd.os_version_string, but this
+	// requires no string parsing.
+	var osBuild, jamfVersion, macosEnrollmentProfiles string
+	for _, spec := range []struct {
+		fn   func() (string, error)
+		out  *string
+		desc string
+	}{
+		{fn: getOSBuild, out: &osBuild, desc: "macOS build"},
+		{fn: getJamfBinaryVersion, out: &jamfVersion, desc: "Jamf version"},
+		{fn: getMacosEnrollmentProfiles, out: &macosEnrollmentProfiles, desc: "macOs enrollment profiles"},
+	} {
+		spec := spec
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			out, err := spec.fn()
+			if err != nil {
+				log.WithError(err).Warnf("Device Trust: Failed to get %v", spec.desc)
+				return
+			}
+			*spec.out = out
+		}()
+	}
+	wg.Wait()
+
+	sn := C.GoString(dd.serial_number)
 	return &devicepb.DeviceCollectedData{
-		CollectTime:  timestamppb.Now(),
-		OsType:       devicepb.OSType_OS_TYPE_MACOS,
-		SerialNumber: C.GoString(dd.serial_number),
+		CollectTime:             timestamppb.Now(),
+		OsType:                  devicepb.OSType_OS_TYPE_MACOS,
+		SerialNumber:            sn,
+		ModelIdentifier:         C.GoString(dd.model),
+		OsVersion:               fmt.Sprintf("%v.%v.%v", dd.os_major, dd.os_minor, dd.os_patch),
+		OsBuild:                 osBuild,
+		OsUsername:              osUser.Username,
+		JamfBinaryVersion:       jamfVersion,
+		MacosEnrollmentProfiles: macosEnrollmentProfiles,
+		SystemSerialNumber:      sn,
 	}, nil
+}
+
+func getOSBuild() (string, error) {
+	cmd := exec.Command("/usr/bin/sw_vers", "-buildVersion")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", trace.Wrap(err, "running sw_vers -buildVersion")
+	}
+	return string(bytes.TrimSpace(out)), nil
+}
+
+func getJamfBinaryVersion() (string, error) {
+	// See https://learn.jamf.com/bundle/jamf-pro-documentation-current/page/Components_Installed_on_Managed_Computers.html
+	cmd := exec.Command("/usr/local/bin/jamf", "version")
+	out, err := cmd.Output()
+	if err != nil {
+		// Jamf binary may not exist. This is alright.
+		pathErr := &fs.PathError{}
+		if errors.As(err, &pathErr) {
+			log.Debugf("Device Trust: Jamf binary not found: %q", pathErr.Path)
+			return "", nil
+		}
+
+		return "", trace.Wrap(err, "running jamf version")
+	}
+
+	// Eg: "version=10.46.1-t1683911857"
+	s := string(bytes.TrimSpace(out))
+	tmp := strings.Split(s, "=")
+	if len(tmp) != 2 {
+		return "", fmt.Errorf("unexpected jamf version string: %q", s)
+	}
+
+	return tmp[1], nil
+}
+
+func getMacosEnrollmentProfiles() (string, error) {
+	cmd := exec.Command("/usr/bin/profiles", "status", "-type", "enrollment")
+	out, err := cmd.Output()
+	if err != nil {
+		return "", trace.Wrap(err, "running /usr/bin/profiles status -type enrollment")
+	}
+	return string(bytes.TrimSpace(out)), nil
 }
 
 func signChallenge(chal []byte) (sig []byte, err error) {
@@ -141,4 +238,16 @@ func getDeviceCredential() (*devicepb.DeviceCredential, error) {
 
 func statusErrorFromC(res C.int32_t) error {
 	return &statusError{status: int32(res)}
+}
+
+func solveTPMEnrollChallenge(_ *devicepb.TPMEnrollChallenge, _ bool) (*devicepb.TPMEnrollChallengeResponse, error) {
+	return nil, trace.BadParameter("called solveTPMEnrollChallenge on darwin")
+}
+
+func solveTPMAuthnDeviceChallenge(_ *devicepb.TPMAuthenticateDeviceChallenge) (*devicepb.TPMAuthenticateDeviceChallengeResponse, error) {
+	return nil, trace.BadParameter("called solveTPMAuthnDeviceChallenge on darwin")
+}
+
+func handleTPMActivateCredential(_, _ string) error {
+	return trace.BadParameter("called handleTPMActivateCredential on darwin")
 }

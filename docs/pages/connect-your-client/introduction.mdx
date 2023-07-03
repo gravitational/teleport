@@ -17,6 +17,7 @@ Teleport, and includes links to more detailed documentation at the end.
 [downloading](https://goteleport.com/download/) and installing `tsh`, sign in to
 your Teleport cluster:
 
+<ScopedBlock scope={["oss"]}>
 <Tabs>
 <TabItem label="Local user">
 ```code
@@ -34,10 +35,10 @@ Tap any security key
 ```
 
 </TabItem>
-<TabItem label="SAML / OIDC / GitHub user">
+<TabItem label="GitHub user">
 
 ```code
-$ tsh login --proxy=<Var name="teleport.example.com"/> --auth=<Var name="your-idp-connector" description="Your Identity Provider connection name, if implemented by your administrators"/>
+$ tsh login --proxy=<Var name="teleport.example.com"/> --auth=github
 If browser window does not open automatically, open it by clicking on the link:
  http://127.0.0.1:49927/1d80e257-ec61-4ed2-9403-784f8d35b2fe
 > Profile URL:        https://teleport.example.com:443
@@ -56,13 +57,56 @@ required for your particular use case.
 
 </TabItem>
 </Tabs>
+</ScopedBlock>
+
+<ScopedBlock scope={["enterprise", "cloud"]}>
+<Tabs>
+<TabItem label="Local user">
+```code
+$ tsh login --proxy=<Var name="teleport.example.com" description="Your Teleport Proxy Service or Teleport Cloud tenant address"/> --user=<Var name="user" description="Your Teleport username"/>
+Enter password for Teleport user alice:
+Tap any security key
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       alice
+  Cluster:            example.com
+  Roles:              access, requester
+  Logins:             ubuntu, ec2-user
+  Kubernetes:         enabled
+  Valid until:        2022-11-01 22:37:05 -0500 CDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</TabItem>
+<TabItem label="SAML / OIDC / GitHub user">
+
+```code
+$ tsh login --proxy=<Var name="teleport.example.com"/> --auth=<Var name="your-idp-connector" description="Your Identity Provider connection name, if implemented by your administrators"/>
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:49927/1d80e257-ec61-4ed2-9403-784f8d35b2fe
+> Profile URL:        https://teleport.example.com:443
+  Logged in as:       user@example.com
+  Cluster:            example.com
+  Roles:              access, requester
+  Logins:             ubuntu, ec2-user
+  Kubernetes:         enabled
+  Valid until:        2022-11-01 22:37:05 -0500 CDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+```
+
+Depending on how Teleport was configured for your network, you may not need
+the additional flags `--auth`. Your administrator should provide the details
+required for your particular use case.
+
+</TabItem>
+</Tabs>
+</ScopedBlock>
 
 ### Teleport Connect
 
 The Teleport Connect app provides all the same access to resources as `tsh` in
 a friendly graphic user interface. After [downloading](https://goteleport.com/download/)
 and installing Teleport Connect, you can log in and initiate sessions for
-Server and Database Access within a single window.
+server and database access within a single window.
 
 1. Click **CONNECT** to connect to the Teleport cluster:
 
@@ -94,12 +138,12 @@ Activity logs for users with the right permissions.
 
 ## Protocols
 
-### Server Access (`ssh`)
+### Server access (`ssh`)
 
 <Tabs>
 <TabItem label="tsh">
 
-`tsh ls` lists the servers you have access to through Server Access (SSH):
+`tsh ls` lists the servers you have access to through Teleport:
 
 ```code
 $ tsh ls
@@ -144,7 +188,7 @@ $ tsh scp some-file.ext server.example.com:
 some-file.ext   7% |███████                | (25/342 MB, 2.9 MB/s) [9s:1m48s]
 ```
 
-### Kubernetes Access (`kubectl`)
+### Kubernetes access (`kubectl`)
 
 <Tabs>
 <TabItem label="tsh">
@@ -286,7 +330,7 @@ list those that are accessible to your user under <Icon name="database" size="sm
 
 ### Desktop Access
 
-Desktop Access is available through the Teleport Web UI. In your browser,
+Desktop access is available through the Teleport Web UI. In your browser,
 navigate to your Teleport cluster (e.g. 
 <ScopedBlock scope={["oss", "enterprise"]}>`https://teleport.example.com`</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>`https://mytennant.teleport.sh`</ScopedBlock>
@@ -310,8 +354,9 @@ either directly or through proxy tunnels.
   Learn more about it from [Using the tsh Command Line Tool](./tsh.mdx).
 
 - Teleport Connect is a graphic utility for connecting to resources through
-Teleport. You can initiate Server Access, connect to databases, and start
-Desktop Access sessions. See [Using Teleport Connect](./teleport-connect.mdx).
+  Teleport. You use it to connect to servers, databases, and Kubernetes
+  clusters. See [Using Teleport Connect](./teleport-connect.mdx).
 
+{/*lint ignore messaging for page title*/}
 - [Database Access GUI Clients](./gui-clients.mdx) details
 how to connect many popular database GUI clients through Teleport.

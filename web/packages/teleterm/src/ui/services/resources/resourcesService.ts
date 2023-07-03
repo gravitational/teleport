@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import type { ResourceTypeSearchFilter } from 'teleterm/ui/Search/searchResult';
+import { pluralize } from 'shared/utils/text';
 
+import type { ResourceTypeSearchFilter } from 'teleterm/ui/Search/searchResult';
 import type * as types from 'teleterm/services/tshd/types';
 import type * as uri from 'teleterm/ui/uri';
 
@@ -69,44 +70,60 @@ export class ResourcesService {
    * The results need to be wrapped in SearchResult because if we returned raw types (Server,
    * Database, Kube) then there would be no easy way to differentiate between them on type level.
    */
-  async searchResources(
-    clusterUri: uri.ClusterUri,
-    search: string,
-    searchFilter: ResourceTypeSearchFilter | undefined
-  ): Promise<SearchResult[]> {
-    const params = { search, clusterUri, sort: null, limit: 100 };
+  async searchResources({
+    clusterUri,
+    search,
+    filter,
+    limit,
+  }: {
+    clusterUri: uri.ClusterUri;
+    search: string;
+    // TODO(ravicious): Accept just `server | database | kube` as searchFilter here, wrap it in a
+    // variant of a discriminated union in searchResult.ts.
+    filter: ResourceTypeSearchFilter | undefined;
+    limit: number;
+  }): Promise<PromiseSettledResult<SearchResult[]>[]> {
+    const params = { search, clusterUri, sort: null, limit };
 
     const getServers = () =>
-      this.fetchServers(params).then(res =>
-        res.agentsList.map(resource => ({
-          kind: 'server' as const,
-          resource,
-        }))
+      this.fetchServers(params).then(
+        res =>
+          res.agentsList.map(resource => ({
+            kind: 'server' as const,
+            resource,
+          })),
+        err =>
+          Promise.reject(new ResourceSearchError(clusterUri, 'server', err))
       );
     const getDatabases = () =>
-      this.fetchDatabases(params).then(res =>
-        res.agentsList.map(resource => ({
-          kind: 'database' as const,
-          resource,
-        }))
+      this.fetchDatabases(params).then(
+        res =>
+          res.agentsList.map(resource => ({
+            kind: 'database' as const,
+            resource,
+          })),
+        err =>
+          Promise.reject(new ResourceSearchError(clusterUri, 'database', err))
       );
     const getKubes = () =>
-      this.fetchKubes(params).then(res =>
-        res.agentsList.map(resource => ({
-          kind: 'kube' as const,
-          resource,
-        }))
+      this.fetchKubes(params).then(
+        res =>
+          res.agentsList.map(resource => ({
+            kind: 'kube' as const,
+            resource,
+          })),
+        err => Promise.reject(new ResourceSearchError(clusterUri, 'kube', err))
       );
 
-    const promises = searchFilter
+    const promises = filter
       ? [
-          searchFilter.resourceType === 'servers' && getServers(),
-          searchFilter.resourceType === 'databases' && getDatabases(),
-          searchFilter.resourceType === 'kubes' && getKubes(),
+          filter.resourceType === 'servers' && getServers(),
+          filter.resourceType === 'databases' && getDatabases(),
+          filter.resourceType === 'kubes' && getKubes(),
         ].filter(Boolean)
       : [getServers(), getDatabases(), getKubes()];
 
-    return (await Promise.all(promises)).flat();
+    return Promise.allSettled(promises);
   }
 }
 
@@ -114,6 +131,42 @@ export class AmbiguousHostnameError extends Error {
   constructor(hostname: string) {
     super(`Ambiguous hostname "${hostname}"`);
     this.name = 'AmbiguousHostname';
+  }
+}
+
+export class ResourceSearchError extends Error {
+  constructor(
+    public clusterUri: uri.ClusterUri,
+    public resourceKind: SearchResult['kind'],
+    cause: Error
+  ) {
+    super(
+      `Error while fetching resources of type ${resourceKind} from cluster ${clusterUri}`,
+      { cause }
+    );
+    this.name = 'ResourceSearchError';
+    this.clusterUri = clusterUri;
+    this.resourceKind = resourceKind;
+  }
+
+  messageWithClusterName(
+    getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string,
+    opts = { capitalize: true }
+  ) {
+    const resource = pluralize(2, this.resourceKind);
+    const cluster = getClusterName(this.clusterUri);
+
+    return `${
+      opts.capitalize ? 'Could' : 'could'
+    } not fetch ${resource} from ${cluster}`;
+  }
+
+  messageAndCauseWithClusterName(
+    getClusterName: (resourceUri: uri.ClusterOrResourceUri) => string
+  ) {
+    return `${this.messageWithClusterName(getClusterName)}:\n${
+      this.cause['message']
+    }`;
   }
 }
 

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
@@ -117,7 +118,7 @@ func NewTestCAWithConfig(config TestCAConfig) *types.CertAuthorityV2 {
 	switch config.Type {
 	case types.DatabaseCA:
 		ca.Spec.ActiveKeys.TLS = []*types.TLSKeyPair{{Cert: cert, Key: keyBytes}}
-	case types.KindJWT:
+	case types.KindJWT, types.OIDCIdPCA:
 		// Generating keys is CPU intensive operation. Generate JWT keys only
 		// when needed.
 		publicKey, privateKey, err := testauthority.New().GenerateJWT()
@@ -349,7 +350,7 @@ func (s *ServicesTestSuite) CertAuthCRUD(t *testing.T) {
 	out, err = s.CAS.GetCertAuthority(ctx, ca.GetID(), true)
 	require.NoError(t, err)
 	newCA.SetResourceID(out.GetResourceID())
-	require.Equal(t, &newCA, out)
+	require.Empty(t, cmp.Diff(&newCA, out, cmpopts.EquateApproxTime(time.Second)))
 }
 
 // NewServer creates a new server resource
@@ -362,8 +363,7 @@ func NewServer(kind, name, addr, namespace string) *types.ServerV2 {
 			Namespace: namespace,
 		},
 		Spec: types.ServerSpecV2{
-			Addr:       addr,
-			PublicAddr: addr,
+			Addr: addr,
 		},
 	}
 }
@@ -404,7 +404,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Equal(t, len(out), 0)
 
 	proxy := NewServer(types.KindProxy, "proxy1", "127.0.0.1:2023", apidefaults.Namespace)
-	require.NoError(t, s.PresenceS.UpsertProxy(proxy))
+	require.NoError(t, s.PresenceS.UpsertProxy(ctx, proxy))
 
 	out, err = s.PresenceS.GetProxies()
 	require.NoError(t, err)
@@ -412,7 +412,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	proxy.SetResourceID(out[0].GetResourceID())
 	require.Empty(t, cmp.Diff(out, []types.Server{proxy}))
 
-	err = s.PresenceS.DeleteProxy(proxy.GetName())
+	err = s.PresenceS.DeleteProxy(ctx, proxy.GetName())
 	require.NoError(t, err)
 
 	out, err = s.PresenceS.GetProxies()
@@ -425,7 +425,7 @@ func (s *ServicesTestSuite) ServerCRUD(t *testing.T) {
 	require.Equal(t, len(out), 0)
 
 	auth := NewServer(types.KindAuthServer, "auth1", "127.0.0.1:2025", apidefaults.Namespace)
-	require.NoError(t, s.PresenceS.UpsertAuthServer(auth))
+	require.NoError(t, s.PresenceS.UpsertAuthServer(ctx, auth))
 
 	out, err = s.PresenceS.GetAuthServers()
 	require.NoError(t, err)
@@ -606,10 +606,7 @@ func (s *ServicesTestSuite) TokenCRUD(t *testing.T) {
 	require.Equal(t, token.GetRoles().Include(types.RoleAuth), true)
 	require.Equal(t, token.GetRoles().Include(types.RoleNode), true)
 	require.Equal(t, token.GetRoles().Include(types.RoleProxy), false)
-	diff := s.Clock.Now().UTC().Add(defaults.ProvisioningTokenTTL).Second() - token.Expiry().Second()
-	if diff > 1 {
-		t.Fatalf("expected diff to be within one second, got %v instead", diff)
-	}
+	require.Equal(t, time.Time{}, token.Expiry())
 
 	require.NoError(t, s.ProvisioningS.DeleteToken(ctx, "token"))
 
@@ -1338,7 +1335,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases)
+	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
 
 	testCases = []eventTest{
 		{
@@ -1359,7 +1356,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases)
+	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
 
 	testCases = []eventTest{
 		{
@@ -1512,7 +1509,7 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			crud: func(context.Context) types.Resource {
 				srv := NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
 
-				err := s.PresenceS.UpsertProxy(srv)
+				err := s.PresenceS.UpsertProxy(ctx, srv)
 				require.NoError(t, err)
 
 				out, err := s.PresenceS.GetProxies()
@@ -1588,7 +1585,11 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases)
+	// this also tests the partial success mode by requesting an unknown kind
+	s.runEventsTests(t, testCases, types.Watch{
+		Kinds:               append(eventsTestKinds(testCases), types.WatchKind{Kind: "unknown"}),
+		AllowPartialSuccess: true,
+	})
 
 	// Namespace with a name
 	testCases = []eventTest{
@@ -1620,7 +1621,22 @@ func (s *ServicesTestSuite) Events(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases)
+	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
+
+	// tests that a watch fails given an unknown kind when the partial success mode is not enabled
+	s.runUnknownEventsTest(t, types.Watch{Kinds: []types.WatchKind{
+		{Kind: types.KindNamespace},
+		{Kind: "unknown"},
+	}})
+
+	// tests that a watch fails if all given kinds are unknown even if the success mode is enabled
+	s.runUnknownEventsTest(t, types.Watch{
+		Kinds: []types.WatchKind{
+			{Kind: "unrecognized"},
+			{Kind: "unidentified"},
+		},
+		AllowPartialSuccess: true,
+	})
 }
 
 // EventsClusterConfig tests cluster config resource events
@@ -1718,7 +1734,7 @@ func (s *ServicesTestSuite) EventsClusterConfig(t *testing.T) {
 			},
 		},
 	}
-	s.runEventsTests(t, testCases)
+	s.runEventsTests(t, testCases, types.Watch{Kinds: eventsTestKinds(testCases)})
 }
 
 // NetworkRestrictions tests network restrictions.
@@ -1763,17 +1779,19 @@ func (s *ServicesTestSuite) NetworkRestrictions(t *testing.T, opts ...Option) {
 	require.True(t, trace.IsNotFound(err))
 }
 
-func (s *ServicesTestSuite) runEventsTests(t *testing.T, testCases []eventTest) {
+func (s *ServicesTestSuite) runEventsTests(t *testing.T, testCases []eventTest, watch types.Watch) {
 	ctx := context.Background()
-	w, err := s.EventsS.NewWatcher(ctx, types.Watch{
-		Kinds: eventsTestKinds(testCases),
-	})
+	w, err := s.EventsS.NewWatcher(ctx, watch)
 	require.NoError(t, err)
 	defer w.Close()
 
 	select {
 	case event := <-w.Events():
 		require.Equal(t, event.Type, types.OpInit)
+		watchStatus, ok := event.Resource.(types.WatchStatus)
+		require.True(t, ok)
+		expectedKinds := eventsTestKinds(testCases)
+		require.Equal(t, expectedKinds, watchStatus.GetKinds())
 	case <-w.Done():
 		t.Fatalf("Watcher exited with error %v", w.Error())
 	case <-time.After(2 * time.Second):
@@ -1814,6 +1832,26 @@ skiploop:
 		// delete events don't have IDs yet
 		header.SetResourceID(0)
 		ExpectDeleteResource(t, w, 3*time.Second, header)
+	}
+}
+
+func (s *ServicesTestSuite) runUnknownEventsTest(t *testing.T, watch types.Watch) {
+	ctx := context.Background()
+	w, err := s.EventsS.NewWatcher(ctx, watch)
+	if err != nil {
+		// depending on the implementation of EventsS, it might fail here immediately
+		// or later before returning the first event from the watcher.
+		return
+	}
+	defer w.Close()
+
+	select {
+	case <-w.Events():
+		t.Fatal("unexpected event from watcher that is supposed to fail")
+	case <-w.Done():
+		require.Error(t, w.Error())
+	case <-time.After(2 * time.Second):
+		t.Fatal("Timeout waiting for error from watcher")
 	}
 }
 

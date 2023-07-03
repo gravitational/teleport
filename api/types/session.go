@@ -610,6 +610,8 @@ func (r *NewWebSessionRequest) CheckAndSetDefaults() error {
 type NewWebSessionRequest struct {
 	// User specifies the user this session is bound to
 	User string
+	// LoginIP is an observed IP of the client, it will be embedded into certificates.
+	LoginIP string
 	// Roles optionally lists additional user roles
 	Roles []string
 	// Traits optionally lists role traits

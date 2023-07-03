@@ -16,8 +16,8 @@ exports[`rendering of Error Cards 1`] = `
   line-height: 1.5;
   margin-bottom: 24px;
   margin-top: 8px;
-  background: #f50057;
-  color: #FFFFFF;
+  background: #FF6257;
+  color: #000000;
 }
 
 .c2 a {
@@ -32,10 +32,11 @@ exports[`rendering of Error Cards 1`] = `
   margin-bottom: 40px;
   padding: 32px;
   width: 540px;
-  color: #324148;
-  background-color: #FFFFFF;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  color: #FFFFFF;
+  background-color: #344179;
+  box-shadow: 0px 3px 5px -1px rgba(0,0,0,0.2),0px 6px 10px rgba(0,0,0,0.14),0px 1px 18px rgba(0,0,0,0.12);
   border-radius: 8px;
+  background-color: #222C59;
 }
 
 .c1 {
@@ -51,7 +52,7 @@ exports[`rendering of Error Cards 1`] = `
 
 <div
   class="c0"
-  color="text.primaryInverse"
+  color="text.main"
   width="540px"
 >
   <div

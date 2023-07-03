@@ -18,9 +18,14 @@ import React from 'react';
 
 import { render } from 'design/utils/testing';
 
-import { Loaded } from './Sessions.story';
+import { Loaded, LoadedWithCTA } from './Sessions.story';
 
 test('loaded', () => {
   const { container } = render(<Loaded />);
+  expect(container.firstChild).toMatchSnapshot();
+});
+
+test('loaded with CTA', () => {
+  const { container } = render(<LoadedWithCTA />);
   expect(container.firstChild).toMatchSnapshot();
 });

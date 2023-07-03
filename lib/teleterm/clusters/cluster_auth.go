@@ -24,8 +24,10 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
+	apiclient "github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/auth"
@@ -41,6 +43,11 @@ func (c *Cluster) SyncAuthPreference(ctx context.Context) (*webclient.WebConfigA
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	// Do the ALPN handshake test to decide if connection upgrades are required
+	// for TLS Routing. Only do the test once Ping verifies the cluster is
+	// reachable.
+	c.clusterClient.TLSRoutingConnUpgradeRequired = apiclient.IsALPNConnUpgradeRequired(ctx, c.clusterClient.WebProxyAddr, c.clusterClient.InsecureSkipVerify)
 
 	if err := c.clusterClient.SaveProfile(false); err != nil {
 		return nil, trace.Wrap(err)
@@ -152,6 +159,16 @@ func (c *Cluster) updateClientFromPingResponse(ctx context.Context) (*webclient.
 	pingResp, err := c.clusterClient.Ping(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
+	}
+
+	if c.clusterClient.KeyTTL == 0 {
+		c.clusterClient.KeyTTL = pingResp.Auth.DefaultSessionTTL.Duration()
+	}
+	// todo(lxea): DELETE IN v15 where the auth is guaranteed to
+	// send us a valid MaxSessionTTL or the auth is guaranteed to
+	// interpret 0 duration as the auth's default
+	if c.clusterClient.KeyTTL == 0 {
+		c.clusterClient.KeyTTL = defaults.CertDuration
 	}
 
 	return pingResp, nil

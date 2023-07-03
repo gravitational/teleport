@@ -19,6 +19,9 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"os/exec"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gravitational/trace"
@@ -30,7 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func TestCLICommandUsesCLICommandProvider(t *testing.T) {
+func TestCLICommandPreviewReturnsRelativeCommandWithEnv(t *testing.T) {
 	gateway := Gateway{
 		cfg: &Config{
 			TargetName:            "foo",
@@ -44,7 +47,11 @@ func TestCLICommandUsesCLICommandProvider(t *testing.T) {
 	command, err := gateway.CLICommand()
 	require.NoError(t, err)
 
-	require.Equal(t, "foo/bar", command)
+	args := strings.Split(command.Preview, " ")
+	env := args[0]
+	path := args[1]
+	require.Equal(t, "FOO=bar", env)
+	require.Equal(t, "postgres", path)
 }
 
 func TestGatewayStart(t *testing.T) {
@@ -141,9 +148,23 @@ func TestNewWithLocalPortReturnsErrorIfNewPortEqualsOldPort(t *testing.T) {
 
 type mockCLICommandProvider struct{}
 
-func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (string, error) {
-	command := fmt.Sprintf("%s/%s", gateway.TargetName(), gateway.TargetSubresourceName())
-	return command, nil
+func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (*exec.Cmd, error) {
+	absPath, err := filepath.Abs(gateway.Protocol())
+	if err != nil {
+		return nil, err
+	}
+	arg := fmt.Sprintf("%s/%s", gateway.TargetName(), gateway.TargetSubresourceName())
+	// Call exec.Command with a relative path so that cmd.Args[0] is a relative path.
+	// Then replace cmd.Path with an absolute path to simulate gateway.Protocol() being resolved to
+	// an absolute path. This way we can later verify that gateway.CLICommand doesn't use the absolute
+	// path.
+	//
+	// This also ensures that exec.Command behaves the same way on different devices, no matter
+	// whether a command like postgres is installed on the system or not.
+	cmd := exec.Command(gateway.Protocol(), arg)
+	cmd.Path = absPath
+	cmd.Env = []string{"FOO=bar"}
+	return cmd, nil
 }
 
 func createAndServeGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {

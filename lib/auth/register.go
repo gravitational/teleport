@@ -18,12 +18,14 @@ package auth
 
 import (
 	"context"
+	"crypto/tls"
 	"crypto/x509"
 	"os"
 	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
+	"golang.org/x/exp/slices"
 	"golang.org/x/net/http2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -32,12 +34,15 @@ import (
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
+	"github.com/gravitational/teleport/api/constants"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/circleci"
 	"github.com/gravitational/teleport/lib/cloud/azure"
+	"github.com/gravitational/teleport/lib/cloud/gcp"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/githubactions"
 	"github.com/gravitational/teleport/lib/gitlab"
@@ -230,6 +235,11 @@ func Register(params RegisterParams) (*proto.Certs, error) {
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+	} else if params.JoinMethod == types.JoinMethodGCP {
+		params.IDToken, err = gcp.GetIDToken(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
 	}
 
 	type registerMethod struct {
@@ -300,7 +310,7 @@ func registerThroughProxy(token string, params RegisterParams) (*proto.Certs, er
 	switch params.JoinMethod {
 	case types.JoinMethodIAM, types.JoinMethodAzure:
 		// IAM and Azure join methods require gRPC client
-		conn, err := proxyJoinServiceConn(params)
+		conn, err := proxyJoinServiceConn(params, lib.IsInsecureDevMode())
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -402,24 +412,68 @@ func registerThroughAuth(token string, params RegisterParams) (*proto.Certs, err
 // proxyJoinServiceConn attempts to connect to the join service running on the
 // proxy. The Proxy's TLS cert will be verified using the host's root CA pool
 // (PKI) unless the --insecure flag was passed.
-func proxyJoinServiceConn(params RegisterParams) (*grpc.ClientConn, error) {
+func proxyJoinServiceConn(params RegisterParams, insecure bool) (*grpc.ClientConn, error) {
 	tlsConfig := utils.TLSConfig(params.CipherSuites)
 	tlsConfig.Time = params.Clock.Now
 	// set NextProtos for TLS routing, the actual protocol will be h2
 	tlsConfig.NextProtos = []string{string(common.ProtocolProxyGRPCInsecure), http2.NextProtoTLS}
 
-	if lib.IsInsecureDevMode() {
+	if insecure {
 		tlsConfig.InsecureSkipVerify = true
 		log.Warnf("Joining cluster without validating the identity of the Proxy Server.")
 	}
 
+	// Check if proxy is behind a load balancer. If so, the connection upgrade
+	// will verify the load balancer's cert using system cert pool. This
+	// provides the same level of security as the client only verifies Proxy's
+	// web cert against system cert pool when connection upgrade is not
+	// required.
+	//
+	// With the ALPN connection upgrade, the tunneled TLS Routing request will
+	// skip verify as the Proxy server will present its host cert which is not
+	// fully verifiable at this point since the client does not have the host
+	// CAs yet before completing registration.
+	alpnConnUpgrade := client.IsALPNConnUpgradeRequired(context.TODO(), getHostAddresses(params)[0], insecure)
+	if alpnConnUpgrade && !insecure {
+		tlsConfig.InsecureSkipVerify = true
+		tlsConfig.VerifyConnection = verifyALPNUpgradedConn(params.Clock)
+	}
+
+	dialer := client.NewDialer(
+		context.Background(),
+		apidefaults.DefaultIdleTimeout,
+		apidefaults.DefaultIOTimeout,
+		client.WithInsecureSkipVerify(insecure),
+		client.WithALPNConnUpgrade(alpnConnUpgrade),
+	)
+
 	conn, err := grpc.Dial(
 		getHostAddresses(params)[0],
+		grpc.WithContextDialer(client.GRPCContextDialer(dialer)),
 		grpc.WithUnaryInterceptor(metadata.UnaryClientInterceptor),
 		grpc.WithStreamInterceptor(metadata.StreamClientInterceptor),
 		grpc.WithTransportCredentials(credentials.NewTLS(tlsConfig)),
 	)
 	return conn, trace.Wrap(err)
+}
+
+// verifyALPNUpgradedConn is a tls.Config.VerifyConnection callback function
+// used by the tunneled TLS Routing request to verify the host cert of a Proxy
+// behind a L7 load balancer.
+//
+// Since the client has not obtained the cluster CAs at this point, the
+// presented cert cannot be fully verified yet. For now, this function only
+// checks if "teleport.cluster.local" is present as one of the DNS names and
+// verifies the cert is not expired.
+func verifyALPNUpgradedConn(clock clockwork.Clock) func(tls.ConnectionState) error {
+	return func(server tls.ConnectionState) error {
+		for _, cert := range server.PeerCertificates {
+			if slices.Contains(cert.DNSNames, constants.APIDomain) && clock.Now().Before(cert.NotAfter) {
+				return nil
+			}
+		}
+		return trace.AccessDenied("server is not a Teleport proxy or server certificate is expired")
+	}
 }
 
 // insecureRegisterClient attempts to connects to the Auth Server using the

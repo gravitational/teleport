@@ -1,17 +1,7 @@
 ---
 title: Database Access with Redis Cluster
-description: How to configure Teleport Database Access with Redis Cluster.
+description: How to configure Teleport database access with Redis Cluster.
 ---
-
-<Details
-  title="Version warning"
-  opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
-  min="9.0"
->
-  Database Access for Redis is available starting from Teleport `9.0`.
-</Details>
 
 If you want to configure Redis Standalone, please read [Database Access with Redis](redis.mdx).
 
@@ -46,55 +36,26 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-Install Teleport on the host where you will run the Teleport Database Service:
+Install and configure Teleport where you will run the Teleport Database Service:
+
+<Tabs>
+<TabItem label="Linux Server">
 
 (!docs/pages/includes/install-linux.mdx!)
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+(!docs/pages/includes/database-access/db-configure-start.mdx dbName="example-redis" dbProtocol="redis" databaseAddress="rediss://redis.example.com:6379?mode=cluster" !)
 
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Proxy Service:
+</TabItem>
+<TabItem label="Kubernetes Cluster">
+  Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
 
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=teleport.example.com:3080 \
-  --name=example-redis \
-  --protocol=redis \
-  --uri=rediss://redis.example.com:6379?mode=cluster \
-  --labels=env=dev
-```
+  (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-<Admonition type="note">
+  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="example-redis" dbProtocol="redis" databaseAddress="rediss://redis.example.com:6379?mode=cluster" !)
+</TabItem>
+</Tabs>
 
-The `--auth-server` flag must point to the Teleport cluster's Proxy Service
-endpoint because the Database Service always connects back to the cluster over a
-reverse tunnel.
-
-</Admonition>
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-Start the Teleport Database Service, pointing the `--auth-server` flag to the
-address of your Teleport Cloud tenant:
-
-```code
-$ teleport db start \
-  --token=/tmp/token \
-  --auth-server=mytenant.teleport.sh:443 \
-  --name=example-redis \
-  --protocol=redis \
-  --uri=rediss://redis.example.com:6379?mode=cluster \
-  --labels=env=dev
-```
-
-</ScopedBlock>
-
-<Admonition type="tip">
-  You can start the Database Service using a configuration file instead of CLI flags.
-  See the [YAML reference](../reference/configuration.mdx) for details.
-</Admonition>
+(!docs/pages/includes/database-access/multiple-instances-tip.mdx !)
 
 ## Step 2/6. Create a Teleport user
 
@@ -190,7 +151,7 @@ databases:
 Redis in cluster mode does not support the following commands. If one of the listed commands above is called Teleport
 returns the <nobr>`ERR Teleport: command not supported`</nobr> error.
 
-<Details title="Unsupported commands" opened={false}>
+<Details title="Unsupported commands">
 - `ACL`
 - `ASKING`
 - `CLIENT`
@@ -234,16 +195,16 @@ returns the <nobr>`ERR Teleport: command not supported`</nobr> error.
 Teleport conducts additional processing on the following commands before 
 communicating with Redis Cluster:
 
-| Command                      | Description                                                                                                                                                                                                  |
-|------------------------------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `DBSIZE`                     | Sends the query to all nodes and returns the number of keys in the whole cluster.                                                                                                                            |
-| `KEYS`                       | Sends the query to all nodes and returns a list of all keys in the whole cluster.                                                                                                                            |
-| `MGET`                       | Translates the commands to multiple `GET`s and sends them to multiple nodes. Result is merged in Teleport and returned back to the client. If Teleport fails to fetch at least one key an error is returned. |
-| `FLUSHDB`                    | Sends the query to all nodes.                                                                                                                                                                                |
-| `FLUSHALL`                   | Works the same as `FLUSHDB`.                                                                                                                                                                                 |
-| <nobr>`SCRIPT EXISTS`</nobr> | Sends the query to all nodes. `1` is returned only if script exists on all nodes.                                                                                                                            |
-| <nobr>`SCRIPT LOAD`</nobr>   | Sends the script to all nodes.                                                                                                                                                                               |
-| <nobr>`SCRIPT FLUSH`</nobr>  | Sends the query to all nodes. `ASYNC` parameter is ignored.                                                                                                                                                  |
+| Command         | Description                                                                        |
+|-----------------|------------------------------------------------------------------------------------|
+| `DBSIZE`        | Sends the query to all nodes and returns the number of keys in the whole cluster.  |
+| `KEYS`          | Sends the query to all nodes and returns a list of all keys in the whole cluster.  |
+| `MGET`          | Translates the commands to multiple `GET`s and sends them to multiple nodes. Result is merged in Teleport and returned back to the client. If Teleport fails to fetch at least one key an error is returned. |
+| `FLUSHDB`       | Sends the query to all nodes.                                                      |
+| `FLUSHALL`      | Works the same as `FLUSHDB`.                                                       |
+| `SCRIPT EXISTS` | Sends the query to all nodes. `1` is returned only if script exists on all nodes.  |
+| `SCRIPT LOAD`   | Sends the script to all nodes.                                                     |
+| `SCRIPT FLUSH`  | Sends the query to all nodes. `ASYNC` parameter is ignored.                        |
 
 ## Next steps
 

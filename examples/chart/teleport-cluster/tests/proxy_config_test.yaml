@@ -137,3 +137,28 @@ tests:
           of: ConfigMap
       - matchSnapshot:
           path: data.teleport\.yaml
+
+  - it: generates a config with a clusterName containing a regular string
+    set:
+      clusterName: "helm-test.example.com"
+    asserts:
+      - hasDocuments:
+          count: 1
+      - isKind:
+          of: ConfigMap
+      - matchSnapshot:
+          path: data.teleport\.yaml
+
+  - it: fails when clusterName contains a regular string and a colon
+    set:
+      clusterName: "helm-test:cluster-1"
+    asserts:
+      - failedTemplate:
+          errorMessage: "clusterName must not contain a colon, you can override the cluster's public address with publicAddr"
+
+  - it: fails when clusterName contains a port
+    set:
+      clusterName: "helm-test.example.com:443"
+    asserts:
+      - failedTemplate:
+          errorMessage: "clusterName must not contain a colon, you can override the cluster's public address with publicAddr"

@@ -155,8 +155,68 @@ const (
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
-	// KindKubePod is an Kubernetes Pod resource type.
+	// KindKubePod is a Kubernetes Pod resource type.
 	KindKubePod = "pod"
+
+	// KindKubeSecret is a Kubernetes Secret resource type.
+	KindKubeSecret = "secret"
+
+	// KindKubeConfigMap is a Kubernetes Configmap resource type.
+	KindKubeConfigmap = "configmap"
+
+	// KindKubeNamespace is a Kubernetes namespace resource type.
+	KindKubeNamespace = "namespace"
+
+	// KindKubeService is a Kubernetes Service resource type.
+	KindKubeService = "service"
+
+	// KindKubeServiceAccount is an Kubernetes Service Account resource type.
+	KindKubeServiceAccount = "serviceaccount"
+
+	// KindKubeNode is a Kubernetes Node resource type.
+	KindKubeNode = "kube_node"
+
+	// KindKubePersistentVolume is a Kubernetes Persistent Volume resource type.
+	KindKubePersistentVolume = "persistentvolume"
+
+	// KindKubePersistentVolumeClaim is a Kubernetes Persistent Volume Claim resource type.
+	KindKubePersistentVolumeClaim = "persistentvolumeclaim"
+
+	// KindKubeDeployment is a Kubernetes Deployment resource type.
+	KindKubeDeployment = "deployment"
+
+	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
+	KindKubeReplicaSet = "replicaset"
+
+	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
+	KindKubeStatefulset = "statefulset"
+
+	// KindKubeDaemonSet is a Kubernetes Daemonset resource type.
+	KindKubeDaemonSet = "daemonset"
+
+	// KindKubeClusterRole is a Kubernetes ClusterRole resource type.
+	KindKubeClusterRole = "clusterrole"
+
+	// KindKubeRole is a Kubernetes Role resource type.
+	KindKubeRole = "role"
+
+	// KindKubeClusterRoleBinding is a Kubernetes Cluster Role Binding resource type.
+	KindKubeClusterRoleBinding = "clusterrolebinding"
+
+	// KindKubeRoleBinding is a Kubernetes Role Binding resource type.
+	KindKubeRoleBinding = "rolebinding"
+
+	// KindKubeCronjob is a Kubernetes Cronjob resource type.
+	KindKubeCronjob = "cronjob"
+
+	// KindKubeJob is a Kubernetes job resource type.
+	KindKubeJob = "job"
+
+	// KindKubeCertificateSigningRequest is a Certificate Signing Request resource type.
+	KindKubeCertificateSigningRequest = "certificatesigningrequest"
+
+	// KindKubeIngress is a Kubernetes Ingress resource type.
+	KindKubeIngress = "ingress"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -224,6 +284,9 @@ const (
 
 	// MetaNameClusterName is the name of a configuration resource for cluster name.
 	MetaNameClusterName = "cluster-name"
+
+	// MetaNameWatchStatus is the name of a watch status resource.
+	MetaNameWatchStatus = "watch-status"
 
 	// KindStaticTokens is a type of configuration resource that contains static tokens.
 	KindStaticTokens = "static_tokens"
@@ -323,6 +386,9 @@ const (
 	// KindPlugin represents a plugin instance
 	KindPlugin = "plugin"
 
+	// KindPluginStaticCredentials represents plugin static credentials.
+	KindPluginStaticCredentials = "plugin_static_credentials"
+
 	// KindSAMLIdPServiceProvider is a SAML service provider for the built in Teleport IdP.
 	KindSAMLIdPServiceProvider = "saml_idp_service_provider"
 
@@ -338,8 +404,28 @@ const (
 	// KindHeadlessAuthentication is a headless authentication resource.
 	KindHeadlessAuthentication = "headless_authentication"
 
+	// KindAssistant is used to program RBAC for
+	// Teleport Assist resources.
+	KindAssistant = "assistant"
+
 	// KindIntegration is a connection to a 3rd party system API.
 	KindIntegration = "integration"
+
+	// KindClusterMaintenanceConfig determines maintenance times for the cluster.
+	KindClusterMaintenanceConfig = "cluster_maintenance_config"
+
+	// KindServerInfo contains info that should be applied to joining Nodes.
+	KindServerInfo = "server_info"
+
+	// MetaNameClusterMaintenanceConfig is the only allowed metadata.name value for the maintenance
+	// window singleton resource.
+	MetaNameClusterMaintenanceConfig = "cluster-maintenance-config"
+
+	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
+	KindWatchStatus = "watch_status"
+
+	// V7 is the seventh version of resources.
+	V7 = "v7"
 
 	// V6 is the sixth version of resources.
 	V6 = "v6"
@@ -362,7 +448,7 @@ const (
 )
 
 // WebSessionSubKinds lists subkinds of web session resources
-var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession}
+var WebSessionSubKinds = []string{KindAppSession, KindWebSession, KindSnowflakeSession, KindSAMLIdPSession}
 
 const (
 	// VerbList is used to list all objects. Does not imply the ability to read a single object.
@@ -394,16 +480,29 @@ const (
 	// VerbEnroll allows enrollment of trusted devices.
 	// Device Trust is a Teleport Enterprise feature.
 	VerbEnroll = "enroll"
+
+	// VerbUse allows the usage of an Integration.
+	// Roles with this verb can issue API calls using the integration.
+	VerbUse = "use"
 )
 
 const (
-	// TeleportNamespace is used as the namespace prefix for any
-	// labels defined by teleport
+	// TeleportNamespace is used as the namespace prefix for labels defined by Teleport which can
+	// carry metadata such as cloud AWS account or instance. Those labels can be used for RBAC.
+	//
+	// If a label with this prefix is used in a config file, the associated feature must take into
+	// account that the label might be removed, modified or could have been set by the user.
+	//
+	// See also TeleportInternalLabelPrefix and TeleportHiddenLabelPrefix.
 	TeleportNamespace = "teleport.dev"
 
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
 	OriginLabel = TeleportNamespace + "/origin"
+
+	// ClusterLabel is a label that identifies the current cluster when creating resources on another systems.
+	// Eg, when creating a resource in AWS, this label must be set as a Tag in the resource.
+	ClusterLabel = TeleportNamespace + "/cluster"
 
 	// ADLabel is a resource metadata label name used to identify if resource is part of Active Directory
 	ADLabel = TeleportNamespace + "/ad"
@@ -432,6 +531,13 @@ const (
 	// created from the Okta service.
 	OriginOkta = "okta"
 
+	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
+	// created from the AWS OIDC Integration.
+	OriginIntegrationAWSOIDC = "integration_awsoidc"
+
+	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
+	IntegrationLabel = TeleportNamespace + "/integration"
+
 	// AWSAccountIDLabel is used to identify nodes by AWS account ID
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
@@ -440,6 +546,9 @@ const (
 	// found via automatic discovery, to avoid re-running installation
 	// commands on the node.
 	AWSInstanceIDLabel = TeleportNamespace + "/instance-id"
+	// AWSInstanceRegion is used to identify the region an EC2
+	// instance is running in
+	AWSInstanceRegion = TeleportNamespace + "/aws-region"
 	// SubscriptionIDLabel is used to identify virtual machines by Azure
 	// subscription ID found via automatic discovery, to avoid re-running
 	// installation commands on the node.
@@ -452,6 +561,13 @@ const (
 	// CloudLabel is used to identify the cloud where the resource was discovered.
 	CloudLabel = TeleportNamespace + "/cloud"
 
+	// DatabaseAdminLabel is used to identify database admin user for auto-
+	// discovered databases.
+	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
+
+	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
+	ReqAnnotationSchedulesLabel = "/schedules"
+
 	// CloudAWS identifies that a resource was discovered in AWS.
 	CloudAWS = "AWS"
 	// CloudAzure identifies that a resource was discovered in Azure.
@@ -461,6 +577,90 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
+)
+
+const (
+	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels. Those labels
+	// are automatically populated by Teleport and are expected to be used by Teleport internal
+	// components and not for RBAC.
+	//
+	// See also TeleportNamespace and TeleportHiddenLabelPrefix.
+	TeleportInternalLabelPrefix = "teleport.internal/"
+
+	// TeleportHiddenLabelPrefix is the prefix used by all user specified hidden labels.
+	//
+	// See also TeleportNamespace and TeleportInternalLabelPrefix.
+	TeleportHiddenLabelPrefix = "teleport.hidden/"
+
+	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
+	BotLabel = TeleportInternalLabelPrefix + "bot"
+
+	// BotGenerationLabel is a label used to record the certificate generation counter.
+	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
+
+	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
+	// A pratical example of this is to create a correlation between a Node Provision Token and
+	// the Node that used that token to join the cluster
+	InternalResourceIDLabel = TeleportInternalLabelPrefix + "resource-id"
+
+	// AlertOnLogin is an internal label that indicates an alert should be displayed to users on login
+	AlertOnLogin = TeleportInternalLabelPrefix + "alert-on-login"
+
+	// AlertPermitAll is an internal label that indicates that an alert is suitable for display
+	// to all users.
+	AlertPermitAll = TeleportInternalLabelPrefix + "alert-permit-all"
+
+	// AlertLink is an internal label that indicates that an alert is a link.
+	AlertLink = TeleportInternalLabelPrefix + "link"
+
+	// AlertVerbPermit is an internal label that permits a user to view the alert if they
+	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
+	// a coarser control than it might initially appear and has the potential for accidental
+	// misuse. Because this permitting strategy doesn't take into account constraints such as
+	// label selectors or where clauses, it can't reliably protect information related to a
+	// specific resource. This label should be used only for permitting of alerts that are
+	// of concern to holders of a given <resource>:<verb> capability in the most general case.
+	AlertVerbPermit = TeleportInternalLabelPrefix + "alert-verb-permit"
+
+	// AlertSupersedes is an internal label used to indicate when one alert supersedes
+	// another. Teleport may choose to hide the superseded alert if the superseding alert
+	// is also visible to the user and of higher or equivalent severity. This intended as
+	// a mechanism for reducing noise/redundancy, and is not a form of access control. Use
+	// one of the "permit" labels if you need to restrict viewership of an alert.
+	AlertSupersedes = TeleportInternalLabelPrefix + "alert-supersedes"
+
+	// AlertLicenseExpired is an internal label that indicates that the license has expired.
+	AlertLicenseExpired = TeleportInternalLabelPrefix + "license-expired-warning"
+
+	// TeleportInternalDiscoveryGroupName is the label used to store the name of the discovery group
+	// that the discovered resource is owned by. It is used to differentiate resources
+	// that belong to different discovery services that operate on different sets of resources.
+	TeleportInternalDiscoveryGroupName = TeleportInternalLabelPrefix + "discovery-group-name"
+
+	// TeleportDowngradedLabel identifies resources that have been automatically
+	// downgraded before being returned to clients on older versions that do not
+	// support one or more features enabled in that resource.
+	TeleportDowngradedLabel = TeleportInternalLabelPrefix + "downgraded"
+
+	// TeleportInternalResourceType indicates the type of internal Teleport resource a resource is.
+	// Valid values are:
+	// - system: These resources will be automatically created and overwritten on startup. Users should
+	//           not change these resources.
+	// - preset: These resources will be created if they don't exist. Updates may be applied to them,
+	//           but user changes to these resources will be preserved.
+	TeleportInternalResourceType = TeleportInternalLabelPrefix + "resource-type"
+
+	// TeleportResourceRevision marks a teleport-managed resource with a reversion
+	// number to aid future migrations. Label value is expected to be a number.
+	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
+
+	// SystemResource are resources that will be automatically created and overwritten on startup. Users
+	// should not change these resources.
+	SystemResource = "system"
+
+	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
+	// to them, but user changes to these resources will be preserved.
+	PresetResource = "preset"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
@@ -565,54 +765,6 @@ const (
 	ResourceSpecType = "type"
 )
 
-const (
-	// TeleportInternalLabelPrefix is the prefix used by all Teleport internal labels
-	TeleportInternalLabelPrefix = "teleport.internal/"
-
-	// TeleportHiddenLabelPrefix is the prefix used by all user specified hidden labels
-	TeleportHiddenLabelPrefix = "teleport.hidden/"
-
-	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
-	BotLabel = TeleportInternalLabelPrefix + "bot"
-
-	// BotGenerationLabel is a label used to record the certificate generation counter.
-	BotGenerationLabel = TeleportInternalLabelPrefix + "bot-generation"
-
-	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
-	// A pratical example of this is to create a correlation between a Node Provision Token and
-	// the Node that used that token to join the cluster
-	InternalResourceIDLabel = TeleportInternalLabelPrefix + "resource-id"
-
-	// AlertOnLogin is an internal label that indicates an alert should be displayed to users on login
-	AlertOnLogin = TeleportInternalLabelPrefix + "alert-on-login"
-
-	// AlertPermitAll is an internal label that indicates that an alert is suitable for display
-	// to all users.
-	AlertPermitAll = TeleportInternalLabelPrefix + "alert-permit-all"
-
-	// AlertLink is an internal label that indicates that an alert is a link.
-	AlertLink = TeleportInternalLabelPrefix + "link"
-
-	// AlertVerbPermit is an internal label that permits a user to view the alert if they
-	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
-	// a coarser control than it might initially appear and has the potential for accidental
-	// misuse. Because this permitting strategy doesn't take into account constraints such as
-	// label selectors or where clauses, it can't reliably protect information related to a
-	// specific resource. This label should be used only for permitting of alerts that are
-	// of concern to holders of a given <resource>:<verb> capability in the most general case.
-	AlertVerbPermit = TeleportInternalLabelPrefix + "alert-verb-permit"
-
-	// AlertSupersedes is an internal label used to indicate when one alert supersedes
-	// another. Teleport may choose to hide the superseded alert if the superseding alert
-	// is also visible to the user and of higher or equivalent severity. This intended as
-	// a mechanism for reducing noise/redundancy, and is not a form of access control. Use
-	// one of the "permit" labels if you need to restrict viewership of an alert.
-	AlertSupersedes = TeleportInternalLabelPrefix + "alert-supersedes"
-
-	// AlertLicenseExpired is an internal label that indicates that the license has expired.
-	AlertLicenseExpired = TeleportInternalLabelPrefix + "license-expired-warning"
-)
-
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.
 var RequestableResourceKinds = []string{
 	KindNode,
@@ -620,12 +772,64 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
+	KindUserGroup,
 	KindKubePod,
+	KindKubeSecret,
+	KindKubeConfigmap,
+	KindKubeNamespace,
+	KindKubeService,
+	KindKubeServiceAccount,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubePersistentVolumeClaim,
+	KindKubeDeployment,
+	KindKubeReplicaSet,
+	KindKubeStatefulset,
+	KindKubeDaemonSet,
+	KindKubeClusterRole,
+	KindKubeRole,
+	KindKubeClusterRoleBinding,
+	KindKubeRoleBinding,
+	KindKubeCronjob,
+	KindKubeJob,
+	KindKubeCertificateSigningRequest,
+	KindKubeIngress,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
 var KubernetesResourcesKinds = []string{
 	KindKubePod,
+	KindKubeSecret,
+	KindKubeConfigmap,
+	KindKubeNamespace,
+	KindKubeService,
+	KindKubeServiceAccount,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubePersistentVolumeClaim,
+	KindKubeDeployment,
+	KindKubeReplicaSet,
+	KindKubeStatefulset,
+	KindKubeDaemonSet,
+	KindKubeClusterRole,
+	KindKubeRole,
+	KindKubeClusterRoleBinding,
+	KindKubeRoleBinding,
+	KindKubeCronjob,
+	KindKubeJob,
+	KindKubeCertificateSigningRequest,
+	KindKubeIngress,
+}
+
+// KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
+// that are not namespaced.
+var KubernetesClusterWideResourceKinds = []string{
+	KindKubeNamespace,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubeClusterRole,
+	KindKubeClusterRoleBinding,
+	KindKubeCertificateSigningRequest,
 }
 
 const (

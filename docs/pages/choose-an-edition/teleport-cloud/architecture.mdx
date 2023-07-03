@@ -36,10 +36,10 @@ cluster state deleted between 7 and 30 days after the lapse.
 ## High Availability
 
 ### Auth Service
-The Teleport [auth service](https://goteleport.com/docs/architecture/authentication/) is deployed within the AWS us-west-2 region in 4 availability zones, and can tolerate a single zone failure. AWS guarantees [99.99%](https://aws.amazon.com/compute/sla/) of monthly uptime.
+The Teleport [Auth Service](../../architecture/authentication.mdx) is deployed within the AWS us-west-2 region in 4 availability zones, and can tolerate a single zone failure. AWS guarantees [99.99%](https://aws.amazon.com/compute/sla/) of monthly uptime.
 
 ### Proxies
-The Teleport [proxy service](https://goteleport.com/docs/architecture/proxy/) can be deployed to multiple AWS regions around the world for low-latency access to distributed infrastructure.
+The Teleport [Proxy Service](../../architecture/proxy.mdx) is deployed to multiple AWS regions around the world for low-latency access to distributed infrastructure.
 
 - us-west-2 (default)
 - us-east-1
@@ -47,8 +47,6 @@ The Teleport [proxy service](https://goteleport.com/docs/architecture/proxy/) ca
 - ap-south-1
 - ap-southeast-1
 - sa-east-1
-
-The multi-region option is currently opt-in by default. Once you have an account, please reach out to your account manager, customer success engineer, or support@goteleport.com. A future update will expand the region availability and make all regions available by default.
 
 ## Releases
 

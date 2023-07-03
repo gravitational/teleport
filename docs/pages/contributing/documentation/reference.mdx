@@ -6,6 +6,34 @@ Teleport uses Next.js to generate its static documentation site. Next.js uses Ma
 
 This section briefly describes some of the features that are most relevant when writing documentation.
 
+## Admonitions
+
+<Admonition
+  title="Admonition title"
+  type="tip"
+>
+  Admonition content.
+</Admonition>
+
+Admonitions are similar to notices, but are intended for longer content that looks better against a white background. Use this syntax:
+
+```jsx
+<Admonition title="Admonition title" type="tip">
+ Admonition content.
+</Admonition>
+```
+
+`type` can be one of the following values: `warning`, `tip`, `note`, `danger`.
+Different types will result in different colors for the header. Omitting the type
+or using some other value will result in resetting it to the `tip`.
+
+If `title` is omitted, `type` will be used instead as the title value.
+
+`scope` is an optional property that specifies the component's
+[scope](./reference.mdx#scopes). If the `scopeOnly` property is provided and the
+user-selected scope is not included in `scope`, the `Admonition` will be hidden.
+
+
 ## Code blocks
 
 You will often need to illustrate documentation with examples of commands, code,
@@ -45,19 +73,222 @@ Here is the same block after rendering:
    Output
    ```
 
-## Variables, templating, and interpolation
+## Details
 
-Many documentation teams struggle with maintaining the vast number of articles
-and resources that are eventually created and consumed. Links and images have to
-be rechecked for accuracy and relevance.
+<Details title="Details title" min="7.0" opened>
+  Details content
+</Details>
 
-To ease this burden, we can replace links and code examples with *variables* so we don't have to constantly update everything after each release.
+To insert a details block like the one above, use this syntax:
 
-Variables are stored in the `docs/config.json` file under the key `variables`.
+```
+<Details title="Details title" min="7.0" opened>
+  Details content
+</Details>
+```
 
-To insert a variable into a page, use the `(\= path.to.variable \=)` syntax (remove backslashes in the actual Markdown).
+`scope` is an optional property that specifies the component's [scope](./reference.mdx#scopes).
 
-Variables will be linted when a PR is created as part of our CI/CD process. If a variable does not exist in the config, you will see an error that you must remedy in order to merge your PR.
+If `scopeOnly` is assigned to `{true}`, the component will only be visible
+in the provided scope and invisible in all other scopes.
+
+## Figures
+
+{/* TODO: Document all props*/}
+
+The `Figure` component can help with using images, figures, and diagrams:
+
+<Figure
+  align="center"
+  bordered
+  caption="Example"
+>
+  ![Example](../../../img/overview.png)
+</Figure>
+
+```jsx
+<Figure
+  align="center"
+  bordered
+  caption="Example"
+>
+  ![Example](../../../img/overview.png)
+</Figure>
+```
+
+## Icons
+
+The `Icon` component lets you insert icons into documentation text. This is
+useful when referencing a UI element with an icon. For example:
+
+```md
+In the main menu, click on <Icon name="desktop" inline size="sm"/> **Desktops**
+to view desktops available to your Teleport user.
+```
+
+Which renders as:
+
+In the main menu, click on <Icon name="desktop" inline size="sm"/> **Desktops**
+to view desktops available to your Teleport user.
+
+<Details title="Available icons">
+
+(!docs/pages/includes/icons-table.mdx!)
+
+</Details>
+
+## Image pixel density markers
+
+Browsers can't distinguish between images that are suitable for Apple's Retina display and images that are not. Because of this, screenshots taken on Retina screens may look large on the page.
+
+To hint to browsers that an image is meant for a Retina display, we can add the
+suffix `@Nx` to the image's file name. For example, screenshots made on MacOS
+should have the suffix `filename@2x.png`. This will tell the browser to scale
+images down twice to show them in their actual size.
+
+## In-page edits
+
+Teleport deeply integrates with a user's infrastructure, so configuration
+options, URLs, and other values often vary from setup to setup. Docs pages can
+define variables that users can edit, allowing them to tailor their
+documentation experience to their own environment.
+
+### The Var component
+
+To declare a variable, use the `Var` component, as shown in the two `code`
+snippets below:
+
+````markdown
+<Details title="Getting cluster information" opened>
+Log in to your Teleport cluster using the following command:
+
+```code
+$ tsh login --user=<Var name="user"/> --proxy=<Var name="proxy" description="Domain name of your Teleport Web UI" />
+```
+
+Get information about your Teleport cluster:
+
+```code
+$ curl https://<Var name="proxy"/>/webapi/ping
+```
+
+</Details>
+````
+
+Here is the result:
+
+<Details title="Getting cluster information" opened>
+Log in to your Teleport cluster using the following command:
+
+```code
+$ tsh login --user=<Var name="user"/> --proxy=<Var name="proxy" description="Domain name of your Teleport Web UI" />
+```
+
+Get information about your Teleport cluster:
+
+```code
+$ curl https://<Var name="proxy"/>/webapi/ping
+```
+
+</Details>
+
+<Admonition type="tip">
+
+The `Var` component only works in [code blocks](#code-blocks) using the `code`
+syntax (e.g. <code>```code</code>), and only for "command" lines (beginning
+with `$`). The component will work without caveats outside of code blocks.
+
+</Admonition>
+
+When a user updates the value of an in-page variable, the values of any `Var`
+components with the same `name` property update automatically. When you copy a
+`code` snippet using the copy button, the values of any in-page variables within
+the `code` snippet are added to the clipboard.
+
+The `description` field is used in the `VarList` component, which we explain in
+the next section. You only need to specify the `description` once.
+
+<Admonition type="tip" title="Global variables">
+
+Variables are scoped to a single page by default. You can make a variable
+preserve its value across all of the pages a user visits by adding the
+`isGlobal` property to the `<Var/>` tag. Variable values are not preserved
+between browser sessions.
+
+</Admonition>
+
+`Var` tags must be self closing (ending in `/>`).
+
+### The VarList component
+
+To provide a key for all of the global and page-local variables the docs have
+defined, use the `VarList` component:
+
+```markdown
+<Details title="Page variables" opened>
+<VarList/>
+</Details>
+```
+
+This results in the following:
+
+<Details title="Page variables" opened>
+<VarList/>
+</Details>
+
+The description we added to the `proxy` variable appears here. Since the `user`
+variable does not have a description, the `VarList` shows its name instead.
+
+## MermaidJS diagrams
+
+You can declare a MermaidJS diagram by adding a code snippet to a docs page with
+the `mermaid` label. See the [MermaidJS
+documentation](https://mermaid.js.org/intro/) for an introduction to the diagram
+syntax.
+
+For example, you can declare a flowchart using this diagram definition:
+
+````markdown
+```mermaid
+flowchart LR
+  start --> e["end"]
+```
+````
+
+This will render as a diagram:
+
+```mermaid
+flowchart LR
+  start --> e["end"]
+```
+
+The advantage of MermaidJS diagrams over static images is that MermaidJS
+diagrams are easy to edit once they are added to the codebase, since there is no
+need to find an original image file. Docs authors can edit the information
+within a MermaidJS diagram without needing to worry about adjusting lines in a
+graphical editor. It's also possible to apply standard stylesheets to MermaidJS
+diagrams and perform static text analysis (e.g., spell checking and linting).
+
+The disadvantage of MermaidJS diagrams is that the Teleport documentation
+engine's implementation does not currently support images, so diagrams that
+require more than lines, coloring, and text must use another solution.
+
+## Notices
+
+<Notice type="tip">Notice content.</Notice>
+
+If you want to add notice like the one above to the page, use this syntax:
+
+```
+<Notice type="tip">
+  Notice content.
+</Notice>
+```
+
+`type` can be one of the following values: `warning`, `tip`, `note`, `danger`. The default is `tip`.
+Different types will result in different background colors and icons.
+
+`scope` is an optional property that specifies the component's [scope](./reference.mdx#scopes).
 
 ## Partials
 
@@ -207,14 +438,70 @@ Values must be enclosed in double quotes. Parameter names and values must be
 separated by a `=` character, and the `=` character must not be surrounded by
 spaces. 
 
-## Image pixel density markers
+### Relative link paths in partials
 
-Browsers can't distinguish between images that are suitable for Apple's Retina display and images that are not. Because of this, screenshots taken on Retina screens may look large on the page.
+When a partial contains a link with a relative path, the docs engine
+evaluates the path relative to the partial, not the including file.
 
-To hint to browsers that an image is meant for a Retina display, we can add the
-suffix `@Nx` to the image's file name. For example, screenshots made on MacOS
-should have the suffix `filename@2x.png`. This will tell the browser to scale
-images down twice to show them in their actual size.
+For example, let's say you have a file called `docs/pages/page.mdx` with the
+following content:
+
+{/*lint ignore includes*/} 
+```markdown
+This is a page.
+
+(!docs/pages/includes/include.mdx!)
+```
+
+The partial in `docs/pages/includes/include.mdx` looks like this:
+
+```markdown
+Here is an image:
+
+![Screenshot](../../img/screenshot.png)
+```
+
+When including the partial, the docs engine will rewrite the link path to load
+the image in `docs/img/screenshot.png`.
+
+## ScopedBlock
+
+Use the `ScopedBlock` component if you want to render some Markdown only for
+users of open source Teleport, Teleport Cloud, or Teleport Enterprise.
+
+`ScopedBlock` has a single property, `scope`, that works the same as it does for
+other components we use in the documentation. See our
+[explanation](./reference.mdx#scopes) of how to use the `scope` property.
+
+Use this instead of the `Tabs` component when:
+
+- You want to conceal details that aren't relevant to the reader's scope.
+- The components you use don't look presentable within a `TabItem`, e.g., you're
+  including a separate `Tabs` component for each scope.
+
+<Notice type="warning">
+
+Readers may not notice that it is possible to adjust the scope of a docs page,
+so only use this component if there is no risk of a reader losing important
+information by not seeing a `ScopedBlock`. Otherwise, consider a `Details` block
+with `scope` set and `scopeOnly={false}`.
+
+</Notice>
+
+Any Markdown and MDX components can be included within a `ScopedBlock`.
+
+```jsx
+<ScopedBlock scope={["oss", "enterprise"]}>
+
+  Here are some options for installing the Teleport Auth and Proxy Services on
+  your own infrastructure.
+
+  <Tabs>
+  {/* TabItems that vary between scopes */}
+  </Tabs>
+
+</ScopedBlock>
+```
 
 ## Scopes
 
@@ -226,50 +513,6 @@ If `scope` is set, the component will be only shown if the scope is selected via
 the dropdown menu. `scope` can be either a single string or an array of strings.
 Possible values are `oss`, `enterprise`, and `cloud`. For an array of strings,
 use this syntax: `scope={["oss", "cloud"]}`.
-
-## Notices
-
-<Notice type="tip">Notice content.</Notice>
-
-If you want to add notice like the one above to the page, use this syntax:
-
-```
-<Notice type="tip">
-  Notice content.
-</Notice>
-```
-
-`type` can be one of the following values: `warning`, `tip`, `note`, `danger`. The default is `tip`.
-Different types will result in different background colors and icons.
-
-`scope` is an optional property that specifies the component's [scope](./reference.mdx#scopes).
-
-## Admonitions
-
-<Admonition
-  title="Admonition title"
-  type="tip"
->
-  Admonition content.
-</Admonition>
-
-Admonitions are similar to notices, but are intended for longer content that looks better against a white background. Use this syntax:
-
-```jsx
-<Admonition title="Admonition title" type="tip">
- Admonition content.
-</Admonition>
-```
-
-`type` can be one of the following values: `warning`, `tip`, `note`, `danger`.
-Different types will result in different colors for the header. Omitting the type
-or using some other value will result in resetting it to the `tip`.
-
-If `title` is omitted, `type` will be used instead as the title value.
-
-`scope` is an optional property that specifies the component's
-[scope](./reference.mdx#scopes). If the `scopeOnly` property is provided and the
-user-selected scope is not included in `scope`, the `Admonition` will be hidden.
 
 ## Tabs
 
@@ -447,192 +690,19 @@ When defining a `Tabs` component with the `dropdownView` option enabled, you
 must declare dropdown options using the `label` attribute of `TabItem`, not the
 `options` attribute. 
 
-## Details
+## Variables, templating, and interpolation
 
-<Details title="Details title" min="7.0" opened>
-  Details content
-</Details>
+Many documentation teams struggle with maintaining the vast number of articles
+and resources that are eventually created and consumed. Links and images have to
+be rechecked for accuracy and relevance.
 
-To insert a details block like the one above, use this syntax:
+To ease this burden, we can replace links and code examples with *variables* so we don't have to constantly update everything after each release.
 
-```
-<Details title="Details title" min="7.0" opened>
-  Details content
-</Details>
-```
+Variables are stored in the `docs/config.json` file under the key `variables`.
 
-`scope` is an optional property that specifies the component's [scope](./reference.mdx#scopes).
+To insert a variable into a page, use the `(\= path.to.variable \=)` syntax (remove backslashes in the actual Markdown).
 
-If `scopeOnly` is assigned to `{true}`, the component will only be visible
-in the provided scope and invisible in all other scopes.
-
-## In-page edits
-
-Teleport deeply integrates with a user's infrastructure, so configuration
-options, URLs, and other values often vary from setup to setup. Docs pages can
-define variables that users can edit, allowing them to tailor their
-documentation experience to their own environment.
-
-### The Var component
-
-To declare a variable, use the `Var` component, as shown in the two `code`
-snippets below:
-
-````markdown
-<Details title="Getting cluster information" opened>
-Log in to your Teleport cluster using the following command:
-
-```code
-$ tsh login --user=<Var name="user"/> --proxy=<Var name="proxy" description="Domain name of your Teleport Web UI" />
-```
-
-Get information about your Teleport cluster:
-
-```code
-$ curl https://<Var name="proxy"/>/webapi/ping
-```
-
-</Details>
-````
-
-Here is the result:
-
-<Details title="Getting cluster information" opened>
-Log in to your Teleport cluster using the following command:
-
-```code
-$ tsh login --user=<Var name="user"/> --proxy=<Var name="proxy" description="Domain name of your Teleport Web UI" />
-```
-
-Get information about your Teleport cluster:
-
-```code
-$ curl https://<Var name="proxy"/>/webapi/ping
-```
-
-</Details>
-
-<Admonition type="tip">
-
-The `Var` component only works in [code blocks](#code-blocks) using the `code`
-syntax (e.g. <code>```code</code>), and only for "command" lines (beginning
-with `$`). The component will work without caveats outside of code blocks.
-
-</Admonition>
-
-When a user updates the value of an in-page variable, the values of any `Var`
-components with the same `name` property update automatically. When you copy a
-`code` snippet using the copy button, the values of any in-page variables within
-the `code` snippet are added to the clipboard.
-
-The `description` field is used in the `VarList` component, which we explain in
-the next section. You only need to specify the `description` once.
-
-<Admonition type="tip" title="Global variables">
-
-Variables are scoped to a single page by default. You can make a variable
-preserve its value across all of the pages a user visits by adding the
-`isGlobal` property to the `<Var/>` tag. Variable values are not preserved
-between browser sessions.
-
-</Admonition>
-
-`Var` tags must be self closing (ending in `/>`).
-
-### The VarList component
-
-To provide a key for all of the global and page-local variables the docs have
-defined, use the `VarList` component:
-
-```markdown
-<Details title="Page variables" opened>
-<VarList/>
-</Details>
-```
-
-This results in the following:
-
-<Details title="Page variables" opened>
-<VarList/>
-</Details>
-
-The description we added to the `proxy` variable appears here. Since the `user`
-variable does not have a description, the `VarList` shows its name instead.
-
-## Figures
-
-{/* TODO: Document all props*/}
-
-The `Figure` component can help with using images, figures, and diagrams:
-
-<Figure
-  align="center"
-  bordered
-  caption="Example"
->
-  ![Example](../../../img/overview.png)
-</Figure>
-
-```jsx
-<Figure
-  align="center"
-  bordered
-  caption="Example"
->
-  ![Example](../../../img/overview.png)
-</Figure>
-```
-
-## Icons
-
-The `Icon` component lets you insert icons into documentation text. This is
-useful when referencing a UI element with an icon. For example:
-
-```md
-In the main menu, click on <Icon name="desktop" inline size="sm"/> **Desktops**
-to view desktops available to your Teleport user.
-```
-
-Which renders as:
-
-In the main menu, click on <Icon name="desktop" inline size="sm"/> **Desktops**
-to view desktops available to your Teleport user.
-
-<Details title="Available icons">
-
-(!docs/pages/includes/icons-table.mdx!)
-
-</Details>
-
-## ScopedBlock
-
-Use the `ScopedBlock` component if you want to render some Markdown only for
-users of open source Teleport, Teleport Cloud, or Teleport Enterprise.
-
-`ScopedBlock` has a single property, `scope`, that works the same as it does for
-other components we use in the documentation. See our
-[explanation](./reference.mdx#scopes) of how to use the `scope` property.
-
-Use this instead of the `Tabs` component when:
-
-- You want to conceal details that aren't relevant to the reader's scope.
-- The components you use don't look presentable within a `TabItem`, e.g., you're
-  including a separate `Tabs` component for each scope.
-
-Any Markdown and MDX components can be included within a `ScopedBlock`.
-
-```jsx
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-  Here are some options for installing the Teleport Auth and Proxy Services on
-  your own infrastructure.
-
-  <Tabs>
-  {/* TabItems that vary between scopes */}
-  </Tabs>
-
-</ScopedBlock>
-```
+Variables will be linted when a PR is created as part of our CI/CD process. If a variable does not exist in the config, you will see an error that you must remedy in order to merge your PR.
 
 ## Videos
 

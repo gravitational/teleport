@@ -3,7 +3,7 @@
 <plist version="1.0">
    <dict>
    <key>Label</key>
-   <string>Teleport SSH Service</string>
+   <string>Teleport Service</string>
    <key>ProgramArguments</key>
    <array>
       <string>/usr/local/bin/teleport</string>

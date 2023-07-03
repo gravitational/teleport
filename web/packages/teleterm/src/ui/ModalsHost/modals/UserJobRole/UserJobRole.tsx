@@ -95,7 +95,7 @@ export function UserJobRole(props: UserJobRoleProps) {
           <ButtonIcon
             type="button"
             onClick={props.onCancel}
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
             <Close fontSize={5} />
           </ButtonIcon>
@@ -108,7 +108,7 @@ export function UserJobRole(props: UserJobRoleProps) {
             value={jobRole}
             onChange={handleRadioGroupChange}
           />
-          <DarkInput
+          <StyledInput
             ref={inputRef}
             value={otherJobRole}
             onClick={() => {
@@ -135,19 +135,8 @@ export function UserJobRole(props: UserJobRoleProps) {
   );
 }
 
-// TODO(gzdunek): remove after improving inputs styling in Connect
-const DarkInput = styled(Input)`
-  background: inherit;
-  border: 1px ${props => props.theme.colors.action.disabledBackground} solid;
-  box-shadow: none;
-  color: ${props => props.theme.colors.text.primary};
+const StyledInput = styled(Input)`
   margin-bottom: 10px;
   font-size: 14px;
   height: 34px;
-  transition: border 300ms ease-out;
-
-  ::placeholder {
-    opacity: 1;
-    color: ${props => props.theme.colors.text.secondary};
-  }
 `;

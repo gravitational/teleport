@@ -74,8 +74,8 @@ export default function LoginForm(props: Props) {
   // and display sso providers if any.
   if (!isLocalAuthEnabled && ssoEnabled) {
     return (
-      <Card bg="levels.surface" my="5" mx="auto" width="464px" pb={4}>
-        <Text typography="h3" pt={4} textAlign="center" color="light">
+      <Card my="5" mx="auto" width="464px" pb={4}>
+        <Text typography="h3" pt={4} textAlign="center">
           {title}
         </Text>
         {attempt.isFailed && (
@@ -90,8 +90,8 @@ export default function LoginForm(props: Props) {
 
   if (!isLocalAuthEnabled) {
     return (
-      <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
-        <Text typography="h3" pt={4} textAlign="center" color="light">
+      <Card my="5" mx="auto" width="464px" px={5} pb={4}>
+        <Text typography="h3" pt={4} textAlign="center">
           {title}
         </Text>
         <Alerts.Danger my={5}>Login has not been enabled</Alerts.Danger>
@@ -105,8 +105,8 @@ export default function LoginForm(props: Props) {
 
   // Everything below requires local auth to be enabled.
   return (
-    <Card bg="levels.surface" my="5" mx="auto" width={464} pb={4}>
-      <Text typography="h3" pt={4} textAlign="center" color="light">
+    <Card my="5" mx="auto" width={464} pb={4}>
+      <Text typography="h3" pt={4} textAlign="center">
         {title}
       </Text>
       {attempt.isFailed && (
@@ -175,7 +175,12 @@ const Passwordless = ({
             <Key mr={3} fontSize={16} />
             <Box>
               <Text typography="h6">Passwordless</Text>
-              <Text fontSize={1} color="text.secondary">
+              <Text
+                fontSize={1}
+                color={
+                  attempt.isProcessing ? 'text.disabled' : 'text.slightlyMuted'
+                }
+              >
                 Follow the prompt from your browser
               </Text>
             </Box>
@@ -259,6 +264,7 @@ const LocalForm = ({
             value={user}
             onChange={e => setUser(e.target.value)}
             placeholder="Username"
+            disabled={attempt.isProcessing}
             mb={3}
           />
           <Box mb={isRecoveryEnabled ? 1 : 3}>
@@ -269,6 +275,7 @@ const LocalForm = ({
               onChange={e => setPass(e.target.value)}
               type="password"
               placeholder="Password"
+              disabled={attempt.isProcessing}
               mb={0}
               width="100%"
             />
@@ -470,7 +477,7 @@ const Divider = () => (
     justifyContent="center"
     flexDirection="column"
     borderBottom={1}
-    borderColor="text.placeholder"
+    borderColor="text.muted"
     mx={5}
     mt={5}
     mb={2}
@@ -482,18 +489,21 @@ const Divider = () => (
 const StyledPaswordlessBtn = styled(ButtonText)`
   display: block;
   text-align: left;
-  border: 1px solid ${({ theme }) => theme.colors.text.placeholder};
+  border: 1px solid ${({ theme }) => theme.colors.buttons.border.border};
 
   &:hover,
-  &:active,
   &:focus {
-    border-color: ${({ theme }) => theme.colors.action.active};
+    background: ${({ theme }) => theme.colors.buttons.border.hover};
     text-decoration: none;
+  }
+
+  &:active {
+    background: ${({ theme }) => theme.colors.buttons.border.active};
   }
 
   &[disabled] {
     pointer-events: none;
-    opacity: 0.7;
+    background: ${({ theme }) => theme.colors.buttons.bgDisabled};
   }
 `;
 

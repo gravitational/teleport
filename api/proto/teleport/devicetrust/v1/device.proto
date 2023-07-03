@@ -92,8 +92,31 @@ message Device {
 message DeviceCredential {
   // Unique identifier of the credential, defined client-side.
   string id = 1;
-  // Device public key marshaled as a PKIX, ASN.1 DER.
+  // Device public key marshaled as a PKIX, ASN.1 DER. Used only on MacOS.
   bytes public_key_der = 2;
+  // The degree to which the device credential is attested.
+  DeviceAttestationType device_attestation_type = 3;
+  // For TPM devices, the serial number of the TPM endorsement certificate.
+  string tpm_ekcert_serial = 4;
+  // For TPM devices, the encoded TPMT_PUBLIC structure containing the
+  // attestation public key and signing parameters.
+  bytes tpm_ak_public = 5;
+}
+
+// AttestationType indicates the degree to which the device credential has
+// been attested.
+enum DeviceAttestationType {
+  // Bare public key which has only verified with proof of ownership.
+  // Used on macOS.
+  DEVICE_ATTESTATION_TYPE_UNSPECIFIED = 0;
+  // Credential was verified through a TPM EK->AK chain on enrollment.
+  DEVICE_ATTESTATION_TYPE_TPM_EKPUB = 1;
+  // Credential was verified through a TPM EKCert->AK chain on enrollment,
+  // but no allow-listed CAs were configured to validate this EKCert against.
+  DEVICE_ATTESTATION_TYPE_TPM_EKCERT = 2;
+  // Credential was verified through a TPM EKCert->AK chain on enrollment, and
+  // the EKCert was signed by a configured allow-listed CA.
+  DEVICE_ATTESTATION_TYPE_TPM_EKCERT_TRUSTED = 3;
 }
 
 // DeviceEnrollStatus represents the enrollment status of a device.

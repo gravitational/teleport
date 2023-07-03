@@ -97,16 +97,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
               anchorEl={infoIconRef.current}
               onClose={() => setShowTooltip(false)}
             >
-              <Box
-                bg="#011223"
-                color="white"
-                width={362}
-                p={4}
-                style={{
-                  boxShadow: '0px 8px 14px rgba(12, 12, 14, 0.07)',
-                  borderRadius: '8px',
-                }}
-              >
+              <Box bg="levels.elevated" width={362} p={4}>
                 Teleport provides users the ability to add labels (in the form
                 of key:value pairs) to resources. Some valid example labels are
                 “env: prod” and “arch: x86_64”. Labels, used in conjunction with
@@ -136,7 +127,6 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
             <Link
               href="https://goteleport.com/docs/setup/admin/labels/"
               target="_blank"
-              color="rgb(255, 255, 255)"
             >
               View Documentation
             </Link>
@@ -148,7 +138,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
         data-testid="label-container"
       >
         {labels.length === 0 && (
-          <Text color="rgba(255, 255, 255, 0.1)">Click to add new labels.</Text>
+          <Text color="text.muted">Click to add new labels.</Text>
         )}
         {labelList({ labels, onDismiss: handleLabelDismiss })}
       </LabelContainer>
@@ -184,7 +174,7 @@ function LabelSelector({ onChange }: LabelSelectorProps) {
                 <Warning style={{ padding: '3px' }} />
               </WarningIconWrapper>
               <WarningText>
-                <Text style={{ color: '#D83C31', fontWeight: 700 }}>
+                <Text color="error.main" style={{ fontWeight: 700 }}>
                   Invalid label format
                 </Text>
                 <Text>Follow `key:pair` format to add a new label</Text>
@@ -204,8 +194,8 @@ const Heading = styled.div`
 
 const LabelContainer = styled.div`
   border-radius: 4px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  box-shadow: 0px 8px 10px rgba(12, 12, 14, 0.07);
+  border: 1px solid ${props => props.theme.colors.spotBackground[1]};
+  box-shadow: ${props => props.theme.boxShadow[2]};
   cursor: pointer;
   display: flex;
   flex-wrap: wrap;
@@ -216,17 +206,17 @@ const LabelContainer = styled.div`
 `;
 
 const AddLabelContainer = styled.div`
-  background: #182250;
+  background: ${props => props.theme.colors.sunken};
   border-radius: 4px;
   height: 100px;
   padding: 1rem;
 `;
 
 const AddLabelInput = styled.input`
-  background: #182250;
+  background: ${props => props.theme.colors.sunken};
   border-radius: 52px;
-  border: 1.5px solid ${({ theme }) => theme.colors.brand.main};
-  color: white;
+  border: 1.5px solid ${({ theme }) => theme.colors.brand};
+  color: ${({ theme }) => theme.colors.text.main};
   height: 40px;
   padding: 0 12px;
   width: calc(100% - 2rem);
@@ -235,7 +225,7 @@ const AddLabelInput = styled.input`
 const CreateLabel = styled.button`
   background: none;
   border: none;
-  color: white;
+  color: ${({ theme }) => theme.colors.text.main};
   cursor: pointer;
   font-size: 1rem;
   margin-left: 16px;
@@ -248,7 +238,7 @@ const CreateLabelError = styled.div`
 `;
 
 const WarningIconWrapper = styled.div`
-  background: rgba(255, 255, 255, 0.05);
+  background: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 54px;
   display: flex;
   height: 20px;

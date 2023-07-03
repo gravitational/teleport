@@ -220,7 +220,7 @@ func setupBPFContext(t *testing.T) *bpfContext {
 	bpfCtx.restrictedMgr, err = New(config, client)
 	require.NoError(t, err)
 
-	client.Fanout.SetInit()
+	client.Fanout.SetInit([]api.WatchKind{{Kind: api.KindNetworkRestrictions}})
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -239,7 +239,8 @@ func (tt *bpfContext) Close(t *testing.T) {
 	if tt.enhancedRecorder != nil && tt.ctx != nil {
 		err := tt.enhancedRecorder.CloseSession(tt.ctx)
 		require.NoError(t, err)
-		err = tt.enhancedRecorder.Close()
+		const restarting = false
+		err = tt.enhancedRecorder.Close(restarting)
 		require.NoError(t, err)
 	}
 

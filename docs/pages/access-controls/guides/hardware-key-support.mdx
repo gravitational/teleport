@@ -7,6 +7,8 @@ description: Hardware Key Support
 
 <Admonition type="warning" title="Preview">
   Hardware key Support is currently in Preview mode.
+
+  Hardware Key Support requires Teleport Enterprise.
 </Admonition>
 
 By default, `tsh`, Teleport Connect, and other Teleport clients store a user's login session directly on their filesystem. If a user's filesystem is compromised, any of their active Teleport login sessions would also be compromised.
@@ -27,22 +29,22 @@ Additionally, this feature can be configured to require touch for every Teleport
   Supported (`tsh`, `tctl`, and Teleport Connect):
     
     - Standard Teleport API requests (`tsh ls`, `tctl create`, etc.)
-    - Server Access
-    - Database Access
+    - Server access
+    - Database access
       - Must use `tsh proxy db` instead of `tsh db connect`
   
   Not yet supported:
 
     - Teleport WebUI (except for user registration / reset password)
     - Agent forwarding functionality such as `tsh ssh -A`, Proxy Recording mode, and OpenSSH integration
-    - Kubernetes Access
-    - Desktop Access
-    - Application Access
+    - Kubernetes access
+    - Desktop access
+    - Application access
 
   The unsupported features above will not function for users that have have hardware key support
   enforced. This is either because the user's hardware key can't be accessed within that feature
   (WebUI) or because the protocol only supports raw private keys currently (Agent forwarding,
-  Kubernetes Access, Desktop Access). 
+  Kubernetes access, desktop access). 
 
   To navigate these incompatibilities, we recommend enabling hardware key support only when
   necessary, such as for roles with access to critical infrastructure. These roles can be accessed
@@ -77,83 +79,31 @@ spec:
     require_session_mfa: hardware_key_touch
 ```
 
-You can also enforce hardware key support cluster-wide by updating your Teleport configuration as below:
-
-<ScopedBlock scope={["enterprise"]}>
-<Tabs>
-  <TabItem label="Static Config">
-    In the Auth Server's `teleport.yaml` file:
-
-    ```yaml
-    # snippet from /etc/teleport.yaml:
-    auth_service:
-      authentication:
-        require_session_mfa: hardware_key_touch
-    ```
-  </TabItem>
-  <TabItem label="Dynamic resources">
-
-  Obtain your existing `cluster_auth_preference` resource:
-
-  ```code
-  $ tctl get cap > cap.yaml
-  ```
-
-  If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
-  Ensure that `cap.yaml` includes the following content:
-
-  ```yaml
-  kind: cluster_auth_preference
-  version: v2
-  metadata:
-    name: cluster-auth-preference
-  spec:
-    type: local
-    require_session_mfa: hardware_key_touch
-  ```
-
-  Update the configuration:
-
-  ```code
-  $ tctl create -f cap.yaml
-  # cluster auth preference has been updated
-  ```
-
-  </TabItem>
-</Tabs>
-</ScopedBlock>
-
-<ScopedBlock scope={["cloud"]}>
-
-Obtain your existing `cluster_auth_preference` resource:
+You can also enforce hardware key support cluster-wide by updating your Teleport configuration:
 
 ```code
-$ tctl get cap > cap.yaml
+$ tctl edit cap
 ```
 
-If you have not defined a `cluster_auth_preference`, `cap.yaml` will be blank.
-
-Ensure that `cap.yaml` includes the following content:
+Set the value of `spec.require_session_mfa` to `hardware_key_touch`:
 
 ```yaml
 kind: cluster_auth_preference
-version: v2
 metadata:
+  ...
   name: cluster-auth-preference
 spec:
-  type: local
+  ...
   require_session_mfa: hardware_key_touch
+  ...
+version: v2
 ```
 
-Update the configuration:
+After you save and exit the editor, `tctl` will update the resource:
 
-```code
-$ tctl create -f cap.yaml
-# cluster auth preference has been updated
+```text
+cluster auth preference has been updated
 ```
-
-</ScopedBlock>
 
 ## Step 2/2. Log In
 
@@ -161,7 +111,7 @@ Once hardware key support is enforced, affected users will be required to have t
 
 These users will be prompted to connect and touch their YubiKey on log in:
 
-<ScopedBlock scope={["enterprise"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```code
 $ tsh login --user=dev --proxy=proxy.example.com:3080
@@ -179,6 +129,24 @@ $ tsh login --user=dev --proxy=proxy.example.com:3080
 
 </ScopedBlock>
 
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ tsh login --user=dev --proxy=proxy.example.com:3080
+# Enter password for Teleport user dev:
+# Tap your YubiKey
+# > Profile URL:        https://example.com
+#   Logged in as:       dev
+#   Cluster:            example.com
+#   Roles:              access, editor, reviewer
+#   Logins:             bjoerger
+#   Kubernetes:         enabled
+#   Valid until:        2022-10-11 01:53:44 -0700 PDT [valid for 8h0m0s]
+#   Extensions:         permit-X11-forwarding, permit-agent-forwarding, permit-port-forwarding, permit-pty, private-key-policy
+```
+
+</ScopedBlock>
+
 <ScopedBlock scope={["cloud"]}>
 
 ```code
@@ -188,7 +156,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 # > Profile URL:        https://example.com
 #   Logged in as:       dev
 #   Cluster:            example.com
-#   Roles:              access, editor
+#   Roles:              access, editor, reviewer
 #   Logins:             bjoerger
 #   Kubernetes:         enabled
 #   Valid until:        2022-10-11 01:53:44 -0700 PDT [valid for 8h0m0s]
@@ -216,7 +184,7 @@ For existing users of per-session MFA, upgrading to `hardware_key_touch` may be 
 
 For users who want this mash-up of functionality, you can use the `require_session_mfa: hardware_key` option in both roles and cluster auth preference settings. This option will continue to use per-session MFA checks while also requiring hardware-based private keys for all Teleport requests.
 
-This prevents basic data exfiltration attacks for Teleport sesssion and non-session requests. However, it does not prevent hacking attacks with non-session Teleport requests, since gaining access to a user's computer would provide both their certificates on disk and a local connection to their YubiKey, assuming its connected.
+This prevents basic data exfiltration attacks for Teleport session and non-session requests. However, it does not prevent hacking attacks with non-session Teleport requests, since gaining access to a user's computer would provide both their certificates on disk and a local connection to their YubiKey, assuming its connected.
 
 ## Troubleshooting
 

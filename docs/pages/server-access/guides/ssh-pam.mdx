@@ -177,6 +177,12 @@ $ cat /etc/motd
 
 ## Create local Unix users on login
 
+<Admonition type="warning">
+Using PAM to create local users on login is obsolete and will be removed in a future version. Refer to the
+[Host user creation](./host-user-creation.mdx) guide to learn how to configure
+Teleport to automatically create local Linux users without PAM.
+</Admonition>
+
 Teleport has the ability to create local Unix users on login. This is
 very helpful if you're a large organization and want to provision local users and home
 directories on the fly.
@@ -208,15 +214,26 @@ session   required   pam_permit.so
 
 Next, create a script that will be run by `pam_exec.so`.
 
+Create a directory where you will store the script:
+
 ```code
-mkdir -p /etc/pam-exec.d
-cat > /etc/pam-exec.d/teleport_acct <<"EOF"
+$ mkdir -p /etc/pam-exec.d
+```
+
+In `/etc/pam-exec.d`, add a file called `teleport_acct` with the following
+content:
+
+```text
 #!/bin/sh
 COMMENT="User ${TELEPORT_LOGIN} for ${TELEPORT_USERNAME} with roles ${TELEPORT_ROLES} created by Teleport."
 /bin/id -u "${TELEPORT_LOGIN}" > /dev/null 2>&1 || /sbin/useradd -m -s /bin/bash -c "${COMMENT}" "${TELEPORT_LOGIN}" 2>> /tmp/pam.error
 exit 0
-EOF
-chmod +x /etc/pam-exec.d/teleport_acct
+```
+
+Ensure that your script is executable:
+
+```code
+$ chmod +x /etc/pam-exec.d/teleport_acct
 ```
 
 This script will check if the login assigned to `TELEPORT_LOGIN` exists and, if

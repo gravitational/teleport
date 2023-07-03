@@ -290,7 +290,12 @@
         "image": {
             "$id": "#/properties/image",
             "type": "string",
-            "default": "public.ecr.aws/gravitational/teleport"
+            "default": "public.ecr.aws/gravitational/teleport-distroless"
+        },
+        "enterpriseImage": {
+            "$id": "#/properties/enterpriseImage",
+            "type": "string",
+            "default": "public.ecr.aws/gravitational/teleport-ent-distroless"
         },
         "imagePullSecrets": {
             "$id": "#/properties/imagePullSecrets",
@@ -570,6 +575,11 @@
         },
         "extraVolumeMounts": {
             "$id": "#/properties/extraVolumeMounts",
+            "type": "array",
+            "default": []
+        },
+        "hostAliases": {
+            "$id": "#/properties/hostAliases",
             "type": "array",
             "default": []
         },

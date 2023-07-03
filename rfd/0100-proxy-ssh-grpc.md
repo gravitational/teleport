@@ -1,6 +1,6 @@
 ---
 authors: Tim Ross (tim.ross@goteleport.com)
-state: draft
+state: implemented (v13.0)
 ---
 
 # RFD 0100 - Use gRPC to proxy SSH connections to Nodes
@@ -18,7 +18,7 @@ to Nodes
 
 One of the primary contributors to `tsh ssh` connection latency is the
 time it takes to perform an SSH handshake. All connections to a Node via
-`tsh` are proxied via a SSH session established with the Proxy. Which means 
+`tsh` are proxied via a SSH session established with the Proxy. Which means
 that in order to connect to a Node `tsh` must perform at least two SSH handshakes,
 one with the Proxy to setup the connection transport and another with the
 target Node over the transport to establish the user's SSH connection.
@@ -51,14 +51,14 @@ service ProxyConnectionService {
   rpc GetClusterDetails(GetClusterDetailsRequest) returns (GetClusterDetailsResponse);
 
   // ProxySSH establishes an SSH connection to the target host over a bidirectional stream.
-  // 
+  //
   // The client must first send a DialTarget before the connection is established. Agent frames
   // will be populated if SSH Agent forwarding is enabled for the connection.
   rpc ProxySSH(stream ProxySSHRequest) returns (stream ProxySSHResponse);
-  
+
   // ProxyCluster establishes a connection to the target cluster
-  // 
-  // The client must first send a ProxyClusterRequest with the desired cluster before the 
+  //
+  // The client must first send a ProxyClusterRequest with the desired cluster before the
   // connection is established.
   rpc ProxyCluster(stream ProxyClusterRequest) returns (stream ProxyClusterResponse);
 }
@@ -107,7 +107,7 @@ message ProxyClusterResponse {
 
 // Encapsulates protocol specific payloads
 message Frame {
-  // The raw packet of data 
+  // The raw packet of data
   bytes payload = 1;
 }
 
@@ -176,7 +176,7 @@ reduction.
 
 
 The existing SSH transport took 6.73s to execute `tsh user@foo uptime`, while the same
-command via the gRPC transport took 5.36s resulting in a ~20% reduction in latency. 
+command via the gRPC transport took 5.36s resulting in a ~20% reduction in latency.
 
 ## Future Considerations
 

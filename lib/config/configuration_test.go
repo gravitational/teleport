@@ -219,8 +219,8 @@ func TestSampleConfig(t *testing.T) {
 	}
 }
 
-// TestBooleanParsing tests that boolean options
-// are parsed properly
+// TestBooleanParsing tests that types.Bool and *types.BoolOption are parsed
+// properly
 func TestBooleanParsing(t *testing.T) {
 	testCases := []struct {
 		s string
@@ -240,11 +240,15 @@ func TestBooleanParsing(t *testing.T) {
 		conf, err := ReadFromString(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
 teleport:
   advertise_ip: 10.10.10.1
+proxy_service:
+  enabled: yes
+  trust_x_forwarded_for: %v
 auth_service:
   enabled: yes
   disconnect_expired_cert: %v
-`, tc.s))))
+`, tc.s, tc.s))))
 		require.NoError(t, err, msg)
+		require.Equal(t, tc.b, conf.Proxy.TrustXForwardedFor.Value(), msg)
 		require.Equal(t, tc.b, conf.Auth.DisconnectExpiredCert.Value, msg)
 	}
 }
@@ -462,7 +466,16 @@ func TestConfigReading(t *testing.T) {
 			ResourceMatchers: []ResourceMatcher{
 				{
 					Labels: map[string]apiutils.Strings{
-						"*": {"*"},
+						"a": {"b"},
+					},
+				},
+				{
+					Labels: map[string]apiutils.Strings{
+						"c": {"d"},
+					},
+					AWS: ResourceMatcherAWS{
+						AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+						ExternalID:    "externalID123",
 					},
 				},
 			},
@@ -802,6 +815,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			LockingMode:           constants.LockingModeBestEffort,
 			AllowPasswordless:     types.NewBoolOption(true),
 			AllowHeadless:         types.NewBoolOption(true),
+			DefaultSessionTTL:     types.Duration(apidefaults.CertDuration),
 			IDP: &types.IdPOptions{
 				SAML: &types.IdPSAMLOptions{
 					Enabled: types.NewBoolOption(true),
@@ -817,8 +831,21 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.ElementsMatch(t, []string{"ca-pin-from-string", "ca-pin-from-file1", "ca-pin-from-file2"}, cfg.CAPins)
 
 	require.True(t, cfg.Databases.Enabled)
+	require.Empty(t, cmp.Diff(cfg.Databases.ResourceMatchers,
+		[]services.ResourceMatcher{
+			{
+				Labels: map[string]apiutils.Strings{
+					"*": {"*"},
+				},
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+					ExternalID:    "externalID123",
+				},
+			},
+		},
+	))
 	require.Empty(t, cmp.Diff(cfg.Databases.AzureMatchers,
-		[]services.AzureMatcher{
+		[]types.AzureMatcher{
 			{
 				Subscriptions:  []string{"sub1", "sub2"},
 				ResourceGroups: []string{"group1", "group2"},
@@ -839,11 +866,11 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			},
 		}))
 	require.Empty(t, cmp.Diff(cfg.Databases.AWSMatchers,
-		[]services.AWSMatcher{
+		[]types.AWSMatcher{
 			{
 				Types:   []string{"rds"},
 				Regions: []string{"us-west-1"},
-				AssumeRole: services.AssumeRole{
+				AssumeRole: &types.AssumeRole{
 					RoleARN:    "arn:aws:iam::123456789012:role/DBDiscoverer",
 					ExternalID: "externalID123",
 				},
@@ -872,7 +899,7 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].Types, []string{"ec2"})
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.RoleARN, "arn:aws:iam::123456789012:role/DBDiscoverer")
 	require.Equal(t, cfg.Discovery.AWSMatchers[0].AssumeRole.ExternalID, "externalID123")
-	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, services.InstallerParams{
+	require.Equal(t, cfg.Discovery.AWSMatchers[0].Params, &types.InstallerParams{
 		InstallTeleport: true,
 		JoinMethod:      "iam",
 		JoinToken:       defaults.IAMInviteTokenName,
@@ -1136,6 +1163,17 @@ func TestProxyPeeringPublicAddr(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestProxyMustJoinViaAuth(t *testing.T) {
+	cfg := servicecfg.MakeDefaultConfig()
+
+	err := ApplyFileConfig(&FileConfig{
+		Version: defaults.TeleportConfigVersionV3,
+		Proxy:   Proxy{Service: Service{EnabledFlag: "yes"}},
+		Global:  Global{ProxyServer: "proxy.example.com:3080"},
+	}, cfg)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 }
 
 func TestBackendDefaults(t *testing.T) {
@@ -1542,7 +1580,14 @@ func makeConfigFixture() string {
 	}
 	conf.Databases.ResourceMatchers = []ResourceMatcher{
 		{
-			Labels: map[string]apiutils.Strings{"*": {"*"}},
+			Labels: map[string]apiutils.Strings{"a": {"b"}},
+		},
+		{
+			Labels: map[string]apiutils.Strings{"c": {"d"}},
+			AWS: ResourceMatcherAWS{
+				AssumeRoleARN: "arn:aws:iam::123456789012:role/DBAccess",
+				ExternalID:    "externalID123",
+			},
 		},
 	}
 	conf.Databases.AWSMatchers = []AWSMatcher{
@@ -2293,6 +2338,24 @@ app_service:
 			inComment: "config is missing internal address",
 			outError:  true,
 		},
+		{
+			inConfigString: `
+app_service:
+  enabled: true
+  apps:
+    -
+      name: foo
+      public_addr: "foo.example.com"
+      uri: "http://127.0.0.1:8080"
+  resources:
+  - labels:
+      '*': '*'
+    aws:
+      assume_role_arn: "arn:aws:iam::123456789012:role/AppAccess"
+`,
+			inComment: "assume_role_arn is not supported",
+			outError:  true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -2439,7 +2502,7 @@ func TestAppsCLF(t *testing.T) {
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/teleport/docs/application-access/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{
@@ -3373,6 +3436,145 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 	}
 }
 
+func TestApplyConfig_JamfService(t *testing.T) {
+	tempDir := t.TempDir()
+
+	// Write a password file, valid configs require one.
+	const password = "supersecret!!1!"
+	passwordFile := filepath.Join(tempDir, "test_jamf_password.txt")
+	require.NoError(t,
+		os.WriteFile(passwordFile, []byte(password+"\n"), 0o400),
+		"WriteFile(%q) failed", passwordFile)
+
+	minimalYAML := fmt.Sprintf(`
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama
+  password_file: %v
+`, passwordFile)
+
+	tests := []struct {
+		name    string
+		yaml    string
+		wantErr string
+		want    servicecfg.JamfConfig
+	}{
+		{
+			name: "minimal config",
+			yaml: minimalYAML,
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:     true,
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+					Username:    "llama",
+					Password:    password,
+				},
+			},
+		},
+		{
+			name: "all fields",
+			yaml: minimalYAML + `  name: jamf2
+  sync_delay: 1m
+  exit_on_sync: true
+  inventory:
+  - filter_rsql: 1==1
+    sync_period_partial: 4h
+    sync_period_full: 48h
+    on_missing: NOOP
+  - {}`,
+			want: servicecfg.JamfConfig{
+				Spec: &types.JamfSpecV1{
+					Enabled:     true,
+					Name:        "jamf2",
+					SyncDelay:   types.Duration(1 * time.Minute),
+					ApiEndpoint: "https://yourtenant.jamfcloud.com",
+					Username:    "llama",
+					Password:    password,
+					Inventory: []*types.JamfInventoryEntry{
+						{
+							FilterRsql:        "1==1",
+							SyncPeriodPartial: types.Duration(4 * time.Hour),
+							SyncPeriodFull:    types.Duration(48 * time.Hour),
+							OnMissing:         "NOOP",
+						},
+						{},
+					},
+				},
+				ExitOnSync: true,
+			},
+		},
+
+		{
+			name:    "listen_addr not supported",
+			yaml:    minimalYAML + `  listen_addr: localhost:55555`,
+			wantErr: "listen_addr",
+		},
+		{
+			name: "password_file empty",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama`,
+			wantErr: "password_file required",
+		},
+		{
+			name: "password_file invalid",
+			yaml: `
+jamf_service:
+  enabled: true
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama
+  password_file: /path/to/file/that/doesnt/exist.txt`,
+			wantErr: "password_file",
+		},
+		{
+			name: "spec is validated",
+			yaml: minimalYAML + `  inventory:
+  - on_missing: BANANA`,
+			wantErr: "on_missing",
+		},
+
+		{
+			name: "absent config ignored",
+			yaml: ``,
+		},
+		{
+			name: "empty config ignored",
+			yaml: `jamf_service: {}`,
+		},
+		{
+			name: "disabled config is validated",
+			yaml: `
+jamf_service:
+  enabled: false
+  api_endpoint: https://yourtenant.jamfcloud.com
+  username: llama`,
+			wantErr: "password_file",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fc, err := ReadConfig(strings.NewReader(test.yaml))
+			require.NoError(t, err, "ReadConfig failed")
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = ApplyFileConfig(fc, cfg)
+			if test.wantErr == "" {
+				require.NoError(t, err, "ApplyFileConfig failed")
+			} else {
+				assert.ErrorContains(t, err, test.wantErr, "ApplyFileConfig error mismatch")
+				return
+			}
+
+			if diff := cmp.Diff(test.want, cfg.Jamf, protocmp.Transform()); diff != "" {
+				t.Errorf("ApplyFileConfig: JamfConfig mismatch (-want +got)\n%s", diff)
+			}
+		})
+	}
+}
+
 func TestAuthHostedPlugins(t *testing.T) {
 	t.Parallel()
 
@@ -3555,11 +3757,11 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 			},
 			expectedDiscovery: servicecfg.DiscoveryConfig{
 				Enabled: true,
-				AzureMatchers: []services.AzureMatcher{
+				AzureMatchers: []types.AzureMatcher{
 					{
 						Subscriptions: []string{"abcd"},
 						Types:         []string{"aks", "vm"},
-						Params: services.InstallerParams{
+						Params: &types.InstallerParams{
 							JoinMethod:      "azure",
 							JoinToken:       "azure-token",
 							ScriptName:      "default-installer",
@@ -3581,7 +3783,7 @@ func TestApplyDiscoveryConfig(t *testing.T) {
 			},
 			expectedDiscovery: servicecfg.DiscoveryConfig{
 				Enabled: true,
-				AzureMatchers: []services.AzureMatcher{
+				AzureMatchers: []types.AzureMatcher{
 					{
 						Subscriptions: []string{"abcd"},
 						Types:         []string{"aks"},
@@ -3728,6 +3930,189 @@ func TestApplyOktaConfig(t *testing.T) {
 			test.errAssertionFunc(t, err, fc.Okta.APITokenPath)
 			if err == nil {
 				require.Equal(t, expectedOkta, cfg.Okta)
+			}
+		})
+	}
+}
+
+func TestAssistKey(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		desc        string
+		input       string
+		expectKey   string
+		expectError bool
+	}{
+		{
+			desc: "api token is set",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+      api_token_path: testdata/test-api-key
+`,
+			expectKey: "123-abc-zzz",
+		},
+		{
+			desc: "api token file does not exist",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+      api_token_path: testdata/non-existent-file
+`,
+			expectError: true,
+		},
+		{
+			desc: "missing api token doesn't error",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+`,
+			expectKey: "",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(strings.NewReader(tc.input))
+			require.NoError(t, err)
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.Equal(t, tc.expectKey, cfg.Proxy.AssistAPIKey)
+		})
+	}
+}
+
+func TestApplyKubeConfig(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		inputFileConfig   Kube
+		wantServiceConfig servicecfg.KubeConfig
+		wantError         bool
+	}{
+		{
+			name: "invalid listener address",
+			inputFileConfig: Kube{
+				Service: Service{
+					ListenAddress: "0.0.0.0:a",
+				},
+				KubeconfigFile: "path-to-kubeconfig",
+			},
+			wantError: true,
+		},
+		{
+			name: "assume_role_arn is not supported",
+			inputFileConfig: Kube{
+				Service: Service{
+					ListenAddress: "0.0.0.0:8888",
+				},
+				KubeconfigFile: "path-to-kubeconfig",
+				ResourceMatchers: []ResourceMatcher{
+					{
+						Labels: map[string]apiutils.Strings{"a": {"b"}},
+						AWS: ResourceMatcherAWS{
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/KubeAccess",
+							ExternalID:    "externalID123",
+						},
+					},
+				},
+			},
+			wantError: false,
+			wantServiceConfig: servicecfg.KubeConfig{
+				ListenAddr:     utils.MustParseAddr("0.0.0.0:8888"),
+				KubeconfigPath: "path-to-kubeconfig",
+				ResourceMatchers: []services.ResourceMatcher{
+					{
+						Labels: map[string]apiutils.Strings{"a": {"b"}},
+						AWS: services.ResourceMatcherAWS{
+							AssumeRoleARN: "arn:aws:iam::123456789012:role/KubeAccess",
+							ExternalID:    "externalID123",
+						},
+					},
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+		{
+			name: "valid",
+			inputFileConfig: Kube{
+				Service: Service{
+					ListenAddress: "0.0.0.0:8888",
+				},
+				PublicAddr:      apiutils.Strings{"example.com", "example.with.port.com:4444"},
+				KubeconfigFile:  "path-to-kubeconfig",
+				KubeClusterName: "kube-name",
+				ResourceMatchers: []ResourceMatcher{{
+					Labels: map[string]apiutils.Strings{"a": {"b"}},
+				}},
+				StaticLabels: map[string]string{
+					"env":     "dev",
+					"product": "test",
+				},
+				DynamicLabels: []CommandLabel{{
+					Name:    "hostname",
+					Command: []string{"hostname"},
+					Period:  time.Hour,
+				}},
+			},
+			wantServiceConfig: servicecfg.KubeConfig{
+				ListenAddr:      utils.MustParseAddr("0.0.0.0:8888"),
+				PublicAddrs:     []utils.NetAddr{*utils.MustParseAddr("example.com:3026"), *utils.MustParseAddr("example.with.port.com:4444")},
+				KubeconfigPath:  "path-to-kubeconfig",
+				KubeClusterName: "kube-name",
+				ResourceMatchers: []services.ResourceMatcher{
+					{
+						Labels: map[string]apiutils.Strings{"a": {"b"}},
+					},
+				},
+				StaticLabels: map[string]string{
+					"env":     "dev",
+					"product": "test",
+				},
+				DynamicLabels: services.CommandLabels{
+					"hostname": &types.CommandLabelV2{
+						Period:  types.Duration(time.Hour),
+						Command: []string{"hostname"},
+					},
+				},
+				Limiter: limiter.Config{
+					MaxConnections:   defaults.LimiterMaxConnections,
+					MaxNumberOfUsers: 250,
+				},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			fc, err := ReadConfig(bytes.NewBufferString(NoServicesConfigString))
+			require.NoError(t, err)
+			fc.Kube = test.inputFileConfig
+			fc.Kube.EnabledFlag = "yes"
+
+			cfg := servicecfg.MakeDefaultConfig()
+			err = applyKubeConfig(fc, cfg)
+			if test.wantError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, test.wantServiceConfig, cfg.Kube)
 			}
 		})
 	}

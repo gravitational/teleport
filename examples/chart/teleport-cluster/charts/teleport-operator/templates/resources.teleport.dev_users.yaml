@@ -36,7 +36,7 @@ spec:
             description: User resource definition v2 from Teleport
             properties:
               github_identities:
-                description: GithubIdentities list associated GitHub OAuth2 identities
+                description: GithubIdentities list associated Github OAuth2 identities
                   that let user log in using externally verified identity
                 items:
                   properties:

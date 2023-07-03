@@ -1,6 +1,6 @@
 ---
 authors: Marco Dinis (marco.dinis@goteleport.com)
-state: draft
+state: implemented
 ---
 
 # RFD 119 - AWS API Integration using OIDC

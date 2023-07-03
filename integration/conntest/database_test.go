@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/base32"
 	"encoding/json"
-	"io"
 	"net"
 	"net/http"
 	"strings"
@@ -216,14 +215,8 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 				DialTimeout:        time.Second,
 				InsecureSkipVerify: true,
 			}
-			resp, err := webPack.DoRequest(http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
-			require.NoError(t, err)
-
-			respBody, err := io.ReadAll(resp.Body)
-			require.NoError(t, err)
-
-			defer resp.Body.Close()
-			require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+			respStatusCode, respBody := webPack.DoRequest(t, http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
+			require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 			var connectionDiagnostic ui.ConnectionDiagnostic
 			require.NoError(t, json.Unmarshal(respBody, &connectionDiagnostic))
@@ -307,13 +300,8 @@ func TestDiagnoseConnectionForPostgresDatabases(t *testing.T) {
 			TOTPCode: validToken,
 		},
 	}
-	resp, err := webPack.DoRequest(http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
-	require.NoError(t, err)
-	respBody, err := io.ReadAll(resp.Body)
-	require.NoError(t, err)
-
-	defer resp.Body.Close()
-	require.Equal(t, http.StatusOK, resp.StatusCode, string(respBody))
+	respStatusCode, respBody := webPack.DoRequest(t, http.MethodPost, diagnoseConnectionEndpoint, diagnoseReq)
+	require.Equal(t, http.StatusOK, respStatusCode, string(respBody))
 
 	var connectionDiagnostic ui.ConnectionDiagnostic
 	require.NoError(t, json.Unmarshal(respBody, &connectionDiagnostic))

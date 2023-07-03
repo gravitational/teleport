@@ -520,7 +520,9 @@ proto.prehog.v1.UserActivityRecord.toObject = function(includeInstance, msg) {
     appTcpSessions: jspb.Message.getFieldWithDefault(msg, 8, 0),
     sshPortSessions: jspb.Message.getFieldWithDefault(msg, 9, 0),
     kubeRequests: jspb.Message.getFieldWithDefault(msg, 10, 0),
-    sftpEvents: jspb.Message.getFieldWithDefault(msg, 11, 0)
+    sftpEvents: jspb.Message.getFieldWithDefault(msg, 11, 0),
+    sshPortV2Sessions: jspb.Message.getFieldWithDefault(msg, 12, 0),
+    kubePortSessions: jspb.Message.getFieldWithDefault(msg, 13, 0)
   };
 
   if (includeInstance) {
@@ -600,6 +602,14 @@ proto.prehog.v1.UserActivityRecord.deserializeBinaryFromReader = function(msg, r
     case 11:
       var value = /** @type {number} */ (reader.readUint64());
       msg.setSftpEvents(value);
+      break;
+    case 12:
+      var value = /** @type {number} */ (reader.readUint64());
+      msg.setSshPortV2Sessions(value);
+      break;
+    case 13:
+      var value = /** @type {number} */ (reader.readUint64());
+      msg.setKubePortSessions(value);
       break;
     default:
       reader.skipField();
@@ -704,6 +714,20 @@ proto.prehog.v1.UserActivityRecord.serializeBinaryToWriter = function(message, w
   if (f !== 0) {
     writer.writeUint64(
       11,
+      f
+    );
+  }
+  f = message.getSshPortV2Sessions();
+  if (f !== 0) {
+    writer.writeUint64(
+      12,
+      f
+    );
+  }
+  f = message.getKubePortSessions();
+  if (f !== 0) {
+    writer.writeUint64(
+      13,
       f
     );
   }
@@ -929,6 +953,42 @@ proto.prehog.v1.UserActivityRecord.prototype.getSftpEvents = function() {
  */
 proto.prehog.v1.UserActivityRecord.prototype.setSftpEvents = function(value) {
   return jspb.Message.setProto3IntField(this, 11, value);
+};
+
+
+/**
+ * optional uint64 ssh_port_v2_sessions = 12;
+ * @return {number}
+ */
+proto.prehog.v1.UserActivityRecord.prototype.getSshPortV2Sessions = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 12, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.prehog.v1.UserActivityRecord} returns this
+ */
+proto.prehog.v1.UserActivityRecord.prototype.setSshPortV2Sessions = function(value) {
+  return jspb.Message.setProto3IntField(this, 12, value);
+};
+
+
+/**
+ * optional uint64 kube_port_sessions = 13;
+ * @return {number}
+ */
+proto.prehog.v1.UserActivityRecord.prototype.getKubePortSessions = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 13, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.prehog.v1.UserActivityRecord} returns this
+ */
+proto.prehog.v1.UserActivityRecord.prototype.setKubePortSessions = function(value) {
+  return jspb.Message.setProto3IntField(this, 13, value);
 };
 
 

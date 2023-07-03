@@ -19,19 +19,12 @@ This reference details available values for the `teleport-plugin-pagerduty` char
 
 This parameter contains the host/port combination of the Teleport Auth Service or Proxy Service.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     address: "teleport.example.com:3025"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.address="teleport.example.com:3025"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `teleport.identitySecretName`
 
@@ -55,19 +48,12 @@ data:
 
 Read the [PagerDuty Helm Chart documentation](https://github.com/gravitational/teleport-plugins/tree/v(=teleport.version=)/charts/access/pagerduty#prerequisites) for more information about how to acquire these credentials.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     identitySecretName: "teleport-plugin-pagerduty-identity"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretName="teleport-plugin-pagerduty-identity"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `teleport.identitySecretPath`
 
@@ -77,19 +63,12 @@ Read the [PagerDuty Helm Chart documentation](https://github.com/gravitational/t
 
 Name of the key in the Kubernetes secret that holds the credentials for the connection. If the secret follows the format above, it can be omitted.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   teleport:
     identitySecretPath: "auth_id"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set teleport.identitySecretPath="auth_id"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `pagerduty.url`
 
@@ -99,19 +78,12 @@ Name of the key in the Kubernetes secret that holds the credentials for the conn
 
 Base URL of the PagerDuty instance
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   pagerduty:
     url: "https://pagerduty.example.com/"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set pagerduty.url="https://pagerduty.example.com/"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `pagerduty.apiKey`
 
@@ -122,19 +94,12 @@ Base URL of the PagerDuty instance
 PagerDuty API key of the bot user to impersonate when sending messages. It's only recommended for testing purposes.
 Please use [`pagerduty.apiKeyFromSecret`](#pagerdutyapikeyfromsecret) instead.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   pagerduty:
     apiKey: "pagerdutyapikey"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set pagerduty.apiKey="pagerdutyapikey"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `pagerduty.apiKeyFromSecret`
 
@@ -144,19 +109,12 @@ Please use [`pagerduty.apiKeyFromSecret`](#pagerdutyapikeyfromsecret) instead.
 
 Secret containing the PagerDuty token of the bot user.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   pagerduty:
     apiKeyFromSecret: "teleport-pagerduty-plugin-token"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set pagerduty.apiKeyFromSecret="teleport-pagerduty-plugin-token"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `pagerduty.apiKeySecretPath`
 
@@ -166,19 +124,12 @@ Secret containing the PagerDuty token of the bot user.
 
 Key where the token is located inside the secret specified by `pagerduty.apiKeyFromSecret`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   pagerduty:
     apiKeySecretPath: "apiKey"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set pagerduty.apiKeySecretPath="apiKey"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `pagerduty.userEmail`
 
@@ -188,19 +139,12 @@ Key where the token is located inside the secret specified by `pagerduty.apiKeyF
 
 Key where the token is located inside the secret specified by `pagerduty.apiKeyFromSecret`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   pagerduty:
     userEmail: "apiKey"
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set pagerduty.userEmail="apiKey"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `pagerduty.recipients`
 
@@ -210,21 +154,14 @@ Key where the token is located inside the secret specified by `pagerduty.apiKeyF
 
 List of recipients who will receive notifications about Access Requests.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   pagerduty:
     recipients:
       - user1@example.com
       - user2@example.com
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set pagerduty.recipients[0]="user1@example.com",pagerduty.recipients[0]="user1@example.com"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `log.output`
 
@@ -234,19 +171,12 @@ List of recipients who will receive notifications about Access Requests.
 
 Logger output. Could be `stdout`, `stderr` or a file name, eg. `/var/log/teleport/pagerduty.log`
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     output: /var/log/teleport/pagerduty.log
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set log.output="/var/log/teleport/pagerduty.log"
-  ```
-  </TabItem>
-</Tabs>
 
 ## `log.severity`
 
@@ -256,16 +186,9 @@ Logger output. Could be `stdout`, `stderr` or a file name, eg. `/var/log/telepor
 
 Logger severity. Possible values are `INFO`, `ERROR`, `DEBUG` or `WARN`.
 
-<Tabs>
-  <TabItem label="values.yaml">
+`values.yaml` example:
+
   ```yaml
   log:
     severity: DEBUG
   ```
-  </TabItem>
-  <TabItem label="--set">
-  ```code
-  $ --set log.severity="DEBUG"
-  ```
-  </TabItem>
-</Tabs>

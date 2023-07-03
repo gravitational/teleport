@@ -32,13 +32,13 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
 // checkAccessToRegisteredResource checks if calling user has access to at least one registered resource.
-func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+func (h *Handler) checkAccessToRegisteredResource(w http.ResponseWriter, r *http.Request, p httprouter.Params, c *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	// Get a client to the Auth Server with the logged in user's identity. The
 	// identity of the logged in user is used to fetch the list of resources.
 	clt, err := c.GetUserClient(r.Context(), site)
@@ -381,8 +381,7 @@ func ExtractResourceAndValidate(yaml string) (*services.UnknownResource, error) 
 	return &unknownRes, nil
 }
 
-// listResources gets a list of resources depending on the type of resource.
-func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string) (*types.ListResourcesResponse, error) {
+func convertListResourcesRequest(r *http.Request, kind string) (*proto.ListResourcesRequest, error) {
 	values := r.URL.Query()
 
 	limit, err := queryLimitAsInt32(values, "limit", defaults.MaxIterationLimit)
@@ -393,17 +392,15 @@ func listResources(clt resourcesAPIGetter, r *http.Request, resourceKind string)
 	sortBy := types.GetSortByFromString(values.Get("sort"))
 
 	startKey := values.Get("startKey")
-	req := proto.ListResourcesRequest{
-		ResourceType:        resourceKind,
+	return &proto.ListResourcesRequest{
+		ResourceType:        kind,
 		Limit:               limit,
 		StartKey:            startKey,
 		SortBy:              sortBy,
 		PredicateExpression: values.Get("query"),
 		SearchKeywords:      client.ParseSearchKeywords(values.Get("search"), ' '),
 		UseSearchAsRoles:    values.Get("searchAsRoles") == "yes",
-	}
-
-	return clt.ListResources(r.Context(), req)
+	}, nil
 }
 
 // listKubeResources gets a list of kubernetes resources depending on the type of resource.

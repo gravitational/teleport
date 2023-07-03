@@ -1,7 +1,7 @@
 ---
-name: Test Plan
-about: Manual test plan for Teleport major releases
-title: "Teleport X Web Test Plan"
+name: Web Test Plan
+about: Web UI manual test plan for Teleport major releases
+title: "Teleport Web Test Plan"
 labels: testplan
 ---
 
@@ -499,6 +499,36 @@ Add the following to enable read access to trusted clusters
 - [ ] Verify that a user can access the "Trust" screen
 - [ ] Verify that a user cannot create/delete/update a trusted cluster.
 
+## Locks
+Checking that you can view, create, and delete locks.
+
+- [ ] Existing locks listing page.
+  - [ ] It lists all of the existing locks in the system.
+  - [ ] Locks without a `Locked By` and `Start Date` are still shown with those fields empty.
+  - [ ] Clicking the trash can deletes the lock with a spinner.
+  - [ ] Table columns are sortable.
+  - [ ] Table search field filters the results.
+- [ ] Adding a new lock. (+ Add New Lock).
+  - [ ] Target switcher shows the locks for the various target types (User, Role, Login, Node, MFA Device, Windows Desktop, Access Request).
+  - [ ] Target switcher has "Access Request" in E build but not in OSS.
+  - [ ] You can add lock targets from multiple target types.
+  - [ ] Adding a target disables that "add button".
+  - [ ] You cannot proceed if you haven't selected targets to lock.
+  - [ ] You can clear the selected targets prior to creating locks.
+  - [ ] Proceeding to lock opens an animated slide panel from the right.
+  - [ ] You can remove lock targets from the slide panel.
+  - [ ] Creating a lock with message and TTL correctly create the lock.
+  - [ ] Create a lock without message and TTL, they should be optional.
+
+## Enroll new resources using Discover Wizard
+Use Discover Wizard to enroll new resources and access them:
+
+- [ ] SSH Server
+- [ ] Self-Hosted PostgreSQL
+- [ ] AWS RDS PostgreSQL
+- [ ] Kubernetes
+- [ ] Windows Desktop Active Directory
+
 ## Teleport Connect
 
 - Auth methods
@@ -542,8 +572,6 @@ Add the following to enable read access to trusted clusters
       - Run the program: `$ mc`
       - Resize Teleport Connect to see if the panels resize with it
    - [ ] Verify that the tab automatically closes on `$ exit` command.
-   - [ ] Execute `tsh ssh nonexistent-node` in the command bar. Verify that you see a new tab with an
-     error from tsh ssh.
 - Kubernetes access
    - [ ] Open a new kubernetes tab, run `echo $KUBECONFIG` and check if it points to the file within Connect's app data directory.
    - [ ] Close the tab and open it again (to the same resource). Verify if the kubeconfig path didn't change.
@@ -604,23 +632,24 @@ Add the following to enable read access to trusted clusters
    - [ ] Click "Add another cluster", provide an address to a new cluster and submit the form. Close
      the modal when asked for credentials. Verify that the cluster was still added and is visible in
      the profile selector.
-- Command bar & autocomplete
-   - Do the steps for the root cluster, then switch to a leaf cluster and repeat them.
-   - [ ] Verify that the autocomplete for tsh ssh filters SSH logins and autocompletes them.
-   - [ ] Verify that the autocomplete for tsh ssh filters SSH hosts by name and label and
-     autocompletes them.
-   - [ ] Verify that launching an invalid tsh ssh command shows the error in a new tab.
-   - [ ] Verify that launching a valid tsh ssh command opens a new tab with the session opened.
-   - [ ] Verify that the autocomplete for tsh proxy db filters databases by name and label and
-     autocompletes them.
-   - [ ] Verify that launching a tsh proxy db command opens a new local shell with the command
-     running.
-   - [ ] Verify that the autocomplete for tsh ssh doesn't break when you cut/paste commands in
-     various points.
-   - [ ] Verify that manually typing out what the autocomplete would suggest doesn't break the
-     command bar.
-   - [ ] Verify that launching any other command that's not supported by the autocomplete opens a
-     new local shell with that command running.
+- Search bar
+   - [ ] Verify that you can connect to all three resources types on root clusters and leaf
+     clusters.
+   - [ ] Verify that picking a resource filter and a cluster filter at the same time works as
+     expected.
+   - [ ] Verify that connecting to a resource from a different root cluster switches to the
+     workspace of that root cluster.
+   - Shut down a root cluster.
+      - [ ] Verify that attempting to search returns "Some of the search results are incomplete" in
+        the search bar.
+      - [ ] Verify that clicking "Show details" next to the error message and then closing the modal
+        by clicking one of the buttons or by pressing Escape does not close the search bar.
+   - Log in as a user with a short TTL. Make sure you're not logged in to any other cluster. Wait for
+     the cert to expire. Enter a search term that usually returns some results.
+      - [ ] Relogin when asked. Verify that the search bar is not collapsed and shows search
+        results.
+      - [ ] Close the login modal instead of logging in. Verify that the search bar is not collapsed
+        and shows "No matching results found".
 - Resilience when resources become unavailable
    - DocumentCluster
       - For each scenario, create at least one DocumentCluster tab for each available resource kind.
@@ -671,7 +700,8 @@ Add the following to enable read access to trusted clusters
       - [ ] Verify that closing the login modal without logging in shows an appropriate error.
    - Log in, create a db connection, then remove access to that db server for that user; wait for
      the cert to expire, then attempt to make a connection through the proxy; log in.
-      - [ ] Verify that the db tab shows an appropriate error.
+      - [ ] Verify that psql shows an appropriate access denied error ("access to db denied. User
+        does not have permissions. Confirm database user and name").
    - Log in, open a cluster tab, wait for the cert to expire. Switch from a servers view to
      databases view.
       - [ ] Verify that a login modal was shown.
@@ -752,24 +782,3 @@ Add the following to enable read access to trusted clusters
 - [ ] Clean the Application Support dir for Connect. Start the latest stable version of the app.
   Open every possible document. Close the app. Start the current alpha. Reopen the tabs. Verify that
   the app was able to reopen the tabs without any errors.
-
-## Locks
-Checking that you can view, create, and delete locks.
-
-- [ ] Existing locks listing page.
-  - [ ] It lists all of the existing locks in the system.
-  - [ ] Locks without a `Locked By` and `Start Date` are still shown with those fields empty.
-  - [ ] Clicking the trash can deletes the lock with a spinner.
-  - [ ] Table columns are sortable.
-  - [ ] Table search field filters the results.
-- [ ] Adding a new lock. (+ Add New Lock).
-  - [ ] Target switcher shows the locks for the various target types (User, Role, Login, Node, MFA Device, Windows Desktop, Access Request).
-  - [ ] Target switcher has "Access Request" in E build but not in OSS.
-  - [ ] You can add lock targets from multiple target types.
-  - [ ] Adding a target disables that "add button".
-  - [ ] You cannot proceed if you haven't selected targets to lock.
-  - [ ] You can clear the selected targets prior to creating locks.
-  - [ ] Proceeding to lock opens an animated slide panel from the right.
-  - [ ] You can remove lock targets from the slide panel.
-  - [ ] Creating a lock with message and TTL correctly create the lock.
-  - [ ] Create a lock without message and TTL, they should be optional.

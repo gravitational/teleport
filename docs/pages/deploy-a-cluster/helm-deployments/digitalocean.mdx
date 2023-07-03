@@ -3,30 +3,20 @@ title: Get started with Teleport on DigitalOcean Kubernetes
 description: How to get started with Teleport on DigitalOcean Kubernetes
 ---
 
-<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
-
-This guide shows you how to deploy the Teleport Auth Service and Proxy Service
-on a DigitalOcean Kubernetes cluster. These services are fully managed in
-Teleport Cloud.
-
-Instead, Teleport Cloud users should consult the following guide, which shows
-you how to connect a Teleport Kubernetes Service instance to an existing Teleport
-cluster:
-
-- [Connect a Kubernetes Cluster to
-  Teleport](../../kubernetes-access/getting-started.mdx):
-
-</ScopedBlock>
-
 This guide will show you how to get started with Teleport on DigitalOcean
 Kubernetes.
+
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
 
 - DigitalOcean account.
-- Your workstation configured with [kubectl](https://kubernetes.io/docs/tasks/tools/), [Helm](https://helm.sh/docs/intro/install/), [doctl](https://docs.digitalocean.com/reference/doctl/how-to/install/), and the Teleport [tsh](https://goteleport.com/docs/installation/) client.
+- Your workstation configured with [kubectl](https://kubernetes.io/docs/tasks/tools/), [Helm](https://helm.sh/docs/intro/install/), [doctl](https://docs.digitalocean.com/reference/doctl/how-to/install/), and the Teleport [tsh](../../installation.mdx) client.
 
 ## Step 1/4. Create a DigitalOcean Kubernetes cluster
 
@@ -41,7 +31,7 @@ While the Kubernetes cluster is being provisioned, follow the "Getting Started" 
   ![Set up DigitalOcean Kubernetes client](../../../img/helm/digitalocean/setup-k8s.png)
 </Figure>
 
-## Step 2/4. Install Teleport 
+## Step 2/4. Install Teleport
 
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
@@ -82,9 +72,9 @@ $ kubectl label namespace teleport-cluster 'pod-security.kubernetes.io/enforce=b
 namespace/teleport-cluster labeled
 ```
 
-Obtain your Teleport Enterprise license file from the [Teleport Customer
-Portal](https://dashboard.gravitational.com/web/login). Create a secret called
-"license" in the namespace you created:
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
+
+Create a secret called "license" in the namespace you created:
 
 ```code
 $ kubectl -n teleport-cluster create secret generic license --from-file=license.pem
@@ -133,6 +123,7 @@ Once you get the value for the external IP (it may take a few minutes for this f
 ## Step 3/4. Create and set up Teleport user
 Now we create a Teleport user by executing the `tctl` command with `kubectl`.
 
+<ScopedBlock scope={["oss"]}>
 ```code
 $ kubectl --namespace teleport-cluster exec deployment/teleport-cluster-auth -- tctl users add tadmin --roles=access,editor --logins=ubuntu
 
@@ -141,6 +132,17 @@ https://tele.example.com:443/web/invite/<invite-token>
 
 NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```code
+$ kubectl --namespace teleport-cluster exec deployment/teleport-cluster-auth -- tctl users add tadmin --roles=access,editor,reviewer --logins=ubuntu
+
+User "tadmin" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://tele.example.com:443/web/invite/<invite-token>
+
+NOTE: Make sure tele.example.com:443 points at a Teleport proxy which users can access.
+```
+</ScopedBlock>
 
 Copy the link shown after executing the above command and open the link in a web browser to complete the user registration process (the link is `https://tele.example.com:443/web/invite/<invite-token>` in the above case).
 <Figure align="left" bordered caption="Set up user">
@@ -211,6 +213,7 @@ $ export KUBECONFIG=${HOME?}/teleport-kubeconfig.yaml
 
 </Admonition>
 
+<ScopedBlock scope={["oss"]}>
 ```code 
 $ tsh login --proxy=tele.example.com:443 --auth=local --user=tadmin
 Enter password for Teleport user tadmin:
@@ -225,6 +228,23 @@ Enter your OTP token:
   Valid until:        2021-10-27 06:37:15 +0000 UTC [valid for 12h0m0s]
   Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```code 
+$ tsh login --proxy=tele.example.com:443 --auth=local --user=tadmin
+Enter password for Teleport user tadmin:
+Enter your OTP token:
+540255
+> Profile URL:        https://tele.example.com:443
+  Logged in as:       tadmin
+  Cluster:            tele.example.com
+  Roles:              access, editor, reviewer, member
+  Logins:             ubuntu
+  Kubernetes:         enabled
+  Valid until:        2021-10-27 06:37:15 +0000 UTC [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+</ScopedBlock>
 
 ### Select the Kubernetes cluster
 
@@ -256,7 +276,7 @@ guide](../../reference/helm-reference/teleport-cluster.mdx).
 Read our guides to additional ways you can protect a Kubernetes cluster with
 Teleport:
 
-- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/register-clusters/register-via-deployment.mdx)
+- Connect another Kubernetes cluster to Teleport by [deploying the Teleport Kubernetes Service](../../kubernetes-access/getting-started.mdx)
 - [Set up Machine ID with Kubernetes](../../machine-id/guides/kubernetes.mdx)
 - [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)

@@ -19,6 +19,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/sirupsen/logrus"
@@ -261,8 +262,10 @@ Ingest:
 				userRecord(te.UserName).DbSessions++
 			case string(types.WindowsDesktopSessionKind):
 				userRecord(te.UserName).DesktopSessions++
-			case usagereporter.PortSessionType:
-				userRecord(te.UserName).SshPortSessions++
+			case usagereporter.PortSSHSessionType:
+				userRecord(te.UserName).SshPortV2Sessions++
+			case usagereporter.PortKubeSessionType:
+				userRecord(te.UserName).KubePortSessions++
 			case usagereporter.TCPSessionType:
 				userRecord(te.UserName).AppTcpSessions++
 			}
@@ -310,8 +313,9 @@ func (r *Reporter) persistUserActivity(ctx context.Context, startTime time.Time,
 			continue
 		}
 
+		reportUUID, _ := uuid.FromBytes(report.ReportUuid)
 		r.log.WithFields(logrus.Fields{
-			"report_uuid": report.ReportUuid,
+			"report_uuid": reportUUID,
 			"start_time":  startTime,
 			"records":     len(report.Records),
 		}).Debug("Persisted user activity report.")

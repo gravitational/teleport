@@ -39,7 +39,7 @@ metadata:
   # running in your AWS account to use this token
   name: aws-discovery-iam-token
 spec:
-  # use the minimal set of roles required
+  # use the minimal set of roles required (e.g. Node, App, Kube, DB, WindowsDesktop)
   roles: [Node]
 
   # set the join method allowed for this token
@@ -294,78 +294,7 @@ This policy includes the following permissions:
 
 ## Step 6/7. [Optional] Customize the default installer script
 
-To customize the default installer script, execute the following command on
-your workstation:
-
-```code
-$ tctl get installer/default-installer > teleport-default-installer.yaml
-```
-
-The resulting `teleport-default-installer.yaml` can the be edited to
-change what gets executed when enrolling discovered EC2 instances.
-
-After making the desired changes to the default installer, the
-resource can be updated by executing:
-
-```code
-$ tctl create -f teleport-default-installer.yaml
-```
-
-Multiple `installer` resources can exist and be specified in the
-`aws.install.script_name` section of a `discovery_service.aws` list item in
-`teleport.yaml`:
-
-```yaml
-discovery_service:
-  aws:
-    - types: ["ec2"] 
-      tags:
-       - "env": "prod"
-      install: # optional section when default-installer is used.
-        script_name: "default-installer"
-    - types: ["ec2"] 
-      tags:
-       - "env": "devel"
-      install:
-        script_name: "devel-installer"
-```
-
----
-
-The `installer` resource has the following templating options:
-
-- `{{ .MajorVersion }}`: the major version of Teleport to use when
-  installing from the repository.
-- `{{ .PublicProxyAddr }}`: the public address of the Teleport Proxy Service to
-connect to.
-
-These can be used as follows:
-
-```yaml
-kind: installer
-metadata:
-  name: default-installer
-spec:
-  script: |
-    echo {{ .PublicProxyAddr }}
-    echo Teleport-{{ .MajorVersion }}
-version: v1
-```
-
-Which, when retrieved by the Systems Manager document will evaluate to a script
-with the following contents:
-
-```sh
-echo teleport.example.com
-echo Teleport-(=teleport.version=)
-```
-
-The default installer will take the following actions:
-
-- Add an official Teleport repository to supported Linux distributions.
-- Install Teleport via `apt` or `yum`.
-- Generate the Teleport config file and write it to `/etc/teleport.yaml`.
-- Enable and start the Teleport service.
+(!docs/pages/includes/server-access/custom-installer.mdx cloud="AWS" matcher="aws" matchTypes="[\"ec2\"]"!)
 
 ## Step 7/7. Start Teleport
 
@@ -382,9 +311,34 @@ If Installs are showing failed or instances are failing to appear check the
 Command history in AWS System Manager -> Node Management -> Run Command.
 Select the instance-id of the Target to review Errors.
 
+### `cannot unmarshal object into Go struct field`
+
+If you encounter an error similar to the following:
+
+```text
+invalid format in plugin properties map[destinationPath:/tmp/installTeleport.sh sourceInfo:map[url:[https://example.teleport.sh:443/webapi/scripts/installer/preprod-installer](https://example.teleport.sh/webapi/scripts/installer/preprod-installer)] sourceType:HTTP];
+error json: cannot unmarshal object into Go struct field DownloadContentPlugin.sourceInfo of type string
+```
+
+It is likely that you're running an older SSM agent version. Upgrade to SSM agent version 3.1 or greater to resolve.
+
+### `InvalidInstanceId: Instances [[i-123]] not in a valid state for account 456`
+
+The following problems can cause this error:
+- The Discovery Service doesn't have permission to access the managed node.
+- AWS Systems Manager Agent (SSM Agent) isn't running. Verify that SSM Agent is running.
+- SSM Agent isn't registered with the SSM endpoint. Try reinstalling SSM Agent.
+- The discovered instance does not have permission to receive SSM
+  commands, verify the instance includes the AmazonSSMManagedInstanceCore IAM policy.
+
+See SSM RunCommand error codes and troubleshooting information in AWS documentation for more details:
+- https://docs.aws.amazon.com/systems-manager/latest/userguide/troubleshooting-managed-instances.html
+- https://docs.aws.amazon.com/systems-manager/latest/APIReference/API_SendCommand.html#API_SendCommand_Errors
+
 ## Next steps
 
-- Read [Joining Nodes via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx)
+- Read [Joining Nodes via AWS IAM
+  Role](../../agents/join-services-to-your-cluster/aws-iam.mdx)
 for more information on IAM Invite Tokens.
 - Information on IAM best practices on EC2 instances managed by Systems
 Manager can be found for in the [AWS Cloud Operations & Migrations Blog

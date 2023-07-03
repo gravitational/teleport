@@ -1,0 +1,868 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+package athena
+
+import (
+	"context"
+	"encoding/base64"
+	"errors"
+	"fmt"
+	"io"
+	"strconv"
+	"sync"
+	"time"
+
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/feature/s3/manager"
+	"github.com/aws/aws-sdk-go-v2/service/s3"
+	s3Types "github.com/aws/aws-sdk-go-v2/service/s3/types"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/google/uuid"
+	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/segmentio/parquet-go"
+	log "github.com/sirupsen/logrus"
+	"golang.org/x/exp/slices"
+
+	"github.com/gravitational/teleport"
+	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/retryutils"
+	"github.com/gravitational/teleport/lib/backend"
+	awsutils "github.com/gravitational/teleport/lib/utils/aws"
+)
+
+const (
+	// maxWaitTimeOnReceiveMessageFromSQS defines how long single
+	// receiveFromQueue will wait if there is no max events (10).
+	maxWaitTimeOnReceiveMessageFromSQS = 5 * time.Second
+	// maxNumberOfMessagesFromReceive defines how many messages single receive
+	// call can return. Maximum value is 10.
+	// https://docs.aws.amazon.com/AWSSimpleQueueService/latest/APIReference/API_ReceiveMessage.html
+	maxNumberOfMessagesFromReceive = 10
+
+	// maxErrorCountForLogsOnSQSReceive defines maximum number of error log messages
+	// printed on receiving error from SQS receiver loop.
+	maxErrorCountForLogsOnSQSReceive = 10
+)
+
+// consumer is responsible for receiving messages from SQS, batching them up to
+// certain size or interval, and writes to s3 as parquet file.
+type consumer struct {
+	logger              log.FieldLogger
+	backend             backend.Backend
+	storeLocationPrefix string
+	storeLocationBucket string
+	batchMaxItems       int
+	batchMaxInterval    time.Duration
+
+	// perDateFileParquetWriter returns file writer per date.
+	// Added in config to allow testing.
+	perDateFileParquetWriter func(ctx context.Context, date string) (io.WriteCloser, error)
+
+	collectConfig sqsCollectConfig
+
+	sqsDeleter sqsDeleter
+	queueURL   string
+
+	// cancelRun is used to cancel consumer.Run
+	cancelRun context.CancelFunc
+
+	// finished is used to communicate that run (executed in background) has finished.
+	// It will be closed when run has finished.
+	finished chan struct{}
+}
+
+type sqsReceiver interface {
+	ReceiveMessage(ctx context.Context, params *sqs.ReceiveMessageInput, optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error)
+}
+
+type sqsDeleter interface {
+	DeleteMessageBatch(ctx context.Context, params *sqs.DeleteMessageBatchInput, optFns ...func(*sqs.Options)) (*sqs.DeleteMessageBatchOutput, error)
+}
+
+type s3downloader interface {
+	Download(ctx context.Context, w io.WriterAt, input *s3.GetObjectInput, options ...func(*manager.Downloader)) (n int64, err error)
+}
+
+func newConsumer(cfg Config, cancelFn context.CancelFunc, metricConsumerBatchProcessingDuration prometheus.Histogram) (*consumer, error) {
+	s3client := s3.NewFromConfig(*cfg.AWSConfig)
+	sqsClient := sqs.NewFromConfig(*cfg.AWSConfig)
+
+	collectCfg := sqsCollectConfig{
+		sqsReceiver: sqsClient,
+		queueURL:    cfg.QueueURL,
+		// TODO(tobiaszheller): use s3 manager from teleport observability.
+		payloadDownloader:                     manager.NewDownloader(s3client),
+		payloadBucket:                         cfg.largeEventsBucket,
+		visibilityTimeout:                     int32(cfg.BatchMaxInterval.Seconds()),
+		batchMaxItems:                         cfg.BatchMaxItems,
+		errHandlingFn:                         errHandlingFnFromSQS(cfg.LogEntry),
+		logger:                                cfg.LogEntry,
+		metricConsumerBatchProcessingDuration: metricConsumerBatchProcessingDuration,
+	}
+	err := collectCfg.CheckAndSetDefaults()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if cancelFn == nil {
+		return nil, trace.BadParameter("cancelFn must be passed to consumer")
+	}
+
+	return &consumer{
+		logger:              cfg.LogEntry,
+		backend:             cfg.Backend,
+		storeLocationPrefix: cfg.locationS3Prefix,
+		storeLocationBucket: cfg.locationS3Bucket,
+		batchMaxItems:       cfg.BatchMaxItems,
+		batchMaxInterval:    cfg.BatchMaxInterval,
+		collectConfig:       collectCfg,
+		sqsDeleter:          sqsClient,
+		queueURL:            cfg.QueueURL,
+		perDateFileParquetWriter: func(ctx context.Context, date string) (io.WriteCloser, error) {
+			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
+			fw, err := awsutils.NewS3V2FileWriter(ctx, s3client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
+				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
+				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256
+			})
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return fw, nil
+		},
+		cancelRun: cancelFn,
+		finished:  make(chan struct{}),
+	}, nil
+}
+
+// run continuously runs batching job. It is blocking operation.
+// It is stopped via canceling context.
+func (c *consumer) run(ctx context.Context) {
+	defer func() {
+		close(c.finished)
+		c.logger.Debug("Consumer finished")
+	}()
+	c.runContinuouslyOnSingleAuth(ctx, c.processEventsContinuously)
+}
+
+// Close terminates the goroutine which is running [c.run]
+func (c *consumer) Close() error {
+	c.cancelRun()
+	select {
+	case <-c.finished:
+		return nil
+	case <-time.After(1 * time.Second):
+		// ctx is use through all calls within consumer.Run so it should finished
+		// very fast, within miliseconds.
+		return errors.New("consumer not finished in time, returning earlier")
+	}
+}
+
+// processEventsContinuously runs processBatchOfEvents continuously in a loop.
+// It makes sure that the CPU won't be spammed with too many requests if something goes
+// wrong with calls to the AWS API.
+func (c *consumer) processEventsContinuously(ctx context.Context) {
+	processBatchOfEventsWithLogging := func(context.Context) (reachedMaxBatch bool) {
+		reachedMaxBatch, err := c.processBatchOfEvents(ctx)
+		if err != nil {
+			// Ctx.Cancel is used to stop batcher
+			if ctx.Err() != nil {
+				return false
+			}
+			c.logger.Errorf("Batcher single run failed: %v", err)
+			return false
+		}
+		return reachedMaxBatch
+	}
+
+	c.logger.Debug("Processing of events started on this instance")
+	defer c.logger.Debug("Processing of events finished on this instance")
+
+	// If batch took 90% of specified interval, we don't want to wait just little bit.
+	// It's mainly to avoid cases when we will wait like 10ms.
+	minInterval := time.Duration(float64(c.batchMaxInterval) * 0.9)
+
+	var stop bool
+	for {
+		// We use helper fn [runWithMinInterval] to guarantee that we won't spam
+		// CPU if processBatchOfEvents will return immediately without processing
+		// any data. runWithMinInterval guarantees that if fn finished earlier,
+		// it will wait reaming time of interval before proceeding.
+		stop = runWithMinInterval(ctx, processBatchOfEventsWithLogging, minInterval)
+		if stop {
+			return
+		}
+	}
+}
+
+// runContinuouslyOnSingleAuth runs eventsProcessorFn continuously on single auth instance.
+// Backend locking is used to make sure that only single auth is running consumer.
+func (c *consumer) runContinuouslyOnSingleAuth(ctx context.Context, eventsProcessorFn func(context.Context)) {
+	// for 1 minute it will be 5s sleep before retry which seems like reasonable value.
+	waitTimeAfterLockingError := retryutils.NewSeventhJitter()(c.batchMaxInterval / 12)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			err := backend.RunWhileLocked(ctx, backend.RunWhileLockedConfig{
+				LockConfiguration: backend.LockConfiguration{
+					Backend:  c.backend,
+					LockName: "athena_lock",
+					// TTL is higher then batchMaxInterval because we want to optimize
+					// for low backend writes.
+					TTL: 5 * c.batchMaxInterval,
+					// RetryInterval means how often instance without lock will check
+					// backend if lock if ready for grab. We are fine with batchMaxInterval.
+					RetryInterval: c.batchMaxInterval,
+				},
+			}, func(ctx context.Context) error {
+				eventsProcessorFn(ctx)
+				return nil
+			})
+			if err != nil {
+				if ctx.Err() != nil {
+					return
+				}
+				// Ending up here means something went wrong in the backend while locking/waiting
+				// for lock. What we can do is log and retry whole operation.
+				c.logger.WithError(err).Warn("Could not get consumer to run with lock")
+				select {
+				// Use wait to make sure we won't spam CPU with a lot requests
+				// if something goes wrong during acquire lock.
+				case <-time.After(waitTimeAfterLockingError):
+					continue
+				case <-ctx.Done():
+					return
+				}
+			}
+		}
+	}
+}
+
+// runWithMinInterval runs fn, if fn returns earlier than minInterval
+// it waits reamaning time.
+// Useful when we don't want to put to many pressure on CPU with constantly running fn.
+func runWithMinInterval(ctx context.Context, fn func(context.Context) bool, minInterval time.Duration) (stop bool) {
+	start := time.Now()
+	reachedMaxBatch := fn(ctx)
+	if ctx.Err() != nil {
+		// stopping
+		return true
+	}
+	if reachedMaxBatch {
+		// reachedMaxBatch means that fn reached maxBatchSize. We don't want
+		// to wait in that case.
+		return false
+	}
+	elapsed := time.Since(start)
+	if elapsed > minInterval {
+		return false
+	}
+	select {
+	case <-ctx.Done():
+		return true
+	case <-time.After(minInterval - elapsed):
+		return false
+	}
+}
+
+// processBatchOfEvents creates single batch of events. It waits either up to BatchMaxInterval
+// or BatchMaxItems while reading events from queue. Batch is sent to s3 as
+// parquet file and at the end events are deleted from queue.
+func (c *consumer) processBatchOfEvents(ctx context.Context) (reachedMaxSize bool, e error) {
+	start := time.Now()
+	var size int
+	defer func() {
+		consumerLastProcessedTimestamp.SetToCurrentTime()
+		c.collectConfig.metricConsumerBatchProcessingDuration.Observe(time.Since(start).Seconds())
+	}()
+
+	msgsCollector := newSqsMessagesCollector(c.collectConfig)
+
+	readSQSCtx, readCancel := context.WithTimeout(ctx, c.batchMaxInterval)
+	defer readCancel()
+
+	// msgsCollector and writeToS3 runs concurrently, and use events channel
+	// to send messages from collector to writeToS3.
+	go func() {
+		msgsCollector.fromSQS(readSQSCtx)
+	}()
+
+	toDelete, err := c.writeToS3(ctx, msgsCollector.getEventsChan(), c.perDateFileParquetWriter)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	size = len(toDelete)
+	return size >= c.batchMaxItems, trace.Wrap(c.deleteMessagesFromQueue(ctx, toDelete))
+}
+
+type sqsCollectConfig struct {
+	sqsReceiver       sqsReceiver
+	queueURL          string
+	payloadBucket     string
+	payloadDownloader s3downloader
+	// visibilityTimeout defines how long message won't be available for other
+	// receiveMessage calls. If timeout happens, and message was not deleted
+	// it will return to the queue.
+	visibilityTimeout int32
+	// waitOnReceiveDuration defines how long single
+	// receiveFromQueue will wait if there is no max events (10).
+	waitOnReceiveDuration time.Duration
+	// waitOnReceiveTimeout is int32 representation of waitOnReceiveDuration
+	// required by AWS API.
+	waitOnReceiveTimeout int32
+
+	// waitOnReceiveError defines interval used to wait before
+	// retrying receive message from SQS after getting error.
+	waitOnReceiveError time.Duration
+
+	batchMaxItems int
+
+	// noOfWorkers defines how many workers are processing messages from queue.
+	noOfWorkers int
+
+	logger        log.FieldLogger
+	errHandlingFn func(ctx context.Context, errC chan error)
+
+	metricConsumerBatchProcessingDuration prometheus.Histogram
+}
+
+func (cfg *sqsCollectConfig) CheckAndSetDefaults() error {
+	if cfg.sqsReceiver == nil {
+		return trace.BadParameter("sqsReceiver is not specified")
+	}
+	if cfg.queueURL == "" {
+		return trace.BadParameter("queueURL is not specified")
+	}
+	if cfg.payloadBucket == "" {
+		return trace.BadParameter("payloadBucket is not specified")
+	}
+	if cfg.payloadDownloader == nil {
+		return trace.BadParameter("payloadDownloader is not specified")
+	}
+	if cfg.visibilityTimeout == 0 {
+		// visibilityTimeout is timeout in seconds, so 1 minute.
+		cfg.visibilityTimeout = int32(defaultBatchInterval.Seconds())
+	}
+	if cfg.waitOnReceiveDuration == 0 {
+		cfg.waitOnReceiveDuration = maxWaitTimeOnReceiveMessageFromSQS
+	}
+	if cfg.waitOnReceiveTimeout != 0 {
+		return trace.BadParameter("waitOnReceiveTimeout is calculated internally and should not be set")
+	}
+	cfg.waitOnReceiveTimeout = int32(cfg.waitOnReceiveDuration.Seconds())
+
+	if cfg.waitOnReceiveError == 0 {
+		cfg.waitOnReceiveError = 1 * time.Second
+	}
+	if cfg.batchMaxItems == 0 {
+		cfg.batchMaxItems = defaultBatchItems
+	}
+	if cfg.noOfWorkers == 0 {
+		cfg.noOfWorkers = 5
+	}
+	if cfg.logger == nil {
+		cfg.logger = log.WithFields(log.Fields{
+			trace.Component: teleport.ComponentAthena,
+		})
+	}
+	if cfg.errHandlingFn == nil {
+		return trace.BadParameter("errHandlingFn is not specified")
+	}
+	if cfg.metricConsumerBatchProcessingDuration == nil {
+		return trace.BadParameter("metricConsumerBatchProcessingDuration is not specified")
+	}
+	return nil
+}
+
+// sqsMessagesCollector is responsible for collecting messages from SQS and
+// writing to on channel.
+type sqsMessagesCollector struct {
+	cfg        sqsCollectConfig
+	eventsChan chan eventAndAckID
+}
+
+// newSqsMessagesCollector returns message collector.
+// Collector sends collected messages from SQS on events channel.
+func newSqsMessagesCollector(cfg sqsCollectConfig) *sqsMessagesCollector {
+	return &sqsMessagesCollector{
+		cfg:        cfg,
+		eventsChan: make(chan eventAndAckID, cfg.batchMaxItems),
+	}
+}
+
+// getEventsChan returns channel which can be used to read messages from SQS.
+// When collector finishes, channel will be closed.
+func (s *sqsMessagesCollector) getEventsChan() <-chan eventAndAckID {
+	return s.eventsChan
+}
+
+// fromSQS receives messages from SQS and sends it on eventsC channel.
+// It runs until context is canceled (via timeout) or when maxItems is reached.
+// MaxItems is soft limit and can happen that it will return more items then MaxItems.
+func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
+	// Errors should be immediately process by error handling loop, so 10 size
+	// should be enough to not cause blocking.
+	errorsC := make(chan error, 10)
+	defer close(errorsC)
+
+	// errhandle loop for receiving single event errors.
+	go func() {
+		s.cfg.errHandlingFn(ctx, errorsC)
+	}()
+	eventsC := s.eventsChan
+
+	// wokerCtx is mechanism to stop other workers when maxItems is reached.
+	wokerCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	var (
+		fullBatchMetadata   collectedEventsMetadata
+		fullBatchMetadataMu sync.Mutex
+		wg                  sync.WaitGroup
+	)
+
+	wg.Add(s.cfg.noOfWorkers)
+	for i := 0; i < s.cfg.noOfWorkers; i++ {
+		go func(i int) {
+			defer wg.Done()
+			for {
+				if wokerCtx.Err() != nil {
+					return
+				}
+				// If there is not enough time to process receiveMessage call
+				// we can return immediately. It's added because if
+				// receiveMessages is canceled message is marked as not
+				// processed after VisibilitTimeout (equal to BatchInterval).
+				if deadline, ok := wokerCtx.Deadline(); ok && time.Until(deadline) <= s.cfg.waitOnReceiveDuration {
+					return
+				}
+				singleReceiveMetadata := s.receiveMessagesAndSendOnChan(wokerCtx, eventsC, errorsC)
+				if singleReceiveMetadata.Count == 0 {
+					// no point of locking and checking for size if nothing was returned.
+					continue
+				}
+
+				fullBatchMetadataMu.Lock()
+				fullBatchMetadata.Merge(singleReceiveMetadata)
+				if fullBatchMetadata.Count >= s.cfg.batchMaxItems {
+					fullBatchMetadataMu.Unlock()
+					cancel()
+					return
+				}
+				fullBatchMetadataMu.Unlock()
+			}
+		}(i)
+	}
+	wg.Wait()
+	close(eventsC)
+	if fullBatchMetadata.Count > 0 {
+		consumerBatchCount.Add(float64(fullBatchMetadata.Count))
+		consumerBatchSize.Observe(float64(fullBatchMetadata.Size))
+		consumerAgeOfOldestProcessedMessage.Set(time.Since(fullBatchMetadata.OldestTimestamp).Seconds())
+	} else {
+		// When no messages were processed, clear gauge metric.
+		consumerAgeOfOldestProcessedMessage.Set(0)
+	}
+}
+
+type collectedEventsMetadata struct {
+	// Size is total size of events.
+	Size int
+	// Count is number of events.
+	Count int
+	// OldestTimestamp is timestamp of oldest event.
+	OldestTimestamp time.Time
+}
+
+// Merge combines the metadata of two collectedEventsMetadata instances.
+// It updates the current instance by adding the size and count of events from another instance,
+// and sets the oldestTimestamp to the oldest timestamp between the two instances.
+func (c *collectedEventsMetadata) Merge(in collectedEventsMetadata) {
+	c.Size += in.Size
+	c.Count += in.Count
+	if c.OldestTimestamp.IsZero() || (!in.OldestTimestamp.IsZero() && c.OldestTimestamp.After(in.OldestTimestamp)) {
+		c.OldestTimestamp = in.OldestTimestamp
+	}
+}
+
+// MergeWithEvent combines collectedEventsMetadata with metadata of single event.
+func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent, publishedToQueueTimestamp time.Time) {
+	c.Merge(collectedEventsMetadata{
+		// 1 because we are merging single event
+		Count:           1,
+		Size:            in.Size(),
+		OldestTimestamp: publishedToQueueTimestamp,
+	})
+}
+
+// SDK defines invalid type for attribute names, let's just use const here.
+// https://github.com/aws/aws-sdk-go-v2/issues/2124
+const sentTimestampAttribute = "SentTimestamp"
+
+func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context, eventsC chan<- eventAndAckID, errorsC chan<- error) collectedEventsMetadata {
+	sqsOut, err := s.cfg.sqsReceiver.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
+		QueueUrl:              aws.String(s.cfg.queueURL),
+		MaxNumberOfMessages:   maxNumberOfMessagesFromReceive,
+		WaitTimeSeconds:       s.cfg.waitOnReceiveTimeout,
+		VisibilityTimeout:     s.cfg.visibilityTimeout,
+		MessageAttributeNames: []string{payloadTypeAttr},
+		AttributeNames:        []sqsTypes.QueueAttributeName{sentTimestampAttribute},
+	})
+	if err != nil {
+		// We don't need handle canceled errors anyhow.
+		if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+			return collectedEventsMetadata{}
+		}
+		errorsC <- trace.Wrap(err)
+
+		// We don't want to retry receiving message immediately to prevent huge load
+		// on CPU if calls are contantly failing.
+		select {
+		case <-ctx.Done():
+			return collectedEventsMetadata{}
+		case <-time.After(s.cfg.waitOnReceiveError):
+			return collectedEventsMetadata{}
+		}
+	}
+	if len(sqsOut.Messages) == 0 {
+		return collectedEventsMetadata{}
+	}
+	var singleReceiveMetadata collectedEventsMetadata
+	for _, msg := range sqsOut.Messages {
+		event, err := s.auditEventFromSQSorS3(ctx, msg)
+		if err != nil {
+			errorsC <- trace.Wrap(err)
+			continue
+		}
+		eventsC <- eventAndAckID{
+			event:         event,
+			receiptHandle: aws.ToString(msg.ReceiptHandle),
+		}
+		messageSentTimestamp, err := getMessageSentTimestamp(msg)
+		if err != nil {
+			s.cfg.logger.Debugf("Failed to get sentTimestamp: %v", err)
+		}
+		singleReceiveMetadata.MergeWithEvent(event, messageSentTimestamp)
+	}
+	return singleReceiveMetadata
+}
+
+func getMessageSentTimestamp(msg sqsTypes.Message) (time.Time, error) {
+	if msg.Attributes == nil {
+		return time.Time{}, nil
+	}
+	attribute := msg.Attributes[sentTimestampAttribute]
+	if attribute == "" {
+		return time.Time{}, nil
+	}
+	milis, err := strconv.Atoi(attribute)
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	return time.UnixMilli(int64(milis)).UTC(), nil
+}
+
+// auditEventFromSQSorS3 returns events either directly from SQS message payload
+// or from s3, if event was very large.
+func (s *sqsMessagesCollector) auditEventFromSQSorS3(ctx context.Context, msg sqsTypes.Message) (apievents.AuditEvent, error) {
+	payloadType, err := validateSQSMessage(msg)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	var protoMarshaledOneOf []byte
+	switch payloadType {
+	// default case is hanlded in validateSQSMessage.
+	case payloadTypeS3Based:
+		protoMarshaledOneOf, err = s.downloadEventFromS3(ctx, *msg.Body)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	case payloadTypeRawProtoEvent:
+		protoMarshaledOneOf, err = base64.StdEncoding.DecodeString(*msg.Body)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
+	var oneOf apievents.OneOf
+	if err := oneOf.Unmarshal(protoMarshaledOneOf); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	event, err := apievents.FromOneOf(oneOf)
+	return event, trace.Wrap(err)
+}
+
+func validateSQSMessage(msg sqsTypes.Message) (string, error) {
+	if msg.Body == nil || msg.MessageAttributes == nil {
+		// This should not happen. If it happen though, it will be retried
+		// and go to dead-letter queue after max attempts.
+		return "", trace.BadParameter("missing Body or MessageAttributes of msg: %v", msg)
+	}
+	if msg.ReceiptHandle == nil {
+		return "", trace.BadParameter("missing ReceiptHandle")
+	}
+	v := msg.MessageAttributes[payloadTypeAttr]
+	if v.StringValue == nil {
+		// This should not happen. If it happen though, it will be retried
+		// and go to dead-letter queue after max attempts.
+		return "", trace.BadParameter("message without %q attribute", payloadTypeAttr)
+	}
+	payloadType := *v.StringValue
+	if !slices.Contains([]string{payloadTypeRawProtoEvent, payloadTypeS3Based}, payloadType) {
+		return "", trace.BadParameter("unsupported payload type %s", payloadType)
+	}
+	return payloadType, nil
+}
+
+type eventAndAckID struct {
+	event         apievents.AuditEvent
+	receiptHandle string
+}
+
+func errHandlingFnFromSQS(logger log.FieldLogger) func(ctx context.Context, errC chan error) {
+	return func(ctx context.Context, errC chan error) {
+		var errorsCount int
+
+		defer func() {
+			if errorsCount > maxErrorCountForLogsOnSQSReceive {
+				logger.Errorf("Got %d errors from SQS collector, printed only first %d", errorsCount, maxErrorCountForLogsOnSQSReceive)
+			}
+			consumerNumberOfErrorsFromSQSCollect.Add(float64(errorsCount))
+		}()
+
+		for {
+			select {
+			case <-ctx.Done():
+				// if errorsCount > maxErrorCountForLogs, log will be printed via defer.
+				return
+			case err, ok := <-errC:
+				if !ok {
+					return
+				}
+				errorsCount++
+				if errorsCount <= maxErrorCountForLogsOnSQSReceive {
+					logger.WithError(err).Error("Failure processing SQS messages")
+				}
+			}
+		}
+	}
+}
+
+func (s *sqsMessagesCollector) downloadEventFromS3(ctx context.Context, payload string) ([]byte, error) {
+	decoded, err := base64.StdEncoding.DecodeString(payload)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	s3Payload := &apievents.AthenaS3EventPayload{}
+	if err := s3Payload.Unmarshal(decoded); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	path := s3Payload.GetPath()
+	versionID := s3Payload.GetVersionId()
+
+	s.cfg.logger.Debugf("Downloading %v %v [%v].", s.cfg.payloadBucket, path, versionID)
+
+	var versionIDPtr *string
+	if versionID != "" {
+		versionIDPtr = aws.String(versionID)
+	}
+
+	buf := manager.NewWriteAtBuffer([]byte{})
+	written, err := s.cfg.payloadDownloader.Download(ctx, buf, &s3.GetObjectInput{
+		Bucket:    aws.String(s.cfg.payloadBucket),
+		Key:       aws.String(path),
+		VersionId: versionIDPtr,
+	})
+	if err != nil {
+		return nil, awsutils.ConvertS3Error(err)
+	}
+	if written == 0 {
+		return nil, trace.NotFound("payload for %v is not found", path)
+	}
+	return buf.Bytes(), nil
+}
+
+// writeToS3 reades events from eventsCh and writes them via parquet writer
+// to s3 bucket. It returns receiptHandles of elements to delete from queue.
+// If error is returned, it means that messages won't be deleted from SQS,
+// and events will be retried or go to dead-letter queue.
+func (c *consumer) writeToS3(ctx context.Context, eventsCh <-chan eventAndAckID, newPerDateFileWriterFn func(ctx context.Context, date string) (io.WriteCloser, error)) ([]string, error) {
+	toDelete := make([]string, 0, c.batchMaxItems)
+	// TODO(tobiaszheller): later write in goroutine, so far it's not bottleneck.
+	perDateWriter := map[string]*parquetWriter{}
+eventLoop:
+	for {
+		select {
+		case <-ctx.Done():
+			return nil, trace.Wrap(ctx.Err())
+		case eventAndAckID, ok := <-eventsCh:
+			if !ok {
+				break eventLoop
+			}
+			pqtEvent, err := auditEventToParquet(eventAndAckID.event)
+			if err != nil {
+				c.logger.WithError(err).Error("Could not convert event to parquet format")
+				continue
+			}
+			date := pqtEvent.EventTime.Format(time.DateOnly)
+			pw := perDateWriter[date]
+			if pw == nil {
+				fw, err := newPerDateFileWriterFn(ctx, date)
+				if err != nil {
+					// While using s3 file writer, error is not used
+					// when creating file writer.
+					return nil, trace.Wrap(err)
+				}
+				pw, err = newParquetWriter(ctx, fw)
+				if err != nil {
+					// Error here means that probably something is wrong with
+					// parquet schema. Returning from fn with error make sense.
+					return nil, trace.Wrap(err)
+				}
+				perDateWriter[date] = pw
+			}
+			if err := pw.Write(ctx, *pqtEvent); err != nil {
+				// pw.Write returns error only on flushing operation which
+				// does not happen on every write.
+				// So there is no easy way to say, which event caused trouble and
+				// skip it.
+				// It may happen that one wrong entry will cause whole batch
+				// to write failure. Although it should not happen often because
+				// we are validating message before. If it happen though, whole
+				// batch will go to dead letter.
+				// TODO(tobiaszheller): check how other parquet libs are handling it.
+				// or maybe use Flush explicitly. Need to check performance.
+				return nil, trace.Wrap(err)
+			}
+
+			// Elements are just added to slice here. Acknowledge happens only if whole
+			// writeToS3 method succeed.
+			toDelete = append(toDelete, eventAndAckID.receiptHandle)
+		}
+	}
+	eventLoopFinishedTime := time.Now()
+	defer func() {
+		consumerS3parquetFlushDuration.Observe(time.Since(eventLoopFinishedTime).Seconds())
+	}()
+	for _, pw := range perDateWriter {
+		if err := pw.Close(); err != nil {
+			// Typically there will be data just for one date.
+			// If we are not able to close parquet file, it make sense to retrun
+			// error and retry whole batch again from SQS.
+
+			return nil, trace.Wrap(err)
+		}
+	}
+	return toDelete, nil
+}
+
+func newParquetWriter(ctx context.Context, fw io.WriteCloser) (*parquetWriter, error) {
+	pw := parquet.NewGenericWriter[eventParquet](fw, parquet.Compression(&parquet.Snappy))
+	return &parquetWriter{
+		closer: fw,
+		writer: pw,
+	}, nil
+}
+
+type parquetWriter struct {
+	closer io.Closer
+	writer *parquet.GenericWriter[eventParquet]
+}
+
+func (pw *parquetWriter) Write(ctx context.Context, in eventParquet) error {
+	_, err := pw.writer.Write([]eventParquet{in})
+	return trace.Wrap(err)
+}
+
+func (pw *parquetWriter) Close() error {
+	if err := pw.writer.Close(); err != nil {
+		return trace.NewAggregate(err, pw.closer.Close())
+	}
+	return trace.Wrap(pw.closer.Close())
+}
+
+func (c *consumer) deleteMessagesFromQueue(ctx context.Context, handles []string) error {
+	if len(handles) == 0 {
+		return nil
+	}
+	start := time.Now()
+	defer func() {
+		consumerDeleteMessageDuration.Observe(time.Since(start).Seconds())
+	}()
+	const (
+		// maxDeleteBatchSize defines maximum number of handles passed to deleteMessage endpoint, limited by AWS.
+		maxDeleteBatchSize = 10
+		// noOfWorkers defines number of workers which concurrently process delete batch request.
+		noOfWorkers = 5
+	)
+
+	errorsCh := make(chan error, len(handles))
+	workerCh := make(chan []string, noOfWorkers)
+
+	var wg sync.WaitGroup
+
+	// Start the worker goroutines
+	for i := 0; i < noOfWorkers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for handles := range workerCh {
+				entries := make([]sqsTypes.DeleteMessageBatchRequestEntry, 0, len(handles))
+				for _, h := range handles {
+					entries = append(entries, sqsTypes.DeleteMessageBatchRequestEntry{
+						Id:            aws.String(uuid.NewString()),
+						ReceiptHandle: aws.String(h),
+					})
+				}
+				resp, err := c.sqsDeleter.DeleteMessageBatch(ctx, &sqs.DeleteMessageBatchInput{
+					QueueUrl: aws.String(c.queueURL),
+					Entries:  entries,
+				})
+				if err != nil {
+					errorsCh <- trace.Wrap(err, "error on calling DeleteMessageBatch")
+					continue
+				}
+				for _, entry := range resp.Failed {
+					// TODO(tobiaszheller): come back at some point and check if there are errors that we should filter.
+					// Deleting the same handle twice does not result in error.
+					errorsCh <- trace.Errorf("failed to delete message with ID %s, sender fault %v: %s", aws.ToString(entry.Id), entry.SenderFault, aws.ToString(entry.Message))
+				}
+			}
+		}()
+	}
+
+	// Batch the receipt handles and send them to the worker pool.
+	for i := 0; i < len(handles); i += maxDeleteBatchSize {
+		end := i + maxDeleteBatchSize
+		if end > len(handles) {
+			end = len(handles)
+		}
+		workerCh <- handles[i:end]
+	}
+	close(workerCh)
+
+	wg.Wait()
+	// We can close errorsCh when all goroutine has finished, now we will
+	// be able to collect results.
+	close(errorsCh)
+
+	return trace.Wrap(trace.NewAggregateFromChannel(errorsCh, ctx))
+}

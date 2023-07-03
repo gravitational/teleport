@@ -152,6 +152,57 @@ func (u *UIDiscoverResourceSelectionEvent) Anonymize(a utils.Anonymizer) prehogv
 	}
 }
 
+// UIDiscoverIntegrationAWSOIDCConnectEvent is emitted when a user is finished with the step
+// that asks user to setup aws integration or select from a list of existing
+// aws integrations.
+type UIDiscoverIntegrationAWSOIDCConnectEvent prehogv1a.UIDiscoverIntegrationAWSOIDCConnectEvent
+
+func (u *UIDiscoverIntegrationAWSOIDCConnectEvent) CheckAndSetDefaults() error {
+	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
+}
+
+func (u *UIDiscoverIntegrationAWSOIDCConnectEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiDiscoverIntegrationAwsOidcConnectEvent{
+			UiDiscoverIntegrationAwsOidcConnectEvent: &prehogv1a.UIDiscoverIntegrationAWSOIDCConnectEvent{
+				Metadata: &prehogv1a.DiscoverMetadata{
+					Id:       u.Metadata.Id,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Resource: u.Resource,
+				Status:   u.Status,
+			},
+		},
+	}
+}
+
+// UIDiscoverDatabaseRDSEnrollEvent is emitted when a user is finished with
+// the step that asks user to select from a list of RDS databases.
+type UIDiscoverDatabaseRDSEnrollEvent prehogv1a.UIDiscoverDatabaseRDSEnrollEvent
+
+func (u *UIDiscoverDatabaseRDSEnrollEvent) CheckAndSetDefaults() error {
+	if u.SelectedResourcesCount < 0 {
+		return trace.BadParameter("selected resources count must be 0 or more")
+	}
+	return trace.Wrap(validateDiscoverBaseEventFields(u.Metadata, u.Resource, u.Status))
+}
+
+func (u *UIDiscoverDatabaseRDSEnrollEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiDiscoverDatabaseRdsEnrollEvent{
+			UiDiscoverDatabaseRdsEnrollEvent: &prehogv1a.UIDiscoverDatabaseRDSEnrollEvent{
+				Metadata: &prehogv1a.DiscoverMetadata{
+					Id:       u.Metadata.Id,
+					UserName: a.AnonymizeString(u.Metadata.UserName),
+				},
+				Resource:               u.Resource,
+				Status:                 u.Status,
+				SelectedResourcesCount: u.SelectedResourcesCount,
+			},
+		},
+	}
+}
+
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
 // For SSH this is the Teleport 'install-node' script.
 //
@@ -173,8 +224,10 @@ func (u *UIDiscoverDeployServiceEvent) Anonymize(a utils.Anonymizer) prehogv1a.S
 					Id:       u.Metadata.Id,
 					UserName: a.AnonymizeString(u.Metadata.UserName),
 				},
-				Resource: u.Resource,
-				Status:   u.Status,
+				Resource:     u.Resource,
+				Status:       u.Status,
+				DeployMethod: u.DeployMethod,
+				DeployType:   u.DeployType,
 			},
 		},
 	}

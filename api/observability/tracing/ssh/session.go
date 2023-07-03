@@ -26,6 +26,7 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 
+	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -341,4 +342,33 @@ func (s *Session) CombinedOutput(ctx context.Context, cmd string) ([]byte, error
 	s.wrapper.addContext(ctx, request)
 	output, err := s.Session.CombinedOutput(cmd)
 	return output, trace.Wrap(err)
+}
+
+// sendFileTransferDecision will send a "file-transfer-decision@goteleport.com" ssh request
+func (s *Session) sendFileTransferDecision(ctx context.Context, requestID string, approved bool) error {
+	req := &FileTransferDecisionReq{
+		RequestID: requestID,
+		Approved:  approved,
+	}
+	_, err := s.SendRequest(ctx, constants.FileTransferDecision, true, ssh.Marshal(req))
+	return trace.Wrap(err)
+}
+
+// ApproveFileTransferRequest sends a "file-transfer-decision@goteleport.com" ssh request
+// The ssh request will have the request ID and Approved: true
+func (s *Session) ApproveFileTransferRequest(ctx context.Context, requestID string) error {
+	return trace.Wrap(s.sendFileTransferDecision(ctx, requestID, true))
+}
+
+// DenyFileTransferRequest sends a "file-transfer-decision@goteleport.com" ssh request
+// The ssh request will have the request ID and Approved: false
+func (s *Session) DenyFileTransferRequest(ctx context.Context, requestID string) error {
+	return trace.Wrap(s.sendFileTransferDecision(ctx, requestID, false))
+}
+
+// RequestFileTransfer sends a "file-transfer-request@goteleport.com" ssh request that will create a new file transfer request
+// and notify the parties in an ssh session
+func (s *Session) RequestFileTransfer(ctx context.Context, req FileTransferReq) error {
+	_, err := s.SendRequest(ctx, constants.InitiateFileTransfer, true, ssh.Marshal(req))
+	return trace.Wrap(err)
 }

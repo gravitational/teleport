@@ -26,6 +26,7 @@ import (
 	"net/url"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
@@ -33,6 +34,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/pingconn"
+	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
 
 // IsALPNConnUpgradeRequired returns true if a tunnel is required through a HTTP
@@ -46,19 +49,28 @@ import (
 // In those cases, the Teleport client should make a HTTP "upgrade" call to the
 // Proxy Service to establish a tunnel for the originally planned traffic to
 // preserve the ALPN and SNI information.
-func IsALPNConnUpgradeRequired(addr string, insecure bool) bool {
+func IsALPNConnUpgradeRequired(ctx context.Context, addr string, insecure bool, opts ...DialOption) bool {
 	if result, ok := OverwriteALPNConnUpgradeRequirementByEnv(addr); ok {
 		return result
 	}
 
-	netDialer := &net.Dialer{
-		Timeout: defaults.DefaultIOTimeout,
-	}
+	// Use NewDialer which takes care of ProxyURL, and use a shorter I/O
+	// timeout to avoid blocking caller.
+	baseDialer := NewDialer(
+		ctx,
+		defaults.DefaultIdleTimeout,
+		5*time.Second,
+		append(opts,
+			WithInsecureSkipVerify(insecure),
+			WithALPNConnUpgrade(false),
+		)...,
+	)
+
 	tlsConfig := &tls.Config{
 		NextProtos:         []string{string(constants.ALPNSNIProtocolReverseTunnel)},
 		InsecureSkipVerify: insecure,
 	}
-	testConn, err := tls.DialWithDialer(netDialer, "tcp", addr, tlsConfig)
+	testConn, err := tlsutils.TLSDial(ctx, baseDialer, "tcp", addr, tlsConfig)
 	if err != nil {
 		if isRemoteNoALPNError(err) {
 			logrus.Debugf("ALPN connection upgrade required for %q: %v. No ALPN protocol is negotiated by the server.", addr, true)
@@ -145,83 +157,90 @@ func isALPNConnUpgradeRequiredByEnv(addr, envValue string) bool {
 type alpnConnUpgradeDialer struct {
 	dialer    ContextDialer
 	tlsConfig *tls.Config
+	withPing  bool
 }
 
 // newALPNConnUpgradeDialer creates a new alpnConnUpgradeDialer.
-func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config) ContextDialer {
+func newALPNConnUpgradeDialer(dialer ContextDialer, tlsConfig *tls.Config, withPing bool) ContextDialer {
 	return &alpnConnUpgradeDialer{
 		dialer:    dialer,
 		tlsConfig: tlsConfig,
+		withPing:  withPing,
 	}
 }
 
 // DialContext implements ContextDialer
-func (d alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
+func (d *alpnConnUpgradeDialer) DialContext(ctx context.Context, network, addr string) (net.Conn, error) {
 	logrus.Debugf("ALPN connection upgrade for %v.", addr)
 
-	conn, err := d.dialer.DialContext(ctx, network, addr)
+	tlsConn, err := tlsutils.TLSDial(ctx, d.dialer, network, addr, d.tlsConfig.Clone())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-
-	// matching the behavior of tls.Dial
-	cfg := d.tlsConfig
-	if cfg == nil {
-		cfg = &tls.Config{}
-	}
-	if cfg.ServerName == "" {
-		colonPos := strings.LastIndex(addr, ":")
-		if colonPos == -1 {
-			colonPos = len(addr)
-		}
-		hostname := addr[:colonPos]
-
-		cfg = cfg.Clone()
-		cfg.ServerName = hostname
-	}
-
-	tlsConn := tls.Client(conn, cfg)
-
-	err = upgradeConnThroughWebAPI(tlsConn, url.URL{
+	upgradeURL := url.URL{
 		Host:   addr,
 		Scheme: "https",
 		Path:   constants.WebAPIConnUpgrade,
-	})
-	if err != nil {
-		defer tlsConn.Close()
-		return nil, trace.Wrap(err)
 	}
-	return tlsConn, nil
+
+	conn, err := upgradeConnThroughWebAPI(tlsConn, upgradeURL, d.upgradeType())
+	if err != nil {
+		return nil, trace.NewAggregate(tlsConn.Close(), err)
+	}
+	return conn, nil
 }
 
-func upgradeConnThroughWebAPI(conn net.Conn, api url.URL) error {
+func (d *alpnConnUpgradeDialer) upgradeType() string {
+	if d.withPing {
+		return constants.WebAPIConnUpgradeTypeALPNPing
+	}
+	return constants.WebAPIConnUpgradeTypeALPN
+}
+
+func upgradeConnThroughWebAPI(conn net.Conn, api url.URL, upgradeType string) (net.Conn, error) {
 	req, err := http.NewRequest(http.MethodGet, api.String(), nil)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	// For now, only "alpn" is supported.
-	req.Header.Add(constants.WebAPIConnUpgradeHeader, constants.WebAPIConnUpgradeTypeALPN)
+	req.Header.Add(constants.WebAPIConnUpgradeHeader, upgradeType)
+
+	// Set "Connection" header to meet RFC spec:
+	// https://datatracker.ietf.org/doc/html/rfc2616#section-14.42
+	// Quote: "the upgrade keyword MUST be supplied within a Connection header
+	// field (section 14.10) whenever Upgrade is present in an HTTP/1.1
+	// message."
+	//
+	// Some L7 load balancers/reverse proxies like "ngrok" and "tailscale"
+	// require this header to be set to complete the upgrade flow. The header
+	// must be set on both the upgrade request here and the 101 Switching
+	// Protocols response from the server.
+	req.Header.Add(constants.WebAPIConnUpgradeConnectionHeader, constants.WebAPIConnUpgradeConnectionType)
 
 	// Send the request and check if upgrade is successful.
 	if err = req.Write(conn); err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	resp, err := http.ReadResponse(bufio.NewReader(conn), req)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 	defer resp.Body.Close()
 
 	if http.StatusSwitchingProtocols != resp.StatusCode {
 		if http.StatusNotFound == resp.StatusCode {
-			return trace.NotImplemented(
-				"connection upgrade call to %q failed with status code %v. Please upgrade the server and try again.",
+			return nil, trace.NotImplemented(
+				"connection upgrade call to %q with upgrade type %v failed with status code %v. Please upgrade the server and try again.",
 				constants.WebAPIConnUpgrade,
+				upgradeType,
 				resp.StatusCode,
 			)
 		}
-		return trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
+		return nil, trace.BadParameter("failed to switch Protocols %v", resp.StatusCode)
 	}
-	return nil
+
+	if upgradeType == constants.WebAPIConnUpgradeTypeALPNPing {
+		return pingconn.New(conn), nil
+	}
+	return conn, nil
 }
