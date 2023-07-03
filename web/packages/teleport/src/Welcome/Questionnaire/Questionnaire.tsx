@@ -18,6 +18,7 @@ import React, { useState } from 'react';
 import { ButtonPrimary, Card, Text } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 
+import { useUser } from 'teleport/User/UserContext';
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
 import { QuestionnaireFormFields, QuestionnaireProps } from './types';
@@ -26,7 +27,10 @@ import { Role } from './Role';
 import { Resources } from './Resources';
 import { supportedResources } from './constants';
 
-export const Questionnaire = ({ username }: QuestionnaireProps) => {
+export const Questionnaire = ({
+  username,
+}: QuestionnaireProps): React.ReactElement => {
+  const { updatePreferences } = useUser();
   const [formFields, setFormFields] = useState<QuestionnaireFormFields>({
     companyName: '',
     employeeCount: undefined,
@@ -54,6 +58,12 @@ export const Questionnaire = ({ username }: QuestionnaireProps) => {
     userEventService.capturePreUserEvent({
       event: CaptureEvent.PreUserOnboardQuestionnaireSubmitEvent,
       username: username,
+    });
+
+    void updatePreferences({
+      onboard: {
+        preferredResources: formFields.resources,
+      },
     });
 
     // todo (michellescripts) submit all Qs to Sales Center

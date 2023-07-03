@@ -14,18 +14,23 @@
  * limitations under the License.
  */
 
-import { screen } from '@testing-library/react';
 import React from 'react';
-import { render } from 'design/utils/testing';
+import { render, screen } from 'design/utils/testing';
+
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 
 import { Questionnaire } from './Questionnaire';
 
 describe('questionnaire', () => {
+  beforeEach(() => {
+    mockUserContextProviderWith(makeTestUserContext());
+  });
+
   test('loads each question', () => {
     render(<Questionnaire username="" />);
 
     expect(screen.getByText('Tell us about yourself')).toBeInTheDocument();
-
     expect(screen.getByLabelText('Company Name')).toBeInTheDocument();
     expect(screen.getByLabelText('Number of Employees')).toBeInTheDocument();
     expect(screen.getByLabelText('Which Team are you on?')).toBeInTheDocument();

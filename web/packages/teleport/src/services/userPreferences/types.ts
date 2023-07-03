@@ -17,15 +17,21 @@
 import { DeprecatedThemeOption } from 'design/theme';
 
 import type { AssistUserPreferences } from 'teleport/Assist/types';
+import type { Resource } from 'teleport/Welcome/Questionnaire/types';
 
 export enum ThemePreference {
   Light = 1,
   Dark = 2,
 }
 
+export type OnboardUserPreferences = {
+  preferredResources: Resource[];
+};
+
 export interface UserPreferences {
   theme: ThemePreference;
   assist: AssistUserPreferences;
+  onboard: OnboardUserPreferences;
 }
 
 export type UserPreferencesSubset = Subset<UserPreferences>;

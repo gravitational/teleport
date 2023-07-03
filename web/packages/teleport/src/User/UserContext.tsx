@@ -43,14 +43,14 @@ import type {
   UserPreferencesSubset,
 } from 'teleport/services/userPreferences/types';
 
-interface UserContextValue {
+export interface UserContextValue {
   preferences: UserPreferences;
   updatePreferences: (preferences: UserPreferencesSubset) => Promise<void>;
 }
 
-const UserContext = createContext<UserContextValue>(null);
+export const UserContext = createContext<UserContextValue>(null);
 
-export function useUser() {
+export function useUser(): UserContextValue {
   return useContext(UserContext);
 }
 

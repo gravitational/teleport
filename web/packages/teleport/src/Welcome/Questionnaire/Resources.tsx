@@ -22,7 +22,7 @@ import { useRule } from 'shared/components/Validation';
 
 import { requiredResourceField } from 'teleport/Welcome/Questionnaire/constants';
 
-import { ResourcesProps, ResourceType } from './types';
+import { ResourcesProps, ResourceType, Resource } from './types';
 import { ResourceWrapper } from './ResourceWrapper';
 
 export const Resources = ({
@@ -32,7 +32,7 @@ export const Resources = ({
 }: ResourcesProps) => {
   const { valid, message } = useRule(requiredResourceField(checked));
 
-  const updateResources = (label: string) => {
+  const updateResources = (label: Resource) => {
     let updated = checked;
     if (updated.includes(label)) {
       updated = updated.filter(r => r !== label);

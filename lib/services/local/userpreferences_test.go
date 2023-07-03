@@ -38,126 +38,140 @@ func newUserPreferencesService(t *testing.T) *local.UserPreferencesService {
 	return local.NewUserPreferencesService(backend)
 }
 
-func TestUserPreferencesCRUD(t *testing.T) {
-	t.Parallel()
-
-	identity := newUserPreferencesService(t)
+func TestUserPreferencesCRUD2(t *testing.T) {
 	ctx := context.Background()
+	defaultPref := local.DefaultUserPreferences()
+	username := "something"
 
-	const username = "foo"
-
-	t.Run("no existing preferences returns the default preferences", func(t *testing.T) {
-		req := &userpreferencesv1.GetUserPreferencesRequest{
-			Username: username,
-		}
-
-		res, err := identity.GetUserPreferences(ctx, req)
-
-		require.NoError(t, err)
-		require.Equal(t, local.DefaultUserPreferences, res.Preferences)
-	})
-
-	t.Run("update the theme preference only", func(t *testing.T) {
-		req := &userpreferencesv1.UpsertUserPreferencesRequest{
-			Username: username,
-			Preferences: &userpreferencesv1.UserPreferences{
-				Theme: userpreferencesv1.Theme_THEME_DARK,
+	tests := []struct {
+		name     string
+		req      *userpreferencesv1.UpsertUserPreferencesRequest
+		expected *userpreferencesv1.UserPreferences
+	}{
+		{
+			name:     "no existing preferences returns the default preferences",
+			req:      nil,
+			expected: defaultPref,
+		},
+		{
+			name: "update the theme preference only",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Username: username,
+				Preferences: &userpreferencesv1.UserPreferences{
+					Theme: userpreferencesv1.Theme_THEME_DARK,
+				},
 			},
-		}
-
-		err := identity.UpsertUserPreferences(ctx, req)
-		require.NoError(t, err)
-
-		res, err := identity.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{
-			Username: username,
-		})
-
-		require.NoError(t, err)
-		require.Equal(t, userpreferencesv1.Theme_THEME_DARK, res.Preferences.Theme)
-
-		// expect the assist settings to have stayed the same
-		require.Len(t, res.Preferences.Assist.PreferredLogins, 0)
-		require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED, res.Preferences.Assist.ViewMode)
-	})
-
-	t.Run("update the assist preferred logins only", func(t *testing.T) {
-		req := &userpreferencesv1.UpsertUserPreferencesRequest{
-			Username: username,
-			Preferences: &userpreferencesv1.UserPreferences{
+			expected: &userpreferencesv1.UserPreferences{
+				Assist:  defaultPref.Assist,
+				Onboard: defaultPref.Onboard,
+				Theme:   userpreferencesv1.Theme_THEME_DARK,
+			},
+		},
+		{
+			name: "update the assist preferred logins only",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Username: username,
+				Preferences: &userpreferencesv1.UserPreferences{
+					Assist: &userpreferencesv1.AssistUserPreferences{
+						PreferredLogins: []string{"foo", "bar"},
+					},
+				},
+			},
+			expected: &userpreferencesv1.UserPreferences{
+				Theme:   defaultPref.Theme,
+				Onboard: defaultPref.Onboard,
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: []string{"foo", "bar"},
+					ViewMode:        defaultPref.Assist.ViewMode,
 				},
 			},
-		}
-
-		err := identity.UpsertUserPreferences(ctx, req)
-		require.NoError(t, err)
-
-		res, err := identity.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{
-			Username: username,
-		})
-
-		require.NoError(t, err)
-
-		require.Equal(t, []string{"foo", "bar"}, res.Preferences.Assist.PreferredLogins)
-
-		// expect the view mode to have stayed the same
-		require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED, res.Preferences.Assist.ViewMode)
-
-		// expect the theme to have stayed the same
-		require.Equal(t, userpreferencesv1.Theme_THEME_DARK, res.Preferences.Theme)
-	})
-
-	t.Run("update the assist view mode only", func(t *testing.T) {
-		req := &userpreferencesv1.UpsertUserPreferencesRequest{
-			Username: username,
-			Preferences: &userpreferencesv1.UserPreferences{
+		},
+		{
+			name: "update the assist view mode only",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Username: username,
+				Preferences: &userpreferencesv1.UserPreferences{
+					Assist: &userpreferencesv1.AssistUserPreferences{
+						ViewMode: userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE,
+					},
+				},
+			},
+			expected: &userpreferencesv1.UserPreferences{
+				Theme:   defaultPref.Theme,
+				Onboard: defaultPref.Onboard,
 				Assist: &userpreferencesv1.AssistUserPreferences{
-					ViewMode: userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE,
+					PreferredLogins: defaultPref.Assist.PreferredLogins,
+					ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE,
 				},
 			},
-		}
-
-		err := identity.UpsertUserPreferences(ctx, req)
-		require.NoError(t, err)
-
-		res, err := identity.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{
-			Username: username,
-		})
-		require.NoError(t, err)
-
-		require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP_EXPANDED_SIDEBAR_VISIBLE, res.Preferences.Assist.ViewMode)
-
-		// expect the assist view mode to have stayed the same
-		require.Equal(t, []string{"foo", "bar"}, res.Preferences.Assist.PreferredLogins)
-
-		// expect the theme to have stayed the same
-		require.Equal(t, userpreferencesv1.Theme_THEME_DARK, res.Preferences.Theme)
-	})
-
-	t.Run("update all the settings at once", func(t *testing.T) {
-		req := &userpreferencesv1.UpsertUserPreferencesRequest{
-			Username: username,
-			Preferences: &userpreferencesv1.UserPreferences{
+		},
+		{
+			name: "update the onboard preference only",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Username: username,
+				Preferences: &userpreferencesv1.UserPreferences{
+					Onboard: &userpreferencesv1.OnboardUserPreferences{
+						PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
+					},
+				},
+			},
+			expected: &userpreferencesv1.UserPreferences{
+				Assist: defaultPref.Assist,
+				Theme:  defaultPref.Theme,
+				Onboard: &userpreferencesv1.OnboardUserPreferences{
+					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_DATABASES},
+				},
+			},
+		},
+		{
+			name: "update all the settings at once",
+			req: &userpreferencesv1.UpsertUserPreferencesRequest{
+				Username: username,
+				Preferences: &userpreferencesv1.UserPreferences{
+					Theme: userpreferencesv1.Theme_THEME_LIGHT,
+					Assist: &userpreferencesv1.AssistUserPreferences{
+						PreferredLogins: []string{"baz"},
+						ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP,
+					},
+					Onboard: &userpreferencesv1.OnboardUserPreferences{
+						PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
+					},
+				},
+			},
+			expected: &userpreferencesv1.UserPreferences{
 				Theme: userpreferencesv1.Theme_THEME_LIGHT,
 				Assist: &userpreferencesv1.AssistUserPreferences{
 					PreferredLogins: []string{"baz"},
 					ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP,
 				},
+				Onboard: &userpreferencesv1.OnboardUserPreferences{
+					PreferredResources: []userpreferencesv1.Resource{userpreferencesv1.Resource_RESOURCE_KUBERNETES},
+				},
 			},
-		}
+		},
+	}
 
-		err := identity.UpsertUserPreferences(ctx, req)
-		require.NoError(t, err)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			identity := newUserPreferencesService(t)
 
-		res, err := identity.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{
-			Username: username,
+			res, err := identity.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{
+				Username: username,
+			})
+			require.NoError(t, err)
+			require.Equal(t, defaultPref, res.Preferences)
+
+			if test.req != nil {
+				err := identity.UpsertUserPreferences(ctx, test.req)
+				require.NoError(t, err)
+			}
+
+			res, err = identity.GetUserPreferences(ctx, &userpreferencesv1.GetUserPreferencesRequest{
+				Username: username,
+			})
+
+			require.NoError(t, err)
+			require.Equal(t, test.expected, res.Preferences)
 		})
-
-		require.NoError(t, err)
-
-		require.Equal(t, userpreferencesv1.Theme_THEME_LIGHT, res.Preferences.Theme)
-		require.Equal(t, []string{"baz"}, res.Preferences.Assist.PreferredLogins)
-		require.Equal(t, userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_POPUP, res.Preferences.Assist.ViewMode)
-	})
+	}
 }
