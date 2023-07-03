@@ -63,8 +63,8 @@ export const Labels = ({
             Teleport, leave this for now.
           </Text>
           <Text typography="subtitle1" mb={2}>
-            Alternatively, you can define narrower labels that this database
-            service will use to identify the databases you register
+            Alternatively, you can define narrower labels for identifying the
+            databases you register
             {region ? (
               <span>
                 {' '}
