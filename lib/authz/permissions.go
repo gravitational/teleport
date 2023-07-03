@@ -645,7 +645,7 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 	}
 }
 
-// RoleSetForBuiltinRole returns RoleSet for embedded builtin role
+// RoleSetForBuiltinRoles returns RoleSet for embedded builtin role
 func RoleSetForBuiltinRoles(clusterName string, recConfig types.SessionRecordingConfig, roles ...types.SystemRole) (services.RoleSet, error) {
 	var definitions []types.Role
 	for _, role := range roles {

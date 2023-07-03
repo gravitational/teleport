@@ -27,10 +27,15 @@ import { EventType } from 'teleport/lib/term/enums';
 
 import NodeService from 'teleport/services/nodes';
 
-import { ServerMessageType } from './types';
+import {
+  ResolvedAssistThoughtServerMessage,
+  ServerMessageType,
+  ThoughtMessagePayload,
+} from './types';
 
 import type {
   CommandResultPayload,
+  CommandResultSummaryPayload,
   Conversation,
   CreateConversationResponse,
   ExecEvent,
@@ -39,6 +44,7 @@ import type {
   GetConversationMessagesResponse,
   GetConversationsResponse,
   ResolvedCommandResultServerMessage,
+  ResolvedCommandResultSummaryServerMessage,
   ResolvedCommandServerMessage,
   ResolvedServerMessage,
   ServerMessage,
@@ -68,6 +74,10 @@ export async function resolveServerMessage(
     case ServerMessageType.CommandResult:
       return resolveServerCommandResultMessage(message, clusterId);
 
+    case ServerMessageType.CommandResultSummary:
+      return resolveServerCommandResultSummaryMessage(message);
+    case ServerMessageType.AssistThought:
+      return resolveServerAssistThoughtMessage(message);
     case ServerMessageType.Assist:
     case ServerMessageType.User:
       return {
@@ -171,6 +181,32 @@ export async function resolveServerCommandResultMessage(
       errorMessage: err.message,
     };
   }
+}
+
+export function resolveServerCommandResultSummaryMessage(
+  message: ServerMessage
+): ResolvedCommandResultSummaryServerMessage {
+  const payload = JSON.parse(message.payload) as CommandResultSummaryPayload;
+
+  return {
+    type: ServerMessageType.CommandResultSummary,
+    executionId: payload.execution_id,
+    command: payload.command,
+    summary: payload.summary,
+    created: new Date(message.created_time),
+  };
+}
+
+export function resolveServerAssistThoughtMessage(
+  message: ServerMessage
+): ResolvedAssistThoughtServerMessage {
+  const payload = JSON.parse(message.payload) as ThoughtMessagePayload;
+
+  return {
+    type: ServerMessageType.AssistThought,
+    message: payload.action,
+    created: new Date(message.created_time),
+  };
 }
 
 export function resolveServerCommandMessage(

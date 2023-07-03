@@ -24,6 +24,7 @@ import type {
 } from 'teleport/Assist/types';
 
 export interface AssistState {
+  sidebarVisible: boolean;
   conversations: {
     selectedId: string | null;
     error?: string;
@@ -60,6 +61,8 @@ export enum AssistStateActionType {
   PromptMfa,
   DeleteConversation,
   UpdateConversationTitle,
+  AddCommandResultSummary,
+  ToggleSidebar,
 }
 
 export interface ReplaceConversationsAction {
@@ -164,6 +167,19 @@ export interface UpdateConversationTitleAction {
   title: string;
 }
 
+export interface AddCommandResultSummaryAction {
+  type: AssistStateActionType.AddCommandResultSummary;
+  summary: string;
+  conversationId: string;
+  command: string;
+  executionId: string;
+}
+
+export interface ToggleSidebarAction {
+  type: AssistStateActionType.ToggleSidebar;
+  visible: boolean;
+}
+
 export type AssistContextAction =
   | SetConversationsLoadingAction
   | ReplaceConversationsAction
@@ -181,7 +197,9 @@ export type AssistContextAction =
   | FinishCommandResultAction
   | PromptMfaAction
   | DeleteConversationAction
-  | UpdateConversationTitleAction;
+  | UpdateConversationTitleAction
+  | AddCommandResultSummaryAction
+  | ToggleSidebarAction;
 
 export function reducer(
   state: AssistState,
@@ -238,6 +256,12 @@ export function reducer(
 
     case AssistStateActionType.UpdateConversationTitle:
       return updateConversationTitle(state, action);
+
+    case AssistStateActionType.AddCommandResultSummary:
+      return addCommandResultSummary(state, action);
+
+    case AssistStateActionType.ToggleSidebar:
+      return toggleSidebar(state, action);
 
     default:
       return state;
@@ -589,6 +613,35 @@ export function finishCommandResult(
   };
 }
 
+export function addCommandResultSummary(
+  state: AssistState,
+  action: AddCommandResultSummaryAction
+): AssistState {
+  const messages = new Map(state.messages.data);
+
+  let conversationMessages = messages.get(action.conversationId);
+
+  conversationMessages = [
+    ...conversationMessages,
+    {
+      type: ServerMessageType.CommandResultSummary,
+      created: new Date(),
+      executionId: action.executionId,
+      command: action.command,
+      summary: action.summary,
+    },
+  ];
+
+  messages.set(action.conversationId, conversationMessages);
+
+  return {
+    ...state,
+    messages: {
+      ...state.messages,
+      data: messages,
+    },
+  };
+}
 export function promptMfa(
   state: AssistState,
   action: PromptMfaAction
@@ -605,7 +658,7 @@ export function promptMfa(
 export function deleteConversation(
   state: AssistState,
   action: DeleteConversationAction
-) {
+): AssistState {
   const conversations = state.conversations.data;
 
   const newSelectedId =
@@ -628,7 +681,7 @@ export function deleteConversation(
 export function updateConversationTitle(
   state: AssistState,
   action: UpdateConversationTitleAction
-) {
+): AssistState {
   const conversations = state.conversations.data;
 
   return {
@@ -646,5 +699,15 @@ export function updateConversationTitle(
         return conversation;
       }),
     },
+  };
+}
+
+export function toggleSidebar(
+  state: AssistState,
+  action: ToggleSidebarAction
+): AssistState {
+  return {
+    ...state,
+    sidebarVisible: action.visible,
   };
 }
