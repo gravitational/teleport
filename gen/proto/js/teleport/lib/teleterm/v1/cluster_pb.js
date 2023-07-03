@@ -2015,7 +2015,8 @@ proto.teleport.lib.teleterm.v1.Features.prototype.toObject = function(opt_includ
  */
 proto.teleport.lib.teleterm.v1.Features.toObject = function(includeInstance, msg) {
   var f, obj = {
-    advancedAccessWorkflows: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+    advancedAccessWorkflows: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+    isUsageBasedBilling: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
   };
 
   if (includeInstance) {
@@ -2056,6 +2057,10 @@ proto.teleport.lib.teleterm.v1.Features.deserializeBinaryFromReader = function(m
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setAdvancedAccessWorkflows(value);
       break;
+    case 2:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIsUsageBasedBilling(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -2092,6 +2097,13 @@ proto.teleport.lib.teleterm.v1.Features.serializeBinaryToWriter = function(messa
       f
     );
   }
+  f = message.getIsUsageBasedBilling();
+  if (f) {
+    writer.writeBool(
+      2,
+      f
+    );
+  }
 };
 
 
@@ -2110,6 +2122,24 @@ proto.teleport.lib.teleterm.v1.Features.prototype.getAdvancedAccessWorkflows = f
  */
 proto.teleport.lib.teleterm.v1.Features.prototype.setAdvancedAccessWorkflows = function(value) {
   return jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+/**
+ * optional bool is_usage_based_billing = 2;
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.Features.prototype.getIsUsageBasedBilling = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 2, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.teleport.lib.teleterm.v1.Features} returns this
+ */
+proto.teleport.lib.teleterm.v1.Features.prototype.setIsUsageBasedBilling = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 2, value);
 };
 
 
