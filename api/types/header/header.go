@@ -17,7 +17,6 @@ limitations under the License.
 package header
 
 import (
-	"regexp"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -247,7 +246,7 @@ func (m *Metadata) CheckAndSetDefaults() error {
 	}
 
 	for key := range m.Labels {
-		if !IsValidLabelKey(key) {
+		if !common.IsValidLabelKey(key) {
 			return trace.BadParameter("invalid label key: %q", key)
 		}
 	}
@@ -282,15 +281,4 @@ func (m *Metadata) GetLabel(key string) (value string, ok bool) {
 // GetAllLabels returns all labels from the resource.
 func (m *Metadata) GetAllLabels() map[string]string {
 	return m.Labels
-}
-
-// LabelPattern is a regexp that describes a valid label key
-const LabelPattern = `^[a-zA-Z/.0-9_:*-]+$`
-
-var validLabelKey = regexp.MustCompile(LabelPattern)
-
-// IsValidLabelKey checks if the supplied string matches the
-// label key regexp.
-func IsValidLabelKey(s string) bool {
-	return validLabelKey.MatchString(s)
 }
