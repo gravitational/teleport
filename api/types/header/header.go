@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package common
+package header
 
 import (
 	"regexp"
@@ -23,13 +23,14 @@ import (
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
-	commonpb "github.com/gravitational/teleport/api/gen/proto/go/common/v1"
+	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/header/v1"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils"
 )
 
 // FromResourceHeaderV1 converts the resource header protobuf message into an internal resource header object.
 // This function does not use the builder due to the generics for the builder object.
-func FromResourceHeaderV1(msg *commonpb.ResourceHeader) *ResourceHeader {
+func FromResourceHeaderV1(msg *headerv1.ResourceHeader) *ResourceHeader {
 	return &ResourceHeader{
 		Kind:     msg.Kind,
 		SubKind:  msg.SubKind,
@@ -165,7 +166,7 @@ func (h *ResourceHeader) CheckAndSetDefaults() error {
 }
 
 // FromMetadataV1 converts v1 metadata into an internal metadata object.
-func FromMetadataV1(msg *commonpb.Metadata) *Metadata {
+func FromMetadataV1(msg *headerv1.Metadata) *Metadata {
 	return &Metadata{
 		Name:        msg.Name,
 		Description: msg.Description,
@@ -223,7 +224,7 @@ func (m *Metadata) Origin() string {
 	if m.Labels == nil {
 		return ""
 	}
-	return m.Labels[OriginLabel]
+	return m.Labels[common.OriginLabel]
 }
 
 // SetOrigin sets the origin value of the resource.
@@ -231,7 +232,7 @@ func (m *Metadata) SetOrigin(origin string) {
 	if m.Labels == nil {
 		m.Labels = map[string]string{}
 	}
-	m.Labels[OriginLabel] = origin
+	m.Labels[common.OriginLabel] = origin
 }
 
 // CheckAndSetDefaults verifies that the metadata object is valid.
@@ -253,8 +254,8 @@ func (m *Metadata) CheckAndSetDefaults() error {
 
 	// Check the origin value.
 	if m.Origin() != "" {
-		if !slices.Contains(OriginValues, m.Origin()) {
-			return trace.BadParameter("invalid origin value %q, must be one of %v", m.Origin(), OriginValues)
+		if !slices.Contains(common.OriginValues, m.Origin()) {
+			return trace.BadParameter("invalid origin value %q, must be one of %v", m.Origin(), common.OriginValues)
 		}
 	}
 
