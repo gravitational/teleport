@@ -45,15 +45,17 @@ import {
 } from 'teleport/services/auth';
 
 import * as service from '../service';
-
-import { resolveServerCommandMessage, resolveServerMessage } from '../service';
+import {
+  resolveServerAssistThoughtMessage,
+  resolveServerCommandMessage,
+  resolveServerMessage,
+} from '../service';
 
 import type {
   ConversationMessage,
   ResolvedServerMessage,
   ServerMessage,
 } from 'teleport/Assist/types';
-
 import type { AssistState } from 'teleport/Assist/context/state';
 
 interface AssistContextValue {
@@ -138,11 +140,15 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     };
 
     activeWebSocket.current.onclose = () => {
-      dispatch({ type: AssistStateActionType.SetStreaming, streaming: false });
+      dispatch({
+        type: AssistStateActionType.SetStreaming,
+        streaming: false,
+      });
     };
 
     activeWebSocket.current.onmessage = async event => {
       const data = JSON.parse(event.data) as ServerMessage;
+      console.log('onmessage', data);
 
       switch (data.type) {
         case ServerMessageType.Assist:
@@ -169,19 +175,26 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
 
         case ServerMessageType.AssistPartialMessage: {
-          const payload = JSON.parse(data.payload);
-
           dispatch({
             type: AssistStateActionType.AddPartialMessage,
-            message: payload.content,
+            message: data.payload,
             conversationId,
           });
 
           break;
         }
 
+        case ServerMessageType.AssistThought:
+          const message = resolveServerAssistThoughtMessage(data);
+          dispatch({
+            type: AssistStateActionType.AddThought,
+            message: message.message,
+            conversationId,
+          });
+
+          break;
         case ServerMessageType.Command: {
-          const message = await resolveServerCommandMessage(data);
+          const message = resolveServerCommandMessage(data);
 
           dispatch({
             type: AssistStateActionType.AddExecuteRemoteCommand,
@@ -304,7 +317,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     const messages = state.messages.data.get(state.conversations.selectedId);
 
-    dispatch({ type: AssistStateActionType.SetStreaming, streaming: true });
+    dispatch({
+      type: AssistStateActionType.SetStreaming,
+      streaming: true,
+    });
 
     const data = JSON.stringify({ payload: message });
 
