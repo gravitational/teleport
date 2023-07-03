@@ -10,6 +10,15 @@ configuring `tbot` using CLI parameters alone.
 To configure `tbot` to use a configuration file, specify the path with the `-c`
 flag, e.g `tbot -c ./tbot.yaml`.
 
+Certain terms hold a specific meaning when used in reference to Machine ID,
+these are:
+
+- **Artifact**: an item that `tbot` will write to a destination as part of the
+  process of generating an output. Examples of artifacts include configuration
+  files, certificates and cryptographic key material. Usually these will be
+  files, but this term is explicitly avoided as a destination may not be a
+  filesystem.
+
 # Configuration v2
 
 From Teleport 14, `tbot` supports the v2 configuration version.
@@ -261,6 +270,19 @@ kubernetes_cluster: my-cluster
 ```
 
 ### `ssh_host`
+
+The `ssh_host` output is used to generate the artifacts required to configure
+an OpenSSH server with Teleport in order to allow Teleport users to connect to
+it.
+
+The artifacts it generates includes:
+- `ssh_host-cert.pub`: a SSH certificate signed by Teleport's host CA.
+- `ssh_host`: the private key associated with the SSH host certificate.
+- `ssh_host-user-ca.pub`: an export of the Teleport user CA in an OpenSSH compatible format.
+
+See the [Generating Short-Lived Host Certificates with Machine ID guide](../guides/host-certificate.mdx)
+to see the `ssh_host` output used in context.
+
 
 ```yaml
 type: ssh_host
