@@ -19,18 +19,27 @@ import { ButtonPrimary, Card, Text } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 
 import { useUser } from 'teleport/User/UserContext';
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import { QuestionnaireFormFields, QuestionnaireProps } from './types';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+import { SurveyRequest, surveyService } from 'teleport/services/survey';
+
+import {
+  ProtoResource,
+  QuestionnaireFormFields,
+  QuestionnaireProps,
+} from './types';
 import { Company } from './Company';
 import { Role } from './Role';
 import { Resources } from './Resources';
-import { supportedResources } from './constants';
+import { resourceMapping, supportedResources } from './constants';
 
 export const Questionnaire = ({
+  full,
   username,
+  onSubmit,
 }: QuestionnaireProps): React.ReactElement => {
   const { updatePreferences } = useUser();
+
   const [formFields, setFormFields] = useState<QuestionnaireFormFields>({
     companyName: '',
     employeeCount: undefined,
@@ -43,6 +52,7 @@ export const Questionnaire = ({
     setFormFields({
       role: fields.role ?? formFields.role,
       team: fields.team ?? formFields.team,
+      teamName: fields.teamName ?? formFields.teamName,
       resources: fields.resources ?? formFields.resources,
       companyName: fields.companyName ?? formFields.companyName,
       employeeCount: fields.employeeCount ?? formFields.employeeCount,
@@ -54,20 +64,39 @@ export const Questionnaire = ({
       return;
     }
 
-    // submit Posthog event
+    // maps the string enum used for UI display & Sales Center object with proto int
+    const protoResources: ProtoResource[] = formFields.resources.map(
+      r => resourceMapping[r]
+    );
+
+    void updatePreferences({
+      onboard: {
+        preferredResources: protoResources,
+      },
+    });
+
+    const request: SurveyRequest = {
+      companyName: formFields.companyName,
+      employeeCount: formFields.employeeCount,
+      resources: formFields.resources,
+      role: formFields.role,
+      team: formFields.team,
+      username: username,
+    };
+
+    // submit answers to BE for storage in Sales Center and Cluster state
+    surveyService.submitSurvey(request);
+
+    // submit a posthog event
     userEventService.capturePreUserEvent({
       event: CaptureEvent.PreUserOnboardQuestionnaireSubmitEvent,
       username: username,
     });
 
-    void updatePreferences({
-      onboard: {
-        preferredResources: formFields.resources,
-      },
-    });
-
-    // todo (michellescripts) submit all Qs to Sales Center
-    // todo (michellescripts) set resource Q on user state
+    // callback to continue flow
+    if (onSubmit) {
+      onSubmit();
+    }
   };
 
   // todo (michellescripts) only display <Company .../> if the survey is unanswered for the account
@@ -79,14 +108,17 @@ export const Questionnaire = ({
       <Validation>
         {({ validator }) => (
           <>
-            <Company
-              companyName={formFields.companyName}
-              numberOfEmployees={formFields.employeeCount}
-              updateFields={updateForm}
-            />
+            {full && (
+              <Company
+                companyName={formFields.companyName}
+                numberOfEmployees={formFields.employeeCount}
+                updateFields={updateForm}
+              />
+            )}
             <Role
               role={formFields.role}
               team={formFields.team}
+              teamName={formFields.teamName}
               updateFields={updateForm}
             />
             <Resources

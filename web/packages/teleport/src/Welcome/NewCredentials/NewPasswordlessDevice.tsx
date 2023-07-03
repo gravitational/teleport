@@ -22,9 +22,11 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { Props, SliderProps } from './NewCredentials';
+import { UseTokenState } from 'teleport/Welcome/NewCredentials/types';
 
-export function NewPasswordlessDevice(props: Props & SliderProps) {
+import { SliderProps } from './NewCredentials';
+
+export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {
   const {
     submitAttempt,
     onSubmitWithWebauthn,
