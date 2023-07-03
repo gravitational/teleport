@@ -143,7 +143,7 @@ func (h *ResourceHeader) SetStaticLabels(sl map[string]string) {
 
 // GetLabel retrieves the label with the provided key. If not found
 // value will be empty and ok will be false.
-func (h *ResourceHeader) GetLabel(key string) (value string, ok bool) {
+func (h *ResourceHeader) GetLabel(key string) (string, bool) {
 	return h.Metadata.GetLabel(key)
 }
 
@@ -273,7 +273,7 @@ func (m *Metadata) SetStaticLabels(sl map[string]string) {
 
 // GetLabel retrieves the label with the provided key. If not found
 // value will be empty and ok will be false.
-func (m *Metadata) GetLabel(key string) (value string, ok bool) {
+func (m *Metadata) GetLabel(key string) (string, bool) {
 	v, ok := m.Labels[key]
 	return v, ok
 }

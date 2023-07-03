@@ -16,8 +16,6 @@ limitations under the License.
 
 package common
 
-import "regexp"
-
 const (
 	// TeleportNamespace is used as the namespace prefix for labels defined by Teleport which can
 	// carry metadata such as cloud AWS account or instance. Those labels can be used for RBAC.
@@ -69,15 +67,4 @@ var OriginValues = []string{
 	OriginCloud,
 	OriginKubernetes,
 	OriginOkta,
-}
-
-// LabelPattern is a regexp that describes a valid label key
-const LabelPattern = `^[a-zA-Z/.0-9_:*-]+$`
-
-var validLabelKey = regexp.MustCompile(LabelPattern)
-
-// IsValidLabelKey checks if the supplied string matches the
-// label key regexp.
-func IsValidLabelKey(s string) bool {
-	return validLabelKey.MatchString(s)
 }
