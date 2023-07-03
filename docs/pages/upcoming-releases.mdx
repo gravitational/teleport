@@ -24,6 +24,12 @@ to identify the nodes to run commands on more accurately.
 In addition, Teleport Assist will be better integrated within the Web UI and users
 will be able to interact with it from any page.
 
+#### Theme updates for the Web UI and Teleport Connect
+
+Teleport Connect will include support for the light theme that was introduced to
+the Web UI in Teleport 13. Additionally, the terminal themes and YAML editor have
+been updated to match the Teleport themes.
+
 #### (Preview) Device Trust Jamf integration
 
 Teleport will add a new service for integrating with the Jamf MDM, allowing
@@ -49,16 +55,25 @@ Cluster administrators will be able to use label expressions to:
 - perform matching on label keys
 - combine logic with OR and AND operators
 
+#### (Preview) Host user creation for SSH servers
+
+Teleport user host creation will be updated to support creation of permanent
+users in addition to ephemeral users.
+
 ### 13.3.0
 
 #### (Preview) GCP Auto-Discovery for Server Access
 
 Teleport will be able to automatically enroll GCP VMs for server access.
 
-#### (Preview) Device Trust Intune integration
+*Delayed from Teleport 13.2.0.*
 
-Teleport will add a new service for integrating with Microsoft Intune, allowing
-users to sync device inventory and automatically enroll trusted devices.
+~#### (Preview) Device Trust Intune integration~
+
+~Teleport will add a new service for integrating with Microsoft Intune, allowing
+users to sync device inventory and automatically enroll trusted devices.~
+
+*Postponed.*
 
 ### 14.0.0
 
@@ -72,8 +87,8 @@ Teleport will add support for ClickHouse to database access.
 
 #### Limited Passwordless access for local Windows users in OSS Teleport
 
-Teleport Community edition will add limited support for connecting to Windows
-desktops with local users.
+Teleport Community edition will gain the ability to create 3 Windows desktops
+with local users.
 
 #### Advanced Audit Log
 
@@ -108,6 +123,7 @@ The key deliverables for Teleport Cloud in the next quarter:
 | Week of          | Description                                           |
 |------------------|-------------------------------------------------------|
 | June 26th, 2023  | Advanced Audit Log rollout begins                     |
+| July 10th, 2023  | Teleport 13.2 will begin rollout                      |
 
 ## Production readiness
 
