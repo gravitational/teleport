@@ -35,21 +35,29 @@ export type RoleProps = QuestionProps & {
 };
 
 export type ResourceType = {
-  label: string;
+  label: Resource;
   image: string;
 };
 
 export type ResourcesProps = QuestionProps & {
   resources: ResourceType[];
-  checked: string[];
+  checked: Resource[];
 };
+
+export enum Resource {
+  RESOURCE_WINDOWS_DESKTOPS = 'Windows Desktops',
+  RESOURCE_SERVER_SSH = 'Server/SSH',
+  RESOURCE_DATABASES = 'Databases',
+  RESOURCE_KUBERNETES = 'Kubernetes',
+  RESOURCE_WEB_APPLICATIONS = 'Web Applications',
+}
 
 export type QuestionnaireFormFields = {
   companyName: string;
   employeeCount: EmployeeOptionsStrings;
   role: TitleOptionsStrings;
   team: TeamOptionsStrings;
-  resources: string[];
+  resources: Resource[];
 };
 
 export type EmployeeOptionsStrings = keyof typeof EmployeeOptions;
