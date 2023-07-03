@@ -18,13 +18,15 @@ import React, { useState } from 'react';
 import { ButtonPrimary, Card, Text } from 'design';
 import Validation, { Validator } from 'shared/components/Validation';
 
-import { QuestionnaireFormFields } from './types';
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+
+import { QuestionnaireFormFields, QuestionnaireProps } from './types';
 import { Company } from './Company';
 import { Role } from './Role';
 import { Resources } from './Resources';
 import { supportedResources } from './constants';
 
-export const Questionnaire = () => {
+export const Questionnaire = ({ username }: QuestionnaireProps) => {
   const [formFields, setFormFields] = useState<QuestionnaireFormFields>({
     companyName: '',
     employeeCount: undefined,
@@ -47,6 +49,12 @@ export const Questionnaire = () => {
     if (!validator.validate()) {
       return;
     }
+
+    // submit Posthog event
+    userEventService.capturePreUserEvent({
+      event: CaptureEvent.PreUserOnboardQuestionnaireSubmitEvent,
+      username: username,
+    });
 
     // todo (michellescripts) submit all Qs to Sales Center
     // todo (michellescripts) set resource Q on user state
