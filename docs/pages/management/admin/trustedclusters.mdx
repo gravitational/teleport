@@ -775,7 +775,7 @@ certificate authority. A certificate contains four important pieces of data:
 - Metadata (certificate extensions): additional data protected by the signature
   above. Teleport uses the metadata to store the list of user roles and SSH
   options like "permit-agent-forwarding".
-- The expiration date.
+- The expiration date, or time-to-live (**TTL**).
 
 When a user from the root cluster attempts to access a Node in the leaf cluster,
 the leaf cluster's Auth Service authenticates the user's certificate and reads
@@ -786,7 +786,7 @@ these pieces of data from it. It then performs the following actions:
   cluster with one of the remote user's roles.
 - Checks if the local role allows the requested identity (Unix login) to have
   access.
-- Checks that the certificate has not expired.
+- Checks that the certificate has not expired. The TTL is set by the root cluster.
 
 </Details>
 
