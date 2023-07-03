@@ -22,11 +22,12 @@ import (
 	"github.com/gravitational/trace"
 
 	accesslistpb "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1"
-	"github.com/gravitational/teleport/api/types/common"
+	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types/traits"
 )
 
 // FromAccessListV1 converts a v1 access list into an internal access list object.
-func FromAccessListV1(msg *accesslistpb.AccessListV1) (*AccessList, error) {
+func FromAccessListV1(msg *accesslistpb.AccessList) (*AccessList, error) {
 	owners := make([]*AccessListOwner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
 		owners[i] = &AccessListOwner{
@@ -46,22 +47,22 @@ func FromAccessListV1(msg *accesslistpb.AccessListV1) (*AccessList, error) {
 		}
 	}
 
-	accessList, err := NewAccessList(common.FromMetadataV1(msg.Header.Metadata), &AccessListSpec{
+	accessList, err := NewAccessList(header.FromMetadataV1(msg.Header.Metadata), &AccessListSpec{
 		Owners: owners,
 		Audit: &AccessListAudit{
 			Frequency: msg.Spec.Audit.Frequency.AsDuration(),
 		},
 		MembershipRequires: &AccessListRequires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
-			Traits: msg.Spec.MembershipRequires.Traits,
+			Traits: traits.FromV1(msg.Spec.MembershipRequires.Traits),
 		},
 		OwnershipRequires: &AccessListRequires{
 			Roles:  msg.Spec.OwnershipRequires.Roles,
-			Traits: msg.Spec.OwnershipRequires.Traits,
+			Traits: traits.FromV1(msg.Spec.OwnershipRequires.Traits),
 		},
 		Grants: &AccessListGrants{
 			Roles:  msg.Spec.Grants.Roles,
-			Traits: msg.Spec.Grants.Traits,
+			Traits: traits.FromV1(msg.Spec.Grants.Traits),
 		},
 		Members: members,
 	})
@@ -74,7 +75,7 @@ func FromAccessListV1(msg *accesslistpb.AccessListV1) (*AccessList, error) {
 // regularly audited.
 type AccessList struct {
 	// ResourceHeader is the common resource header for all resources.
-	*common.ResourceHeader
+	*header.ResourceHeader
 
 	// Spec is the specification for the access list.
 	Spec *AccessListSpec `json:"spec" yaml:"spec"`
@@ -130,7 +131,7 @@ type AccessListRequires struct {
 	Roles []string `json:"roles" yaml:"roles"`
 
 	// Traits are the traits that must be present for the user to obtain access.
-	Traits map[string]string `json:"traits" yaml:"traits"`
+	Traits map[string][]string `json:"traits" yaml:"traits"`
 }
 
 // AccessListGrants describes what access is granted by membership to the access list.
@@ -139,7 +140,7 @@ type AccessListGrants struct {
 	Roles []string `json:"roles" yaml:"roles"`
 
 	// Traits are the traits that are granted to users who are members of the access list.
-	Traits map[string]string `json:"traits" yaml:"traits"`
+	Traits map[string][]string `json:"traits" yaml:"traits"`
 }
 
 // AccessListMember describes a member of an access list.
@@ -161,9 +162,9 @@ type AccessListMember struct {
 }
 
 // NewAccessList will create a new access list.
-func NewAccessList(metadata *common.Metadata, spec *AccessListSpec) (*AccessList, error) {
+func NewAccessList(metadata *header.Metadata, spec *AccessListSpec) (*AccessList, error) {
 	accessList := &AccessList{
-		ResourceHeader: common.ResourceHeaderFromMetadata(metadata),
+		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
 	}
 
