@@ -134,16 +134,7 @@ func SetDefaultSecurityHeaders(h http.Header) {
 	h.Set("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 }
 
-// Cache the result of getIndexContentSecurityPolicy because it called for
-// every request to the web UI, so we want to make it as efficient as possible.
-var indexCspCache = make(map[string]cspMap)
-
 func getIndexContentSecurityPolicy(withStripe, withWasm bool) cspMap {
-	key := fmt.Sprintf("%v-%v", withStripe, withWasm)
-	if result, ok := indexCspCache[key]; ok {
-		return result
-	}
-
 	cspMaps := []cspMap{defaultContentSecurityPolicy, defaultFontSrc, defaultConnectSrc}
 
 	if withStripe {
@@ -154,30 +145,44 @@ func getIndexContentSecurityPolicy(withStripe, withWasm bool) cspMap {
 		cspMaps = append(cspMaps, wasmSecurityPolicy)
 	}
 
-	result := combineCSPMaps(cspMaps...)
-	indexCspCache[key] = result
-
-	return result
+	return combineCSPMaps(cspMaps...)
 }
 
 // desktopSessionRe is a regex that matches /web/cluster/:clusterId/desktops/:desktopName/:username
 // which is a route to a desktop session that uses WASM.
 var desktopSessionRe = regexp.MustCompile(`^/web/cluster/[^/]+/desktops/[^/]+/[^/]+$`)
 
-// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
-func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features, urlPath string) {
-	withWasm := desktopSessionRe.MatchString(urlPath)
+var indexCspStringCache = make(map[string]string)
+
+func getIndexContentSecurityPolicyString(cfg proto.Features, urlPath string) string {
+	// Check for result with this cfg and urlPath in cache
 	withStripe := cfg.GetCloud() && cfg.GetIsUsageBased()
+	key := fmt.Sprintf("%v-%v", withStripe, urlPath)
+	if cspString, ok := indexCspStringCache[key]; ok {
+		return cspString
+	}
+
+	// Nothing found in cache, calculate regex and result
+	withWasm := desktopSessionRe.MatchString(urlPath)
 	cspString := getContentSecurityPolicyString(
 		getIndexContentSecurityPolicy(withStripe, withWasm),
 	)
+	// Add result to cache
+	indexCspStringCache[key] = cspString
+
+	return cspString
+}
+
+// SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
+func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features, urlPath string) {
+	cspString := getIndexContentSecurityPolicyString(cfg, urlPath)
 	h.Set("Content-Security-Policy", cspString)
 }
 
-var appLaunchCspCache = make(map[string]string)
+var appLaunchCspStringCache = make(map[string]string)
 
 func getAppLaunchContentSecurityPolicyString(applicationURL string) string {
-	if cspString, ok := appLaunchCspCache[applicationURL]; ok {
+	if cspString, ok := appLaunchCspStringCache[applicationURL]; ok {
 		return cspString
 	}
 
@@ -188,7 +193,7 @@ func getAppLaunchContentSecurityPolicyString(applicationURL string) string {
 			"connect-src": {"'self'", applicationURL},
 		},
 	)
-	appLaunchCspCache[applicationURL] = cspString
+	appLaunchCspStringCache[applicationURL] = cspString
 
 	return cspString
 }
