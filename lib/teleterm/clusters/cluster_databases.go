@@ -65,7 +65,7 @@ func (c *Cluster) GetDatabase(ctx context.Context, dbURI string) (*Database, err
 // https://github.com/gravitational/teleport/pull/14690#discussion_r927720600
 func (c *Cluster) getAllDatabases(ctx context.Context) ([]Database, error) {
 	var dbs []types.Database
-	err := addMetadataToRetryableError(ctx, func() error {
+	err := AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -116,7 +116,7 @@ func (c *Cluster) GetDatabases(ctx context.Context, r *api.GetDatabasesRequest) 
 		UseSearchAsRoles:    r.SearchAsRoles == "yes",
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -159,7 +159,7 @@ func (c *Cluster) ReissueDBCerts(ctx context.Context, routeToDatabase tlsca.Rout
 		return trace.BadParameter("the username must be present for MongoDB connections")
 	}
 
-	err := addMetadataToRetryableError(ctx, func() error {
+	err := AddMetadataToRetryableError(ctx, func() error {
 		// Refresh the certs to account for clusterClient.SiteName pointing at a leaf cluster.
 		err := c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, client.ReissueParams{
 			RouteToCluster: c.clusterClient.SiteName,
@@ -204,7 +204,7 @@ func (c *Cluster) GetAllowedDatabaseUsers(ctx context.Context, dbURI string) ([]
 	var proxyClient *client.ProxyClient
 	var err error
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)

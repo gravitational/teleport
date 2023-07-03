@@ -85,7 +85,7 @@ func (c *Cluster) GetWithDetails(ctx context.Context) (*ClusterWithDetails, erro
 		acl           *api.ACL
 	)
 
-	err := addMetadataToRetryableError(ctx, func() error {
+	err := AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -177,7 +177,7 @@ func convertToAPIResourceAccess(access services.ResourceAccess) *api.ResourceAcc
 // GetRoles returns currently logged-in user roles
 func (c *Cluster) GetRoles(ctx context.Context) ([]*types.Role, error) {
 	var roles []*types.Role
-	err := addMetadataToRetryableError(ctx, func() error {
+	err := AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err := c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -220,7 +220,7 @@ func (c *Cluster) GetRequestableRoles(ctx context.Context, req *api.GetRequestab
 		})
 	}
 
-	err = addMetadataToRetryableError(ctx, func() error {
+	err = AddMetadataToRetryableError(ctx, func() error {
 		proxyClient, err = c.clusterClient.ConnectToProxy(ctx)
 		if err != nil {
 			return trace.Wrap(err)
@@ -277,10 +277,10 @@ type LoggedInUser struct {
 	ActiveRequests []string
 }
 
-// addMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
+// AddMetadataToRetryableError is Connect's equivalent of client.RetryWithRelogin. By adding the
 // metadata to the error, we're letting the Electron app know that the given error was caused by
 // expired certs and letting the user log in again should resolve the error upon another attempt.
-func addMetadataToRetryableError(ctx context.Context, fn func() error) error {
+func AddMetadataToRetryableError(ctx context.Context, fn func() error) error {
 	err := fn()
 	if err == nil {
 		return nil
