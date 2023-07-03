@@ -365,7 +365,6 @@ export function NewRequest(props: State) {
 
 const StyledWrapper = styled.div`
   border-radius: 8px;
-  overflow: hidden;
   box-shadow: ${props => props.theme.boxShadow[0]};
 `;
 

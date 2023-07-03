@@ -153,6 +153,7 @@ describe('new request behavior', () => {
 
     /* eslint-enable  jest-dom/prefer-in-document */
   });
+
   test('select all buttons work properly', async () => {
     // The first fetch will only make a request for the first page (10 items).
     // The second fetch will come from the request to fetch all apps across all pages
@@ -207,6 +208,66 @@ describe('new request behavior', () => {
     await screen.findByText('+ Add all');
     checkoutFooter = screen.getByTestId('checkout-footer');
     expect(checkoutFooter).toHaveTextContent('Resources Added (0)');
+  });
+
+  test('user group select', async () => {
+    jest.spyOn(ctx.appService, 'fetchApps').mockResolvedValueOnce({
+      agents: appsWithUserGroups,
+      startKey: '',
+      totalCount: allApps.length,
+    });
+
+    render(Component);
+
+    // Change dropdown selector to show applications.
+    let inputEl = within(screen.getByTestId('resource-selector')).getByRole(
+      'textbox'
+    );
+    fireEvent.change(inputEl, { target: { value: 'app' } });
+    fireEvent.focus(inputEl);
+    fireEvent.keyDown(inputEl, { key: 'Enter', keyCode: 13 });
+
+    // Wait until the apps are listed
+    await screen.findByText(/number: 2/i);
+
+    // Start by adding all apps.
+    fireEvent.click(screen.getByText('+ Add all'));
+    let checkoutFooter = screen.getByTestId('checkout-footer');
+    expect(checkoutFooter).toHaveTextContent(`Resources Added (4)`);
+    screen.getByText(/remove 4 applications/i);
+
+    // Test selecting a user group, updates all other rows that have same user group.
+    let ugInputs = screen.getAllByText(/alternatively select user groups/i);
+    expect(ugInputs).toHaveLength(3);
+
+    // Select a user group from downdown.
+    inputEl = ugInputs[0];
+    fireEvent.focus(inputEl);
+    fireEvent.keyDown(inputEl, { key: 'ArrowDown', keyCode: 40 });
+    fireEvent.click(screen.getByText('ug1-description'));
+
+    // The total resource added should be 3 (1 less than total apps)
+    // b/c 2 apps share the same user group (1 resource request to shared user group)
+    const changedInputs = screen.getAllByText(/1 user groups added/i);
+    expect(changedInputs).toHaveLength(2);
+    expect(screen.getByTestId('checkout-footer')).toHaveTextContent(
+      `Resources Added (3)`
+    );
+    // Selecting apps by "user groups" don't count towards app selected count.
+    screen.getByText(/remove 2 applications/i);
+
+    // Selecting the same user group is as same as deselecting the user group.
+    inputEl = changedInputs[0];
+    fireEvent.focus(inputEl);
+    fireEvent.keyDown(inputEl, { key: 'ArrowDown', keyCode: 40 });
+    fireEvent.click(screen.getByText('ug1-description'));
+
+    // Test only selected apps remain.
+    expect(screen.getByTestId('checkout-footer')).toHaveTextContent(
+      `Resources Added (2)`
+    );
+    screen.getByText(/remove 2 applications/i);
+    screen.getByText(/alternatively select user groups/i);
   });
 });
 
@@ -738,5 +799,76 @@ const allApps: App[] = [
     clusterId: 'one',
     fqdn: 'http://cuzevutuj.by/icbub',
     userGroups: [],
+  },
+];
+
+const appsWithUserGroups: App[] = [
+  {
+    id: 'dummy-3834740555',
+    name: 'dummy-746715940',
+    uri: 'http://kizuud.im/het',
+    publicAddr: 'http://div.az/busihuj',
+    launchUrl: 'http://ramufica.sk/teba',
+    awsRoles: [],
+    description: 'This is dummy-2899140136 app',
+    awsConsole: false,
+    labels: [
+      { name: 'number', value: '1' },
+      { name: 'cluster', value: 'one' },
+    ],
+    clusterId: 'one',
+    fqdn: 'http://olfuptad.zw/zecco',
+    userGroups: [{ name: 'ug1', description: 'ug1-description' }],
+  },
+  {
+    id: 'dummy-735596623',
+    name: 'dummy-3881558958',
+    uri: 'http://ima.sd/ivdijwah',
+    publicAddr: 'http://kav.cl/zi',
+    launchUrl: 'http://woijo.to/anogucfac',
+    awsRoles: [],
+    description: 'This is dummy-396777662 app',
+    awsConsole: false,
+    labels: [
+      { name: 'number', value: '2' },
+      { name: 'cluster', value: 'one' },
+    ],
+    clusterId: 'one',
+    fqdn: 'http://tefe.sg/kis',
+    userGroups: [{ name: 'ug1', description: 'ug1-description' }],
+  },
+  {
+    id: 'dummy-61474169',
+    name: 'dummy-2813408209',
+    uri: 'http://borrepci.mk/cunnenoc',
+    publicAddr: 'http://luwop.km/pagmot',
+    launchUrl: 'http://emim.cv/nasdeasa',
+    awsRoles: [],
+    description: 'This is dummy-1292837400 app',
+    awsConsole: false,
+    labels: [
+      { name: 'number', value: '3' },
+      { name: 'cluster', value: 'one' },
+    ],
+    clusterId: 'one',
+    fqdn: 'http://sudlinot.hn/jomevo',
+    userGroups: [],
+  },
+  {
+    id: 'dummy-3147977584',
+    name: 'dummy-434510897',
+    uri: 'http://su.vg/gotu',
+    publicAddr: 'http://viste.cc/eli',
+    launchUrl: 'http://gid.me/bubamih',
+    awsRoles: [],
+    description: 'This is dummy-1681746825 app',
+    awsConsole: false,
+    labels: [
+      { name: 'number', value: '18' },
+      { name: 'cluster', value: 'one' },
+    ],
+    clusterId: 'one',
+    fqdn: 'http://cuzevutuj.by/icbub',
+    userGroups: [{ name: 'ug2', description: 'ug2-description' }],
   },
 ];
