@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -65,6 +66,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auth/keystore"
 	"github.com/gravitational/teleport/lib/auth/native"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
@@ -230,6 +232,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 			return nil, trace.Wrap(err)
 		}
 	}
+	if cfg.Embeddings == nil {
+		cfg.Embeddings = local.NewEmbeddingsService(cfg.Backend)
+	}
+	if cfg.UserPreferences == nil {
+		cfg.UserPreferences = local.NewUserPreferencesService(cfg.Backend)
+	}
 
 	limiter, err := limiter.NewConnectionsLimiter(limiter.Config{
 		MaxConnections: defaults.LimiterMaxConcurrentSignatures,
@@ -279,10 +287,12 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		SessionTrackerService:   cfg.SessionTrackerService,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
 		Integrations:            cfg.Integrations,
+		Embeddings:              cfg.Embeddings,
 		Okta:                    cfg.Okta,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
 		Assistant:               cfg.Assist,
+		UserPreferences:         cfg.UserPreferences,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -306,6 +316,8 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		fips:                cfg.FIPS,
 		loadAllCAs:          cfg.LoadAllCAs,
 		httpClientForAWSSTS: cfg.HTTPClientForAWSSTS,
+		embeddingsRetriever: cfg.EmbeddingRetriever,
+		embedder:            cfg.EmbeddingClient,
 	}
 	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
@@ -394,6 +406,8 @@ type Services struct {
 	services.Integrations
 	services.Okta
 	services.Assistant
+	services.Embeddings
+	services.UserPreferences
 	usagereporter.UsageReporter
 	types.Events
 	events.AuditLogSessionStreamer
@@ -616,6 +630,12 @@ type Server struct {
 	// httpClientForAWSSTS overwrites the default HTTP client used for making
 	// STS requests.
 	httpClientForAWSSTS utils.HTTPDoClient
+
+	// embeddingRetriever is a retriever used to retrieve embeddings from the backend.
+	embeddingsRetriever *ai.SimpleRetriever
+
+	// embedder is an embedder client used to generate embeddings.
+	embedder ai.Embedder
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -5316,6 +5336,17 @@ func (a *Server) DeleteAssistantConversation(ctx context.Context, request *assis
 func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
 	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
 	return headlessAuthn, trace.Wrap(err)
+}
+
+// GetUserPreferences returns the user preferences for a given user.
+func (a *Server) GetUserPreferences(ctx context.Context, request *userpreferencesv1.GetUserPreferencesRequest) (*userpreferencesv1.GetUserPreferencesResponse, error) {
+	resp, err := a.Services.GetUserPreferences(ctx, request)
+	return resp, trace.Wrap(err)
+}
+
+// UpsertUserPreferences creates or updates user preferences for a given username.
+func (a *Server) UpsertUserPreferences(ctx context.Context, request *userpreferencesv1.UpsertUserPreferencesRequest) error {
+	return trace.Wrap(a.Services.UpsertUserPreferences(ctx, request))
 }
 
 // getProxyPublicAddr returns the first valid, non-empty proxy public address it

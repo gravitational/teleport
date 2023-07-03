@@ -36,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/httplib"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 )
 
@@ -250,7 +251,7 @@ type generateAssistantTitleRequest struct {
 	Message string `json:"message"`
 }
 
-// generateAssistantTitle is a handler for POST /webapi/assistant/conversations/:conversation_id/generate_title.
+// generateAssistantTitle is a handler for POST /webapi/assistant/title/summary.
 func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 	_ httprouter.Params, sctx *SessionContext,
 ) (any, error) {
@@ -268,7 +269,7 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 		return nil, trace.Wrap(err)
 	}
 
-	client, err := assist.NewAssist(r.Context(), h.cfg.ProxyClient,
+	client, err := assist.NewClient(r.Context(), h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -281,6 +282,21 @@ func (h *Handler) generateAssistantTitle(_ http.ResponseWriter, r *http.Request,
 
 	conversationInfo := &conversationInfo{
 		Title: titleSummary,
+	}
+
+	// We only want to emmit
+	if modules.GetModules().Features().Cloud {
+		go func() {
+			ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+			defer cancel()
+			class, err := client.ClassifyMessage(ctx, req.Message, assist.MessageClasses)
+			if err != nil {
+				return
+			}
+			h.log.Debugf("message classified as '%s'", class)
+			// TODO(shaka): emit event here to report the message class
+		}()
+
 	}
 
 	return conversationInfo, nil
@@ -410,13 +426,13 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	go startPingLoop(ctx, ws, keepAliveInterval, h.log, nil)
 
-	assistClient, err := assist.NewAssist(ctx, h.cfg.ProxyClient,
+	assistClient, err := assist.NewClient(ctx, h.cfg.ProxyClient,
 		h.cfg.ProxySettings, h.cfg.OpenAIConfig)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	chat, err := assistClient.NewChat(ctx, authClient, conversationID, sctx.GetUser())
+	chat, err := assistClient.NewChat(ctx, authClient, authClient.EmbeddingClient(), conversationID, sctx.GetUser())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -434,7 +450,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 
 	if chat.IsNewConversation() {
 		// new conversation, generate a hello message
-		if _, err := chat.ProcessComplete(ctx, onMessageFn); err != nil {
+		if _, err := chat.ProcessComplete(ctx, onMessageFn, ""); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -466,11 +482,7 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		}
 
 		//TODO(jakule): Should we sanitize the payload?
-		if err := chat.InsertAssistantMessage(ctx, assist.MessageKindUserMessage, wsIncoming.Payload); err != nil {
-			return trace.Wrap(err)
-		}
-
-		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn)
+		usedTokens, err := chat.ProcessComplete(ctx, onMessageFn, wsIncoming.Payload)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -500,7 +512,6 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	h.log.Debugf("end assistant conversation loop")
-
+	h.log.Debug("end assistant conversation loop")
 	return nil
 }

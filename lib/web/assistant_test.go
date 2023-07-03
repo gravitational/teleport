@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/websocket"
@@ -36,6 +37,7 @@ import (
 	"golang.org/x/time/rate"
 
 	authproto "github.com/gravitational/teleport/api/client/proto"
+	aitest "github.com/gravitational/teleport/lib/ai/testutils"
 	"github.com/gravitational/teleport/lib/assist"
 	"github.com/gravitational/teleport/lib/client"
 )
@@ -43,27 +45,25 @@ import (
 func Test_runAssistant(t *testing.T) {
 	t.Parallel()
 
-	readPartialMessage := func(t *testing.T, ws *websocket.Conn) string {
-		var msg assistantMessage
-		_, payload, err := ws.ReadMessage()
-		require.NoError(t, err)
+	readStreamResponse := func(t *testing.T, ws *websocket.Conn) string {
+		var sb strings.Builder
+		for {
+			var msg assistantMessage
+			_, payload, err := ws.ReadMessage()
+			require.NoError(t, err)
 
-		err = json.Unmarshal(payload, &msg)
-		require.NoError(t, err)
+			err = json.Unmarshal(payload, &msg)
+			require.NoError(t, err)
 
-		require.Equal(t, assist.MessageKindAssistantPartialMessage, msg.Type)
-		return msg.Payload
-	}
+			if msg.Type == assist.MessageKindAssistantPartialFinalize {
+				break
+			}
 
-	readStreamEnd := func(t *testing.T, ws *websocket.Conn) {
-		var msg assistantMessage
-		_, payload, err := ws.ReadMessage()
-		require.NoError(t, err)
+			require.Equal(t, assist.MessageKindAssistantPartialMessage, msg.Type)
+			sb.WriteString(msg.Payload)
+		}
 
-		err = json.Unmarshal(payload, &msg)
-		require.NoError(t, err)
-
-		require.Equal(t, assist.MessageKindAssistantPartialFinalize, msg.Type)
+		return sb.String()
 	}
 
 	readRateLimitedMessage := func(t *testing.T, ws *websocket.Conn) {
@@ -80,32 +80,27 @@ func Test_runAssistant(t *testing.T) {
 
 	testCases := []struct {
 		name      string
-		responses [][]byte
+		responses []string
 		cfg       webSuiteConfig
 		setup     func(*testing.T, *WebSuite)
 		act       func(*testing.T, *websocket.Conn)
 	}{
 		{
 			name: "normal",
-			responses: [][]byte{
+			responses: []string{
 				generateTextResponse(),
 			},
 			act: func(t *testing.T, ws *websocket.Conn) {
 				err := ws.WriteMessage(websocket.TextMessage, []byte(`{"payload": "show free disk space"}`))
 				require.NoError(t, err)
 
-				require.Contains(t, readPartialMessage(t, ws), "Which")
-				require.Contains(t, readPartialMessage(t, ws), "node do")
-				require.Contains(t, readPartialMessage(t, ws), "you want")
-				require.Contains(t, readPartialMessage(t, ws), "use?")
-
-				readStreamEnd(t, ws)
+				const expectedMsg = "Which node do you want to use?"
+				require.Contains(t, readStreamResponse(t, ws), expectedMsg)
 			},
 		},
 		{
 			name: "rate limited",
-			responses: [][]byte{
-				generateTextResponse(),
+			responses: []string{
 				generateTextResponse(),
 			},
 			cfg: webSuiteConfig{
@@ -127,12 +122,8 @@ func Test_runAssistant(t *testing.T) {
 				err := ws.WriteMessage(websocket.TextMessage, []byte(`{"payload": "show free disk space"}`))
 				require.NoError(t, err)
 
-				require.Contains(t, readPartialMessage(t, ws), "Which")
-				require.Contains(t, readPartialMessage(t, ws), "node do")
-				require.Contains(t, readPartialMessage(t, ws), "you want")
-				require.Contains(t, readPartialMessage(t, ws), "use?")
-
-				readStreamEnd(t, ws)
+				const expectedMsg = "Which node do you want to use?"
+				require.Contains(t, readStreamResponse(t, ws), expectedMsg)
 
 				err = ws.WriteMessage(websocket.TextMessage, []byte(`{"payload": "all nodes, please"}`))
 				require.NoError(t, err)
@@ -147,18 +138,7 @@ func Test_runAssistant(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			responses := tc.responses
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				w.Header().Set("Content-Type", "text/event-stream")
-
-				// Use assert as require doesn't work when called from a goroutine
-				assert.GreaterOrEqual(t, len(responses), 1, "Unexpected request")
-				dataBytes := responses[0]
-
-				_, err := w.Write(dataBytes)
-				assert.NoError(t, err, "Write error")
-
-				responses = responses[1:]
-			}))
+			server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
 			t.Cleanup(server.Close)
 
 			openaiCfg := openai.DefaultConfig("test-token")
@@ -225,9 +205,9 @@ func Test_runAssistError(t *testing.T) {
 		err = json.Unmarshal(payload, &msg)
 		require.NoError(t, err)
 
-		// Expect a generic error message
+		// Expect OpenAI error message
 		require.Equal(t, assist.MessageKindError, msg.Type)
-		require.Contains(t, msg.Payload, "An error has occurred.")
+		require.Contains(t, msg.Payload, "An error has occurred. Please try again later.")
 	}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -267,14 +247,15 @@ func Test_runAssistError(t *testing.T) {
 	ws, err := s.makeAssistant(t, authPack, conversationID)
 	require.NoError(t, err)
 	t.Cleanup(func() {
-		ws.Close()
+		// Close should yield an error as the server closes the connection
+		require.Error(t, ws.Close())
 	})
 
 	// verify responses
 	readHelloMsg(ws)
 	readErrorMsg(ws)
 
-	// Check for close message
+	// Check for the close message
 	_, _, err = ws.ReadMessage()
 	closeErr, ok := err.(*websocket.CloseError)
 	require.True(t, ok, "Expected close error")
@@ -336,27 +317,43 @@ func (s *WebSuite) makeAssistant(t *testing.T, pack *authPack, conversationID st
 	return ws, nil
 }
 
-func generateTextResponse() []byte {
-	dataBytes := []byte{}
-	dataBytes = append(dataBytes, []byte("event: message\n")...)
+func Test_generateAssistantTitle(t *testing.T) {
+	// Test setup
+	t.Parallel()
+	ctx := context.Background()
 
-	data := `{"id":"1","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":{"content": "Which ", "role": "assistant"}}]}`
-	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
-	dataBytes = append(dataBytes, []byte("event: message\n")...)
+	responses := []string{"This is the message summary.", "troubleshooting"}
+	server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
+	t.Cleanup(server.Close)
 
-	data = `{"id":"2","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":{"content": "node do ", "role": "assistant"}}]}`
-	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
-	dataBytes = append(dataBytes, []byte("event: message\n")...)
+	openaiCfg := openai.DefaultConfig("test-token")
+	openaiCfg.BaseURL = server.URL
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		ClusterFeatures: &authproto.Features{
+			Cloud: true,
+		},
+		OpenAIConfig: &openaiCfg,
+	})
 
-	data = `{"id":"3","object":"completion","created":1598069255,"model":"gpt-4","choices":[{"index": 0, "delta":{"content": "you want ", "role": "assistant"}}]}`
-	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
-	dataBytes = append(dataBytes, []byte("event: message\n")...)
+	pack := s.authPack(t, "foo")
 
-	data = `{"id":"4","object":"completion","created":1598069254,"model":"gpt-4","choices":[{"index": 0, "delta":{"content": "use?", "role": "assistant"}}]}`
-	dataBytes = append(dataBytes, []byte("data: "+data+"\n\n")...)
-	dataBytes = append(dataBytes, []byte("event: done\n")...)
+	// Real test: we craft a request asking for a summary
+	endpoint := pack.clt.Endpoint("webapi", "assistant", "title", "summary")
+	req := generateAssistantTitleRequest{Message: "This is a test user message asking Teleport assist to do something."}
 
-	dataBytes = append(dataBytes, []byte("data: [DONE]\n\n")...)
+	// Executing the request and validating the output is as expected
+	resp, err := pack.clt.PostJSON(ctx, endpoint, &req)
+	require.NoError(t, err)
 
-	return dataBytes
+	var info conversationInfo
+	body, err := io.ReadAll(resp.Reader())
+	require.NoError(t, err)
+	err = json.Unmarshal(body, &info)
+	require.NoError(t, err)
+	require.NotEmpty(t, info.Title)
+}
+
+// generateTextResponse generates a response for a text completion
+func generateTextResponse() string {
+	return "<FINAL RESPONSE>\nWhich node do you want to use?"
 }

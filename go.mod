@@ -30,7 +30,7 @@ require (
 	github.com/aquasecurity/libbpfgo v0.4.5-libbpf-1.0.1
 	github.com/armon/go-radix v1.0.0
 	github.com/aws/aws-sdk-go v1.44.244
-	github.com/aws/aws-sdk-go-v2 v1.18.0
+	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.21
 	github.com/aws/aws-sdk-go-v2/credentials v1.13.20
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.13.2
@@ -39,12 +39,14 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.93.2
 	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.1
 	github.com/aws/aws-sdk-go-v2/service/glue v1.45.3
+	github.com/aws/aws-sdk-go-v2/service/iam v1.21.0
 	github.com/aws/aws-sdk-go-v2/service/rds v1.42.3
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.31.3
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.8
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.20.6
 	github.com/aws/aws-sdk-go-v2/service/sts v1.18.9
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
+	github.com/aws/smithy-go v1.13.5
 	github.com/beevik/etree v1.1.0
 	github.com/bufbuild/connect-go v1.6.0
 	github.com/buildkite/bintest/v3 v3.1.1
@@ -214,8 +216,8 @@ require (
 	github.com/apache/arrow/go/v10 v10.0.1 // indirect
 	github.com/apache/thrift v0.16.0 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.4.10 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.33 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.27 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.1.34 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.4.28 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.3.33 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.0.24 // indirect
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.18.5 // indirect
@@ -226,7 +228,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.14.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sso v1.12.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.14.8 // indirect
-	github.com/aws/smithy-go v1.13.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
 	github.com/boombuler/barcode v1.0.1 // indirect

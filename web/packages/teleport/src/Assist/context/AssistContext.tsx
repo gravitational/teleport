@@ -31,7 +31,11 @@ import useStickyClusterId from 'teleport/useStickyClusterId';
 import cfg from 'teleport/config';
 import { getAccessToken, getHostName } from 'teleport/services/api';
 
-import { RawPayload, ServerMessageType } from 'teleport/Assist/types';
+import {
+  ExecutionEnvelopeType,
+  RawPayload,
+  ServerMessageType,
+} from 'teleport/Assist/types';
 
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
 
@@ -41,7 +45,11 @@ import {
 } from 'teleport/services/auth';
 
 import * as service from '../service';
-import { resolveServerCommandMessage, resolveServerMessage } from '../service';
+import {
+  resolveServerAssistThoughtMessage,
+  resolveServerCommandMessage,
+  resolveServerMessage,
+} from '../service';
 
 import type {
   ConversationMessage,
@@ -59,6 +67,7 @@ interface AssistContextValue {
   sendMfaChallenge: (data: WebauthnAssertionResponse) => void;
   selectedConversationMessages: ConversationMessage[];
   setSelectedConversationId: (conversationId: string) => Promise<void>;
+  toggleSidebar: (visible: boolean) => void;
 }
 
 const AssistContext = createContext<AssistState & AssistContextValue>(null);
@@ -75,6 +84,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   const { clusterId } = useStickyClusterId();
 
   const [state, dispatch] = useReducer(reducer, {
+    sidebarVisible: false,
     conversations: {
       loading: false,
       data: [],
@@ -130,7 +140,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     };
 
     activeWebSocket.current.onclose = () => {
-      dispatch({ type: AssistStateActionType.SetStreaming, streaming: false });
+      dispatch({
+        type: AssistStateActionType.SetStreaming,
+        streaming: false,
+      });
     };
 
     activeWebSocket.current.onmessage = async event => {
@@ -161,19 +174,26 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
 
         case ServerMessageType.AssistPartialMessage: {
-          const payload = JSON.parse(data.payload);
-
           dispatch({
             type: AssistStateActionType.AddPartialMessage,
-            message: payload.content,
+            message: data.payload,
             conversationId,
           });
 
           break;
         }
 
+        case ServerMessageType.AssistThought:
+          const message = resolveServerAssistThoughtMessage(data);
+          dispatch({
+            type: AssistStateActionType.AddThought,
+            message: message.message,
+            conversationId,
+          });
+
+          break;
         case ServerMessageType.Command: {
-          const message = await resolveServerCommandMessage(data);
+          const message = resolveServerCommandMessage(data);
 
           dispatch({
             type: AssistStateActionType.AddExecuteRemoteCommand,
@@ -296,7 +316,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     const messages = state.messages.data.get(state.conversations.selectedId);
 
-    dispatch({ type: AssistStateActionType.SetStreaming, streaming: true });
+    dispatch({
+      type: AssistStateActionType.SetStreaming,
+      streaming: true,
+    });
 
     const data = JSON.stringify({ payload: message });
 
@@ -409,15 +432,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     executeCommandWebSocket.current = new WebSocket(url);
     executeCommandWebSocket.current.binaryType = 'arraybuffer';
 
-    executeCommandWebSocket.current.onclose = () => {
-      for (const nodeId of nodeIdToResultId.keys()) {
-        dispatch({
-          type: AssistStateActionType.FinishCommandResult,
-          conversationId: state.conversations.selectedId,
-          commandResultId: nodeIdToResultId.get(nodeId),
-        });
-      }
-    };
+    let sessionsEnded = 0;
 
     executeCommandWebSocket.current.onmessage = event => {
       const uintArray = new Uint8Array(event.data);
@@ -429,13 +444,22 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           const data = JSON.parse(msg.payload) as RawPayload;
           const payload = atob(data.payload);
 
-          dispatch({
-            type: AssistStateActionType.UpdateCommandResult,
-            conversationId: state.conversations.selectedId,
-            commandResultId: nodeIdToResultId.get(data.node_id),
-            output: payload,
-          });
-
+          if (data.type === ExecutionEnvelopeType) {
+            dispatch({
+              type: AssistStateActionType.AddCommandResultSummary,
+              conversationId: state.conversations.selectedId,
+              summary: payload,
+              executionId: execParams.execution_id,
+              command: execParams.command,
+            });
+          } else {
+            dispatch({
+              type: AssistStateActionType.UpdateCommandResult,
+              conversationId: state.conversations.selectedId,
+              commandResultId: nodeIdToResultId.get(data.node_id),
+              output: payload,
+            });
+          }
           break;
 
         case MessageTypeEnum.WEBAUTHN_CHALLENGE:
@@ -457,18 +481,45 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
 
         case MessageTypeEnum.SESSION_END:
-          for (const nodeId of nodeIdToResultId.keys()) {
-            dispatch({
-              type: AssistStateActionType.FinishCommandResult,
-              conversationId: state.conversations.selectedId,
-              commandResultId: nodeIdToResultId.get(nodeId),
-            });
-          }
+          // we don't know the nodeId of the session that ended, so we have to
+          // count the finished sessions and then mark them all as done once
+          // they've all finished
+          sessionsEnded += 1;
 
-          nodeIdToResultId.clear();
+          if (sessionsEnded === nodeIdToResultId.size) {
+            const message = proto.encodeCloseMessage();
+            const bytearray = new Uint8Array(message);
+
+            for (const nodeId of nodeIdToResultId.keys()) {
+              dispatch({
+                type: AssistStateActionType.FinishCommandResult,
+                conversationId: state.conversations.selectedId,
+                commandResultId: nodeIdToResultId.get(nodeId),
+              });
+
+              executeCommandWebSocket.current.send(bytearray.buffer);
+            }
+
+            nodeIdToResultId.clear();
+          }
 
           break;
       }
+    };
+
+    executeCommandWebSocket.current.onclose = () => {
+      executeCommandWebSocket.current = null;
+
+      // If the execution failed, we won't get a SESSION_END message, so we
+      // need to mark all the results as finished here.
+      for (const nodeId of nodeIdToResultId.keys()) {
+        dispatch({
+          type: AssistStateActionType.FinishCommandResult,
+          conversationId: state.conversations.selectedId,
+          commandResultId: nodeIdToResultId.get(nodeId),
+        });
+      }
+      nodeIdToResultId.clear();
     };
   }
 
@@ -486,6 +537,13 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
       type: AssistStateActionType.PromptMfa,
       promptMfa: false,
       publicKey: null,
+    });
+  }
+
+  function toggleSidebar(visible: boolean) {
+    dispatch({
+      type: AssistStateActionType.ToggleSidebar,
+      visible,
     });
   }
 
@@ -515,6 +573,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
         sendMessage,
         sendMfaChallenge,
         setSelectedConversationId,
+        toggleSidebar,
       }}
     >
       {props.children}

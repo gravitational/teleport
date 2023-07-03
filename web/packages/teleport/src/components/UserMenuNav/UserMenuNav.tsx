@@ -17,7 +17,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import styled, { css } from 'styled-components';
 
-import { Sun, Moon } from 'design/Icon';
+import { Moon, Sun } from 'design/Icon';
 import { ChevronDownIcon } from 'design/SVGIcon/ChevronDown';
 import { Text } from 'design';
 import { LogoutIcon } from 'design/SVGIcon';
@@ -26,7 +26,8 @@ import { NavLink } from 'react-router-dom';
 import session from 'teleport/services/websession';
 import { useFeatures } from 'teleport/FeaturesContext';
 import { useTeleport } from 'teleport';
-import storage from 'teleport/services/localStorage/localStorage';
+import { useUser } from 'teleport/User/UserContext';
+import { ThemePreference } from 'teleport/services/userPreferences/types';
 
 interface UserMenuNavProps {
   username: string;
@@ -169,19 +170,21 @@ const DropdownDivider = styled.div`
 export function UserMenuNav({ username }: UserMenuNavProps) {
   const [open, setOpen] = useState(false);
 
+  const { preferences, updatePreferences } = useUser();
+
   const ref = useRef<HTMLDivElement>();
 
   const ctx = useTeleport();
   const clusterId = ctx.storeUser.getClusterId();
   const features = useFeatures();
 
-  const currentThemeOption = storage.getThemeOption();
   const onThemeChange = () => {
-    if (currentThemeOption === 'dark') {
-      storage.setThemeOption('light');
-    } else {
-      storage.setThemeOption('dark');
-    }
+    const nextTheme =
+      preferences.theme === ThemePreference.Light
+        ? ThemePreference.Dark
+        : ThemePreference.Light;
+
+    updatePreferences({ theme: nextTheme });
     setOpen(false);
   };
 
@@ -259,9 +262,11 @@ export function UserMenuNav({ username }: UserMenuNavProps) {
         >
           <DropdownItemButton onClick={onThemeChange}>
             <DropdownItemIcon>
-              {currentThemeOption === 'dark' ? <Sun /> : <Moon />}
+              {preferences.theme === ThemePreference.Light ? <Sun /> : <Moon />}
             </DropdownItemIcon>
-            Switch to {currentThemeOption === 'dark' ? 'Light' : 'Dark'} Theme
+            Switch to{' '}
+            {preferences.theme === ThemePreference.Dark ? 'Light' : 'Dark'}{' '}
+            Theme
           </DropdownItemButton>
         </DropdownItem>
         <DropdownItem

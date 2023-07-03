@@ -193,6 +193,25 @@ type CommandLineFlags struct {
 	AdditionalPrincipals string
 	// Directory to store
 	DataDir string
+
+	// IntegrationConfDeployServiceIAMArguments contains the arguments of
+	// `teleport integration configure deployservice-iam` command
+	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
+}
+
+// IntegrationConfDeployServiceIAM contains the arguments of
+// `teleport integration configure deployservice-iam` command
+type IntegrationConfDeployServiceIAM struct {
+	// Cluster is the teleport cluster name.
+	Cluster string
+	// Name is the integration name.
+	Name string
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+	// TaskRole is the AWS Role to be used by the deployed service.
+	TaskRole string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -695,6 +714,16 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	if fc.Auth.DisconnectExpiredCert != nil {
 		cfg.Auth.Preference.SetOrigin(types.OriginConfigFile)
 		cfg.Auth.Preference.SetDisconnectExpiredCert(fc.Auth.DisconnectExpiredCert.Value)
+	}
+
+	if fc.Auth.Assist != nil && fc.Auth.Assist.OpenAI != nil {
+		keyPath := fc.Auth.Assist.OpenAI.APITokenPath
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			return trace.Errorf("failed to read OpenAI API key file: %w", err)
+		} else {
+			cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+		}
 	}
 
 	// Set cluster audit configuration from file configuration.

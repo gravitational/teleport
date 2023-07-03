@@ -66,8 +66,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -253,6 +255,15 @@ const (
 
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
+)
+
+const (
+	// embeddingInitialDelay is the time to wait before the first embedding
+	// routine is started.
+	embeddingInitialDelay = 10 * time.Second
+	// embeddingPeriod is the time between two embedding routines.
+	// A seventh jitter is applied on the period.
+	embeddingPeriod = time.Hour
 )
 
 // Connector has all resources process needs to connect to other parts of the
@@ -1616,6 +1627,13 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
+	var embedderClient ai.Embedder
+	if cfg.Auth.AssistAPIKey != "" {
+		embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+	}
+
+	embeddingsRetriever := ai.NewSimpleRetriever()
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1654,6 +1672,8 @@ func (process *TeleportProcess) initAuthService() error {
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
 		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+		EmbeddingRetriever:      embeddingsRetriever,
+		EmbeddingClient:         embedderClient,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1692,6 +1712,40 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetLockWatcher(lockWatcher)
+
+	if embedderClient != nil {
+		log.Debugf("Starting embedding watcher")
+		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
+			AIClient:            embedderClient,
+			EmbeddingsRetriever: embeddingsRetriever,
+			EmbeddingSrv:        authServer,
+			NodeSrv:             authServer,
+			Log:                 log,
+			Jitter:              retryutils.NewFullJitter(),
+		})
+
+		process.RegisterFunc("ai.embedding-processor", func() error {
+			// We check the Assist feature flag here rather than on creation of TeleportProcess,
+			// as when running Enterprise and the feature source is Cloud,
+			// features may be loaded at two different times:
+			// 1. When Cloud is reachable, features will be fetched from Cloud
+			//    before constructing TeleportProcess
+			// 2. When Cloud is not reachable, we will attempt to load cached features
+			//    from the Teleport backend.
+			// In the second case, we don't know the final value of Features().Assist
+			// when constructing the process.
+			// Services in the supervisor will only start after either 1 or 2 has succeeded,
+			// so we can make the decision here.
+			//
+			// Ref: e/tool/teleport/process/process.go
+			if !modules.GetModules().Features().Assist {
+				log.Debug("Skipping start of embedding processor: Assist feature not enabled for license")
+				return nil
+			}
+			log.Debugf("Starting embedding processor")
+			return embeddingProcessor.Run(process.GracefulExitContext(), embeddingInitialDelay, embeddingPeriod)
+		})
+	}
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
