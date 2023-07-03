@@ -116,7 +116,7 @@ func KubeResourceMatchesRegexWithVerbsCollector(input types.KubernetesResource, 
 			continue
 		}
 		matchedAny = true
-		if len(resource.Verbs) == 0 || resource.Verbs[0] == types.Wildcard {
+		if len(resource.Verbs) > 0 && resource.Verbs[0] == types.Wildcard {
 			return true, []string{types.Wildcard}, nil
 		}
 		for _, verb := range resource.Verbs {
@@ -148,7 +148,7 @@ func KubeResourceMatchesRegex(input types.KubernetesResource, resources []types.
 		// it doesn't match.
 		// When the resource has a wildcard verb, we only allow one verb in the
 		// resource input.
-		if len(resource.Verbs) > 0 && resource.Verbs[0] != types.Wildcard && !slices.Contains(resource.Verbs, verb) {
+		if len(resource.Verbs) == 0 || resource.Verbs[0] != types.Wildcard && !slices.Contains(resource.Verbs, verb) {
 			continue
 		}
 

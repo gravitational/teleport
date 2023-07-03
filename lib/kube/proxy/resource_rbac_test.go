@@ -92,6 +92,7 @@ func TestListPodRBAC(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
 					},
 				})
 			},
@@ -114,6 +115,7 @@ func TestListPodRBAC(t *testing.T) {
 							Kind:      types.KindKubePod,
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{types.Wildcard},
 						},
 					})
 			},
@@ -137,6 +139,7 @@ func TestListPodRBAC(t *testing.T) {
 							Kind:      types.KindKubePod,
 							Name:      "nginx-*",
 							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{types.Wildcard},
 						},
 					},
 				)
@@ -185,6 +188,7 @@ func TestListPodRBAC(t *testing.T) {
 							Kind:      types.KindKubePod,
 							Name:      types.Wildcard,
 							Namespace: types.Wildcard,
+							Verbs:     []string{types.Wildcard},
 						},
 					},
 				)
@@ -194,6 +198,7 @@ func TestListPodRBAC(t *testing.T) {
 							Kind:      types.KindKubePod,
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{types.Wildcard},
 						},
 					},
 				)
@@ -477,7 +482,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: "*",
 						Name:      "*",
-						Verbs:     []string{"*"},
+						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -491,7 +496,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: defaultNamespace,
 						Name:      "*",
-						Verbs:     []string{"*"},
+						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -505,6 +510,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: defaultNamespace,
 						Name:      "*",
+						Verbs:     []string{types.Wildcard},
 					},
 				},
 				denied: []types.KubernetesResource{
@@ -512,7 +518,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: defaultNamespace,
 						Name:      "otherPod",
-						Verbs:     []string{"*"},
+						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -526,7 +532,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Namespace: defaultNamespace,
 						Name:      "rand*",
-						Verbs:     []string{"*"},
+						Verbs:     []string{types.Wildcard},
 					},
 				},
 			},
@@ -546,7 +552,7 @@ func TestWatcherResponseWriter(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			userReader, userWriter := io.Pipe()
 			negotiator := newClientNegotiator()
-			filterWrapper := newResourceFilterer(types.KindKubePod, "verb", tt.args.allowed, tt.args.denied, log)
+			filterWrapper := newResourceFilterer(types.KindKubePod, types.KubeVerbWatch, tt.args.allowed, tt.args.denied, log)
 			// watcher parses the data written into itself and if the user is allowed to
 			// receive the update, it writes the event into target.
 			watcher, err := responsewriters.NewWatcherResponseWriter(newFakeResponseWriter(userWriter) /*target*/, negotiator, filterWrapper)
@@ -781,6 +787,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 						Kind:      types.KindKubePod,
 						Name:      types.Wildcard,
 						Namespace: types.Wildcard,
+						Verbs:     []string{types.Wildcard},
 					},
 				})
 			},
@@ -803,6 +810,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 							Kind:      types.KindKubePod,
 							Name:      types.Wildcard,
 							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{types.Wildcard},
 						},
 					})
 			},
@@ -826,6 +834,7 @@ func TestDeletePodCollectionRBAC(t *testing.T) {
 							Kind:      types.KindKubePod,
 							Name:      "nginx-*",
 							Namespace: metav1.NamespaceDefault,
+							Verbs:     []string{types.Wildcard},
 						},
 					},
 				)
@@ -959,8 +968,9 @@ func TestListClusterRoleRBAC(t *testing.T) {
 			SetupRoleFunc: func(r types.Role) {
 				r.SetKubeResources(types.Allow, []types.KubernetesResource{
 					{
-						Kind: types.KindKubeClusterRole,
-						Name: types.Wildcard,
+						Kind:  types.KindKubeClusterRole,
+						Name:  types.Wildcard,
+						Verbs: []string{types.Wildcard},
 					},
 				})
 			},
@@ -981,8 +991,9 @@ func TestListClusterRoleRBAC(t *testing.T) {
 				r.SetKubeResources(types.Allow,
 					[]types.KubernetesResource{
 						{
-							Kind: types.KindKubeClusterRole,
-							Name: "nginx-*",
+							Kind:  types.KindKubeClusterRole,
+							Name:  "nginx-*",
+							Verbs: []string{types.Wildcard},
 						},
 					},
 				)

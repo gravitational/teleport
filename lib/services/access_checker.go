@@ -436,17 +436,27 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 		}
 		switch {
 		case slices.Contains(types.KubernetesResourcesKinds, r.Kind):
-			splitted := strings.SplitN(r.SubResourceName, "/", 3)
-			// This condition should never happen since SubResourceName is validated
-			// but it's better to validate it.
-			if len(splitted) != 2 {
-				continue
+			namespace := ""
+			name := ""
+			if slices.Contains(types.KubernetesClusterWideResourceKinds, r.Kind) {
+				// Cluster wide resources do not have a namespace.
+				name = r.SubResourceName
+			} else {
+				splitted := strings.SplitN(r.SubResourceName, "/", 3)
+				// This condition should never happen since SubResourceName is validated
+				// but it's better to validate it.
+				if len(splitted) != 2 {
+					continue
+				}
+				namespace = splitted[0]
+				name = splitted[1]
 			}
 
 			r := types.KubernetesResource{
 				Kind:      r.Kind,
-				Namespace: splitted[0],
-				Name:      splitted[1],
+				Namespace: namespace,
+				Name:      name,
+				Verbs:     []string{types.Wildcard},
 			}
 
 			if matchKubernetesResource(&r, rolesAllowed, rolesDenied) == nil {
