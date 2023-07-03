@@ -5525,6 +5525,7 @@ func TestCreateAccessRequest(t *testing.T) {
 	ctx := context.Background()
 
 	srv := newTestTLSServer(t)
+	clock := srv.Clock()
 	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
 
 	searchRole, err := types.NewRole("requestRole", types.RoleSpecV6{
@@ -5581,61 +5582,70 @@ func TestCreateAccessRequest(t *testing.T) {
 		{
 			name: "user creates own pending access request",
 			user: alice,
-			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, []string{requestRole.GetName()}, []types.ResourceID{
-				mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
-			}),
+			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+				}),
 			errAssertionFunc: require.NoError,
-			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, []string{requestRole.GetName()}, []types.ResourceID{
-				mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
-			}),
+			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+				}),
 		},
 		{
 			name: "admin creates a request for alice",
 			user: admin,
-			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, []string{requestRole.GetName()}, []types.ResourceID{
-				mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
-			}),
+			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+				}),
 			errAssertionFunc: require.NoError,
-			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, []string{requestRole.GetName()}, []types.ResourceID{
-				mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
-			}),
+			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+				}),
 		},
 		{
 			name: "bob fails to create a request for alice",
 			user: bob,
-			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, []string{requestRole.GetName()}, []types.ResourceID{
-				mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
-			}),
+			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+				}),
 			errAssertionFunc: require.Error,
 		},
 		{
 			name: "user creates own pending access request with user group needing app expansion",
 			user: alice,
-			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, []string{requestRole.GetName()}, []types.ResourceID{
-				mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
-				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
-				mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
-				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup2.GetName()),
-				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup3.GetName()),
-			}),
+			accessRequest: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup2.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup3.GetName()),
+				}),
 			errAssertionFunc: require.NoError,
-			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, []string{requestRole.GetName()}, []types.ResourceID{
-				mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
-				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
-				mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
-				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup2.GetName()),
-				mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup3.GetName()),
-				mustResourceID(srv.ClusterName(), types.KindApp, "app2"),
-				mustResourceID(srv.ClusterName(), types.KindApp, "app3"),
-				mustResourceID(srv.ClusterName(), types.KindApp, "app4"),
-				mustResourceID(srv.ClusterName(), types.KindApp, "app5"),
-			}),
+			expected: mustAccessRequest(t, alice, types.RequestState_PENDING, clock.Now(), clock.Now().Add(time.Hour),
+				[]string{requestRole.GetName()}, []types.ResourceID{
+					mustResourceID(srv.ClusterName(), types.KindRole, requestRole.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup1.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app1"),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup2.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindUserGroup, userGroup3.GetName()),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app2"),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app3"),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app4"),
+					mustResourceID(srv.ClusterName(), types.KindApp, "app5"),
+				}),
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			// Make sure there are no access requests before we do anything
+			// Make sure there are no access requests before we do anything. We'll clear out
+			// each time to save on the complexity of setting up the auth server and dependent
+			// users and roles.
 			ctx := context.Background()
 			require.NoError(t, srv.Auth().DeleteAllAccessRequests(ctx))
 
@@ -5656,20 +5666,35 @@ func TestCreateAccessRequest(t *testing.T) {
 
 			require.Len(t, accessRequests, 1)
 
+			// We have to ignore the name here, as it's auto-generated by the underlying access request
+			// logic.
 			require.Empty(t, cmp.Diff(test.expected, accessRequests[0],
-				cmpopts.IgnoreFields(types.Metadata{}, "Name", "ID", "Expires"),
-				cmpopts.IgnoreFields(types.AccessRequestSpecV3{}, "Expires", "Created", "Thresholds", "RoleThresholdMapping"),
+				cmpopts.IgnoreFields(types.Metadata{}, "Name", "ID"),
+				cmpopts.IgnoreFields(types.AccessRequestSpecV3{}),
 			))
 		})
 	}
 }
 
-func mustAccessRequest(t *testing.T, user string, state types.RequestState, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {
+func mustAccessRequest(t *testing.T, user string, state types.RequestState, created, expires time.Time, roles []string, resourceIDs []types.ResourceID) types.AccessRequest {
+	t.Helper()
+
 	accessRequest, err := types.NewAccessRequest(uuid.NewString(), user, roles...)
 	require.NoError(t, err)
 
 	accessRequest.SetRequestedResourceIDs(resourceIDs)
 	accessRequest.SetState(state)
+	accessRequest.SetCreationTime(created)
+	accessRequest.SetExpiry(expires)
+	accessRequest.SetAccessExpiry(expires)
+	accessRequest.SetThresholds([]types.AccessReviewThreshold{{Name: "default", Approve: 1, Deny: 1}})
+	accessRequest.SetRoleThresholdMapping(map[string]types.ThresholdIndexSets{
+		"requestRole": {
+			Sets: []types.ThresholdIndexSet{
+				{Indexes: []uint32{0}},
+			},
+		},
+	})
 
 	return accessRequest
 }
