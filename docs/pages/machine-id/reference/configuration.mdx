@@ -290,11 +290,14 @@ directory. This is usually the correct destination type to use.
 # this will always be `directory`.
 type: directory
 
-# The path to the folder in which to read and write files.
+# path specifies the path to the directory that this destination should write
+# to. This directory should already exist, or `tbot init` should be used to
+# create it with the correct permissions.
 path: /opt/machine-id
 
-# Configure symlink attack prevention. Requires Linux 5.6+.
-# Possible values:
+# symlinks configures the behaviour of symlink attack prevention.
+# Requires Linux 5.6+.
+# Supported values:
 #   * try-secure (default): Attempt to securely read and write certificates
 #     without symlinks, but fall back (with a warning) to insecure read
 #     and write if the host doesn't support this.
@@ -302,8 +305,10 @@ path: /opt/machine-id
 #     if unsupported.
 #   * insecure: Quietly allow symlinks in paths.
 symlinks: try-secure
-# Configure ACL use. Requires Linux with a file system that supports ACLs.
-# Possible values:
+# acls configures ACL setup when `tbot init` is run and revalidation of them
+# when the destination is written to.
+# Requires Linux with a file system that supports ACLs.
+# Supported values:
 #   * try (default on Linux): Attempt to use ACLs, warn at runtime if ACLs
 #     are configured but invalid.
 #   * off (default on non-Linux): Do not attempt to use ACLs.
