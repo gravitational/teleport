@@ -46,6 +46,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -315,6 +316,15 @@ func (a *ServerWithRoles) OktaClient() services.Okta {
 func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
 	return pluginspb.NewPluginServiceClient(
 		utils.NewGRPCDummyClientConnection("PluginsClient() should not be called on ServerWithRoles"),
+	)
+}
+
+// EmbeddingClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) EmbeddingClient() assist.AssistEmbeddingServiceClient {
+	return assist.NewAssistEmbeddingServiceClient(
+		utils.NewGRPCDummyClientConnection("EmbeddingClient() should not be called on ServerWithRoles"),
 	)
 }
 
@@ -1134,6 +1144,15 @@ func (a *ServerWithRoles) GetInstances(ctx context.Context, filter types.Instanc
 	}
 
 	return a.authServer.GetInstances(ctx, filter)
+}
+
+// GetNodeStream returns a stream of nodes.
+func (a *ServerWithRoles) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	if err := a.action(namespace, types.KindNode, types.VerbList, types.VerbRead); err != nil {
+		return stream.Fail[types.Server](trace.Wrap(err))
+	}
+
+	return a.authServer.GetNodeStream(ctx, namespace)
 }
 
 func (a *ServerWithRoles) GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error) {
@@ -6270,6 +6289,29 @@ func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, m
 	}
 
 	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
+}
+
+// GetUserPreferences returns the user preferences for a given user.
+func (a *ServerWithRoles) GetUserPreferences(ctx context.Context, req *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.GetUserPreferencesResponse, error) {
+	if err := a.currentUserAction(req.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	preferences, err := a.authServer.GetUserPreferences(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return preferences, nil
+}
+
+// UpsertUserPreferences creates or updates user preferences for a given username.
+func (a *ServerWithRoles) UpsertUserPreferences(ctx context.Context, req *userpreferencespb.UpsertUserPreferencesRequest) error {
+	if err := a.currentUserAction(req.Username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.UpsertUserPreferences(ctx, req))
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.

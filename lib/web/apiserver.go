@@ -784,6 +784,12 @@ func (h *Handler) bindDefaultEndpoints() {
 
 	// Allows executing an arbitrary command on multiple nodes.
 	h.GET("/webapi/command/:site/execute", h.WithClusterAuth(h.executeCommand))
+
+	// Fetches the user's preferences
+	h.GET("/webapi/user/preferences", h.WithAuth(h.getUserPreferences))
+
+	// Updates the user's preferences
+	h.PUT("/webapi/user/preferences", h.WithAuth(h.updateUserPreferences))
 }
 
 // GetProxyClient returns authenticated auth server client

@@ -716,6 +716,16 @@ func applyAuthConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Auth.Preference.SetDisconnectExpiredCert(fc.Auth.DisconnectExpiredCert.Value)
 	}
 
+	if fc.Auth.Assist != nil && fc.Auth.Assist.OpenAI != nil {
+		keyPath := fc.Auth.Assist.OpenAI.APITokenPath
+		key, err := os.ReadFile(keyPath)
+		if err != nil {
+			return trace.Errorf("failed to read OpenAI API key file: %w", err)
+		} else {
+			cfg.Auth.AssistAPIKey = strings.TrimSpace(string(key))
+		}
+	}
+
 	// Set cluster audit configuration from file configuration.
 	auditConfigSpec, err := services.ClusterAuditConfigSpecFromObject(fc.Storage.Params)
 	if err != nil {

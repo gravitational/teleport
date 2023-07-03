@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/api/observability/tracing"
 	"github.com/gravitational/teleport/lib/agentless"
 	assistlib "github.com/gravitational/teleport/lib/assist"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/httplib"
@@ -50,8 +51,15 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/session"
+	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/teleagent"
 )
+
+// summaryBufferCapacity is the summary buffer size in bytes. The summary buffer
+// is shared across all nodes the command is running on and stores the command
+// output. If the command output exceeds the buffer capacity, the summary won't
+// be computed.
+const summaryBufferCapacity = 2000
 
 // CommandRequest is a request to execute a command on all nodes that match the query.
 type CommandRequest struct {
@@ -65,6 +73,18 @@ type CommandRequest struct {
 	ConversationID string `json:"conversation_id"`
 	// ExecutionID is a unique ID used to identify the command execution.
 	ExecutionID string `json:"execution_id"`
+}
+
+// commandExecResult is a result of a command execution.
+type commandExecResult struct {
+	// NodeID is the ID of the node where the command was executed.
+	NodeID string `json:"node_id"`
+	// NodeName is the name of the node where the command was executed.
+	NodeName string `json:"node_name"`
+	// ExecutionID is a unique ID used to identify the command execution.
+	ExecutionID string `json:"execution_id"`
+	// SessionID is the ID of the session where the command was executed.
+	SessionID string `json:"session_id"`
 }
 
 // Check checks if the request is valid.
@@ -153,7 +173,7 @@ func (h *Handler) executeCommand(
 		CheckOrigin:     func(r *http.Request) bool { return true },
 	}
 
-	ws, err := upgrader.Upgrade(w, r, nil)
+	rawWS, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		errMsg := "Error upgrading to websocket"
 		h.log.WithError(err).Error(errMsg)
@@ -162,16 +182,27 @@ func (h *Handler) executeCommand(
 	}
 
 	defer func() {
-		ws.WriteMessage(websocket.CloseMessage, nil)
-		ws.Close()
+		rawWS.WriteMessage(websocket.CloseMessage, nil)
+		rawWS.Close()
 	}()
 
 	keepAliveInterval := netConfig.GetKeepAliveInterval()
-	err = ws.SetReadDeadline(deadlineForInterval(keepAliveInterval))
+	err = rawWS.SetReadDeadline(deadlineForInterval(keepAliveInterval))
 	if err != nil {
 		h.log.WithError(err).Error("Error setting websocket readline")
 		return nil, trace.Wrap(err)
 	}
+	// Update the read deadline upon receiving a pong message.
+	rawWS.SetPongHandler(func(_ string) error {
+		// This is intentonally called without a lock as this callback is
+		// called from the same goroutine as the read loop which is already locked.
+		return trace.Wrap(rawWS.SetReadDeadline(deadlineForInterval(keepAliveInterval)))
+	})
+
+	// Wrap the raw websocket connection in a syncRWWSConn so that we can
+	// safely read and write to the the single websocket connection from
+	// multiple goroutines/execution nodes.
+	ws := &syncRWWSConn{WSConn: rawWS}
 
 	hosts, err := findByQuery(ctx, clt, req.Query)
 	if err != nil {
@@ -189,6 +220,8 @@ func (h *Handler) executeCommand(
 
 	mfaCacheFn := getMFACacheFn()
 	interactiveCommand := strings.Split(req.Command, " ")
+
+	buffer := newSummaryBuffer(summaryBufferCapacity)
 
 	runCmd := func(host *hostInfo) error {
 		sessionData, err := h.generateCommandSession(host, req.Login, clusterName, sessionCtx.cfg.User)
@@ -211,6 +244,7 @@ func (h *Handler) executeCommand(
 			TracerProvider:     h.cfg.TracerProvider,
 			LocalAuthProvider:  h.auth.accessPoint,
 			mfaFuncCache:       mfaCacheFn,
+			buffer:             buffer,
 		}
 
 		handler, err := newCommandHandler(ctx, commandHandlerConfig)
@@ -226,12 +260,9 @@ func (h *Handler) executeCommand(
 		h.log.Infof("Executing command: %#v.", req)
 		httplib.MakeTracingHandler(handler, teleport.ComponentProxy).ServeHTTP(w, r)
 
-		msgPayload, err := json.Marshal(struct {
-			NodeID      string `json:"node_id"`
-			ExecutionID string `json:"execution_id"`
-			SessionID   string `json:"session_id"`
-		}{
+		msgPayload, err := json.Marshal(&commandExecResult{
 			NodeID:      host.id,
+			NodeName:    host.hostName,
 			ExecutionID: req.ExecutionID,
 			SessionID:   string(sessionData.ID),
 		})
@@ -255,7 +286,112 @@ func (h *Handler) executeCommand(
 
 	runCommands(hosts, runCmd, h.log)
 
+	// Optionally, try to compute the command summary.
+	if output, valid := buffer.Export(); valid {
+		summaryReq := summaryRequest{
+			hosts:          hosts,
+			output:         output,
+			authClient:     clt,
+			identity:       identity,
+			executionID:    req.ExecutionID,
+			conversationID: req.ConversationID,
+			command:        req.Command,
+		}
+		err := h.computeAndSendSummary(ctx, &summaryReq, ws)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+
 	return nil, nil
+}
+
+type summaryRequest struct {
+	hosts          []hostInfo
+	output         map[string][]byte
+	authClient     auth.ClientI
+	identity       srv.IdentityContext
+	executionID    string
+	conversationID string
+	command        string
+}
+
+func (h *Handler) computeAndSendSummary(
+	ctx context.Context,
+	req *summaryRequest,
+	ws WSConn,
+) error {
+	// Convert the map nodeId->output into a map nodeName->output
+	namedOutput := outputByName(req.hosts, req.output)
+
+	history, err := req.authClient.GetAssistantMessages(ctx, &assist.GetAssistantMessagesRequest{
+		ConversationId: req.conversationID,
+		Username:       req.identity.TeleportUser,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	assistClient, err := assistlib.NewClient(ctx, req.authClient, h.cfg.ProxySettings, h.cfg.OpenAIConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	summary, err := assistClient.GenerateCommandSummary(ctx, history.GetMessages(), namedOutput)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Add the summary message to the backend so it is persisted on chat
+	// reload.
+	messagePayload, err := json.Marshal(&assistlib.CommandExecSummary{
+		ExecutionID: req.executionID,
+		Command:     req.command,
+		Summary:     summary,
+	})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	summaryMessage := &assist.CreateAssistantMessageRequest{
+		ConversationId: req.conversationID,
+		Username:       req.identity.TeleportUser,
+		Message: &assist.AssistantMessage{
+			Type:        string(assistlib.MessageKindCommandResultSummary),
+			CreatedTime: timestamppb.New(time.Now().UTC()),
+			Payload:     string(messagePayload),
+		},
+	}
+
+	err = req.authClient.CreateAssistantMessage(ctx, summaryMessage)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	// Send the summary over the execution websocket to provide instant
+	// feedback to the user.
+	out := &outEnvelope{
+		Type:    envelopeTypeSummary,
+		Payload: []byte(summary),
+	}
+	data, err := json.Marshal(out)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	stream := NewWStream(ctx, ws, log, nil)
+	_, err = stream.Write(data)
+	return trace.Wrap(err)
+}
+
+func outputByName(hosts []hostInfo, output map[string][]byte) map[string][]byte {
+	hostIDToName := make(map[string]string, len(hosts))
+	for _, host := range hosts {
+		hostIDToName[host.id] = host.hostName
+	}
+	namedOutput := make(map[string][]byte, len(output))
+	for id, data := range output {
+		namedOutput[hostIDToName[id]] = data
+	}
+	return namedOutput
 }
 
 // runCommands runs the given command on the given hosts.
@@ -336,6 +472,7 @@ func newCommandHandler(ctx context.Context, cfg CommandHandlerConfig) (*commandH
 			tracer:             cfg.tracer,
 		},
 		mfaAuthCache: cfg.mfaFuncCache,
+		buffer:       cfg.buffer,
 	}, nil
 }
 
@@ -366,6 +503,9 @@ type CommandHandlerConfig struct {
 	tracer oteltrace.Tracer
 	// mfaFuncCache is used to cache the MFA auth method
 	mfaFuncCache mfaFuncCache
+	// buffer shared across multiple commandHandlers that saves the command
+	// output in order to generate a summary of the executed commands.
+	buffer *summaryBuffer
 }
 
 // CheckAndSetDefaults checks and sets default values.
@@ -431,6 +571,10 @@ type commandHandler struct {
 	// returns a list of ssh.AuthMethods. It is used to cache the result of
 	// the MFA challenge.
 	mfaAuthCache mfaFuncCache
+
+	// buffer shared across multiple commandHandlers that saves the command
+	// output in order to generate a summary of the executed commands.
+	buffer *summaryBuffer
 }
 
 // sendError sends an error message to the client using the provided websocket.
@@ -497,11 +641,6 @@ func (t *commandHandler) handler(r *http.Request) {
 
 	t.log.Debug("Creating websocket stream")
 
-	// Update the read deadline upon receiving a pong message.
-	t.ws.SetPongHandler(func(_ string) error {
-		return trace.Wrap(t.ws.SetReadDeadline(deadlineForInterval(t.keepAliveInterval)))
-	})
-
 	// Start sending ping frames through websocket to the client.
 	go startPingLoop(r.Context(), t.ws, t.keepAliveInterval, t.log, t.Close)
 
@@ -535,7 +674,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		return
 	}
 
-	if err := t.stream.Close(); err != nil {
+	if err := t.stream.SendCloseMessage(); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}
@@ -582,8 +721,8 @@ func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.Tel
 	clientConfig.HostLogin = t.sessionData.Login
 	clientConfig.ForwardAgent = client.ForwardAgentLocal
 	clientConfig.Namespace = apidefaults.Namespace
-	clientConfig.Stdout = newPayloadWriter(t.sessionData.ServerID, "stdout", t.stream)
-	clientConfig.Stderr = newPayloadWriter(t.sessionData.ServerID, "stderr", t.stream)
+	clientConfig.Stdout = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, envelopeTypeStdout, t.stream), t.buffer)
+	clientConfig.Stderr = newBufferedPayloadWriter(newPayloadWriter(t.sessionData.ServerID, envelopeTypeStderr, t.stream), t.buffer)
 	clientConfig.Stdin = &bytes.Buffer{} // set stdin to a dummy buffer
 	clientConfig.SiteName = t.sessionData.ClusterName
 	if err := clientConfig.ParseProxyHost(t.proxyHostPort); err != nil {
@@ -607,7 +746,7 @@ func (t *commandHandler) makeClient(ctx context.Context, ws WSConn) (*client.Tel
 func (t *commandHandler) writeError(err error) {
 	out := &outEnvelope{
 		NodeID:  t.sessionData.ServerID,
-		Type:    "teleport-error",
+		Type:    envelopeTypeError,
 		Payload: []byte(err.Error()),
 	}
 	data, err := json.Marshal(out)
