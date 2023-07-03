@@ -550,6 +550,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
   useEffect(() => {
     loadConversations();
+
+    return () => {
+      window.clearTimeout(refreshWebSocketTimeout.current);
+    }
   }, []);
 
   const selectedConversationMessages = useMemo(
