@@ -23,6 +23,8 @@ import { NewFlow, StepComponentProps, StepSlider } from 'design/StepSlider';
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
 import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
 
+import cfg from 'teleport/config';
+
 import useToken, { State } from '../useToken';
 
 import { Expired } from './Expired';
@@ -43,7 +45,13 @@ const loginFlows = {
 
 export function Container({ tokenId = '', resetMode = false }) {
   const state = useToken(tokenId);
-  return <NewCredentials {...state} resetMode={resetMode} />;
+  return (
+    <NewCredentials
+      {...state}
+      resetMode={resetMode}
+      isDashboard={cfg.isDashboard}
+    />
+  );
 }
 
 export function NewCredentials(props: State & Props) {
@@ -57,6 +65,7 @@ export function NewCredentials(props: State & Props) {
     success,
     finishedRegister,
     privateKeyPolicyEnabled,
+    isDashboard,
   } = props;
 
   if (fetchAttempt.status === 'failed') {
@@ -81,6 +90,7 @@ export function NewCredentials(props: State & Props) {
         redirect={redirect}
         resetMode={resetMode}
         username={resetToken.user}
+        isDashboard={isDashboard}
       />
     );
   }
@@ -136,4 +146,5 @@ export function NewCredentials(props: State & Props) {
 
 export type Props = State & {
   resetMode?: boolean;
+  isDashboard: boolean;
 };
