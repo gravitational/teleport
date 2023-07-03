@@ -148,7 +148,6 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     activeWebSocket.current.onmessage = async event => {
       const data = JSON.parse(event.data) as ServerMessage;
-      console.log('onmessage', data);
 
       switch (data.type) {
         case ServerMessageType.Assist:
