@@ -553,7 +553,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     return () => {
       window.clearTimeout(refreshWebSocketTimeout.current);
-    }
+    };
   }, []);
 
   const selectedConversationMessages = useMemo(
