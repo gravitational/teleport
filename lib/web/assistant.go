@@ -512,7 +512,6 @@ func runAssistant(h *Handler, w http.ResponseWriter, r *http.Request,
 		}
 	}
 
-	h.log.Debugf("end assistant conversation loop")
-
+	h.log.Debug("end assistant conversation loop")
 	return nil
 }

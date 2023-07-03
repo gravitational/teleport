@@ -62,6 +62,9 @@ const (
 	MessageKindSystemMessage MessageType = "CHAT_MESSAGE_SYSTEM"
 	// MessageKindError is the type of Assist message that is presented to user as information, but not stored persistently in the conversation. This can include backend error messages and the like.
 	MessageKindError MessageType = "CHAT_MESSAGE_ERROR"
+	// MessageKindProgressUpdate is the type of Assist message that contains a progress update.
+	// A progress update starts a new "stage" and ends a previous stage if there was one.
+	MessageKindProgressUpdate MessageType = "CHAT_MESSAGE_PROGRESS_UPDATE"
 )
 
 // PluginGetter is the minimal interface used by the chat to interact with the plugin service in the backend.
@@ -213,6 +216,9 @@ func (c *Chat) loadMessages(ctx context.Context) error {
 		}
 	}
 
+	// Mark the history as fresh.
+	c.potentiallyStaleHistory = false
+
 	return nil
 }
 
@@ -263,6 +269,18 @@ type onMessageFunc func(kind MessageType, payload []byte, createdTime time.Time)
 func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, userInput string,
 ) (*model.TokensUsed, error) {
 	var tokensUsed *model.TokensUsed
+	progressUpdates := func(update *model.AgentAction) {
+		payload, err := json.Marshal(update)
+		if err != nil {
+			log.WithError(err).Debugf("Failed to marshal progress update: %v", update)
+			return
+		}
+
+		if err := onMessage(MessageKindProgressUpdate, payload, c.assist.clock.Now().UTC()); err != nil {
+			log.WithError(err).Debugf("Failed to send progress update: %v", update)
+			return
+		}
+	}
 
 	// If data might have been inserted into the chat history, we want to
 	// refresh and get the latest data before querying the model.
@@ -273,7 +291,7 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 	}
 
 	// query the assistant and fetch an answer
-	message, err := c.chat.Complete(ctx, userInput)
+	message, err := c.chat.Complete(ctx, userInput, progressUpdates)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -319,6 +337,34 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		if err := onMessage(MessageKindAssistantMessage, []byte(message.Content), c.assist.clock.Now().UTC()); err != nil {
 			return nil, trace.Wrap(err)
 		}
+	case *model.StreamingMessage:
+		tokensUsed = message.TokensUsed
+		var text strings.Builder
+		defer onMessage(MessageKindAssistantPartialFinalize, nil, c.assist.clock.Now().UTC())
+		for part := range message.Parts {
+			text.WriteString(part)
+
+			if err := onMessage(MessageKindAssistantPartialMessage, []byte(part), c.assist.clock.Now().UTC()); err != nil {
+				return nil, trace.Wrap(err)
+			}
+		}
+
+		// write an assistant message to memory and persistent storage
+		textS := text.String()
+		c.chat.Insert(openai.ChatMessageRoleAssistant, textS)
+		protoMsg := &assist.CreateAssistantMessageRequest{
+			ConversationId: c.ConversationID,
+			Username:       c.Username,
+			Message: &assist.AssistantMessage{
+				Type:        string(MessageKindAssistantMessage),
+				Payload:     textS,
+				CreatedTime: timestamppb.New(c.assist.clock.Now().UTC()),
+			},
+		}
+
+		if err := c.assistService.CreateAssistantMessage(ctx, protoMsg); err != nil {
+			return nil, trace.Wrap(err)
+		}
 	case *model.CompletionCommand:
 		tokensUsed = message.TokensUsed
 		payload := commandPayload{
@@ -351,11 +397,11 @@ func (c *Chat) ProcessComplete(ctx context.Context, onMessage onMessageFunc, use
 		}
 		// As we emitted a command suggestion, the user might have run it. If
 		// the command ran, a summary could have been inserted in the backend.
-		// To take this command summary into account we note the history might
+		// To take this command summary into account, we note the history might
 		// be stale.
 		c.potentiallyStaleHistory = true
 	default:
-		return nil, trace.Errorf("unknown message type")
+		return nil, trace.Errorf("unknown message type: %T", message)
 	}
 
 	return tokensUsed, nil

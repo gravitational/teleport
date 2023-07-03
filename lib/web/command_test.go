@@ -148,7 +148,7 @@ func TestExecuteCommandSummary(t *testing.T) {
 
 	openAIMock := mockOpenAISummary(t)
 	openAIConfig := openai.DefaultConfig("test-token")
-	openAIConfig.BaseURL = openAIMock.URL + "/v1"
+	openAIConfig.BaseURL = openAIMock.URL
 	s := newWebSuiteWithConfig(t, webSuiteConfig{
 		disableDiskBasedRecording: true,
 		OpenAIConfig:              &openAIConfig,
