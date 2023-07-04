@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Box } from 'design';
+import {Box, Flex} from 'design';
 
 import {
   FeatureBox,
@@ -26,7 +26,10 @@ import cfg from 'teleport/config';
 import { Route, Switch } from 'teleport/components/Router';
 
 import { IntegrationTiles } from './IntegrationTiles';
-import { NoCodeIntegrationDescription } from './common';
+import {
+  MachineIDIntegrationSection,
+  NoCodeIntegrationDescription
+} from './common';
 import { getRoutesToEnrollIntegrations } from './IntegrationRoute';
 
 export function IntegrationEnroll() {
@@ -49,10 +52,15 @@ export function IntegrationPicker() {
       <FeatureHeader>
         <FeatureHeaderTitle>Select Integration Type</FeatureHeaderTitle>
       </FeatureHeader>
-      <Box>
-        <NoCodeIntegrationDescription />
-        <IntegrationTiles />
-      </Box>
+      <Flex flexDirection="column" gap={4}>
+        <Flex flexDirection="column">
+          <NoCodeIntegrationDescription />
+          <IntegrationTiles />
+        </Flex>
+        <Flex flexDirection="column">
+          <MachineIDIntegrationSection />
+        </Flex>
+      </Flex>
     </>
   );
 }
