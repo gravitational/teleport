@@ -35,7 +35,7 @@ type DBBenchmarkConfig struct {
 
 // CheckAndSetDefaults validates configuration and set default values.
 func (c *DBBenchmarkConfig) CheckAndSetDefaults() error {
-	if c.URI == "" && c.DBService != "" {
+	if c.URI == "" && c.DBService == "" {
 		return trace.BadParameter("database or direct database URI must be provided")
 	}
 
@@ -67,6 +67,84 @@ func (d DBConnectBenchmark) BenchBuilder(ctx context.Context, tc *client.Telepor
 
 		return trace.Wrap(conn.Ping(ctx))
 	}, nil
+}
+
+type DBQueryBenchmark struct {
+	// Config database benchmark subcommands common configuration.
+	Config DBBenchmarkConfig
+	// QuerySQL the query that will be benchmarked.
+	QuerySQL string
+	// CreateSQL query that will be executed before the benchmark starts. Usually,
+	// this will be used to create tables and fill with data. The execution won't
+	// count towards benchmark results.
+	CreateSQL string
+	// AutoGenerate defines if the benchmark will generate a schema.
+	AutoGenerate bool
+}
+
+func (d *DBQueryBenchmark) CheckAndSetDefaults() error {
+	if err := d.Config.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if d.CreateSQL != "" && d.QuerySQL == "" {
+		return trace.BadParameter("query must be provided when running benchmark with custom schema")
+	}
+
+	if d.CreateSQL == "" && d.QuerySQL == "" {
+		d.AutoGenerate = true
+	}
+
+	if d.AutoGenerate {
+		return trace.NotImplemented("auto generate database schema is not implemented yet")
+	}
+
+	return nil
+}
+
+func (d *DBQueryBenchmark) BenchBuilder(ctx context.Context, tc *client.TeleportClient) (WorkloadFunc, error) {
+	if err := d.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	connConfig, err := retrieveDatabaseConnectConfig(ctx, tc, d.Config)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := d.setup(ctx, tc, connConfig); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return func(ctx context.Context) error {
+		conn, err := connectToDatabase(ctx, connConfig)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer conn.Close(ctx)
+
+		if err := conn.Query(ctx, d.QuerySQL); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return nil
+	}, nil
+}
+
+// setup creates the necessary database schema and data.
+func (d *DBQueryBenchmark) setup(ctx context.Context, tc *client.TeleportClient, connConfig *db.DatabaseConnectionConfig) error {
+	// Establishes initial connection.
+	conn, err := connectToDatabase(ctx, connConfig)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer conn.Close(ctx)
+
+	if err := conn.Query(ctx, d.CreateSQL); err != nil {
+		return trace.BadParameter("failed to execute create query: %s", err)
+	}
+
+	return nil
 }
 
 // getDatabase loads the database which the name matches.

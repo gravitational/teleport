@@ -12,6 +12,8 @@ type DatabaseClient interface {
 	Ping(context.Context) error
 	// Close closes the connection.
 	Close(context.Context) error
+	// Query runs a query on the database.
+	Query(context.Context, string) error
 }
 
 // DatabaseConnectionConfig contains all information necessary to establish a

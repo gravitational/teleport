@@ -48,11 +48,15 @@ type postgresClient struct {
 
 // Ping runs a command on the database to ensure that connection is alive.
 func (p *postgresClient) Ping(ctx context.Context) error {
-	_, err := p.conn.Exec(ctx, "select 1").ReadAll()
-	return trace.Wrap(err)
+	return trace.Wrap(p.Query(ctx, "SELECT 1;"))
 }
 
 // Close closes the connection.
 func (p *postgresClient) Close(ctx context.Context) error {
 	return trace.Wrap(p.conn.Close(ctx))
+}
+
+func (p *postgresClient) Query(ctx context.Context, query string) error {
+	_, err := p.conn.Exec(ctx, query).ReadAll()
+	return trace.Wrap(err)
 }
