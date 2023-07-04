@@ -587,7 +587,7 @@ func (c *Client) start() {
 				}
 				rdpResponsePDU := (*C.uint8_t)(unsafe.SliceData(m))
 
-				if errCode := C.handle_tdp_fast_path_response(
+				if errCode := C.handle_tdp_rdp_response_pdu(
 					c.rustClient, rdpResponsePDU, C.uint32_t(pduLen),
 				); errCode != C.ErrCodeSuccess {
 					c.cfg.Log.Errorf("RDPResponsePDU failed: %v", errCode)

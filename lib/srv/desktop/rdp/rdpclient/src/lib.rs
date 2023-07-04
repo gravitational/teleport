@@ -703,9 +703,10 @@ pub unsafe extern "C" fn handle_tdp_sd_move_response(
     CGOErrCode::ErrCodeSuccess
 }
 
-/// handle_tdp_fast_path_response handles a TDP FastPath Response message.
+/// handle_tdp_rdp_response_pdu handles a TDP RDP Response PDU message. It takes a raw encoded RDP PDU
+/// created by the ironrdp client on the frontend and sends it directly to the RDP server.
 ///
-/// res is the raw response message to be sent back to the RDP server, without the TDP message type or
+/// res is the raw RDP response message to be sent back to the RDP server, without the TDP message type or
 /// array length header.
 ///
 /// # Safety
@@ -713,7 +714,7 @@ pub unsafe extern "C" fn handle_tdp_sd_move_response(
 /// client_ptr MUST be a valid pointer.
 /// (validity defined by https://doc.rust-lang.org/nightly/core/primitive.pointer.html#method.as_ref-1)
 #[no_mangle]
-pub unsafe extern "C" fn handle_tdp_fast_path_response(
+pub unsafe extern "C" fn handle_tdp_rdp_response_pdu(
     client_ptr: *mut Client,
     res: *mut u8,
     res_len: u32,
