@@ -3591,6 +3591,9 @@ func (g *GRPCServer) CreateDatabase(ctx context.Context, database *types.Databas
 		return nil, trace.Wrap(err)
 	}
 	database.SetOrigin(types.OriginDynamic)
+	if err := services.ValidateDatabase(database); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CreateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3604,6 +3607,9 @@ func (g *GRPCServer) UpdateDatabase(ctx context.Context, database *types.Databas
 		return nil, trace.Wrap(err)
 	}
 	database.SetOrigin(types.OriginDynamic)
+	if err := services.ValidateDatabase(database); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.UpdateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
 	}
