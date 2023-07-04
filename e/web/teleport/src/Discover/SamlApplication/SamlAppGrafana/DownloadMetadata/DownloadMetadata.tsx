@@ -26,9 +26,8 @@ export function DownloadMetadata({ prevStep, nextStep }: Props) {
     <>
       <Header>Download Teleport's Identity Provider Metadata</Header>
       <HeaderSubtitle>
-        In order to use Teleport as an Identity Provider for your SAML
-        application, you must configure your service provider to recognize
-        Teleport's IdP metadata.
+        In order to use Teleport as a SAML Identity Provider for Grafana, you
+        must configure Grafana to recognize Teleport's IdP metadata.
       </HeaderSubtitle>
       <StepOne />
       <StepTwo />
@@ -78,7 +77,10 @@ function StepTwo() {
               `assertion_attribute_name = uid\n` +
               `assertion_attribute_login = uid\n` +
               `assertion_attribute_email = uid\n` +
-              `assertion_attribute_groups = eduPersonAffiliation\n`,
+              `assertion_attribute_groups = eduPersonAffiliation\n` +
+              `# To allow IdP-initiated login\n` +
+              `allow_idp_initiated = true\n` +
+              `relay_state = ""\n`,
           },
         ]}
       />
