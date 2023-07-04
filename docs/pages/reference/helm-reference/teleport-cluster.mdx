@@ -535,28 +535,6 @@ else [`clusterName`](#clusterName) is used. Default port is 3024.
   tunnelPublicAddr: ["loadbalancer.example.com:3024"]
   ```
 
-## `trustXForwardedFor`
-
-| Type   | Default value | Required? | `teleport.yaml` equivalent            |
-|--------|---------------|-----------|---------------------------------------|
-| `bool` | `false`       | no        | `proxy_service.trust_x_forwarded_for` |
-
-`trustXForwardedFor` enables the Proxy service to take client source IPs from
-the "X-Forwarded-For" headers for web APIs.
-
-<Admonition type="warning">
-In order to prevent IP spoofing, it is important to ensure that the Proxy
-service is placed behind a layer 7 load balancer or reverse proxy that sets
-client IPs in the "X-Forwarded-For" headers. Requests with more than one IPs
-will also be rejected.
-</Admonition>
-
-`values.yaml` example:
-
-  ```yaml
-  trustXForwardedFor: true
-  ```
-
 ## `enterprise`
 
 | Type   | Default value |

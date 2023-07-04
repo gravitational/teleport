@@ -16,8 +16,8 @@ This helps minimize the risk of compromised credentials being used from differen
 ## How it works
 <Admonition type="note">
   **Observed IP** - IP of the client. Teleport records this from the direct
-  connection of the user or, if it's enabled, a load balancer through the PROXY
-  protocol or "X-Forwarded-For" headers.
+  connection of the user, or via PROXY protocol or "X-Forwarded-For" headers if
+  these features are enabled at the load balancer.
 
   **Pinned IP** - IP of the client, observed during the login process and embedded in the user's certificates.
 </Admonition>
@@ -99,7 +99,7 @@ $ tsh ssh telenode.example.com
 # Enter password for Teleport user alice:
 ```
 
-## Oberving IPs through load balancers
+## Observing IPs through load balancers
 
 If your Teleport Proxy is behind a load balancer, there are a few steps you can
 take to ensure the correct IPs are observed.

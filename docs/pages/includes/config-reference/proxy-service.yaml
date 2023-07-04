@@ -145,5 +145,5 @@ proxy_service:
     # In order to prevent IP spoofing, it is important to ensure that the Proxy
     # service is placed behind a layer 7 load balancer or reverse proxy that
     # sets client IPs in the "X-Forwarded-For" headers. Requests with more than
-    # one IPs will also be rejected.
+    # one IPs will be rejected.
     trust_x_forwarded_for: false
