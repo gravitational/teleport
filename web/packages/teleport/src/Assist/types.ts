@@ -25,7 +25,7 @@ export enum ServerMessageType {
   CommandResultStream = 'COMMAND_RESULT_STREAM',
   AssistPartialMessage = 'CHAT_PARTIAL_MESSAGE_ASSISTANT',
   AssistPartialMessageEnd = 'CHAT_PARTIAL_MESSAGE_ASSISTANT_FINALIZE',
-  AssistThought = 'CHAT_THOUGHT_ASSISTANT',
+  AssistThought = 'CHAT_MESSAGE_PROGRESS_UPDATE',
 }
 
 export const ExecutionEnvelopeType = 'summary';
@@ -158,6 +158,10 @@ export interface CommandResultSummaryPayload {
   execution_id: string;
   command: string;
   summary: string;
+}
+
+export interface ThoughtMessagePayload {
+  action: string;
 }
 
 export interface ExecEvent {

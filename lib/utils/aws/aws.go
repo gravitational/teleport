@@ -460,3 +460,22 @@ func IsUserARN(userARN string) bool {
 
 	return strings.HasPrefix(resourceName, "user/")
 }
+
+// PolicyARN returns the ARN representation of an AWS IAM Policy.
+func PolicyARN(partition, accountID, policy string) string {
+	return iamResourceARN(partition, accountID, "policy", policy)
+}
+
+// RoleARN returns the ARN representation of an AWS IAM Role.
+func RoleARN(partition, accountID, role string) string {
+	return iamResourceARN(partition, accountID, "role", role)
+}
+
+func iamResourceARN(partition, accountID, resourceType, resourceName string) string {
+	return arn.ARN{
+		Partition: partition,
+		Service:   "iam",
+		AccountID: accountID,
+		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceName),
+	}.String()
+}
