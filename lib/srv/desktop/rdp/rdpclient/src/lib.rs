@@ -155,8 +155,8 @@ impl Client {
         Ok(stage_outputs)
     }
 
-    // Iterates through any response frames in result, sending them to the RDP server.
-    // Typically returns None if everything goes as expected and the session should continue.
+    /// Iterates through any response frames in result, sending them to the RDP server.
+    /// Typically returns None if everything goes as expected and the session should continue.
     // TODO(isaiah): this api is weird, should probably return a Result instead of an Option.
     async fn process_active_stage_result(
         &mut self,
