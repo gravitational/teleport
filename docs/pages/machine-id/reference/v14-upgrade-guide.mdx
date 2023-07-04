@@ -74,4 +74,12 @@ original configuration file with the migrated one.
 
 ### Migration failure
 
-/// TODO: What to do when it doesn't work.
+Consider the error logged by the migration command - it likely points out which
+part of your original configuration cannot be migrated. It may be that your
+original configuration contains invalid or conflicting entries and that previous
+versions of `tbot` may not have validated for these.
+
+If you are still unable to determine why your configuration will not migrate,
+seek guidance. For those with a support contract, submit a ticket, and for
+those using open source Teleport, join our
+[community slack](https://goteleport.com/community-slack/).

@@ -82,8 +82,8 @@ useful artifacts such as the current certificate authority certificates.
 
 Concurrently to this, `tbot` monitors the Teleport certificate authorities to
 detect certificate rotations. When this occurs, it triggers additional renewals
-to ensure that destination's continue to have certificates that are signed by
-the latest certificate authority.
+to ensure that output destinations continue to have certificates that are signed
+by the latest certificate authority.
 
 ## Onboarding
 
@@ -148,7 +148,7 @@ There are two types of folder in use by `tbot`:
   impersonation of any roles you have assigned to the bot user, they should be
   treated as exceptionally sensitive. The bot's own files are stored by default at 
   `/var/lib/teleport/bot/`.
-- Directory destinations: when a directory destination is configured, the bot 
+- Output destinations: when a directory destination is configured, the bot
   outputs the role impersonated credentials as files in the specified directory.
 
 It is important that we ensure that these files can only be accessed by the
