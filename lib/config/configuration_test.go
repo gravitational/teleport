@@ -219,8 +219,8 @@ func TestSampleConfig(t *testing.T) {
 	}
 }
 
-// TestBooleanParsing tests that boolean options
-// are parsed properly
+// TestBooleanParsing tests that types.Bool and *types.BoolOption are parsed
+// properly
 func TestBooleanParsing(t *testing.T) {
 	testCases := []struct {
 		s string
@@ -240,11 +240,15 @@ func TestBooleanParsing(t *testing.T) {
 		conf, err := ReadFromString(base64.StdEncoding.EncodeToString([]byte(fmt.Sprintf(`
 teleport:
   advertise_ip: 10.10.10.1
+proxy_service:
+  enabled: yes
+  trust_x_forwarded_for: %v
 auth_service:
   enabled: yes
   disconnect_expired_cert: %v
-`, tc.s))))
+`, tc.s, tc.s))))
 		require.NoError(t, err, msg)
+		require.Equal(t, tc.b, conf.Proxy.TrustXForwardedFor.Value(), msg)
 		require.Equal(t, tc.b, conf.Auth.DisconnectExpiredCert.Value, msg)
 	}
 }

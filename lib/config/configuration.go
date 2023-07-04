@@ -1119,7 +1119,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.Proxy.ACME = *acme
-
+	cfg.Proxy.TrustXForwardedFor = fc.Proxy.TrustXForwardedFor.Value()
 	return nil
 }
 
