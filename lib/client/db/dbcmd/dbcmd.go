@@ -381,28 +381,29 @@ func (c *CLICommandBuilder) getMySQLCommand() (*exec.Cmd, error) {
 	return c.getMySQLOracleCommand()
 }
 
+func (c *CLICommandBuilder) isBinAvailable(file string) bool {
+	_, err := c.options.exe.LookPath(file)
+	return err == nil
+}
+
 // isMariaDBBinAvailable returns true if "mariadb" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMariaDBBinAvailable() bool {
-	_, err := c.options.exe.LookPath(mariadbBin)
-	return err == nil
+	return c.isBinAvailable(mariadbBin)
 }
 
 // isMySQLBinAvailable returns true if "mysql" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMySQLBinAvailable() bool {
-	_, err := c.options.exe.LookPath(mysqlBin)
-	return err == nil
+	return c.isBinAvailable(mysqlBin)
 }
 
 // isMongoshBinAvailable returns true if "mongosh" binary is found in the system PATH.
 func (c *CLICommandBuilder) isMongoshBinAvailable() bool {
-	_, err := c.options.exe.LookPath(mongoshBin)
-	return err == nil
+	return c.isBinAvailable(mongoshBin)
 }
 
 // isElasticsearchSqlBinAvailable returns true if "elasticsearch-sql-cli" binary is found in the system PATH.
 func (c *CLICommandBuilder) isElasticsearchSQLBinAvailable() bool {
-	_, err := c.options.exe.LookPath(elasticsearchSQLBin)
-	return err == nil
+	return c.isBinAvailable(elasticsearchSQLBin)
 }
 
 // isMySQLBinMariaDBFlavor checks if mysql binary comes from Oracle or MariaDB.
@@ -424,9 +425,16 @@ func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	return strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb"), nil
 }
 
+func (c *CLICommandBuilder) shouldUseMongoshBin() bool {
+	// Use "mongosh" if available.
+	// If not, use legacy "mongo" if available.
+	// If both are not available, pick "mongosh" in print out.
+	return c.isMongoshBinAvailable() || !c.isBinAvailable(mongoBin)
+}
+
 func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 	// look for `mongosh`
-	hasMongosh := c.isMongoshBinAvailable()
+	useMongosh := c.shouldUseMongoshBin()
 
 	var args []string
 
@@ -441,7 +449,7 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 
 		var flags tlsFlags
 
-		if hasMongosh {
+		if useMongosh {
 			flags = tlsFlags{tls: "--tls", tlsCertKeyFile: "--tlsCertificateKeyFile", tlsCAFile: "--tlsCAFile"}
 		} else {
 			flags = tlsFlags{tls: "--ssl", tlsCertKeyFile: "--sslPEMKeyFile", tlsCAFile: "--sslCAFile"}
@@ -460,7 +468,7 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 			// mongosh does not load system CAs by default which will cause issues if
 			// the proxy presents a certificate signed by a non-recognized authority
 			// which your system trusts (e.g. mkcert).
-			if hasMongosh {
+			if useMongosh {
 				args = append(args, "--tlsUseSystemCA")
 			}
 		}
@@ -471,7 +479,7 @@ func (c *CLICommandBuilder) getMongoCommand() *exec.Cmd {
 	args = append(args, c.getMongoAddress())
 
 	// use `mongosh` if available
-	if hasMongosh {
+	if useMongosh {
 		return c.options.exe.Command(mongoshBin, args...)
 	}
 
