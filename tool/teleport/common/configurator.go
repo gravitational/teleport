@@ -115,6 +115,19 @@ func onDumpDatabaseConfig(flags createDatabaseConfigFlags) error {
 type configureDiscoveryBootstrapFlags struct {
 	config  configurators.BootstrapFlags
 	confirm bool
+
+	databaseServiceRole       string
+	databaseServicePolicyName string
+}
+
+func makeDatabaseServiceBootstrapFlagsWithDiscoveryServiceConfig(flags configureDiscoveryBootstrapFlags) configurators.BootstrapFlags {
+	config := flags.config
+	config.AttachToUser = ""
+	config.AttachToRole = flags.databaseServiceRole
+	config.PolicyName = flags.databaseServicePolicyName
+	config.DiscoveryService = false
+	config.DiscoveryServiceConfig = true
+	return config
 }
 
 // onConfigureDiscoveryBootstrap subcommand that bootstraps configuration for
@@ -126,14 +139,24 @@ func onConfigureDiscoveryBootstrap(flags configureDiscoveryBootstrapFlags) error
 		return trace.Wrap(err)
 	}
 
-	fmt.Printf("Reading configuration at %q...\n\n", flags.config.ConfigPath)
+	if flags.config.DiscoveryService && flags.databaseServiceRole != "" {
+		config := makeDatabaseServiceBootstrapFlagsWithDiscoveryServiceConfig(flags)
+		dbConfigurators, err := configuratorbuilder.BuildConfigurators(config)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		configurators = append(configurators, dbConfigurators...)
+	}
+
+	fmt.Printf("Reading configuration at %q...\n", flags.config.ConfigPath)
 	if len(configurators) == 0 {
 		fmt.Println("The agent doesn't require any extra configuration.")
 		return nil
 	}
 
 	for _, configurator := range configurators {
-		fmt.Println(configurator.Name())
+		fmt.Println()
+		fmt.Println(configurator.Description())
 		printDiscoveryConfiguratorActions(configurator.Actions())
 	}
 

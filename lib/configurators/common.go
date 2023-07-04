@@ -23,6 +23,14 @@ import (
 type BootstrapFlags struct {
 	// DiscoveryService indicates the bootstrap is for the discovery service.
 	DiscoveryService bool
+	// DiscoveryServiceConfig indicates that discovery service config is
+	// provided for bootstrapping.
+	//
+	// Note that this value can be true even when DiscoveryService is false.
+	// For example, discovery service config can be used to bootstrap database
+	// service for accessing dynamic resources/databases discovered by the
+	// discovery service.
+	DiscoveryServiceConfig bool
 	// ConfigPath database agent configuration path.
 	ConfigPath string
 	// Manual boolean indicating if the configurator will perform the
@@ -94,6 +102,8 @@ type Configurator interface {
 	Actions() []ConfiguratorAction
 	// Name returns the configurator name.
 	Name() string
+	// Description returns a brief description of the configurator.
+	Description() string
 	// IsEmpty defines if the configurator will have to perform any action.
 	IsEmpty() bool
 }

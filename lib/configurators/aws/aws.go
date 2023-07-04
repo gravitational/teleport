@@ -36,6 +36,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/types"
+	apiutils "github.com/gravitational/teleport/api/utils"
 	apiawsutils "github.com/gravitational/teleport/api/utils/aws"
 	awslib "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/configurators"
@@ -48,8 +49,8 @@ import (
 )
 
 const (
-	// DefaultPolicyName default policy name.
-	DefaultPolicyName = "DatabaseAccess"
+	// DatabasePolicyName is the policy name for database access.
+	DatabasePolicyName = "DatabaseAccess"
 	// databasePolicyDescription description used on the policy created.
 	databasePolicyDescription = "Used by Teleport database agents for discovering AWS-hosted databases."
 	// discoveryServicePolicyDescription description used on the policy created.
@@ -70,39 +71,71 @@ type databaseActions struct {
 	// iamAuth is a list of actions used for enabling IAM auth.
 	iamAuth []string
 	// metadata is a list of actions used for fetching database metadata
-	// (excluding the ones already in "discovery").
 	metadata []string
 	// managedUsers is a list of actions used for managing database users.
 	managedUsers []string
-	// boundary is a list of actions only used for boundary policies.
-	boundary []string
+	// authBoundary is a list of actions for authorization that need to added
+	// to boundary policies.
+	authBoundary []string
 
 	requireIAMEdit        bool
 	requireSecretsManager bool
 }
 
-func (a databaseActions) buildStatementForDiscovery() *awslib.Statement {
-	// Note that currently extra boundary policies are not required for discovery service.
+func (a databaseActions) buildStatement(opt databaseActionsBuildOption) *awslib.Statement {
+	var actions []string
+	if opt.withDiscovery {
+		actions = append(actions, a.discovery...)
+	}
+	if opt.withMetadata {
+		actions = append(actions, a.metadata...)
+	}
+	if opt.withAuth {
+		actions = append(actions, a.iamAuth...)
+		actions = append(actions, a.managedUsers...)
+	}
+	if opt.withAuthBoundary {
+		actions = append(actions, a.authBoundary...)
+	}
 	return &awslib.Statement{
 		Effect:    awslib.EffectAllow,
-		Actions:   a.discovery,
+		Actions:   apiutils.Deduplicate(actions),
 		Resources: []string{"*"},
 	}
 }
 
-func (a databaseActions) buildStatement(boundary bool) *awslib.Statement {
-	var actions []string
-	actions = append(actions, a.discovery...)
-	actions = append(actions, a.iamAuth...)
-	actions = append(actions, a.metadata...)
-	actions = append(actions, a.managedUsers...)
-	if boundary {
-		actions = append(actions, a.boundary...)
-	}
-	return &awslib.Statement{
-		Effect:    awslib.EffectAllow,
-		Actions:   actions,
-		Resources: []string{"*"},
+type databaseActionsBuildOption struct {
+	withDiscovery    bool
+	withMetadata     bool
+	withAuth         bool
+	withAuthBoundary bool
+}
+
+func makeDatabaseActionsBuildOption(flags configurators.BootstrapFlags, targetCfg targetConfig, boundary bool) databaseActionsBuildOption {
+	switch {
+	// Bootstrap discovery service.
+	case flags.DiscoveryService:
+		return databaseActionsBuildOption{
+			withDiscovery: true,
+		}
+
+	// Bootstrap database service using discovery service config.
+	case flags.DiscoveryServiceConfig:
+		return databaseActionsBuildOption{
+			withDiscovery:    false,
+			withMetadata:     false, // Discovered databases should have correct metadata.
+			withAuth:         true,
+			withAuthBoundary: boundary,
+		}
+
+	// Default is database service.
+	default:
+		return databaseActionsBuildOption{
+			withDiscovery:    true,
+			withMetadata:     true,
+			withAuth:         true,
+			withAuthBoundary: boundary,
+		}
 	}
 }
 
@@ -138,8 +171,9 @@ var (
 	// instances and Aurora clusters).
 	rdsActions = databaseActions{
 		discovery:      []string{"rds:DescribeDBInstances", "rds:DescribeDBClusters"},
+		metadata:       []string{"rds:DescribeDBInstances", "rds:DescribeDBClusters"},
 		iamAuth:        []string{"rds:ModifyDBInstance", "rds:ModifyDBCluster"},
-		boundary:       []string{"rds-db:connect"},
+		authBoundary:   []string{"rds-db:connect"},
 		requireIAMEdit: true,
 	}
 	// rdsProxyActions contains IAM actions for services.AWSMatcherRDSProxy.
@@ -150,13 +184,18 @@ var (
 			"rds:DescribeDBProxyTargets",
 			"rds:ListTagsForResource",
 		},
-		boundary:       []string{"rds-db:connect"},
+		metadata: []string{
+			"rds:DescribeDBProxies",
+			"rds:DescribeDBProxyEndpoints",
+		},
+		authBoundary:   []string{"rds-db:connect"},
 		requireIAMEdit: true,
 	}
 	// redshiftActions contains IAM actions for services.AWSMatcherRedshift.
 	redshiftActions = databaseActions{
 		discovery:      []string{"redshift:DescribeClusters"},
-		boundary:       []string{"redshift:GetClusterCredentials"},
+		metadata:       []string{"redshift:DescribeClusters"},
+		authBoundary:   []string{"redshift:GetClusterCredentials"},
 		requireIAMEdit: true,
 	}
 	// redshiftServerlessActions contains IAM actions for services.AWSMatcherRedshiftServerless.
@@ -170,7 +209,7 @@ var (
 			"redshift-serverless:GetEndpointAccess",
 			"redshift-serverless:GetWorkgroup",
 		},
-		boundary: stsActions,
+		authBoundary: stsActions,
 	}
 	// elastiCacheActions contains IAM actions for services.AWSMatcherElastiCache.
 	elastiCacheActions = databaseActions{
@@ -180,12 +219,15 @@ var (
 			"elasticache:DescribeCacheClusters",
 			"elasticache:DescribeCacheSubnetGroups",
 		},
+		metadata: []string{
+			"elasticache:DescribeReplicationGroups",
+		},
 		managedUsers: []string{
 			"elasticache:DescribeUsers",
 			"elasticache:ModifyUser",
 		},
 		requireSecretsManager: true,
-		boundary:              []string{"elasticache:Connect"},
+		authBoundary:          []string{"elasticache:Connect"},
 		requireIAMEdit:        true,
 	}
 	// memoryDBActions contains IAM actions for services.AWSMatcherMemoryDB.
@@ -195,6 +237,9 @@ var (
 			"memorydb:DescribeClusters",
 			"memorydb:DescribeSubnetGroups",
 		},
+		metadata: []string{
+			"memorydb:DescribeClusters",
+		},
 		managedUsers: []string{
 			"memorydb:DescribeUsers",
 			"memorydb:UpdateUser",
@@ -203,11 +248,11 @@ var (
 	}
 	// awsKeyspacesActions contains IAM actions for static AWS Keyspaces databases.
 	awsKeyspacesActions = databaseActions{
-		boundary: stsActions,
+		authBoundary: stsActions,
 	}
 	// dynamodbActions contains IAM actions for static AWS DynamoDB databases.
 	dynamodbActions = databaseActions{
-		boundary: stsActions,
+		authBoundary: stsActions,
 	}
 )
 
@@ -309,6 +354,15 @@ func (a *awsConfigurator) IsEmpty() bool {
 // Name returns human-readable configurator name.
 func (a *awsConfigurator) Name() string {
 	return "AWS"
+}
+
+// Description returns a brief description of the configurator.
+func (a *awsConfigurator) Description() string {
+	serviceName := "Database Service"
+	if a.config.Flags.DiscoveryService {
+		serviceName = "Discovery Service"
+	}
+	return "Configure AWS for " + serviceName
 }
 
 // Actions list of configurator actions.
@@ -618,13 +672,10 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 		allActions = append(allActions, dynamodbActions)
 	}
 
+	dbOption := makeDatabaseActionsBuildOption(flags, targetCfg, boundary)
 	for _, dbActions := range allActions {
-		if flags.DiscoveryService {
-			policyDoc.EnsureStatements(dbActions.buildStatementForDiscovery())
-		} else {
-			policyDoc.EnsureStatements(dbActions.buildStatement(boundary))
-
-			// Skip these for discovery service.
+		policyDoc.EnsureStatements(dbActions.buildStatement(dbOption))
+		if dbOption.withAuth {
 			requireSecretsManager = requireSecretsManager || dbActions.requireSecretsManager
 			requireIAMEdit = requireIAMEdit || dbActions.requireIAMEdit
 		}
@@ -1061,7 +1112,7 @@ func getTargetConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config,
 // awsMatchersFromConfig is a helper function that extracts database AWS matchers
 // from the service configuration based on cli flags.
 func awsMatchersFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config) []types.AWSMatcher {
-	if flags.DiscoveryService {
+	if flags.DiscoveryService || flags.DiscoveryServiceConfig {
 		return cfg.Discovery.AWSMatchers
 	}
 	return cfg.Databases.AWSMatchers
@@ -1070,7 +1121,7 @@ func awsMatchersFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.C
 // databasesFromConfig is a helper function that extracts databases
 // from the service configuration based on cli flags.
 func databasesFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config) []*servicecfg.Database {
-	if flags.DiscoveryService {
+	if flags.DiscoveryService || flags.DiscoveryServiceConfig {
 		return nil
 	}
 	databases := make([]*servicecfg.Database, 0, len(cfg.Databases.Databases))
@@ -1081,7 +1132,7 @@ func databasesFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Con
 }
 
 func resourceMatchersFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config) []services.ResourceMatcher {
-	if flags.DiscoveryService {
+	if flags.DiscoveryService || flags.DiscoveryServiceConfig {
 		return nil
 	}
 	return cfg.Databases.ResourceMatchers
