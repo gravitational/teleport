@@ -261,12 +261,12 @@ func (r apiResource) getVerb(req *http.Request) string {
 		verb = types.KubeVerbCreate
 	case http.MethodGet, http.MethodHead, http.MethodOptions:
 		switch {
-		case r.resourceName == "" && !isWatch:
-			verb = types.KubeVerbList
 		case isWatch:
-			verb = types.KubeVerbWatch
+			return types.KubeVerbWatch
+		case r.resourceName == "":
+			return types.KubeVerbList
 		default:
-			verb = types.KubeVerbGet
+			return types.KubeVerbGet
 		}
 	case http.MethodPut:
 		verb = types.KubeVerbUpdate

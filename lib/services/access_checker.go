@@ -424,7 +424,7 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 	if len(a.info.AllowedResourceIDs) == 0 {
 		return a.RoleSet.GetKubeResources(cluster, a.info.Traits)
 	}
-
+	var err error
 	rolesAllowed, rolesDenied := a.RoleSet.GetKubeResources(cluster, a.info.Traits)
 	// Allways append the denied resources from the roles. This is because
 	// the denied resources from the roles take precedence over the allowed
@@ -456,10 +456,13 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 				Kind:      r.Kind,
 				Namespace: namespace,
 				Name:      name,
-				Verbs:     []string{types.Wildcard},
 			}
-
-			if matchKubernetesResource(&r, rolesAllowed, rolesDenied) == nil {
+			// matchKubernetesResource checks if the Kubernetes Resource matches the tuple
+			// (kind, namespace, kame) from the allowed/denied list and does not match the resource
+			// verbs. Verbs are not checked here because they are not included in the
+			// ResourceID but we collect them and set them in the returned KubernetesResource
+			// so that they can be matched when the resource is accessed.
+			if r.Verbs, err = matchKubernetesResource(r, rolesAllowed, rolesDenied); err == nil {
 				allowed = append(allowed, r)
 			}
 		case r.Kind == types.KindKubernetesCluster:
@@ -474,25 +477,24 @@ func (a *accessChecker) GetKubeResources(cluster types.KubeCluster) (allowed, de
 
 // matchKubernetesResource checks if the Kubernetes Resource does not match any
 // entry from the deny list and matches at least one entry from the allowed list.
-func matchKubernetesResource(resource *types.KubernetesResource, allowed, denied []types.KubernetesResource) error {
+func matchKubernetesResource(resource types.KubernetesResource, allowed, denied []types.KubernetesResource) ([]string, error) {
 	// utils.KubeResourceMatchesRegex checks if the resource.Kind is strictly equal
 	// to each entry and validates if the Name and Namespace fields matches the
 	// regex allowed by each entry.
-	result, _, err := utils.KubeResourceMatchesRegexWithVerbsCollector(*resource, denied)
+	result, _, err := utils.KubeResourceMatchesRegexWithVerbsCollector(resource, denied)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	} else if result {
-		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+		return nil, trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
 	}
 
-	result, verbs, err := utils.KubeResourceMatchesRegexWithVerbsCollector(*resource, allowed)
+	result, verbs, err := utils.KubeResourceMatchesRegexWithVerbsCollector(resource, allowed)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	} else if !result {
-		return trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
+		return nil, trace.AccessDenied("access to %s %q denied", resource.Kind, resource.ClusterResource())
 	}
-	resource.Verbs = verbs
-	return nil
+	return verbs, nil
 }
 
 // GetAllowedResourceIDs returns the list of allowed resources the identity for

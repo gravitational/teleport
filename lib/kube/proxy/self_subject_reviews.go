@@ -172,7 +172,8 @@ func (f *Forwarder) validateSelfSubjectAccessReview(actx *authContext, w http.Re
 					"kubernetes_resources:\n"+
 					"- kind: %s\n"+
 					"  name: %s\n"+
-					"  namespace: %s\n", accessReview.Spec.ResourceAttributes.Resource, namespaceNameToString(namespace, name), kubernetesResourcesKey, resource, emptyOrWildcard(name), emptyOrWildcard(namespace)),
+					"  namespace: %s\n"+
+					"  verbs: [%s]\n", accessReview.Spec.ResourceAttributes.Resource, namespaceNameToString(namespace, name), kubernetesResourcesKey, resource, emptyOrWildcard(name), emptyOrWildcard(namespace), types.Wildcard),
 		}
 
 		responsewriters.SetContentTypeHeader(w, req.Header)
