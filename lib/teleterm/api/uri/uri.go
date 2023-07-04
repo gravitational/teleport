@@ -98,6 +98,18 @@ func (r ResourceURI) GetLeafClusterName() string {
 	return result.Params["leaf"]
 }
 
+// IsRoot indicates whether the URI points at a resource that belongs to a root cluster.
+func (r ResourceURI) IsRoot() bool {
+	// Inspect profile name first to filter our non-cluster URIs.
+	return r.GetProfileName() != "" && r.GetLeafClusterName() == ""
+}
+
+// IsLeaf indicates whether the URI points at a resource that belongs to a leaf cluster.
+func (r ResourceURI) IsLeaf() bool {
+	// Inspect profile name first to filter our non-cluster URIs.
+	return r.GetProfileName() != "" && r.GetLeafClusterName() != ""
+}
+
 // GetDbName extracts the database name from r. Returns an empty string if path is not a database URI.
 func (r ResourceURI) GetDbName() string {
 	result, ok := pathDbs.Match(r.path)
