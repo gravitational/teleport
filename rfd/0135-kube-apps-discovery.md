@@ -33,7 +33,7 @@ Teleport agents. Discovery service and app service should be running inside the 
 ## Details
 
 Kubernetes app discovery will build upon existing infrastructure for other discovery capabilities that are already there. We will add another
-type of matchers to the discovery service configuration - `kubernetes_apps`. When discovery service sees this, it will periodically
+type of matchers to the discovery service configuration - `kubernetes`. When discovery service sees this, it will periodically (once every 5 minutes)
 poll Kubernetes cluster, inside which it is running, for a list of services. Based on this list, it will form a list of Teleport apps resources
 and update it on the backend, constantly keeping the dynamic apps state up to date. Writing to the backend will be handled
 by already existing mechanism in our code - reconciler. Reconciler will compare given fresh list of resources and resources we currently have
@@ -47,12 +47,17 @@ Name of the created Teleport app will consist of Kubernetes service name, namesp
 will be long in that case, there's ongoing work to improve UX when working with long resources names in Teleport, see [RFD 129](https://github.com/gravitational/teleport/pull/27258).
 
 To allow for finer control over exposed service transformation into Teleport app Kubernetes annotations will be used.
-By default we will be exposing services as `HTTP` apps, but annotation can be used to specify whether the service is a `TCP` application.
+By default we will be exposing services as `tcp` apps, since it's the most general type, but annotation or exposed port's `appProtocol` field
+can be used to specify which protocol to use for the app's URI. 
 
 If Kubernetes service has multiple ports in use, we will expose each port as a separate app, with name of the app including the port's name
 specified in the service. For example, if a service has port 443 exposed with name `tls` and also port `5432` with name `postgres`
-we will create two apps: `testApp-tls-main-cluster-prod`, `testApp-postgres-main-cluster-prod`. But user will be able to use annotation to specify
+we will create two apps: `testApp-tls-main-cluster-prod`, `testApp-postgres-main-cluster-prod`. Names for ports are mandatory in Kubernetes if more
+than one port is exposed for the service, so we always will be able to use it if we need it. User will be able to use annotation to specify
 preferred port, in that case only app with this port will be created, without port info in the app name.
+
+In order for discovery service to be able to dynamically create/update/delete apps we will add Read/Write permissions 
+for the apps to the built-in system role `Discovery`.
 
 Labels from the Kubernetes service will be copied to the corresponding Teleport app.
 
@@ -60,33 +65,37 @@ Labels from the Kubernetes service will be copied to the corresponding Teleport 
 
 ### Discovery
 
-Discovery service will use new `kubernetes_apps` matchers to periodically poll list of services inside the Kubernetes cluster.
+Discovery service will use new `kubernetes` matchers to periodically poll list of services inside the Kubernetes cluster.
 Labels specified in the config will be used to filter out services that should be exposed. Also users will be able to
-specify namespaces to process.
+specify namespaces to process. Another new field for the configuration of the discovery service will be `kubernetes_cluster` - 
+it specifies kubernetes cluster name in which discovery service is running. It is mandatory if `kubernetes` matchers are
+specified in the config.
 
 ```yaml
 ## This section configures the Discovery Service
 discovery_service:
   enabled: yes
   discovery_group: kube-auto-apps
-  kubernetes_apps:
-    - cluster_name: main-cluster
+  kubernetes_cluster: main-cluster
+  kubernetes:
+    - types: ["app"] # in the future "db" will be possible
       namespaces: [ "toronto", "porto" ]
       labels:
         env: staging
-    - cluster_name: main-cluster
+    - types: ["app"]
       namespaces: [ "seattle", "oakland" ]
       labels:
         env: testing
 ```
 
-`cluster_name` field will be translated into `teleport.dev/kubeapp-cluster-name` label on the Teleport app resource, so
+`kubernetes_cluster` field in the config will be translated into `teleport.dev/kubernetes-cluster` label on the Teleport app resource, so
 later it's be easier to target it in the corresponding app service.
 
-Kubernetes annotation `teleport.dev/kubeapp-type` control type of the Teleport app we create. If annotation is missing
-`HTTP` type will be used.
+Kubernetes annotation `teleport.dev/discovery-protocol` controls protocol for the access of the Teleport app we create. If annotation is missing
+`tcp` type will be used in the app's URI. Additionally, if kubernetes service port definition has `appProtocol` field, and it contains
+values `http`/`https` we will use it in the URI, but annotation supersedes hint from the `appProtocol`.
 
-Annotation `teleport.dev/kubeapp-port` will control preferred port for the Kubernetes service. Its value should be one of the
+Annotation `teleport.dev/discovery-port` will control preferred port for the Kubernetes service. Its value should be one of the
 exposed service ports; otherwise, the app will not be imported. Value can be matched either by numeric value or by the name of
 the port defined on the service.
 
@@ -99,8 +108,9 @@ metadata:
   labels:
     app: first-service
   annotations:
-    teleport.dev/kubeapp-type: HTTP # Allowed values are [`HTTP`, `tcp`]
-    teleport.dev/kubeapp-port: 80
+    teleport.dev/discovery-type: app # Allowed values are [`app`]
+    teleport.dev/discovery-protocol: http # Allowed values are [`http`, `https`, `tcp`]
+    teleport.dev/discovery-port: 80
 spec:
   ports:
   - name: http
@@ -121,8 +131,8 @@ metadata:
   labels:
     app: second-service
   annotations:
-    teleport.dev/kubeapp-type: tcp # Allowed values are [`HTTP`, `tcp`]
-    teleport.dev/kubeapp-port: fluentd
+    teleport.dev/discovery-protocol: tcp # Allowed values are [`http`, `https`, `tcp`]
+    teleport.dev/discovery-port: fluentd
 spec:
   ports:
     - name: http
@@ -150,22 +160,22 @@ app_service:
   enabled: yes
   resources:
     - labels:
-        "teleport.dev/kubeapp-cluster-name": "main-cluster"
+        "teleport.dev/kubernetes-cluster": "main-cluster"
         "env": "staging"
 ```
 
 ### Helm chart
 
 We will update helm chart `teleport-kube-agent` to support configuring Kubernetes apps discovery. Ability to configure
-and deploy discovery service will be added by using parameter `kubernetesApps`.
+and deploy discovery service will be added by using parameter `kubernetesDiscovery`.
 
 ```yaml
-kubernetesApps:
-  - cluster_name: main-cluster
+kubernetesDiscovery:
+  - types: ["app"]
     namespaces: [ "toronto", "porto" ]
     labels:
       env: staging
-  - cluster_name: main-cluster
+  - types: ["app"]
     namespaces: [ "seattle", "oakland" ]
     labels:
       env: testing
