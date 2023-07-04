@@ -179,8 +179,65 @@ $ teleport start
 Enhanced session recording events will be shown in Teleport's audit log, which
 you can inspect by visiting Teleport's Web UI.
 
-Events emitted via Enhanced Session Recording will include the
-`"enhanced_recording": true` field in events similar to the following:
+Each command run will generate a `session.command` event, similar to
+the following:
+
+```json
+{
+  "argv": [
+    "https://wttr.in"
+  ],
+  "cgroup_id": 2360,
+  "cluster_name": "purple",
+  "code": "T4000I",
+  "ei": 50,
+  "event": "session.command",
+  "login": "ec2-user",
+  "namespace": "default",
+  "path": "/bin/curl",
+  "pid": 5007,
+  "ppid": 4985,
+  "program": "curl",
+  "return_code": 0,
+  "server_hostname": "ip-172-31-34-128.us-east-2.compute.internal",
+  "server_id": "531dc1de-c2c9-49bd-a0e3-4f4f3a523f5f",
+  "sid": "86aca627-971d-4883-854d-d309ba04c658",
+  "time": "2023-07-04T16:42:20.54Z",
+  "uid": "9b825e22-744d-4130-94c5-dea49198ae3d",
+  "user": "webvictim"
+}
+```
+
+Network connections will be logged as `session.network` events, similar to the following:
+
+```json
+{
+  "action": 0,
+  "cgroup_id": 2360,
+  "cluster_name": "purple",
+  "code": "T4002I",
+  "dst_addr": "5.9.243.187",
+  "dst_port": 443,
+  "ei": 51,
+  "event": "session.network",
+  "login": "ec2-user",
+  "namespace": "default",
+  "operation": 0,
+  "pid": 5007,
+  "program": "curl",
+  "server_hostname": "ip-172-31-34-128.us-east-2.compute.internal",
+  "server_id": "531dc1de-c2c9-49bd-a0e3-4f4f3a523f5f",
+  "sid": "86aca627-971d-4883-854d-d309ba04c658",
+  "src_addr": "172.31.34.128",
+  "time": "2023-07-04T16:42:20.55Z",
+  "uid": "da151350-bf45-4a04-a62b-7a4fc805e744",
+  "user": "webvictim",
+  "version": 4
+}
+```
+
+When Enhanced Session Recording is enabled, the `session.end` event emitted when a session
+ends will also include the `"enhanced_recording": true` field, similar to the following:
 
 ```json
 {
@@ -246,8 +303,65 @@ be a JSON log for each command and network request.
 Enhanced session recording events will be shown in Teleport's audit log, which
 you can inspect by visiting Teleport's Web UI.
 
-Sessions with Enhanced Session Recording will include the
-`"enhanced_recording": true` field in events similar to the following:
+Each command run will generate a `session.command` event, similar to
+the following:
+
+```json
+{
+  "argv": [
+    "https://wttr.in"
+  ],
+  "cgroup_id": 2360,
+  "cluster_name": "purple",
+  "code": "T4000I",
+  "ei": 50,
+  "event": "session.command",
+  "login": "ec2-user",
+  "namespace": "default",
+  "path": "/bin/curl",
+  "pid": 5007,
+  "ppid": 4985,
+  "program": "curl",
+  "return_code": 0,
+  "server_hostname": "ip-172-31-34-128.us-east-2.compute.internal",
+  "server_id": "531dc1de-c2c9-49bd-a0e3-4f4f3a523f5f",
+  "sid": "86aca627-971d-4883-854d-d309ba04c658",
+  "time": "2023-07-04T16:42:20.54Z",
+  "uid": "9b825e22-744d-4130-94c5-dea49198ae3d",
+  "user": "webvictim"
+}
+```
+
+Network connections will be logged as `session.network` events, similar to the following:
+
+```json
+{
+  "action": 0,
+  "cgroup_id": 2360,
+  "cluster_name": "purple",
+  "code": "T4002I",
+  "dst_addr": "5.9.243.187",
+  "dst_port": 443,
+  "ei": 51,
+  "event": "session.network",
+  "login": "ec2-user",
+  "namespace": "default",
+  "operation": 0,
+  "pid": 5007,
+  "program": "curl",
+  "server_hostname": "ip-172-31-34-128.us-east-2.compute.internal",
+  "server_id": "531dc1de-c2c9-49bd-a0e3-4f4f3a523f5f",
+  "sid": "86aca627-971d-4883-854d-d309ba04c658",
+  "src_addr": "172.31.34.128",
+  "time": "2023-07-04T16:42:20.55Z",
+  "uid": "da151350-bf45-4a04-a62b-7a4fc805e744",
+  "user": "webvictim",
+  "version": 4
+}
+```
+
+When Enhanced Session Recording is enabled, the `session.end` event emitted when a session
+ends will also include the `"enhanced_recording": true` field, similar to the following:
 
 ```json
 {
