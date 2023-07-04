@@ -133,6 +133,7 @@ type AWSOIDCDeployServiceRequest struct {
 	Region string `json:"region"`
 
 	// AccountID is the AWS Account ID.
+	// Optional. sts.GetCallerIdentity is used if the value is not provided.
 	AccountID string `json:"accountId"`
 
 	// SubnetIDs associated with the Service.
