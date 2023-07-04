@@ -213,14 +213,14 @@ to see the `database` output used in context.
 # type specifies the type of the output. For the database output, this will
 # always be `database`.
 type: database
-# service is the name of the database service, as configured in Teleport,
-# that the output should generate credentials for. This field must be specified.
+# service is the name of the database server, as configured in Teleport, that
+# the output should generate credentials for. This field must be specified.
 service: my-postgres-server
 # database is the name of the specific database on the specified database
-# service to generate credentials for. This field may not need to be specified
+# server to generate credentials for. This field may not need to be specified
 # when using database types that do not have individual databases.
 database: my-database
-# username is the name of the user on the specified database service to
+# username is the name of the user on the specified database server to
 # generate credentials for. This field may not need to be specified
 # when using database types that do not have users.
 username: my-user
