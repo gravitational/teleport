@@ -92,8 +92,8 @@ func TestIsValidIAMRoleName(t *testing.T) {
 			errCheck: require.NoError,
 		},
 		{
-			name:     "00VALID11",
-			role:     "valid",
+			name:     "valid with numbers",
+			role:     "00VALID11",
 			errCheck: require.NoError,
 		},
 		{
