@@ -34,7 +34,7 @@ This guide will help you to:
 
 - For ClickHouse HTTP interfaces integration self-hosted ClickHouse Server v22.3 or later.
 - For ClickHouse Native interface integration self-hosted ClickHouse Server v23.3 or later.
-- For ClickHouse Native interface the [clickhouse-client](https://clickhouse.com/docs/en/interfaces/cli) installed and added to your system's `PATH` environment variable
+- For ClickHouse Native interface the [clickhouse-client](https://clickhouse.com/docs/en/interfaces/cli) installed and added to your system's `PATH` environment variable.
 - Either a Linux host or Kubernetes cluster where you will run the Teleport Database Service.
 
 
@@ -141,7 +141,7 @@ Create an authenticated proxy tunnel for allowing to connect to the ClickHouse D
 
 ```code
 $ tsh proxy db --db-user=alice --tunnel example-clickhouse-http
-# Started authenticated tunnel for the Clickhouse (HTTP) database "clickhouse-http" in cluster "ice-berg.dev" on 127.0.0.1:59215.
+# Started authenticated tunnel for the Clickhouse (HTTP) database "clickhouse-http" in cluster "teleport.example.com" on 127.0.0.1:59215.
 # To avoid port randomization, you can choose the listening port using the --port flag.
 #
 # Use the following command to connect to the database or to the address above using other database GUI/CLI clients:
