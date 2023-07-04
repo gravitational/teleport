@@ -106,22 +106,13 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 
 	if cfg.OnDemand == nil {
-		t := true
-		cfg.OnDemand = &t
+		cfg.OnDemand = aws.Bool(true)
 	}
 
-	if *cfg.OnDemand && cfg.EnableAutoScaling {
-		return trace.BadParameter("DynamoDB: both auto_scaling and on_demand can not both be enabled")
-	}
-
-	if *cfg.OnDemand && (cfg.ReadCapacityUnits != 0 || cfg.WriteCapacityUnits != 0) {
-		return trace.BadParameter("DynamoDB: read_capacity_units and write_capacity_units must both be 0 when on_demand=true")
-	}
-
-	if cfg.ReadCapacityUnits == 0 && !*cfg.OnDemand {
+	if cfg.ReadCapacityUnits == 0 {
 		cfg.ReadCapacityUnits = DefaultReadCapacityUnits
 	}
-	if cfg.WriteCapacityUnits == 0 && !*cfg.OnDemand {
+	if cfg.WriteCapacityUnits == 0 {
 		cfg.WriteCapacityUnits = DefaultWriteCapacityUnits
 	}
 	if cfg.BufferSize == 0 {
@@ -132,6 +123,12 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 	if cfg.RetryPeriod == 0 {
 		cfg.RetryPeriod = defaults.HighResPollingPeriod
+	}
+
+	if *cfg.OnDemand {
+		cfg.WriteCapacityUnits = 0
+		cfg.ReadCapacityUnits = 0
+		cfg.EnableAutoScaling = false
 	}
 
 	return nil
