@@ -552,6 +552,11 @@ type ProxyConfig struct {
 	// AssistAPIKey is the OpenAI API key.
 	// TODO: This key will be moved to a plugin once support for plugins is implemented.
 	AssistAPIKey string
+
+	// TrustXForwardedFor enables the service to take client source IPs from
+	// the "X-Forwarded-For" headers for web APIs recevied from layer 7 load
+	// balancers or reverse proxies.
+	TrustXForwardedFor bool
 }
 
 // ACME configures ACME automatic certificate renewal

@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestWriteUpgradeResponse(t *testing.T) {
@@ -52,11 +53,17 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 	t.Parallel()
 
 	expectedPayload := "hello@"
+	expectedIP := "1.2.3.4"
 	alpnHandler := func(_ context.Context, conn net.Conn) error {
 		// Handles connection asynchronously to verify web handler waits until
 		// connection is closed.
 		go func() {
 			defer conn.Close()
+
+			clientIP, err := utils.ClientIPFromConn(conn)
+			require.NoError(t, err)
+			require.Equal(t, expectedIP, clientIP)
+
 			n, err := conn.Write([]byte(expectedPayload))
 			require.NoError(t, err)
 			require.Equal(t, len(expectedPayload), n)
@@ -91,11 +98,18 @@ func TestHandlerConnectionUpgrade(t *testing.T) {
 		r, err := http.NewRequest("GET", "http://localhost/webapi/connectionupgrade", nil)
 		require.NoError(t, err)
 		r.Header.Add("Upgrade", "alpn")
+		r.Header.Add("X-Forwarded-For", xForwardedFor)
 
 		go func() {
 			// serverConn will be hijacked.
 			w := newResponseWriterHijacker(nil, serverConn)
-			_, err := h.connectionUpgrade(w, r, nil)
+
+			// Use XForwardedFor middleware to set IPs.
+			var err error
+			connUpgradeHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				_, err = h.connectionUpgrade(w, r, nil)
+			})
+			NewXForwardedForMiddleware(connUpgradeHandler).ServeHTTP(w, r)
 			require.NoError(t, err)
 		}()
 
@@ -126,7 +140,7 @@ type responseWriterHijacker struct {
 	conn net.Conn
 }
 
-func newResponseWriterHijacker(w http.ResponseWriter, conn net.Conn) *responseWriterHijacker {
+func newResponseWriterHijacker(w http.ResponseWriter, conn net.Conn) http.ResponseWriter {
 	if w == nil {
 		w = httptest.NewRecorder()
 	}
@@ -136,6 +150,6 @@ func newResponseWriterHijacker(w http.ResponseWriter, conn net.Conn) *responseWr
 	}
 }
 
-func (h responseWriterHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
+func (h *responseWriterHijacker) Hijack() (net.Conn, *bufio.ReadWriter, error) {
 	return h.conn, nil, nil
 }
