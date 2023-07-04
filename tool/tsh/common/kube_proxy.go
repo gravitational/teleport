@@ -278,8 +278,11 @@ func (k *kubeLocalProxy) Start(ctx context.Context) error {
 
 // Close removes the temporary kubeconfig and closes the listeners.
 func (k *kubeLocalProxy) Close() error {
-	utils.RemoveFileIfExist(k.KubeConfigPath())
-	return trace.NewAggregate(k.forwardProxy.Close(), k.localProxy.Close())
+	return trace.NewAggregate(
+		k.forwardProxy.Close(),
+		k.localProxy.Close(),
+		utils.RemoveFileIfExist(k.KubeConfigPath()),
+	)
 }
 
 // GetAddr returns the address of the forward proxy for client to connect.

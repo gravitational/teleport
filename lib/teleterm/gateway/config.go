@@ -66,6 +66,8 @@ type Config struct {
 	Insecure bool
 	// ClusterName is the Teleport cluster name
 	ClusterName string
+	// Username is the username of the profile.
+	Username string
 	// WebProxyAddr
 	WebProxyAddr string
 	// Log is a component logger
@@ -88,6 +90,9 @@ type Config struct {
 	// RootClusterCACertPoolFunc is callback function to fetch Root cluster CAs
 	// when ALPN connection upgrade is required.
 	RootClusterCACertPoolFunc alpnproxy.GetClusterCACertPoolFunc
+	// ConfigDir specifies a dir used for saving various configuration used by
+	// the gateway.
+	ConfigDir string
 }
 
 // OnExpiredCertFunc is the type of a function that is called when a new downstream connection is

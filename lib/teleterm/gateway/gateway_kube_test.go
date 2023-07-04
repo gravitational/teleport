@@ -70,12 +70,13 @@ func TestKubeGateway(t *testing.T) {
 			Clock:              clock,
 			TargetName:         kubeClusterName,
 			TargetURI:          uri.NewClusterURI(teleportClusterName).AppendKube(kubeClusterName).String(),
-			TargetUser:         identity.Username,
 			CertPath:           proxy.clientCertPath(),
 			KeyPath:            proxy.clientKeyPath(),
 			WebProxyAddr:       proxy.webProxyAddr,
 			ClusterName:        teleportClusterName,
 			CLICommandProvider: mockCLICommandProvider{},
+			Username:           identity.Username,
+			ConfigDir:          t.TempDir(),
 			RootClusterCACertPoolFunc: func(_ context.Context) (*x509.CertPool, error) {
 				return proxy.certPool(), nil
 			},

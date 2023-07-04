@@ -120,6 +120,10 @@ func (g *Gateway) Close() error {
 	if g.forwardProxy != nil {
 		errs = append(errs, g.forwardProxy.Close())
 	}
+
+	for _, cleanup := range g.cleanupFuncs {
+		errs = append(errs, cleanup())
+	}
 	return trace.NewAggregate(errs...)
 }
 
@@ -283,6 +287,8 @@ type Gateway struct {
 	// onNewCert is a callback function that updates the local proxy when TLS
 	// certificate is reissued.
 	onNewCert func(tls.Certificate) error
+	// cleanupFuncs contains a list of extra cleanup functions called during Close.
+	cleanupFuncs []func() error
 	// closeContext and closeCancel are used to signal to any waiting goroutines
 	// that the local proxy is now closed and to release any resources.
 	closeContext context.Context

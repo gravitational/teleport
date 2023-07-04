@@ -24,18 +24,25 @@ import (
 	"github.com/gravitational/trace"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 
+	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
 // KubeconfigPath returns the kubeconfig path that can be used for clients to
 // connect to the local proxy.
 func (g *Gateway) KubeconfigPath() string {
-	// Assumes CertPath is unique per kube cluster.
-	return g.cfg.CertPath + ".kubeconfig"
+	return keypaths.KubeConfigPath(
+		g.cfg.ConfigDir,
+		uri.New(g.cfg.TargetURI).GetProfileName(),
+		g.cfg.Username,
+		g.cfg.ClusterName,
+		g.cfg.TargetName,
+	)
 }
 
 func (g *Gateway) makeLocalProxiesForKube(listener net.Listener) error {
@@ -163,5 +170,12 @@ func (g *Gateway) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certi
 	}
 
 	config := kubeconfig.CreateLocalProxyConfig(clientcmdapi.NewConfig(), values)
-	return trace.Wrap(kubeconfig.Save(g.KubeconfigPath(), *config))
+	if err := kubeconfig.Save(g.KubeconfigPath(), *config); err != nil {
+		return trace.Wrap(err)
+	}
+
+	g.cleanupFuncs = append(g.cleanupFuncs, func() error {
+		return trace.Wrap(utils.RemoveFileIfExist(g.KubeconfigPath()))
+	})
+	return nil
 }
