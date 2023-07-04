@@ -31,7 +31,7 @@ import type {
 import type { SortType } from 'teleport/services/agents';
 import type { RecordingType } from 'teleport/services/recordings';
 import type { WebauthnAssertionResponse } from './services/auth';
-
+import type { Regions } from './services/integrations';
 import type { ParticipantMode } from 'teleport/services/session';
 
 const cfg = {
@@ -186,6 +186,9 @@ const cfg = {
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
+
+    deployServiceIamConfigureScriptPath:
+      '/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
 
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
@@ -345,6 +348,15 @@ const cfg = {
 
   getNodeScriptUrl(token: string) {
     return cfg.baseUrl + generatePath(cfg.api.nodeScriptPath, { token });
+  },
+
+  getDeployServiceIamConfigureScriptUrl(
+    p: UrlDeployServiceIamConfigureScriptParams
+  ) {
+    return (
+      cfg.baseUrl +
+      generatePath(cfg.api.deployServiceIamConfigureScriptPath, { ...p })
+    );
   },
 
   getDbScriptUrl(token: string) {
@@ -840,6 +852,13 @@ export interface UrlIntegrationExecuteRequestParams {
   // action is the expected backend string value
   // used to describe what to use the integration for.
   action: 'aws-oidc/list_databases';
+}
+
+export interface UrlDeployServiceIamConfigureScriptParams {
+  integrationName: string;
+  region: Regions;
+  awsOidcRoleArn: string;
+  taskRoleArn: string;
 }
 
 export default cfg;
