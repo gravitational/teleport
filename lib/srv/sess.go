@@ -21,7 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"os/user"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -185,38 +184,37 @@ func (s *SessionRegistry) Close() {
 	s.log.Debug("Closing Session Registry.")
 }
 
-func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) (*user.User, error) {
+func (s *SessionRegistry) TryCreateHostUser(ctx *ServerContext) error {
 	if !ctx.srv.GetCreateHostUser() || s.users == nil {
-		return nil, nil // not an error to not be able to create a host user
+		return nil // not an error to not be able to create a host user
 	}
 
 	ui, err := ctx.Identity.AccessChecker.HostUsers(ctx.srv.GetInfo())
 	if err != nil {
 		if trace.IsAccessDenied(err) {
-			return nil, nil
+			return nil
 		}
 		log.Debug("Error while checking host users creation permission: ", err)
-		return nil, trace.Wrap(err)
+		return trace.Wrap(err)
 	}
 
-	tempUser, existsErr := s.users.UserExists(ctx.Identity.Login)
+	existsErr := s.users.UserExists(ctx.Identity.Login)
 	if trace.IsAccessDenied(err) && existsErr != nil {
-		return tempUser,
-			trace.WrapWithMessage(err, "Insufficient permission for host user creation")
+		return trace.WrapWithMessage(err, "Insufficient permission for host user creation")
 	}
-	tempUser, userCloser, err := s.users.CreateUser(ctx.Identity.Login, ui)
-	if err != nil && !trace.IsAlreadyExists(err) {
-		log.Debugf("Error creating user %s: %s", ctx.Identity.Login, err)
-		return nil, trace.Wrap(err)
-	}
+	userCloser, err := s.users.CreateUser(ctx.Identity.Login, ui)
 	if userCloser != nil {
 		ctx.AddCloser(userCloser)
+	}
+	if err != nil && !trace.IsAlreadyExists(err) {
+		log.Debugf("Error creating user %s: %s", ctx.Identity.Login, err)
+		return trace.Wrap(err)
 	}
 
 	// Indicate that the user was created by Teleport.
 	ctx.UserCreatedByTeleport = true
 
-	return tempUser, nil
+	return nil
 }
 
 // OpenSession either joins an existing active session or starts a new session.
