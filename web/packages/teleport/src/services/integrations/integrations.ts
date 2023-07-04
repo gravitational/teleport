@@ -46,7 +46,7 @@ export const integrationService = {
     });
   },
 
-  createIntegration(req: IntegrationCreateRequest): Promise<void> {
+  createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
     return api.post(cfg.getIntegrationsUrl(), req);
   },
 
