@@ -25,7 +25,7 @@ import (
 )
 
 func TestIsValidAccountID(t *testing.T) {
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...interface{}) {
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
@@ -77,7 +77,7 @@ func TestIsValidAccountID(t *testing.T) {
 }
 
 func TestIsValidIAMRoleName(t *testing.T) {
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...interface{}) {
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
@@ -129,7 +129,7 @@ func TestIsValidIAMRoleName(t *testing.T) {
 }
 
 func TestIsValidRegion(t *testing.T) {
-	isBadParamErrFn := func(tt require.TestingT, err error, i ...interface{}) {
+	isBadParamErrFn := func(tt require.TestingT, err error, i ...any) {
 		require.True(tt, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
 	}
 
