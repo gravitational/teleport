@@ -39,6 +39,9 @@ func newKubeCertReissuer(cert tls.Certificate, onExpiredCert func(context.Contex
 	return r
 }
 
+// reissueCert implements alpnproxy.KubeCertReissuer. Arguments
+// "teleportCluster" and "kubeCluster" are omitted as this reissuer is bound to
+// a single kube cluster.
 func (r *kubeCertReissuer) reissueCert(ctx context.Context, _, _ string) (tls.Certificate, error) {
 	if err := r.onExpiredCert(ctx); err != nil {
 		return tls.Certificate{}, trace.Wrap(err)

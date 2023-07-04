@@ -18,6 +18,7 @@ package gateway
 
 import (
 	"context"
+	"crypto/x509"
 	"runtime"
 
 	"github.com/google/uuid"
@@ -54,9 +55,12 @@ type Config struct {
 	LocalAddress string
 	// Protocol is the gateway protocol
 	Protocol string
-	// CertPath
+	// CertPath specifies the path to the user certificate that the local proxy
+	// uses to connect to the Teleport Proxy. The path may depend on the type
+	// and the parameters of the gateway.
 	CertPath string
-	// KeyPath
+	// KeyPath specifies the path to the private key of the cert specified in
+	// the CertPath. This is usually the private key of the user profile.
 	KeyPath string
 	// Insecure
 	Insecure bool
@@ -139,6 +143,14 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.Clock = clockwork.NewRealClock()
 	}
 
+	if c.RootClusterCACertPoolFunc == nil {
+		if !c.Insecure {
+			return trace.BadParameter("missing RootClusterCACertPoolFunc")
+		}
+		c.RootClusterCACertPoolFunc = func(_ context.Context) (*x509.CertPool, error) {
+			return x509.NewCertPool(), nil
+		}
+	}
 	return nil
 }
 

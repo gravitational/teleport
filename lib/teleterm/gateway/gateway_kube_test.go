@@ -85,10 +85,11 @@ func TestKubeGateway(t *testing.T) {
 		},
 	)
 	require.NoError(t, err)
-	t.Cleanup(func() {
-		gateway.Close()
-	})
-	go gateway.Serve()
+	serveErr := make(chan error)
+	go func() {
+		err := gateway.Serve()
+		serveErr <- err
+	}()
 
 	// First request should succeed.
 	kubeClient := kubeClientForLocalProxy(t, gateway.KubeconfigPath(), teleportClusterName, kubeClusterName)
@@ -103,6 +104,9 @@ func TestKubeGateway(t *testing.T) {
 	// kubeMiddleware -> kubeCertReissuer.reissueCert -> gateway.cfg.OnExpiredCert -> gateway.ReloadCert -> kubeCertReissuer.updateCert
 	clock.Advance(time.Hour)
 	sendRequestToKubeLocalProxyAndSucceed(t, kubeClient)
+
+	require.NoError(t, gateway.Close())
+	require.NoError(t, <-serveErr)
 }
 
 func sendRequestToKubeLocalProxyAndSucceed(t *testing.T, client *kubernetes.Clientset) {

@@ -39,10 +39,6 @@ func (g *Gateway) KubeconfigPath() string {
 }
 
 func (g *Gateway) makeLocalProxiesForKube(listener net.Listener) error {
-	if g.cfg.RootClusterCACertPoolFunc == nil {
-		return trace.BadParameter("missing RootClusterCACertPoolFunc")
-	}
-
 	// A key is required here for generating local CAs. It can be any key.
 	// Reading the provided key path to avoid generating a new one.
 	key, err := keys.LoadPrivateKey(g.cfg.KeyPath)
@@ -70,7 +66,9 @@ func (g *Gateway) makeLocalProxiesForKube(listener net.Listener) error {
 }
 
 func (g *Gateway) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
-	// ALPN local proxy can use a random port.
+	// ALPN local proxy can use a random port as it receives requests from the
+	// forward proxy so there should be no requests coming from users' clients
+	// directly.
 	listener, err := alpnproxy.NewKubeListener(cas)
 	if err != nil {
 		return trace.Wrap(err)
@@ -132,10 +130,23 @@ func (g *Gateway) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certi
 
 	values := &kubeconfig.LocalProxyValues{
 		// Ideally tc.KubeClusterAddr() should be used for
-		// TeleportKubeClusterAddr as it matches what tsh kube login sets in
-		// the kubeconfig. In this case it is not a big deal since this
-		// ephemeral config has only a single kube cluster. Also
-		// tc.KubeClusterAddr() is likely the same as WebProxyAddr anyway.
+		// TeleportKubeClusterAddr here.
+		//
+		// Kube cluster address is used as server address when `tsh kube login`
+		// adds cluster entries in the default kubeconfig. When creating
+		// kubeconfig for a local proxy, TeleportKubeClusterAddr is mainly used
+		// to identify which clusters in the kubeconfig belong to the current
+		// tsh profile, in case the default kubeconfig has other clusters. It
+		// also serves as a reference so that the server address of a cluster
+		// in the kubeconfig of `tsh proxy kube` and `tsh kube login` are the
+		// same.
+		//
+		// In this case here, since the kubeconfig for the local proxy is only
+		// for a single kube cluster and it is not created from the default
+		// kubeconfig, specifying the kube cluster address is not necessary.
+		//
+		// In most cases, tc.KubeClusterAddr() is the same as
+		// g.cfg.WebProxyAddr anyway.
 		TeleportKubeClusterAddr: "https://" + g.cfg.WebProxyAddr,
 		LocalProxyURL:           "http://" + g.forwardProxy.GetAddr(),
 		ClientKeyData:           key.PrivateKeyPEM(),

@@ -149,7 +149,7 @@ func (g *Gateway) serveWithForwardProxy() error {
 
 	select {
 	case err := <-errChan:
-		return trace.Wrap(err)
+		return trace.NewAggregate(err, g.Close())
 	case <-g.closeContext.Done():
 		return nil
 	}
