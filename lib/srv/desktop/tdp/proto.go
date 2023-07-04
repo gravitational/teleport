@@ -265,8 +265,7 @@ func (f PNG2Frame) Encode() ([]byte, error) {
 	// nature of AuditWriter. Copying into a new buffer here is
 	// a temporary hack that fixes that.
 	//
-	// TODO(isaiah, zmb3): remove this once a buffer pool
-	// is added.
+	// TODO(isaiah, zmb3): remove this once a buffer pool is added.
 	b := make([]byte, len(f))
 	copy(b, f)
 	return b, nil
@@ -311,11 +310,12 @@ func decodeRDPFastPathPDU(in byteReader) (RDPFastPathPDU, error) {
 }
 
 func (f RDPFastPathPDU) Encode() ([]byte, error) {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(byte(TypeRDPFastPathPDU))
-	writeUint32(buf, uint32(len(f)))
-	buf.Write(f)
-	return buf.Bytes(), nil
+	// TODO(isaiah, zmb3): remove this once a buffer pool is added.
+	b := make([]byte, 1+4+len(f))                      // byte + uint32 + len(f)
+	b[0] = byte(TypeRDPFastPathPDU)                    // message type (29)
+	binary.BigEndian.PutUint32(b[1:5], uint32(len(f))) // data_length uint32
+	copy(b[5:], f)                                     // data []byte
+	return b, nil
 }
 
 // RDPResponsePDU is an RDP Response PDU message. It carries a raw
