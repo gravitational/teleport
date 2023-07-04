@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	backendv1alpha "github.com/gravitational/teleport/api/gen/proto/go/backend/v1alpha"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
@@ -729,6 +730,10 @@ func (c *Client) UpsertDeviceResource(ctx context.Context, res *types.DeviceV1) 
 		return nil, trail.FromGRPC(err)
 	}
 	return types.DeviceToResource(upserted), nil
+}
+
+func (c *Client) UnstableBackendClient() backendv1alpha.BackendServiceClient {
+	return backendv1alpha.NewBackendServiceClient(c.conn)
 }
 
 // LoginRuleClient returns an unadorned Login Rule client, using the underlying

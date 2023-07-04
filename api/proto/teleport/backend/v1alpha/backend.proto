@@ -1,0 +1,123 @@
+syntax = "proto3";
+
+package teleport.backend.v1alpha;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/backend/v1alpha;backendv1alpha";
+
+// a backend item returned by read operations
+message Item {
+  bytes key = 1;
+  bytes value = 2;
+  google.protobuf.Timestamp expires = 3;
+  string revision = 4;
+}
+
+// TODO
+message WriteRequest {
+  WriteOperation operation = 1;
+}
+
+// TODO
+message WriteOperation {
+  bytes key = 1;
+  oneof action {
+    PutAction put = 2;
+    KeepAliveAction keep_alive = 3;
+    DeleteAction delete = 4;
+  }
+}
+
+// TODO
+message PutAction {
+  bytes value = 1;
+  google.protobuf.Timestamp expires = 2;
+
+  oneof condition {
+    google.protobuf.Empty any = 3;
+    bool exists = 4;
+    string revision_is = 5;
+    bytes value_is = 6;
+  }
+}
+
+// TODO
+message KeepAliveAction {
+  google.protobuf.Timestamp expires = 1;
+
+  oneof condition {
+    google.protobuf.Empty exists = 2;
+    string revision_is = 3;
+  }
+}
+
+// TODO
+message DeleteAction {
+  oneof condition {
+    google.protobuf.Empty exists = 1;
+    string revision_is = 2;
+  }
+}
+
+// TODO
+message WriteResponse {
+  string revision = 1;
+}
+
+// TODO
+message MultiWriteRequest {
+  repeated WriteOperation writes = 1;
+  repeated CheckOperation checks = 2;
+}
+
+// TODO
+message MultiWriteResponse {
+  string revision = 1;
+}
+
+// TODO
+message CheckOperation {
+  bytes key = 1;
+  oneof condition {
+    bool exists = 2;
+    string revision_is = 3;
+  }
+}
+
+// TODO
+message DeleteRangeRequest {
+  bytes start_key = 1;
+  bytes end_key = 2;
+}
+
+// TODO
+message DeleteRangeResponse {}
+
+// TODO
+message ReadRequest {
+  bytes start_key = 1;
+  bytes end_key = 2;
+  int64 limit = 3;
+}
+
+// TODO
+message ReadResponse {
+  repeated Item items = 1;
+}
+
+// RPCs for remote raw backend operations
+service BackendService {
+  // TODO
+  rpc Write(WriteRequest) returns (WriteResponse);
+
+  // TODO
+  rpc MultiWrite(MultiWriteRequest) returns (MultiWriteResponse);
+
+  // TODO
+  rpc DeleteRange(DeleteRangeRequest) returns (DeleteRangeResponse);
+
+  // TODO
+  rpc Read(ReadRequest) returns (ReadResponse);
+}
