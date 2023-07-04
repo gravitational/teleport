@@ -35,7 +35,12 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import { useDiscover, DbMeta } from 'teleport/Discover/useDiscover';
-import { DiscoverEventStatus } from 'teleport/services/userEvent';
+import {
+  DiscoverEventStatus,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeployType,
+} from 'teleport/services/userEvent';
+import cfg from 'teleport/config';
 
 import {
   ActionButtons,
@@ -69,7 +74,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const [labels, setLabels] = useState<DiscoverLabel[]>([
     { name: '*', value: '*', isFixed: dbLabels.length === 0 },
   ]);
-  const agent = agentMeta as DbMeta;
+  const dbMeta = agentMeta as DbMeta;
 
   useEffect(() => {
     // Turn off error once user changes labels.
@@ -91,10 +96,10 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     setShowLabelMatchErr(false);
     setAttempt({ status: 'processing' });
     integrationService
-      .deployAwsOidcService(agent.integrationName, {
+      .deployAwsOidcService(dbMeta.integration?.name, {
         deploymentMode: 'database-service',
-        region: agent.selectedAwsRdsDb?.region,
-        subnetIds: agent.selectedAwsRdsDb?.subnets,
+        region: dbMeta.selectedAwsRdsDb?.region,
+        subnetIds: dbMeta.selectedAwsRdsDb?.subnets,
         taskRoleArn,
         databaseAgentMatcherLabels: labels,
       })
@@ -114,9 +119,13 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   function handleOnProceed() {
     nextStep(2); // skip the IAM policy view
     emitEvent(
-      { stepStatus: DiscoverEventStatus.Success }
-      // TODO(lisa) uncomment after backend handles this field
-      // { deployMethod: 'auto' }
+      { stepStatus: DiscoverEventStatus.Success },
+      {
+        serviceDeploy: {
+          method: DiscoverServiceDeployMethod.Auto,
+          type: DiscoverServiceDeployType.AmazonEcs,
+        },
+      }
     );
   }
 
@@ -148,7 +157,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
             <Heading
               toggleDeployMethod={abortDeploying}
               togglerDisabled={isProcessing}
-              region={agent.selectedAwsRdsDb.region}
+              region={dbMeta.selectedAwsRdsDb.region}
             />
 
             {/* step one */}
@@ -156,6 +165,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               taskRoleArn={taskRoleArn}
               setTaskRoleArn={setTaskRoleArn}
               disabled={isProcessing}
+              dbMeta={dbMeta}
             />
 
             {/* step two */}
@@ -169,7 +179,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
                   showLabelMatchErr={showLabelMatchErr}
                   dbLabels={dbLabels}
                   autoFocus={false}
-                  region={agent.selectedAwsRdsDb?.region}
+                  region={dbMeta.selectedAwsRdsDb?.region}
                 />
               </Box>
               <ButtonSecondary
@@ -247,11 +257,23 @@ const CreateAccessRole = ({
   taskRoleArn,
   setTaskRoleArn,
   disabled,
+  dbMeta,
 }: {
   taskRoleArn: string;
   setTaskRoleArn(r: string): void;
   disabled: boolean;
+  dbMeta: DbMeta;
 }) => {
+  const { integration, selectedAwsRdsDb } = dbMeta;
+  const scriptUrl = cfg.getDeployServiceIamConfigureScriptUrl({
+    integrationName: integration.name,
+    region: selectedAwsRdsDb.region,
+    // arn's are formatted as `don-care-about-this-part/role-arn`.
+    // We are splitting by slash and getting the last element.
+    awsOidcRoleArn: integration.spec.roleArn.split('/').pop(),
+    taskRoleArn,
+  });
+
   return (
     <StyledBox mb={5}>
       <Text bold>Step 1</Text>
@@ -282,10 +304,9 @@ const CreateAccessRole = ({
       </Text>
       <Box mb={2}>
         <TextSelectCopyMulti
-          // TODO(lisa): replace with actual script when ready
           lines={[
             {
-              text: 'sudo bash -c "$(curl -fsSL https://kenny-r-test.teleport.sh/scripts/40884566df6fbdb02411364e641f78b2/set-up-aws-role.sh)"',
+              text: `sudo bash -c "$(curl '${scriptUrl}')"`,
             },
           ]}
         />
