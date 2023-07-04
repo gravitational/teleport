@@ -110,9 +110,10 @@ impl BitmapFrame {
 
     #[wasm_bindgen(getter)]
     pub fn image_data(&self) -> ImageData {
-        self.image_data.clone() // todo(isaiah): bad
+        self.image_data.clone() // todo(isaiah): bad, see below for a potential approach:
 
-        // You can pass the `&[u8]` from Rust to JavaScript without copying it by using the `wasm_bindgen::memory` function to directly access the WebAssembly linear memory. Here's how you can achieve this:
+        // You can pass the `&[u8]` from Rust to JavaScript without copying it by using the `wasm_bindgen::memory`
+        // function to directly access the WebAssembly linear memory. Here's how you can achieve this:
 
         // 1. Get a pointer to the data and its length.
         // 2. Create a `Uint8Array` that directly refers to the WebAssembly linear memory.
@@ -141,7 +142,13 @@ impl BitmapFrame {
         // }
         // ```
 
-        // This implementation should pass the data from Rust to JavaScript without copying it. Note that the returned `Uint8Array` is a view over the WebAssembly linear memory, so you need to make sure that the data is not modified on the Rust side while it's being used in JavaScript. Also, keep in mind that the lifetime of the `Uint8Array` is tied to the lifetime of the `ImageData` object in Rust. If the `ImageData` object is dropped, the underlying data may be deallocated, and the `Uint8Array` in JavaScript may become invalid.
+        // This implementation should pass the data from Rust to JavaScript without copying it.
+        // Note that the returned `Uint8Array` is a view over the WebAssembly linear memory, so
+        // you need to make sure that the data is not modified on the Rust side while it's being
+        // used in JavaScript. Also, keep in mind that the lifetime of the `Uint8Array` is tied
+        // to the lifetime of the `ImageData` object in Rust. If the `ImageData` object is dropped,
+        // the underlying data may be deallocated, and the `Uint8Array` in JavaScript may become
+        // invalid.
     }
 }
 
