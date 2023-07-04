@@ -24,7 +24,7 @@ test('getDeployServiceIamConfigureScriptPath formatting', async () => {
     taskRoleArn: 'task-arn',
   };
   const base =
-    'http://localhost/scripts/integrations/configure/deployservice-iam.sh?';
+    'http://localhost/webapi/scripts/integrations/configure/deployservice-iam.sh?';
   const expected = `integrationName=${'int-name'}&awsRegion=${'us-east-1'}&role=${'oidc-arn'}&taskRole=${'task-arn'}`;
   expect(cfg.getDeployServiceIamConfigureScriptUrl(params)).toBe(
     `${base}${expected}`

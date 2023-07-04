@@ -188,7 +188,7 @@ const cfg = {
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
     deployServiceIamConfigureScriptPath:
-      '/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
+      '/webapi/scripts/integrations/configure/deployservice-iam.sh?integrationName=:integrationName&awsRegion=:region&role=:awsOidcRoleArn&taskRole=:taskRoleArn',
 
     mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
