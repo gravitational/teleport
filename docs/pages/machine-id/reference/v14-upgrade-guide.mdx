@@ -3,14 +3,14 @@ title: Machine ID V14 Upgrade Guide
 description: Upgrade instructions for Machine ID in Teleport 14.0
 ---
 
-Teleport 14.0 introduces a handful of breaking changes to the configuration of
-Machine ID's agent `tbot`. This guide explains how to implement these changes to
-an existing installation of TBot.
+Teleport 14.0 introduces a new version of the configuration format (v2) for
+Machine ID's agent `tbot`. This guide explains the breaking changes present
+between the v1 and v2 configuration format and how to migrate.
 
 You do not need to take any action if:
 
 - You do not use Machine ID.
-- You configure `tbot` only with CLI parameters.
+- You configure `tbot` using only the CLI parameters.
 
 ## Overview
 

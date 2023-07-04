@@ -3,6 +3,8 @@ title: Generating Short-Lived Host Certificates with Machine ID
 description: Issuing Host Certificates with Machine ID for OpenSSH servers.
 ---
 
+(!docs/pages/includes/machine-id/v2-config-warning.mdx!)
+
 Host certificates are generally created on Teleport for access to OpenSSH servers that can not otherwise join a Teleport cluster.
 While long-lived certificates may be applied for this purpose, short-lived and regularly rotated host certificates generated
 through Teleport help to provide a number of security benefits over their long-lived counterparts. Regular certificate rotation reduces risk by ensuring that any potentially stolen
