@@ -96,15 +96,38 @@ later it's be easier to target it in the corresponding app service.
 Kubernetes annotations will allow users to fine tune transformation of services into Teleport apps. They will override default behaviour, 
 but they are not required for import of services - by default services without any annotations will also be imported.
 
+Annotation `teleport.dev/discovery-type` controls what Teleport entity will be created from this service, for now we will only support value 
+`app` which means Teleport application will be imported from this service. In the future there are plans to expand to database importing.
+If annotation is not set service is treated as an app.
+
 Annotation `teleport.dev/discovery-protocol` controls protocol for the access of the Teleport app we create. If annotation is missing
-`tcp` type will be used in the app's URI. Additionally, if kubernetes service port definition has `appProtocol` field, and it contains
-values `http`/`https` we will use it in the URI, but annotation supersedes hint from the `appProtocol`.
+default fallback for the the app's URI is `tcp`. However, if annotation is not set, additional attempts will be performed to try to 
+determine protocol of an exposed port:
+-  if kubernetes service port definition has `appProtocol` field, and it contains
+values `http`/`https` we will use it in the URI.
+- if exposed port's name is `http` or it has numeric value 80, `http` will be used.
+- if exposed port's name is `https` or it has numeric value 443, `https` will be used.
 
-Annotation `teleport.dev/discovery-port` will control preferred port for the Kubernetes service. Its value should be one of the
-exposed service ports; otherwise, the app will not be imported. Value can be matched either by numeric value or by the name of
-the port defined on the service.
+Annotation `teleport.dev/discovery-port` controls preferred port for the Kubernetes service, only this one will be used even if service
+has multiple exposed ports. Its value should be one of the exposed service ports; otherwise, the app will not be imported. 
+Value can be matched either by numeric value or by the name of the port defined on the service.
 
-Example Kubernetes service configs using these annotations can look like this:
+Annotation `teleport.dev/app-rewrite` controls rewrite configuration for Teleport app, if needed. It should
+contain full rewrite configuration in YAML format, as you would put into `rewrite` config section of an 
+app (see [documentation](https://goteleport.com/docs/application-access/guides/connecting-apps/#rewrite-redirect)).
+```yaml
+annotations:
+  teleport.dev/app-rewrite: |
+    redirect:
+    - "localhost"
+    - "jenkins.internal.dev"
+    headers:
+    - "X-Custom-Header: example"
+    - "Authorization: Bearer {{internal.jwt}}"
+```
+
+
+Example Kubernetes service configs using annotations can look like this:
 ```yaml
 apiVersion: v1
 kind: Service
@@ -136,7 +159,7 @@ metadata:
   labels:
     app: second-service
   annotations:
-    teleport.dev/discovery-protocol: tcp # Allowed values are [`http`, `https`, `tcp`]
+    teleport.dev/discovery-protocol: tcp 
     teleport.dev/discovery-port: fluentd
 spec:
   ports:
