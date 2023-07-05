@@ -260,7 +260,7 @@ func TestUUIDHandling(t *testing.T) {
 
 	lease := <-tracker.Acquire()
 	require.True(t, lease.Claim("my-proxy.test-cluster"))
-	require.Equal(t, "my-proxy", lease.k)
+	require.Equal(t, "my-proxy", lease.claimName)
 
 	tracker.TrackExpected("", Proxy{Name: "my-proxy"})
 

@@ -86,11 +86,15 @@ type Proxy struct {
 // server, and to attempt to exclusively claim a specific server. It should be
 // explicitly released after use.
 type Lease struct {
+	// id is a counter used to distinguish leases in logs.
 	id int
 
 	mu sync.Mutex
-	t  *Tracker
-	k  string
+	// tracker is nil if the Lease has been released.
+	tracker *Tracker
+	// claimName contains the name of the claimed server after a claim is
+	// successful.
+	claimName string
 }
 
 // New configures a new Tracker instance. All background goroutines stop when
@@ -126,8 +130,8 @@ func (t *Tracker) run(ctx context.Context) {
 
 	newLeaseID := 1
 	newLease := &Lease{
-		id: newLeaseID,
-		t:  t,
+		id:      newLeaseID,
+		tracker: t,
 	}
 
 	for {
@@ -139,8 +143,8 @@ func (t *Tracker) run(ctx context.Context) {
 		case leaseC <- newLease:
 			newLeaseID++
 			newLease = &Lease{
-				id: newLeaseID,
-				t:  t,
+				id:      newLeaseID,
+				tracker: t,
 			}
 
 			// as we need to grab a lock _after_ granting the lease (and the
@@ -284,17 +288,12 @@ func (l *Lease) Claim(principals ...string) bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.t == nil || l.k != "" {
+	if l.tracker == nil || l.claimName != "" {
 		return false
 	}
 
-	k := l.t.claim(principals)
-	if k == "" {
-		return false
-	}
-
-	l.k = k
-	return true
+	l.claimName = l.tracker.claim(principals)
+	return l.claimName != ""
 }
 
 // claim attempts to claim a server on behalf of an unclaimed, unreleased Lease.
@@ -303,20 +302,20 @@ func (t *Tracker) claim(principals []string) string {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	k := t.resolveNameLocked(principals)
-	if k == "" {
+	name := t.resolveNameLocked(principals)
+	if name == "" {
 		return ""
 	}
 
-	if _, ok := t.claimed[k]; ok {
+	if _, ok := t.claimed[name]; ok {
 		return ""
 	}
 
 	t.notify()
-	t.claimed[k] = struct{}{}
+	t.claimed[name] = struct{}{}
 	t.inflight--
 
-	return k
+	return name
 }
 
 // IsClaimed returns true if the reverse tunnel server identified by the
@@ -328,12 +327,12 @@ func (t *Tracker) IsClaimed(principals ...string) bool {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
-	k := t.resolveNameLocked(principals)
-	if k == "" {
+	name := t.resolveNameLocked(principals)
+	if name == "" {
 		return false
 	}
 
-	_, ok := t.claimed[k]
+	_, ok := t.claimed[name]
 	return ok
 }
 
@@ -344,12 +343,12 @@ func (l *Lease) Release() {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if l.t == nil {
+	if l.tracker == nil {
 		return
 	}
 
-	l.t.release(l.k)
-	l.t = nil
+	l.tracker.release(l.claimName)
+	l.tracker = nil
 }
 
 // IsReleased returns true if Release has been called. Used by tests.
@@ -357,7 +356,7 @@ func (l *Lease) IsReleased() bool {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	return l.t == nil
+	return l.tracker == nil
 }
 
 // release releases the claim on a server or reduces the inflight count, on
