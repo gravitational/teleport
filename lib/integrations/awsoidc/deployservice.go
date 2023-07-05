@@ -276,10 +276,10 @@ type DeployServiceClient interface {
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.RegisterTaskDefinition
 	RegisterTaskDefinition(ctx context.Context, params *ecs.RegisterTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error)
 
-	// GetUpsertToken are the required methods to manage the IAM Join Token.
+	// TokenService are the required methods to manage the IAM Join Token.
 	// When the deployed service connects to the cluster, it will use the IAM Join method.
 	// Before deploying the service, it must ensure that the token exists and has the appropriate token rul.
-	GetUpsertToken
+	TokenService
 
 	// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
 	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
@@ -287,18 +287,18 @@ type DeployServiceClient interface {
 
 type defaultDeployServiceClient struct {
 	*ecs.Client
-	stsClient      *sts.Client
-	teleportClient GetUpsertToken
+	stsClient          *sts.Client
+	tokenServiceClient TokenService
 }
 
 // GetToken returns a provision token by name.
 func (d *defaultDeployServiceClient) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
-	return d.teleportClient.GetToken(ctx, name)
+	return d.tokenServiceClient.GetToken(ctx, name)
 }
 
 // UpsertToken creates or updates a provision token.
 func (d *defaultDeployServiceClient) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
-	return d.teleportClient.UpsertToken(ctx, token)
+	return d.tokenServiceClient.UpsertToken(ctx, token)
 }
 
 // GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
@@ -307,7 +307,7 @@ func (d defaultDeployServiceClient) GetCallerIdentity(ctx context.Context, param
 }
 
 // NewDeployServiceClient creates a new DeployServiceClient using a AWSClientRequest.
-func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, teleportClient GetUpsertToken) (DeployServiceClient, error) {
+func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, tokenServiceClient TokenService) (DeployServiceClient, error) {
 	ecsClient, err := newECSClient(ctx, clientReq)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -319,9 +319,9 @@ func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, te
 	}
 
 	return &defaultDeployServiceClient{
-		Client:         ecsClient,
-		stsClient:      stsClient,
-		teleportClient: teleportClient,
+		Client:             ecsClient,
+		stsClient:          stsClient,
+		tokenServiceClient: tokenServiceClient,
 	}, nil
 }
 
