@@ -20,41 +20,38 @@ import React from 'react';
 
 import Validation from 'shared/components/Validation';
 
-import { RoleProps } from 'teleport/Welcome/Questionnaire/types';
-
+import { RoleProps } from './types';
 import { Role } from './Role';
 
-describe('role', () => {
-  let props: RoleProps;
+const makeProps = (): RoleProps => {
+  return {
+    role: 'C-Suite/Owner',
+    team: 'DevOps Engineering',
+    teamName: '',
+    updateFields: () => {},
+  };
+};
 
-  beforeEach(() => {
-    props = {
-      role: 'C-Suite/Owner',
-      team: 'DevOps Engineering',
-      teamName: '',
-      updateFields: () => {},
-    };
-  });
+test('hides custom team input for explicit fields', () => {
+  const props = makeProps();
+  props.team = 'DevOps Engineering';
+  render(
+    <Validation>
+      <Role {...props} />
+    </Validation>
+  );
 
-  test('hides custom team input for explicit fields', () => {
-    props.team = 'DevOps Engineering';
-    render(
-      <Validation>
-        <Role {...props} />
-      </Validation>
-    );
+  expect(screen.queryByLabelText('Team Name')).not.toBeInTheDocument();
+});
 
-    expect(screen.queryByLabelText('Team Name')).not.toBeInTheDocument();
-  });
+test('shows custom team input', () => {
+  const props = makeProps();
+  props.team = 'Other (free-form field)';
+  render(
+    <Validation>
+      <Role {...props} />
+    </Validation>
+  );
 
-  test('shows custom team input', () => {
-    props.team = 'Other (free-form field)';
-    render(
-      <Validation>
-        <Role {...props} />
-      </Validation>
-    );
-
-    expect(screen.getByLabelText('Team Name')).toBeInTheDocument();
-  });
+  expect(screen.getByLabelText('Team Name')).toBeInTheDocument();
 });

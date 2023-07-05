@@ -19,8 +19,7 @@ import { ButtonPrimary, Card, Flex, Image, Text } from 'design';
 
 import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
 
-import { RegisterSuccessProps } from 'teleport/Welcome/NewCredentials/types';
-
+import { RegisterSuccessProps } from './types';
 import shieldCheck from './shield-check.png';
 
 export function RegisterSuccess({

@@ -23,8 +23,9 @@ import { Logger } from 'shared/libs/logger';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
-
 import { userEventService } from 'teleport/services/userEvent';
+import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
+import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import Welcome from './Welcome';
 
@@ -44,6 +45,8 @@ describe('teleport/components/Welcome', () => {
     jest
       .spyOn(userEventService, 'capturePreUserEvent')
       .mockImplementation(() => new Promise(() => null));
+
+    mockUserContextProviderWith(makeTestUserContext());
   });
 
   afterEach(() => {
@@ -65,10 +68,9 @@ describe('teleport/components/Welcome', () => {
       </Router>
     );
 
-    expect(
-      screen.getByText(/Please click the button below to create an account/i)
-    ).toBeInTheDocument();
-
+    await screen.findByText(
+      /Please click the button below to create an account/i
+    );
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/get started/i));
@@ -97,12 +99,9 @@ describe('teleport/components/Welcome', () => {
       </Router>
     );
 
-    expect(
-      screen.getByText(
-        /Please click the button below to begin recovery of your account/i
-      )
-    ).toBeInTheDocument();
-
+    await screen.findByText(
+      /Please click the button below to begin recovery of your account/i
+    );
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/Continue/i));

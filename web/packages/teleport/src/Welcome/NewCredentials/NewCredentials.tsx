@@ -17,20 +17,17 @@ limitations under the License.
 import React, { useState } from 'react';
 import { Card } from 'design';
 import { PrimaryAuthType } from 'shared/services';
-
 import { NewFlow, StepComponentProps, StepSlider } from 'design/StepSlider';
 
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
 import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
-
-import cfg from 'teleport/config';
-
-import { NewCredentialsProps } from 'teleport/Welcome/NewCredentials/types';
 import { Questionnaire } from 'teleport/Welcome/Questionnaire/Questionnaire';
+import cfg from 'teleport/config';
 
 import useToken from '../useToken';
 
 import { Expired } from './Expired';
+import { NewCredentialsProps } from './types';
 import { RegisterSuccess } from './Success';
 import { NewMfaDevice } from './NewMfaDevice';
 import { NewPasswordlessDevice } from './NewPasswordlessDevice';
