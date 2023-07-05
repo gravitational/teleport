@@ -161,7 +161,6 @@ func FormatLocalCommandString(tshPath string, cluster string) (string, error) {
 	err := localCommandTemplate.Execute(&builder, PuttyProxyTelnetCommandArgs{
 		TSHPath: escapedTSHPath,
 		Cluster: cluster,
-		cluster,
 	})
 	if err != nil {
 		return "", trace.Wrap(err)
