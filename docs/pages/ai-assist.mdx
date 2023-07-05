@@ -88,7 +88,7 @@ Proxy and Auth Service host, perform the following actions:
 1. Open your Teleport configuration file. This is typically located at `/etc/teleport.yaml`.
 2. Add your OpenAI API key to the `assist` section:
 
-If the host is running Auth service, add the following section:
+If the host is running the Auth Service, add the following section:
 
  ```yaml
 auth_service:
@@ -97,7 +97,7 @@ auth_service:
       api_token_path: /etc/teleport/openai_key
 ```
 
-If the host is running Proxy service, add the following section:
+If the host is running the Proxy Service, add the following section:
 
 ```yaml
 proxy_service:
