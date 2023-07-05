@@ -23,6 +23,36 @@ import (
 	"github.com/gravitational/trace"
 )
 
+// CombinedReadWriteCloser wraps an [io.ReadCloser] and an [io.WriteCloser] to
+// implement [io.ReadWriteCloser]. Reads are performed on the [io.ReadCloser] and
+// writes are performed on the [io.WriteCloser]. Closing will return the
+// aggregated errors of both.
+type CombinedReadWriteCloser struct {
+	r io.ReadCloser
+	w io.WriteCloser
+}
+
+func (o CombinedReadWriteCloser) Read(p []byte) (int, error) {
+	return o.r.Read(p)
+}
+
+func (o CombinedReadWriteCloser) Write(p []byte) (int, error) {
+	return o.w.Write(p)
+}
+
+func (o CombinedReadWriteCloser) Close() error {
+	return trace.NewAggregate(o.r.Close(), o.w.Close())
+}
+
+// CombineReadWriteCloser creates a CombinedReadWriteCloser from the provided
+// [io.ReadCloser] and [io.WriteCloser] that implements [io.ReadWriteCloser]
+func CombineReadWriteCloser(r io.ReadCloser, w io.WriteCloser) CombinedReadWriteCloser {
+	return CombinedReadWriteCloser{
+		r: r,
+		w: w,
+	}
+}
+
 // ProxyConn launches a double-copy loop that proxies traffic between the
 // provided client and server connections.
 //

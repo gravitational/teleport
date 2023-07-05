@@ -7,7 +7,7 @@ videoBanner: j8Ze7HhjFGw
 Teleport supports requiring additional multi-factor authentication checks
 when starting new:
 
-- SSH connections (a single `tsh` call)
+- SSH connections (a single `tsh ssh` call, Web UI SSH session or Teleport Connect SSH session)
 - Kubernetes sessions (a single `kubectl` call)
 - Database sessions (a single `tsh db connect` call)
 - Desktop sessions
@@ -35,7 +35,7 @@ their on-disk Teleport certificates.
   enforced. Additionally, only v6.1 or newer `tsh` binaries implement
   per-session MFA checks.
 
-  Per-session MFA for Desktop Access was introduced in Teleport 9.
+  Per-session MFA for desktop access was introduced in Teleport 9.
 </Details>
 
 
@@ -49,7 +49,7 @@ their on-disk Teleport certificates.
 - Second factor hardware device, such as YubiKey or SoloKey
 - A Web browser with [WebAuthn support](
   https://developers.yubico.com/WebAuthn/WebAuthn_Browser_Support/) (if using
-  SSH from the Teleport Web UI).
+  SSH or desktop sessions from the Teleport Web UI).
 
 <Admonition type="note" title="Per-session MFA with FIPS" scope="enterprise" scopeOnly>
 
@@ -193,15 +193,8 @@ spec:
   allow:
     node_labels:
       env: dev
-    kubernetes_labels:
-      env: dev
-    db_labels:
-      'env': dev
-    db_users:
-    - '*'
-    db_names:
-    - '*'
-  deny: {}
+    logins:
+      - jerry
 ---
 # access-prod.yaml
 kind: role
@@ -215,33 +208,27 @@ spec:
   allow:
     node_labels:
       env: prod
-    kubernetes_labels:
-      env: prod
-    db_labels:
-      'env': prod
-    db_users:
-    - '*'
-    db_names:
-    - '*'
+    logins:
+      - jerry
   deny: {}
 ```
 
 Olga then assigns both roles to all engineers, including Jerry.
 
-When Jerry logs into node `dev1.example.com` (with label `env: dev`), nothing
+When Jerry logs into node `dev1.example.com` (with label `env: dev` as login `jerry`), nothing
 special happens:
 
 ```code
-$ tsh ssh dev1.example.com
+$ tsh ssh jerry@dev1.example.com
 
 # jerry@dev1.example.com >
 ```
 
-But when Jerry logs into node `prod3.example.com` (with label `env: prod`), he
+But when Jerry logs into node `rod3.example.com` (with label `env: prod` as login `jerry`), he
 gets prompted for an MFA check:
 
 ```code
-$ tsh ssh prod3.example.com
+$ tsh ssh jerry@prod3.example.com
 # Tap any security key <tap>
 
 # jerry@prod3.example.com >
@@ -261,9 +248,9 @@ even when logging into `dev1.example.com`.
 
 <Admonition title="Per-session MFA for Database Access" type="tip">
 
-Database Access supports per-connection MFA. When Jerry connects to the database
-`prod-mysql-instance` (with label `env: prod`), he gets prompted for an MFA check
-for each `tsh db connect` or `tsh proxy db` call:
+The Teleport Database Service supports per-connection MFA. When Jerry connects
+to the database `prod-mysql-instance` (with label `env: prod`), he gets prompted
+for an MFA check for each `tsh db connect` or `tsh proxy db` call:
 
 ```code
 $ tsh db connect prod-mysql-instance
@@ -290,12 +277,14 @@ $ tsh db connect prod-mysql-instance
 
 Current limitations for this feature are:
 
-- For SSH, the `tsh` client must be used for per-session MFA.
+- For SSH connections besides the Web UI, the `tsh` or Teleport Connect client must be used for per-session MFA.
   (The OpenSSH `ssh` client does not work with per-session MFA).
 - Only `kubectl` supports per-session WebAuthn authentication for Kubernetes.
+- Database access with per-session MFA only works with `tsh db connect`.
+  Per-session MFA for databases is not supported in Teleport Connect.
 - Application access clients don't support per-session MFA
   authentication yet, although cluster and role configuration applies to them.
   If you enable per-session MFA checks cluster-wide, you will not be able to
   use Application access. We're working on integrating per-session
   MFA checks for these clients.
-- For Desktop Access, only WebAuthn devices are supported.
+- For desktop access, only WebAuthn devices are supported.

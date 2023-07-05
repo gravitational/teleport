@@ -37,7 +37,6 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http/httpproxy"
 
-	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
@@ -93,7 +92,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	rt := proxy.NewHTTPRoundTripper(&http.Transport{
+	rt := utils.NewHTTPRoundTripper(&http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.Insecure,
 			RootCAs:            cfg.Pool,
@@ -286,8 +285,8 @@ type PingResponse struct {
 	MinClientVersion string `json:"min_client_version"`
 	// ClusterName contains the name of the Teleport cluster.
 	ClusterName string `json:"cluster_name"`
-	// LicenseWarnings contains a list of license compliance warning messages
-	LicenseWarnings []string `json:"license_warnings,omitempty"`
+
+	// reserved: license_warnings ([]string)
 }
 
 // PingErrorResponse contains the error message if the requested connector

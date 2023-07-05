@@ -45,6 +45,8 @@ func setupFirestoreContext(t *testing.T) *firestoreContext {
 		t.Skip("Firestore emulator is not running, start it with: gcloud beta emulators firestore start --host-port=localhost:8618")
 	}
 
+	require.NoError(t, os.Setenv("FIRESTORE_EMULATOR_HOST", "localhost:8618"))
+
 	fakeClock := clockwork.NewFakeClock()
 
 	config := EventsConfig{}
@@ -86,6 +88,8 @@ func (tt *firestoreContext) setupTest(t *testing.T) {
 	if len(docSnaps) == 0 {
 		return
 	}
+	//allow using deprecated api
+	//nolint:staticcheck
 	batch := tt.log.svc.Batch()
 	for _, docSnap := range docSnaps {
 		batch.Delete(docSnap.Ref)

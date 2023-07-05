@@ -1,107 +1,149 @@
 ---
-title: SSH Authentication With Okta as an SSO provider
-description: How to configure SSH access using Okta for SSO
-h1: SSH Authentication with Okta
+title: Authentication With Okta as an SSO Provider
+description: How to configure Teleport access using Okta for SSO
 videoBanner: SM4Am-i8cj4
 ---
 
-## How to use Okta as a single sign-on (SSO) provider for SSH
+This guide covers how to configure [Okta](https://www.okta.com/) to provide
+single sign on (SSO) identities to Teleport Enterprise and Teleport Enterprise
+Cloud. When used in combination with role-based access control (RBAC), this allows
+Teleport administrators to define policies like:
 
-This guide will cover how to configure [Okta](https://www.okta.com/) to issue
-SSH credentials to specific groups of users. When used in combination with role
-based access control (RBAC), it allows SSH administrators to define policies
-like:
-
-- Only members of "DBA" group can SSH into machines running PostgreSQL.
+- Only members of the "DBA" group can access PostgreSQL databases.
 - Developers must never SSH into production servers.
+- Members of the HR group can view audit logs but not production environments.
 
 ## Prerequisites
 
-- Okta account with admin access. Your account must include users and at least two groups.
-- Teleport role with access to maintaining `saml` resources.  This is available in the default `editor` role.
+- An Okta account with admin access. Your account must include users and at
+  least two groups. If you don't already have Okta groups you want to assign to
+  Teleport roles don't worry, we'll create example groups below.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
+
+- A Teleport role with access to edit and maintain `saml` resources. This is
+  available in the default `editor` role.
 
 (!docs/pages/includes/tctl.mdx!)
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
-## Configure Okta
+## Step 1/4. Create & assign groups
 
-First, create a SAML 2.0 Web App in Okta configuration section
+Okta indicates a user's group membership as a SAML assertion in the data it provides
+to Teleport. We will configure Teleport to assign roles (called "dev" and "admin") based on these groups.
 
-### 1. Select Create New App
+If you already have Okta groups you want to assign to "dev" and "admin" roles in
+Teleport, you can skip to the [next step](#step-24-configure-okta).
 
-Select Web Platform and SAML 2.0 Sign On Method.
+### Create Groups
+
+Create two groups: "okta-dev" and "okta-admin". In the Okta dashboard go to the
+navigation bar and click **Directory** -> **Groups**, then **Add group**:
+
+![Create Group Devs](../../../img/sso/okta/okta-saml-2.1@2x.png)
+
+Repeat for the admin group:
+
+![Create Group Devs](../../../img/sso/okta/okta-saml-2.2.png)
+
+## Step 2/4. Configure Okta
+
+In this section we will create an application in the Okta dashboard to allow our Teleport cluster to access Okta as an IdP provider. We'll also
+locate the address that Okta uses to provides their IdP metadata to Teleport.
+
+First, create a SAML 2.0 Web App in Okta:
+
+From the main navigation menu, select **Applications** -> **Applications**, and click
+**Create App Integration**. Select SAML 2.0, then click **Next**.
+
 ![Create APP](../../../img/sso/okta/okta-saml-1.png)
 
-## Configure the App
+On the next screen (**General Settings**), provide a name and optional logo for
+your new app, then click **Next**. This will bring you to the **Configure SAML** section.
 
-We are going to map the Okta groups we've created above to the SAML Attribute
-statements (special signed metadata exposed via a SAML XML response).
+### Configure the App
 
-GENERAL
+Provide the following values to their respective fields:
 
-- Single sign on URL `https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector`
-- Audience URI (SP Entity ID)`https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector`
+#### General
+
+- Single sign on URL: `https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector`
+- Audience URI (SP Entity ID): <nobr>`https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector`</nobr>
 - Name ID format `EmailAddress`
 - Application username `Okta username`
 
-SINGLE ATTRIBUTE STATEMENTS
+Replace `<cluster-url>` with your Teleport Proxy Service address or Enterprise
+Cloud tenant (e.g. `mytenant.teleport.sh`).
+
+#### Attribute Statements
 
 - Name: `username`  | Name format: `Unspecified` | Value: `user.login`
 
-GROUP ATTRIBUTE STATEMENTS
+#### Group Attribute Statements
+
+We will map our Okta groups to SAML attribute statements (special signed metadata
+exposed via a SAML XML response), so that Teleport can discover a user's group
+membership and assign matching roles.
 
 - Name: `groups` | Name format: `Unspecified`
 - Filter: `Matches regex` |  `.*`
 
+The configuration page should now look like this:
+
 ![Configure APP](../../../img/sso/okta/setup-redirection.png)
 
-### Note: RegEx requires `.*`
-
-![Configure APP](../../../img/sso/okta/regex.png)
-
-<Admonition
-  type="tip"
-  title="tip"
->
-  Notice that we have set "NameID" to the email format and mapped the groups with
-  a wildcard regex in the Group Attribute statements. We have also set the "Audience"
-  and SSO URL to the same value.
+<Admonition type="warning" >
+The "Matches regex" filter requires the literal string `.*` in order to match all
+content from the group attribute statement.
 </Admonition>
 
-## Create & Assign Groups
+<Admonition type="tip">
+Notice that we have set "NameID" to the email format and mapped the groups with
+a wildcard regex in the Group Attribute statements. We have also set the "Audience"
+and SSO URLs to the same value. This is so Teleport can read and use Okta users'
+email addresses to create their usernames in Teleport, instead of relying on additional
+name fields.
+</Admonition>
 
-**Create Groups**
+Once you've filled the required fields, click **Next**, then finish the app creation wizard.
 
-We are going to create two groups: "okta-dev" and "okta-admin":
-
-![Create Group Devs](../../../img/sso/okta/okta-saml-2.1.png)
-
-...and the admin:
-
-![Create Group Devs](../../../img/sso/okta/okta-saml-2.2.png)
-
-Assign groups and people to your SAML app:
+From the **Assignments** tab of the new application page, click **Assign**.
+Assign the newly created groups access to the app.
 
 ![Configure APP](../../../img/sso/okta/okta-saml-3.1.png)
 
-Make sure to download the metadata in the form of an XML document. It will be used it to
-configure a Teleport connector. You can find this on the "View SAML Setup
-Instructions" page under "Optional - Provide the following **IDP metadata** to
-your **SP provider**.":
+### Save IdP metadata path
 
-![Download metadata](../../../img/sso/okta/okta-saml-5.png)
+Okta provides an IdP metadata block, used by clients to identify and verify it
+as a trusted source of user identity.
 
-## Create a SAML Connector
+Since Okta serves this content over HTTPS we can configure Teleport to use this
+path instead of a local copy, which can go stale.
 
-Now, create a SAML connector [resource](../../reference/resources.mdx):
+From the app's **Sign On** tab, scroll down to **SAML Signing Certificates**.
+Click **Actions** for the SHA-2 entry, then "View IdP metadata":
+
+![View Okta IdP Metadata](../../../img/sso/okta/okta-copy-metadata.png)
+
+Copy the URL to the metadata file for use in our Teleport configuration.
+
+<Admonition type="tip">
+You can also right click on the "View IdP metadata" link and select
+"Copy Link" or "Copy Link Address".
+</Admonition>
+
+## Step 3/4. Create a SAML connector
+
+Define a SAML connector resource in a local file named `okta-connector.yaml`:
 
 ```yaml
 (!examples/resources/saml-connector.yaml!)
 ```
-The above example includes the `entity_descriptor` field as multiple lines, although a single line with no spaces will also be accepted.
+
+Update the value of `acs` with your Teleport Proxy address or Enterprise Cloud tenant
+(e.g. `mytenant.teleport.sh`), and replace the value of `entity_descriptor_url`
+with the path you copied in the previous step.
 
 The `attributes_to_roles` field in the connector resource maps key/value-like attributes of
 the assertion from Okta into a list of Teleport roles to apply to the session.
@@ -114,13 +156,10 @@ Create the connector using `tctl` tool:
 $ tctl create okta-connector.yaml
 ```
 
-## Create a Developer Teleport Role
+## Step 4/4. Create a developer Teleport role
 
-We are going to create a new role that'll pull in external information from Okta. Notice
-`{{external.username}}` login. It configures Teleport to look at *"username"* Okta claim
-and use that field as an allowed login for each user.  This example uses email as the
-username format.  The `email.local(external.username)` function call will remove
-the `@domain` and leave the username prefix.
+Now let's create a new role to pull in external information from Okta.
+Create the local file `dev.yaml` with the content below.
 
 ```yaml
 kind: role
@@ -136,12 +175,19 @@ spec:
       access: relaxed
 ```
 
-- Devs are only allowed to login to nodes labelled with `access: relaxed` label.
-- Developers can log in as `ubuntu` user
-- Developers also do not have any "allow rules" i.e. they will not be able to
+Members of this role have are assigned several attributes:
+
+- they are only allowed to login to nodes labelled with `access: relaxed` label.
+- they can log in as `ubuntu` user or a user matching their email prefix.
+- they do not have any "allow rules" i.e. they will not be able to
   see/replay past sessions or re-configure the Teleport cluster.
 
-We'll use tctl to create this role on the auth server:
+Notice the `{{external.username}}` login. It configures Teleport to look at the
+*"username"* Okta claim and use that field as an allowed login for each user. This
+example uses email as the username format.  The `email.local(external.username)`
+function call will remove the `@domain` and leave the username prefix.
+
+Use tctl to create this role in the Teleport Auth Service:
 
 ```code
 $ tctl create dev.yaml
@@ -149,22 +195,25 @@ $ tctl create dev.yaml
 
 ## Testing
 
-The Web UI will now contain a new button: "Login with Okta". The CLI is
-the same as before:
+The Web UI now contains a new "Okta" button at the login screen. To 
+authenticate via the `tsh` CLI, specify the Proxy Service address and `tsh` will 
+automatically use the default authentication type:
+
+```code
+$ tsh login --proxy=proxy.example.com
+```
+
+This command prints the SSO login URL (and will try to open it automatically
+in a browser).
+
+<Admonition  type="tip">
+Teleport can use multiple SAML connectors. In this case a connector name
+can be passed via the `--auth` flag. For the connector we created above:
 
 ```code
 $ tsh login --proxy=proxy.example.com --auth=okta
 ```
 
-This command will print the SSO login URL (and will try to open it
-automatically in a browser).
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  Teleport can use multiple SAML connectors. In this case a connector name
-  can be passed via `tsh login --auth=connector_name`
 </Admonition>
 
 ## Troubleshooting

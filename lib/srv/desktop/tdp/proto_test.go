@@ -72,6 +72,50 @@ func TestEncodeDecode(t *testing.T) {
 	}
 }
 
+func FuzzDecode(f *testing.F) {
+	var corpus = []string{
+		"0",
+		"\x02",
+		"\x1b\xff\xff\x800",
+		"\x1b\xff\xff\xff\xeb",
+		"\nn\x00\x00\x00\x04  {}",
+		"\v00000000\x00\x00\x00\x00",
+		"\nn\x00\x00\x00\x04 { }000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+	}
+
+	for _, s := range corpus {
+		f.Add([]byte(s))
+	}
+
+	f.Fuzz(func(t *testing.T, buf []byte) {
+		require.NotPanics(t, func() {
+			// decode random buffer
+			msg, err := Decode(buf)
+			if err != nil {
+				return
+			}
+
+			// test that we can encode the message back:
+			buf2, err := msg.Encode()
+			require.NoError(t, err)
+			require.NotNil(t, buf2)
+
+			// decode the new buffer. it must be equal to the original msg.
+			msg2, err := Decode(buf2)
+			require.NoError(t, err)
+			require.Equalf(t, msg, msg2, "mismatch for message %v", buf)
+
+			// encode another time.
+			// after encoding, it must match the second buffer identically.
+			// this isn't the case for the first buffer, as there can be trailing bytes after the message.
+			buf3, err := msg2.Encode()
+			require.NoError(t, err)
+			require.NotNil(t, buf3)
+			require.Equal(t, buf2, buf3)
+		})
+	})
+}
+
 func TestBadDecode(t *testing.T) {
 	// 254 is an unknown message type.
 	_, err := Decode([]byte{254})

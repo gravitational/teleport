@@ -13,10 +13,6 @@
           "slug": "/core-concepts/"
         },
         {
-          "title": "Adopters",
-          "slug": "/adopters/"
-        },
-        {
           "title": "Installation",
           "slug": "/installation/"
         },
@@ -251,6 +247,11 @@
             {
               "title": "Hardware Key Support (Preview)",
               "slug": "/access-controls/guides/hardware-key-support/",
+              "forScopes": ["enterprise", "cloud"]
+            },
+            {
+              "title": "IP Pinning (Preview)",
+              "slug": "/access-controls/guides/ip-pinning/",
               "forScopes": ["enterprise", "cloud"]
             }
           ]
@@ -600,6 +601,10 @@
         {
           "title": "Using tsh",
           "slug": "/connect-your-client/tsh/"
+        },
+        {
+          "title": "Using the Web UI",
+          "slug": "/connect-your-client/web-ui/"
         },
         {
           "title": "Using Teleport Connect",
@@ -1108,7 +1113,11 @@
         {
           "title": "How to Build an Access Request Plugin",
           "slug": "/api/access-plugin/"
-        }
+        },
+	{
+	    "title": "Automatically Register Teleport Agents",
+	    "slug": "/api/automatically-register-agents/"
+	}
       ]
     },
     {
@@ -1264,6 +1273,10 @@
               "title": "How to Contribute",
               "slug": "/contributing/documentation/how-to-contribute/"
             },
+	    {
+	       "title": "Reviewing Documentation Changes",
+	       "slug": "/contributing/documentation/reviewing-docs/"
+	    },
             {
               "title": "Creating Documentation Issues",
               "slug": "/contributing/documentation/issues/"
@@ -1291,11 +1304,11 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "12.1.1",
+      "version": "12.3.3",
       "major_version": "12",
       "sla": {
-        "monthly_percentage": "99.5%",
-        "monthly_downtime": "3 hours 40 minutes"
+        "monthly_percentage": "99.9%",
+        "monthly_downtime": "44 minutes"
       }
     },
     "docker": {
@@ -1333,14 +1346,14 @@
     },
     "teleport": {
       "major_version": "11",
-      "version": "11.3.7",
-      "golang": "1.19",
+      "version": "11.3.16",
+      "golang": "1.20",
       "plugin": {
         "version": "11.3.5"
       },
       "helm_repo_url": "https://charts.releases.teleport.dev",
-      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.3.7",
-      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.3.7"
+      "latest_oss_docker_image": "public.ecr.aws/gravitational/teleport:11.3.16",
+      "latest_ent_docker_image": "public.ecr.aws/gravitational/teleport-ent:11.3.16"
     },
     "terraform": {
       "version": "1.0.0"
@@ -1464,7 +1477,7 @@
     },
     {
       "source": "/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -1499,7 +1512,7 @@
     },
     {
       "source": "/preview/cloud/",
-      "destination": "/choose-an-edition/teleport-cloud/",
+      "destination": "/choose-an-edition/teleport-cloud/introduction/",
       "permanent": true
     },
     {
@@ -2185,6 +2198,11 @@
     {
       "source": "/management/guides/elastic-stack/",
       "destination": "/management/export-audit-events/elastic-stack/",
+      "permanent": true
+    },
+    {
+      "source": "/adopters/",
+      "destination": "/",
       "permanent": true
     }
   ]

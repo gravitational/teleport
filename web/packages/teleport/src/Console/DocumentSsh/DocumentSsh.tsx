@@ -83,7 +83,7 @@ export default function DocumentSsh({ doc, visible }: PropTypes) {
               : null
           }
           afterClose={handleCloseFileTransfer}
-          backgroundColor={colors.primary.light}
+          backgroundColor={colors.levels.surface}
           transferHandlers={{
             getDownloader: async (location, abortController) => {
               const url = await getScpUrl({

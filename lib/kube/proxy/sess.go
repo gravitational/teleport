@@ -556,7 +556,7 @@ func (s *session) launch() error {
 			Protocol:   events.EventProtocolKube,
 		},
 		TerminalSize:              termParams.Serialize(),
-		KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+		KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 		KubernetesPodMetadata:     eventPodMeta,
 		InitialCommand:            q["command"],
 		SessionRecording:          s.ctx.recordingConfig.GetMode(),
@@ -584,7 +584,7 @@ func (s *session) launch() error {
 	}()
 
 	if err = s.tracker.UpdateState(s.forwarder.ctx, types.SessionState_SessionStateRunning); err != nil {
-		s.log.Warn("Failed to set tracker state to running")
+		s.log.WithError(err).Warn("Failed to set tracker state to running")
 	}
 
 	var executor remotecommand.Executor
@@ -659,7 +659,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 					Impersonator: s.ctx.Identity.GetIdentity().Impersonator,
 				},
 				TerminalSize:              params.Serialize(),
-				KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+				KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 				KubernetesPodMetadata:     eventPodMeta,
 			}
 
@@ -773,7 +773,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			CommandMetadata: apievents.CommandMetadata{
 				Command: strings.Join(request.cmd, " "),
 			},
-			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 			KubernetesPodMetadata:     eventPodMeta,
 		}
 
@@ -821,7 +821,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 			Participants:              s.allParticipants(),
 			StartTime:                 sessionStart,
 			EndTime:                   s.forwarder.cfg.Clock.Now().UTC(),
-			KubernetesClusterMetadata: s.ctx.eventClusterMeta(),
+			KubernetesClusterMetadata: s.ctx.eventClusterMeta(s.req),
 			KubernetesPodMetadata:     eventPodMeta,
 			InitialCommand:            request.cmd,
 			SessionRecording:          s.ctx.recordingConfig.GetMode(),
@@ -836,11 +836,7 @@ func (s *session) lockedSetupLaunch(request *remoteCommandRequest, q url.Values,
 // join attempts to connect a party to the session.
 func (s *session) join(p *party) error {
 	if p.Ctx.User.GetName() != s.ctx.User.GetName() {
-		roleNames := p.Ctx.Identity.GetIdentity().Groups
-		roles, err := getRolesByName(s.forwarder, roleNames)
-		if err != nil {
-			return trace.Wrap(err)
-		}
+		roles := p.Ctx.Checker.Roles()
 
 		accessContext := auth.SessionAccessContext{
 			Username: p.Ctx.User.GetName(),

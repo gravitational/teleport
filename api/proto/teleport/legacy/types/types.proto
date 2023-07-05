@@ -111,7 +111,7 @@ message Rotation {
     (gogoproto.jsontag) = "last_rotated,omitempty"
   ];
   // Schedule is a rotation schedule - used in
-  // automatic mode to switch beetween phases.
+  // automatic mode to switch between phases.
   RotationSchedule Schedule = 8 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "schedule,omitempty"
@@ -141,7 +141,7 @@ message RotationSchedule {
   ];
 }
 
-// ResorceHeader is a shared resource header
+// ResourceHeader is a shared resource header
 // used in cases when only type and name is known
 message ResourceHeader {
   // Kind is a resource kind
@@ -576,7 +576,7 @@ message InstanceSpecV1 {
 // synchronization as well as recordkeeping. For example, an auth server intending to trigger an upgrade
 // for a given instance can check its control log for 'upgrade-attempt' entries. If no such entry exists,
 // it can attempt to write an 'upgrade-attempt' entry of its own. If that entry successfully writes without
-// hiting a CompareFailed, the auth server knows that no other auth servers will make concurrent upgrade
+// hitting a CompareFailed, the auth server knows that no other auth servers will make concurrent upgrade
 // attempts while that entry persists.
 //
 // NOTE: Due to resource size and backend throughput limitations, care should be taken to minimize the
@@ -1121,7 +1121,7 @@ message ProvisionTokenSpecV2GitHub {
   // when trying to create rules around which workflows should be allowed to
   // authenticate against a cluster.
   message Rule {
-    // Sub also known as Subject is a string that roughly uniquely indentifies
+    // Sub also known as Subject is a string that roughly uniquely identifies
     // the workload. The format of this varies depending on the type of
     // github action run.
     string Sub = 1 [(gogoproto.jsontag) = "sub,omitempty"];
@@ -1634,7 +1634,7 @@ message Namespace {
   ];
 }
 
-// NamespaceSpec is a namespace specificateion
+// NamespaceSpec is a namespace specification
 message NamespaceSpec {}
 
 message UserTokenV3 {
@@ -1862,7 +1862,7 @@ message AccessRequestSpecV3 {
   string RequestReason = 6 [(gogoproto.jsontag) = "request_reason,omitempty"];
 
   // ResolveReason is an optional message explaining the reason for the resolution
-  // of the request (approval, denail, etc...).
+  // of the request (approval, denial, etc...).
   string ResolveReason = 7 [(gogoproto.jsontag) = "resolve_reason,omitempty"];
 
   // ResolveAnnotations is a set of arbitrary values received from plugins or other
@@ -2034,7 +2034,7 @@ message PluginDataFilter {
   string Plugin = 3 [(gogoproto.jsontag) = "plugin,omitempty"];
 }
 
-// PluginDataUpdateParams encodes paramers for updating a PluginData field.
+// PluginDataUpdateParams encodes parameters for updating a PluginData field.
 message PluginDataUpdateParams {
   // Kind is the kind of resource that the target plugin data
   // is associated with.
@@ -2153,7 +2153,7 @@ message RoleOptions {
   // concurrent sessions per connection.
   int64 MaxSessions = 10 [(gogoproto.jsontag) = "max_sessions,omitempty"];
 
-  // RequestAccess defines the access request stategy (optional|note|always)
+  // RequestAccess defines the access request strategy (optional|note|always)
   // where optional is the default.
   string RequestAccess = 11 [
     (gogoproto.jsontag) = "request_access,omitempty",
@@ -2276,7 +2276,7 @@ message CertExtension {
   CertExtensionMode Mode = 2 [(gogoproto.jsontag) = "mode"];
   // Name specifies the key to be used in the cert extension.
   string Name = 3 [(gogoproto.jsontag) = "name"];
-  // Value specifies the valueg to be used in the cert extension.
+  // Value specifies the value to be used in the cert extension.
   string Value = 4 [(gogoproto.jsontag) = "value"];
 }
 
@@ -2344,7 +2344,7 @@ message RoleConditions {
 
   // DatabaseNames is a list of database names this role is allowed to connect to.
   repeated string DatabaseNames = 12 [(gogoproto.jsontag) = "db_names,omitempty"];
-  // DatabaseUsers is a list of databaes users this role is allowed to connect as.
+  // DatabaseUsers is a list of databases users this role is allowed to connect as.
   repeated string DatabaseUsers = 13 [(gogoproto.jsontag) = "db_users,omitempty"];
 
   // Impersonate specifies what users and roles this role is allowed to impersonate
@@ -2776,6 +2776,13 @@ message WebauthnDevice {
   // view of the registration process; the authenticator alone can determine
   // if a key is truly resident.)
   bool resident_key = 7;
+  // Relying Party ID used by the credential.
+  // Recorded on registration for new credentials, or on first successful
+  // authentication for "old" credentials (created before the field existed).
+  // Ideally, this is always the same as the configured RPID.
+  // If an RPID change does happen, this helps Teleport detect it and react
+  // accordingly.
+  string credential_rp_id = 8;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -2879,7 +2886,7 @@ message TunnelConnectionSpecV2 {
 
 // SemaphoreFilter encodes semaphore filtering params.
 // A semaphore filter matches a semaphore if all nonzero fields
-// match the corresponding semaphore fileds (e.g. a filter which
+// match the corresponding semaphore fields (e.g. a filter which
 // specifies only `kind=foo` would match all semaphores of
 // kind `foo`).
 message SemaphoreFilter {
@@ -2904,7 +2911,7 @@ message AcquireSemaphoreRequest {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "expires"
   ];
-  // Holder identifies the entitiy holding the lease.
+  // Holder identifies the entity holding the lease.
   string Holder = 5 [(gogoproto.jsontag) = "holder"];
 }
 
@@ -3417,14 +3424,14 @@ message OIDCAuthRequest {
   bool CheckUser = 3 [(gogoproto.jsontag) = "check_user"];
 
   // StateToken is generated by service and is used to validate
-  // reuqest coming from
+  // request coming from
   string StateToken = 4 [(gogoproto.jsontag) = "state_token"];
 
   // CSRFToken is associated with user web session token
   string CSRFToken = 5 [(gogoproto.jsontag) = "csrf_token"];
 
   // RedirectURL will be used to route the user back to a
-  // Teleport Proxy after the oidc login attempt in the brower.
+  // Teleport Proxy after the oidc login attempt in the browser.
   string RedirectURL = 6 [(gogoproto.jsontag) = "redirect_url"];
 
   // PublicKey is an optional public key, users want these
@@ -3861,6 +3868,9 @@ message SSODiagnosticInfo {
 
   // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
   GithubTokenInfo GithubTokenInfo = 33 [(gogoproto.jsontag) = "github_token_info,omitempty"];
+
+  // AppliedLoginRules stores the name of each login rule that was applied.
+  repeated string AppliedLoginRules = 34 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
 }
 
 // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
@@ -4020,7 +4030,11 @@ message LockTarget {
 
   // Node specifies the UUID of a Teleport node.
   // A matching node is also prevented from heartbeating to the auth server.
-  string Node = 4 [(gogoproto.jsontag) = "node,omitempty"];
+  // DEPRECATED: use ServerID instead.
+  string Node = 4 [
+    deprecated = true,
+    (gogoproto.jsontag) = "node,omitempty"
+  ];
 
   // MFADevice specifies the UUID of a user MFA device.
   string MFADevice = 5 [(gogoproto.jsontag) = "mfa_device,omitempty"];
@@ -4030,9 +4044,12 @@ message LockTarget {
 
   // AccessRequest specifies the UUID of an access request.
   string AccessRequest = 7 [(gogoproto.jsontag) = "access_request,omitempty"];
+
+  // ServerID is the host id of the Teleport instance.
+  string ServerID = 9 [(gogoproto.jsontag) = "server_id,omitempty"];
 }
 
-// AddressCondition represents a set of addresses. Presently the addresses are specfied
+// AddressCondition represents a set of addresses. Presently the addresses are specified
 // exclusively in terms of IPv4/IPv6 ranges.
 message AddressCondition {
   // CIDR is IPv4 or IPv6 address. Valid value are either CIDR ranges (e.g. "10.0.1.0/24",
@@ -4459,7 +4476,7 @@ message ConnectionDiagnosticSpecV1 {
   // Success describes whether the connection was a success or a failure.
   bool Success = 1 [(gogoproto.jsontag) = "success"];
   // Message may contain some user friendly message to let the user know whether it was
-  // successfull or a failure.
+  // successful or a failure.
   string Message = 2 [(gogoproto.jsontag) = "message"];
   // Traces contain a list of checkpoints defined by
   repeated ConnectionDiagnosticTrace Traces = 3 [(gogoproto.jsontag) = "traces"];
@@ -4663,4 +4680,23 @@ enum RequireMFAType {
   // rather than only session requests. This touch is different from MFA, so to prevent
   // requiring double touch on session requests, normal Session MFA is disabled.
   HARDWARE_KEY_TOUCH = 3;
+}
+
+// WatchKind specifies resource kind to watch
+message WatchKind {
+  // Kind is a resource kind to watch
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // LoadSecrets specifies whether to load secrets
+  bool LoadSecrets = 2 [(gogoproto.jsontag) = "load_secrets"];
+  // Name is an optional specific resource type to watch,
+  // if specified only the events with a specific resource
+  // name will be sent
+  string Name = 3 [(gogoproto.jsontag) = "name"];
+  // Filter is an optional mapping of custom filter parameters.
+  // Valid values vary by resource kind.
+  map<string, string> Filter = 4 [(gogoproto.jsontag) = "filter,omitempty"];
+  // SubKind is a resource subkind to watch
+  string SubKind = 5 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version optionally specifies the resource version to watch.
+  string Version = 6 [(gogoproto.jsontag) = "version,omitempty"];
 }

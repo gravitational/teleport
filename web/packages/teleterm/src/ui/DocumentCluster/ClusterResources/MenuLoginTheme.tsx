@@ -23,15 +23,11 @@ const menuLoginTheme = {
   ...theme,
   colors: {
     ...theme.colors,
-    subtle: theme.colors.primary.lighter,
-    light: theme.colors.primary.light,
-    primary: {
-      ...theme.colors.primary,
-      lighter: theme.colors.primary.lighter,
-    },
-    secondary: {
-      ...theme.colors.secondary,
-      dark: theme.colors.text.primary,
+    subtle: theme.colors.levels.elevated,
+    light: theme.colors.levels.surface,
+    levels: {
+      ...theme.colors.levels,
+      sunkenSecondary: theme.colors.text.primary,
     },
     grey: {
       [50]: 'rgba(255,255,255,0.05)',

@@ -85,7 +85,6 @@ func TestParseAccessRequestIDs(t *testing.T) {
 			require.Equal(t, out, tt.result)
 		})
 	}
-
 }
 
 func TestSession_newRecorder(t *testing.T) {
@@ -745,7 +744,7 @@ func TestTrackingSession(t *testing.T) {
 					SessionRegistryConfig: SessionRegistryConfig{
 						Srv:                   srv,
 						SessionTrackerService: trackingService,
-						clock:                 clockwork.NewFakeClock(), //use a fake clock to prevent the update loop from running
+						clock:                 clockwork.NewFakeClock(), // use a fake clock to prevent the update loop from running
 					},
 				},
 				serverMeta: apievents.ServerMetadata{
@@ -763,5 +762,4 @@ func TestTrackingSession(t *testing.T) {
 			tt.createAssertion(t, trackingService.CreatedCount())
 		})
 	}
-
 }

@@ -1,6 +1,6 @@
 ---
 title: Using the tsh Command Line Tool
-description: Using the tsh command line tool
+description: This reference shows you how to use Teleport's tsh tool to authenticate to a cluster, explore your infrastructure, and connect to a resource.
 ---
 
 This guide will show you how to use the Teleport client tool, `tsh`.
@@ -149,7 +149,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 
 | Port | Description |
 | - | - |
-| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to `3080`). |
+| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to `443` and `3080`). |
 
 The login command retrieves a user's certificate and stores it in `~/.tsh`
 directory as well as in the [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) if there is one running.
@@ -838,12 +838,12 @@ DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.g
 ...
 ```
 
-# Interactive Recording
+## Interactive Recording
 
-Within the Teleport cluster the Server and Kubernetes recorded sessions are available for listing and replay for authorized users via `tsh`.
-The same listings, including Desktop Access sessions, are available in the Web Console under Session Recordings in the Activity section.
+Within the Teleport cluster, server and Kubernetes recorded sessions are available for listing and replay for authorized users via `tsh`.
+The same listings, including Windows desktop sessions, are available in the Web Console under Session Recordings in the Activity section.
 
-## List and Play Recordings
+### List and Play Recordings
 
 Get the list of recorded sessions. By default, recordings for the past 24 hours are shown.
 The time range can be customized with the `--last`, `--from-utc`, and `--to-utc` flags.

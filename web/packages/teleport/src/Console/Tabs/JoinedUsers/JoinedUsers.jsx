@@ -104,11 +104,11 @@ const StyledUsers = styled.div`
   justify-content: center;
   margin-right: 3px;
   background-color: ${props =>
-    props.active ? theme.colors.accent : theme.colors.grey[900]};
+    props.active ? theme.colors.brand.accent : theme.colors.grey[900]};
 `;
 
 const StyledAvatar = styled.div`
-  background: ${props => props.theme.colors.accent};
+  background: ${props => props.theme.colors.brand.accent};
   color: ${props => props.theme.colors.light};
   border-radius: 50%;
   display: flex;

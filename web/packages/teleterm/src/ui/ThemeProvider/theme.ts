@@ -31,31 +31,29 @@ const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
 
 const colors = {
+  levels: {
+    sunken: '#0C143D',
+    sunkenSecondary: '#131B43',
+
+    surface: '#222C59',
+    surfaceSecondary: '#182047',
+
+    elevated: '#2D3761',
+  },
+
+  brand: {
+    main: '#512FC9',
+    accent: '#651FFF',
+    secondaryAccent: '#354AA4',
+  },
+
   // missing
   inverse: '#B0BEC5',
   progressBarColor: '#00BFA5',
 
-  accent: '#651FFF',
-
-  dark: '#000',
+  dark: '#000000',
 
   light: '#FFFFFF',
-
-  primary: {
-    darker: '#0C143D',
-    dark: '#131B43',
-    main: '#182047',
-    light: '#222C59',
-    lighter: '#2D3761',
-    contrastText: '#FFFFFF',
-  },
-
-  secondary: {
-    main: '#512FC9',
-    light: '#651FFF',
-    dark: '#354AA4',
-    contrastText: '#FFFFFF',
-  },
 
   text: {
     // The most important text.
@@ -66,12 +64,59 @@ const colors = {
     placeholder: 'rgba(255, 255, 255, 0.24)',
     // Disabled text have even lower visual prominence.
     disabled: 'rgba(0, 0, 0, 0.24)',
-    // Text hints.
-    hint: 'rgba(0, 0, 0, 0.24)',
-    // On light backgrounds
-    onLight: '#324148',
-    // On dark backgrounds
-    onDark: 'rgba(255, 255, 255, 0.87)',
+    // For maximum contrast.
+    contrast: '#FFFFFF',
+    // For text on  a background that is on a color opposite to the theme. For dark theme,
+    // this would mean text that is on a light background.
+    primaryInverse: '#324148',
+  },
+
+  buttons: {
+    text: 'rgba(255,255,255,0.87)',
+    textDisabled: 'rgba(255, 255, 255, 0.3)',
+    bgDisabled: 'rgba(255, 255, 255, 0.12)',
+
+    primary: {
+      default: '#512FC9',
+      hover: '#651FFF',
+      active: '#354AA4',
+    },
+
+    secondary: {
+      default: '#222C59',
+      hover: '#2D3761',
+    },
+
+    border: {
+      default: '#2D3761',
+      hover: '#2D3761',
+      border: '#182047',
+      borderHover: 'rgba(255, 255, 255, 0.1)',
+    },
+
+    warning: {
+      default: '#d50000',
+      hover: '#ff1744',
+    },
+
+    outlinedPrimary: {
+      text: '#651FFF',
+      border: '#512FC9',
+      borderHover: '#651FFF',
+      borderActive: '#354AA4',
+    },
+
+    outlinedDefault: {
+      text: 'rgba(255,255,255,0.87)',
+      textHover: '#FFFFFF',
+      border: 'rgba(255,255,255,0.87)',
+      borderHover: '#FFFFFF',
+    },
+
+    trashButton: {
+      default: '#2e3860',
+      hover: '#414b70',
+    },
   },
 
   grey: {

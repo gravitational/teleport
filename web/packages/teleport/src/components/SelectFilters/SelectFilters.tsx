@@ -250,7 +250,7 @@ function Label({
   return (
     <StyledLabel onClick={() => onClick(name)}>
       <span title={name}>{name}</span>
-      <ButtonIcon size={0} ml="1" bg="primary.light">
+      <ButtonIcon size={0} ml="1" bg="levels.surface">
         <Close />
       </ButtonIcon>
     </StyledLabel>
@@ -281,14 +281,14 @@ const ActionButton = styled(ButtonBorder)`
 
 const AddButton = styled(ButtonBorder)`
   line-height: normal;
-  background-color: ${props => props.theme.colors.primary.dark};
+  background-color: ${props => props.theme.colors.levels.sunkenSecondary};
   font-weight: normal;
   border: 1px solid rgba(255, 255, 255, 0.24);
   color: #fff;
 
   &:hover,
   &:focus {
-    background: ${props => props.theme.colors.primary.lighter};
+    background: ${props => props.theme.colors.levels.elevated};
   }
 `;
 
@@ -348,13 +348,13 @@ const StyledLabel = styled.div`
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 4px;
   color: ${({ theme }) => theme.colors.text.primary};
-  background-color: ${props => props.theme.colors.primary.dark};
+  background-color: ${props => props.theme.colors.levels.sunkenSecondary};
   font-weight: regular;
   font-size: 12px;
 
   &:hover,
   &:focus {
-    background: ${props => props.theme.colors.primary.lighter};
+    background: ${props => props.theme.colors.levels.elevated};
   }
 
   > span {

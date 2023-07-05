@@ -47,4 +47,4 @@ lint:
       - teleport/legacy/client/proto/joinservice.proto
 breaking:
   use:
-    - FILE
+    - WIRE_JSON

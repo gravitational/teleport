@@ -1,0 +1,32 @@
+{{ service="your Teleport instance" }}
+
+Configure {{ service }} to start automatically when the host boots up by
+creating a systemd service for it. The instructions depend on how you installed
+{{ service }}.
+
+<Tabs>
+<TabItem label="Package Manager">
+
+On the host where you will run {{ service }}, start Teleport:
+
+```code
+$ sudo systemctl start teleport
+```
+
+</TabItem>
+<TabItem label="TAR Archive">
+
+On the host where you will run {{ service }}, create a systemd service
+configuration for Teleport, enable the Teleport service, and start Teleport:
+
+```code
+$ sudo teleport install systemd -o /etc/systemd/system/teleport.service
+$ sudo systemctl enable teleport
+$ sudo systemctl start teleport
+```
+
+</TabItem>
+</Tabs>
+
+You can check the status of {{ service }} with `systemctl status teleport`
+and view its logs with `journalctl -fu teleport`.

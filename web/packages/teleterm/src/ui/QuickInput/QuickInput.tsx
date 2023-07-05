@@ -215,12 +215,12 @@ const Input = styled.input(props => {
       color: theme.colors.text.secondary,
     },
     '&:hover, &:focus': {
-      color: theme.colors.primary.contrastText,
+      color: theme.colors.text.contrast,
       borderColor: theme.colors.light,
     },
     '&:focus': {
-      borderColor: theme.colors.secondary.main,
-      backgroundColor: theme.colors.primary.darker,
+      borderColor: theme.colors.brand.main,
+      backgroundColor: theme.colors.levels.sunken,
       '::placeholder': {
         color: theme.colors.text.placeholder,
       },
@@ -239,7 +239,7 @@ const Shortcut = styled(Box)`
   top: 12px;
   padding: 2px 3px;
   color: ${({ theme }) => theme.colors.text.secondary};
-  background-color: ${({ theme }) => theme.colors.primary.light};
+  background-color: ${({ theme }) => theme.colors.levels.surface};
   line-height: 12px;
   font-size: 12px;
   border-radius: 2px;

@@ -1,11 +1,11 @@
 ---
-title: Deploy Open Source Teleport on a Linux Server
+title: Try out Teleport on a Linux Server
 description: This tutorial will guide you through the steps needed to install and run Teleport on a Linux server
 videoBanner: 8aiVin0LvmE
 ---
 
 This tutorial will guide you through the steps needed to install and run
-Teleport (=teleport.version=) on a Linux machine, then show you how to use
+Teleport (=teleport.version=) on a Linux host, then show you how to use
 Teleport to configure access to resources.
 
 We will run the following Teleport services:
@@ -29,16 +29,30 @@ We will run the following Teleport services:
 
 ## Prerequisites
 
-- A Linux machine with only port `443` open to ingress traffic. You must be able
-  to install and run software on the machine. Either configure access to your
-  machine via SSH for the initial setup (and open an SSH port in addition port
-  `443`) or enter the commands in this guide into an Amazon EC2
-  [user data script](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
-  Google Compute Engine
-  [startup script](https://cloud.google.com/compute/docs/instances/startup-scripts),
+- A Linux host with only port `443` open to ingress traffic. You must be able
+  to install and run software on the host. Either configure access to the host
+  via SSH for the initial setup (and open an SSH port in addition port `443`)
+  or enter the commands in this guide into an Amazon EC2 [user data
+  script](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/user-data.html),
+  Google Compute Engine [startup
+  script](https://cloud.google.com/compute/docs/instances/startup-scripts),
   or similar.
+
+  <Admonition type="warning">
+
+  This guide is not intended for local environments, e.g., a Docker container on
+  your workstation. For guides to trying out a containerized Teleport deployment
+  locally, see the following:
+
+  - [Local Kubernetes Cluster](./local-kubernetes.mdx)
+  - [Docker Compose](./docker-compose.mdx)
+  - [Single Docker Container](../management/guides/docker.mdx)
+
+  </Admonition>
+
 - A two-factor authenticator app such as [Authy](https://authy.com/download/), [Google Authenticator](https://www.google.com/landing/2step/), or [Microsoft Authenticator](https://www.microsoft.com/en-us/account/authenticator)
-- `python3` installed on your Linux machine. We will use this to run a simple
+
+- `python3` installed on your Linux host. We will use this to run a simple
   HTTP file server, so you can use another HTTP server if you have one
   installed.
 
@@ -50,7 +64,7 @@ You must also have one of the following:
 
 <Admonition title="Local-only setups" type="tip">
 
-If you would like to try out Teleport on your local machine—e.g., you do not
+If you would like to try out Teleport on your local workstation—e.g., you do not
 have access to DNS resources or internal public key infrastructure—we recommend
 following our [Docker Compose guide](../try-out-teleport/docker-compose.mdx).
 
@@ -66,7 +80,7 @@ Teleport's certificate.
 
 ## Step 2/6. Run a simple web service
 
-Run the following commands to create a directory on your Linux machine
+Run the following commands to create a directory on your Linux host
 called `demo-app` and add a simple HTML file to serve to clients:
 
 ```code
@@ -88,7 +102,7 @@ $ nohup python3 -m http.server 9000 --directory demo-app &
 ```
 
 Since port 9000 is not open on your Linux host, there is currently no way to
-access the web service from your local machine. We will configure Teleport to
+access the web service from your local workstation. We will configure Teleport to
 enable you to access the web service securely.
 
 ## Step 3/6. Set up Teleport on your Linux host
@@ -135,31 +149,7 @@ app_service:
 
 ### Start Teleport
 
-On your Linux machine, run the necessary commands to start the `teleport` daemon
-(this depends on how you installed Teleport earlier).
-
-<Tabs>
-  <TabItem label="Package manager RPM/DEB">
-
-    ```code
-    $ sudo systemctl start teleport
-    ```
-  </TabItem>
-
-  <TabItem label="Source or custom install">
-  Create a systemd unit file using the `teleport install systemd` command and the unit file path you'd
-  like to use for your configuration. We recommend the path `/etc/systemd/system/teleport.service` for most use cases:
-
-    ```code
-    $ sudo teleport install systemd -o /etc/systemd/system/teleport.service
-    ```
-  Enable and start the new `teleport` daemon:
-
-    ```code
-    $ sudo systemctl enable teleport && sudo systemctl start teleport
-    ```
-  </TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx!)
 
 You can access Teleport's Web UI via HTTPS at the domain you created earlier
 (e.g., `https://teleport.example.com`). You should see a welcome screen similar
@@ -173,7 +163,7 @@ In this step, we'll create a new Teleport user, `teleport-admin`, which is
 allowed to log into SSH hosts as any of the principals `root`, `ubuntu`, or
 `ec2-user`.
 
-On your Linux machine, run the following command:
+On your Linux host, run the following command:
 
 ```code
 # tctl is an administrative tool that is used to configure Teleport's auth service.
@@ -197,10 +187,10 @@ Visit the provided URL in order to create your Teleport user.
 >
 
   The users that you specify in the `logins` flag (e.g., `root`, `ubuntu` and
-  `ec2-user` in our examples) must exist on your Linux machine. Otherwise, you
+  `ec2-user` in our examples) must exist on your Linux host. Otherwise, you
   will get authentication errors later in this tutorial.
 
-  If a user does not already exist, you can create it with `adduser <login>` or 
+  If a user does not already exist, you can create it with `adduser <login>` or
   use [Host user creation](../server-access/guides/host-user-creation.mdx)
   
   If you do not have the permission to create new users on the Linux host, run
@@ -222,7 +212,7 @@ code on the Teleport welcome screen.
 short-lived credentials. It can also be used to list resources registered with
 Teleport, such as servers, applications, and Kubernetes clusters.
 
-Install `tsh` on your local machine:
+Install `tsh` on your local workstation:
 
 <Tabs>
   <TabItem label="Mac">
@@ -299,7 +289,7 @@ popular infrastructure technologies.
 ### SSH into your Node
 
 You also configured the Teleport SSH Service, meaning that you can easily access
-your Linux machine after logging in to Teleport.
+your Linux host after logging in to Teleport.
 
 See the logins you can use to access a Node:
 

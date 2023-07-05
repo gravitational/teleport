@@ -1,6 +1,6 @@
 ---
 title: Adding Nodes to your Cluster
-description: How to add Nodes to your Teleport cluster
+description: This guide shows you how to join a Teleport instance to your cluster in order to proxy access to resources in your infrastructure.
 ---
 
 This guide explains how to add Teleport Nodes to your cluster.
@@ -82,7 +82,7 @@ following example, a new token is created with a TTL of five minutes:
 
 ```code
 # Generate a short-lived invite token for a new node:
-$ export INVITE_TOKEN=$(tctl nodes add --ttl=5m --roles=node | grep "invite token:" | grep -Eo "[0-9a-z]{32}")
+$ export INVITE_TOKEN=$(tctl tokens add --ttl=5m --type=node --format=text)
 $ echo $INVITE_TOKEN
 # (=presets.tokens.first=)
 

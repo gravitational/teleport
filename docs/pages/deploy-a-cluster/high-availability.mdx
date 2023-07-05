@@ -108,6 +108,7 @@ services:
 | `3026` | HTTPS Kubernetes proxy |
 | `3036` | MySQL port |
 | `5432` | Postgres port |
+| `27017` | Mongo port |
 
 </TabItem>
 </Tabs>
@@ -314,12 +315,7 @@ services:
 If you are deploying Teleport Enterprise, you need to download a license file
 and make it available to your Teleport Auth Service instances.
 
-To obtain your license file, visit the [Teleport customer
-dashboard](https://dashboard.gravitational.com/web/login) and log in. Click
-"DOWNLOAD LICENSE KEY". You will see your current Teleport Enterprise account
-permissions and the option to download your license file:
-
-![License File modal](../../img/enterprise/license.png)
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
 The license file must be available to each Teleport Auth Service instance at
 `/var/lib/teleport/license.pem`. 

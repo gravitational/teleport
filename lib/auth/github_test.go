@@ -390,7 +390,8 @@ type mockLoginRuleEvaluator struct {
 func (m *mockLoginRuleEvaluator) Evaluate(context.Context, *loginrule.EvaluationInput) (*loginrule.EvaluationOutput, error) {
 	m.evaluatedCount++
 	return &loginrule.EvaluationOutput{
-		Traits: m.outputTraits,
+		Traits:       m.outputTraits,
+		AppliedRules: []string{"mock"},
 	}, nil
 }
 
@@ -530,5 +531,33 @@ func TestCheckGithubOrgSSOSupport(t *testing.T) {
 				require.True(t, tt.errFunc(err))
 			}
 		})
+	}
+}
+
+func TestGithubURLFormat(t *testing.T) {
+	tts := []struct {
+		host   string
+		path   string
+		expect string
+	}{
+		{
+			host:   "example.com",
+			path:   "foo/bar",
+			expect: "https://api.example.com/foo/bar",
+		},
+		{
+			host:   "example.com",
+			path:   "/foo/bar?spam=eggs",
+			expect: "https://api.example.com/foo/bar?spam=eggs",
+		},
+		{
+			host:   "example.com",
+			path:   "/foo/bar",
+			expect: "https://api.example.com/foo/bar",
+		},
+	}
+
+	for _, tt := range tts {
+		require.Equal(t, tt.expect, formatGithubURL(tt.host, tt.path))
 	}
 }

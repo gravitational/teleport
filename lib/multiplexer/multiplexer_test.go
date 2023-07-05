@@ -598,8 +598,9 @@ func TestMux(t *testing.T) {
 		defer cancel()
 
 		mux, err := New(Config{
-			Context:  ctx,
-			Listener: listener,
+			Context:             ctx,
+			Listener:            listener,
+			EnableProxyProtocol: true,
 		})
 		require.NoError(t, err)
 		go mux.Serve()
@@ -608,20 +609,36 @@ func TestMux(t *testing.T) {
 		// register listener before establishing frontend connection
 		dblistener := mux.DB()
 
-		// Connect to the listener and send Postgres SSLRequest which is what
-		// psql or other Postgres client will do.
-		conn, err := net.Dial("tcp", listener.Addr().String())
-		require.NoError(t, err)
-		defer conn.Close()
+		check := func(t *testing.T, expectedAddr string, proxyLine []byte) {
+			// Connect to the listener and send Postgres SSLRequest which is what
+			// psql or other Postgres client will do.
+			conn, err := net.Dial("tcp", listener.Addr().String())
+			require.NoError(t, err)
+			defer conn.Close()
 
-		frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
-		err = frontend.Send(&pgproto3.SSLRequest{})
-		require.NoError(t, err)
+			_, err = conn.Write(sampleProxyV2Line)
+			require.NoError(t, err)
 
-		// This should not hang indefinitely since we set timeout on the mux context above.
-		conn, err = dblistener.Accept()
-		require.NoError(t, err, "detected Postgres connection")
-		require.Equal(t, ProtoPostgres, conn.(*Conn).Protocol())
+			frontend := pgproto3.NewFrontend(pgproto3.NewChunkReader(conn), conn)
+			err = frontend.Send(&pgproto3.SSLRequest{})
+			require.NoError(t, err)
+
+			// This should not hang indefinitely since we set timeout on the mux context above.
+			dbConn, err := dblistener.Accept()
+			require.NoError(t, err, "detected Postgres connection")
+			require.Equal(t, ProtoPostgres, dbConn.(*Conn).Protocol())
+			if expectedAddr != "" {
+				require.Equal(t, expectedAddr, dbConn.RemoteAddr().String())
+			}
+		}
+
+		t.Run("without proxy line", func(t *testing.T) {
+			check(t, "", nil)
+		})
+
+		t.Run("with proxy line", func(t *testing.T) {
+			check(t, "127.0.0.1:12345", sampleProxyV2Line)
+		})
 	})
 
 	// WebListener verifies web listener correctly multiplexes connections

@@ -26,7 +26,7 @@ const Card = styled(Box)`
 
 Card.defaultProps = {
   theme: theme,
-  bg: 'primary.light',
+  bg: 'levels.surface',
 };
 
 Card.displayName = 'Card';

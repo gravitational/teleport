@@ -4,17 +4,18 @@ description: Manually Connect Teleport to Active Directory and log into a Window
 videoBanner: YvMqgcq0MTQ
 ---
 
-In this guide we will connect an Active Directory domain to Teleport using
-Desktop Access and log into a Windows desktop from that domain.
+In this guide we will connect an Active Directory domain to Teleport using the
+Teleport Desktop Service and log into a Windows desktop from that domain.
 
 <Admonition type="tip" title="Use The Wizard">
 
-Starting with Teleport 10.2.6, you can install Active Directory and configure Teleport Desktop Access through the web UI. See [Getting Started](getting-started.mdx) for more information.
+Starting with Teleport 10.2.6, you can install Active Directory and configure Teleport desktop access through the web UI. See [Getting Started](getting-started.mdx) for more information.
 
 Continue with this guide if:
 
 - You're running an older version of Teleport and can't upgrade.
-- You want to install Desktop Access using the same instance of `teleport` running the proxy/auth services.
+- You want to install the Teleport Desktop Service using the same instance of
+  `teleport` running the Proxy/Auth services.
 
 </Admonition>
 
@@ -36,7 +37,7 @@ This guide requires you to have:
 
   See [Teleport Getting Started](../try-out-teleport/introduction.mdx) if you're new to Teleport.
 
-- A Linux server to run the Teleport Desktop Access service on.
+- A Linux server to run the Teleport Desktop Service on.
 
   You can reuse an existing server running any other Teleport instance.
 
@@ -466,7 +467,7 @@ the filepath to the `der_ca_file` configuration variable.
 
 <Admonition type="note" title="Teleport CA">
   Prior to v8.0, the Teleport CA was not compatible with Windows logins. If
-  you're setting up Desktop Access in an existing cluster created before v8.0,
+  you're setting up desktop access in an existing cluster created before v8.0,
   you must first perform a [CA rotation](../management/operations/ca-rotation.mdx) in
   order to resolve this.
 </Admonition>
@@ -475,7 +476,7 @@ Install Teleport on the host where you will run the Teleport Desktop Service:
 
 (!docs/pages/includes/install-linux.mdx!)
 
-In order to enable Desktop Access in Teleport, add the following section in
+In order to enable desktop access in Teleport, add the following section in
 `/etc/teleport.yaml` on your Linux server. For a detailed description of these
 configuration fields, see the
 [configuration reference](./reference/configuration.mdx) page.
@@ -611,7 +612,7 @@ $ tctl create -f windows-desktop-admins.yaml
 
 ### Connect to your Windows desktop
 
-At this point everything is ready for Desktop Access connections. Open
+At this point everything is ready for Desktop Service connections. Open
 the Teleport web UI and log in with a user with the role created above.
 
 On the left pane, select `Desktops (preview)`. You should see the list of all

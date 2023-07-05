@@ -18,6 +18,7 @@ package fetchers
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/aws/aws-sdk-go/aws"
@@ -141,17 +142,9 @@ func (a *eksFetcher) Cloud() string {
 	return types.CloudAWS
 }
 
-// awsEKSTagsToLabels converts EKS tags to a labels map.
-func (a *eksFetcher) awsEKSTagsToLabels(tags map[string]*string) map[string]string {
-	labels := make(map[string]string)
-	for key, val := range tags {
-		if types.IsValidLabelKey(key) {
-			labels[key] = aws.StringValue(val)
-		} else {
-			a.Log.Debugf("Skipping EKS tag %q, not a valid label key.", key)
-		}
-	}
-	return labels
+func (a *eksFetcher) String() string {
+	return fmt.Sprintf("eksFetcher(Region=%v, FilterLabels=%v)",
+		a.Region, a.FilterLabels)
 }
 
 // getMatchingKubeCluster extracts EKS cluster Tags and cluster status from EKS and checks if the cluster matches
@@ -176,15 +169,16 @@ func (a *eksFetcher) getMatchingKubeCluster(ctx context.Context, clusterName str
 		return nil, trace.CompareFailed("EKS cluster %q not enrolled due to its current status: %s", clusterName, st)
 	}
 
-	if match, reason, err := services.MatchLabels(a.FilterLabels, a.awsEKSTagsToLabels(rsp.Cluster.Tags)); err != nil {
+	cluster, err := services.NewKubeClusterFromAWSEKS(rsp.Cluster)
+	if err != nil {
+		return nil, trace.WrapWithMessage(err, "Unable to convert eks.Cluster cluster into types.KubernetesClusterV3.")
+	}
+
+	if match, reason, err := services.MatchLabels(a.FilterLabels, cluster.GetAllLabels()); err != nil {
 		return nil, trace.WrapWithMessage(err, "Unable to match EKS cluster labels against match labels.")
 	} else if !match {
 		return nil, trace.CompareFailed("EKS cluster %q labels does not match the selector: %s", clusterName, reason)
 	}
 
-	cluster, err := services.NewKubeClusterFromAWSEKS(rsp.Cluster)
-	if err != nil {
-		return nil, trace.WrapWithMessage(err, "Unable to convert eks.Cluster cluster into types.KubernetesClusterV3.")
-	}
 	return cluster, nil
 }

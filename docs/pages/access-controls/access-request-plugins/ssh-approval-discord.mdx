@@ -9,6 +9,8 @@ Access Requests. Users can then approve and deny Access Requests from within
 Discord, making it easier to implement security best practices without
 compromising productivity.
 
+(!docs/pages/includes/plugins/diagram.mdx api="Discord" action="Listen for Access Requests" messages="Discord messages" !)
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -191,65 +193,7 @@ Open the configuration file created for the Teleport Discord plugin and update t
 
 The Discord plugin uses this section to connect to the Teleport Auth Service.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-The address and credentials you configure depend on whether your plugin can
-access the Auth Service directly:
-
-<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
-<TabItem label="Connect to the Auth Service" scope={["oss", "enterprise"]} options="Executable">
-
-Set `addr` to the address and port of your Auth Service. This address must be
-reachable from the Teleport Discord Plugin.
-
-Set `client_key`, `client_crt`, and `root_cas` to the identity files
-generated earlier:
-
-```toml
-[teleport]
-addr = "localhost:3025"
-client_key = "/var/lib/teleport/plugins/discord/auth.key" # Teleport GRPC client secret key
-client_crt = "/var/lib/teleport/plugins/discord/auth.crt" # Teleport GRPC client certificate
-root_cas = "/var/lib/teleport/plugins/discord/auth.cas"   # Teleport cluster CA certs
-```
-</TabItem>
-<TabItem label="Connect to the Proxy Service" options="Executable">
-
-Set `addr` to  your Proxy Service address with port `443`.
-
-Set `identity` to the identity file generated earlier:
-
-```toml
-[teleport]
-addr = "teleport.example.com:443"
-identity = "/var/lib/teleport/plugins/discord/auth.pem"
-```
-</TabItem>
-<TabItem label="Connect to the Proxy or Auth Service" scope="cloud" options="Helm Chart">
-
-**`address`**: Include the hostname and port of your Teleport Proxy or Auth Service
-(e.g., `teleport.example.com:443`).
-
-**`identitySecretName`**: Fill in the `identitySecretName` field with the name
-of the Kubernetes secret you created earlier.
-
-</TabItem>
-</Tabs>
-
-</ScopedBlock>
-<ScopedBlock scope="cloud">
-
-Set `addr` to  your Teleport Proxy address with port `443`.
-
-Set `identity` to the identity file generated earlier:
-
-```toml
-[teleport]
-addr = "teleport.example.com:443"
-identity = "/var/lib/teleport/plugins/discord/auth.pem"
-```
-
-</ScopedBlock>
+(!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
 **`[discord]`**
 

@@ -14,19 +14,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-// Package sftp handles file transfers client-side via SFTP
+// Package sftp handles file transfers client-side via SFTP.
 package sftp
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
 	"io"
 	"io/fs"
+	"net/http"
 	"os"
-	"path" // SFTP requires Linux-style path separators
+	"path" // SFTP requires UNIX-style path separators
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 
@@ -36,7 +37,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/ssh"
 
-	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/sshutils/scp"
 )
 
@@ -49,8 +50,6 @@ type Options struct {
 	PreserveAttrs bool
 }
 
-type homeDirRetriever func() (string, error)
-
 // Config describes the settings of a file transfer
 type Config struct {
 	srcPaths []string
@@ -58,10 +57,6 @@ type Config struct {
 	srcFS    FileSystem
 	dstFS    FileSystem
 	opts     Options
-
-	// getHomeDir returns the home directory of the remote user of the
-	// SSH session
-	getHomeDir homeDirRetriever
 
 	// ProgressStream is a callback to return a read/writer for printing the progress
 	// (used only on the client)
@@ -74,6 +69,8 @@ type Config struct {
 type FileSystem interface {
 	// Type returns whether the filesystem is "local" or "remote"
 	Type() string
+	// Glob returns matching files of a glob pattern
+	Glob(ctx context.Context, pattern string) ([]string, error)
 	// Stat returns info about a file
 	Stat(ctx context.Context, path string) (os.FileInfo, error)
 	// ReadDir returns information about files contained within a directory
@@ -81,16 +78,16 @@ type FileSystem interface {
 	// Open opens a file
 	Open(ctx context.Context, path string) (fs.File, error)
 	// Create creates a new file
-	Create(ctx context.Context, path string, mode os.FileMode) (io.WriteCloser, error)
+	Create(ctx context.Context, path string, size int64) (io.WriteCloser, error)
 	// Mkdir creates a directory
-	Mkdir(ctx context.Context, path string, mode os.FileMode) error
+	Mkdir(ctx context.Context, path string) error
 	// Chmod sets file permissions
 	Chmod(ctx context.Context, path string, mode os.FileMode) error
 	// Chtimes sets file access and modification time
 	Chtimes(ctx context.Context, path string, atime, mtime time.Time) error
 }
 
-// CreateUploadConfig returns a Config ready to upload files
+// CreateUploadConfig returns a Config ready to upload files over SFTP.
 func CreateUploadConfig(src []string, dst string, opts Options) (*Config, error) {
 	for _, srcPath := range src {
 		if srcPath == "" {
@@ -113,7 +110,7 @@ func CreateUploadConfig(src []string, dst string, opts Options) (*Config, error)
 	return c, nil
 }
 
-// CreateDownloadConfig returns a Config ready to download files
+// CreateDownloadConfig returns a Config ready to download files over SFTP.
 func CreateDownloadConfig(src, dst string, opts Options) (*Config, error) {
 	if src == "" {
 		return nil, trace.BadParameter("source path is empty")
@@ -134,6 +131,85 @@ func CreateDownloadConfig(src, dst string, opts Options) (*Config, error) {
 	return c, nil
 }
 
+// HTTPTransferRequest describes file transfer request over HTTP.
+type HTTPTransferRequest struct {
+	// Src is the source file name
+	Src string
+	// Dst is the destination file name
+	Dst string
+	// HTTPRequest is where the source file will be read from for
+	// file upload transfers
+	HTTPRequest *http.Request
+	// HTTPResponse is where the destination file will be written to for
+	// file download transfers
+	HTTPResponse http.ResponseWriter
+}
+
+// CreateHTTPUploadConfig returns a Config ready to upload a file from
+// a HTTP request over SFTP.
+func CreateHTTPUploadConfig(req HTTPTransferRequest) (*Config, error) {
+	if err := req.checkDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.HTTPRequest == nil {
+		return nil, trace.BadParameter("HTTP request is empty")
+	}
+
+	contentLength := req.HTTPRequest.Header.Get("Content-Length")
+	fileSize, err := strconv.ParseInt(contentLength, 10, 0)
+	if err != nil {
+		return nil, trace.Errorf("failed to parse Content-Length header: %w", err)
+	}
+
+	c := &Config{
+		srcPaths: []string{req.Src},
+		dstPath:  req.Dst,
+		srcFS: &httpFS{
+			reader:   req.HTTPRequest.Body,
+			fileName: req.Src,
+			fileSize: fileSize,
+		},
+		dstFS: &remoteFS{},
+	}
+	c.setDefaults()
+
+	return c, nil
+}
+
+// CreateHTTPDownloadConfig returns a Config ready to download a file
+// from over SFTP and write it to a HTTP response.
+func CreateHTTPDownloadConfig(req HTTPTransferRequest) (*Config, error) {
+	if err := req.checkDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if req.HTTPResponse == nil {
+		return nil, trace.BadParameter("HTTP response is empty")
+	}
+
+	c := &Config{
+		srcPaths: []string{req.Src},
+		dstPath:  req.Dst,
+		srcFS:    &remoteFS{},
+		dstFS: &httpFS{
+			writer:   req.HTTPResponse,
+			fileName: req.Dst,
+		},
+	}
+	c.setDefaults()
+
+	return c, nil
+}
+
+func (h HTTPTransferRequest) checkDefaults() error {
+	if h.Src == "" {
+		return trace.BadParameter("source path is empty")
+	}
+	if h.Dst == "" {
+		return trace.BadParameter("destination path is empty")
+	}
+	return nil
+}
+
 // setDefaults sets default values
 func (c *Config) setDefaults() {
 	logger := c.Log
@@ -152,16 +228,60 @@ func (c *Config) setDefaults() {
 }
 
 // TransferFiles transfers files from the configured source paths to the
-// configured destination path over SFTP
+// configured destination path over SFTP or HTTP depending on the Config.
 func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error {
-	sftpClient, err := sftp.NewClient(sshClient,
-		// Use concurrent stream to speed up transfer on slow networks as described in
-		// https://github.com/gravitational/teleport/issues/20579
-		sftp.UseConcurrentReads(true),
-		sftp.UseConcurrentWrites(true))
+	s, err := sshClient.NewSession()
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer s.Close()
+
+	// File transfers in a moderated session require these two variables
+	// to check for approval on the ssh server. If they exist in the
+	// context, set them in our env vars
+	if moderatedSessionID, ok := ctx.Value(ModeratedSessionID).(string); ok {
+		s.Setenv(string(ModeratedSessionID), moderatedSessionID)
+	}
+	if fileTransferRequestID, ok := ctx.Value(FileTransferRequestID).(string); ok {
+		s.Setenv(string(FileTransferRequestID), fileTransferRequestID)
+	}
+
+	pe, err := s.StderrPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	if err := s.RequestSubsystem("sftp"); err != nil {
+		// If the subsystem request failed and a generic error is
+		// returned, return the session's stderr as the error if it's
+		// non-empty, as the session's stderr may have a more useful
+		// error message. String comparison is only used here because
+		// the error is not exported.
+		if strings.Contains(err.Error(), "ssh: subsystem request failed") {
+			var sb strings.Builder
+			if n, _ := io.Copy(&sb, pe); n > 0 {
+				return trace.Wrap(errors.New(sb.String()))
+			}
+		}
+		return trace.Wrap(err)
+	}
+	pw, err := s.StdinPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	pr, err := s.StdoutPipe()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	sftpClient, err := sftp.NewClientPipe(pr, pw,
+		// Use concurrent stream to speed up transfer on slow networks as described in
+		// https://github.com/gravitational/teleport/issues/20579
+		sftp.UseConcurrentReads(true),
+		sftp.UseConcurrentWrites(true),
+	)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
 	if err := c.initFS(sshClient, sftpClient); err != nil {
 		return trace.Wrap(err)
 	}
@@ -178,7 +298,6 @@ func (c *Config) TransferFiles(ctx context.Context, sshClient *ssh.Client) error
 // initFS ensures the source and destination filesystems are ready to transfer
 func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
 	var haveRemoteFS bool
-
 	srcFS, srcOK := c.srcFS.(*remoteFS)
 	if srcOK {
 		srcFS.c = client
@@ -194,87 +313,116 @@ func (c *Config) initFS(sshClient *ssh.Client, client *sftp.Client) error {
 		return nil
 	}
 
-	if c.getHomeDir == nil {
-		c.getHomeDir = func() (_ string, err error) {
-			return getRemoteHomeDir(sshClient)
-		}
-	}
-
 	return trace.Wrap(c.expandPaths(srcOK, dstOK))
 }
 
 func (c *Config) expandPaths(srcIsRemote, dstIsRemote bool) (err error) {
 	if srcIsRemote {
 		for i, srcPath := range c.srcPaths {
-			c.srcPaths[i], err = expandPath(srcPath, c.getHomeDir)
+			c.srcPaths[i], err = expandPath(srcPath)
 			if err != nil {
-				return trace.Wrap(err)
+				return trace.Wrap(err, "error expanding %q", srcPath)
 			}
 		}
 	}
+
 	if dstIsRemote {
-		c.dstPath, err = expandPath(c.dstPath, c.getHomeDir)
+		c.dstPath, err = expandPath(c.dstPath)
+		if err != nil {
+			return trace.Wrap(err, "error expanding %q", c.dstPath)
+		}
 	}
 
-	return trace.Wrap(err)
+	return nil
 }
 
-func expandPath(pathStr string, getHomeDir homeDirRetriever) (string, error) {
-	if !needsExpansion(pathStr) {
+func expandPath(pathStr string) (string, error) {
+	pfxLen, ok := homeDirPrefixLen(pathStr)
+	if !ok {
 		return pathStr, nil
 	}
 
-	homeDir, err := getHomeDir()
-	if err != nil {
-		return "", trace.Wrap(err)
+	// Removing the home dir prefix would mean returning an empty string,
+	// which is supported by SFTP but won't be as clear in logs or audit
+	// events. Since the SFTP server will be rooted at the user's home
+	// directory, "." and "" are equivalent in this context.
+	if pathStr == "~" {
+		return ".", nil
+	}
+	if pfxLen == 1 && len(pathStr) > 1 {
+		return "", trace.BadParameter("expanding remote ~user paths is not supported, specify an absolute path instead")
 	}
 
-	// this is safe because we verified that all paths are non-empty
-	// in CreateUploadConfig/CreateDownloadConfig
-	return path.Join(homeDir, pathStr[1:]), nil
+	// if an SFTP path is not absolute, it is assumed to start at the user's
+	// home directory so just strip the prefix and let the SFTP server
+	// figure out the correct remote path
+	return pathStr[pfxLen:], nil
 }
 
-// needsExpansion returns true if path is '~', '~/', or '~\' on Windows
-func needsExpansion(path string) bool {
-	if len(path) == 1 {
-		return path == "~"
+// homeDirPrefixLen returns the length of a set of characters that
+// indicates the user wants the path to begin with a user's home
+// directory and a bool that indicates whether such a prefix exists.
+func homeDirPrefixLen(path string) (int, bool) {
+	if strings.HasPrefix(path, "~/") {
+		return 2, true
 	}
-
 	// allow '~\' or '~/' on Windows since '\' is the canonical path
 	// separator but some users may use '/' instead
 	if runtime.GOOS == "windows" && strings.HasPrefix(path, `~\`) {
-		return true
+		return 2, true
 	}
-	return strings.HasPrefix(path, "~/")
+
+	if len(path) >= 1 && path[0] == '~' {
+		return 1, true
+	}
+
+	return -1, false
 }
 
-// getRemoteHomeDir returns the home directory of the remote user of
-// the SSH connection
-func getRemoteHomeDir(sshClient *ssh.Client) (string, error) {
-	s, err := sshClient.NewSession()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-	defer s.Close()
-	if err := s.RequestSubsystem(teleport.GetHomeDirSubsystem); err != nil {
-		return "", trace.Wrap(err)
-	}
-	r, err := s.StdoutPipe()
-	if err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	var homeDirBuf bytes.Buffer
-	if _, err := io.Copy(&homeDirBuf, r); err != nil {
-		return "", trace.Wrap(err)
-	}
-
-	return homeDirBuf.String(), nil
-}
-
-// transfer preforms file transfers
+// transfer performs file transfers
 func (c *Config) transfer(ctx context.Context) error {
+	// get info of source files and ensure appropriate options were passed
+	matchedPaths := make([]string, 0, len(c.srcPaths))
+	fileInfos := make([]os.FileInfo, 0, len(c.srcPaths))
+	for _, srcPath := range c.srcPaths {
+		// This source path may or may not contain a glob pattern, but
+		// try and glob just in case. It is also possible the user
+		// specified a file path containing glob pattern characters but
+		// means the literal path without globbing, in which case we'll
+		// use the raw source path as the sole match below.
+		matches, err := c.srcFS.Glob(ctx, srcPath)
+		if err != nil {
+			return trace.Wrap(err, "error matching glob pattern %q", srcPath)
+		}
+		if len(matches) == 0 {
+			matches = []string{srcPath}
+		}
+
+		// clean match paths to ensure they are separated by backslashes, as
+		// SFTP requires that
+		for i := range matches {
+			matches[i] = path.Clean(matches[i])
+		}
+		matchedPaths = append(matchedPaths, matches...)
+
+		for _, match := range matches {
+			fi, err := c.srcFS.Stat(ctx, match)
+			if err != nil {
+				return trace.Wrap(err, "could not access %s path %q", c.srcFS.Type(), match)
+			}
+			if fi.IsDir() && !c.opts.Recursive {
+				// Note: using any other error constructor than BadParameter
+				// might lead to relogin attempt and a completely obscure
+				// error message
+				return trace.BadParameter("%q is a directory, but the recursive option was not passed", match)
+			}
+			fileInfos = append(fileInfos, fi)
+		}
+	}
+
+	// validate destination path and create it if necessary
 	var dstIsDir bool
+	c.dstPath = path.Clean(c.dstPath)
 	dstInfo, err := c.dstFS.Stat(ctx, c.dstPath)
 	if err != nil {
 		if !errors.Is(err, os.ErrNotExist) {
@@ -282,37 +430,31 @@ func (c *Config) transfer(ctx context.Context) error {
 		}
 		// if there are multiple source paths and the destination path
 		// doesn't exist, create it as a directory
-		if len(c.srcPaths) > 1 {
-			if err := c.dstFS.Mkdir(ctx, c.dstPath, teleport.SharedDirMode); err != nil {
+		if len(matchedPaths) > 1 {
+			if err := c.dstFS.Mkdir(ctx, c.dstPath); err != nil {
 				return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
+			}
+			if err := c.dstFS.Chmod(ctx, c.dstPath, defaults.DirectoryPermissions); err != nil {
+				return trace.Errorf("error setting permissions of %s directory %q: %w", c.dstFS.Type(), c.dstPath, err)
 			}
 			dstIsDir = true
 		}
-	} else if len(c.srcPaths) > 1 && !dstInfo.IsDir() {
+	} else if len(matchedPaths) > 1 && !dstInfo.IsDir() {
 		// if there are multiple source paths, ensure the destination path
 		// is a directory
-		return trace.BadParameter("%s file %q is not a directory, but multiple source files were specified",
-			c.dstFS.Type(),
-			c.dstPath,
-		)
+		if len(matchedPaths) != len(c.srcPaths) {
+			return trace.BadParameter("%s file %q is not a directory, but multiple source files were matched by a glob pattern",
+				c.dstFS.Type(),
+				c.dstPath,
+			)
+		} else {
+			return trace.BadParameter("%s file %q is not a directory, but multiple source files were specified",
+				c.dstFS.Type(),
+				c.dstPath,
+			)
+		}
 	} else if dstInfo.IsDir() {
 		dstIsDir = true
-	}
-
-	// get info of source files and ensure appropriate options were passed
-	fileInfos := make([]os.FileInfo, len(c.srcPaths))
-	for i := range c.srcPaths {
-		fi, err := c.srcFS.Stat(ctx, c.srcPaths[i])
-		if err != nil {
-			return trace.Errorf("could not access %s path %q: %v", c.srcFS.Type(), c.srcPaths[i], err)
-		}
-		if fi.IsDir() && !c.opts.Recursive {
-			// Note: using any other error constructor (e.g. BadParameter)
-			// might lead to relogin attempt and a completely obscure
-			// error message
-			return trace.BadParameter("%q is a directory, but the recursive option was not passed", c.srcPaths[i])
-		}
-		fileInfos[i] = fi
 	}
 
 	for i, fi := range fileInfos {
@@ -322,11 +464,11 @@ func (c *Config) transfer(ctx context.Context) error {
 		}
 
 		if fi.IsDir() {
-			if err := c.transferDir(ctx, dstPath, c.srcPaths[i], fi); err != nil {
+			if err := c.transferDir(ctx, dstPath, matchedPaths[i], fi); err != nil {
 				return trace.Wrap(err)
 			}
 		} else {
-			if err := c.transferFile(ctx, dstPath, c.srcPaths[i], fi); err != nil {
+			if err := c.transferFile(ctx, dstPath, matchedPaths[i], fi); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -337,9 +479,14 @@ func (c *Config) transfer(ctx context.Context) error {
 
 // transferDir transfers a directory
 func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
-	err := c.dstFS.Mkdir(ctx, dstPath, srcFileInfo.Mode())
+	c.Log.Debugf("copying %s dir %q to %s dir %q", c.srcFS.Type(), srcPath, c.dstFS.Type(), dstPath)
+
+	err := c.dstFS.Mkdir(ctx, dstPath)
 	if err != nil && !errors.Is(err, os.ErrExist) {
 		return trace.Errorf("error creating %s directory %q: %w", c.dstFS.Type(), dstPath, err)
+	}
+	if err := c.dstFS.Chmod(ctx, dstPath, srcFileInfo.Mode()); err != nil {
+		return trace.Errorf("error setting permissions of %s directory %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 
 	infos, err := c.srcFS.ReadDir(ctx, srcPath)
@@ -376,17 +523,23 @@ func (c *Config) transferDir(ctx context.Context, dstPath, srcPath string, srcFi
 
 // transferFile transfers a file
 func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcFileInfo os.FileInfo) error {
+	c.Log.Debugf("copying %s file %q to %s file %q", c.srcFS.Type(), srcPath, c.dstFS.Type(), dstPath)
+
 	srcFile, err := c.srcFS.Open(ctx, srcPath)
 	if err != nil {
 		return trace.Errorf("error opening %s file %q: %w", c.srcFS.Type(), srcPath, err)
 	}
 	defer srcFile.Close()
 
-	dstFile, err := c.dstFS.Create(ctx, dstPath, srcFileInfo.Mode())
+	dstFile, err := c.dstFS.Create(ctx, dstPath, srcFileInfo.Size())
 	if err != nil {
 		return trace.Errorf("error creating %s file %q: %w", c.dstFS.Type(), dstPath, err)
 	}
 	defer dstFile.Close()
+
+	if err := c.dstFS.Chmod(ctx, dstPath, srcFileInfo.Mode()); err != nil {
+		return trace.Errorf("error setting permissions of %s file %q: %w", c.dstFS.Type(), dstPath, err)
+	}
 
 	var progressBar io.ReadWriter
 	if c.ProgressStream != nil {
@@ -394,7 +547,6 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 	}
 
 	reader, writer := prepareStreams(ctx, srcFile, dstFile, progressBar)
-
 	if err := assertStreamsType(reader, writer); err != nil {
 		return trace.Wrap(err)
 	}
@@ -410,7 +562,14 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 		)
 	}
 	if n != srcFileInfo.Size() {
-		return trace.Errorf("short write: written %v, expected %v", n, srcFileInfo.Size())
+		return trace.Errorf("error copying %s file %q to %s file %q: short write: wrote %d bytes, expected to write %d bytes",
+			c.srcFS.Type(),
+			srcPath,
+			c.dstFS.Type(),
+			dstPath,
+			n,
+			srcFileInfo.Size(),
+		)
 	}
 
 	if c.opts.PreserveAttrs {
@@ -426,18 +585,16 @@ func (c *Config) transferFile(ctx context.Context, dstPath, srcPath string, srcF
 // assertStreamsType checks if reader or writer implements correct interface to utilize concurrent SFTP streams.
 func assertStreamsType(reader io.Reader, writer io.Writer) error {
 	_, okReader := reader.(io.WriterTo)
-
 	if okReader {
 		_, okStat := reader.(interface{ Stat() (os.FileInfo, error) })
 		if !okStat {
-			return trace.Errorf("sftp read stream must implement Sync() method")
+			return trace.Errorf("sftp read stream must implement Stat() method")
 		}
 
 		return nil
 	}
 
 	_, okWriter := writer.(io.ReaderFrom)
-
 	if !okWriter && !okReader {
 		return trace.Errorf("reader and writer are not implementing concurrent interfaces %T %T", reader, writer)
 	}

@@ -96,25 +96,15 @@ We'll reference the exported file(s) later when configuring the plugin.
 </TabItem>
 </Tabs>
 
-
 ```code
 $ teleport-mattermost configure > /etc/teleport-mattermost.toml
 ```
 
-Update the config with the Teleport address, Mattermost URL, and a bot token.
+Update the config with the Teleport address, Mattermost URL, and a bot token:
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-```yaml
-(!examples/resources/plugins/teleport-mattermost-self.toml!)
-```
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
 ```yaml
 (!examples/resources/plugins/teleport-mattermost-cloud.toml!)
 ```
-</TabItem>
-</Tabs>
 
 ## Step 2/3. Configure dual authorization
 

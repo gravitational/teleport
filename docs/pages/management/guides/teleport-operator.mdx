@@ -13,7 +13,12 @@ Kubernetes, following [the Operator Pattern](https://kubernetes.io/docs/concepts
 The Teleport Kubernetes Operator is deployed alongside its custom resource definitions. Once deployed, users
 can use a Kubernetes client like `kubectl` or their existing CI/CD Kubernetes pipelines to create Teleport
 custom resources. The Teleport Kubernetes Operator watches for those resources and does API calls to Teleport to
-reach the desired state.
+reach the desired state.  
+
+The teleport-cluster Helm chart deploys the Teleport Kubernetes Operator as a sidecar in the auth pods.  
+The Operator supports multiple auth pod replicas within a single cluster by electing a leader with a Kubernetes lease. 
+If multiple `teleport-cluster` releases are using the same backend, only one should have the operator enabled.
+Multiple operators from different leases will conflict and lock themselves.
 
 Currently supported Teleport resources are:
 - users
@@ -73,9 +78,7 @@ Create a namespace for your Teleport cluster resources:
 $ kubectl create namespace teleport-cluster
 ```
 
-Obtain your Teleport Enterprise license file from the [Teleport Customer
-Portal](https://dashboard.gravitational.com/web/login). Create a secret called
-"license" in the namespace you created:
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
 ```code
 $ kubectl -n teleport-cluster create secret generic license --from-file=license.pem
@@ -242,10 +245,24 @@ $ kubectl logs "$PROXY_POD" -c operator
   To diagnose reconciliation issues, you will have to inspect all pods to find the one reconciling the resources.
 </Admonition>
 
-## Next Steps
+### Cluster instability after enabling the Operator
 
-Helm Chart parameters are documented in the [`teleport-cluster `Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx).
+If enabling the Teleport Kubernetes Operator leads to cluster instability such as degraded proxy state, inability to log into the Teleport cluster,
+or loss of access to the Teleport Web UI, check where your Auth Server pods are deployed.  All operator sidecars connecting to the same
+shared backend must belong to the same `teleport-cluster` chart release to support the leader election process.
+Failing to do so can lead to a degraded Teleport cluster and errors such as:
 
-See the [Helm Deployment guides](../../deploy-a-cluster/helm-deployments.mdx) detailing specific setups like running teleport on AWS or GCP.
+```text
+[AUTH]      WARN lock targeting User:"bot-example" is in force: The bot user "bot-teleport-operator-sidecar" 
+has been locked due to a certificate generation mismatch, possibly indicating a stolen certificate.
+```
+In order to resolve this issue, remove any Teleport Kubernetes Operator sidecars connecting to the shared backend that are not in the same
+Kubernetes cluster or namespace.  Then redeploy the Auth Server pods.  When the operator starts, it deletes the cached information and recreates all required resources.
+
+## Next steps
+
+Helm Chart parameters are documented in the [`teleport-cluster` Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx).
+
+See the [Helm Deployment guides](../../deploy-a-cluster/helm-deployments.mdx) detailing specific setups like running Teleport on AWS or GCP.
 
 Check out [access controls documentation](../../access-controls/introduction.mdx)

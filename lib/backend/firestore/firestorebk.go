@@ -23,12 +23,12 @@ import (
 
 	"cloud.google.com/go/firestore"
 	apiv1 "cloud.google.com/go/firestore/apiv1/admin"
+	"cloud.google.com/go/firestore/apiv1/admin/adminpb"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	"github.com/jonboulle/clockwork"
 	log "github.com/sirupsen/logrus"
 	"google.golang.org/api/option"
-	adminpb "google.golang.org/genproto/googleapis/firestore/admin/v1"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -710,6 +710,8 @@ func (b *Backend) purgeExpiredDocuments() error {
 // firestore write limits
 func (b *Backend) deleteDocuments(docs []*firestore.DocumentSnapshot) error {
 	for i := 0; i < len(docs); i += commitLimit {
+		//allow using deprecated api
+		//nolint:staticcheck
 		batch := b.svc.Batch()
 
 		for j := 0; j < commitLimit && i+j < len(docs); j++ {

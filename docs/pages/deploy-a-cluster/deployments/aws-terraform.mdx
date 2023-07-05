@@ -185,10 +185,9 @@ EC2 instances. Do not use a keypair that you do not have access to.
 
 ### license_path
 
-Setting `export TF_VAR_license_path="/home/user/teleport-license.pem"`
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
-The full local path to your Teleport license file, which customers can download from
-[the Teleport customer dashboard](https://dashboard.gravitational.com/).
+Set `export TF_VAR_license_path="/home/user/teleport-license.pem"`
 
 This license will be uploaded to AWS SSM and automatically downloaded to Teleport auth nodes in order to enable
 Teleport Enterprise/Pro functionality.
@@ -226,7 +225,7 @@ This must be a subdomain of the domain you chose for [`route53_zone`](#route53\_
 
 Setting `export TF_VAR_add_wildcard_route53_record="true"`
 
-Used to enable Application Access for subdomains of the Teleport Proxy Service's public web address. A wildcard entry for the public-facing 
+Used to enable the Teleport Application Service for subdomains of the Teleport Proxy Service's public web address. A wildcard entry for the public-facing 
 domain will be set in Route 53, e.g., `*.teleport.example.com`, to point to the Teleport load balancer. For ACM a wildcard 
 certificate is included if this is set to `true`. Let's Encrypt automatically includes a wildcard subdomain in certificates that it issues.
 

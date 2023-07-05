@@ -62,6 +62,11 @@ Yes, Teleport supports tunnel multiplexing on a single port. Set the
 setting in the `proxy_service` configuration. Teleport will automatically use
 multiplexing with that configuration.
 
+## I'm getting `ssh: subsystem request failed` while I try to copy files, what to do?
+
+Make sure that all Teleport components are at least at version 10.3.0. Older versions
+don't support the SFTP protocol, and it's enabled by default in `tsh` v11.0.0 and OpenSSH v9.0.
+
 ## How is Open Source different from Enterprise?
 
 Teleport provides three editions:
@@ -86,9 +91,9 @@ Here are the major versions of Teleport and their support windows:
 
 | Release | Release Date     | EOL          | Minimum `tsh` version|
 |---------|------------------|--------------|----------------------|
+| v13.0   | May 8, 2023      | February 2024| v12.x.x              |
 | v12.0   | Feb 6, 2023      | November 2023| v11.x.x              |
 | v11.0   | October 24, 2022 | July 2023    | v10.x.x              |
-| v10.0   | July 8, 2022     | April 2023   | v9.x.x               |
 
 See our [Upgrading](./management/operations/upgrading.mdx) guide for more
 information.
@@ -109,10 +114,30 @@ Please refer to our [Networking](./reference/networking.mdx) guide.
 
 Teleport offers this feature for the [Enterprise versions of Teleport](choose-an-edition/teleport-enterprise/introduction.mdx).
 
+## Why do I see an alert that some agents are out of date?
+
+Teleport monitors the inventory of all cluster components and compares their
+Teleport versions with the latest release on our GitHub page. If a component is
+not on the latest release, Teleport will create a cluster alert encouraging
+users to upgrade.
+
+This check is performed against all cluster components, including the Proxy
+Service and Auth Service, as well as agents running other Teleport Services.
+
+## Can I suppress warnings about available upgrades?
+
+Yes. The `tctl alerts ack` command can be used to acknowledge an alert and
+temporarily prevent it from being displayed to users. To acknowledge an alert,
+you need its ID. You can get a listing of all alerts and their IDs with the
+`tctl alerts list` command.
+
+For detailed information on this family of commands, see the
+[CLI Reference](./reference/cli.mdx#tctl-alerts-list).
+
 ## Does Teleport send any data back to the cloud?
 
 The open source and Enterprise editions of Teleport do not send any information
-to our company, and can be used on servers without internet access. 
+to our company, and can be used on servers without internet access.
 
 The commercial editions of Teleport can optionally be configured to send
 anonymized information, depending on the license purchased. This information

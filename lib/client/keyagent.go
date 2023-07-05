@@ -550,6 +550,15 @@ func (a *LocalKeyAgent) AddDatabaseKey(key *Key) error {
 	return a.addKey(key)
 }
 
+// AddKubeKey activates a new signed Kubernetes key by adding it into the keystore.
+// key must contain at least one Kubernetes cert. ssh cert is not required.
+func (a *LocalKeyAgent) AddKubeKey(key *Key) error {
+	if len(key.KubeTLSCerts) == 0 {
+		return trace.BadParameter("key must contains at least one Kubernetes access certificate")
+	}
+	return a.addKey(key)
+}
+
 // addKey activates a new signed session key by adding it into the keystore.
 func (a *LocalKeyAgent) addKey(key *Key) error {
 	if key == nil {

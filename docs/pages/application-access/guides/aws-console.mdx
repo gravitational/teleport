@@ -1,6 +1,6 @@
 ---
 title: Access AWS With Teleport Application Access
-description: How to access AWS with Teleport Application Access.
+description: How to access AWS with Teleport application access.
 videoBanner: GVcy_rffxQw
 ---
 
@@ -18,13 +18,15 @@ This guide will explain how to:
 ## Prerequisites
 
 - A running Teleport cluster, either self hosted or in Teleport Cloud.
-- A host running the `teleport` daemon with Application Access enabled. Follow
-  the [Getting Started](../getting-started.mdx) or
-  [Connecting Apps](./connecting-apps.mdx) guides to get it running.
+- A host running the `teleport` daemon with the Teleport Application Service
+  enabled. Follow the [Getting Started](../getting-started.mdx) or [Connecting
+  Apps](../guides/connecting-apps.mdx) guides to get it running.
 - IAM permissions in the AWS account you want to connect.
-- AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
-- `aws` command line interface (CLI) tool in PATH. [Installing or updating the latest version of the AWS CLI
-](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+- AWS EC2 or other instance where you can assign a IAM Security Role for the
+  Teleport Agent.
+- `aws` command line interface (CLI) tool in PATH. [Installing or updating the
+  latest version of the AWS CLI
+  ](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
 <Admonition type="note">
 If using Teleport deployed in AWS EKS, you cannot use Helm chart
@@ -128,7 +130,7 @@ You can make the policy more strict by providing specific IAM role resource
 ARNs in the Resource field instead of using a wildcard.
 </Admonition>
 
-Attach this policy to the IAM role/user your Teleport application service agent
+Attach this policy to the IAM role/user your Teleport Application Service agent
 is using.
 
 ![AWS Attach Security Role](../../../img/application-access/attach-security-role.png)
@@ -162,7 +164,7 @@ Templates](../../access-controls/guides/role-templates.mdx) for details.
 
 ## Step 5/9. Register AWS console application in Teleport
 
-Add AWS management console to your application service configuration:
+Add AWS management console to your Application Service configuration:
 
 ```yaml
 version: v3

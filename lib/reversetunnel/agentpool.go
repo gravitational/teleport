@@ -379,7 +379,7 @@ func (p *AgentPool) isAgentRequired() bool {
 		return true
 	}
 
-	return p.active.len() < p.runtimeConfig.connectionCount
+	return p.active.len() < p.runtimeConfig.getConnectionCount()
 }
 
 // disconnectAgents handles disconnecting agents that are no longer required.
@@ -497,6 +497,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 		options:     options,
 		username:    p.HostUUID,
 		log:         p.log,
+		isClaimed:   p.tracker.IsClaimed,
 	}
 
 	agent, err := newAgent(agentConfig{
@@ -624,6 +625,12 @@ func (c *agentPoolRuntimeConfig) restrictConnectionCount() bool {
 		return false
 	}
 	return c.tunnelStrategyType == types.ProxyPeering
+}
+
+func (c *agentPoolRuntimeConfig) getConnectionCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.connectionCount
 }
 
 // useReverseTunnelV2 returns true if reverse tunnel should be used.

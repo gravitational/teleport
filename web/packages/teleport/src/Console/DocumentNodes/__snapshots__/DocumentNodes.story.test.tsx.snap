@@ -923,7 +923,7 @@ exports[`render DocumentNodes 1`] = `
           >
             <div
               class="c27"
-              color="primary.contrastText"
+              color="text.contrast"
               style="text-transform: uppercase;"
             >
               Showing 

@@ -266,6 +266,19 @@ func (s *DatabaseServerV3) SetOrigin(origin string) {
 	s.Metadata.SetOrigin(origin)
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *DatabaseServerV3) GetLabel(key string) (value string, ok bool) {
+	if s.Spec.Database != nil {
+		if v, ok := s.Spec.Database.GetLabel(key); ok {
+			return v, ok
+		}
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns all resource's labels. Considering:
 // * Static labels from `Metadata.Labels` and `Spec.Database`.
 // * Dynamic labels from `Spec.DynamicLabels`.

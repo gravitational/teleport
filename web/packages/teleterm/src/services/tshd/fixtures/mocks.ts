@@ -81,7 +81,7 @@ export class MockTshClient implements TshClient {
 
   getCluster: (clusterUri: string) => Promise<Cluster>;
   getAuthSettings: (clusterUri: string) => Promise<AuthSettings>;
-  removeCluster: (clusterUri: string) => Promise<undefined>;
+  removeCluster = () => Promise.resolve();
   loginLocal: (
     params: LoginLocalParams,
     abortSignal?: TshAbortSignal
@@ -94,18 +94,6 @@ export class MockTshClient implements TshClient {
     params: LoginPasswordlessParams,
     abortSignal?: TshAbortSignal
   ) => Promise<undefined>;
-  logout: (clusterUri: string) => Promise<undefined>;
+  logout = () => Promise.resolve();
   transferFile: () => undefined;
 }
-
-export const gateway: Gateway = {
-  uri: '/gateways/gateway1',
-  targetName: 'postgres',
-  targetUri: '/clusters/teleport-local/dbs/postgres',
-  targetUser: 'alice',
-  targetSubresourceName: '',
-  localAddress: 'localhost',
-  localPort: '59116',
-  protocol: 'postgres',
-  cliCommand: 'psql postgres://alice@localhost:59116',
-};

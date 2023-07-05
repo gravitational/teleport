@@ -16,6 +16,8 @@ the on-call team for a service affected by an incident.
 This guide will explain how to set up Teleport's Access Request plugin for
 PagerDuty.
 
+(!docs/pages/includes/plugins/diagram.mdx api="PagerDuty" action="Listen for Access Requests\nModify Access Requests" messages="Send notifications\nGet incident status" !)
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -479,71 +481,7 @@ below:
 
 The PagerDuty plugin uses this section to connect to your Teleport cluster:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-The address and credentials you configure depend on whether your plugin can
-access the Auth Service directly:
-
-<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
-  <TabItem label="Connect to the Proxy Service" options="Executable">
-
-Set `addr` to  your Proxy Service address with port `443`.
-
-Set `identity` to the identity file generated earlier:
-
-```toml
-[teleport]
-addr = "teleport.example.com:443"
-identity = "/var/lib/teleport/plugins/pagerduty/auth.pem"
-```
-  </TabItem>
-  <TabItem label="Connect to the Auth Service" options="Executable">
-
-Set `addr` to the address and port of your Auth Service. This address must be
-reachable from the Teleport PagerDuty plugin.
-
-Set `client_key`, `client_crt`, and `root_cas` to the identity files
-generated earlier:
-
-```toml
-[teleport]
-addr = "localhost:3025"
-client_key = "/var/lib/teleport/plugins/pagerduty/auth.key" # Teleport GRPC client secret key
-client_crt = "/var/lib/teleport/plugins/pagerduty/auth.crt" # Teleport GRPC client certificate
-root_cas = "/var/lib/teleport/plugins/pagerduty/auth.cas"   # Teleport cluster CA certs
-```
-</TabItem>
-  <TabItem label="Connect to your Teleport Cluster" options="Helm Chart">
-
-**`address`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
-(e.g., `teleport.example.com:443`).
-
-**`identitySecretName`**: Fill in the `identitySecretName` field with the name
-of the Kubernetes secret you created earlier.
-
-```yaml
-teleport:
-  address: "teleport.example.com:443"
-  identitySecretName: teleport-plugin-pagerduty-identity
-```
-
-  </TabItem>
-</Tabs>
-
-</ScopedBlock>
-<ScopedBlock scope="cloud">
-
-Set `addr` to  your Teleport Cloud tenant address with port `443`.
-
-Set `identity` to the identity file generated earlier:
-
-```toml
-[teleport]
-addr = "teleport.example.com:443"
-identity = "/var/lib/teleport/plugins/pagerduty/auth.pem"
-```
-
-</ScopedBlock>
+(!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
 ### `[pagerduty]`
 
@@ -568,20 +506,15 @@ fields.
 
 The final configuration should resemble the following:
 
-<Tabs dropdownCaption="Environment type" dropDownSelected="Executable">
-<TabItem label="Connect to the Proxy Service" options="Executable">
+<Tabs>
+<TabItem label="Executable">
 ```yaml
 (!examples/resources/plugins/teleport-pagerduty-cloud.toml!)
 ```
 </TabItem>
-<TabItem label="Connect to the Auth Service" options="Executable">
+<TabItem label="Helm Chart" >
 ```yaml
-(!examples/resources/plugins/teleport-pagerduty-self.toml!)
-```
-</TabItem>
-<TabItem label="Connect to your Teleport Cluster" options="Helm Chart">
-```yaml
-(!examples/resources/plugins/teleport-pagerduty-helm-self.yaml!)
+(!examples/resources/plugins/teleport-pagerduty-helm-cloud.yaml!)
 ```
 </TabItem>
 </Tabs>

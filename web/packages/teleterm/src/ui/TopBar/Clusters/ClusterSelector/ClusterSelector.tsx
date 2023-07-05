@@ -84,7 +84,7 @@ const Container = styled.button`
   ${props => {
     if (props.isOpened) {
       return {
-        borderColor: props.theme.colors.secondary.main,
+        borderColor: props.theme.colors.brand.main,
         opacity: 1,
       };
     }

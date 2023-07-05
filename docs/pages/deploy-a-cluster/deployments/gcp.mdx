@@ -213,12 +213,12 @@ and provided to Teleport throughout the remainder of this guide.
 
 ## GCP Quickstart
 
-## 1. Create Resources
+### 1. Create Resources
 
 We recommend starting by creating the resources. We highly recommend creating these
 an infrastructure automation tool such as [Cloud Deployment Manager](https://cloud.google.com/deployment-manager/) or Terraform.
 
-## 2. Install & Configure Teleport
+### 2. Install & Configure Teleport
 
 Follow install instructions from our [installation page](../../installation.mdx#linux).
 
@@ -227,8 +227,8 @@ We recommend configuring Teleport as per the below steps:
 <Tabs>
 	<TabItem label="Open Source">
 **1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
-using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service)
-or use DEB/RPM packages available from our [Downloads Page](https://goteleport.com/download/).
+using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
+automatically include the `systemd` configuration.
 
 ```yaml
 #
@@ -265,8 +265,8 @@ ssh_service:
 	</TabItem>
 	<TabItem label="Enterprise" label="Enterprise" scope={["enterprise"]}>
 **1. Configure Teleport Auth Server** using the below example `teleport.yaml`, and start it
-using [systemd](https://raw.githubusercontent.com/gravitational/teleport/master/examples/systemd/teleport.service)
-or use DEB/RPM packages available from the [Customer Portal](https://dashboard.gravitational.com).
+using [systemd](../../management/admin/daemon.mdx). The DEB/RPM installations will
+automatically include the `systemd` configuration.
 
 ```yaml
 #
@@ -344,10 +344,11 @@ Save the following configuration file as `/etc/teleport.yaml` on the Node:
 version: v3
 teleport:
   auth_token: (= presets.tokens.second =)
-  # Nodes and other agents can be joined to the cluster via the proxy's public address.
-  # This will establish a reverse tunnel between the proxy and the node which is used for all traffic.
+  # Teleport agents can be joined to the cluster via the Proxy Service's 
+  # public address. This will establish a reverse tunnel between the Proxy 
+  # Service and the agent that is used for all traffic.
   proxy_server: teleport.example.com:443
-# enable ssh service and disable auth and proxy
+# enable the SSH Service and disable the Auth and Proxy Services
 ssh_service:
   enabled: true
 auth_service:

@@ -1041,6 +1041,10 @@ message UserLogin {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AppliedLoginRules stores the name of each login rule that was applied
+  // during the login.
+  repeated string AppliedLoginRules = 9 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
 }
 
 // ResourceMetadata is a common resource metadata
@@ -1476,6 +1480,7 @@ enum SFTPAction {
   RENAME = 16;
   READLINK = 17;
   SYMLINK = 18;
+  LINK = 19;
 }
 
 // SFTP is emitted when file operations have occurred between server and client
@@ -3843,13 +3848,13 @@ message DatabaseSessionMalformedPacket {
 // ElasticsearchCategory specifies Elasticsearch request category.
 enum ElasticsearchCategory {
   // GENERAL is for otherwise uncategorized calls.
-  GENERAL = 0;
+  ELASTICSEARCH_CATEGORY_GENERAL = 0;
   // SECURITY is for _security and _ssl APIs.
-  SECURITY = 1;
+  ELASTICSEARCH_CATEGORY_SECURITY = 1;
   // SEARCH is for search-related APIs.
-  SEARCH = 2;
+  ELASTICSEARCH_CATEGORY_SEARCH = 2;
   // SQL covers _sql API.
-  SQL = 3;
+  ELASTICSEARCH_CATEGORY_SQL = 3;
 }
 
 // ElasticsearchRequest is emitted when user executes an Elasticsearch request, which isn't

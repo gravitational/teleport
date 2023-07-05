@@ -25,11 +25,6 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/version"
-	"k8s.io/client-go/discovery"
-	fakediscovery "k8s.io/client-go/discovery/fake"
-	"k8s.io/client-go/kubernetes"
-	"k8s.io/client-go/kubernetes/fake"
 )
 
 func TestFetchInstallMethods(t *testing.T) {
@@ -102,7 +97,7 @@ func TestFetchInstallMethods(t *testing.T) {
 					return nil, trace.NotFound("command does not exist")
 				}
 				output := `
-● teleport.service - Teleport SSH Service
+● teleport.service - Teleport Service
 Loaded: loaded (/lib/systemd/system/teleport.service; enabled; vendor preset: enabled)
 Active: active (running) since Wed 2022-11-09 10:52:49 UTC; 3 months 22 days ago
 Main PID: 1815 (teleport)
@@ -197,59 +192,72 @@ func TestFetchContainerRuntime(t *testing.T) {
 	}
 }
 
-// newFakeClientSet builds a fake clientSet reporting a specific kubernetes
-// version.  This is used to test version-specific behaviors.
-func newFakeClientSet(gitVersion string) *fakeClientSet {
-	cs := fakeClientSet{}
-	cs.discovery = fakediscovery.FakeDiscovery{
-		Fake: &cs.Fake,
-		FakedServerVersion: &version.Info{
-			GitVersion: gitVersion,
-		},
-	}
-	return &cs
-}
-
-type fakeClientSet struct {
-	fake.Clientset
-	discovery fakediscovery.FakeDiscovery
-}
-
-// Discovery overrides the default fake.Clientset Discovery method and returns
-// our custom discovery mock instead.
-func (c *fakeClientSet) Discovery() discovery.DiscoveryInterface {
-	return &c.discovery
-}
-
 func TestFetchContainerOrchestrator(t *testing.T) {
 	t.Parallel()
 
 	testCases := []struct {
-		desc       string
-		kubeClient kubernetes.Interface
-		expected   string
+		desc     string
+		getenv   func(string) string
+		httpDo   func(*http.Request, bool) (*http.Response, error)
+		expected string
 	}{
 		{
-			desc:       "kubernetes with git version X",
-			kubeClient: newFakeClientSet("X"),
-			expected:   "kubernetes-X",
+			desc: "kubernetes with git version if on kubernetes",
+			getenv: func(name string) string {
+				if name == "KUBERNETES_SERVICE_HOST" {
+					return "172.20.0.1"
+				}
+				if name == "KUBERNETES_SERVICE_PORT" {
+					return "443"
+				}
+				return ""
+			},
+			httpDo: func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
+				if !insecureSkipVerify {
+					return nil, trace.BadParameter("insecureSkipVerify should be true")
+				}
+				if req.URL.String() != "https://172.20.0.1:443/version" {
+					return nil, trace.NotFound("not found")
+				}
+
+				body := `
+				{
+					"major": "1",
+					"minor": "23+",
+					"gitVersion": "v1.23.14-eks-ffeb93d",
+					"gitCommit": "96e7d52c98a32f2b296ca7f19dc9346cf79915ba",
+					"gitTreeState": "clean",
+					"buildDate": "2022-11-29T18:43:31Z",
+					"goVersion": "go1.17.13",
+					"compiler": "gc",
+					"platform": "linux/amd64"
+				}
+				`
+				return &http.Response{
+					StatusCode: 200,
+					Body:       io.NopCloser(strings.NewReader(body)),
+				}, nil
+			},
+			expected: "kubernetes-v1.23.14-eks-ffeb93d",
 		},
 		{
-			desc:       "kubernetes with git version Y",
-			kubeClient: newFakeClientSet("Y"),
-			expected:   "kubernetes-Y",
-		},
-		{
-			desc:       "empty if not on kubernetes",
-			kubeClient: nil,
-			expected:   "",
+			desc: "empty if not on kubernetes",
+			getenv: func(name string) string {
+				return ""
+			},
+			httpDo: func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
+				return nil, trace.NotFound("not found")
+			},
+			expected: "",
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.desc, func(t *testing.T) {
 			c := &fetchConfig{
-				kubeClient: tc.kubeClient,
+				context: context.Background(),
+				getenv:  tc.getenv,
+				httpDo:  tc.httpDo,
 			}
 			require.Equal(t, tc.expected, c.fetchContainerOrchestrator())
 		})
@@ -266,12 +274,15 @@ func TestFetchCloudEnvironment(t *testing.T) {
 
 	testCases := []struct {
 		desc     string
-		httpDo   func(*http.Request) (*http.Response, error)
+		httpDo   func(*http.Request, bool) (*http.Response, error)
 		expected string
 	}{
 		{
 			desc: "aws if on aws",
-			httpDo: func(req *http.Request) (*http.Response, error) {
+			httpDo: func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
+				if insecureSkipVerify {
+					return nil, trace.BadParameter("insecureSkipVerify should be false")
+				}
 				if req.URL.String() != "http://169.254.169.254/latest/meta-data/" {
 					return nil, trace.NotFound("not found")
 				}
@@ -284,7 +295,10 @@ func TestFetchCloudEnvironment(t *testing.T) {
 		},
 		{
 			desc: "gcp if on gcp ",
-			httpDo: func(req *http.Request) (*http.Response, error) {
+			httpDo: func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
+				if insecureSkipVerify {
+					return nil, trace.BadParameter("insecureSkipVerify should be false")
+				}
 				if req.URL.String() != "http://metadata.google.internal/computeMetadata/v1" {
 					return nil, trace.NotFound("not found")
 				}
@@ -303,7 +317,10 @@ func TestFetchCloudEnvironment(t *testing.T) {
 		},
 		{
 			desc: "azure if on azure",
-			httpDo: func(req *http.Request) (*http.Response, error) {
+			httpDo: func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
+				if insecureSkipVerify {
+					return nil, trace.BadParameter("insecureSkipVerify should be false")
+				}
 				if req.URL.String() != "http://169.254.169.254/metadata/instance?api-version=2021-02-01" {
 					return nil, trace.NotFound("not found")
 				}
@@ -322,7 +339,10 @@ func TestFetchCloudEnvironment(t *testing.T) {
 		},
 		{
 			desc: "empty if not aws, gcp nor azure",
-			httpDo: func(req *http.Request) (*http.Response, error) {
+			httpDo: func(req *http.Request, insecureSkipVerify bool) (*http.Response, error) {
+				if insecureSkipVerify {
+					return nil, trace.BadParameter("insecureSkipVerify should be false")
+				}
 				return nil, trace.NotFound("not found")
 			},
 			expected: "",

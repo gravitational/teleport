@@ -51,16 +51,7 @@ func (s *Server) startKubeWatchers() error {
 					return nil
 				}
 
-				// filter only discover clusters.
-				var kubeClusters types.KubeClusters
-				for _, kc := range kcs {
-					if kc.Origin() != types.OriginCloud {
-						continue
-					}
-					kubeClusters = append(kubeClusters, kc)
-				}
-
-				return kubeClusters.AsResources().ToMap()
+				return types.KubeClusters(filterResources(kcs, types.OriginCloud, s.DiscoveryGroup)).AsResources().ToMap()
 			},
 			GetNewResources: func() types.ResourcesWithLabelsMap {
 				mu.Lock()
@@ -117,6 +108,17 @@ func (s *Server) fetchFetchersResources() types.ResourcesWithLabels {
 				// never return the error otherwise it will impact other watchers.
 				return nil
 			}
+			if s.DiscoveryGroup != "" {
+				// Add the discovery group name to the static labels of each resource.
+				for _, r := range resources {
+					staticLabels := r.GetStaticLabels()
+					if staticLabels == nil {
+						staticLabels = make(map[string]string)
+					}
+					staticLabels[types.TeleportInternalDiscoveryGroupName] = s.DiscoveryGroup
+					r.SetStaticLabels(staticLabels)
+				}
+			}
 			fetchersLock.Lock()
 			newFetcherResources = append(newFetcherResources, resources...)
 			fetchersLock.Unlock()
@@ -128,13 +130,36 @@ func (s *Server) fetchFetchersResources() types.ResourcesWithLabels {
 	return newFetcherResources
 }
 
+func filterResources[T types.ResourceWithLabels, S ~[]T](all S, wantOrigin, wantResourceGroup string) (filtered S) {
+	for _, resource := range all {
+		resourceDiscoveryGroup, _ := resource.GetLabel(types.TeleportInternalDiscoveryGroupName)
+		if resource.Origin() != wantOrigin || resourceDiscoveryGroup != wantResourceGroup {
+			continue
+		}
+		filtered = append(filtered, resource)
+
+	}
+	return
+}
+
 func (s *Server) onKubeCreate(ctx context.Context, rwl types.ResourceWithLabels) error {
 	kubeCluster, ok := rwl.(types.KubeCluster)
 	if !ok {
 		return trace.BadParameter("invalid type received; expected types.KubeCluster, received %T", kubeCluster)
 	}
 	s.Log.Debugf("Creating kube_cluster %s.", kubeCluster.GetName())
-	return trace.Wrap(s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster))
+	err := s.AccessPoint.CreateKubernetesCluster(ctx, kubeCluster)
+	// If the resource already exists, it means that the resource was created
+	// by a previous discovery_service instance that didn't support the discovery
+	// group feature or the discovery group was changed.
+	// In this case, we need to update the resource with the
+	// discovery group label to ensure the user doesn't have to manually delete
+	// the resource.
+	// TODO(tigrato): DELETE on 14.0.0
+	if trace.IsAlreadyExists(err) {
+		return trace.Wrap(s.onKubeUpdate(ctx, rwl))
+	}
+	return trace.Wrap(err)
 }
 
 func (s *Server) onKubeUpdate(ctx context.Context, rwl types.ResourceWithLabels) error {

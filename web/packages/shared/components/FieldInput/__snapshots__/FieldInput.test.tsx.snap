@@ -98,7 +98,7 @@ exports[`snapshot tests 1`] = `
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
+        color="text.primaryInverse"
         inputmode="text"
         type="text"
         value="value"
@@ -117,7 +117,7 @@ exports[`snapshot tests 1`] = `
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
+        color="text.primaryInverse"
         inputmode="text"
         placeholder="placeholder"
         type="text"
@@ -150,7 +150,7 @@ exports[`snapshot tests 1`] = `
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
+        color="text.primaryInverse"
         inputmode="text"
         placeholder="placeholder"
         type="text"
@@ -189,7 +189,7 @@ exports[`snapshot tests 1`] = `
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
+        color="text.primaryInverse"
         inputmode="text"
         placeholder="placeholder"
         type="text"
@@ -203,7 +203,7 @@ exports[`snapshot tests 1`] = `
     <input
       autocomplete="off"
       class="c3"
-      color="text.onLight"
+      color="text.primaryInverse"
       inputmode="text"
       placeholder="without label"
       type="text"

@@ -19,11 +19,12 @@ package config
 import (
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
@@ -148,6 +149,10 @@ type CLIConf struct {
 	// RemainingArgs is the remaining string arguments for commands that
 	// require them.
 	RemainingArgs []string
+
+	// DiagAddr is the address the diagnostics http service should listen on.
+	// If not set, no diagnostics listener is created.
+	DiagAddr string
 }
 
 // OnboardingConfig contains values only required on first connect.
@@ -213,6 +218,9 @@ type BotConfig struct {
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
 	Oneshot         bool          `yaml:"oneshot"`
+	// DiagAddr is the address the diagnostics http service should listen on.
+	// If not set, no diagnostics listener is created.
+	DiagAddr string `yaml:"diag_addr,omitempty"`
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
@@ -287,6 +295,45 @@ func isJoinMethodDefault(joinMethod string) bool {
 	return joinMethod == "" || joinMethod == DefaultJoinMethod
 }
 
+func storageConfigFromCLIConf(dataDir string) (*StorageConfig, error) {
+	uri, err := url.Parse(dataDir)
+	if err != nil {
+		return nil, trace.Wrap(err, "parsing --data-dir")
+	}
+	switch uri.Scheme {
+	case "", "file":
+		if uri.Host != "" {
+			return nil, trace.BadParameter(
+				"file-backed data storage must be on the local host",
+			)
+		}
+		// TODO(strideynet): eventually we can allow for URI query parameters
+		// to be used to configure symlinks/acl protection.
+		return &StorageConfig{
+			DestinationMixin: DestinationMixin{
+				Directory: &DestinationDirectory{
+					Path: uri.Path,
+				},
+			},
+		}, nil
+	case "memory":
+		if uri.Host != "" || uri.Path != "" {
+			return nil, trace.BadParameter(
+				"memory-backed data storage should not have host or path specified",
+			)
+		}
+		return &StorageConfig{
+			DestinationMixin: DestinationMixin{
+				Memory: &DestinationMemory{},
+			},
+		}, nil
+	default:
+		return nil, trace.BadParameter(
+			"unrecognized data storage scheme",
+		)
+	}
+}
+
 // FromCLIConf loads bot config from CLI parameters, potentially loading and
 // merging a configuration file if specified. CheckAndSetDefaults() will
 // be called. Note that CLI flags, if specified, will override file values.
@@ -337,16 +384,15 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 	if cf.DataDir != "" {
 		if config.Storage != nil {
 			if _, err := config.Storage.GetDestination(); err != nil {
-				log.Warnf("CLI parameters are overriding storage location from %s", cf.ConfigPath)
+				log.Warnf(
+					"CLI parameters are overriding storage location from %s",
+					cf.ConfigPath,
+				)
 			}
 		}
-
-		config.Storage = &StorageConfig{
-			DestinationMixin: DestinationMixin{
-				Directory: &DestinationDirectory{
-					Path: cf.DataDir,
-				},
-			},
+		config.Storage, err = storageConfigFromCLIConf(cf.DataDir)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
 	}
 
@@ -384,6 +430,13 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		}
 
 		config.Onboarding.SetToken(cf.Token)
+	}
+
+	if cf.DiagAddr != "" {
+		if config.DiagAddr != "" {
+			log.Warnf("CLI parameters are overriding diagnostics address configured in %s", cf.ConfigPath)
+		}
+		config.DiagAddr = cf.DiagAddr
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {

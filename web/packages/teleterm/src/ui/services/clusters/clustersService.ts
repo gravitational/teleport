@@ -26,6 +26,7 @@ import * as uri from 'teleterm/ui/uri';
 import { NotificationsService } from 'teleterm/ui/services/notifications';
 import {
   Cluster,
+  Gateway,
   CreateAccessRequestParams,
   GetRequestableRolesParams,
   ReviewAccessRequestParams,
@@ -70,11 +71,27 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return cluster;
   }
 
+  /**
+   * Logs out of the cluster and removes the profile.
+   * Does not remove the cluster from the state, but sets the cluster and its leafs as disconnected.
+   * It needs to be done, because some code can operate on the cluster the intermediate period between logout
+   * and actually removing it from the state.
+   * A code that operates on that intermediate state is in `useClusterLogout.tsx`.
+   * After invoking `logout()`, it looks for the next workspace to switch to. If we hadn't marked the cluster as disconnected,
+   * the method might have returned us the same cluster we wanted to log out of.
+   */
   async logout(clusterUri: uri.RootClusterUri) {
     // TODO(gzdunek): logout and removeCluster should be combined into a single acton in tshd
     await this.client.logout(clusterUri);
-    await this.removeCluster(clusterUri);
-    await this.removeClusterKubeConfigs(clusterUri);
+    await this.client.removeCluster(clusterUri);
+
+    this.setState(draft => {
+      draft.clusters.forEach(cluster => {
+        if (routing.belongsToProfile(clusterUri, cluster.uri)) {
+          cluster.connected = false;
+        }
+      });
+    });
   }
 
   async loginLocal(
@@ -277,23 +294,16 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
     return this.client.createAccessRequest(params);
   }
 
-  /**
-   * Removes cluster and its leaf clusters (if any)
-   */
-  async removeCluster(clusterUri: uri.RootClusterUri) {
-    await this.client.removeCluster(clusterUri);
-    const leafClustersUris = this.getClusters()
-      .filter(
-        item =>
-          item.leaf && routing.ensureRootClusterUri(item.uri) === clusterUri
-      )
-      .map(cluster => cluster.uri);
+  /** Removes cluster, its leafs and other resources. */
+  async removeClusterAndResources(clusterUri: uri.RootClusterUri) {
     this.setState(draft => {
-      draft.clusters.delete(clusterUri);
-      leafClustersUris.forEach(leafClusterUri => {
-        draft.clusters.delete(leafClusterUri);
+      draft.clusters.forEach(cluster => {
+        if (routing.belongsToProfile(clusterUri, cluster.uri)) {
+          draft.clusters.delete(cluster.uri);
+        }
       });
     });
+    await this.removeClusterKubeConfigs(clusterUri);
   }
 
   async getAuthSettings(clusterUri: uri.RootClusterUri) {
@@ -374,6 +384,25 @@ export class ClustersService extends ImmutableStore<types.ClustersServiceState> 
 
   findGateway(gatewayUri: uri.GatewayUri) {
     return this.state.gateways.get(gatewayUri);
+  }
+
+  findGatewayByConnectionParams(
+    targetUri: uri.DatabaseUri,
+    targetUser: string
+  ) {
+    let found: Gateway;
+
+    for (const [, gateway] of this.state.gateways) {
+      if (
+        gateway.targetUri === targetUri &&
+        gateway.targetUser === targetUser
+      ) {
+        found = gateway;
+        break;
+      }
+    }
+
+    return found;
   }
 
   /**

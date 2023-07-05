@@ -1,6 +1,8 @@
-teleport: {}
-  # address: "teleportauth:3025"                        # Teleport Auth Server GRPC API address
-  # identitySecretName: teleport-plugin-discord-identity  # Secret containing identity
+teleport:
+  # Teleport HTTPS Proxy web address, for Teleport Enterprise Cloud should be in the form "your-account.teleport.sh:443"
+  address: "teleport.example.com:443"
+  # Secret containing identity
+  identitySecretName: teleport-plugin-discord-identity
 
 discord:
   token: "XXXXXXXX"  # Discord Bot OAuth token

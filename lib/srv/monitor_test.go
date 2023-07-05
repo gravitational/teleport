@@ -37,7 +37,7 @@ import (
 )
 
 func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer, mut ...func(*MonitorConfig)) (*mockTrackingConn, *eventstest.ChannelEmitter, MonitorConfig) {
-	conn := &mockTrackingConn{make(chan struct{})}
+	conn := &mockTrackingConn{closedC: make(chan struct{})}
 	emitter := eventstest.NewChannelEmitter(1)
 	cfg := MonitorConfig{
 		Context:     ctx,
@@ -55,6 +55,91 @@ func newTestMonitor(ctx context.Context, t *testing.T, asrv *auth.TestAuthServer
 	}
 	require.NoError(t, StartMonitor(cfg))
 	return conn, emitter, cfg
+}
+
+func TestConnectionMonitorLockInForce(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+
+	asrv, err := auth.NewTestAuthServer(auth.TestAuthServerConfig{
+		Dir:   t.TempDir(),
+		Clock: clockwork.NewFakeClock(),
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, asrv.Close()) })
+
+	// Create a connection monitor that points to our test
+	// Auth server.
+	emitter := eventstest.NewChannelEmitter(1)
+	monitor, err := NewConnectionMonitor(ConnectionMonitorConfig{
+		AccessPoint: asrv.AuthServer,
+		Emitter:     emitter,
+		Clock:       asrv.Clock(),
+		Logger:      logrus.StandardLogger(),
+		LockWatcher: asrv.LockWatcher,
+		ServerID:    "test",
+	})
+	require.NoError(t, err)
+
+	lock, err := types.NewLock("test-lock", types.LockSpecV2{Target: types.LockTarget{User: "test-user"}})
+	require.NoError(t, err)
+
+	identity := &auth.LocalUser{
+		Username: "test-user",
+		Identity: tlsca.Identity{
+			Username: "test-user",
+		},
+	}
+
+	authCtx := &auth.Context{
+		Checker:          mockChecker{},
+		Identity:         identity,
+		UnmappedIdentity: identity,
+	}
+
+	t.Run("lock created after connection has been established", func(t *testing.T) {
+		// Create a fake connection and monitor it.
+		tconn := &mockTrackingConn{closedC: make(chan struct{})}
+		monitorCtx, _, err := monitor.MonitorConn(ctx, authCtx, tconn)
+		require.NoError(t, err)
+		require.Nil(t, monitorCtx.Err())
+
+		// Create a lock targeting the user that was connected above.
+		require.NoError(t, asrv.AuthServer.UpsertLock(ctx, lock))
+
+		// Assert that the connection was terminated.
+		select {
+		case <-tconn.closedC:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Timeout waiting for connection close.")
+		}
+
+		// Assert that the context was canceled.
+		require.Error(t, monitorCtx.Err())
+
+		// Validate that the disconnect event was logged.
+		require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
+	})
+
+	t.Run("connection terminated if lock already exists", func(t *testing.T) {
+		// Create another connection for the locked user and validate
+		// that it is terminated right away.
+		tconn := &mockTrackingConn{closedC: make(chan struct{})}
+		monitorCtx, _, err := monitor.MonitorConn(ctx, authCtx, tconn)
+		require.NoError(t, err)
+
+		// Assert that the context was canceled and that the connection was terminated.
+		require.Error(t, monitorCtx.Err())
+		select {
+		case <-tconn.closedC:
+		case <-time.After(2 * time.Second):
+			t.Fatal("Timeout waiting for connection close.")
+		}
+
+		// Validate that the disconnect event was logged.
+		require.Equal(t, services.LockInForceAccessDenied(lock).Error(), (<-emitter.C()).(*apievents.ClientDisconnect).Reason)
+	})
 }
 
 func TestMonitorLockInForce(t *testing.T) {
@@ -147,6 +232,7 @@ func TestMonitorStaleLocks(t *testing.T) {
 }
 
 type mockTrackingConn struct {
+	net.Conn
 	closedC chan struct{}
 }
 
@@ -221,8 +307,16 @@ type mockChecker struct {
 	services.AccessChecker
 }
 
-func (m *mockChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
+func (m mockChecker) AdjustDisconnectExpiredCert(disconnect bool) bool {
 	return disconnect
+}
+
+func (m mockChecker) AdjustClientIdleTimeout(ttl time.Duration) time.Duration {
+	return ttl
+}
+
+func (m mockChecker) LockingMode(defaultMode constants.LockingMode) constants.LockingMode {
+	return defaultMode
 }
 
 type mockAuthPreference struct {
@@ -240,7 +334,7 @@ func TestGetDisconnectExpiredCertFromIdentity(t *testing.T) {
 	now := clock.Now()
 	inAnHour := clock.Now().Add(time.Hour)
 	var unset time.Time
-	checker := &mockChecker{}
+	checker := mockChecker{}
 	authPref := &mockAuthPreference{}
 
 	for _, test := range []struct {

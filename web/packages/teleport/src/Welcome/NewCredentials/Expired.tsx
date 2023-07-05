@@ -23,7 +23,14 @@ export function Expired({ resetMode = false }) {
   const paraCodeTxt = resetMode ? 'reset' : 'invite';
 
   return (
-    <Card width="540px" color="text.onLight" p={6} bg="light" mt={6} mx="auto">
+    <Card
+      width="540px"
+      color="text.primaryInverse"
+      p={6}
+      bg="light"
+      mt={6}
+      mx="auto"
+    >
       <Text typography="h1" textAlign="center" fontSize={8} color="text" mb={3}>
         {titleCodeTxt} Code Expired
       </Text>

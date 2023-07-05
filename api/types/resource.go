@@ -85,6 +85,8 @@ type ResourceWithOrigin interface {
 type ResourceWithLabels interface {
 	// ResourceWithOrigin is the base resource interface.
 	ResourceWithOrigin
+	// GetLabel retrieves the label with the provided key.
+	GetLabel(key string) (value string, ok bool)
 	// GetAllLabels returns all resource's labels.
 	GetAllLabels() map[string]string
 	// GetStaticLabels returns the resource's static labels.

@@ -278,6 +278,19 @@ func (s *KubernetesServerV3) SetProxyIDs(proxyIDs []string) {
 	s.Spec.ProxyIDs = proxyIDs
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (s *KubernetesServerV3) GetLabel(key string) (value string, ok bool) {
+	if s.Spec.Cluster != nil {
+		if v, ok := s.Spec.Cluster.GetLabel(key); ok {
+			return v, ok
+		}
+	}
+
+	v, ok := s.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns all resource's labels. Considering:
 // * Static labels from `Metadata.Labels` and `Spec.Cluster`.
 // * Dynamic labels from `Spec.Cluster.Spec`.

@@ -8,9 +8,9 @@ h1: Moderated Sessions
 ## Introduction
 
 Moderated Sessions allows Teleport administrators to define requirements for
-other users to be present in a Server or Kubernetes Access session. Depending on
-the requirements, these users can observe the session in real time, participate
-in the session, and terminate the session at will.
+other users to be present in a server or Kubernetes session. Depending on the
+requirements, these users can observe the session in real time, participate in
+the session, and terminate the session at will.
 
 In addition, Teleport administrators can [define rules](#join_sessions) that allow users to join each other's
 sessions from `tsh` and the Web UI.
@@ -101,9 +101,9 @@ The following are required options for `join_sessions`:
 |Option|Type|Description|
 |---|---|---|
 |`name`|String|The name of the allow policy|
-|`roles`|[]String|A list of names for Teleport roles that this policy applies to. Users with this role are eligible to join a Moderated Session under this policy.|
+|`roles`|[]String|A list of names of Teleport roles whose sessions this policy applies to. Active sessions created by users with these roles can be joined under this policy.|
 |`kinds`|`[]`[Session kind](#session-kinds)|The kind of session that the policy applies to|
-|`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the Moderated Session under this policy|
+|`modes`|`[]`[Participant mode](#participant-modes)|The participant mode that applies to the user joining the session under this policy|
 
 #### Example
 
@@ -164,12 +164,10 @@ options are `ssh` and `k8s`.
 
 A participant joining a session will always have one of three modes:
 
-- `peer`: Can join and collaborate in a session. They can view output and send
-  input.
-- `moderator`: Can join and watch a session. They can view output and
-  forcefully terminate the session at will.
-- `observer`: Can join and watch a session. They cannot control the session in
-  any way.
+- `observer`: Allows read-only access to the session. You can view output but cannot control the session in any way nor send any input.
+- `moderator`: Allows you to watch the session. You can view output and forcefully terminate or pause the session at any time, but can't send input.
+- `peer`: Allows you to collaborate in the session. You can view output and send input.
+
 
 When joining a session with `tsh join` or `tsh kube join`, a user can specify a
 mode with the `--mode <mode>` flag , where the mode is one of `peer`,
@@ -205,7 +203,7 @@ but the session will remain open. This discards all input from session participa
 
 Moderated Session RBAC controls were added to the role specification in version 5
 (`version: v5` in the YAML definition).
-Previously, Server Access did not include controls over which users can join a
+Previously, the Teleport SSH Service did not include controls over which users can join a
 session.
 To avoid breaking functionality for users with only roles on v4 or older, RBAC
 access checks will only be enforced if the user has at least one v5 role.

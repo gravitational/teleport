@@ -1,6 +1,6 @@
 ---
 title: Database Access with Azure Cache for Redis
-description: How to configure Teleport Database Access with Azure Cache for Redis
+description: How to configure Teleport database access with Azure Cache for Redis
 ---
 
 This guide will help you to:
@@ -147,12 +147,7 @@ and replace the subscription in `assignableScopes` with your own subscription id
 
 ## Step 4/5. Start the Database Service
 
-Once the service principal is configured with the required IAM permissions,
-start the Teleport Database Service:
-
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ## Step 5/5. Connect
 

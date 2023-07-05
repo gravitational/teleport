@@ -32,12 +32,27 @@ func main() {
 	pipelines = append(pipelines, pushPipelines()...)
 	pipelines = append(pipelines, tagPipelines()...)
 	pipelines = append(pipelines, cronPipelines()...)
-	pipelines = append(pipelines, buildOsRepoPipelines()...)
 	pipelines = append(pipelines, promoteBuildPipelines()...)
 	pipelines = append(pipelines, updateDocsPipeline())
 	pipelines = append(pipelines, buildboxPipeline())
 	pipelines = append(pipelines, buildContainerImagePipelines()...)
 	pipelines = append(pipelines, publishReleasePipeline())
+
+	// Inject the Drone-level dockerhub credentials into all non-exec
+	// pipelines. Drone will then use the docker credentials file in
+	// the named secret as its credentials when pulling images from
+	// dockerhub.
+	//
+	// Exec pipelines do not have the `image_pull_secrets` option, as
+	// their steps are invoked directly on the host runner and not
+	// into a per-step container.
+	for pidx := range pipelines {
+		p := &pipelines[pidx]
+		if p.Type == "exec" {
+			continue
+		}
+		p.ImagePullSecrets = append(p.ImagePullSecrets, "DOCKERHUB_CREDENTIALS")
+	}
 
 	if err := writePipelines(".drone.yml", pipelines); err != nil {
 		fmt.Println("failed writing drone pipelines:", err)

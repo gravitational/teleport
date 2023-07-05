@@ -1649,7 +1649,8 @@ func TestPTY(t *testing.T) {
 	require.NoError(t, se.RequestPty(ctx, "xterm", 0, 0, ssh.TerminalModes{}))
 }
 
-// TestEnv requests setting environment variables. (We are currently ignoring these requests)
+// TestEnv requests setting environment variables via
+// a "env" request.
 func TestEnv(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -1660,7 +1661,61 @@ func TestEnv(t *testing.T) {
 	require.NoError(t, err)
 	defer se.Close()
 
-	require.NoError(t, se.Setenv(ctx, "HOME", "/"))
+	require.NoError(t, se.Setenv(ctx, "HOME_TEST", "/test"))
+	output, err := se.Output(ctx, "env")
+	require.NoError(t, err)
+	require.Contains(t, string(output), "HOME_TEST=/test")
+}
+
+// TestEnvs requests setting environment variables via
+// a "envs@goteleport.com" request.
+func TestEnvs(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	f := newFixtureWithoutDiskBasedLogging(t)
+
+	se, err := f.ssh.clt.NewSession(ctx)
+	require.NoError(t, err)
+	defer se.Close()
+
+	envs := map[string]string{
+		"HOME_TEST": "/test",
+		"LLAMA":     "ALPACA",
+		"FISH":      "FROG",
+	}
+
+	require.NoError(t, se.SetEnvs(ctx, envs))
+	output, err := se.Output(ctx, "env")
+	require.NoError(t, err)
+
+	for k, v := range envs {
+		require.Contains(t, string(output), k+"="+v)
+	}
+}
+
+// TestUnknownRequest validates that any unknown session
+// requests do not terminate the session.
+func TestUnknownRequest(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	f := newFixtureWithoutDiskBasedLogging(t)
+
+	se, err := f.ssh.clt.NewSession(ctx)
+	require.NoError(t, err)
+	defer se.Close()
+
+	// send a random request that won't be handled
+	ok, err := se.SendRequest(ctx, uuid.NewString(), true, nil)
+	require.NoError(t, err)
+	require.False(t, ok)
+
+	// ensure the session is still active
+	require.NoError(t, se.Setenv(ctx, "HOME_TEST", "/test"))
+	output, err := se.Output(ctx, "env")
+	require.NoError(t, err)
+	require.Contains(t, string(output), "HOME_TEST=/test")
 }
 
 // TestNoAuth tries to log in with no auth methods and should be rejected

@@ -129,7 +129,7 @@ these options:
 You can use `cert-manager` to provision and automatically renew TLS credentials
 by completing ACME challenges via Let's Encrypt. We recommend this approach if
 you require CLI access to web applications using client certificates via
-Teleport Application Access.
+the Teleport Application Service.
 
 #### Using AWS Certificate Manager
 
@@ -139,10 +139,10 @@ certificates.
 You should be aware of the limitations for using AWS Certificate Manager to
 provision TLS credentials for Teleport:
 
-- This will prevent Teleport Application Access from working via CLI using
-  client certificates. Application Access will still work via a browser.
-- Command-line Application Access does not work with ACM. Using ACM will prevent
-  Teleport from facilitating Application Access via CLI (using client
+- This will prevent the Teleport Application Service from working via CLI using
+  client certificates. Application access will still work via a browser.
+- Command-line application access does not work with ACM. Using ACM will prevent
+  Teleport from facilitating application access via CLI (using client
   certificates), as Teleport will not be handling its own TLS termination.
 - Using ACM through a AWS Load Balancer prevents the required traffic for
   Postgres or MongoDB through Teleport's web port. If you choose to use the ACM
@@ -333,9 +333,7 @@ Edit your `values.yaml` file to refer to the name of your secret:
 Before you can install Teleport in your Kubernetes cluster, you will need to
 create a secret that contains your Teleport license information.
 
-Download your Teleport Enterprise license from the
-[Customer Portal](https://dashboard.gravitational.com/web/login) and save it to
-a file called `license.pem`.
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
 
 Create a secret from your license file. Teleport will automatically discover
 this secret as long as your file is named `license.pem`.

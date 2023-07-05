@@ -22,6 +22,7 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -50,6 +51,8 @@ type Session struct {
 	Log logrus.FieldLogger
 	// LockTargets is a list of lock targets applicable to this session.
 	LockTargets []types.LockTarget
+	// AuthContext is the identity context of the user.
+	AuthContext *auth.Context
 }
 
 // String returns string representation of the session parameters.

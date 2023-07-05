@@ -71,7 +71,8 @@ func TestRootWatch(t *testing.T) {
 	require.NoError(t, err)
 
 	t.Cleanup(func() {
-		require.NoError(t, service.Close())
+		const restarting = false
+		require.NoError(t, service.Close(restarting))
 	})
 
 	// Create a fake audit log that can be used to capture the events emitted.
@@ -465,7 +466,8 @@ func moveIntoCgroup(t *testing.T, pid int) (uint64, error) {
 		return 0, trace.Wrap(err)
 	}
 	t.Cleanup(func() {
-		require.NoError(t, cgroupSrv.Close())
+		const skipUnmount = false
+		require.NoError(t, cgroupSrv.Close(skipUnmount))
 	})
 
 	sessionID := uuid.New().String()

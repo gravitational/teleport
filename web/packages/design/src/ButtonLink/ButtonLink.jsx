@@ -46,7 +46,7 @@ const StyledButtonLink = styled.a`
 
   &:hover,
   &:focus {
-    background: ${({ theme }) => theme.colors.primary.light};
+    background: ${({ theme }) => theme.colors.levels.surface};
   }
 `;
 

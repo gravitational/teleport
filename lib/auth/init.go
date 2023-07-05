@@ -181,9 +181,6 @@ type InitConfig struct {
 	// SessionTrackerService is a service that manages trackers for all active sessions.
 	SessionTrackerService services.SessionTrackerService
 
-	// Enforcer is used to enforce Teleport Enterprise license compliance.
-	Enforcer services.Enforcer
-
 	// ConnectionsDiagnostic is a service that manages Connection Diagnostics resources.
 	ConnectionsDiagnostic services.ConnectionsDiagnostic
 

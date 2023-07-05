@@ -29,6 +29,9 @@
     "**/minimist": "^1.2.5",
     "**/@types/react": "^16.8.19"
   },
+  "devDependencies": {
+    "typescript": "^5.1.3"
+  },
   "workspaces": {
     "packages": [
       "web/packages/build/**",

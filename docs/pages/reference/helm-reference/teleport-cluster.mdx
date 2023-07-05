@@ -203,8 +203,9 @@ For possible values, [see the Teleport Configuration Reference](../../reference/
 | - | - | - | - | - |
 | `bool` | `false` | no | `proxy_service.postgres_listen_addr` | ❌ |
 
-`separatePostgresListener` controls whether Teleport will multiplex PostgreSQL traffic for Teleport Database Access
-over a separate TLS listener to Teleport's web UI.
+`separatePostgresListener` controls whether Teleport will multiplex PostgreSQL
+traffic for the Teleport Database Service over a separate TLS listener to
+Teleport's web UI.
 
 When `separatePostgresListener` is `false` (the default), PostgreSQL traffic will be directed to port 443 (the default Teleport web
 UI port). This works in situations when Teleport is terminating its own TLS traffic, i.e. when using certificates from LetsEncrypt
@@ -235,7 +236,7 @@ These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is se
 | - | - | - | - | - |
 | `bool` | `false` | no | `proxy_service.mongo_listen_addr` | ❌ |
 
-`separateMongoListener` controls whether Teleport will multiplex PostgreSQL traffic for Teleport Database Access
+`separateMongoListener` controls whether Teleport will multiplex PostgreSQL traffic for the Teleport Database Service
 over a separate TLS listener to Teleport's web UI.
 
 When `separateMongoListener` is `false` (the default), MongoDB traffic will be directed to port 443 (the default Teleport web

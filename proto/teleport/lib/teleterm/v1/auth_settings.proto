@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.lib.teleterm.v1;
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1";
+option go_package = "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1;teletermv1";
 
 // AuthSettings contains the form of authentication the auth server supports.
 message AuthSettings {

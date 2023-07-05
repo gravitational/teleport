@@ -1,8 +1,8 @@
 <Admonition type="note" title="Certificate Rotation">
-  Teleport 10.0 introduced a new certificate authority that is only used by Database Access.
-  Older Teleport versions use a host certificate to sign Database Access certificates.
+  Teleport 10.0 introduced a new certificate authority that is only used by the Teleport Database Service.
+  Older Teleport versions use a host certificate to sign Database Service certificates.
 
-After upgrading to Teleport 10.0, the host certificate authority will still be used by Database Access to maintain compatibility.
+After upgrading to Teleport 10.0, the host certificate authority will still be used by the Database Service to maintain compatibility.
   The first [certificate rotation](../../management/operations/ca-rotation.mdx) will rotate host and database certificates.
 
 New Teleport 10.0+ installations generate the database certificate authority when they first start, and are not affected

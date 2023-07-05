@@ -27,7 +27,7 @@ Kubernetes.
 ## Prerequisites
 
 - DigitalOcean account.
-- Your workstation configured with [kubectl](https://kubernetes.io/docs/tasks/tools/), [Helm](https://helm.sh/docs/intro/install/), [doctl](https://docs.digitalocean.com/reference/doctl/how-to/install/), and the Teleport [tsh](https://goteleport.com/docs/installation/) client.
+- Your workstation configured with [kubectl](https://kubernetes.io/docs/tasks/tools/), [Helm](https://helm.sh/docs/intro/install/), [doctl](https://docs.digitalocean.com/reference/doctl/how-to/install/), and the Teleport [tsh](../../installation.mdx) client.
 
 ## Step 1/4. Create a DigitalOcean Kubernetes cluster
 
@@ -80,9 +80,7 @@ Create a namespace for your Teleport cluster resources:
 $ kubectl create namespace teleport-cluster
 ```
 
-Obtain your Teleport Enterprise license file from the [Teleport Customer
-Portal](https://dashboard.gravitational.com/web/login). Create a secret called
-"license" in the namespace you created:
+(!docs/pages/includes/enterprise/obtainlicense.mdx!)
 
 ```code
 $ kubectl -n teleport-cluster create secret generic license --from-file=license.pem

@@ -22,6 +22,7 @@ import (
 	"compress/gzip"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -613,7 +614,7 @@ func (l *AuditLog) GetSessionChunk(namespace string, sid session.ID, offsetBytes
 	for {
 		out, err := l.getSessionChunk(namespace, sid, offsetBytes, maxBytes)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				return data, nil
 			}
 			return nil, trace.Wrap(err)

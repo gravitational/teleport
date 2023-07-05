@@ -130,7 +130,7 @@ export const DataContainer: React.FC<{ title: string }> = ({
 }) => (
   <Box
     border="1px solid"
-    borderColor="primary.light"
+    borderColor="levels.surface"
     mt={4}
     borderRadius={3}
     px={5}
@@ -202,7 +202,7 @@ const StyledSupportLink = styled.a.attrs({
   transition: all 0.3s;
   ${props => props.theme.typography.body2}
   &:hover, &:focus {
-    background: ${props => props.theme.colors.primary.lighter};
+    background: ${props => props.theme.colors.levels.elevated};
   }
 `;
 
@@ -219,7 +219,7 @@ const Header = ({ title = '', icon = null }) => (
   <Flex
     alignItems="center"
     borderBottom="1px solid"
-    borderColor="primary.dark"
+    borderColor="levels.sunkenSecondary"
     mb={3}
     width={210}
     mt={4}

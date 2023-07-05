@@ -31,6 +31,7 @@ import (
 	"github.com/aws/aws-sdk-go/service/memorydb"
 	"github.com/aws/aws-sdk-go/service/rds"
 	"github.com/aws/aws-sdk-go/service/redshift"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
@@ -46,21 +47,45 @@ import (
 
 // TestDatabaseUnmarshal verifies a database resource can be unmarshaled.
 func TestDatabaseUnmarshal(t *testing.T) {
-	expected, err := types.NewDatabaseV3(types.Metadata{
-		Name:        "test-database",
-		Description: "Test description",
-		Labels:      map[string]string{"env": "dev"},
-	}, types.DatabaseSpecV3{
-		Protocol: defaults.ProtocolPostgres,
-		URI:      "localhost:5432",
-		CACert:   fixtures.TLSCACertPEM,
-	})
-	require.NoError(t, err)
-	data, err := utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, indent(fixtures.TLSCACertPEM, 4))))
-	require.NoError(t, err)
-	actual, err := UnmarshalDatabase(data)
-	require.NoError(t, err)
-	require.Equal(t, expected, actual)
+	t.Parallel()
+	tlsModes := map[string]types.DatabaseTLSMode{
+		"":            types.DatabaseTLSMode_VERIFY_FULL,
+		"verify-full": types.DatabaseTLSMode_VERIFY_FULL,
+		"verify-ca":   types.DatabaseTLSMode_VERIFY_CA,
+		"insecure":    types.DatabaseTLSMode_INSECURE,
+	}
+	for tlsModeName, tlsModeValue := range tlsModes {
+		t.Run("tls mode "+tlsModeName, func(t *testing.T) {
+			expected, err := types.NewDatabaseV3(types.Metadata{
+				Name:        "test-database",
+				Description: "Test description",
+				Labels:      map[string]string{"env": "dev"},
+			}, types.DatabaseSpecV3{
+				Protocol: defaults.ProtocolPostgres,
+				URI:      "localhost:5432",
+				CACert:   fixtures.TLSCACertPEM,
+				TLS: types.DatabaseTLS{
+					Mode: tlsModeValue,
+				},
+			})
+			require.NoError(t, err)
+			caCert := indent(fixtures.TLSCACertPEM, 4)
+
+			// verify it works with string tls mode.
+			data, err := utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, tlsModeName, caCert)))
+			require.NoError(t, err)
+			actual, err := UnmarshalDatabase(data)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expected, actual))
+
+			// verify it works with integer tls mode.
+			data, err = utils.ToJSON([]byte(fmt.Sprintf(databaseYAML, int32(tlsModeValue), caCert)))
+			require.NoError(t, err)
+			actual, err = UnmarshalDatabase(data)
+			require.NoError(t, err)
+			require.Empty(t, cmp.Diff(expected, actual))
+		})
+	}
 }
 
 // TestDatabaseMarshal verifies a marshaled database resource can be unmarshaled back.
@@ -235,7 +260,8 @@ func indent(s string, spaces int) string {
 	return strings.Join(lines, "\n")
 }
 
-var databaseYAML = `kind: db
+var databaseYAML = `---
+kind: db
 version: v3
 metadata:
   name: test-database
@@ -245,7 +271,9 @@ metadata:
 spec:
   protocol: "postgres"
   uri: "localhost:5432"
-  ca_cert: |
+  tls:
+    mode: %v
+  ca_cert: |-
 %v`
 
 // TestDatabaseFromAzureDBServer tests converting an Azure DB Server to a database resource.

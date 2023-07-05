@@ -274,7 +274,7 @@ func (u *HostUserManagement) doWithUserLock(f func(types.SemaphoreLease) error) 
 
 func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 	_, err := u.backend.LookupGroup(group)
-	if err != nil && err != user.UnknownGroupError(group) {
+	if err != nil && !isUnknownGroupError(err, group) {
 		return trace.Wrap(err)
 	}
 	err = u.backend.CreateGroup(group)
@@ -287,10 +287,13 @@ func (u *HostUserManagement) createGroupIfNotExist(group string) error {
 // isUnknownGroupError returns whether the error from LookupGroup is an unknown group error.
 //
 // LookupGroup is supposed to return an UnknownGroupError, but due to an existing issue
-// may instead return a generic "no such file or directory" error when sssd is installed.
+// may instead return a generic "no such file or directory" error when sssd is installed
+// or "no such process" as Go std library just forwards errors returned by getgrpnam_r.
 // See github issue - https://github.com/golang/go/issues/40334
 func isUnknownGroupError(err error, groupName string) bool {
-	return errors.Is(err, user.UnknownGroupError(groupName)) || strings.HasSuffix(err.Error(), syscall.ENOENT.Error())
+	return errors.Is(err, user.UnknownGroupError(groupName)) ||
+		strings.HasSuffix(err.Error(), syscall.ENOENT.Error()) ||
+		strings.HasSuffix(err.Error(), syscall.ESRCH.Error())
 }
 
 // DeleteAllUsers deletes all host users in the teleport service group.
@@ -302,7 +305,7 @@ func (u *HostUserManagement) DeleteAllUsers() error {
 	teleportGroup, err := u.backend.LookupGroup(types.TeleportServiceGroup)
 	if err != nil {
 		if isUnknownGroupError(err, types.TeleportServiceGroup) {
-			log.Debugf("'teleport-service' group not found, not deleting users")
+			log.Debugf("%q group not found, not deleting users", types.TeleportServiceGroup)
 			return nil
 		}
 		return trace.Wrap(err)

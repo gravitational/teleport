@@ -26,6 +26,7 @@ import apiDb from 'gen-proto-js/teleport/lib/teleterm/v1/database_pb';
 import apiGateway from 'gen-proto-js/teleport/lib/teleterm/v1/gateway_pb';
 import apiServer from 'gen-proto-js/teleport/lib/teleterm/v1/server_pb';
 import apiKube from 'gen-proto-js/teleport/lib/teleterm/v1/kube_pb';
+import apiLabel from 'gen-proto-js/teleport/lib/teleterm/v1/label_pb';
 import apiService, {
   FileTransferDirection,
 } from 'gen-proto-js/teleport/lib/teleterm/v1/service_pb';
@@ -43,7 +44,26 @@ export interface Server extends apiServer.Server.AsObject {
 export interface Gateway extends apiGateway.Gateway.AsObject {
   uri: uri.GatewayUri;
   targetUri: uri.DatabaseUri;
+  // The type of gatewayCliCommand was repeated here just to refer to the type with the JSDoc.
+  gatewayCliCommand: GatewayCLICommand;
 }
+
+/**
+ * GatewayCLICommand follows the API of os.exec.Cmd from Go.
+ * https://pkg.go.dev/os/exec#Cmd
+ *
+ * @property {string} path - The absolute path to the CLI client of a gateway if the client is
+ * in PATH. Otherwise, the name of the program we were trying to find.
+ * @property {string[]} argsList - A list containing the name of the program as the first element
+ * and the actual args as the other elements.
+ * @property {string[]} envList – A list of env vars that need to be set for the command
+ * invocation. The elements of the list are in the format of NAME=value.
+ * @property {string} preview - A string showing how the invocation of the command would look like
+ * if the user was to invoke it manually from the terminal. Should not be actually used to execute
+ * anything in the shell.
+ */
+export type GatewayCLICommand = apiGateway.GatewayCLICommand.AsObject;
+
 export type AccessRequest = apiAccessRequest.AccessRequest.AsObject;
 export type ResourceId = apiAccessRequest.ResourceID.AsObject;
 export type AccessRequestReview = apiAccessRequest.AccessRequestReview.AsObject;
@@ -264,3 +284,5 @@ export type AssumedRequest = {
 };
 
 export { FileTransferDirection };
+
+export type Label = apiLabel.Label.AsObject;

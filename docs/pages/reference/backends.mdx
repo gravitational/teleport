@@ -111,7 +111,7 @@ and user records will be stored.
 To configure Teleport for using etcd as a storage backend:
 
 - Make sure you are using **etcd versions 3.3** or newer.
-- Follow [etcd's cluster hardware recommendations](https://etcd.io/docs/v3.5/op-guide/hardware/). In particular, leverage 
+- Follow [etcd's cluster hardware recommendations](https://etcd.io/docs/v3.5/op-guide/hardware/). In particular, leverage
   SSD or high-performance virtualized block device storage for best performance.
 - Install etcd and configure peer and client TLS authentication using the [etcd
   security guide](https://etcd.io/docs/v3.5/op-guide/security/).
@@ -227,12 +227,33 @@ Service reads these parameters to configure its interactions with S3:
 `s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private&use_fips_endpoint=true`
 
 - `region=us-east-1` - set the Amazon region to use.
+
 - `endpoint=mys3.example.com` - connect to a custom S3 endpoint. Optional.
-- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled. Default value is `false`.
-- `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time. Setting `insecure=true` implicitly sets `disablesse=true`.
-- `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
-- `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
-- `use_fips_endpoint=true` -  [Configure S3 FIPS endpoints](#configuring-aws-fips-endpoints)
+
+- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled.
+  Default value is `false`.
+
+- `disablesse=true` - set to `true` or `false`. The Auth Service checks this
+  value before uploading an object to an S3 bucket. 
+
+  If this is `false`, the Auth Service will set the server-side encryption
+  configuration of the upload to use AWS Key Management Service and, if
+  `sse_kms_key` is set, configure the upload to use this key.
+
+  If this value is `true`, the Auth Service will not set an explicit server-side
+  encryption configuration for the object upload, meaning that the upload will
+  use the bucket-level server-side encryption configuration.
+
+- `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID, all objects
+  uploaded to S3 will be encrypted with this key (as long as `disablesse` is
+  `false`). Details can be found below.
+
+- `acl=private` - set the [canned
+  ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl)
+  to use. Must be one of the predefined ACL values.
+
+- `use_fips_endpoint=true` -  [Configure S3 FIPS
+  endpoints](#configuring-aws-fips-endpoints)
 
 ### S3 IAM policy
 
@@ -408,6 +429,9 @@ High Availability. DynamoDB backend supports two types of Teleport data:
 - Cluster state
 - Audit log events
 
+Teleport uses DynamoDB and DynamoDB Streams endpoints for its storage
+back-end management.
+
 DynamoDB cannot store the recorded sessions. You are advised to use AWS S3 for
 that as shown above. To configure Teleport to use DynamoDB:
 
@@ -415,6 +439,7 @@ that as shown above. To configure Teleport to use DynamoDB:
   DynamoDB account. If you're using (as recommended) an IAM role for this, the policy with the necessary permissions is listed below.
 - Configure all Teleport Auth servers to use DynamoDB back-end in the "storage"
   section of `teleport.yaml` as shown below.
+- Auth servers must be able to reach DynamoDB and DynamoDB Streams endpoints.
 - Deploy several auth servers connected to DynamoDB storage back-end.
 - Deploy several proxy nodes.
 - Make sure that all Teleport resource services have the `auth_servers` configuration setting
@@ -495,11 +520,13 @@ The optional `GET` parameters shown below control how Teleport interacts with a 
 
 ### DynamoDB autoscaling
 
-When setting up DynamoDB it's important to set up backups. Autoscaling is optional with Teleport,
-and it is advised to collect some production usage data before enabling autoscaling.
+When setting up DynamoDB it's important to set up backups. Autoscaling is
+optional with Teleport, and it is advised to collect some production usage data
+before enabling autoscaling.
 
-Autoscaling and backup can be configured on DynamoDB directly. We also make setup simpler by allowing AWS DynamoDB
-settings to be set automatically during Teleport startup. The configuration is described below.
+Autoscaling and backup can be configured on DynamoDB directly. We also make
+setup simpler by allowing AWS DynamoDB settings to be set automatically during
+Teleport startup. The configuration is described below.
 
 **DynamoDB Continuous Backups**
 
@@ -508,6 +535,16 @@ settings to be set automatically during Teleport startup. The configuration is d
 **DynamoDB Autoscaling Options**
 
 - [AWS Docs - Managing Throughput Capacity Automatically with DynamoDB Auto Scaling](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/AutoScaling.html)
+
+<Notice type="danger">
+
+AWS can throttle DynamoDB if more than two processes are reading from the same
+stream's shard simultaneously, so you must not deploy more than two Auth Service
+instances that read from a DynamoDB backend. For details on DynamoDB Streams,
+read the [AWS
+documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html).
+
+</Notice>
 
 ```yaml
 # ...
@@ -613,6 +650,10 @@ Replace the following variables in the above example with your own values:
   - `storage.objects.get`
   - `storage.objects.list`
   - `storage.objects.update`
+  - `storage.objects.delete`
+
+  `storage.objects.delete` is required in order to clean up multipart files
+  after they have been assembled into the final blob.
 
   If the bucket does not exist, please also ensure that the `storage.buckets.create` permission is granted.
 
@@ -657,7 +698,7 @@ teleport:
     # Project ID https://support.google.com/googleapi/answer/7014113?hl=en
     project_id: Example_GCP_Project_Name
 
-    # Name of the Firestore table. If it does not exist, Teleport won't start
+    # Name of the Firestore table.
     collection_name: Example_TELEPORT_FIRESTORE_TABLE_NAME
 
     credentials_path: /var/lib/teleport/gcs_creds
@@ -682,8 +723,8 @@ teleport:
 - The GCP authentication setting above can be omitted if the machine itself is
   running on a GCE instance with a Service Account that has access to the
   Firestore table.
-- Audit log settings above are optional. If specified, Teleport will store the audit log in Firestore 
-  and the session recordings **must** be stored in a GCS bucket, i.e. both `audit_xxx` settings must 
+- Audit log settings above are optional. If specified, Teleport will store the audit log in Firestore
+  and the session recordings **must** be stored in a GCS bucket, i.e. both `audit_xxx` settings must
   be present. If they are not set, Teleport will default to a local filesystem for the audit log, i.e.
   `/var/lib/teleport/log` on an auth server.
 

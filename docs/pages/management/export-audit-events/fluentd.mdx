@@ -14,8 +14,7 @@ This guide also serves as an explanation for the Teleport Event Handler plugin,
 using Fluentd as the target service. We'll create a local Docker container as a
 destination for the Event Handler:
 
-{/*
- The Graph below is made with this mermaidjs logic:
+```mermaid
  graph LR
 subgraph workstation [fa:fa-laptop Workstation]
     style workstation fill:#C0C0C0,stroke: #000000
@@ -31,9 +30,7 @@ end
 e(Teleport)
 style e fill: #844cff,color: #ffffff
 e-->c
- */}
-
-![Fluentd example diagram](../../../img/management/fluentd-demo-dia.png)
+```
 
 You can follow the instructions below for a local proof-of-concept demo, or use any
 of the additional installation instructions to configure the Teleport Event Handler
@@ -154,7 +151,7 @@ This will pack the content of `ca.crt`, `client.crt`, and `client.key` into the 
 You'll see the following output:
 
 ```txt
-Teleport event handler 0.0.1 07617b0ad0829db043fe779faf1669defdc8d84e
+Teleport event handler (=teleport.version=)
 
 [1] mTLS Fluentd certificates generated and saved to ca.crt, ca.key, server.crt, server.key, client.crt, client.key
 [2] Generated sample teleport-event-handler role and user file teleport-event-handler-role.yaml
@@ -163,7 +160,7 @@ Teleport event handler 0.0.1 07617b0ad0829db043fe779faf1669defdc8d84e
 
 Follow-along with our getting started guide:
 
-https://goteleport.com/setup/guides/fluentd
+https://goteleport.com/docs/management/export-audit-events/fluentd/
 ```
 
 The plugin generates several setup files:
@@ -348,6 +345,22 @@ accept events using TLS and print them:
       time_type string
       time_format %Y-%m-%dT%H:%M:%S
     </parse>
+
+    # If the number of events is high, fluentd will start failing the ingestion
+    # with the following error message: buffer space has too many data errors.
+    # The following configuration prevents data loss in case of a restart and
+    # overcomes the limitations of the default fluentd buffer configuration.
+    # This configuration is optional.
+    # See https://docs.fluentd.org/configuration/buffer-section for more details.
+    <buffer>
+      @type file
+      flush_thread_count 8
+      flush_interval 1s
+      chunk_limit_size 10M
+      queue_limit_length 16
+      retry_max_interval 30
+      retry_forever true
+    </buffer>
 </source>
 
 # Events sent to test.log will be dumped to STDOUT.
@@ -498,7 +511,7 @@ Teleport Cluster, ensure that:
 ## Next Steps
 
 Read more about
-[impersonation](https://goteleport.com/docs/access-controls/guides/impersonation/)
+[impersonation](../../access-controls/guides/impersonation.mdx)
 here.
 
 While this guide uses the `tctl auth sign` command to issue credentials for the

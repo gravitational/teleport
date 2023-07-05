@@ -22,26 +22,6 @@ Here's an overview of what you will do:
 
 (!/docs/pages/includes/tctl.mdx!)
 
-<Admonition 
-type="note" 
-title="Machine ID and TLS Routing" 
-scopeOnly scope={["oss", "enterprise"]}
->
-
-TLS Routing support was added to Machine ID in [Teleport
-9.3](https://goteleport.com/docs/preview/upcoming-releases/#teleport-93). For
-earlier versions, the Teleport Proxy Server will need to be configured with a
-dedicated SSH listener.
-
-```yaml
-version: v1
-proxy_service:
-  enabled: "yes"
-  listen_addr: "0.0.0.0:3023"
-  ...
-```
-</Admonition>
-
 ## Step 1/4. Download and install Teleport (=teleport.version=)
 
 In this step, you will be downloading and installing Teleport binaries onto the
@@ -93,7 +73,7 @@ auditor no-login-6566121f-b602-47f1-a118-c9c618ee5aec             session:list,r
 editor                                                            user:list,create,read,update,delete,...
 ```
 
-Machine ID can join with a token or the [IAM Method](https://goteleport.com/docs/setup/guides/joining-nodes-aws) on AWS.
+Machine ID can join with a token or the [IAM Method](../management/guides/joining-nodes-aws-iam.mdx) on AWS.
 
 Assuming that you are using the default `access` role, ensure that you use the 
 `--logins` flag when adding your bot to specify the SSH logins that you wish to 

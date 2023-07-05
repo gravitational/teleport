@@ -459,6 +459,35 @@ func failKindJoinTestCase(t *testing.T) joinTestCase {
 	}
 }
 
+// Tests to make sure that the regexp matching for roles only matches a full string
+// match and not just any substring match.
+// In this test case, we are making sure that having access to sessions hosted
+// by someone with the role `test` doesn't also grant you access to sessions
+// hosted by someone with the role `prod-test`.
+func failJoinRoleNameInSubstringTestCase(t *testing.T) joinTestCase {
+	hostRole, err := types.NewRole("prod-test", types.RoleSpecV5{})
+	require.NoError(t, err)
+	participantRole, err := types.NewRole("participant", types.RoleSpecV5{})
+	require.NoError(t, err)
+
+	participantRole.SetSessionJoinPolicies([]*types.SessionJoinPolicy{{
+		Roles: []string{"test"},
+		Kinds: []string{string(types.SSHSessionKind), string(types.KubernetesSessionKind)},
+		Modes: []string{types.Wildcard},
+	}})
+
+	return joinTestCase{
+		name:         "failRoleInSubstring",
+		host:         hostRole,
+		sessionKinds: []types.SessionKind{types.SSHSessionKind, types.KubernetesSessionKind},
+		participant: SessionAccessContext{
+			Username: "participant",
+			Roles:    []types.Role{participantRole},
+		},
+		expected: []bool{false, false},
+	}
+}
+
 func versionDefaultJoinTestCase(t *testing.T) joinTestCase {
 	hostRole, err := types.NewRole("host", types.RoleSpecV5{})
 	require.NoError(t, err)
@@ -486,6 +515,7 @@ func TestSessionAccessJoin(t *testing.T) {
 		successSameUserJoinTestCase(t),
 		failRoleJoinTestCase(t),
 		failKindJoinTestCase(t),
+		failJoinRoleNameInSubstringTestCase(t),
 		versionDefaultJoinTestCase(t),
 	}
 

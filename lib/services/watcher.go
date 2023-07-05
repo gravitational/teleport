@@ -1016,7 +1016,7 @@ type KubeClusterWatcherConfig struct {
 	// ResourceWatcherConfig is the resource watcher configuration.
 	ResourceWatcherConfig
 	// KubernetesGetter is responsible for fetching kube_cluster resources.
-	KubernetesGetter
+	KubernetesClusterGetter
 	// KubeClustersC receives up-to-date list of all kube_cluster resources.
 	KubeClustersC chan types.KubeClusters
 }
@@ -1026,12 +1026,12 @@ func (cfg *KubeClusterWatcherConfig) CheckAndSetDefaults() error {
 	if err := cfg.ResourceWatcherConfig.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
-	if cfg.KubernetesGetter == nil {
-		getter, ok := cfg.Client.(KubernetesGetter)
+	if cfg.KubernetesClusterGetter == nil {
+		getter, ok := cfg.Client.(KubernetesClusterGetter)
 		if !ok {
 			return trace.BadParameter("missing parameter KubernetesGetter and Client not usable as KubernetesGetter")
 		}
-		cfg.KubernetesGetter = getter
+		cfg.KubernetesClusterGetter = getter
 	}
 	if cfg.KubeClustersC == nil {
 		cfg.KubeClustersC = make(chan types.KubeClusters)
@@ -1087,7 +1087,7 @@ func (k *kubeCollector) resourceKind() string {
 
 // getResourcesAndUpdateCurrent refreshes the list of current resources.
 func (k *kubeCollector) getResourcesAndUpdateCurrent(ctx context.Context) error {
-	clusters, err := k.KubernetesGetter.GetKubernetesClusters(ctx)
+	clusters, err := k.KubernetesClusterGetter.GetKubernetesClusters(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}

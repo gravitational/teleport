@@ -581,7 +581,7 @@ func (c *proxy) fetch(ctx context.Context) (apply func(ctx context.Context) erro
 		}
 
 		for _, resource := range resources {
-			if err := c.presenceCache.UpsertProxy(resource); err != nil {
+			if err := c.presenceCache.UpsertProxy(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -592,7 +592,7 @@ func (c *proxy) fetch(ctx context.Context) (apply func(ctx context.Context) erro
 func (c *proxy) processEvent(ctx context.Context, event types.Event) error {
 	switch event.Type {
 	case types.OpDelete:
-		err := c.presenceCache.DeleteProxy(event.Resource.GetName())
+		err := c.presenceCache.DeleteProxy(ctx, event.Resource.GetName())
 		if err != nil {
 			// resource could be missing in the cache
 			// expired or not created, if the first consumed
@@ -607,7 +607,7 @@ func (c *proxy) processEvent(ctx context.Context, event types.Event) error {
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		if err := c.presenceCache.UpsertProxy(resource); err != nil {
+		if err := c.presenceCache.UpsertProxy(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:
@@ -647,7 +647,7 @@ func (c *authServer) fetch(ctx context.Context) (apply func(ctx context.Context)
 		}
 
 		for _, resource := range resources {
-			if err := c.presenceCache.UpsertAuthServer(resource); err != nil {
+			if err := c.presenceCache.UpsertAuthServer(ctx, resource); err != nil {
 				return trace.Wrap(err)
 			}
 		}
@@ -673,7 +673,7 @@ func (c *authServer) processEvent(ctx context.Context, event types.Event) error 
 		if !ok {
 			return trace.BadParameter("unexpected type %T", event.Resource)
 		}
-		if err := c.presenceCache.UpsertAuthServer(resource); err != nil {
+		if err := c.presenceCache.UpsertAuthServer(ctx, resource); err != nil {
 			return trace.Wrap(err)
 		}
 	default:

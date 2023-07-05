@@ -544,6 +544,10 @@ func (s *Server) HandleConnection(conn net.Conn) {
 			for {
 				select {
 				case req := <-reqs:
+					if req == nil {
+						connClosed()
+						break
+					}
 					// wait for a request that wants a reply to send the error
 					if !req.WantReply {
 						continue

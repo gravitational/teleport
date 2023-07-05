@@ -12,7 +12,7 @@ In this guide, we will show you how to configure the Teleport Event Handler
 plugin to send your Teleport audit logs to Splunk. In this setup, the Teleport
 Event Handler plugin forwards audit logs from Teleport to Splunk's Universal
 Forwarder, which stores them in Splunk Cloud Platform or Splunk Enterprise for
-visualization and alerting. 
+visualization and alerting.
 
 ## Prerequisites
 
@@ -175,7 +175,7 @@ $ tctl create -f teleport-event-handler-role.yaml
 
 In order for the Teleport Event Handler plugin to forward events from your
 Teleport cluster, it needs signed credentials from the cluster's certificate
-authority. 
+authority.
 
 The `teleport-event-handler` user cannot request this itself, and requires
 another user to **impersonate** this account in order to request credentials. We
@@ -211,126 +211,7 @@ Next, create the role:
 $ tctl create -f teleport-event-handler-impersonator.yaml
 ```
 
-Assign this role to your Teleport user by running the following commands,
-depending on whether you authenticate as a local Teleport user or via the
-`github`, `saml`, or `oidc` authentication connectors: 
-
-<Tabs>
-<TabItem label="Local User">
-
-Retrieve your local user's configuration resource:
-
-```code
-$ tctl get users/$(tsh status -f json | jq -r '.active.username') > myuser.yaml
-```
-
-<Details title='Getting a "command not found" error?'>
-This command requires `jq` to be installed on your workstation, which you can do
-via the [`jq` download page](https://stedolan.github.io/jq/download/).
-</Details>
-
-Edit `myuser.yaml`, adding `teleport-event-handler-impersonator` to the list of
-existing roles.
-
-Apply your changes:
-
-```code
-$ tctl create -f myuser.yaml
-```
-</TabItem>
-<TabItem label="GitHub">
-
-Retrieve your `github`  configuration resource:
-
-```code
-$ tctl get github/github > github.yaml
-```
-
-Edit `github.yaml`, adding `teleport-event-handler-impersonator` to the
-`teams_to_roles` section. The team you will map to this role will depend on how
-you have designed your organization's RBAC, but it should be the smallest team
-possible within your organization. This team must also include your user.
-
-Here is an example:
-
-```diff
-  teams_to_roles:
-    - organization: octocats 
-      team: admins 
-      roles:
-        - access
-+       - teleport-event-handler-impersonator
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f github.yaml
-```
-</TabItem>
-<TabItem label="SAML">
-
-Retrieve your `saml`  configuration resource:
-
-```code
-$ tctl get saml/mysaml > saml.yaml
-```
-
-Edit `saml.yaml`, adding `teleport-event-handler-impersonator` to the
-`attributes_to_roles` section. The attribute you will map to this role will
-depend on how you have designed your organization's RBAC, but it should be the
-smallest group possible within your organization. This group must also include
-your user.
-
-Here is an example:
-
-```diff
-  attributes_to_roles:
-    - name: "groups" 
-      value: "my-group" 
-      roles:
-        - access
-+       - teleport-event-handler-impersonator
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f saml.yaml
-```
-</TabItem>
-<TabItem label="OIDC">
-
-Retrieve your `oidc`  configuration resource:
-
-```code
-$ tctl get oidc/myoidc > oidc.yaml
-```
-
-Edit `oidc.yaml`, adding `teleport-event-handler-impersonator` to the
-`claims_to_roles` section. The claim you will map to this role will depend on
-how you have designed your organization's RBAC, but it should be the smallest
-group possible within your organization. This group must also include your
-user.
-
-Here is an example:
-
-```diff
-  claims_to_roles:
-    - name: "groups" 
-      value: "my-group" 
-      roles:
-        - access
-+       - teleport-event-handler-impersonator
-```
-
-Apply your changes:
-
-```code
-$ tctl create -f saml.yaml
-```
-</TabItem>
-</Tabs>
+(!docs/pages/includes/add-role-to-user.mdx role="teleport-event-handler-impersonator"!)
 
 Log out of your Teleport cluster and log in again to assume the new role.
 
@@ -338,7 +219,7 @@ Log out of your Teleport cluster and log in again to assume the new role.
 
 Like all Teleport users, `teleport-event-handler` needs signed credentials in
 order to connect to your Teleport cluster. You will use the `tctl auth sign`
-command to request these credentials for the plugin. 
+command to request these credentials for the plugin.
 
 <ScopedBlock scope={["enterprise", "oss"]}>
 
@@ -436,7 +317,7 @@ Handler sends audit logs as HTTP POST requests with the content type
 `application/json`.
 
 We will assume that you assigned `$SPLUNK_HOME` to `/opt/splunkforwarder` when
-installing the Universal Forwarder. 
+installing the Universal Forwarder.
 
 <Details title="Finding your $SPLUNK_HOME">
 
@@ -472,7 +353,7 @@ ExecStart=/opt/splunkforwarder/bin/splunk _internal_launch_under_systemd
 Create an index for your Teleport audit logs by visiting the home page of the
 Splunk UI and navigating to **Settings** > **Indexes**. Click **New Index**.
 Name your index `teleport-audit-logs` and assign the **Index Data Type** field
-to "Events". 
+to "Events".
 
 ![Creating an Index](../../../../docs/img/enterprise/plugins/splunk/new-index.png)
 
@@ -487,7 +368,7 @@ Click **Save**
 The Universal Forwarder authenticates client traffic using a token. To generate
 a token, visit the home page of the Splunk UI. Navigate to **Settings** > **Data
 inputs** In the **Local inputs** table, find the **HTTP Event Collector** row and
-click **Add new** 
+click **Add new**
 
 Enter a name you can use to recognize the token later so you can
 manage it, e.g., `Teleport Audit Events`. Click **Next**.
@@ -535,18 +416,18 @@ On your Universal Forwarder host, create a file at
 port = 9061
 disabled = false
 serverCert = server.pem
-sslPassword = 
+sslPassword =
 requireClientCert = true
 
 [http://audit]
-token = 
+token =
 index = teleport-audit-logs
 allowQueryStringAuth = true
 ```
 
 This configuration enables the HTTP input, which will listen on port `9061` and
 receive logs from the Teleport Event Handler Plugin, assigning them to the
-`teleport-audit-logs` index. 
+`teleport-audit-logs` index.
 
 Assign `serverCert` to the path to the `server.pem` file you generated earlier.
 
@@ -671,7 +552,7 @@ url = "https://localhost:9061/services/collector/raw?token=MYTOKEN"
 
 Ensure the URL includes the scheme, host and port of your Universal Forwarder's
 HTTP input, plus the URL path that the Universal Forwarder uses for raw data
-(`/services/collector/raw`). 
+(`/services/collector/raw`).
 
 Replace `MYTOKEN` with the token you generated earlier for the Splunk Universal
 Forwarder. If you are running the Universal Forwarder and Event Handler on
@@ -728,7 +609,7 @@ $ chmod +r auth.cas auth.crt auth.key
 Start the Teleport Teleport Event Handler as a daemon. To do so, create a
 systemd service definition at the path
 `/usr/lib/systemd/system/teleport-event-handler.service` with the following
-content: 
+content:
 
 ```ini
 [Unit]

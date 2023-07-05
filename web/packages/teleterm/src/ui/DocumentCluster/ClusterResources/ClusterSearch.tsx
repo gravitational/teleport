@@ -38,7 +38,7 @@ export default function ClusterSearch(props: Props) {
 const Input = styled.input(props => {
   const { theme } = props;
   return {
-    background: theme.colors.primary.main,
+    background: theme.colors.levels.surfaceSecondary,
     boxSizing: 'border-box',
     color: theme.colors.text.primary,
     width: '100%',
@@ -49,8 +49,8 @@ const Input = styled.input(props => {
     border: '1px solid transparent',
     padding: '2px 12px',
     '&:hover, &:focus': {
-      color: theme.colors.primary.contrastText,
-      borderColor: theme.colors.primary.lighter,
+      color: theme.colors.text.contrast,
+      borderColor: theme.colors.levels.elevated,
       opacity: 1,
     },
     '::placeholder': {

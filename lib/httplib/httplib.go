@@ -60,6 +60,17 @@ func MakeHandler(fn HandlerFunc) httprouter.Handle {
 	return MakeHandlerWithErrorWriter(fn, trace.WriteError)
 }
 
+// MakeSecurityHeaderHandler returns a new httprouter.Handle func that wraps the provided handler func
+// with one that will ensure the headers from SetDefaultSecurityHeaders are applied.
+func MakeSecurityHeaderHandler(h http.Handler) http.Handler {
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		SetDefaultSecurityHeaders(w.Header())
+
+		h.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(handler)
+}
+
 // MakeTracingHandler returns a new httprouter.Handle func that wraps the provided handler func
 // with one that will add a tracing span for each request.
 func MakeTracingHandler(h http.Handler, component string) http.Handler {
@@ -92,6 +103,8 @@ func MakeHandlerWithErrorWriter(fn HandlerFunc, errWriter ErrorWriter) httproute
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) {
 		// ensure that neither proxies nor browsers cache http traffic
 		SetNoCacheHeaders(w.Header())
+		// ensure that default security headers are set
+		SetDefaultSecurityHeaders(w.Header())
 
 		out, err := fn(w, r, p)
 		if err != nil {
@@ -104,17 +117,14 @@ func MakeHandlerWithErrorWriter(fn HandlerFunc, errWriter ErrorWriter) httproute
 	}
 }
 
-// MakeStdHandler returns a new http.Handle func from http.HandlerFunc
-func MakeStdHandler(fn StdHandlerFunc) http.HandlerFunc {
-	return MakeStdHandlerWithErrorWriter(fn, trace.WriteError)
-}
-
 // MakeStdHandlerWithErrorWriter returns a http.HandlerFunc from the
 // StdHandlerFunc, and sends all errors to ErrorWriter.
 func MakeStdHandlerWithErrorWriter(fn StdHandlerFunc, errWriter ErrorWriter) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		// ensure that neither proxies nor browsers cache http traffic
 		SetNoCacheHeaders(w.Header())
+		// ensure that default security headers are set
+		SetDefaultSecurityHeaders(w.Header())
 
 		out, err := fn(w, r)
 		if err != nil {

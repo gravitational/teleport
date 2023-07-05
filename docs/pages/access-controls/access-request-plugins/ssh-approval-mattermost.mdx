@@ -9,6 +9,8 @@ Access Requests. Users can then approve and deny Access Requests by following th
 message link, making it easier to implement security best practices without
 compromising productivity.
 
+(!docs/pages/includes/plugins/diagram.mdx api="Mattermost" action="Listen for Access Requests" messages="Mattermost messages" !)
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -120,8 +122,8 @@ to connect to Teleport and Mattermost. You will now configure the Mattermost
 plugin to use these credentials and post messages in the right channels for your
 workspace.
 
-<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
-<TabItem label="Command Line" options="Executable">
+<Tabs>
+<TabItem label="Executable">
 The Mattermost plugin uses a config file in TOML format. On the host where you
 will run the Mattermost plugin, generate a boilerplate config by running the
 following commands:
@@ -131,16 +133,7 @@ $ teleport-mattermost configure > teleport-mattermost.toml
 $ sudo mv teleport-mattermost.toml /etc
 ```
 </TabItem>
-<TabItem label="Self-Hosted" options="Helm Chart">
-The Mattermost Helm Chart uses a YAML values file to configure the plugin. On
-the host where you have Helm installed, create a file called
-`teleport-mattermost-helm.yaml` based on the following example:
-
-```yaml
-(!examples/resources/plugins/teleport-mattermost-helm-self.yaml!)
-```
-</TabItem>
-<TabItem label="Teleport Cloud" options="Helm Chart">
+<TabItem label="Helm Chart">
 The Mattermost Helm Chart uses a YAML values file to configure the plugin. On
 the host where you have Helm installed, create a file called
 `teleport-mattermost-helm.yaml` based on the following example:
@@ -155,56 +148,7 @@ Edit the configuration as explained below:
 
 ### `[teleport]`
 
-<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
-<TabItem label="Teleport Enterprise" scope={["oss", "enterprise"]} options="Executable">
-
-**`addr`**: Include the hostname and HTTPS port of your Teleport Proxy Service
-(e.g., `teleport.example.com:443`). If you are configuring your plugin to
-connect directly to the Teleport Auth Service, use your Auth Service's gRPC
-endpoint (e.g., `teleport.example.com:3025`).
-
-**`identity`**, **`client_key`**, **`client_crt`**, **`root_cas`**: The values
-you will use for these fields depend on whether the Mattermost plugin will
-connect to the Proxy Service or the Auth Service.
-
-If you exported an identity file earlier, fill in the `identity` field with the
-path to the file and comment out the other fields.
-
-If you exported a client key, client certificate, and root CAs earlier, fill in
-the `client_key`, `client_crt`, and `root_cas` fields with the paths to these
-files and leave `identity` commented out.
-
-</TabItem>
-<TabItem label="Teleport Cloud" scope="cloud" options="Executable">
-
-**`addr`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
-(e.g., `teleport.example.com:443`).
-
-**`identity`**, **`client_key`**, **`client_crt`**, **`root_cas`**: Fill in the
-`identity` field with the path to the identity file you exported earlier and
-comment out the other fields.
-
-</TabItem>
-<TabItem label="Teleport Enterprise " scope={["oss", "enterprise"]} options="Helm Chart">
-
-**`address`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
-(e.g., `teleport.example.com:443`).
-
-**`identitySecretName`**: Fill in the `identitySecretName` field with the name
-of the Kubernetes secret you created earlier.
-
-</TabItem>
-<TabItem label="Teleport Cloud " scope="cloud" options="Helm Chart">
-
-**`address`**: Include the hostname and HTTPS port of your Teleport Cloud tenant
-(e.g., `teleport.example.com:443`).
-
-**`identitySecretName`**: Fill in the `identitySecretName` field with the name
-of the Kubernetes secret you created earlier.
-
-</TabItem>
-</Tabs>
-
+(!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
 ### `[mattermost]`
 
@@ -300,8 +244,8 @@ Mattermost.
 
 The final configuration should look similar to this:
 
-<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
-<TabItem scopes={["cloud"]} label="Connect to the Proxy Service" options="Executable">
+<Tabs>
+<TabItem label="Executable" >
 ```yaml
 # example mattermost configuration TOML file
 [teleport]
@@ -322,36 +266,9 @@ severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN"
 
 ```
 </TabItem>
-<TabItem scopes={["oss", "enterprise"]} label="Connect to the Auth Service" options="Executable">
-```yaml
-# example mattermost configuration TOML file
-[teleport]
-auth_server = "example.com:3025"                             # Teleport Auth Server GRPC API address
-client_key = "/var/lib/teleport/plugins/mattermost/auth.key" # Teleport GRPC client secret key
-client_crt = "/var/lib/teleport/plugins/mattermost/auth.crt" # Teleport GRPC client certificate
-root_cas = "/var/lib/teleport/plugins/mattermost/auth.cas"   # Teleport cluster CA certs
-
-[mattermost]
-url = "https://mattermost.example.com" # Mattermost Server URL
-token = "api-token"                    # Mattermost Bot OAuth token
-recipients = [
-  "myteam/general",
-  "first.last@example.com"
-]
-
-[log]
-output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
-severity = "INFO" # Logger severity. Could be "INFO", "ERROR", "DEBUG" or "WARN".
-```
-</TabItem>
-<TabItem scopes={["cloud"]} label="Connect to the Proxy Service " options="Helm Chart">
+<TabItem label="Helm Chart">
 ```yaml
 (!examples/resources/plugins/teleport-mattermost-helm-cloud.yaml!)
-```
-</TabItem>
-<TabItem scopes={["oss", "enterprise"]} label="Connect to the Auth Service " options="Helm Chart">
-```yaml
-(!examples/resources/plugins/teleport-mattermost-helm-self.yaml!)
 ```
 </TabItem>
 </Tabs>

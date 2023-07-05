@@ -19,13 +19,13 @@ package prehog.v1alpha;
 import "google/protobuf/duration.proto";
 import "google/protobuf/timestamp.proto";
 
-option go_package = "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha";
-
 message UserLoginEvent {
   // anonymized
   string user_name = 1;
   // local/github/saml/oidc
   string connector_type = 2;
+  // The anonymized device ID, for logins where device trust is enabled.
+  string device_id = 3;
 }
 
 message SSOCreateEvent {
@@ -39,6 +39,27 @@ message ResourceCreateEvent {
   string resource_type = 1;
 
   // TODO(espadolini): flags for Discover, autodiscovery, join scripts?
+}
+
+// the kind of a "resource" as intended by ResourceHeartbeatEvent
+enum ResourceKind {
+  RESOURCE_KIND_UNSPECIFIED = 0;
+  RESOURCE_KIND_NODE = 1;
+  RESOURCE_KIND_APP_SERVER = 2;
+  RESOURCE_KIND_KUBE_SERVER = 3;
+  RESOURCE_KIND_DB_SERVER = 4;
+  RESOURCE_KIND_WINDOWS_DESKTOP = 5;
+  RESOURCE_KIND_NODE_OPENSSH = 6;
+}
+
+// a heartbeat for a resource served by a Teleport instance outside of the
+// control plane (i.e. not auth, not proxy)
+message ResourceHeartbeatEvent {
+  // anonymized, 32 bytes (HMAC-SHA-256)
+  bytes resource_name = 1;
+  ResourceKind resource_kind = 2;
+  // true if the heartbeat has no expiration
+  bool static = 3;
 }
 
 message SessionStartEvent {
@@ -66,6 +87,8 @@ message UserCertificateIssuedEvent {
   bool usage_desktop = 7;
 }
 
+// UIBannerClickEvent is a usage event sent by the UI when the upgrade
+// banner is clicked.
 message UIBannerClickEvent {
   // anonymized
   string user_name = 1;
@@ -73,26 +96,36 @@ message UIBannerClickEvent {
   string alert = 2;
 }
 
+// UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when initial
+// registration is complete.
 message UIOnboardCompleteGoToDashboardClickEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIOnboardAddFirstResourceClickEvent is a UI event sent when a user clicks the
+// "add first resource" button.
 message UIOnboardAddFirstResourceClickEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIOnboardAddFirstResourceLaterClickEvent is a UI event sent when a user
+// clicks the "add first resource later" button.
 message UIOnboardAddFirstResourceLaterClickEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIOnboardSetCredentialSubmitEvent is a UI event sent during registration when
+// users configure their credentials.
 message UIOnboardSetCredentialSubmitEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
+// when the MFA challenge is completed.
 message UIOnboardRegisterChallengeSubmitEvent {
   // anonymized
   string user_name = 1;
@@ -100,16 +133,29 @@ message UIOnboardRegisterChallengeSubmitEvent {
   string login_flow = 3;
 }
 
+// UIOnboardQuestionnaireSubmitEvent is a UI event sent during registration when
+// user submits their onboarding questionnaire.
+message UIOnboardQuestionnaireSubmitEvent {
+  // anonymized
+  string user_name = 1;
+}
+
+// UIRecoveryCodesContinueClickEvent is a UI event sent during
+// registration when the user configures cluster recovery codes.
 message UIRecoveryCodesContinueClickEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIRecoveryCodesCopyClickEvent is a UI event sent during
+// registration when the user copies recovery codes.
 message UIRecoveryCodesCopyClickEvent {
   // anonymized
   string user_name = 1;
 }
 
+// UIRecoveryCodesPrintClickEvent is a UI event sent during
+// registration when the user prints recovery codes.
 message UIRecoveryCodesPrintClickEvent {
   // anonymized
   string user_name = 1;
@@ -123,6 +169,9 @@ message DiscoverMetadata {
 
   // anonymized
   string user_name = 2;
+
+  // SSO indicates whether the user is from an SSO provider.
+  bool sso = 3;
 }
 
 // DiscoverResource represents a resource type.
@@ -145,6 +194,28 @@ enum DiscoverResource {
   DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15;
   DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16;
   DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17;
+
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT_SERVERLESS = 18;
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_AZURE = 19;
+  DISCOVER_RESOURCE_DATABASE_DYNAMODB = 20;
+  DISCOVER_RESOURCE_DATABASE_CASSANDRA_KEYSPACES = 21;
+  DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED = 22; // Cassandra & ScyllaDb
+  DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED = 23;
+  DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE = 24; // Elasticache & MemoryDb
+  DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB = 25;
+  DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE = 26;
+  DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED = 27;
+
+  DISCOVER_RESOURCE_DATABASE_MYSQL_AZURE = 28;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_AZURE = 29;
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_MICROSOFT = 30;
+  DISCOVER_RESOURCE_DATABASE_COCKROACHDB_SELF_HOSTED = 31;
+  DISCOVER_RESOURCE_DATABASE_MONGODB_ATLAS = 32;
+  DISCOVER_RESOURCE_DATABASE_SNOWFLAKE = 33;
+
+  DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34;
+  DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35;
+  DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36;
 }
 
 // DiscoverResourceMetadata contains common metadata identifying resource type being added.
@@ -191,6 +262,24 @@ message UIDiscoverResourceSelectionEvent {
   DiscoverMetadata metadata = 1;
   DiscoverResourceMetadata resource = 2;
   DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverIntegrationAWSOIDCConnectEvent is emitted when a user is finished with the step
+// that asks user to setup aws integration or select from a list of existing
+// aws integrations.
+message UIDiscoverIntegrationAWSOIDCConnectEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+}
+
+// UIDiscoverDatabaseRDSEnrollEvent is emitted when a user is finished with
+// the step that asks user to select from a list of RDS databases.
+message UIDiscoverDatabaseRDSEnrollEvent {
+  DiscoverMetadata metadata = 1;
+  DiscoverResourceMetadata resource = 2;
+  DiscoverStepStatus status = 3;
+  int64 selected_resources_count = 4;
 }
 
 // UIDiscoverDeployServiceEvent is emitted after the user installs a Teleport Agent.
@@ -280,18 +369,55 @@ message RoleCreateEvent {
   string role_name = 2;
 }
 
+// BotCreateEvent is emitted when user creates a bot.
+message BotCreateEvent {
+  // user_name is the anonymized name of the user who created the bot
+  string user_name = 1;
+  // anonymized
+  string bot_user_name = 2;
+  // role_name is the anonymized name of the bot role that was created.
+  string role_name = 3;
+  // role_count is the number of roles that the bot role can impersonate on
+  // creation.
+  int64 role_count = 4;
+  // join_method is the join method of the token associated with the bot on
+  // creation.
+  string join_method = 5;
+  // bot_name is the anonymised name of the bot.
+  string bot_name = 6;
+}
+
+// BotJoinEvent is emitted when a bot joins a Teleport cluster.
+message BotJoinEvent {
+  // bot_name is the anonymised name of the bot.
+  string bot_name = 1;
+  // join_method is the join method of the token associated with the bot on
+  // creation. This will be the string value of `api/types.JoinMethod`.
+  string join_method = 2;
+  // join_token_name is the anonymised name of the token used to join
+  // the cluster.
+  string join_token_name = 3;
+}
+
+// UICreateNewRoleClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleClickEvent {
   //anonymized
   string user_name = 1;
 }
+
+// UICreateNewRoleSaveClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleSaveClickEvent {
   //anonymized
   string user_name = 1;
 }
+
+// UICreateNewRoleCancelClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleCancelClickEvent {
   //anonymized
   string user_name = 1;
 }
+
+// UICreateNewRoleViewDocumentationClickEvent is an event that can be triggered during custom role creation
 message UICreateNewRoleViewDocumentationClickEvent {
   //anonymized
   string user_name = 1;
@@ -321,6 +447,82 @@ message AgentMetadataEvent {
   string container_runtime = 9;
   string container_orchestrator = 10;
   string cloud_environment = 11;
+}
+
+// AssistCompletionEvent is an event that is emitted
+// when a single completion occurs in the Teleport Assist,
+// i.e. a user submits a prompt, and receives an answer from the Assist
+message AssistCompletionEvent {
+  // anonymized
+  string user_name = 1;
+
+  // ConversationId is the UUID that identifies a single Assist conversation
+  string conversation_id = 2;
+
+  // TotalTokens is the total amount of token used to satisfy this request
+  int64 total_tokens = 3;
+  // PromptTokens is the amount of estimated tokens used by the prompt
+  int64 prompt_tokens = 4;
+  // CompletionTokens is the amount of tokens that the completion response consists of
+  int64 completion_tokens = 5;
+}
+
+// IntegrationEnrollKind represents the types of integration that
+// can be enrolled.
+enum IntegrationEnrollKind {
+  INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0;
+  INTEGRATION_ENROLL_KIND_SLACK = 1;
+  INTEGRATION_ENROLL_KIND_AWS_OIDC = 2;
+  INTEGRATION_ENROLL_KIND_PAGERDUTY = 3;
+  INTEGRATION_ENROLL_KIND_EMAIL = 4;
+  INTEGRATION_ENROLL_KIND_JIRA = 5;
+  INTEGRATION_ENROLL_KIND_DISCORD = 6;
+  INTEGRATION_ENROLL_KIND_MATTERMOST = 7;
+  INTEGRATION_ENROLL_KIND_MS_TEAMS = 8;
+  INTEGRATION_ENROLL_KIND_OPSGENIE = 9;
+  INTEGRATION_ENROLL_KIND_OKTA = 10;
+  INTEGRATION_ENROLL_KIND_JAMF = 11;
+}
+
+// IntegrationEnrollMetadata contains common metadata
+// for Integration Enroll related events.
+message IntegrationEnrollMetadata {
+  // id is used as a unique identifier to correlate events within the
+  // same enroll wizard run.
+  string id = 1;
+  // kind identifies what type of integration the user clicked on to enroll.
+  IntegrationEnrollKind kind = 2;
+  // user_name is anonymized.
+  string user_name = 3;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// clicks on a integration to enroll.
+message UIIntegrationEnrollStartEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
+// UIIntegrationEnrollEvent is an event that is emitted when a user
+// completed enrolling an integration.
+message UIIntegrationEnrollCompleteEvent {
+  IntegrationEnrollMetadata metadata = 1;
+}
+
+// EditorChangeEvent is an event that is emitted when a user role set changes resulting in
+// a editor role being added on removed
+message EditorChangeEvent {
+  // anonymized user name
+  string user_name = 1;
+  EditorChangeStatus status = 2;
+}
+
+// EditorChangeStatus is the possible value of an EditorChangeEvent event status
+enum EditorChangeStatus {
+  EDITOR_CHANGE_STATUS_UNSPECIFIED = 0;
+  // Status when the editor role is granted
+  EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1;
+  // Status when the editor role is removed
+  EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2;
 }
 
 message SubmitEventRequest {
@@ -380,6 +582,23 @@ message SubmitEventRequest {
     KubeRequestEvent kube_request = 36;
     SFTPEvent sftp = 37;
     AgentMetadataEvent agent_metadata_event = 38;
+    ResourceHeartbeatEvent resource_heartbeat = 39;
+
+    UIDiscoverIntegrationAWSOIDCConnectEvent ui_discover_integration_aws_oidc_connect_event = 40;
+    UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 41;
+
+    AssistCompletionEvent assist_completion = 43;
+
+    UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 44;
+    UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 45;
+
+    EditorChangeEvent editor_change_event = 46;
+
+    BotCreateEvent bot_create = 47;
+
+    UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 48;
+
+    BotJoinEvent bot_join = 49;
   }
 
   reserved 8; // UIOnboardGetStartedClickEvent
@@ -396,7 +615,9 @@ message HelloTeleportRequest {}
 message HelloTeleportResponse {}
 
 service TeleportReportingService {
-  rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {}
+  rpc SubmitEvent(SubmitEventRequest) returns (SubmitEventResponse) {
+    option deprecated = true;
+  }
   rpc SubmitEvents(SubmitEventsRequest) returns (SubmitEventsResponse) {}
   rpc HelloTeleport(HelloTeleportRequest) returns (HelloTeleportResponse) {}
 }

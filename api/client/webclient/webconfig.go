@@ -93,4 +93,6 @@ type WebConfigAuthSettings struct {
 	LocalConnectorName string `json:"localConnectorName,omitempty"`
 	// PrivateKeyPolicy is the configured private key policy for the cluster.
 	PrivateKeyPolicy keys.PrivateKeyPolicy `json:"privateKeyPolicy,omitempty"`
+	// MOTD is message of the day. MOTD is displayed to users before login.
+	MOTD string `json:"motd"`
 }

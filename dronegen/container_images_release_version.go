@@ -48,7 +48,7 @@ func (rv *ReleaseVersion) buildVersionPipeline(triggerSetupSteps []step, flags *
 		dockerService(),
 		dockerRegistryService(),
 	}
-	pipeline.Volumes = dockerVolumes(volumeAwsConfig)
+	pipeline.Volumes = []volume{volumeAwsConfig, volumeDocker, volumeDockerConfig}
 	pipeline.Environment = map[string]value{
 		"DEBIAN_FRONTEND": {
 			raw: "noninteractive",

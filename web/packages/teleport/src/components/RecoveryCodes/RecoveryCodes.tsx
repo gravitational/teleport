@@ -85,7 +85,7 @@ export default function RecoveryCodesDialog({
       >
         <Flex
           flex={4}
-          bg="primary.light"
+          bg="levels.surface"
           minWidth="584px"
           flexDirection="column"
           p={5}
@@ -108,7 +108,7 @@ export default function RecoveryCodesDialog({
               Recovery Codes ({recoveryCodes?.codes.length} Total)
             </Text>
             <Flex
-              bg="primary.dark"
+              bg="levels.sunkenSecondary"
               p={2}
               pb={4}
               pl={3}
@@ -146,7 +146,7 @@ export default function RecoveryCodesDialog({
         </Flex>
         <Flex
           flex={2}
-          bg="primary.main"
+          bg="levels.surfaceSecondary"
           minWidth="384px"
           flexDirection="column"
           p={5}

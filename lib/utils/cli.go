@@ -24,7 +24,6 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
-	"math"
 	"os"
 	"runtime"
 	"strconv"
@@ -32,7 +31,7 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
@@ -149,7 +148,7 @@ func UserMessageFromError(err error) string {
 	if err == nil {
 		return ""
 	}
-	if logrus.GetLevel() == logrus.DebugLevel {
+	if logrus.IsLevelEnabled(logrus.DebugLevel) {
 		return trace.DebugReport(err)
 	}
 	var buf bytes.Buffer
@@ -277,21 +276,6 @@ const (
 // Color formats the string in a terminal escape color
 func Color(color int, v interface{}) string {
 	return fmt.Sprintf("\x1b[%dm%v\x1b[0m", color, v)
-}
-
-// Consolef prints the same message to a 'ui console' (if defined) and also to
-// the logger with INFO priority
-func Consolef(w io.Writer, log logrus.FieldLogger, component, msg string, params ...interface{}) {
-	msg = fmt.Sprintf(msg, params...)
-	log.Info(msg)
-	if w != nil {
-		component := strings.ToUpper(component)
-		// 13 is the length of "[KUBERNETES]", which is the longest component
-		// name prefix we have *today*. Use a Max function here to avoid
-		// negative spacing, in case we add longer component names.
-		spacing := int(math.Max(float64(12-len(component)), 0))
-		fmt.Fprintf(w, "[%v]%v %v\n", strings.ToUpper(component), strings.Repeat(" ", spacing), msg)
-	}
 }
 
 // InitCLIParser configures kingpin command line args parser with
@@ -454,60 +438,60 @@ const defaultCommandPrintfWidth = 12
 
 // defaultUsageTemplate is a fmt format that defines the usage template with
 // compactly formatted commands. Should be only used in createUsageTemplate.
-const defaultUsageTemplate = `{{define "FormatCommand"}}\
-{{if .FlagSummary}} {{.FlagSummary}}{{end}}\
-{{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end}}\
-{{end}}\
+const defaultUsageTemplate = `{{define "FormatCommand" -}}
+{{if .FlagSummary}} {{.FlagSummary}}{{end -}}
+{{range .Args}} {{if not .Required}}[{{end}}<{{.Name}}>{{if .Value|IsCumulative}}...{{end}}{{if not .Required}}]{{end}}{{end -}}
+{{end -}}
 
-{{define "FormatCommands"}}\
-{{range .FlattenedCommands}}\
-{{if not .Hidden}}\
-  {{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
-{{end}}\
-{{end}}\
-{{end}}\
+{{define "FormatCommands" -}}
+{{range .FlattenedCommands -}}
+{{if not .Hidden -}}
+{{"  "}}{{.FullCommand | printf "%%-%ds"}}{{if .Default}} (Default){{end}} {{ .Help }}
+{{end -}}
+{{end -}}
+{{end -}}
 
-{{define "FormatUsage"}}\
+{{define "FormatUsage" -}}
 {{template "FormatCommand" .}}{{if .Commands}} <command> [<args> ...]{{end}}
 {{if .Help}}
-{{.Help|Wrap 0}}\
-{{end}}\
+{{.Help|Wrap 0 -}}
+{{end -}}
 
-{{end}}\
+{{end -}}
 
-{{if .Context.SelectedCommand}}\
+{{if .Context.SelectedCommand -}}
 usage: {{.App.Name}} {{.Context.SelectedCommand}}{{template "FormatUsage" .Context.SelectedCommand}}
-{{else}}\
+{{else -}}
 Usage: {{.App.Name}}{{template "FormatUsage" .App}}
-{{end}}\
-{{if .Context.Flags}}\
+{{end -}}
+{{if .Context.Flags -}}
 Flags:
 {{.Context.Flags|FlagsToTwoColumnsCompact|FormatTwoColumns}}
-{{end}}\
-{{if .Context.Args}}\
+{{end -}}
+{{if .Context.Args -}}
 Args:
 {{.Context.Args|ArgsToTwoColumns|FormatTwoColumns}}
-{{end}}\
-{{if .Context.SelectedCommand}}\
+{{end -}}
+{{if .Context.SelectedCommand -}}
 
-{{ if .Context.SelectedCommand.Commands}}\
+{{ if .Context.SelectedCommand.Commands -}}
 Commands:
-{{if .Context.SelectedCommand.Commands}}\
+{{if .Context.SelectedCommand.Commands -}}
 {{template "FormatCommands" .Context.SelectedCommand}}
-{{end}}\
-{{end}}\
+{{end -}}
+{{end -}}
 
-{{else if .App.Commands}}\
+{{else if .App.Commands -}}
 Commands:
 {{template "FormatCommands" .App}}
 Try '{{.App.Name}} help [command]' to get help for a given command.
-{{end}}\
+{{end -}}
 
-{{ if .Context.SelectedCommand }}\
+{{ if .Context.SelectedCommand  -}}
 Aliases:
-{{ range .Context.SelectedCommand.Aliases}}\
+{{ range .Context.SelectedCommand.Aliases -}}
 {{ . }}
-{{end}}\
+{{end -}}
 {{end}}
 `
 

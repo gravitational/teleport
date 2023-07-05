@@ -248,7 +248,7 @@ export default function renderTypeCell(event: Event, clusterId: string) {
 const StyledCliIcon = styled(Icons.Cli)(
   props => `
   background: ${props.theme.colors.dark};
-  border: 2px solid ${props.theme.colors.accent};
+  border: 2px solid ${props.theme.colors.brand.accent};
   color: ${props.theme.colors.text.primary};
   cursor: pointer;
   display: flex;

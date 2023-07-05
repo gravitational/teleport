@@ -1,19 +1,18 @@
 name: OS Compatibility Test
 run-name: OS Compatibility Test
 on:
-  push:
-    branches:
-      - master
   pull_request:
     paths-ignore:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
+      - '**/*.md*'
   merge_group:
     paths-ignore:
       - 'docs/**'
       - 'web/**'
       - 'rfd/**'
+      - '**/*.md*'
 
 jobs:
   build:

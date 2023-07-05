@@ -42,7 +42,7 @@ const startLines = [
     isCommand: true,
   },
   {
-    text: `• teleport.service - Teleport SSH Service
+    text: `• teleport.service - Teleport Service
    Loaded: loaded
    Active: active (running)`,
     isCommand: false,

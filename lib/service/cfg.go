@@ -398,6 +398,8 @@ func (cfg *Config) DebugDumpToYAML() string {
 type CachePolicy struct {
 	// Enabled enables or disables caching
 	Enabled bool
+	// MaxRetryPeriod overrides the default cache watcher backoff.
+	MaxRetryPeriod time.Duration
 }
 
 // CheckAndSetDefaults checks and sets default values
@@ -528,7 +530,18 @@ type KeyPairPath struct {
 // WebPublicAddr returns the address for the web endpoint on this proxy that
 // can be reached by clients.
 func (c ProxyConfig) WebPublicAddr() (string, error) {
-	return c.getDefaultAddr(c.WebAddr.Port(defaults.HTTPListenPort)), nil
+	// Use the port from the first public address if possible.
+	if len(c.PublicAddrs) > 0 {
+		publicAddr := c.PublicAddrs[0]
+		u := url.URL{
+			Scheme: "https",
+			Host:   net.JoinHostPort(publicAddr.Host(), strconv.Itoa(publicAddr.Port(defaults.HTTPListenPort))),
+		}
+		return u.String(), nil
+	}
+
+	port := c.WebAddr.Port(defaults.HTTPListenPort)
+	return c.getDefaultAddr(port), nil
 }
 
 func (c ProxyConfig) getDefaultAddr(port int) string {
@@ -1120,7 +1133,7 @@ func (a *App) CheckAndSetDefaults() error {
 	// are invalid subdomains because for trusted clusters the name is used to
 	// construct the domain that the application will be available at.
 	if errs := validation.IsDNS1035Label(a.Name); len(errs) > 0 {
-		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/teleport/docs/application-access/#application-name", a.Name)
+		return trace.BadParameter("application name %q must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name", a.Name)
 	}
 	// Parse and validate URL.
 	if _, err := url.Parse(a.URI); err != nil {
@@ -1370,6 +1383,14 @@ type Header struct {
 
 type DiscoveryConfig struct {
 	Enabled bool
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string
 	// AWSMatchers are used to match EC2 instances for auto enrollment.
 	AWSMatchers []services.AWSMatcher
 	// AzureMatchers are used to match resources for auto discovery.

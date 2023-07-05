@@ -18,6 +18,7 @@ RUN yum groupinstall -y 'Development Tools' && \
         devtoolset-11-gcc* \
         git \
         libudev-devel \
+        perl-IPC-Cmd \
         zlib-devel && \
     yum clean all
 
@@ -27,16 +28,6 @@ RUN git clone --depth=1 https://github.com/illiliti/libudev-zero.git -b 1.0.1 &&
     cd libudev-zero && \
     [ "$(git rev-parse HEAD)" = '4154cf252c17297f98a8ca33693ead003b4509da' ] && \
     make install-static LIBDIR='$(PREFIX)/lib64'
-
-# Instal openssl.
-# Pulled from source because repository versions are too old.
-# install_sw install only binaries, skips docs.
-RUN git clone --depth=1 https://github.com/openssl/openssl.git -b OpenSSL_1_1_1t && \
-    cd openssl && \
-    [ "$(git rev-parse HEAD)" = '830bf8e1e4749ad65c51b6a1d0d769ae689404ba' ] && \
-    ./config --release && \
-    make && \
-    make install_sw
 
 # Install libcbor.
 RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
@@ -49,18 +40,30 @@ RUN git clone --depth=1 https://github.com/PJK/libcbor.git -b v0.10.2 && \
     make && \
     make install
 
+# Install openssl.
+# install_sw install only binaries, skips docs.
+RUN git clone --depth=1 https://github.com/openssl/openssl.git -b openssl-3.0.9 && \
+    cd openssl && \
+    [ "$(git rev-parse HEAD)" = 'de90e54bbe82e5be4fb9608b6f5c308bb837d355' ] && \
+    ./config --release --libdir=/usr/local/lib64 && \
+    make && \
+    make install_sw
+# Necessary for libfido2 to find the correct libcrypto.
+ENV PKG_CONFIG_PATH="/usr/local/lib64/pkgconfig"
+
 # Install libfido2.
-# Depends on libcbor, openssl, zlib-devel and libudev.
+# Depends on libcbor, libcrypto (OpenSSL 3.x), libudev and zlib-devel.
 # Linked so `make build/tsh` finds the library where it expects it.
 RUN git clone --depth=1 https://github.com/Yubico/libfido2.git -b 1.12.0 && \
     cd libfido2 && \
     [ "$(git rev-parse HEAD)" = '659a02679f99fd34a44e06e35dce90794f6ecc86' ] && \
     scl enable devtoolset-11 "\
-      cmake3 \
+      CFLAGS=-pthread cmake3 \
           -DBUILD_EXAMPLES=OFF \
           -DBUILD_MANPAGES=OFF \
           -DBUILD_TOOLS=OFF \
           -DCMAKE_BUILD_TYPE=Release . && \
+      grep 'CRYPTO_VERSION:INTERNAL=3\.0\.' CMakeCache.txt && \
       make" && \
     make install && \
     make clean
@@ -220,23 +223,25 @@ RUN curl --proto '=https' --tlsv1.2 -fsSL https://sh.rustup.rs | sh -s -- -y --p
 # Do this last to take better advantage of the multi-stage build.
 USER root
 COPY --from=libfido2 /usr/local/include/ /usr/local/include/
+COPY --from=libfido2 /usr/local/lib64/engines-3/ /usr/local/lib64/engines-3/
+COPY --from=libfido2 /usr/local/lib64/ossl-modules/ /usr/local/lib64/ossl-modules/
 COPY --from=libfido2 /usr/local/lib64/pkgconfig/ /usr/local/lib64/pkgconfig/
 COPY --from=libfido2 \
     /usr/local/lib64/libcbor.a \
     /usr/local/lib64/libcrypto.a \
-    /usr/local/lib64/libcrypto.so.1.1 \
+    /usr/local/lib64/libcrypto.so.3 \
     /usr/local/lib64/libfido2.a \
     /usr/local/lib64/libfido2.so.1.12.0 \
     /usr/local/lib64/libssl.a \
-    /usr/local/lib64/libssl.so.1.1 \
+    /usr/local/lib64/libssl.so.3 \
     /usr/local/lib64/libudev.a \
     /usr/local/lib64/
 # Re-create usual lib64 links.
 RUN cd /usr/local/lib64 && \
-    ln -s libcrypto.so.1.1 libcrypto.so && \
+    ln -s libcrypto.so.3 libcrypto.so && \
     ln -s libfido2.so.1.12.0 libfido2.so.1 && \
     ln -s libfido2.so.1 libfido2.so && \
-    ln -s libssl.so.1.1 libssl.so && \
+    ln -s libssl.so.3 libssl.so && \
 # Update ld.
     echo /usr/local/lib64 > /etc/ld.so.conf.d/libfido2.conf && \
     ldconfig

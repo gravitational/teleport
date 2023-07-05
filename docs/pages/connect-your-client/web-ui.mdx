@@ -1,0 +1,30 @@
+---
+title: Using the Web UI
+description: Using the Teleport Web UI
+---
+The Teleport Web UI is a web-based visual interface from which you can access resources, 
+view active sessions and recordings, create and review Access Requests, 
+manage users and roles, and more.
+
+This page serves a reference on Web UI features and their usage.
+
+## Joining an active session
+
+The Web UI allows you to list and join active SSH sessions via a web-based terminal.
+
+Any active SSH sessions that you are allowed to list will be listed on the "Active Sessions" page, which can be 
+accessed from the navigation bar on the left side. If you don't see the "Active Sessions" tab, it means that your user's role doesn't grant
+you `list` access for the `ssh_session` resource. Please refer to the [Teleport Access Controls Reference](../access-controls/reference.mdx)
+and make sure your role has all the necessary permissions.
+
+Upon clicking on the "Join" button to join an active session, you must choose from one of 3 participant modes to join the session in: 
+
+- `observer`: Allows read-only access to the session. You can view output but cannot control the session in any way nor send any input.
+- `moderator`: Allows you to watch the session. You can view output and forcefully terminate or pause the session at any time, but can't send input.
+- `peer`: Allows you to collaborate in the session. You can view output and send input.
+
+![joining an active session from the Web UI](../../img/webui-active-session.png)
+
+If any participant mode option is missing from the list, it means that your role doesn't grant you permission to join in that mode. If the launch button is missing, then you don't have permission to join in any
+participant mode. Please refer to the [`join_sessions` allow policy reference](../access-controls/guides/moderated-sessions.mdx#join_sessions) to learn how to grant roles access to participant modes.
+

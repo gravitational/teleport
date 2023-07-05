@@ -1,9 +1,9 @@
 ---
 title: Session Recording and Playback
-description: Recording and Playing Back Teleport Desktop Access Sessions.
+description: Recording and playing back Teleport desktop access sessions.
 ---
 
-Teleport Desktop Access supports recording and playback of desktop sessions.
+Teleport supports recording and playback of desktop sessions.
 
 ## Disabling session recording
 
@@ -15,9 +15,8 @@ To disable session recording at the cluster level, edit your `teleport.yaml`
 configuration file.
 
 ```yaml
-teleport:
-  auth_service:
-    session_recording: off
+auth_service:
+  session_recording: off
 ```
 
 <Admonition type="warning">
@@ -78,12 +77,14 @@ of the stream is reached. To replay a session, refresh the page.
 
 ## Storage
 
-Be aware, Desktop Access session recordings save PNGs of changing sections of the
-screen, which means they take up significantly more disk space than SSH or Kubernetes
-session recordings. When using async recording modes, ensure that the host running
-Teleport's desktop service has sufficient disk space to store recordings that are
-in progress. As a point of reference, when a full 1080p screen is redrawn (for example 
-when opening a new full-sized application window), you can expect about 250kb to be
+Be aware, desktop session recordings save PNGs of changing sections of the
+screen, which means they take up significantly more disk space than SSH or
+Kubernetes session recordings. When using async recording modes, ensure that the
+host running Teleport's Desktop Service has sufficient disk space to store
+recordings that are in progress. 
+
+As a point of reference, when a full 1080p screen is redrawn (for example when
+opening a new full-sized application window), you can expect about 250kb to be
 saved to disk. If disk space is a concern, we recommend using sync recording and
 configuring a cloud storage solution such as S3.
 

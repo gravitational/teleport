@@ -100,7 +100,7 @@ const TabInput = styled.input`
 `;
 
 const TabSlider = styled.div`
-  background-color: #512fc9;
+  background-color: ${({ theme }) => theme.colors.brand.main};
   border-radius: ${props => (props.appearance === 'square' ? '8px' : '60px')};
   box-shadow: 0px 2px 6px rgba(12, 12, 14, 0.1);
   height: ${props => (props.size === 'xlarge' ? '56px' : '40px')};

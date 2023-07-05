@@ -86,6 +86,13 @@ func (c *ConnectionDiagnosticV1) CheckAndSetDefaults() error {
 	return nil
 }
 
+// GetLabel retrieves the label with the provided key. If not found
+// value will be empty and ok will be false.
+func (c *ConnectionDiagnosticV1) GetLabel(key string) (val string, ok bool) {
+	v, ok := c.Metadata.Labels[key]
+	return v, ok
+}
+
 // GetAllLabels returns combined static and dynamic labels.
 func (c *ConnectionDiagnosticV1) GetAllLabels() map[string]string {
 	return CombineLabels(c.Metadata.Labels, nil)

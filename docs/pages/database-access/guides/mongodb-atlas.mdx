@@ -1,6 +1,6 @@
 ---
 title: Database Access with MongoDB Atlas
-description: How to configure Teleport Database Access with MongoDB Atlas.
+description: How to configure Teleport database access with MongoDB Atlas.
 videoBanner: mu_ZKTjnFJ8
 ---
 
@@ -65,8 +65,8 @@ $ teleport db start \
 </TabItem>
 <TabItem label="Configuration file">
 
-On the node where you will run the Teleport Database Service, run
-`teleport start` with the following in `/etc/teleport.yaml`:
+On the node where you will run the Teleport Database Service,
+add the following in `/etc/teleport.yaml`:
 
 ```yaml
 version: v3
@@ -85,13 +85,16 @@ db_service:
   - name: "mongodb-atlas"
     protocol: "mongodb"
     uri: "mongodb+srv://cluster0.abcde.mongodb.net"
-    ca_cert_file: "/path/to/letsencrypt/isrgrootx1.pem"
+    tls:
+      ca_cert_file: "/path/to/letsencrypt/isrgrootx1.pem"
     static_labels:
       env: "dev"
 
 ```
 
 See the full [YAML reference](../reference/configuration.mdx) for details.
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 </TabItem>
 </Tabs>
@@ -119,8 +122,8 @@ $ teleport db start \
 </TabItem>
 <TabItem label="Configuration file">
 
-On the node where you will run the Teleport Database Service, run
-`teleport db start` with the following in `/etc/teleport.yaml`:
+On the node where you will run the Teleport Database Service,
+add the following in `/etc/teleport.yaml`:
 
 ```yaml
 version: v3
@@ -133,12 +136,15 @@ db_service:
   - name: "mongodb-atlas"
     protocol: "mongodb"
     uri: "mongodb+srv://cluster0.abcde.mongodb.net"
-    ca_cert_file: "/path/to/letsencrypt/isrgrootx1.pem"
+    tls:
+      ca_cert_file: "/path/to/letsencrypt/isrgrootx1.pem"
     static_labels:
       env: "dev"
 ```
 
 See the full [YAML reference](../reference/configuration.mdx) for details.
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 </TabItem>
 </Tabs>
@@ -180,6 +186,8 @@ You can then use `/tmp/isrgrootx1.pem` as the value of the `db_service.databases
 
 (!docs/pages/includes/database-access/create-user.mdx!)
 
+(!docs/pages/includes/database-access/mongodb-required-database-access.mdx!)
+
 ## Step 3/4. Configure Atlas
 
 ### Enable self-managed X.509 authentication
@@ -208,6 +216,7 @@ click Save.
 
 ### Create MongoDB user
 
+{/*lint ignore messaging*/}
 On the Security / Database Access page add a new database user with Certificate
 authentication method:
 

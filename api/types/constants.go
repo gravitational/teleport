@@ -345,8 +345,13 @@ const (
 )
 
 const (
-	// TeleportNamespace is used as the namespace prefix for any
-	// labels defined by teleport
+	// TeleportNamespace is used as the namespace prefix for labels defined by Teleport which can
+	// carry metadata such as cloud AWS account or instance. Those labels can be used for RBAC.
+	//
+	// If a label with this prefix is used in a config file, the associated feature must take into
+	// account that the label might be removed, modified or could have been set by the user.
+	//
+	// See also teleport.internal.
 	TeleportNamespace = "teleport.dev"
 
 	// OriginLabel is a resource metadata label name used to identify a source
@@ -391,6 +396,59 @@ const (
 	CloudAzure = "Azure"
 	// CloudGCP identifies that a resource was discovered in GCP.
 	CloudGCP = "GCP"
+)
+
+// teleport.internal is the prefix used by all Teleport internal labels. Those labels are
+// automatically populated by Teleport and are expected to be used by Teleport internal components
+// and not for RBAC.
+//
+// See also TeleportNamespace.
+const (
+	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
+	BotLabel = "teleport.internal/bot"
+
+	// BotGenerationLabel is a label used to record the certificate generation counter.
+	BotGenerationLabel = "teleport.internal/bot-generation"
+
+	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
+	// A pratical example of this is to create a correlation between a Node Provision Token and
+	// the Node that used that token to join the cluster
+	InternalResourceIDLabel = "teleport.internal/resource-id"
+
+	// AlertOnLogin is an internal label that indicates an alert should be displayed to users on login
+	AlertOnLogin = "teleport.internal/alert-on-login"
+
+	// AlertPermitAll is an internal label that indicates that an alert is suitable for display
+	// to all users.
+	AlertPermitAll = "teleport.internal/alert-permit-all"
+
+	// AlertLink is an internal label that indicates that an alert is a link.
+	AlertLink = "teleport.internal/link"
+
+	// AlertVerbPermit is an internal label that permits a user to view the alert if they
+	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
+	// a coarser control than it might initially appear and has the potential for accidental
+	// misuse. Because this permitting strategy doesn't take into account constraints such as
+	// label selectors or where clauses, it can't reliably protect information related to a
+	// specific resource. This label should be used only for permitting of alerts that are
+	// of concern to holders of a given <resource>:<verb> capability in the most general case.
+	AlertVerbPermit = "teleport.internal/alert-verb-permit"
+
+	// AlertSupersedes is an internal label used to indicate when one alert supersedes
+	// another. Teleport may choose to hide the superseded alert if the superseding alert
+	// is also visible to the user and of higher or equivalent severity. This intended as
+	// a mechanism for reducing noise/redundancy, and is not a form of access control. Use
+	// one of the "permit" labels if you need to restrict viewership of an alert.
+	AlertSupersedes = "teleport.internal/alert-supersedes"
+
+	// AlertLicenseExpired is an internal label that indicates that the license has expired.
+
+	AlertLicenseExpired = "teleport.internal/license-expired-warning"
+
+	// TeleportInternalDiscoveryGroupName is the label used to store the name of the discovery group
+	// that the discovered resource is owned by. It is used to differentiate resources
+	// that belong to different discovery services that operate on different sets of resources.
+	TeleportInternalDiscoveryGroupName = "teleport.internal/discovery-group-name"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
@@ -483,48 +541,6 @@ const (
 
 	// ResourceSpecType refers to a resource field named "type".
 	ResourceSpecType = "type"
-)
-
-const (
-	// BotLabel is a label used to identify a resource used by a certificate renewal bot.
-	BotLabel = "teleport.internal/bot"
-
-	// BotGenerationLabel is a label used to record the certificate generation counter.
-	BotGenerationLabel = "teleport.internal/bot-generation"
-
-	// InternalResourceIDLabel is a label used to store an ID to correlate between two resources
-	// A pratical example of this is to create a correlation between a Node Provision Token and
-	// the Node that used that token to join the cluster
-	InternalResourceIDLabel = "teleport.internal/resource-id"
-
-	// AlertOnLogin is an internal label that indicates an alert should be displayed to users on login
-	AlertOnLogin = "teleport.internal/alert-on-login"
-
-	// AlertPermitAll is an internal label that indicates that an alert is suitable for display
-	// to all users.
-	AlertPermitAll = "teleport.internal/alert-permit-all"
-
-	// AlertLink is an internal label that indicates that an alert is a link.
-	AlertLink = "teleport.internal/link"
-
-	// AlertVerbPermit is an internal label that permits a user to view the alert if they
-	// hold a specific resource permission verb (e.g. 'node:list'). Note that this label is
-	// a coarser control than it might initially appear and has the potential for accidental
-	// misuse. Because this permitting strategy doesn't take into account constraints such as
-	// label selectors or where clauses, it can't reliably protect information related to a
-	// specific resource. This label should be used only for permitting of alerts that are
-	// of concern to holders of a given <resource>:<verb> capability in the most general case.
-	AlertVerbPermit = "teleport.internal/alert-verb-permit"
-
-	// AlertSupersedes is an internal label used to indicate when one alert supersedes
-	// another. Teleport may choose to hide the superseded alert if the superseding alert
-	// is also visible to the user and of higher or equivalent severity. This intended as
-	// a mechanism for reducing noise/redundancy, and is not a form of access control. Use
-	// one of the "permit" labels if you need to restrict viewership of an alert.
-	AlertSupersedes = "teleport.internal/alert-supersedes"
-
-	// AlertLicenseExpired is an internal label that indicates that the license has expired.
-	AlertLicenseExpired = "teleport.internal/license-expired-warning"
 )
 
 // RequestableResourceKinds lists all Teleport resource kinds users can request access to.

@@ -57,7 +57,7 @@ const size = props => {
 const themedStyles = props => {
   const { colors } = props.theme;
   const style = {
-    color: colors.secondary.contrastText,
+    color: colors.text.contrast,
     '&:disabled': {
       background: colors.action.disabledBackground,
       color: colors.action.disabled,
@@ -79,22 +79,22 @@ const kinds = props => {
   switch (kind) {
     case 'primary':
       return {
-        borderColor: theme.colors.secondary.main,
-        color: theme.colors.secondary.light,
+        borderColor: theme.colors.buttons.outlinedPrimary.border,
+        color: theme.colors.buttons.outlinedPrimary.text,
         '&:hover, &:focus': {
-          borderColor: theme.colors.secondary.light,
+          borderColor: theme.colors.buttons.outlinedPrimary.borderHover,
         },
         '&:active': {
-          borderColor: theme.colors.secondary.dark,
+          borderColor: theme.colors.buttons.outlinedPrimary.borderActive,
         },
       };
     default:
       return {
-        borderColor: theme.colors.text.primary,
-        color: theme.colors.text.primary,
+        borderColor: theme.colors.buttons.outlinedDefault.border,
+        color: theme.colors.buttons.outlinedDefault.text,
         '&:hover, &:focus': {
-          borderColor: theme.colors.light,
-          color: theme.colors.light,
+          borderColor: theme.colors.buttons.outlinedDefault.borderHover,
+          color: theme.colors.buttons.outlinedDefault.textHover,
         },
       };
   }

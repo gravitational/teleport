@@ -42,7 +42,7 @@ export function ShareFeedbackForm(props: ShareFeedbackProps) {
     props.submitFeedbackAttempt.status === 'processing';
 
   return (
-    <Flex bg="primary.main" p={3} borderRadius={3} maxWidth="370px">
+    <Flex bg="levels.surfaceSecondary" p={3} borderRadius={3} maxWidth="370px">
       <Validation>
         {({ validator }) => (
           <Flex

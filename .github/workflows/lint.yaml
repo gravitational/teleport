@@ -1,17 +1,16 @@
 name: Lint (Go)
 run-name: make lint
 on:
-  push:
-    branches:
-      - branch/v11
   pull_request:
     paths-ignore:
       - 'docs/**'
       - 'rfd/**'
+      - '**/*.md*'
   merge_group:
     paths-ignore:
       - 'docs/**'
       - 'rfd/**'
+      - '**/*.md*'
 
 jobs:
   lint:

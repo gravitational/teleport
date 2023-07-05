@@ -9,6 +9,8 @@ Access Requests. Users can then approve and deny Access Requests by following th
 message link, making it easier to implement security best practices without
 compromising productivity.
 
+(!docs/pages/includes/plugins/diagram.mdx api="Microsoft Teams" action="Listen for Access Requests" messages="Microsoft Teams messages" !)
+
 ## Prerequisites
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
@@ -218,59 +220,11 @@ to `/etc/teleport-msteams.toml`. You can then edit the copy located in `/etc/`.
 
 **`[teleport]`**
 
-The Microsoft Teams plugin uses this section to connect to the Teleport Auth Service.
+The Microsoft Teams plugin uses this section to connect to your Teleport
+cluster.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+(!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
-The address and credentials you configure depend on whether your plugin can
-access the Auth Service directly:
-
-<Tabs>
-  <TabItem label="Connect to the Auth Service"> 
-    
-Set `addr` to the address and port of your Auth Service. This address must be
-reachable from the Teleport Microsoft Teams Plugin.
-
-Set `client_key`, `client_crt`, and `root_cas` to the identity files
-generated earlier:
-
-```toml
-[teleport]
-addr = "localhost:3025"
-client_key = "/var/lib/teleport/plugins/msteams/auth.key" # Teleport GRPC client secret key
-client_crt = "/var/lib/teleport/plugins/msteams/auth.crt" # Teleport GRPC client certificate
-root_cas = "/var/lib/teleport/plugins/msteams/auth.cas"   # Teleport cluster CA certs
-```
-</TabItem>
-  <TabItem label="Connect to the Proxy Service">
-
-Set `addr` to  your Proxy Service address with port `443`.
-
-Set `identity` to the identity file generated earlier:
-
-```toml
-[teleport]
-addr = "mytenant.teleport.sh:443"
-identity = "/var/lib/teleport/plugins/msteams/auth.pem"
-```
-  </TabItem>
-</Tabs>
-
-</ScopedBlock>
-<ScopedBlock scope="cloud">
-
-Set `addr` to  your Teleport Cloud tenant address with port `443`.
-
-Set `identity` to the identity file generated earlier:
-
-```toml
-[teleport]
-addr = "mytenant.teleport.sh:443"
-identity = "/var/lib/teleport/plugins/msteams/auth.pem"
-```
-
-</ScopedBlock>
- 
 **`[role_to_recipients]`**
 
 The `role_to_recipients` map configure the users and channels that the
@@ -380,7 +334,7 @@ $ teleport-msteams validate <email of your teams account>
 If everything works fine, the log output should look like this:
 
 ```text
-teleport-msteams v10.0.2 go1.18.1
+teleport-msteams v(=teleport.plugin.version=) go(=teleport.golang=)
 
  - Checking application xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx status...
  - Application found in the team app store (internal ID: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
@@ -397,6 +351,27 @@ Check your MS Teams!
 The plugin should exit and you should have received two messages through Microsoft Teams.
 
 ![Validate Bot Message](../../../img/enterprise/plugins/msteams/validate-bot-message.png)
+
+
+### Start the MS Teams Plugin
+
+After you configured and validated the MS Teams plugin, run the following command to start it.
+The `-d` flag will provide debug information to ensure that the plugin can
+connect to MS Teams and your Teleport cluster:
+
+```code
+$ teleport-msteams start -d
+DEBU   DEBUG logging enabled msteams/main.go:120
+INFO   Starting Teleport MS Teams Plugin (=teleport.plugin.version=): msteams/app.go:74
+DEBU   Attempting GET teleport.example.com:443/webapi/find webclient/webclient.go:129
+DEBU   Checking Teleport server version msteams/app.go:242
+INFO   MS Teams app found in org app store id:292e2881-38ab-7777-8aa7-cefed1404a63 name:TeleBot msteams/app.go:179
+INFO   Preloading recipient data... msteams/app.go:185
+INFO   Recipient found, chat found chat_id:19:a8c06deb-aa2b-4db5-9c78-96e48f625aef_a36aec2e-f11c-4219-b79a-19UUUU57de70@unq.gbl.spaces kind:user recipient:jeff@example.com msteams/app.go:195
+INFO   Recipient data preloaded and cached. msteams/app.go:198
+DEBU   Watcher connected watcherjob/watcherjob.go:121
+INFO   Plugin is ready msteams/app.go:227
+```
 
 ### Create an Access Request
 

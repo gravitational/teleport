@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -55,6 +56,141 @@ type TrackingConn interface {
 	RemoteAddr() net.Addr
 	// Close closes the connection
 	Close() error
+}
+
+// ConnectionMonitorConfig contains dependencies required by
+// the ConnectionMonitor.
+type ConnectionMonitorConfig struct {
+	// AccessPoint is used to retrieve cluster configuration.
+	AccessPoint AccessPoint
+	// LockWatcher ensures lock information is up to date.
+	LockWatcher *services.LockWatcher
+	// Clock is a clock, realtime or fixed in tests.
+	Clock clockwork.Clock
+	// ServerID is the host UUID of the server receiving connections.
+	ServerID string
+	// Emitter allows events to be emitted.
+	Emitter apievents.Emitter
+	// Logger is a logging entry.
+	Logger log.FieldLogger
+	// MonitorCloseChannel will be signaled when the monitor closes a connection.
+	// Used only for testing. Optional.
+	MonitorCloseChannel chan struct{}
+}
+
+// CheckAndSetDefaults checks values and sets defaults
+func (c *ConnectionMonitorConfig) CheckAndSetDefaults() error {
+	if c.AccessPoint == nil {
+		return trace.BadParameter("missing parameter AccessPoint")
+	}
+	if c.LockWatcher == nil {
+		return trace.BadParameter("missing parameter LockWatcher")
+	}
+	if c.Logger == nil {
+		return trace.BadParameter("missing parameter Logger")
+	}
+	if c.Emitter == nil {
+		return trace.BadParameter("missing parameter Emitter")
+	}
+	if c.ServerID == "" {
+		return trace.BadParameter("missing parameter ServerID")
+	}
+	if c.Clock == nil {
+		c.Clock = clockwork.NewRealClock()
+	}
+	return nil
+}
+
+// ConnectionMonitor monitors the activity of connections and disconnects
+// them if the certificate expires, if a new lock is placed
+// that applies to the connection, or after periods of inactivity
+type ConnectionMonitor struct {
+	cfg ConnectionMonitorConfig
+}
+
+// NewConnectionMonitor returns a ConnectionMonitor that can be used to monitor
+// connection activity and terminate connections based on various cluster conditions.
+func NewConnectionMonitor(cfg ConnectionMonitorConfig) (*ConnectionMonitor, error) {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &ConnectionMonitor{cfg: cfg}, nil
+}
+
+func getTrackingReadConn(conn net.Conn) (*TrackingReadConn, bool) {
+	type netConn interface {
+		NetConn() net.Conn
+	}
+
+	for {
+		if tconn, ok := conn.(*TrackingReadConn); ok {
+			return tconn, true
+		}
+
+		connGetter, ok := conn.(netConn)
+		if !ok {
+			return nil, false
+		}
+		conn = connGetter.NetConn()
+	}
+}
+
+// MonitorConn ensures that the provided [net.Conn] is allowed per cluster configuration
+// and security controls. If at any point during the lifetime of the connection the
+// cluster controls dictate that the connection is not permitted it will be closed and the
+// returned [context.Context] will be canceled.
+func (c *ConnectionMonitor) MonitorConn(ctx context.Context, authCtx *auth.Context, conn net.Conn) (context.Context, net.Conn, error) {
+	authPref, err := c.cfg.AccessPoint.GetAuthPreference(ctx)
+	if err != nil {
+		return ctx, conn, trace.Wrap(err)
+	}
+	netConfig, err := c.cfg.AccessPoint.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return ctx, conn, trace.Wrap(err)
+	}
+
+	identity := authCtx.Identity.GetIdentity()
+	checker := authCtx.Checker
+
+	idleTimeout := checker.AdjustClientIdleTimeout(netConfig.GetClientIdleTimeout())
+
+	tconn, ok := getTrackingReadConn(conn)
+	if !ok {
+		tctx, cancel := context.WithCancel(ctx)
+		tconn, err = NewTrackingReadConn(TrackingReadConnConfig{
+			Conn:    conn,
+			Clock:   c.cfg.Clock,
+			Context: tctx,
+			Cancel:  cancel,
+		})
+		if err != nil {
+			return ctx, conn, trace.Wrap(err)
+		}
+	}
+
+	// Start monitoring client connection. When client connection is closed the monitor goroutine exits.
+	if err := StartMonitor(MonitorConfig{
+		LockWatcher:           c.cfg.LockWatcher,
+		LockTargets:           authCtx.LockTargets(),
+		LockingMode:           authCtx.Checker.LockingMode(authPref.GetLockingMode()),
+		DisconnectExpiredCert: GetDisconnectExpiredCertFromIdentity(checker, authPref, &identity),
+		ClientIdleTimeout:     idleTimeout,
+		Conn:                  tconn,
+		Tracker:               tconn,
+		Context:               ctx,
+		Clock:                 c.cfg.Clock,
+		ServerID:              c.cfg.ServerID,
+		TeleportUser:          identity.Username,
+		Emitter:               c.cfg.Emitter,
+		Entry:                 c.cfg.Logger,
+		IdleTimeoutMessage:    netConfig.GetClientIdleTimeoutMessage(),
+		MonitorCloseChannel:   c.cfg.MonitorCloseChannel,
+	}); err != nil {
+		return ctx, conn, trace.Wrap(err)
+	}
+
+	return tconn.cfg.Context, tconn, nil
 }
 
 // MonitorConfig is a wiretap configuration

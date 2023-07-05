@@ -62,7 +62,7 @@ test('login with SSO', () => {
   jest.spyOn(cfg, 'getPrimaryAuthType').mockImplementation(() => 'sso');
   jest.spyOn(cfg, 'getAuthProviders').mockImplementation(() => [
     {
-      displayName: 'With Github',
+      displayName: 'With GitHub',
       type: 'github',
       name: 'github',
       url: '/github/login/web?redirect_url=:redirect?connector_id=:providerName',
@@ -72,7 +72,7 @@ test('login with SSO', () => {
   render(<Login />);
 
   // test login pathways
-  fireEvent.click(screen.getByText('With Github'));
+  fireEvent.click(screen.getByText('With GitHub'));
   expect(history.push).toHaveBeenCalledWith(
     'http://localhost/github/login/web?redirect_url=http:%2F%2Flocalhost%2Fwebconnector_id=github',
     true
@@ -112,4 +112,43 @@ test('login with private key policy enabled through role setting', async () => {
 
   expect(screen.queryByPlaceholderText(/username/i)).not.toBeInTheDocument();
   expect(screen.getByText(/login disabled/i)).toBeInTheDocument();
+});
+
+test('show motd only if motd is set', async () => {
+  // default login form
+  const { unmount } = render(<Login />);
+  expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
+  expect(
+    screen.queryByText('Welcome to cluster, your activity will be recorded.')
+  ).not.toBeInTheDocument();
+  unmount();
+
+  // now set motd
+  jest
+    .spyOn(cfg, 'getMotd')
+    .mockImplementation(
+      () => 'Welcome to cluster, your activity will be recorded.'
+    );
+
+  render(<Login />);
+
+  expect(
+    screen.getByText('Welcome to cluster, your activity will be recorded.')
+  ).toBeInTheDocument();
+  expect(screen.queryByPlaceholderText(/username/i)).not.toBeInTheDocument();
+});
+
+test('show login form after modt acknowledge', async () => {
+  jest
+    .spyOn(cfg, 'getMotd')
+    .mockImplementation(
+      () => 'Welcome to cluster, your activity will be recorded.'
+    );
+  render(<Login />);
+  expect(
+    screen.getByText('Welcome to cluster, your activity will be recorded.')
+  ).toBeInTheDocument();
+
+  fireEvent.click(screen.getByText('Acknowledge'));
+  expect(screen.getByPlaceholderText(/username/i)).toBeInTheDocument();
 });

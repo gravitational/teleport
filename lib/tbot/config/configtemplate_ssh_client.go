@@ -108,7 +108,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 		return trace.Wrap(err)
 	}
 
-	proxyHost, _, err := utils.SplitHostPort(ping.ProxyPublicAddr)
+	proxyHost, proxyPort, err := utils.SplitHostPort(ping.ProxyPublicAddr)
 	if err != nil {
 		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
 	}
@@ -169,6 +169,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 		IdentityFilePath:    identityFilePath,
 		CertificateFilePath: certificateFilePath,
 		ProxyHost:           proxyHost,
+		ProxyPort:           proxyPort,
 		ExecutablePath:      executablePath,
 		DestinationDir:      destDir,
 	}); err != nil {

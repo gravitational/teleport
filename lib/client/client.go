@@ -26,18 +26,20 @@ import (
 	"fmt"
 	"io"
 	"net"
-	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/gravitational/trace/trail"
 	"github.com/moby/term"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/propagation"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/agent"
+	"google.golang.org/grpc"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
@@ -49,11 +51,13 @@ import (
 	tracessh "github.com/gravitational/teleport/api/observability/tracing/ssh"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
+	"github.com/gravitational/teleport/api/utils/keys"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
+	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/sshutils"
-	"github.com/gravitational/teleport/lib/sshutils/scp"
 	"github.com/gravitational/teleport/lib/sshutils/sftp"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/socks"
@@ -88,6 +92,36 @@ type NodeClient struct {
 	TC          *TeleportClient
 	OnMFA       func()
 	FIPSEnabled bool
+
+	mu      sync.Mutex
+	closers []io.Closer
+}
+
+// AddCloser adds an [io.Closer] that will be closed when the
+// client is closed.
+func (c *NodeClient) AddCloser(closer io.Closer) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.closers = append(c.closers, closer)
+}
+
+type closerFunc func() error
+
+func (f closerFunc) Close() error {
+	return f()
+}
+
+// AddCancel adds a [context.CancelFunc] that will be canceled when the
+// client is closed.
+func (c *NodeClient) AddCancel(cancel context.CancelFunc) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.closers = append(c.closers, closerFunc(func() error {
+		cancel()
+		return nil
+	}))
 }
 
 // ClusterName returns the name of the cluster the proxy is a member of.
@@ -177,6 +211,7 @@ func (proxy *ProxyClient) GetLeafClusters(ctx context.Context) ([]types.RemoteCl
 type ReissueParams struct {
 	RouteToCluster        string
 	NodeName              string
+	SSHLogin              string
 	KubernetesCluster     string
 	AccessRequests        []string
 	DropAccessRequests    []string
@@ -307,20 +342,24 @@ func (proxy *ProxyClient) reissueUserCerts(ctx context.Context, cachePolicy Cert
 
 		key, err = proxy.localAgent().GetKey(params.RouteToCluster, certOptions...)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 	}
 
 	req, err := proxy.prepareUserCertsRequest(params, key)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
 
-	clt, err := proxy.ConnectToRootCluster(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
+	clt := params.AuthClient
+	if params.AuthClient == nil {
+		clt, err = proxy.ConnectToRootCluster(ctx)
+		if err != nil {
+			return nil, trace.Wrap(MFARequiredUnknown(err))
+		}
+		defer clt.Close()
 	}
-	defer clt.Close()
+
 	certs, err := clt.GenerateUserCerts(ctx, *req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -400,56 +439,21 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		var err error
 		key, err = proxy.localAgent().GetKey(params.RouteToCluster, WithAllCerts...)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
 	}
 
-	var clt auth.ClientI
-	// requiredCheck passed from param can be nil.
-	requiredCheck := params.MFACheck
-	if requiredCheck == nil || requiredCheck.Required {
-		// Connect to the target cluster (root or leaf) to check whether MFA is
-		// required or if we know from param that it's required, connect because
-		// it will be needed to do MFA check.
-		if params.AuthClient != nil {
-			clt = params.AuthClient
-		} else {
-			authClt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster)
-			if err != nil {
-				return nil, trace.Wrap(err)
-			}
-			clt = authClt
-			defer clt.Close()
-		}
-	}
-
-	if requiredCheck == nil {
-		check, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(proxy.hostLogin))
+	clt, mfaClt := params.AuthClient, params.AuthClient
+	// Connect to the target cluster (root or leaf) to check whether MFA is
+	// required or if we know from param that it's required, connect because
+	// it will be needed to do MFA check.
+	if clt == nil {
+		authClt, err := proxy.ConnectToCluster(ctx, params.RouteToCluster)
 		if err != nil {
-			if trace.IsNotImplemented(err) {
-				// Probably talking to an older server, use the old non-MFA endpoint.
-				log.WithError(err).Debug("Auth server does not implement IsMFARequired.")
-				// SSH certs can be used without reissuing.
-				if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
-					return key, nil
-				}
-				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
-			}
-			return nil, trace.Wrap(err)
+			return nil, trace.Wrap(MFARequiredUnknown(err))
 		}
-		requiredCheck = check
-	}
-
-	if !requiredCheck.Required {
-		log.Debug("MFA not required for access.")
-		// MFA is not required.
-		// SSH certs can be used without embedding the node name.
-		if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
-			return key, nil
-		}
-		// All other targets need their name embedded in the cert for routing,
-		// fall back to non-MFA reissue.
-		return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
+		clt, mfaClt = authClt, authClt
+		defer authClt.Close()
 	}
 
 	// Always connect to root for getting new credentials, but attempt to reuse
@@ -459,28 +463,30 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		return nil, trace.Wrap(err)
 	}
 	if params.RouteToCluster != rootClusterName {
-		clt.Close()
 		rootClusterProxy := proxy
 		if jumpHost := proxy.teleportClient.JumpHosts; jumpHost != nil {
 			// In case of MFA connect to root teleport proxy instead of JumpHost to request
 			// MFA certificates.
-			proxy.teleportClient.JumpHosts = nil
-			rootClusterProxy, err = proxy.teleportClient.ConnectToProxy(ctx)
-			proxy.teleportClient.JumpHosts = jumpHost
+			err := proxy.teleportClient.WithoutJumpHosts(func(tcNoJump *TeleportClient) error {
+				rootClusterProxy, err = tcNoJump.ConnectToProxy(ctx)
+				return trace.Wrap(err)
+			})
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
 			defer rootClusterProxy.Close()
 		}
-		clt, err = rootClusterProxy.ConnectToCluster(ctx, rootClusterName)
+		mfaClt, err = rootClusterProxy.ConnectToCluster(ctx, rootClusterName)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		defer clt.Close()
+		defer mfaClt.Close()
 	}
 
+	params.AuthClient = mfaClt
+
 	log.Debug("Attempting to issue a single-use user certificate with an MFA check.")
-	stream, err := clt.GenerateUserSingleUseCerts(ctx)
+	stream, err := mfaClt.GenerateUserSingleUseCerts(ctx)
 	if err != nil {
 		if trace.IsNotImplemented(err) {
 			// Probably talking to an older server, use the old non-MFA endpoint.
@@ -509,29 +515,70 @@ func (proxy *ProxyClient) IssueUserCertsWithMFA(ctx context.Context, params Reis
 		Init: initReq,
 	}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 
 	resp, err := stream.Recv()
 	if err != nil {
+		err = trail.FromGRPC(err)
+		// Older versions will NOT reply with a MFARequired response in the
+		// challenge and will terminate the stream with an auth.ErrNoMFADevices error.
+		// In this case for all protocols other than SSH fall back to reissuing
+		// certs without MFA.
+		if errors.Is(err, auth.ErrNoMFADevices) {
+			if params.usage() != proto.UserCertsRequest_SSH {
+				return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
+			}
+		}
+
 		return nil, trace.Wrap(err)
 	}
 	mfaChal := resp.GetMFAChallenge()
 	if mfaChal == nil {
 		return nil, trace.BadParameter("server sent a %T on GenerateUserSingleUseCerts, expected MFAChallenge", resp.Response)
 	}
+
+	switch mfaChal.MFARequired {
+	case proto.MFARequired_MFA_REQUIRED_NO:
+		// SSH sessions will be established with the current key.
+		if params.usage() == proto.UserCertsRequest_SSH {
+			return nil, trace.Wrap(services.ErrSessionMFANotRequired)
+		}
+		// All other targets need their name embedded in the cert for routing,
+		// fall back to non-MFA reissue.
+		return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
+	case proto.MFARequired_MFA_REQUIRED_UNSPECIFIED:
+		check, err := clt.IsMFARequired(ctx, params.isMFARequiredRequest(params.SSHLogin))
+		if err != nil {
+			return nil, trace.Wrap(MFARequiredUnknown(err))
+		}
+		if !check.Required {
+			log.Debug("MFA not required for access.")
+			// MFA is not required.
+			// SSH certs can be used without embedding the node name.
+			if params.usage() == proto.UserCertsRequest_SSH && key.Cert != nil {
+				return key, nil
+			}
+			// All other targets need their name embedded in the cert for routing,
+			// fall back to non-MFA reissue.
+			return proxy.reissueUserCerts(ctx, CertCacheKeep, params)
+		}
+	case proto.MFARequired_MFA_REQUIRED_YES:
+		// Proceed with the prompt for MFA below.
+	}
+
 	mfaResp, err := promptMFAChallenge(ctx, proxy.teleportClient.WebProxyAddr, mfaChal)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 	err = stream.Send(&proto.UserSingleUseCertsRequest{Request: &proto.UserSingleUseCertsRequest_MFAResponse{MFAResponse: mfaResp}})
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 
 	resp, err = stream.Recv()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(trail.FromGRPC(err))
 	}
 	certResp := resp.GetCert()
 	if certResp == nil {
@@ -581,6 +628,11 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		params.AccessRequests = activeRequests.AccessRequests
 	}
 
+	attestationStatement, err := keys.GetAttestationStatement(key.PrivateKey)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &proto.UserCertsRequest{
 		PublicKey:             key.MarshalSSHPublicKey(),
 		Username:              tlsCert.Subject.CommonName,
@@ -595,6 +647,8 @@ func (proxy *ProxyClient) prepareUserCertsRequest(params ReissueParams, key *Key
 		NodeName:              params.NodeName,
 		Usage:                 params.usage(),
 		Format:                proxy.teleportClient.CertificateFormat,
+		SSHLogin:              params.SSHLogin,
+		AttestationStatement:  attestationStatement.ToProto(),
 	}, nil
 }
 
@@ -854,6 +908,8 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer authClient.Close()
+
 	ws, err := authClient.CreateAppSession(ctx, req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -863,6 +919,8 @@ func (proxy *ProxyClient) CreateAppSession(ctx context.Context, req types.Create
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	defer accessPoint.Close()
+
 	err = auth.WaitForAppSession(ctx, ws.GetName(), ws.GetUser(), accessPoint)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1115,6 +1173,10 @@ func (proxy *ProxyClient) ConnectToAuthServiceThroughALPNSNIProxy(ctx context.Co
 		},
 		ALPNSNIAuthDialClusterName: clusterName,
 		CircuitBreakerConfig:       breaker.NoopBreakerConfig(),
+		DialOpts: []grpc.DialOption{
+			grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
+			grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1208,6 +1270,10 @@ func (proxy *ProxyClient) ConnectToCluster(ctx context.Context, clusterName stri
 			client.LoadTLS(tlsConfig),
 		},
 		CircuitBreakerConfig: breaker.NoopBreakerConfig(),
+		DialOpts: []grpc.DialOption{
+			grpc.WithStreamInterceptor(utils.GRPCClientStreamErrorInterceptor),
+			grpc.WithUnaryInterceptor(utils.GRPCClientUnaryErrorInterceptor),
+		},
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -1609,7 +1675,9 @@ func (proxy *ProxyClient) ConnectToNode(ctx context.Context, nodeAddress NodeDet
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
 
-	nc, err := NewNodeClient(ctx, sshConfig, pipeNetConn, nodeAddress.ProxyFormat(), proxy.teleportClient, details.FIPSEnabled)
+	nc, err := NewNodeClient(ctx, sshConfig, pipeNetConn,
+		nodeAddress.ProxyFormat(), nodeAddress.Addr,
+		proxy.teleportClient, details.FIPSEnabled)
 	return nc, trace.Wrap(err)
 }
 
@@ -1655,12 +1723,13 @@ func (proxy *ProxyClient) PortForwardToNode(ctx context.Context, nodeAddress Nod
 		HostKeyCallback: proxy.hostKeyCallback,
 	}
 
-	nc, err := NewNodeClient(ctx, sshConfig, proxyConn, nodeAddress.Addr, proxy.teleportClient, details.FIPSEnabled)
+	nc, err := NewNodeClient(ctx, sshConfig, proxyConn, nodeAddress.Addr, "", proxy.teleportClient, details.FIPSEnabled)
 	return nc, trace.Wrap(err)
 }
 
-// NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress
-func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress string, tc *TeleportClient, fipsEnabled bool) (*NodeClient, error) {
+// NewNodeClient constructs a NodeClient that is connected to the node at nodeAddress.
+// The nodeName field is optional and is used only to present better error messages.
+func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Conn, nodeAddress, nodeName string, tc *TeleportClient, fipsEnabled bool) (*NodeClient, error) {
 	ctx, span := tc.Tracer.Start(
 		ctx,
 		"NewNodeClient",
@@ -1675,8 +1744,12 @@ func NewNodeClient(ctx context.Context, sshConfig *ssh.ClientConfig, conn net.Co
 	if err != nil {
 		if utils.IsHandshakeFailedError(err) {
 			conn.Close()
-			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeAddress, err)
-			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeAddress)
+			if nodeName == "" {
+				nodeName = nodeAddress
+			}
+
+			log.Infof("Access denied to %v connecting to %v: %v", sshConfig.User, nodeName, err)
+			return nil, trace.AccessDenied(`access denied to %v connecting to %v`, sshConfig.User, nodeName)
 		}
 		return nil, trace.Wrap(err)
 	}
@@ -1844,97 +1917,6 @@ func (proxy *ProxyClient) Close() error {
 	return trace.NewAggregate(proxy.Client.Close(), proxy.currentCluster.Close())
 }
 
-// ExecuteSCP runs remote scp command(shellCmd) on the remote server and
-// runs local scp handler using SCP Command
-func (c *NodeClient) ExecuteSCP(ctx context.Context, cmd scp.Command) error {
-	ctx, span := c.Tracer.Start(
-		ctx,
-		"nodeClient/ExecuteSCP",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	shellCmd, err := cmd.GetRemoteShellCmd()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	s, err := c.Client.NewSession(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	defer s.Close()
-
-	stdin, err := s.StdinPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	stdout, err := s.StdoutPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	// Stream scp's stderr so tsh gets the verbose remote error
-	// if the command fails
-	stderr, err := s.StderrPipe()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	go io.Copy(os.Stderr, stderr)
-
-	ch := utils.NewPipeNetConn(
-		stdout,
-		stdin,
-		utils.MultiCloser(),
-		&net.IPAddr{},
-		&net.IPAddr{},
-	)
-
-	execC := make(chan error, 1)
-	go func() {
-		err := cmd.Execute(ch)
-		if err != nil && !trace.IsEOF(err) {
-			log.WithError(err).Warn("Failed to execute SCP command.")
-		}
-		stdin.Close()
-		execC <- err
-	}()
-
-	runC := make(chan error, 1)
-	go func() {
-		err := s.Run(ctx, shellCmd)
-		if err != nil && errors.Is(err, &ssh.ExitMissingError{}) {
-			// TODO(dmitri): currently, if the session is aborted with (*session).Close,
-			// the remote side cannot send exit-status and this error results.
-			// To abort the session properly, Teleport needs to support `signal` request
-			err = nil
-		}
-		runC <- err
-	}()
-
-	var runErr error
-	select {
-	case <-ctx.Done():
-		if err := s.Close(); err != nil {
-			log.WithError(err).Debug("Failed to close the SSH session.")
-		}
-		err, runErr = <-execC, <-runC
-	case err = <-execC:
-		runErr = <-runC
-	case runErr = <-runC:
-		err = <-execC
-	}
-
-	if runErr != nil && (err == nil || trace.IsEOF(err)) {
-		err = runErr
-	}
-	if trace.IsEOF(err) {
-		err = nil
-	}
-	return trace.Wrap(err)
-}
-
 // TransferFiles transfers files over SFTP.
 func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error {
 	ctx, span := c.Tracer.Start(
@@ -1948,75 +1930,52 @@ func (c *NodeClient) TransferFiles(ctx context.Context, cfg *sftp.Config) error 
 }
 
 type netDialer interface {
-	Dial(string, string) (net.Conn, error)
+	DialContext(context.Context, string, string) (net.Conn, error)
 }
 
 func proxyConnection(ctx context.Context, conn net.Conn, remoteAddr string, dialer netDialer) error {
 	defer conn.Close()
 	defer log.Debugf("Finished proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
 
-	var (
-		remoteConn net.Conn
-		err        error
-	)
-
+	var remoteConn net.Conn
 	log.Debugf("Attempting to connect proxy from %v to %v.", conn.RemoteAddr(), remoteAddr)
-	for attempt := 1; attempt <= 5; attempt++ {
-		remoteConn, err = dialer.Dial("tcp", remoteAddr)
-		if err != nil {
-			log.Debugf("Proxy connection attempt %v: %v.", attempt, err)
 
-			timer := time.NewTimer(time.Duration(100*attempt) * time.Millisecond)
-			defer timer.Stop()
-
-			// Wait and attempt to connect again, if the context has closed, exit
-			// right away.
-			select {
-			case <-ctx.Done():
-				return trace.Wrap(ctx.Err())
-			case <-timer.C:
-				continue
-			}
-		}
-		// Connection established, break out of the loop.
-		break
-	}
+	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
+		First:  100 * time.Millisecond,
+		Step:   100 * time.Millisecond,
+		Max:    time.Second,
+		Jitter: retryutils.NewHalfJitter(),
+	})
 	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	for attempt := 1; attempt <= 5; attempt++ {
+		conn, err := dialer.DialContext(ctx, "tcp", remoteAddr)
+		if err == nil {
+			// Connection established, break out of the loop.
+			remoteConn = conn
+			break
+		}
+
+		log.Debugf("Proxy connection attempt %v: %v.", attempt, err)
+		// Wait and attempt to connect again, if the context has closed, exit
+		// right away.
+		select {
+		case <-ctx.Done():
+			return trace.Wrap(ctx.Err())
+		case <-retry.After():
+			retry.Inc()
+			continue
+		}
+	}
+	if remoteConn == nil {
 		return trace.BadParameter("failed to connect to node: %v", remoteAddr)
 	}
 	defer remoteConn.Close()
 
 	// Start proxying, close the connection if a problem occurs on either leg.
-	errCh := make(chan error, 2)
-	go func() {
-		defer conn.Close()
-		defer remoteConn.Close()
-
-		_, err := io.Copy(conn, remoteConn)
-		errCh <- err
-	}()
-	go func() {
-		defer conn.Close()
-		defer remoteConn.Close()
-
-		_, err := io.Copy(remoteConn, conn)
-		errCh <- err
-	}()
-
-	var errs []error
-	for i := 0; i < 2; i++ {
-		select {
-		case err := <-errCh:
-			if err != nil && err != io.EOF && !strings.Contains(err.Error(), "use of closed network connection") {
-				log.Warnf("Failed to proxy connection: %v.", err)
-				errs = append(errs, err)
-			}
-		case <-ctx.Done():
-			return trace.Wrap(ctx.Err())
-		}
-	}
-
-	return trace.NewAggregate(errs...)
+	return trace.Wrap(utils.ProxyConn(ctx, remoteConn, conn))
 }
 
 // acceptWithContext calls "Accept" on the listener but will unblock when the
@@ -2150,25 +2109,39 @@ func (c *NodeClient) GetRemoteTerminalSize(ctx context.Context, sessionID string
 
 // Close closes client and it's operations
 func (c *NodeClient) Close() error {
-	return c.Client.Close()
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	var errors []error
+	for _, closer := range c.closers {
+		errors = append(errors, closer.Close())
+	}
+
+	c.closers = nil
+
+	errors = append(errors, c.Client.Close())
+
+	return trace.NewAggregate(errors...)
 }
 
-func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr NodeDetails) ([]ssh.AuthMethod, error) {
+func (proxy *ProxyClient) sessionSSHCertificate(ctx context.Context, nodeAddr NodeDetails, user string) ([]ssh.AuthMethod, error) {
 	if _, err := proxy.teleportClient.localAgent.GetKey(nodeAddr.Cluster); err != nil {
-		if trace.IsNotFound(err) {
-			// Either running inside the web UI in a proxy or using an identity
-			// file. Fall back to whatever AuthMethod we currently have.
-			return proxy.authMethods, nil
-		}
-		return nil, trace.Wrap(err)
+		return nil, trace.Wrap(MFARequiredUnknown(err))
 	}
+
+	authClt, err := proxy.ConnectToCluster(ctx, nodeAddr.Cluster)
+	if err != nil {
+		return nil, trace.Wrap(MFARequiredUnknown(err))
+	}
+	defer authClt.Close()
 
 	key, err := proxy.IssueUserCertsWithMFA(
 		ctx,
 		ReissueParams{
 			NodeName:       nodeName(nodeAddr.Addr),
+			SSHLogin:       user,
 			RouteToCluster: proxy.ClusterName(),
-			MFACheck:       nodeAddr.MFACheck,
+			AuthClient:     authClt,
 		},
 		func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
 			return proxy.teleportClient.PromptMFAChallenge(ctx, proxyAddr, c, nil /* applyOpts */)

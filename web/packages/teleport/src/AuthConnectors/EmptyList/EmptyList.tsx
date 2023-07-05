@@ -26,12 +26,12 @@ export default function EmptyList({ onCreate }: Props) {
       <Icons.Github
         style={{ textAlign: 'center' }}
         fontSize="150px"
-        color="primary.lighter"
+        color="levels.elevated"
         mr={5}
       />
       <Box>
         <Text typography="h6" mb={3} caps>
-          Create Your First Github Connector
+          Create Your First GitHub Connector
         </Text>
         <Text typography="subtitle1" mb={3}>
           Authentication connectors allow Teleport to authenticate users via an
@@ -51,7 +51,7 @@ export default function EmptyList({ onCreate }: Props) {
           on how to configure a GitHub connector.
         </Text>
         <ButtonPrimary onClick={onCreate} mt={4} width="240px">
-          New Github Connector
+          New GitHub Connector
         </ButtonPrimary>
       </Box>
     </Card>

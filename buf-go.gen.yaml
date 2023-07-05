@@ -1,12 +1,12 @@
-# This buf-go.gen.yaml is based on how lib/teleterm's buf.gen.yaml looked like, not on v12 equivalent.
 version: v1
 plugins:
-  # Generated using an old version of protoc-gen-go - we can't use the latest
-  # plugins because Teleport itself depends on an old google.golang.org/grpc
-  # version.
-  # protoc itself may be the latest one.
-  # $ go install github.com/golang/protobuf/protoc-gen-go@v1.4.3
   - name: go
+    strategy: all
+    path:
+      - go
+      - run
+      - github.com/golang/protobuf/protoc-gen-go
     out: .
     opt:
       - plugins=grpc
+      - module=github.com/gravitational/teleport

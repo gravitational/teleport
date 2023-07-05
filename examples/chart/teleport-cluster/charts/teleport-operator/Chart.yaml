@@ -1,10 +1,10 @@
-.version: &version "11.3.8"
+.version: &version "11.3.16"
 
 name: teleport-operator
 apiVersion: v2
 version: *version
 appVersion: *version
-description: Teleport Operator is a unified access plane for your infrastructure
+description: Teleport Operator provides management of select Teleport resources.
 icon: https://goteleport.com/images/logos/logo-teleport-square.svg
 keywords:
   - Teleport

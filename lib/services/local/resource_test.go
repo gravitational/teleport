@@ -150,7 +150,7 @@ func TestGithubConnectorResource(t *testing.T) {
 			ClientID:     "aaa",
 			ClientSecret: "bbb",
 			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
-			Display:      "Github",
+			Display:      "GitHub",
 			TeamsToLogins: []types.TeamMapping{
 				{
 					Organization: "gravitational",

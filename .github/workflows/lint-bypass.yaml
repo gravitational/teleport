@@ -10,22 +10,21 @@
 name: Lint (Go)
 run-name: make lint
 on:
-  push:
-    branches:
-      - branch/v11
   pull_request:
     paths:
       - 'docs/**'
       - 'rfd/**'
+      - '**/*.md*'
   merge_group:
     paths:
       - 'docs/**'
       - 'rfd/**'
+      - '**/*.md*'
 
 jobs:
   lint:
     name: Lint (Go)
-    runs-on: ubuntu-latest  
+    runs-on: ubuntu-latest
 
     permissions:
       contents: none

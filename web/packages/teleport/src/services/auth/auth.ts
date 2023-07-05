@@ -18,6 +18,8 @@ import api from 'teleport/services/api';
 import cfg from 'teleport/config';
 import { DeviceType, DeviceUsage } from 'teleport/services/mfa';
 
+import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
+
 import makePasswordToken from './makePasswordToken';
 import { makeChangedUserAuthn } from './make';
 import {
@@ -26,7 +28,11 @@ import {
   makeWebauthnAssertionResponse,
   makeWebauthnCreationResponse,
 } from './makeMfa';
-import { UserCredentials, NewCredentialRequest } from './types';
+import {
+  ResetPasswordReqWithEvent,
+  ResetPasswordWithWebauthnReqWithEvent,
+  UserCredentials,
+} from './types';
 
 const auth = {
   checkWebauthnSupport() {
@@ -124,14 +130,17 @@ const auth = {
   // resetPasswordWithWebauthn either sets a new password and a new webauthn device,
   // or if passwordless is requested (indicated by empty password param),
   // skips setting a new password and only sets a passwordless device.
-  resetPasswordWithWebauthn(req: NewCredentialRequest) {
+  resetPasswordWithWebauthn(props: ResetPasswordWithWebauthnReqWithEvent) {
+    const { req, eventMeta } = props;
+    const deviceUsage: DeviceUsage = req.password ? 'mfa' : 'passwordless';
+
     return auth
       .checkWebauthnSupport()
       .then(() =>
         auth.createMfaRegistrationChallenge(
           req.tokenId,
           'webauthn',
-          req.password ? 'mfa' : 'passwordless'
+          deviceUsage
         )
       )
       .then(res =>
@@ -149,10 +158,27 @@ const auth = {
 
         return api.put(cfg.getPasswordTokenUrl(), request);
       })
-      .then(makeChangedUserAuthn);
+      .then(j => {
+        if (eventMeta) {
+          userEventService.capturePreUserEvent({
+            event: CaptureEvent.PreUserOnboardSetCredentialSubmitEvent,
+            username: eventMeta.username,
+          });
+
+          userEventService.capturePreUserEvent({
+            event: CaptureEvent.PreUserOnboardRegisterChallengeSubmitEvent,
+            username: eventMeta.username,
+            mfaType: eventMeta.mfaType,
+            loginFlow: deviceUsage,
+          });
+        }
+        return makeChangedUserAuthn(j);
+      });
   },
 
-  resetPassword(req: NewCredentialRequest) {
+  resetPassword(props: ResetPasswordReqWithEvent) {
+    const { req, eventMeta } = props;
+
     const request = {
       password: base64EncodeUnicode(req.password),
       second_factor_token: req.otpCode,
@@ -160,9 +186,15 @@ const auth = {
       deviceName: req.deviceName,
     };
 
-    return api
-      .put(cfg.getPasswordTokenUrl(), request)
-      .then(makeChangedUserAuthn);
+    return api.put(cfg.getPasswordTokenUrl(), request).then(j => {
+      if (eventMeta) {
+        userEventService.capturePreUserEvent({
+          event: CaptureEvent.PreUserOnboardSetCredentialSubmitEvent,
+          username: eventMeta.username,
+        });
+      }
+      return makeChangedUserAuthn(j);
+    });
   },
 
   changePassword(oldPass: string, newPass: string, token: string) {

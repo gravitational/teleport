@@ -3,10 +3,8 @@ title: Application Access Guide
 description: How to set up and configure Teleport for Application access with SSO and RBAC
 ---
 
-# Application Access
-
-Teleport Application Access is designed to provide secure access to
-internal dashboards and applications, such as:
+Teleport is designed to provide secure access to cloud provider APIs and
+internal applications. Examples include: 
 
 - Internal control panels.
 - Tools, such as wikis, that are available only when connected to a VPN.
@@ -37,26 +35,26 @@ internal dashboards and applications, such as:
 
 ## Getting started
 
-Get started with Application Access in a 10 minute [guide](./getting-started.mdx).
+Get started with application access in a 10 minute [guide](./getting-started.mdx).
 
 ## Access guides
 
-These guides explain basic Teleport Application Access usage.
+These guides explain how to use Teleport to enable secure access to
+applications:
 
-- [Web App Access](./guides/connecting-apps.mdx): How to access web apps with Teleport Application Access.
-- [TCP App Access (Preview)](./guides/tcp.mdx): How to access plain TCP apps with Teleport Application Access.
-- [API Access](./guides/api-access.mdx): How to access REST APIs with Teleport Application Access.
-- [AWS Access](./guides/aws-console.mdx): How to access AWS Management Console, AWS CLI, and AWS SDKs with Teleport Application Access.
+- [Web App Access](./guides/connecting-apps.mdx): How to access web apps with Teleport.
+- [TCP App Access (Preview)](./guides/tcp.mdx): How to access plain TCP apps with Teleport.
+- [API Access](./guides/api-access.mdx): How to access REST APIs with Teleport.
+- [AWS Access](./guides/aws-console.mdx): How to access AWS Management Console, AWS CLI, and AWS SDKs with Teleport.
 - [Dynamic Registration](./guides/dynamic-registration.mdx): Register/unregister apps without restarting Teleport.
-- [Interactive Lab](https://play.instruqt.com/teleport/invite/rgvuva4gzkon): Try Teleport using our guided Teleport Application Access lab.
+- [Interactive Lab](https://play.instruqt.com/teleport/invite/rgvuva4gzkon): Try Teleport using our guided Teleport application access lab.
 
 ## JWT guides
 
-These guides explain how web apps behind Teleport Application Access can
-leverage Teleport-signed JWT tokens to implement authentication and
-authorization.
+These guides explain how web apps protected by Teleport can leverage
+Teleport-signed JWT tokens to implement authentication and authorization.
 
-- [Introduction](./jwt/introduction.mdx): Introduction to JWT tokens with Application Access.
+- [Introduction](./jwt/introduction.mdx): Introduction to JWT tokens with application access.
 - [Elasticsearch](./jwt/elasticsearch.mdx): How to use JWT authentication with Elasticsearch.
 
 ## Example legacy apps
@@ -79,8 +77,8 @@ Other common legacy app scenarios:
 
 ## Example modern apps
 
-Teleport Application Access also supports modern web applications such as internal web
-tools and infrastructure software:
+Teleport also supports modern web applications such as internal web tools and
+infrastructure software:
 
 - Kubernetes Dashboard.
 - Grafana.

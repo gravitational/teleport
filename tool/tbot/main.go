@@ -50,12 +50,19 @@ func main() {
 	}
 }
 
+const appHelp = `Teleport Machine ID
+
+Machine ID issues and renews short-lived certificates so your machines can 
+access Teleport protected resources in the same way your engineers do!
+
+Find out more at https://goteleport.com/docs/machine-id/introduction/`
+
 func Run(args []string, stdout io.Writer) error {
 	var cf config.CLIConf
 	utils.InitLogger(utils.LoggingForDaemon, logrus.InfoLevel)
 
-	app := utils.InitCLIParser("tbot", "tbot: Teleport Machine ID").Interspersed(false)
-	app.Flag("debug", "Verbose logging to stdout").Short('d').BoolVar(&cf.Debug)
+	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
+	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
 	app.HelpFlag.Short('h')
 
@@ -64,7 +71,7 @@ func Run(args []string, stdout io.Writer) error {
 		strings.Join(config.SupportedJoinMethods, ", "),
 	)
 
-	versionCmd := app.Command("version", "Print the version of your tbot binary")
+	versionCmd := app.Command("version", "Print the version of your tbot binary.")
 
 	startCmd := app.Command("start", "Starts the renewal bot, writing certificates to the data dir at a set interval.")
 	startCmd.Flag("auth-server", "Address of the Teleport Auth Server or Proxy Server.").Short('a').Envar(authServerEnvVar).StringVar(&cf.AuthServer)
@@ -76,6 +83,7 @@ func Run(args []string, stdout io.Writer) error {
 	startCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
 	startCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
 	startCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
+	startCmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&cf.DiagAddr)
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
 	initCmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&cf.DestinationDir)
@@ -98,7 +106,7 @@ func Run(args []string, stdout io.Writer) error {
 
 	watchCmd := app.Command("watch", "Watch a destination directory for changes.").Hidden()
 
-	dbCmd := app.Command("db", "Execute database commands through tsh")
+	dbCmd := app.Command("db", "Execute database commands through tsh.")
 	dbCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.Proxy)
 	dbCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
 	dbCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)
@@ -107,7 +115,7 @@ func Run(args []string, stdout io.Writer) error {
 		"Arguments to `tsh db ...`; prefix with `-- ` to ensure flags are passed correctly.",
 	))
 
-	proxyCmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode")
+	proxyCmd := app.Command("proxy", "Start a local TLS proxy via tsh to connect to Teleport in single-port mode.")
 	proxyCmd.Flag("proxy", "The Teleport proxy server to use, in host:port form.").Required().StringVar(&cf.Proxy)
 	proxyCmd.Flag("destination-dir", "The destination directory with which to authenticate tsh").StringVar(&cf.DestinationDir)
 	proxyCmd.Flag("cluster", "The cluster name. Extracted from the certificate if unset.").StringVar(&cf.Cluster)

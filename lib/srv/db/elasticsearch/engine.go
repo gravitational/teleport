@@ -196,13 +196,13 @@ func parsePath(path string) (string, apievents.ElasticsearchCategory) {
 	parts := strings.Split(path, "/")
 
 	if len(parts) < 2 {
-		return "", apievents.ElasticsearchCategory_GENERAL
+		return "", apievents.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_GENERAL
 	}
 
 	// first term starts with _
 	switch parts[1] {
 	case "_security", "_ssl":
-		return "", apievents.ElasticsearchCategory_SECURITY
+		return "", apievents.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SECURITY
 	case
 		"_search",       // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html
 		"_async_search", // https://www.elastic.co/guide/en/elasticsearch/reference/master/async-search.html
@@ -210,18 +210,18 @@ func parsePath(path string) (string, apievents.ElasticsearchCategory) {
 		"_msearch",      // https://www.elastic.co/guide/en/elasticsearch/reference/master/multi-search-template.html, https://www.elastic.co/guide/en/elasticsearch/reference/master/search-multi-search.html
 		"_render",       // https://www.elastic.co/guide/en/elasticsearch/reference/master/render-search-template-api.html
 		"_field_caps":   // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-field-caps.html
-		return "", apievents.ElasticsearchCategory_SEARCH
+		return "", apievents.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SEARCH
 	case "_sql":
-		return "", apievents.ElasticsearchCategory_SQL
+		return "", apievents.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SQL
 	}
 
 	// starts with _, but we don't handle it explicitly
 	if strings.HasPrefix("_", parts[1]) {
-		return "", apievents.ElasticsearchCategory_GENERAL
+		return "", apievents.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_GENERAL
 	}
 
 	if len(parts) < 3 {
-		return "", apievents.ElasticsearchCategory_GENERAL
+		return "", apievents.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_GENERAL
 	}
 
 	// a number of APIs are invoked by providing a target first, e.g. /<target>/_search, where <target> is an index or expression matching a group of indices.
@@ -240,10 +240,10 @@ func parsePath(path string) (string, apievents.ElasticsearchCategory) {
 		"_field_caps",    // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-field-caps.html
 		"_rank_eval",     // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-rank-eval.html
 		"_mvt":           // https://www.elastic.co/guide/en/elasticsearch/reference/master/search-vector-tile-api.html
-		return parts[1], apievents.ElasticsearchCategory_SEARCH
+		return parts[1], apievents.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_SEARCH
 	}
 
-	return "", apievents.ElasticsearchCategory_GENERAL
+	return "", apievents.ElasticsearchCategory_ELASTICSEARCH_CATEGORY_GENERAL
 }
 
 // getQueryFromRequestBody attempts to find the actual query from the request body, to be shown to the interested user.

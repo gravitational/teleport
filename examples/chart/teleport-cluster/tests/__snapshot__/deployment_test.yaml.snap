@@ -3,7 +3,7 @@ sets Deployment annotations when specified:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -45,7 +45,7 @@ sets Pod annotations when specified:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -87,7 +87,7 @@ should add PersistentVolumeClaim as volume when in custom mode and persistence.e
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -129,7 +129,7 @@ should add PersistentVolumeClaim as volume when in standalone mode and persisten
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -168,7 +168,7 @@ should add PersistentVolumeClaim as volume when in standalone mode and persisten
         claimName: RELEASE-NAME
 should add an operator side-car when operator is enabled:
   1: |
-    image: public.ecr.aws/gravitational/teleport-operator:11.3.8
+    image: public.ecr.aws/gravitational/teleport-operator:11.3.16
     imagePullPolicy: IfNotPresent
     livenessProbe:
       httpGet:
@@ -206,7 +206,7 @@ should add emptyDir for data in AWS mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -259,7 +259,7 @@ should add emptyDir for data in GCP mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -307,7 +307,7 @@ should add insecureSkipProxyTLSVerify to args when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --insecure
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -349,7 +349,7 @@ should add named PersistentVolumeClaim as volume when in custom mode and persist
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -392,7 +392,7 @@ should add named PersistentVolumeClaim as volume when in custom mode and persist
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -482,7 +482,7 @@ should expose diag port:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -524,7 +524,7 @@ should have Recreate strategy in standalone mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -578,7 +578,7 @@ should have multiple replicas when replicaCount is set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -632,7 +632,7 @@ should mount ConfigMap for config in AWS mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -685,7 +685,7 @@ should mount ConfigMap for config in GCP mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -732,7 +732,7 @@ should mount ConfigMap for config in custom mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -774,7 +774,7 @@ should mount ConfigMap for config in standalone mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -828,7 +828,7 @@ should mount GCP credentials for initContainer in GCP mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -901,7 +901,7 @@ should mount GCP credentials in GCP mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -960,7 +960,7 @@ should mount TLS certs for initContainer when cert-manager is enabled:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1042,7 +1042,7 @@ should mount TLS certs when cert-manager is enabled:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1107,7 +1107,7 @@ should mount cert-manager TLS secret when highAvailability.certManager.enabled i
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1155,7 +1155,7 @@ should mount extraVolumes and extraVolumeMounts:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1205,7 +1205,7 @@ should mount tls.existingCASecretName and set environment when set in values:
       env:
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1264,7 +1264,7 @@ should mount tls.existingCASecretName and set extra environment when set in valu
         value: some-value
       - name: SSL_CERT_FILE
         value: /etc/teleport-tls-ca/ca.pem
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1318,7 +1318,7 @@ should mount tls.existingSecretName when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1366,7 +1366,7 @@ should not add PersistentVolumeClaim as volume when in custom mode and persisten
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1407,7 +1407,7 @@ should not add PersistentVolumeClaim as volume when in standalone mode and persi
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1449,7 +1449,7 @@ should not add PersistentVolumeClaim as volume when in standalone mode and persi
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1491,7 +1491,7 @@ should not add PersistentVolumeClaim as volume when in standalone mode and persi
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1574,7 +1574,7 @@ should not have more than one replica in standalone mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1628,7 +1628,7 @@ should not have strategy in AWS mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1681,7 +1681,7 @@ should not have strategy in GCP mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1728,7 +1728,7 @@ should not have strategy in custom mode:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1770,7 +1770,7 @@ should not mount TLS secrets when when highAvailability.certManager.enabled is f
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1824,7 +1824,7 @@ should not mount secret when credentialSecretName is blank in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1865,7 +1865,7 @@ should not set securityContext when is empty object (default value):
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1910,7 +1910,7 @@ should provision initContainer correctly when set in values:
       env:
       - name: SOME_ENVIRONMENT_VARIABLE
         value: some-value
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -1986,7 +1986,7 @@ should set affinity when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2031,7 +2031,7 @@ should set environment when extraEnv set in values:
       env:
       - name: SOME_ENVIRONMENT_VARIABLE
         value: some-value
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2073,7 +2073,7 @@ should set imagePullPolicy when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: Always
       livenessProbe:
         failureThreshold: 6
@@ -2115,7 +2115,7 @@ should set nodeSelector when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2160,7 +2160,7 @@ should set postStart command if set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       lifecycle:
         postStart:
@@ -2208,7 +2208,7 @@ should set priorityClassName when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2251,7 +2251,7 @@ should set probeTimeoutSeconds when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2303,7 +2303,7 @@ should set required affinity when highAvailability.requireAntiAffinity is set:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2344,7 +2344,7 @@ should set resources when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2393,7 +2393,7 @@ should set securityContext when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6
@@ -2454,7 +2454,7 @@ should set tolerations when set in values:
     containers:
     - args:
       - --diag-addr=0.0.0.0:3000
-      image: public.ecr.aws/gravitational/teleport:11.3.8
+      image: public.ecr.aws/gravitational/teleport:11.3.16
       imagePullPolicy: IfNotPresent
       livenessProbe:
         failureThreshold: 6

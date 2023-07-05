@@ -5,18 +5,48 @@ description: Detailed guide and reference documentation for Teleport's command l
 
 Teleport is made up of four CLI tools.
 
-- [teleport](#teleport): Supports the Teleport access plane by starting and configuring various Teleport services.
+- [teleport](#teleport): Supports the Teleport Access Platform by starting and configuring various Teleport services.
 - [tsh](#tsh): Allows end users to authenticate to Teleport and access resources in a cluster.
 - [tctl](#tctl): Used to configure the Teleport Auth Service.
 - [tbot](#tbot): Supports Machine ID, which provides short lived credentials to service accounts (e.g, a CI/CD server).
 
 (!docs/pages/includes/permission-warning.mdx!)
 
+<Details title="Improve the CLI experience: enable shell completion">
+
+  Teleport's CLI tools can provide completion hints for bash and zsh.
+  For example, typing `tsh` and pressing `Tab` will show all available
+  subcommands, typing `tsh --` and pressing `Tab` will show all available flags.
+
+  To enable completion, add an additional statement to your shell configuration file.
+
+  Example (`.bashrc`):
+
+  ```sh
+  eval "$(tsh --completion-script-bash)"
+  ```
+
+  Example (`.zshrc`):
+
+  ```sh
+  # enable completion feature
+  autoload -Uz compinit
+  compinit
+
+  eval "$(tsh --completion-script-zsh)"
+  ```
+
+  Reload your shell to see the changes.
+
+  You can repeat the same process for `tctl`, `teleport`, and `tbot`.
+
+</Details>
+
 (!docs/pages/includes/backup-warning.mdx!)
 
 ## teleport
 
-The CLI tool that supports the Teleport access plane is called `teleport`, and allows Teleport services to be managed
+The CLI tool that supports the Teleport Access Platform is called `teleport`, and allows Teleport services to be managed
 over the command line:
 
 - [Auth](../architecture/authentication.mdx)
@@ -32,7 +62,7 @@ The primary commands for the `teleport` CLI are as follows:
 | Command | Description |
 | - | - |
 | `teleport help` | Outputs guidance for using Teleport commands. |
-| `teleport start` | Starts the `teleport` process in the foregound using the current shell session, including any services configured by the [configuration YAML file](config.mdx). |
+| `teleport start` | Starts the `teleport` process in the foreground using the current shell session, including any services configured by the [configuration YAML file](config.mdx). |
 | `teleport status` | Prints the status of the current active Teleport SSH session. |
 | `teleport configure` | Generates and writes a [configuration YAML file](config.mdx) for the Teleport service. This file should be customized in production to suit the needs of your environment, and the default output should only be used when testing. |
 | `teleport version` | Prints the current release version of the Teleport binary installed on your system. |
@@ -54,7 +84,7 @@ For more information on subcommands when working with the `teleport` cli, use th
 The `teleport start` command includes a large number of optional configuration flags.
 
 While configuration flags for `teleport start` can be used to set parameters for Teleport's configuration,
-we recommend using a [configuration file](https://goteleport.com/docs/reference/config/) in production.
+we recommend using a [configuration file](./config.mdx) in production.
 
 #### Flags
 
@@ -139,9 +169,9 @@ information about the cluster.
 | `--user` | `$USER` | none | The Teleport username |
 | `--ttl` | `720` (12 hours) | integer | Number of minutes a certificate issued for the `tsh` user will be valid for |
 | `-i, --identity` | none | **string** filepath | Identity file |
-| `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format |
+| `--cert-format` | `standard` | `standard` or `oldssh` | SSH certificate format. `oldssh` supports older versions of OpenSSH servers that do not allow for custom metadata, which is how Teleport encodes a user's roles in their SSH certificate. |
 | `--insecure` | none | none | Do not verify the server's certificate and host name. Use only in test environments. |
-| `--auth` | `local` | any defined [authentication connector](./authentication.mdx), including `local` and `passwordless` | Specify the type of authentication connector to use. |
+| `--auth` | `local` | Any defined [authentication connector](./authentication.mdx), including `passwordless` and `local` (i.e., no authentication connector) | Specify the type of authentication connector to use. |
 | `--mfa-mode` | auto | `auto`, `cross-platform`, `platform` or `otp` | Preferred mode for MFA and Passwordless assertions. |
 | `--skip-version-check` | none | none | Skip version checking between server and client. |
 | `-d, --debug` | none | none | Verbose logging to stdout |
@@ -311,7 +341,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 # join session using teleport user joe as ec2-user
 $ tsh --user=joe --login=ec2-user join <session-id>
 ```
- 
+
 ### tsh recordings ls
 
 List recorded sessions.
@@ -348,7 +378,7 @@ d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16
 $ tsh play c0a02222-70dc-4be8-9308-7b7901d2d60
 # List recorded sessions that occurred between Nov 1, 2022 to Nov 3, 2022
 $ tsh recordings ls --from-utc=2022-11-01 --to-utc=2022-11-3
-# Retrieve recorded sessions in the last 6 hours 
+# Retrieve recorded sessions in the last 6 hours
 $ tsh recordings ls --last=6h0m0s
 ```
 
@@ -474,7 +504,7 @@ Use the following command to connect to the database:
 ### tsh proxy ssh
 
 Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
-This is typically used as part of the SSH client configuration to use `ssh` as a client 
+This is typically used as part of the SSH client configuration to use `ssh` as a client
 through Teleport.  See the [OpenSSH Guide](../server-access/guides/openssh.mdx) guide
 on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
 within a `ProxyCommand` directive.
@@ -505,7 +535,7 @@ Run the following command to generate an OpenSSH client configuration:
 $ tsh config
 ```
 
-This command produces the following configuration: 
+This command produces the following configuration:
 
 ```
 # Common flags for all example.com hosts
@@ -535,7 +565,7 @@ $ ssh myuser@node1.example.com
 
 ### tsh proxy app
 
-Starts a local TLS proxy for Application Access connections.
+Starts a local TLS proxy for Application Service connections.
 You can use this proxy to connect to an application repeatedly after a single login to your Teleport cluster,
 which is especially useful for interacting with an application via a CLI.
 
@@ -575,7 +605,7 @@ Start a local proxy for AWS access. The user must already be logged in to at
 least one AWS application via Teleport before the proxy can start.
 
 ```code
-$ tsh proxy aws [<flags>] 
+$ tsh proxy aws [<flags>]
 ```
 
 #### Flags
@@ -657,11 +687,10 @@ $ tsh ls [<flags>] [<label>]
 
 </Details>
 
-{/* TODO: label? or labels? seems like it only supports one label at a time */}
-
 #### Arguments
 
-- `<label>` - `key=value` label to filer nodes by
+- `<labels>` - comma-separated list of `key=value` labels to filter nodes by,
+  e.g., `env=dev,host=foo`.
 
 #### Flags
 
@@ -791,7 +820,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 *The proxy endpoint can take a https and ssh port in this format `host:https_port[,ssh_proxy_port]`*
 
 ```code
-# Try Toboth ports 443 and 3080 for https
+# Try both ports 443 and 3080 for https
 $ tsh --proxy=proxy.example.com login
 
 # Use ports 8080 and 8023 for https and SSH proxy:
@@ -857,9 +886,9 @@ $ kubectl config get-contexts
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
-| `--all` | false | Boolean | Whether to generate a kubeconfig for every Kubernetes cluster the current Teleport user has access to. If this is false, `tsh` will only generate a kubeconfig for the cluster specified in the `tsh kube login` command.|  
+| `--all` | false | Boolean | Whether to generate a kubeconfig for every Kubernetes cluster the current Teleport user has access to. If this is false, `tsh` will only generate a kubeconfig for the cluster specified in the `tsh kube login` command.|
 | `--as` | none | string | The Kubernetes user that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target user. |
-| `--as-groups` | none | string | A Kubernetes group that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target group. <br /><br/>You can include this flag multiple times to enable impersonation of multiple Kubernetes groups. | 
+| `--as-groups` | none | string | A Kubernetes group that the current Teleport user will log in as when they authenticate to the specified Kubernetes cluster. <br/><br/>This uses [Kubernetes impersonation](https://kubernetes.io/docs/reference/access-authn-authz/authentication/#user-impersonation), so the Teleport user's Kubernetes user must have permissions to impersonate the target group. <br /><br/>You can include this flag multiple times to enable impersonation of multiple Kubernetes groups. |
 | `--cluster` | none | string | Name of the Teleport cluster to log into in order to connect to the given Kubernetes cluster. |
 | `-n`, `--kube-namespace` | none | string | The name of the Kubernetes namespace to configure as the default within the cluster the user is logging into. |
 
@@ -1072,7 +1101,7 @@ Environment variables configure your tsh client and can help you avoid using fla
 
 | Environment Variable | Description | Example Value |
 | - | - | - |
-| TELEPORT_AUTH | Name of a defined local, SAML, OIDC, or GitHub auth connector | okta |
+| TELEPORT_AUTH | Name of a defined SAML, OIDC, or GitHub auth connector (or a local user) | okta |
 | TELEPORT_MFA_MODE | Preferred mode for MFA and Passwordless assertions | otp |
 | TELEPORT_CLUSTER | Name of a Teleport root or leaf cluster | cluster.example.com |
 | TELEPORT_LOGIN | Login name to be used by default on the remote host | root |
@@ -1558,10 +1587,11 @@ $ tctl tokens add --type=TYPE [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
+| <nobr>`--format`</nobr> | none | `text`, `json`, `yaml` | Output format |
+| `--labels` | none | `text` | Sets token labels |
+| `--ttl` | 1h | Duration like 5s, 2m, or 3h | Sets how long the token is valid for. |
 | `--type` | none | `proxy`, `auth`, `trusted_cluster`, `node`,  `db`, `kube`, `app`, `windowsdesktop` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
-| `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
-| `--format` | none | `text`, `json`, `yaml` | Output format |
 
 #### Global flags
 
@@ -1574,7 +1604,7 @@ These flags are available for all commands `--debug, --config` . Run
 # Generate an invite token for a trusted_cluster
 $ tctl tokens add --type=trusted_cluster --ttl=5m
 # Generate an invite token for a trusted_cluster with labels
-$ tctl tokens add --type=trusted_cluster --labels=env=prod
+$ tctl tokens add --type=trusted_cluster --labels=env=prod,region=us-west
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 $ tctl tokens add --type=node
@@ -1692,7 +1722,7 @@ $ tctl auth sign -o <filepath> [--user <user> | --host <host>][--format] [<flags
 | `--leaf-cluster` | `""` | The name of a leaf cluster. | |
 | `--kube-cluster-name` | `""` | Kubernetes Cluster Name | |
 | `--app-name` | `""` | application name | Generate a certificate for accessing the specified web application |
-| `--db-service` | `""` | database service name | Generate a certificate for accessing the specified database service |
+| `--db-service` | `""` | Database Service name | Generate a certificate for accessing the specified Database Service instance |
 | `--db-user` | `""` | database user | When `--db-service` is specified, encode this database user in the certificate |
 | `--db-name` | `""` | database name | When `--db-service` is specified, encode this database name in the certificate |
 
@@ -1850,10 +1880,10 @@ Configure the GitHub auth connector.
 Required params `--id` and `--secret` come from registering a GitHub OAuth app, which you can read about in the [GitHub documentation](https://docs.github.com/en/developers/apps/building-oauth-apps/creating-an-oauth-app).
 
 The flag `--teams-to-roles` can be provided multiple times to specify which GitHub Teams are assigned which roles.
-In this example, members of the `octocats` team in GitHub will be assigned the `devs`, `access`, and `editor` roles in Teleport.
+In this example, members of the `devs` team in the GitHub org `octocats` will be assigned the `access`, and `editor` roles in Teleport.
 
 ```code
-$ tctl sso test --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
+$ tctl sso configure github --id=GITHUB_CLIENT_ID --secret=GITHUB_SECRET --teams-to-roles=octocats,devs,access,editor [<other-flags>]
 ```
 
 #### Arguments
@@ -1974,7 +2004,7 @@ The following flags are specific to Google Workspace:
 | `--google-acc-uri` | URI of your service account credentials file. Example: `file:///var/lib/teleport/gworkspace-creds.json`.|
 | `--google-acc`      | String containing Google service account credentials.                                                  |
 | `--google-admin`   | Email of a Google admin to impersonate.                                                                |
-| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](https://goteleport.com/docs/enterprise/sso/google-workspace/#how-teleport-uses-google-workspace-apis) |
+| `--google-legacy`  | Flag to select groups with direct membership filtered by domain (legacy behavior). <br/>Disabled by default. [More info](../access-controls/sso/google-workspace.mdx#how-teleport-uses-google-workspace-apis) |
 | `--google-id`      | Shorthand for setting the `--id` flag to `<GOOGLE_WORKSPACE_CLIENT_ID>.apps.googleusercontent.com`     |
 
 
@@ -2025,7 +2055,7 @@ $ tctl sso configure oidc ... | tctl sso test
 
 Configure the SAML auth connector, optionally using a preset.
 
-The flag `--attributes-to-roles/-r` can be provided multiple times. 
+The flag `--attributes-to-roles/-r` can be provided multiple times.
 
 To avoid errors when pasting XML to a YAML file, we encourage the usage of the flag `--entity-descriptor`/`-e`.
 
@@ -2316,6 +2346,170 @@ $ tctl alerts create \
     --severity=low \
     --ttl=4h \
     "The system is under maintenance, functionality may be limited."
+```
+
+### tctl alerts list
+
+Lists cluster alerts. This command can also be invoked as `tctl alerts ls`.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--verbose` (`-v`) | false |boolean | If set, display detailed alert info (including acknowledged alerts) |
+| `--labels` | none | Comma-separated strings | A list of labels to filter by |
+
+### tctl alerts ack
+
+Temporarily acknowledges a cluster alert, preventing the alert from being
+displayed to users. Acknowledgements last for 24 hours by default. Users
+will begin seeing the alert again when the acknowledgement expires.
+
+```code
+$ tctl alerts ack [<flags>] <id>
+```
+
+#### Arguments
+
+- `<id>`: the ID of the cluster alert to acknowledge
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--ttl` | 24h | Any duration | Time duration to acknowledge the alert for |
+| `--clear` | none | | Clear an existing alert acknowledgement |
+| `--reason` | none | | The reason for suppressing this alert |
+
+#### Examples
+
+Suppress the cluster alert notifying users that an upgrade is available:
+
+```code
+$ tctl alerts ack --reason="upgrade scheduled" upgrade-suggestion
+Successfully acknowledged alert 'upgrade-suggestion'. Alerts with this ID won't be pushed for 24h0m0s.
+```
+
+Clear an existing alert acknowledgement:
+
+```code
+$ tctl alerts ack --clear upgrade-suggestion
+```
+
+### tctl alerts ack ls
+
+Lists alert acknowledgements.
+
+```code
+$ tctl alerts ack ls
+ID                 Reason                 Expires
+------------------ ---------------------- --------------------
+upgrade-suggestion "upgrade is scheduled" Wed Apr 12 16:52 UTC
+```
+
+### tctl devices add
+
+Register a device.
+
+```code
+$ tctl devices add --os=OS --asset-tag=SERIAL_NUMBER
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--os` | none | `linux`, `macos`, `windows` | Device operating system |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+| `--enroll` | false | boolean | If set, creates a device enrollment token |
+
+#### Examples
+
+```code
+$ tctl devices add --os=macos --asset-tag=(=devicetrust.asset_tag=)
+Device (=devicetrust.asset_tag=)/macOS added to the inventory
+
+$ tctl devices add --os=macos --asset-tag=(=devicetrust.asset_tag=) --enroll
+Device (=devicetrust.asset_tag=)/macOS added to the inventory
+Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+```
+
+### tctl devices enroll
+
+Create an enrollment token for a device.
+
+```code
+$ tctl devices enroll [--device-id=ID] [--asset-tag=ASSET_TAG]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--device-id` | none | string | Teleport device identifier |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+
+One of `--device-id` or `--asset-tag` must be present.
+
+#### Examples
+
+```code
+$ tctl devices enroll --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
+Run the command below on device "d40f2ee4-856d-4aef-b784-c4371e39c036" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+
+$ tctl devices enroll --asset-tag=(=devicetrust.asset_tag=)
+Run the command below on device "(=devicetrust.asset_tag=)" to enroll it:
+tsh device enroll --token=(=devicetrust.enroll_token=)
+```
+
+### tctl devices ls
+
+List registered devices.
+
+```code
+$ tctl devices ls
+```
+
+#### Examples
+
+```code
+$ tctl devices ls
+
+Asset Tag    OS    Enroll Status Device ID
+------------ ----- ------------- ------------------------------------
+(=devicetrust.asset_tag=) macOS enrolled      d40f2ee4-856d-4aef-b784-c4371e39c036
+```
+
+### tctl devices rm
+
+Removes a registered device.
+
+A removed device is not considered a trusted device for future device
+authentication attempts.
+
+```code
+$ tctl devices rm [--device-id=ID] [--asset-tag=ASSET_TAG]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--device-id` | none | string | Teleport device identifier |
+| `--asset-tag` | none | string | Device inventory identifier (e.g., Mac serial number) |
+
+One of `--device-id` or `--asset-tag` must be present.
+
+#### Examples
+
+```code
+$ tctl devices rm --device-id=d40f2ee4-856d-4aef-b784-c4371e39c036
+Device "ac3590ec-87d4-4519-8e9e-2f35af0a9f85" removed
+
+$ tctl devices rm --asset-tag=(=devicetrust.asset_tag=)
+Device "(=devicetrust.asset_tag=)" removed
 ```
 
 ### tctl top

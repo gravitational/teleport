@@ -22,7 +22,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
-	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -30,17 +30,17 @@ import (
 type Anonymizable interface {
 	// Anonymize uses the given anonymizer to anonymize the event and converts
 	// it into a partially filled SubmitEventRequest.
-	Anonymize(utils.Anonymizer) prehogv1.SubmitEventRequest
+	Anonymize(utils.Anonymizer) prehogv1a.SubmitEventRequest
 }
 
 // UserLoginEvent is an event emitted when a user logs into Teleport,
 // potentially via SSO.
-type UserLoginEvent prehogv1.UserLoginEvent
+type UserLoginEvent prehogv1a.UserLoginEvent
 
-func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UserLogin{
-			UserLogin: &prehogv1.UserLoginEvent{
+func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UserLogin{
+			UserLogin: &prehogv1a.UserLoginEvent{
 				UserName:      a.AnonymizeString(u.UserName),
 				ConnectorType: u.ConnectorType,
 			},
@@ -48,13 +48,29 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventReque
 	}
 }
 
-// SSOCreateEvent is emitted when an SSO connector has been created.
-type SSOCreateEvent prehogv1.SSOCreateEvent
+// BotJoinEvent is an event emitted when a user logs into Teleport,
+// potentially via SSO.
+type BotJoinEvent prehogv1a.BotJoinEvent
 
-func (u *SSOCreateEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_SsoCreate{
-			SsoCreate: &prehogv1.SSOCreateEvent{
+func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BotJoin{
+			BotJoin: &prehogv1a.BotJoinEvent{
+				BotName:       a.AnonymizeString(u.BotName),
+				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
+				JoinMethod:    u.JoinMethod,
+			},
+		},
+	}
+}
+
+// SSOCreateEvent is emitted when an SSO connector has been created.
+type SSOCreateEvent prehogv1a.SSOCreateEvent
+
+func (u *SSOCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SsoCreate{
+			SsoCreate: &prehogv1a.SSOCreateEvent{
 				ConnectorType: u.ConnectorType,
 			},
 		},
@@ -63,12 +79,12 @@ func (u *SSOCreateEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventReque
 
 // SessionStartEvent is an event emitted when some Teleport session has started
 // (ssh, etc).
-type SessionStartEvent prehogv1.SessionStartEvent
+type SessionStartEvent prehogv1a.SessionStartEvent
 
-func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_SessionStartV2{
-			SessionStartV2: &prehogv1.SessionStartEvent{
+func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_SessionStartV2{
+			SessionStartV2: &prehogv1a.SessionStartEvent{
 				UserName:    a.AnonymizeString(u.UserName),
 				SessionType: u.SessionType,
 			},
@@ -78,12 +94,12 @@ func (u *SessionStartEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRe
 
 // ResourceCreateEvent is an event emitted when various resource types have been
 // created.
-type ResourceCreateEvent prehogv1.ResourceCreateEvent
+type ResourceCreateEvent prehogv1a.ResourceCreateEvent
 
-func (u *ResourceCreateEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_ResourceCreate{
-			ResourceCreate: &prehogv1.ResourceCreateEvent{
+func (u *ResourceCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_ResourceCreate{
+			ResourceCreate: &prehogv1a.ResourceCreateEvent{
 				ResourceType: u.ResourceType,
 			},
 		},
@@ -91,12 +107,12 @@ func (u *ResourceCreateEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEvent
 }
 
 // UIBannerClickEvent is a UI event sent when a banner is clicked.
-type UIBannerClickEvent prehogv1.UIBannerClickEvent
+type UIBannerClickEvent prehogv1a.UIBannerClickEvent
 
-func (u *UIBannerClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiBannerClick{
-			UiBannerClick: &prehogv1.UIBannerClickEvent{
+func (u *UIBannerClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiBannerClick{
+			UiBannerClick: &prehogv1a.UIBannerClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 				Alert:    u.Alert,
 			},
@@ -106,12 +122,12 @@ func (u *UIBannerClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventR
 
 // UIOnboardCompleteGoToDashboardClickEvent is a UI event sent when
 // onboarding is complete.
-type UIOnboardCompleteGoToDashboardClickEvent prehogv1.UIOnboardCompleteGoToDashboardClickEvent
+type UIOnboardCompleteGoToDashboardClickEvent prehogv1a.UIOnboardCompleteGoToDashboardClickEvent
 
-func (u *UIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiOnboardCompleteGoToDashboardClick{
-			UiOnboardCompleteGoToDashboardClick: &prehogv1.UIOnboardCompleteGoToDashboardClickEvent{
+func (u *UIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiOnboardCompleteGoToDashboardClick{
+			UiOnboardCompleteGoToDashboardClick: &prehogv1a.UIOnboardCompleteGoToDashboardClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -120,12 +136,12 @@ func (u *UIOnboardCompleteGoToDashboardClickEvent) Anonymize(a utils.Anonymizer)
 
 // UIOnboardAddFirstResourceClickEvent is a UI event sent when a user
 // clicks the "add first resource" button.
-type UIOnboardAddFirstResourceClickEvent prehogv1.UIOnboardAddFirstResourceClickEvent
+type UIOnboardAddFirstResourceClickEvent prehogv1a.UIOnboardAddFirstResourceClickEvent
 
-func (u *UIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiOnboardAddFirstResourceClick{
-			UiOnboardAddFirstResourceClick: &prehogv1.UIOnboardAddFirstResourceClickEvent{
+func (u *UIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiOnboardAddFirstResourceClick{
+			UiOnboardAddFirstResourceClick: &prehogv1a.UIOnboardAddFirstResourceClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -134,12 +150,12 @@ func (u *UIOnboardAddFirstResourceClickEvent) Anonymize(a utils.Anonymizer) preh
 
 // UIOnboardAddFirstResourceLaterClickEvent is a UI event sent when a user
 // clicks the "add first resource later" button.
-type UIOnboardAddFirstResourceLaterClickEvent prehogv1.UIOnboardAddFirstResourceLaterClickEvent
+type UIOnboardAddFirstResourceLaterClickEvent prehogv1a.UIOnboardAddFirstResourceLaterClickEvent
 
-func (u *UIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiOnboardAddFirstResourceLaterClick{
-			UiOnboardAddFirstResourceLaterClick: &prehogv1.UIOnboardAddFirstResourceLaterClickEvent{
+func (u *UIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiOnboardAddFirstResourceLaterClick{
+			UiOnboardAddFirstResourceLaterClick: &prehogv1a.UIOnboardAddFirstResourceLaterClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -148,12 +164,12 @@ func (u *UIOnboardAddFirstResourceLaterClickEvent) Anonymize(a utils.Anonymizer)
 
 // UIOnboardSetCredentialSubmitEvent is an UI event sent during registration
 // when the user configures login credentials.
-type UIOnboardSetCredentialSubmitEvent prehogv1.UIOnboardSetCredentialSubmitEvent
+type UIOnboardSetCredentialSubmitEvent prehogv1a.UIOnboardSetCredentialSubmitEvent
 
-func (u *UIOnboardSetCredentialSubmitEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiOnboardSetCredentialSubmit{
-			UiOnboardSetCredentialSubmit: &prehogv1.UIOnboardSetCredentialSubmitEvent{
+func (u *UIOnboardSetCredentialSubmitEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiOnboardSetCredentialSubmit{
+			UiOnboardSetCredentialSubmit: &prehogv1a.UIOnboardSetCredentialSubmitEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -162,12 +178,12 @@ func (u *UIOnboardSetCredentialSubmitEvent) Anonymize(a utils.Anonymizer) prehog
 
 // UIOnboardRegisterChallengeSubmitEvent is a UI event sent during registration
 // when the MFA challenge is completed.
-type UIOnboardRegisterChallengeSubmitEvent prehogv1.UIOnboardRegisterChallengeSubmitEvent
+type UIOnboardRegisterChallengeSubmitEvent prehogv1a.UIOnboardRegisterChallengeSubmitEvent
 
-func (u *UIOnboardRegisterChallengeSubmitEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiOnboardRegisterChallengeSubmit{
-			UiOnboardRegisterChallengeSubmit: &prehogv1.UIOnboardRegisterChallengeSubmitEvent{
+func (u *UIOnboardRegisterChallengeSubmitEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiOnboardRegisterChallengeSubmit{
+			UiOnboardRegisterChallengeSubmit: &prehogv1a.UIOnboardRegisterChallengeSubmitEvent{
 				UserName:  a.AnonymizeString(u.UserName),
 				MfaType:   u.MfaType,
 				LoginFlow: u.LoginFlow,
@@ -177,12 +193,12 @@ func (u *UIOnboardRegisterChallengeSubmitEvent) Anonymize(a utils.Anonymizer) pr
 }
 
 // UIRecoveryCodesContinueClickEvent is a UI event sent when a user configures recovery codes.
-type UIRecoveryCodesContinueClickEvent prehogv1.UIRecoveryCodesContinueClickEvent
+type UIRecoveryCodesContinueClickEvent prehogv1a.UIRecoveryCodesContinueClickEvent
 
-func (u *UIRecoveryCodesContinueClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiRecoveryCodesContinueClick{
-			UiRecoveryCodesContinueClick: &prehogv1.UIRecoveryCodesContinueClickEvent{
+func (u *UIRecoveryCodesContinueClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiRecoveryCodesContinueClick{
+			UiRecoveryCodesContinueClick: &prehogv1a.UIRecoveryCodesContinueClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -190,12 +206,12 @@ func (u *UIRecoveryCodesContinueClickEvent) Anonymize(a utils.Anonymizer) prehog
 }
 
 // UIRecoveryCodesCopyClickEvent is a UI event sent when a user copies recovery codes.
-type UIRecoveryCodesCopyClickEvent prehogv1.UIRecoveryCodesCopyClickEvent
+type UIRecoveryCodesCopyClickEvent prehogv1a.UIRecoveryCodesCopyClickEvent
 
-func (u *UIRecoveryCodesCopyClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiRecoveryCodesCopyClick{
-			UiRecoveryCodesCopyClick: &prehogv1.UIRecoveryCodesCopyClickEvent{
+func (u *UIRecoveryCodesCopyClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiRecoveryCodesCopyClick{
+			UiRecoveryCodesCopyClick: &prehogv1a.UIRecoveryCodesCopyClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -203,12 +219,12 @@ func (u *UIRecoveryCodesCopyClickEvent) Anonymize(a utils.Anonymizer) prehogv1.S
 }
 
 // UsageUIRecoveryCodesPrintClick is a UI event sent when a user prints recovery codes.
-type UsageUIRecoveryCodesPrintClick prehogv1.UIRecoveryCodesPrintClickEvent
+type UsageUIRecoveryCodesPrintClick prehogv1a.UIRecoveryCodesPrintClickEvent
 
-func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiRecoveryCodesPrintClick{
-			UiRecoveryCodesPrintClick: &prehogv1.UIRecoveryCodesPrintClickEvent{
+func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiRecoveryCodesPrintClick{
+			UiRecoveryCodesPrintClick: &prehogv1a.UIRecoveryCodesPrintClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -216,17 +232,17 @@ func (u *UsageUIRecoveryCodesPrintClick) Anonymize(a utils.Anonymizer) prehogv1.
 }
 
 // RoleCreateEvent is an event emitted when a custom role is created.
-type RoleCreateEvent prehogv1.RoleCreateEvent
+type RoleCreateEvent prehogv1a.RoleCreateEvent
 
-func (u *RoleCreateEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
+func (u *RoleCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
 	role := u.RoleName
 	if !slices.Contains(teleport.PresetRoles, u.RoleName) {
 		role = a.AnonymizeString(u.RoleName)
 	}
 
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_RoleCreate{
-			RoleCreate: &prehogv1.RoleCreateEvent{
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_RoleCreate{
+			RoleCreate: &prehogv1a.RoleCreateEvent{
 				UserName: a.AnonymizeString(u.UserName),
 				RoleName: role,
 			},
@@ -234,13 +250,31 @@ func (u *RoleCreateEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequ
 	}
 }
 
-// UICreateNewRoleClickEvent is a UI event sent when a user prints recovery codes.
-type UICreateNewRoleClickEvent prehogv1.UICreateNewRoleClickEvent
+// BotCreateEvent is an event emitted when a Machine ID bot is created.
+type BotCreateEvent prehogv1a.BotCreateEvent
 
-func (u *UICreateNewRoleClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleClick{
-			UiCreateNewRoleClick: &prehogv1.UICreateNewRoleClickEvent{
+func (u *BotCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BotCreate{
+			BotCreate: &prehogv1a.BotCreateEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				RoleName:    a.AnonymizeString(u.RoleName),
+				BotUserName: a.AnonymizeString(u.BotUserName),
+				BotName:     a.AnonymizeString(u.BotName),
+				RoleCount:   u.RoleCount,
+				JoinMethod:  u.JoinMethod,
+			},
+		},
+	}
+}
+
+// UICreateNewRoleClickEvent is a UI event sent when a user prints recovery codes.
+type UICreateNewRoleClickEvent prehogv1a.UICreateNewRoleClickEvent
+
+func (u *UICreateNewRoleClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiCreateNewRoleClick{
+			UiCreateNewRoleClick: &prehogv1a.UICreateNewRoleClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -248,12 +282,12 @@ func (u *UICreateNewRoleClickEvent) Anonymize(a utils.Anonymizer) prehogv1.Submi
 }
 
 // UICreateNewRoleSaveClickEvent is a UI event sent when a user prints recovery codes.
-type UICreateNewRoleSaveClickEvent prehogv1.UICreateNewRoleSaveClickEvent
+type UICreateNewRoleSaveClickEvent prehogv1a.UICreateNewRoleSaveClickEvent
 
-func (u *UICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleSaveClick{
-			UiCreateNewRoleSaveClick: &prehogv1.UICreateNewRoleSaveClickEvent{
+func (u *UICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiCreateNewRoleSaveClick{
+			UiCreateNewRoleSaveClick: &prehogv1a.UICreateNewRoleSaveClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -261,12 +295,12 @@ func (u *UICreateNewRoleSaveClickEvent) Anonymize(a utils.Anonymizer) prehogv1.S
 }
 
 // UICreateNewRoleCancelClickEvent is a UI event sent when a user prints recovery codes.
-type UICreateNewRoleCancelClickEvent prehogv1.UICreateNewRoleCancelClickEvent
+type UICreateNewRoleCancelClickEvent prehogv1a.UICreateNewRoleCancelClickEvent
 
-func (u *UICreateNewRoleCancelClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleCancelClick{
-			UiCreateNewRoleCancelClick: &prehogv1.UICreateNewRoleCancelClickEvent{
+func (u *UICreateNewRoleCancelClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiCreateNewRoleCancelClick{
+			UiCreateNewRoleCancelClick: &prehogv1a.UICreateNewRoleCancelClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -274,12 +308,12 @@ func (u *UICreateNewRoleCancelClickEvent) Anonymize(a utils.Anonymizer) prehogv1
 }
 
 // UICreateNewRoleViewDocumentationClickEvent is a UI event sent when a user prints recovery codes.
-type UICreateNewRoleViewDocumentationClickEvent prehogv1.UICreateNewRoleViewDocumentationClickEvent
+type UICreateNewRoleViewDocumentationClickEvent prehogv1a.UICreateNewRoleViewDocumentationClickEvent
 
-func (u *UICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UiCreateNewRoleViewDocumentationClick{
-			UiCreateNewRoleViewDocumentationClick: &prehogv1.UICreateNewRoleViewDocumentationClickEvent{
+func (u *UICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UiCreateNewRoleViewDocumentationClick{
+			UiCreateNewRoleViewDocumentationClick: &prehogv1a.UICreateNewRoleViewDocumentationClickEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -288,12 +322,12 @@ func (u *UICreateNewRoleViewDocumentationClickEvent) Anonymize(a utils.Anonymize
 
 // UserCertificateIssuedEvent is an event emitted when a certificate has been
 // issued, used to track the duration and restriction.
-type UserCertificateIssuedEvent prehogv1.UserCertificateIssuedEvent
+type UserCertificateIssuedEvent prehogv1a.UserCertificateIssuedEvent
 
-func (u *UserCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_UserCertificateIssuedEvent{
-			UserCertificateIssuedEvent: &prehogv1.UserCertificateIssuedEvent{
+func (u *UserCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_UserCertificateIssuedEvent{
+			UserCertificateIssuedEvent: &prehogv1a.UserCertificateIssuedEvent{
 				UserName:        a.AnonymizeString(u.UserName),
 				Ttl:             u.Ttl,
 				IsBot:           u.IsBot,
@@ -308,12 +342,12 @@ func (u *UserCertificateIssuedEvent) Anonymize(a utils.Anonymizer) prehogv1.Subm
 
 // KubeRequestEvent is an event emitted when a Kubernetes API request is
 // handled.
-type KubeRequestEvent prehogv1.KubeRequestEvent
+type KubeRequestEvent prehogv1a.KubeRequestEvent
 
-func (u *KubeRequestEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_KubeRequest{
-			KubeRequest: &prehogv1.KubeRequestEvent{
+func (u *KubeRequestEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_KubeRequest{
+			KubeRequest: &prehogv1a.KubeRequestEvent{
 				UserName: a.AnonymizeString(u.UserName),
 			},
 		},
@@ -321,12 +355,12 @@ func (u *KubeRequestEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventReq
 }
 
 // SFTPEvent is an event emitted for each file operation in a SFTP connection.
-type SFTPEvent prehogv1.SFTPEvent
+type SFTPEvent prehogv1a.SFTPEvent
 
-func (u *SFTPEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_Sftp{
-			Sftp: &prehogv1.SFTPEvent{
+func (u *SFTPEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_Sftp{
+			Sftp: &prehogv1a.SFTPEvent{
 				UserName: a.AnonymizeString(u.UserName),
 				Action:   u.Action,
 			},
@@ -335,12 +369,12 @@ func (u *SFTPEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
 }
 
 // AgentMetadataEvent is an event emitted after an agent first connects to the auth server.
-type AgentMetadataEvent prehogv1.AgentMetadataEvent
+type AgentMetadataEvent prehogv1a.AgentMetadataEvent
 
-func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1.SubmitEventRequest {
-	return prehogv1.SubmitEventRequest{
-		Event: &prehogv1.SubmitEventRequest_AgentMetadataEvent{
-			AgentMetadataEvent: &prehogv1.AgentMetadataEvent{
+func (u *AgentMetadataEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_AgentMetadataEvent{
+			AgentMetadataEvent: &prehogv1a.AgentMetadataEvent{
 				Version:               u.Version,
 				HostId:                a.AnonymizeString(u.HostId),
 				Services:              u.Services,

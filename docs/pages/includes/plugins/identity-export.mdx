@@ -2,18 +2,6 @@ Like all Teleport users, `access-plugin` needs signed credentials in
 order to connect to your Teleport cluster. You will use the `tctl auth sign`
 command to request these credentials for your plugin.
 
-{/*
-TODO (ptgott): Remove "oss" once gravitational/docs#118 is fixed
-*/}
-<ScopedBlock scope={["oss", "enterprise"]}>
-
-The format of the credentials depends on whether you have set up your network to
-give the plugin direct access to the Teleport Auth Service, or if all Teleport
-clients and services connect to the Teleport Proxy Service instead.
-
-<Tabs dropdownCaption="Environment type" dropdownSelected="Executable">
-<TabItem label="Connect to the Proxy Service" options="Executable">
-
 The following `tctl auth sign` command impersonates the `access-plugin` user,
 generates signed credentials, and writes an identity file to the local
 directory:
@@ -32,120 +20,25 @@ uses this reverse tunnel, along with your TLS credentials, to connect to the
 Auth Service's gRPC endpoint.
 
 You will refer to this file later when configuring the plugin.
-
-</TabItem>
-<TabItem label="Connect to the Auth Service" options="Executable">
-
-If your network allows your plugin to access the Auth Service directly, e.g.,
-you are running the plugin on the Auth Service host, the plugin uses TLS
-credentials to connect to the Auth Service's gRPC endpoint and listen for new
-and updated Access Requests.
-
-You can generate TLS credentials with the following command:
-
-```code
-$ tctl auth sign --format=tls --user=access-plugin --out=auth
-```
-
-This command should result in three PEM-encoded files: `auth.crt`,
-`auth.key`, and `auth.cas` (certificate, private key, and CA certs
-respectively). Later, you will configure the plugin to use these credentials to
-connect to the Auth Service directly.
-</TabItem>
-<TabItem label="Connect to your Teleport Cluster" options="Helm Chart">
-
-The following `tctl auth sign` command impersonates the `access-plugin` user,
-generates signed credentials, and writes an identity file to the local
-directory:
-
-```code
-$ tctl auth sign --user=access-plugin --out=auth
-```
-
-Then create a Kubernetes secret:
-
-```code
-$ kubectl create secret generic teleport-mattermost-identity --from-file=auth_id=auth.pem
-```
-
-Teleport's Access Request plugins listen for new and updated Access Requests by
-connecting to the Teleport Auth Service's gRPC endpoint over TLS.
-
-The identity file, `auth.pem`, includes both TLS and SSH credentials. Your
-Access Request plugin uses the SSH credentials to connect to the Proxy Service,
-which establishes a reverse tunnel connection to the Auth Service. The plugin
-uses this reverse tunnel, along with your TLS credentials, to connect to the
-Auth Service's gRPC endpoint.
-
-You will refer to this file later when configuring the plugin.
-</TabItem>
-<TabItem label="Connect to the Proxy or Auth Service" options="Helm Chart">
-
-The following `tctl auth sign` command impersonates the `access-plugin` user,
-generates signed credentials, and writes an identity file to the local
-directory:
-
-```code
-$ tctl auth sign --user=access-plugin --out=auth
-```
-
-Then create a Kubernetes secret:
-
-```code
-$ kubectl create secret generic teleport-mattermost-identity --from-file=auth_id=auth.pem
-```
-
-Teleport's Access Request plugins listen for new and updated Access Requests by
-connecting to the Teleport Auth Service's gRPC endpoint over TLS.
-
-The identity file, `auth.pem`, includes both TLS and SSH credentials. Your
-Access Request plugin uses the SSH credentials to connect to the Proxy Service,
-which establishes a reverse tunnel connection to the Auth Service. The plugin
-uses this reverse tunnel, along with your TLS credentials, to connect to the
-Auth Service's gRPC endpoint.
-
-The Helm chart only supports the `file` format.
-
-You will refer to this file later when configuring the plugin.
-
-</TabItem>
-</Tabs>
-
-</ScopedBlock>
-
-
-
-<ScopedBlock scope="cloud">
-
-
-The following `tctl auth sign` command impersonates the `access-plugin` user,
-generates signed credentials, and writes an identity file to the local
-directory:
-
-```code
-$ tctl auth sign --user=access-plugin --out=auth.pem
-```
-
-Teleport's Access Request plugins listen for new and updated Access Requests by
-connecting to the Teleport Auth Service's gRPC endpoint over TLS.
-
-The identity file, `auth.pem`, includes both TLS and SSH credentials. Your
-Access Request plugin uses the SSH credentials to connect to the Proxy Service,
-which establishes a reverse tunnel connection to the Auth Service. The plugin
-uses this reverse tunnel, along with your TLS credentials, to connect to the
-Auth Service's gRPC endpoint.
-
-You will refer to this file later when configuring the plugin.
-
-</ScopedBlock>
 
 <Admonition
   title="Certificate Lifetime"
 >
 
   By default, `tctl auth sign` produces certificates with a relatively short
-  lifetime. For production deployments, you can use the `--ttl` flag to ensure a
-  more practical certificate lifetime, e.g., `--ttl=8760h` to export a one-year
-  certificate.
+  lifetime. For production deployments, we suggest using [Machine
+  ID](../../machine-id/introduction.mdx) to programmatically issue and renew
+  certificates for your plugin. See our Machine ID [getting started
+  guide](../../machine-id/getting-started.mdx) to learn more.
+
+  Note that you cannot issue certificates that are valid longer than your existing credentials.
+  For example, to issue certificates with a 1000-hour TTL, you must be logged in with a session that is
+  valid for at least 1000 hours. This means your user must have a role allowing
+  a `max_session_ttl` of at least 1000 hours, and you must specify a `--ttl`
+  when logging in:
+
+  ```code
+  $ tsh login --proxy=teleport.example.com --ttl=1001h
+  ```
 
 </Admonition>

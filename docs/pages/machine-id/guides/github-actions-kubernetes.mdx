@@ -16,9 +16,9 @@ description: A tutorial for using Machine ID with GitHub Actions and Kubernetes
 GitHub Actions is a popular CI/CD platform that works as a part of the larger
 GitHub ecosystem.
 
-In this guide, you will use Teleport Machine ID and Kubernetes Access to allow a
-GitHub Actions workflow to securely connect to a Kubernetes cluster without the
-need for long-lived secrets.
+In this guide, you will use Machine ID and the Teleport Kubernetes Service to
+allow a GitHub Actions workflow to securely connect to a Kubernetes cluster
+without the need for long-lived secrets.
 
 Teleport supports secure joining on both GitHub-hosted and self-hosted GitHub
 Actions runners as well as GitHub Enterprise Server.
@@ -38,7 +38,9 @@ In our examples, this Kubernetes cluster will be named `my-kubernetes-cluster`.
 `gravitational/example`, and this value should be replaced with your own unique
 repository.
 
-### 1/4. Create a join token for GitHub Actions
+(!docs/pages/includes/machine-id/kubernetes-machineidnote.mdx!)
+
+## Step 1/4. Create a join token for GitHub Actions
 
 (!docs/pages/includes/machine-id/github-actions-create-token.mdx!)
 

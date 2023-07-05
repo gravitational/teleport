@@ -3,7 +3,7 @@ title: Kubernetes Access Multiple Clusters
 description: Connecting a Kubernetes cluster to Teleport.
 ---
 
-This guide will show you how to use Teleport as an access plane for multiple Kubernetes clusters.
+This guide will show you how to use Teleport as an access platform for multiple Kubernetes clusters.
 
 ## Prerequisites
 
@@ -13,8 +13,6 @@ This guide will show you how to use Teleport as an access plane for multiple Kub
   v(=kubernetes.major_version=).(=kubernetes.minor_version=).0. We will assume
   that you have already followed
   [Connect a Kubernetes Cluster to Teleport](../getting-started.mdx)
-- The `jq` tool to process `JSON` output. This is available via common package
-  managers
 - An additional Kubernetes cluster version >=
   v(=kubernetes.major_version=).(=kubernetes.minor_version=).0
 - Helm >= (=helm.version=)
@@ -28,7 +26,7 @@ This guide will show you how to use Teleport as an access plane for multiple Kub
 <Tabs>
 <TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
 
-Teleport can act as an access plane for multiple Kubernetes clusters. 
+Teleport can act as an access platform for multiple Kubernetes clusters. 
 
 We will assume that the domain of your Teleport cluster is `tele.example.com`.
 
@@ -41,7 +39,7 @@ We will need a join token from `tele.example.com`:
 # A trick to save the pod ID in tele.example.com
 $ POD=$(kubectl get pod -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
 # Create a join token for the cluster cookie to authenticate
-$ TOKEN=$(kubectl exec -ti "${POD?}" -- tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
+$ TOKEN=$(kubectl exec -ti "${POD?}" -- tctl tokens add --type=kube --ttl=10000h --format=text)
 $ echo $TOKEN
 ```
 
@@ -95,7 +93,7 @@ We will need a join token from `mytenant.teleport.sh`:
 
 ```code
 # Create a join token for the cluster cookie to authenticate
-$ TOKEN=$(tctl nodes add --roles=kube --ttl=10000h --format=json | jq -r '.[0]')
+$ TOKEN=$(tctl tokens add --type=kube --ttl=10000h --format=text)
 $ echo $TOKEN
 ```
 

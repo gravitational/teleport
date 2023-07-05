@@ -41,9 +41,10 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"golang.org/x/exp/slices"
 
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
-	"github.com/gravitational/kingpin"
 	"github.com/gravitational/trace"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
@@ -93,7 +94,7 @@ type mfaLSCommand struct {
 
 func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 	c := &mfaLSCommand{
-		CmdClause: parent.Command("ls", "Get a list of registered MFA devices"),
+		CmdClause: parent.Command("ls", "Get a list of registered MFA devices."),
 	}
 	c.Flag("verbose", "Print more information about MFA devices").Short('v').BoolVar(&c.verbose)
 	c.Flag("format", defaults.FormatFlagDescription(defaults.DefaultFormats...)).Short('f').Default(teleport.Text).EnumVar(&c.format, defaults.DefaultFormats...)
@@ -101,7 +102,7 @@ func newMFALSCommand(parent *kingpin.CmdClause) *mfaLSCommand {
 }
 
 func (c *mfaLSCommand) run(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -202,7 +203,7 @@ type mfaAddCommand struct {
 
 func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 	c := &mfaAddCommand{
-		CmdClause: parent.Command("add", "Add a new MFA device"),
+		CmdClause: parent.Command("add", "Add a new MFA device."),
 	}
 	c.Flag("name", "Name of the new MFA device").StringVar(&c.devName)
 	c.Flag("type", fmt.Sprintf("Type of the new MFA device (%s)", strings.Join(defaultDeviceTypes, ", "))).
@@ -214,11 +215,19 @@ func newMFAAddCommand(parent *kingpin.CmdClause) *mfaAddCommand {
 }
 
 func (c *mfaAddCommand) run(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	ctx := cf.Context
+
+	// Attempt to diagnose clamshell failures.
+	if !slices.Contains(defaultDeviceTypes, touchIDDeviceType) {
+		diag, err := touchid.Diag()
+		if err == nil && diag.IsClamshellFailure() {
+			log.Warn("Touch ID support disabled, is your MacBook lid closed?")
+		}
+	}
 
 	if c.devType == "" {
 		// If we are prompting the user for the device type, then take a glimpse at
@@ -542,14 +551,14 @@ type mfaRemoveCommand struct {
 
 func newMFARemoveCommand(parent *kingpin.CmdClause) *mfaRemoveCommand {
 	c := &mfaRemoveCommand{
-		CmdClause: parent.Command("rm", "Remove a MFA device"),
+		CmdClause: parent.Command("rm", "Remove a MFA device."),
 	}
 	c.Arg("name", "Name or ID of the MFA device to remove").Required().StringVar(&c.name)
 	return c
 }
 
 func (c *mfaRemoveCommand) run(cf *CLIConf) error {
-	tc, err := makeClient(cf, true)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

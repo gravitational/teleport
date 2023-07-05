@@ -232,7 +232,7 @@ func (h *AuthHandlers) CheckX11Forward(ctx *ServerContext) error {
 
 func (h *AuthHandlers) CheckFileCopying(ctx *ServerContext) error {
 	if !ctx.Identity.AccessChecker.CanCopyFiles() {
-		return errRoleFileCopyingNotPermitted
+		return trace.Wrap(errRoleFileCopyingNotPermitted)
 	}
 	return nil
 }

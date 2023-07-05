@@ -18,10 +18,9 @@
 | `backend_requests`                              | counter     | cache               | Number of write requests to the backend.                                                           |
 | `backend_write_seconds`                         | histogram   | cache               | Latency for backend write operations.                                                              |
 | `cluster_name_not_found_total`                  | counter     | Teleport Auth       | Number of times a cluster was not found.                                                           |
-| `dynamo_requests_total`                         | counter     | DynamoDB            | Number of requests to the DynamoDB API.                                                            |
-| `dynamo_requests`                               | counter     | DynamoDB            | Number of failed requests to the DynamoDB API.                                                     |
+| `dynamo_requests_total`                         | counter     | DynamoDB            | Total number of requests to the DynamoDB API.                                                            |
+| `dynamo_requests`                               | counter     | DynamoDB            | Total number of requests to the DynamoDB API grouped by result.                                          |
 | `dynamo_requests_seconds`                       | histogram   | DynamoDB            | Latency of DynamoDB API requests.                                                                  |
-| `dynamo_requests_total`                         | counter     | DynamoDB            | Number of requests to the DynamoDB API                                                             |
 | `etcd_backend_batch_read_requests`              | counter     | etcd                | Number of read requests to the etcd database.                                                      |
 | `etcd_backend_batch_read_seconds`               | histogram   | etcd                | Latency for etcd read operations.                                                                  |
 | `etcd_backend_read_requests`                    | counter     | etcd                | Number of read requests to the etcd database.                                                      |
@@ -44,10 +43,9 @@
 | `grpc_server_handled_total`                     | counter     | Teleport Auth       | Total number of RPCs completed on the server, regardless of success or failure.                    |
 | `grpc_server_msg_received_total`                | counter     | Teleport Auth       | Total number of RPC stream messages received on the server.                                        |
 | `grpc_server_msg_sent_total`                    | counter     | Teleport Auth       | Total number of gRPC stream messages sent by the server.                                           |
-| `heartbeat_missed_total`                        | counter     | Teleport Auth       | Number of times the Auth Service did not receive a heartbeat from a Node.                          |
 | `heartbeat_connections_received_total`          | counter     | Teleport Auth       | Number of times the Auth Service received a heartbeat connection.                                  |
 | `s3_requests_total`                             | counter     | Amazon S3           | Total number of requests to the S3 API.                                                            |
-| `s3_requests`                                   | counter     | Amazon S3           | Number of requests to the S3 API by result.                                                        |
+| `s3_requests`                                   | counter     | Amazon S3           | Total number of requests to the S3 API grouped by result.                                                        |
 | `s3_requests_seconds`                           | histogram   | Amazon S3           | Request latency for the S3 API.                                                                    |
 | `teleport_audit_emit_events`                    | counter     | Teleport Audit Log  | Number of audit events emitted.                                                                    |
 | `teleport_connected_resources`                  | gauge       | Teleport Auth       | Number and type of resources connected via keepalives.                                             |
@@ -67,32 +65,46 @@
 
 ## Proxy Service
 
-| Name                                      | Type    | Component      | Description                                                                                                                     |
-| ----------------------------------------- | ------- | -------------- | ------------------------------------------------------------------------------------------------------------------------------- |
-| `failed_connect_to_node_attempts_total`   | counter | Teleport Proxy | Number of failed SSH connection attempts to a Node. Use with `teleport_connect_to_node_attempts_total` to get the failure rate. |
-| `failed_login_attempts_total`             | counter | Teleport Proxy | Number of failed `tsh login` or `tsh ssh` logins.                                                                               |
-| `grpc_client_started_total`               | counter | Teleport Proxy | Total number of RPCs started on the client.                                                                                     |
-| `grpc_client_handled_total`               | counter | Teleport Proxy | Total number of RPCs completed on the client, regardless of success or failure.                                                 |
-| `grpc_client_msg_received_total`          | counter | Teleport Proxy | Total number of RPC stream messages received on the client.                                                                     |
-| `grpc_client_msg_sent_total`              | counter | Teleport Proxy | Total number of gRPC stream messages sent by the client.                                                                        |
-| `proxy_connection_limit_exceeded_total`   | counter | Teleport Proxy | Number of connections that exceeded the Proxy Service connection limit.                                                         |
-| `proxy_ssh_sessions_total`                | gauge   | Teleport Proxy | Number of active sessions through this Proxy Service instance.                                                                  |
-| `proxy_missing_ssh_tunnels`               | gauge   | Teleport Proxy | Number of missing SSH tunnels. Used to debug if Nodes have discovered all Proxy Service instances.                              |
-| `remote_clusters`                         | gauge   | Teleport Proxy | Number of inbound connections from leaf clusters.                                                                               |
-| `teleport_connect_to_node_attempts_total` | counter | Teleport Proxy | Number of SSH connection attempts to a node. Use with `failed_connect_to_node_attempts_total` to get the failure rate.          |
-| `teleport_reverse_tunnels_connected`      | gauge   | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances.                                    |
-| `trusted_clusters`                        | gauge   | Teleport Proxy | Number of outbound connections to leaf clusters.                                                                                |
+| Name                                      | Type      | Component      | Description                                                                                                                              |
+| ----------------------------------------- | --------- | -------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+| `failed_connect_to_node_attempts_total`   | counter   | Teleport Proxy | Number of failed SSH connection attempts to the SSH Service. Use with `teleport_connect_to_node_attempts_total` to get the failure rate. |
+| `failed_login_attempts_total`             | counter   | Teleport Proxy | Number of failed `tsh login` or `tsh ssh` logins.                                                                                        |
+| `grpc_client_started_total`               | counter   | Teleport Proxy | Total number of RPCs started on the client.                                                                                              |
+| `grpc_client_handled_total`               | counter   | Teleport Proxy | Total number of RPCs completed on the client, regardless of success or failure.                                                          |
+| `grpc_client_msg_received_total`          | counter   | Teleport Proxy | Total number of RPC stream messages received on the client.                                                                              |
+| `grpc_client_msg_sent_total`              | counter   | Teleport Proxy | Total number of gRPC stream messages sent by the client.                                                                                 |
+| `proxy_connection_limit_exceeded_total`   | counter   | Teleport Proxy | Number of connections that exceeded the Proxy Service connection limit.                                                                  |
+| `proxy_peer_client_dial_error_total`      | counter   | Teleport Proxy | Total number of errors encountered dialing peer Proxy Service instances.                                                                                 |
+| `proxy_peer_server_connections`           | gauge     | Teleport Proxy | Number of currently opened connection to proxy Proxy Service instances.                                                                             |
+| `proxy_peer_client_rpc`                   | gauge     | Teleport Proxy | Number of current client RPC requests.                                                                                                   |
+| `proxy_peer_client_rpc_total`             | counter   | Teleport Proxy | Total number of client RPC requests.                                                                                                     |
+| `proxy_peer_client_rpc_duration_seconds`  | histogram | Teleport Proxy | Duration in seconds of RPCs sent by the client.                                                                                          |
+| `proxy_peer_client_message_sent_size`     | histogram | Teleport Proxy | Size of messages sent by the client.                                                                                                     |
+| `proxy_peer_client_message_received_size` | histogram | Teleport Proxy | Size of messages received by the client.                                                                                                 |
+| `proxy_peer_server_connections`           | gauge     | Teleport Proxy | Number of currently opened connection to peer Proxy Service clients.                                                                             |
+| `proxy_peer_server_rpc`                   | gauge     | Teleport Proxy | Number of current server RPC requests.                                                                                                   |
+| `proxy_peer_server_rpc_total`             | counter   | Teleport Proxy | Total number of server RPC requests.                                                                                                     |
+| `proxy_peer_server_rpc_duration_seconds`  | histogram | Teleport Proxy | Duration in seconds of RPCs sent by the server.                                                                                          |
+| `proxy_peer_server_message_sent_size`     | histogram | Teleport Proxy | Size of messages sent by the server.                                                                                                     |
+| `proxy_peer_server_message_received_size` | histogram | Teleport Proxy | Size of messages received by the server.                                                                                                 |
+| `proxy_ssh_sessions_total`                | gauge     | Teleport Proxy | Number of active sessions through this Proxy Service instance.                                                                           |
+| `proxy_missing_ssh_tunnels`               | gauge     | Teleport Proxy | Number of missing SSH tunnels. Used to debug if Teleport instances have discovered all Proxy Service instances.                          |
+| `remote_clusters`                         | gauge     | Teleport Proxy | Number of inbound connections from leaf clusters.                                                                                        |
+| `teleport_connect_to_node_attempts_total` | counter   | Teleport Proxy | Number of SSH connection attempts to a SSH Service. Use with `failed_connect_to_node_attempts_total` to get the failure rate.            |
+| `teleport_reverse_tunnels_connected`      | gauge     | Teleport Proxy | Number of reverse SSH tunnels connected to the Teleport Proxy Service by Teleport instances.                                             |
+| `trusted_clusters`                        | gauge     | Teleport Proxy | Number of outbound connections to leaf clusters.                                                                                         |
 
-## Teleport Nodes
+## Teleport SSH Service
 
 | Name | Type | Component | Description |
 | - | - | - | - |
-| `user_max_concurrent_sessions_hit_total` | counter | Teleport Node | Number of times a user exceeded their concurrent session limit. |
+| `user_max_concurrent_sessions_hit_total` | counter | Teleport SSH | Number of times a user exceeded their concurrent session limit. |
 
 ## All Teleport instances
 
 | Name | Type | Component | Description |
 | - | - | - | - |
+| `process_state` | gauge | Teleport | State of the teleport process: 0 - ok, 1 - recovering, 2 - degraded, 3 - starting. |
 | `certificate_mismatch_total` | counter | Teleport | Number of SSH server login failures due to a certificate mismatch. |
 | `reversetunnel_connected_proxies` | gauge | Teleport | Number of known proxies being sought. |
 | `rx` | counter | Teleport | Number of bytes received during an SSH connection. |

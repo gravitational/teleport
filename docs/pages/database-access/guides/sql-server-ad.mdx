@@ -1,6 +1,6 @@
 ---
 title: Database Access with Microsoft SQL Server with Active Directory authentication (Preview)
-description: How to configure Teleport Database Access with Microsoft SQL Server with Active Directory authentication.
+description: How to configure Teleport database access with Microsoft SQL Server with Active Directory authentication.
 videoBanner: k2wz79XCexY
 ---
 
@@ -11,12 +11,12 @@ videoBanner: k2wz79XCexY
   scopeOnly={true}
   min="9.0"
 >
-  Database Access for Microsoft SQL Server with Active Directory authentication
+  Database access for Microsoft SQL Server with Active Directory authentication
   is available starting from Teleport `9.0`.
 </Details>
 
 <Admonition type="warning" title="Preview">
-  Database Access for Microsoft SQL Server is currently in Preview mode.
+  Database access for Microsoft SQL Server is currently in Preview mode.
 </Admonition>
 
 This guide will help you to:
@@ -309,12 +309,8 @@ object typically resides under the AWS Reserved / RDS path:
 </Admonition>
 
 ## Step 5/7. Start the Database Service
-Start the Database Service:
 
-```code
-$ teleport start --config=/etc/teleport.yaml
-```
-
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ## Step 6/7. Create SQL Server AD users
 
@@ -365,11 +361,18 @@ $ tsh db connect --db-user=teleport sqlserver
 ```
 
 <Admonition type="note">
-  The `mssql-cli` command-line client should be available in `PATH` of the machine
-  you're running `tsh db connect` from.  
-  
-  `mssql-cli` is not required for SQL Server connections.  Use `tsh proxy db --db-user=teleport --tunnel sqlserver`
-   to connect from other DB Clients such as Microsoft SQL Server Management Studio.
+When you run the `tsh db connect` command above, `tsh` attempts to execute
+the `mssql-cli` command-line client, which must be available in the user's
+`PATH`. If you do not have `mssql-cli` available on your system, you can run the
+following command to start a local proxy server that you can connect
+to with your SQL Server client:
+
+```code
+$ tsh proxy db --db-user=teleport --tunnel sqlserver
+```
+
+Read the [Database Access GUI Clients](../../connect-your-client/gui-clients.mdx#sql-server-with-azure-data-studio) 
+guide for how to connect your DB GUI client to the local proxy.
 </Admonition>
 
 To log out of the database and remove credentials:

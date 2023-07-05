@@ -34,6 +34,7 @@ const configFactory = {
       return new ForkTsCheckerWebpackPlugin({
         typescript: {
           configFile: tsconfigPath,
+          memoryLimit: 4096,
         },
         issue: {
           exclude: [{ file: '**/*.story.tsx' }],

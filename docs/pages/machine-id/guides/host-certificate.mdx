@@ -6,7 +6,7 @@ description: Issuing Host Certificates with Machine ID for OpenSSH servers.
 Host certificates are generally created on Teleport for access to OpenSSH servers that can not otherwise join a Teleport cluster.
 While long-lived certificates may be applied for this purpose, short-lived and regularly rotated host certificates generated
 through Teleport help to provide a number of security benefits over their long-lived counterparts. Regular certificate rotation reduces risk by ensuring that any potentially stolen
-certificates are usable for a shorter period of time. Additionally, when coupled with Teleport's [RBAC](https://goteleport.com/docs/access-controls/guides/role-templates/)
+certificates are usable for a shorter period of time. Additionally, when coupled with Teleport's [RBAC](../../access-controls/guides/role-templates.mdx)
 support and host certificate **Principals** and **Predicates**, you can apply limitations to both the process of creating host certificates,
 as well as the host certificates themselves.
 
@@ -17,7 +17,7 @@ and reducing risk by ensuring that short-lived certificates adhering to the prin
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-(!/docs/pages/includes/tctl.mdx!)
+(!docs/pages/includes/tctl.mdx!)
 
 - A Linux based host that can support Machine ID. This "Machine ID Host" is the host that will be used to create Host Certificates using `tbot`.
   This host should additionally have OpenSSH server `sshd` version 6.9 or above running. The SSH port on this host must be open to traffic from the Teleport Proxy Service host.
@@ -28,7 +28,7 @@ and reducing risk by ensuring that short-lived certificates adhering to the prin
 
 ## Step 1/5. Download and install Teleport (=teleport.version=)
 
-(!/docs/pages/includes/install-linux.mdx!)
+(!docs/pages/includes/install-linux.mdx!)
 
 Next, log in to your cluster from your local machine using `tsh` to ensure that your device will be able to interact with the cluster:
 
@@ -389,7 +389,7 @@ The Machine ID host is now fully configured to accept connections from a `tsh` u
 To confirm this, enter the following command from your local machine logged into the cluster using `tsh`:
 
 ```code
-$ tsh ssh root@nodename.my.domain.com:22
+$ tsh ssh -p 22 root@nodename.my.domain.com
 ```
 
 The connection should successfully complete without the need to manually enter any additional credentials.
@@ -402,4 +402,4 @@ to connect to OpenSSH with Teleport, see the following documentation:
 - [Using Teleport With OpenSSH](../../server-access/guides/openssh.mdx)
 - [Using SSH Host Certificates](https://goteleport.com/blog/how-to-ssh-properly/)
 - [Machine ID Configuration Reference](../reference/configuration.mdx)
-- [Joining Nodes using the IAM method](https://goteleport.com/docs/setup/guides/joining-nodes-aws)
+- [Joining Nodes using the IAM method](../../management/guides/joining-nodes-aws-iam.mdx)

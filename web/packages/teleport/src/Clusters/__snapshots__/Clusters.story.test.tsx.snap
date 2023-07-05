@@ -84,6 +84,7 @@ exports[`render clusters 1`] = `
   font-weight: 500;
   padding: 0 8px;
   background-color: #512FC9;
+  color: #FFFFFF;
 }
 
 .c9 {
@@ -359,7 +360,7 @@ exports[`render clusters 1`] = `
       >
         <div
           class="c9"
-          color="primary.contrastText"
+          color="text.contrast"
           style="white-space: nowrap; text-transform: uppercase;"
         >
           Showing 

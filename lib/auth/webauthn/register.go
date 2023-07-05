@@ -18,6 +18,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -224,7 +225,8 @@ func upsertOrGetWebID(ctx context.Context, user string, identity RegistrationIde
 	return wla.UserID, nil
 }
 
-// RegisterResponse represents fields needed to finish registering a new webautn device.
+// RegisterResponse represents fields needed to finish registering a new
+// WebAuthn device.
 type RegisterResponse struct {
 	// User is the device owner.
 	User string
@@ -298,6 +300,16 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 	}
 	credential, err := web.CreateCredential(u, *sessionData, parsedResp)
 	if err != nil {
+		// Use a more friendly message for certain verification errors.
+		protocolErr := &protocol.Error{}
+		if errors.As(err, &protocolErr) &&
+			protocolErr.Type == protocol.ErrVerification.Type &&
+			passwordless &&
+			!parsedResp.Response.AttestationObject.AuthData.Flags.UserVerified() {
+			log.WithError(err).Debug("WebAuthn: Replacing verification error with PIN message")
+			return nil, trace.BadParameter("authenticator doesn't support passwordless, setting up a PIN may fix this")
+		}
+
 		return nil, trace.Wrap(err)
 	}
 
@@ -318,6 +330,7 @@ func (f *RegistrationFlow) Finish(ctx context.Context, req RegisterResponse) (*t
 			SignatureCounter:  credential.Authenticator.SignCount,
 			AttestationObject: req.CreationResponse.AttestationResponse.AttestationObject,
 			ResidentKey:       req.Passwordless,
+			CredentialRpId:    f.Webauthn.RPID,
 		},
 	}
 	// We delegate a few checks to identity, including:

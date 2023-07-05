@@ -19,6 +19,7 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
@@ -124,27 +125,10 @@ message Event {
 // Watch specifies watch parameters
 message Watch {
   // Kinds specifies object kinds to watch
-  repeated WatchKind Kinds = 1 [
+  repeated types.WatchKind Kinds = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kinds,omitempty"
   ];
-}
-
-// WatchKind specifies resource kind to watch
-message WatchKind {
-  // Kind is a resource kind to watch
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // LoadSecrets specifies whether to load secrets
-  bool LoadSecrets = 2 [(gogoproto.jsontag) = "load_secrets"];
-  // Name is an optional specific resource type to watch,
-  // if specified only the events with a specific resource
-  // name will be sent
-  string Name = 3 [(gogoproto.jsontag) = "name"];
-  // Filter is an optional mapping of custom filter parameters.
-  // Valid values vary by resource kind.
-  map<string, string> Filter = 4 [(gogoproto.jsontag) = "filter,omitempty"];
-  // SubKind is a resource subkind to watch
-  string SubKind = 5 [(gogoproto.jsontag) = "sub_kind,omitempty"];
 }
 
 // HostCertsRequest specifies certificate-generation parameters
@@ -293,6 +277,26 @@ message UserCertsRequest {
   // An optional field, that when provided, the response will be validated
   // and the ID of the validated MFA device will be stored in the certificate.
   MFAAuthenticateResponse MFAResponse = 17 [(gogoproto.jsontag) = "mfa_response,omitempty"];
+
+  // From v12+ this struct field was added (note struct field number 18):
+  // MFAAuthenticateResponse MFAResponse = 18 [(gogoproto.jsontag) = "mfa_response,omitempty"]
+  //
+  // When backporting this field to v11, the struct field number got changed to 17, which breaks
+  // backwards compatability between v12 and v11. In v12+, field number 17 refers to RequesterName.
+  //
+  // Since the breakage is scoped to web SSH file transfers and web discover test connecters
+  // with per-session MFA configured, it was decided to leave things as is minus
+  // reserving the struct field number 18 to prevent future breakage.
+  //
+  // https://github.com/gravitational/teleport/issues/24817
+
+  // SSHLogin is the OS Login for the SSH session that the certificate will be used for.
+  // This login is used when performing RBAC checks to determine if MFA is required
+  // to access the resource.
+  string SSHLogin = 19;
+
+  // AttestationStatement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -491,14 +495,15 @@ message PingResponse {
   string ProxyPublicAddr = 4 [(gogoproto.jsontag) = "proxy_public_addr"];
   // IsBoring signals whether or not the server was compiled with BoringCrypto.
   bool IsBoring = 5 [(gogoproto.jsontag) = "is_boring"];
-  // LicenseWarnings is a list of license compliance warnings.
-  repeated string LicenseWarnings = 6 [(gogoproto.jsontag) = "license_warnings"];
   // RemoteAddr is the client peer addr as seen from the auth server (used to assist
   // instances in guessing their external IP when none is configured).
   string RemoteAddr = 7 [(gogoproto.jsontag) = "remote_addr"];
   // LoadAllCAs signals whether or not tsh should load all CAs when trying
   // to ssh into a node.
   bool LoadAllCAs = 8 [(gogoproto.jsontag) = "load_all_cas"];
+
+  reserved 6; // LicenseWarnings, jsontag "license_warnings"
+  reserved "LicenseWarnings";
 }
 
 // Features are auth server features.
@@ -928,6 +933,20 @@ enum DeviceUsage {
   DEVICE_USAGE_PASSWORDLESS = 2;
 }
 
+// MFARequired indicates if MFA is required to access a
+// resource.
+enum MFARequired {
+  // Indicates the client/server are either old and don't support
+  // checking if MFA is required during the ceremony or that there
+  // was a catastrophic error checking RBAC to determine if completing
+  // an MFA ceremony will grant access to a resource.
+  MFA_REQUIRED_UNSPECIFIED = 0;
+  // Completing an MFA ceremony will grant access to a resource.
+  MFA_REQUIRED_YES = 1;
+  // Completing an MFA ceremony will not grant access to a resource.
+  MFA_REQUIRED_NO = 2;
+}
+
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 message MFAAuthenticateChallenge {
@@ -942,6 +961,11 @@ message MFAAuthenticateChallenge {
   // credentials for the ceremony (one for each U2F or Webauthn device
   // registered by the user).
   webauthn.CredentialAssertion WebauthnChallenge = 3;
+  // MFARequired indicates whether proceeding with the MFA ceremony will
+  // grant access to the resource. If `MFA_REQUIRED_NO` is returned by the
+  // server then the stream will be terminated to prevent a fruitless MFA ceremony from
+  // proceeding.
+  MFARequired MFARequired = 4;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one

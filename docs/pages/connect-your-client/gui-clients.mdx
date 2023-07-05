@@ -1,10 +1,10 @@
 ---
 title: Database Access GUI Clients
-description: How to configure graphical database clients for Teleport Database Access.
+description: How to configure graphical database clients for Teleport database access.
 ---
 
 This guide describes how to configure popular graphical database clients to
-work with Teleport Database Access.
+work with Teleport.
 
 ## Setting up your Teleport environment
 
@@ -16,7 +16,7 @@ Ensure that your environment includes the following:
 <TabItem scope={["oss"]} label="Open Source">
 
 - A running Teleport cluster. For details on how to set this up, see one of our
-  [Getting Started](/docs/getting-started) guides.
+  [Getting Started](../try-out-teleport/introduction.mdx) guides.
 
 - The `tsh` client tool version >= (=teleport.version=).
 
@@ -25,18 +25,17 @@ Ensure that your environment includes the following:
   # Teleport v(=teleport.version=) go(=teleport.golang=)
   ```
 
-  See [Installation](/docs/installation.mdx) for details.
+  See [Installation](../installation.mdx) for details.
 
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 
 - A running Teleport cluster. For details on how to set this up, see our Enterprise
-  [Getting Started](/docs/enterprise/getting-started) guide.
+  [Getting Started](../choose-an-edition/teleport-enterprise/getting-started.mdx) guide.
 
 - The `tsh` client tool version >= (=teleport.version=), which you can download
-  by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
+  by visiting your [Teleport account](https://teleport.sh).
 
   ```code
   $ tsh version
@@ -62,8 +61,8 @@ Ensure that your environment includes the following:
 </Tabs>
 
 - The Teleport Database Service configured to access a database. See one of our
-  [guides](../database-access/guides.mdx) for how to set up Teleport Database Access for your
-  database.
+  [guides](../database-access/guides.mdx) for how to set up the Teleport
+  Database Service for your database.
 
 
 ### Get connection information
@@ -166,6 +165,28 @@ your GUI client below. When entering the hostname, use `localhost` rather than
 `127.0.0.1`.
 
 </ScopedBlock>
+
+## SQL Server with Azure Data Studio
+
+In Azure Data Studio create a connection using your proxy's endpoint. This is
+`localhost,62652` in the example above. On a Windows machine, using an address in
+ the format `127.0.0.1,62652` could be required instead of `localhost`. (See
+[Get connection information](./gui-clients.mdx#get-connection-information) for
+more information.)
+
+Create a connection with Microsoft SQL Server with these settings:
+
+|Connection Detail|Value|
+|---|---|
+|Server|`host`,`port` of proxy endpoint|
+|Authentication Type|SQL Login|
+|Password|empty|
+|Encrypt|`False`|
+
+Example:
+![Azure Data Studio connection options](../../img/database-access/azure-data-studio-connection.png)
+
+Click **Connect** to connect.
 
 ## PostgreSQL pgAdmin 4
 
@@ -311,6 +332,29 @@ empty:
 ![DataGrip connection options](../../img/database-access/guides/sqlserver/datagrip-connection@2x.png)
 
 Click "OK" to connect.
+
+## Microsoft SQL Server Management Studio
+
+In Microsoft SQL Server Management Studio connect to a database engine using
+your proxy's endpoint. This is `localhost,62652` in the example above. Using
+the IP `127.0.0.1,62652` connection could be required on a Windows machine
+instead of `localhost`. (See [Get connection information](./gui-clients.mdx#get-connection-information) for
+more information.)
+
+Create a connection with Microsoft SQL Server with these settings:
+
+|Connection Detail|Value|
+|---|---|
+|Server type|Database Engine|
+|Server name|`host`,`port` of proxy endpoint|
+|Authentication|SQL Server Authentication|
+|Password|empty|
+|Encryption|do not enable|
+
+Example:
+[Microsoft SQL Server Management Studio connection options](../../img/database-access/msft-sql-server-management-studio-connection.png)
+
+Click Connect to connect.
 
 ## Redis Insight
 

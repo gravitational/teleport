@@ -30,8 +30,7 @@ func newAzureRedisEnterpriseFetcher(config azureFetcherConfig) (Fetcher, error) 
 	return newAzureFetcher[*azure.RedisEnterpriseDatabase, azure.RedisEnterpriseClient](config, &azureRedisEnterprisePlugin{})
 }
 
-type azureRedisEnterprisePlugin struct {
-}
+type azureRedisEnterprisePlugin struct{}
 
 func (p *azureRedisEnterprisePlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.RedisEnterpriseClient, error) {
 	client, err := cfg.AzureClients.GetAzureRedisEnterpriseClient(subID)

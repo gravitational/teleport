@@ -30,8 +30,6 @@ import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
 
-import { CaptureEvent, userEventService } from 'teleport/services/userEvent';
-
 import { Props as CredentialsProps, SliderProps } from './NewCredentials';
 import secKeyGraphic from './sec-key-with-bg.png';
 
@@ -47,7 +45,6 @@ export function NewMfaDevice(props: Props) {
     prev,
     refCallback,
     hasTransitionEnded,
-    currFlow,
   } = props;
   const [otp, setOtp] = useState('');
   const mfaOptions = createMfaOptions({
@@ -68,13 +65,6 @@ export function NewMfaDevice(props: Props) {
     validator: Validator
   ) {
     e.preventDefault(); // prevent form submit default
-
-    userEventService.capturePreUserEvent({
-      event: CaptureEvent.PreUserOnboardRegisterChallengeSubmitEvent,
-      username: resetToken.user,
-      mfaType: mfaType.value,
-      loginFlow: currFlow,
-    });
 
     if (!validator.validate()) {
       return;
@@ -153,7 +143,7 @@ export function NewMfaDevice(props: Props) {
             justifyContent="center"
             alignItems="center"
             borderRadius={8}
-            bg={mfaType?.value === 'optional' ? 'primary.lighter' : ''}
+            bg={mfaType?.value === 'optional' ? 'levels.elevated' : ''}
             height={mfaType?.value === 'optional' ? '340px' : '240px'}
             px={3}
           >
@@ -273,5 +263,4 @@ type Props = CredentialsProps &
   SliderProps & {
     password: string;
     updatePassword(pwd: string): void;
-    currFlow?: string;
   };

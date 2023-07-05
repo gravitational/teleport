@@ -36,8 +36,7 @@ func newAzurePostgresFetcher(config azureFetcherConfig) (Fetcher, error) {
 }
 
 // azureDBServerPlugin implements azureFetcherPlugin for MySQL and PostgresSQL.
-type azureDBServerPlugin struct {
-}
+type azureDBServerPlugin struct{}
 
 func (p *azureDBServerPlugin) GetListClient(cfg *azureFetcherConfig, subID string) (azure.DBServersClient, error) {
 	switch cfg.Type {

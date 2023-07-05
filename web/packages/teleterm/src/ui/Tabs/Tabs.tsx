@@ -87,13 +87,7 @@ export function Tabs(props: Props) {
 }
 
 function getIsLoading(doc: Document): boolean {
-  switch (doc.kind) {
-    case 'doc.terminal_tsh_kube':
-    case 'doc.terminal_tsh_node':
-      return doc.status === 'connecting';
-    default:
-      return false;
-  }
+  return 'status' in doc && doc.status === 'connecting';
 }
 
 type Props = {
@@ -117,7 +111,7 @@ const Separator = styled.div`
 `;
 
 const StyledTabs = styled(Box)`
-  background-color: ${props => props.theme.colors.primary.main};
+  background-color: ${props => props.theme.colors.levels.surfaceSecondary};
   min-height: 32px;
   border-radius: 4px;
   display: flex;

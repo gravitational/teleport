@@ -11,6 +11,6 @@ Host *.example.com proxy.example.com
 # Flags for all example.com hosts except the proxy
 Host *.example.com !proxy.example.com
     Port 3022
-    ProxyCommand "/tmp/tsh" proxy ssh --cluster=example.com --proxy=proxy.example.com %r@%h:%p
+    ProxyCommand "/tmp/tsh" proxy ssh --cluster=example.com --proxy=proxy.example.com:443 %r@%h:%p
 
 # End generated Teleport configuration

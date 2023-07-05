@@ -1,10 +1,11 @@
 ---
 title: Server Access Getting Started Guide
-description: Getting started with Teleport Server Access.
+description: Getting started with Teleport server access.
 videoBanner: 8aiVin0LvmE
 ---
 
-Server Access involves managing your resources, configuring new clusters, and issuing commands through a CLI or programmatically to an API.
+Server access involves managing your resources, configuring new clusters, and
+issuing commands through a CLI or programmatically to an API.
 
 This guide introduces some of these common scenarios and how to interact with Teleport to accomplish them:
 
@@ -60,7 +61,7 @@ Next, create a join token so you can add the Node to your Teleport cluster.
 
 ```code
 Let's save the token to a file
-$ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
+$ tctl tokens add --type=node --format=text > token.file
 ```
 
 </TabItem>
@@ -68,7 +69,7 @@ $ tctl tokens add --type=node | grep -oP '(?<=token:\s).*' > token.file
 
 ```code
 Let's save the token to a file
-$ tctl tokens add --type=node | grep -o 'token: .*' | cut -d' ' -f2 > token.file
+$ tctl tokens add --type=node --format=text > token.file
 ```
 
 </TabItem>
@@ -264,17 +265,22 @@ The `tsh ssh` command allows users to do anything they could if they were to SSH
   </TabItem>
   <TabItem label="ssh">
 
+  To use the `ssh` client generate a SSH configuration file and postfix
+  the cluster name after the node name.
+
   <ScopedBlock scope={["oss", "enterprise"]}>
 
     ```code
-    $ ssh -J tele.example.com root@ip-172-31-41-144
+    $ tsh config > ssh_config_teleport
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.tele.example.com
     ```
 
    </ScopedBlock>
   <ScopedBlock scope={["cloud"]}>
 
     ```code
-    $ ssh -J mytenant.teleport.sh root@ip-172-31-41-144
+    $ tsh config > ssh_config_teleport
+    $ ssh -F ssh_config_teleport root@ip-172-31-41-144.mytenant.teleport.sh
     ```
 
    </ScopedBlock>

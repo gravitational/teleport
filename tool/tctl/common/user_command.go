@@ -24,7 +24,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -69,7 +69,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.config = config
 	users := app.Command("users", "Manage user accounts")
 
-	u.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix)
+	u.userAdd = users.Command("add", "Generate a user invitation token "+helpPrefix+".")
 	u.userAdd.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 
 	u.userAdd.Flag("logins", "List of allowed SSH logins for the new user").StringsVar(&u.allowedLogins)
@@ -88,7 +88,7 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userAdd.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 	u.userAdd.Alias(AddUserHelp)
 
-	u.userUpdate = users.Command("update", "Update user account")
+	u.userUpdate = users.Command("update", "Update user account.")
 	u.userUpdate.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userUpdate.Flag("set-roles", "List of roles for the user to assume, replaces current roles").
 		StringsVar(&u.allowedRoles)
@@ -110,11 +110,11 @@ func (u *UserCommand) Initialize(app *kingpin.Application, config *service.Confi
 	u.userList = users.Command("ls", "Lists all user accounts.")
 	u.userList.Flag("format", "Output format, 'text' or 'json'").Hidden().Default(teleport.Text).StringVar(&u.format)
 
-	u.userDelete = users.Command("rm", "Deletes user accounts").Alias("del")
+	u.userDelete = users.Command("rm", "Update user account.").Alias("del")
 	u.userDelete.Arg("logins", "Comma-separated list of user logins to delete").
 		Required().StringVar(&u.login)
 
-	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token "+helpPrefix)
+	u.userResetPassword = users.Command("reset", "Reset user password and generate a new token "+helpPrefix+".")
 	u.userResetPassword.Arg("account", "Teleport user account name").Required().StringVar(&u.login)
 	u.userResetPassword.Flag("ttl", fmt.Sprintf("Set expiration time for token, default is %v, maximum is %v",
 		defaults.ChangePasswordTokenTTL, defaults.MaxChangePasswordTokenTTL)).

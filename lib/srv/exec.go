@@ -19,6 +19,7 @@ package srv
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -270,7 +271,7 @@ func waitForContinue(contfd *os.File) error {
 		// won't be closed until the parent has placed it in a cgroup.
 		buf := make([]byte, 1)
 		_, err := contfd.Read(buf)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			err = nil
 		}
 		waitCh <- err
