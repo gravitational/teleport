@@ -276,13 +276,28 @@ extensions from `types.proto`. As they'll no longer have an impact on Teleport's
 logic, the impact should be contained to modifying conversion functions. To handle the new
 output of the generated objects.
 
-#### New objects
+#### New objects and `protojson`
 
 New objects can use the internal object approach above, or alternatively can rely on `protojson`'s
 encoding of the protobuf resources. When using `protojson`, we should make sure to use the `UseProtoNames`
 marshaling option to ensure that the marshaled resource is using snake case. If a developer
 needs to deviate the internal representation of the resource, we should migrate the object
 to the above approach.
+
+There is a `json_name` tag built into protobuf that we can potentially use if we need to rename existing
+fields:
+
+```proto
+// Trait is a trait that can be use in various resources.
+message CustomTrait {
+  // key is the name of the trait.
+  string key = 1;
+  // values is the list of trait values.
+  repeated string values = 2 [json_name = "custom_value"];
+}
+```
+
+This will allow `protojson` to use field names other than those that map to the proto field names.
 
 #### `protojson` vs. internal objects
 
