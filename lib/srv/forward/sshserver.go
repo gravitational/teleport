@@ -1347,8 +1347,8 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 	// As a forwarder we want to capture the environment variables set by the caller.
 	// Environment variables are used to pass existing session IDs (Assist) and
 	// other flags like enabling non-interactive session recording.
-	// We want to save all environment variables as the ssh server might reject
-	// them, but we still need their information (e.g. the session ID).
+	// We want to save all environment variables even if the ssh server rejects
+	// them, as we still need their information (e.g. the session ID).
 	scx.SetEnv(e.Name, e.Value)
 
 	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
@@ -1376,8 +1376,8 @@ func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Reques
 	// As a forwarder we want to capture the environment variables set by the caller.
 	// Environment variables are used to pass existing session IDs (Assist) and
 	// other flags like enabling non-interactive session recording.
-	// We want to save all environment variables as the ssh server might reject
-	// them, but we still need their information (e.g. the session ID).
+	// We want to save all environment variables even if the ssh server rejects
+	// them, as we still need their information (e.g. the session ID).
 	for k, v := range envs {
 		scx.SetEnv(k, v)
 	}
