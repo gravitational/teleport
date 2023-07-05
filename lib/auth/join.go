@@ -21,6 +21,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"fmt"
+	"golang.org/x/exp/slices"
 	"strings"
 
 	"github.com/gravitational/trace"
@@ -180,39 +181,33 @@ func (a *Server) generateCertsBot(
 	// botResourceName must be set, enforced in CheckAndSetDefaults
 	botName := provisionToken.GetBotName()
 	joinMethod := provisionToken.GetJoinMethod()
-	// Append `bot-` to the bot name to derive its username.
-	botResourceName := BotResourceName(botName)
+
+	// Check this is a join method for bots we support.
+	if !slices.Contains(supportedBotJoinMethods, joinMethod) {
+		return nil, trace.BadParameter(
+			"unsupported join method %q for bot", joinMethod,
+		)
+	}
+
+	// Most join methods produce non-renewable certificates and join must be
+	// called again to fetch fresh certificates with a longer lifetime. These
+	// join methods do not delete the token after use.
+	renewable := false
+	shouldDeleteToken := false
+	if joinMethod == types.JoinMethodToken {
+		// The token join method is special produces renewable certificates,
+		// but the token is deleted after use.
+		shouldDeleteToken = true
+		renewable = true
+	}
 
 	expires := a.GetClock().Now().Add(defaults.DefaultRenewableCertTTL)
 	if req.Expires != nil {
 		expires = *req.Expires
 	}
 
-	// Repeatable join methods (e.g IAM) should not produce renewable
-	// certificates. Ephemeral join methods (e.g Token) should produce
-	// renewable certificates, but the token should be deleted after use.
-	var renewable bool
-	var shouldDeleteToken bool
-	switch joinMethod {
-	case types.JoinMethodToken:
-		shouldDeleteToken = true
-		renewable = true
-	case types.JoinMethodIAM,
-		types.JoinMethodGitHub,
-		types.JoinMethodGitLab,
-		types.JoinMethodCircleCI,
-		types.JoinMethodKubernetes,
-		types.JoinMethodAzure,
-		types.JoinMethodGCP:
-		shouldDeleteToken = false
-		renewable = false
-	default:
-		return nil, trace.BadParameter(
-			"unsupported join method %q for bot", joinMethod,
-		)
-	}
 	certs, err := a.generateInitialBotCerts(
-		ctx, botResourceName, req.PublicSSHKey, expires, renewable,
+		ctx, BotResourceName(botName), req.PublicSSHKey, expires, renewable,
 	)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,7 +232,7 @@ func (a *Server) generateCertsBot(
 		Status: apievents.Status{
 			Success: true,
 		},
-		BotName:   provisionToken.GetBotName(),
+		BotName:   botName,
 		Method:    string(joinMethod),
 		TokenName: provisionToken.GetSafeName(),
 	}
