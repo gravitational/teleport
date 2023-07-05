@@ -18,27 +18,28 @@ via "gossip" messages shared by other proxies as part of the reverse tunnel
 protocol, and to decide if and when it's appropriate to attempt a new connection
 to a proxy load balancer at any given moment.
 
-The Tracker object gives out Lease objects through its Acquire() channel
+The [Tracker] object gives out [Lease] objects through its Acquire() channel
 whenever it's appropriate to attempt a new connection - the Lease object
 represents the permission to open a new connection and to try and Claim
 exclusivity over the remote proxy that was reached.
 
 A Lease starts "unclaimed", and can be switched into a "claimed" state given a
 proxy name; if no other Lease has claimed the same proxy, the claim is
-successful; otherwise, the Lease should be Released so that a new connection can
-be spawned in its stead. The Lease should also be Released if the connection
-fails, or after it's closed.
+successful; otherwise, the Lease should be released with Release() so that a new
+connection can be spawned in its stead. The Lease should also be released if the
+connection fails, or after it's closed.
 
 The Tracker keeps track of how many Leases are in unclaimed state, and of which
 proxies have been claimed. In addition, it receives gossip messages (usually
 from the reverse tunnel clients themselves, through the reverse tunnel "gossip"
-protocol) containing information about proxies in the cluster - namely, which
-proxies exist, and which group ID and generation, if any, they belong to.
+protocol, see `handleDiscovery` in lib/reversetunnel/agent.go) containing
+information about proxies in the cluster - namely, which proxies exist, and
+which group ID and generation, if any, they belong to.
 
 A proxy can report a group ID and a group generation (it's valid for a proxy to
-belong to the "" group and the "" generation); the group ID represents
+belong to the "" group or the zero generation); the group ID represents
 independent deployments of proxies, the group generation is a monotonically
-increasing identifier scoped to each group.
+increasing counter scoped to each group.
 
 The Tracker will grant Leases (to attempt to connect to new proxies) based on
 which proxies have been claimed, how many Leases have been granted but have yet
