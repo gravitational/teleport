@@ -53,7 +53,7 @@ import (
 	"github.com/gravitational/teleport/lib/kube/proxy/streamproto"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	sessPkg "github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -290,10 +290,10 @@ func SetupTestContext(ctx context.Context, t *testing.T, cfg TestConfig) *TestCo
 	// Create kubernetes service server.
 	testCtx.KubeProxy, err = NewTLSServer(TLSServerConfig{
 		ForwarderConfig: ForwarderConfig{
-			ReverseTunnelSrv: &reversetunnel.FakeServer{
-				Sites: []reversetunnel.RemoteSite{
+			ReverseTunnelSrv: &reversetunnelclient.FakeServer{
+				Sites: []reversetunnelclient.RemoteSite{
 					&fakeRemoteSite{
-						FakeRemoteSite: reversetunnel.NewFakeRemoteSite(testCtx.ClusterName, client),
+						FakeRemoteSite: reversetunnelclient.NewFakeRemoteSite(testCtx.ClusterName, client),
 						idToAddr: map[string]string{
 							testCtx.HostID: testCtx.kubeServerListener.Addr().String(),
 						},
@@ -587,11 +587,11 @@ func (f *fakeClient) CreateSessionTracker(ctx context.Context, st types.SessionT
 // fakeRemoteSite is a fake remote site that uses a map to map server IDs to
 // addresses to simulate reverse tunneling.
 type fakeRemoteSite struct {
-	*reversetunnel.FakeRemoteSite
+	*reversetunnelclient.FakeRemoteSite
 	idToAddr map[string]string
 }
 
-func (f *fakeRemoteSite) DialTCP(p reversetunnel.DialParams) (conn net.Conn, err error) {
+func (f *fakeRemoteSite) DialTCP(p reversetunnelclient.DialParams) (conn net.Conn, err error) {
 	// The server ID is the first part of the address.
 	addr, ok := f.idToAddr[strings.Split(p.ServerID, ".")[0]]
 	if !ok {

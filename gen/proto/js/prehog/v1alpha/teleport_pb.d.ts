@@ -648,6 +648,12 @@ export class UIDiscoverDeployServiceEvent extends jspb.Message {
     getStatus(): DiscoverStepStatus | undefined;
     setStatus(value?: DiscoverStepStatus): UIDiscoverDeployServiceEvent;
 
+    getDeployMethod(): UIDiscoverDeployServiceEvent.DeployMethod;
+    setDeployMethod(value: UIDiscoverDeployServiceEvent.DeployMethod): UIDiscoverDeployServiceEvent;
+
+    getDeployType(): UIDiscoverDeployServiceEvent.DeployType;
+    setDeployType(value: UIDiscoverDeployServiceEvent.DeployType): UIDiscoverDeployServiceEvent;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): UIDiscoverDeployServiceEvent.AsObject;
@@ -664,7 +670,22 @@ export namespace UIDiscoverDeployServiceEvent {
         metadata?: DiscoverMetadata.AsObject,
         resource?: DiscoverResourceMetadata.AsObject,
         status?: DiscoverStepStatus.AsObject,
+        deployMethod: UIDiscoverDeployServiceEvent.DeployMethod,
+        deployType: UIDiscoverDeployServiceEvent.DeployType,
     }
+
+    export enum DeployMethod {
+    DEPLOY_METHOD_UNSPECIFIED = 0,
+    DEPLOY_METHOD_AUTO = 1,
+    DEPLOY_METHOD_MANUAL = 2,
+    }
+
+    export enum DeployType {
+    DEPLOY_TYPE_UNSPECIFIED = 0,
+    DEPLOY_TYPE_INSTALL_SCRIPT = 1,
+    DEPLOY_TYPE_AMAZON_ECS = 2,
+    }
+
 }
 
 export class UIDiscoverDatabaseRegisterEvent extends jspb.Message { 

@@ -45,15 +45,17 @@ import {
 } from 'teleport/services/auth';
 
 import * as service from '../service';
-
-import { resolveServerCommandMessage, resolveServerMessage } from '../service';
+import {
+  resolveServerAssistThoughtMessage,
+  resolveServerCommandMessage,
+  resolveServerMessage,
+} from '../service';
 
 import type {
   ConversationMessage,
   ResolvedServerMessage,
   ServerMessage,
 } from 'teleport/Assist/types';
-
 import type { AssistState } from 'teleport/Assist/context/state';
 
 interface AssistContextValue {
@@ -65,6 +67,7 @@ interface AssistContextValue {
   sendMfaChallenge: (data: WebauthnAssertionResponse) => void;
   selectedConversationMessages: ConversationMessage[];
   setSelectedConversationId: (conversationId: string) => Promise<void>;
+  toggleSidebar: (visible: boolean) => void;
 }
 
 const AssistContext = createContext<AssistState & AssistContextValue>(null);
@@ -81,6 +84,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
   const { clusterId } = useStickyClusterId();
 
   const [state, dispatch] = useReducer(reducer, {
+    sidebarVisible: false,
     conversations: {
       loading: false,
       data: [],
@@ -136,7 +140,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     };
 
     activeWebSocket.current.onclose = () => {
-      dispatch({ type: AssistStateActionType.SetStreaming, streaming: false });
+      dispatch({
+        type: AssistStateActionType.SetStreaming,
+        streaming: false,
+      });
     };
 
     activeWebSocket.current.onmessage = async event => {
@@ -167,19 +174,26 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
 
         case ServerMessageType.AssistPartialMessage: {
-          const payload = JSON.parse(data.payload);
-
           dispatch({
             type: AssistStateActionType.AddPartialMessage,
-            message: payload.content,
+            message: data.payload,
             conversationId,
           });
 
           break;
         }
 
+        case ServerMessageType.AssistThought:
+          const message = resolveServerAssistThoughtMessage(data);
+          dispatch({
+            type: AssistStateActionType.AddThought,
+            message: message.message,
+            conversationId,
+          });
+
+          break;
         case ServerMessageType.Command: {
-          const message = await resolveServerCommandMessage(data);
+          const message = resolveServerCommandMessage(data);
 
           dispatch({
             type: AssistStateActionType.AddExecuteRemoteCommand,
@@ -302,7 +316,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
 
     const messages = state.messages.data.get(state.conversations.selectedId);
 
-    dispatch({ type: AssistStateActionType.SetStreaming, streaming: true });
+    dispatch({
+      type: AssistStateActionType.SetStreaming,
+      streaming: true,
+    });
 
     const data = JSON.stringify({ payload: message });
 
@@ -523,6 +540,13 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     });
   }
 
+  function toggleSidebar(visible: boolean) {
+    dispatch({
+      type: AssistStateActionType.ToggleSidebar,
+      visible,
+    });
+  }
+
   useEffect(() => {
     loadConversations();
   }, []);
@@ -549,6 +573,7 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
         sendMessage,
         sendMfaChallenge,
         setSelectedConversationId,
+        toggleSidebar,
       }}
     >
       {props.children}

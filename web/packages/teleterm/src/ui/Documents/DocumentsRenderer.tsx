@@ -32,7 +32,7 @@ import {
 import DocumentCluster from 'teleterm/ui/DocumentCluster';
 import DocumentGateway from 'teleterm/ui/DocumentGateway';
 import { DocumentTerminal } from 'teleterm/ui/DocumentTerminal';
-import { DocumentConnectMyComputerSetup } from 'teleterm/ui/DocumentConnectMyComputer';
+import { DocumentConnectMyComputerSetup } from 'teleterm/ui/ConnectMyComputer';
 
 import Document from 'teleterm/ui/Document';
 import { RootClusterUri } from 'teleterm/ui/uri';

@@ -61,7 +61,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/srv"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
@@ -1254,7 +1254,7 @@ type testContext struct {
 	mux            *multiplexer.Mux
 	mysqlListener  net.Listener
 	webListener    *multiplexer.WebListener
-	fakeRemoteSite *reversetunnel.FakeRemoteSite
+	fakeRemoteSite *reversetunnelclient.FakeRemoteSite
 	server         *Server
 	emitter        *eventstest.ChannelEmitter
 	databaseCA     types.CertAuthority
@@ -1990,10 +1990,10 @@ func setupTestContext(ctx context.Context, t *testing.T, withDatabases ...withDa
 	}
 
 	// Establish fake reversetunnel b/w database proxy and database service.
-	testCtx.fakeRemoteSite = reversetunnel.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
+	testCtx.fakeRemoteSite = reversetunnelclient.NewFakeRemoteSite(testCtx.clusterName, proxyAuthClient)
 	t.Cleanup(func() { require.NoError(t, testCtx.fakeRemoteSite.Close()) })
-	tunnel := &reversetunnel.FakeServer{
-		Sites: []reversetunnel.RemoteSite{
+	tunnel := &reversetunnelclient.FakeServer{
+		Sites: []reversetunnelclient.RemoteSite{
 			testCtx.fakeRemoteSite,
 		},
 	}
