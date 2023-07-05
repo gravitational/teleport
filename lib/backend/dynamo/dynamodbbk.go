@@ -126,8 +126,6 @@ func (cfg *Config) CheckAndSetDefaults() error {
 	}
 
 	if *cfg.OnDemand {
-		cfg.WriteCapacityUnits = 0
-		cfg.ReadCapacityUnits = 0
 		cfg.EnableAutoScaling = false
 	}
 
@@ -668,17 +666,16 @@ func (b *Backend) getTableStatus(ctx context.Context, tableName string) (tableSt
 // following docs partial:
 // docs/pages/includes/dynamodb-iam-policy.mdx
 func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey string) error {
-	var pThroughput *dynamodb.ProvisionedThroughput
-	var billingMode *string
+	billingMode := aws.String(dynamodb.BillingModeProvisioned)
+	pThroughput := &dynamodb.ProvisionedThroughput{
+		ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
+		WriteCapacityUnits: aws.Int64(b.WriteCapacityUnits),
+	}
 	if *b.OnDemand {
 		billingMode = aws.String(dynamodb.BillingModePayPerRequest)
-	} else {
-		pThroughput = &dynamodb.ProvisionedThroughput{
-			ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
-			WriteCapacityUnits: aws.Int64(b.WriteCapacityUnits),
-		}
-		billingMode = aws.String(dynamodb.BillingModeProvisioned)
+		pThroughput = nil
 	}
+
 	def := []*dynamodb.AttributeDefinition{
 		{
 			AttributeName: aws.String(hashKeyKey),
