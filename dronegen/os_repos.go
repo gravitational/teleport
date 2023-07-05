@@ -42,6 +42,13 @@ func promoteBuildOsRepoPipeline() pipeline {
 			packageNameFilter: `teleport-ent-updater*`,
 			displayName:       "teleport-ent-updater",
 		},
+		// Rolling release pipelines
+		{
+			versionChannel:    "rolling",
+			packageNameFilter: `$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")`,
+			packageToTest:     "teleport-ent",
+			displayName:       "Teleport",
+		},
 	}
 
 	return buildPromoteOsPackagePipelines(packageDeployments)
@@ -52,10 +59,11 @@ func buildPromoteOsPackagePipelines(packageDeployments []osPackageDeployment) pi
 	clonePath := "/go/src/github.com/gravitational/teleport"
 
 	ghaBuild := ghaBuildType{
-		trigger:      triggerPromote,
-		pipelineName: "publish-os-package-repos",
-		checkoutPath: clonePath,
-		workflows:    buildWorkflows(releaseEnvironmentFilePath, packageDeployments),
+		trigger:                    triggerPromote,
+		pipelineName:               "publish-os-package-repos",
+		checkoutPath:               clonePath,
+		workflows:                  buildWorkflows(releaseEnvironmentFilePath, packageDeployments),
+		enableParallelWorkflowRuns: true,
 	}
 	setupSteps := []step{
 		{

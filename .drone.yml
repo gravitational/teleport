@@ -6373,6 +6373,8 @@ steps:
   - mkdir -pv "/go/vars"
   - (go run ./cmd/check -tag ${DRONE_TAG} -check prerelease && echo "promote" || echo
     "build") > "/go/vars/release-environment.txt"
+  depends_on:
+  - Check out code
 - name: Publish Teleport to stable/${DRONE_TAG} apt repo
   image: golang:1.18-alpine
   pull: if-not-exists
@@ -6387,6 +6389,12 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+- name: Wait - Publish Teleport to stable/${DRONE_TAG} yum repo
+  image: alpine:latest
+  commands:
+  - sleep 10
+  depends_on:
+  - Determine if release should go to development or production
 - name: Publish Teleport to stable/${DRONE_TAG} yum repo
   image: golang:1.18-alpine
   pull: if-not-exists
@@ -6401,6 +6409,14 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+  depends_on:
+  - Wait - Publish Teleport to stable/${DRONE_TAG} yum repo
+- name: Wait - Publish teleport-ent-updater to stable/cloud apt repo
+  image: alpine:latest
+  commands:
+  - sleep 20
+  depends_on:
+  - Determine if release should go to development or production
 - name: Publish teleport-ent-updater to stable/cloud apt repo
   image: golang:1.18-alpine
   pull: if-not-exists
@@ -6414,6 +6430,14 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+  depends_on:
+  - Wait - Publish teleport-ent-updater to stable/cloud apt repo
+- name: Wait - Publish teleport-ent-updater to stable/cloud yum repo
+  image: alpine:latest
+  commands:
+  - sleep 30
+  depends_on:
+  - Determine if release should go to development or production
 - name: Publish teleport-ent-updater to stable/cloud yum repo
   image: golang:1.18-alpine
   pull: if-not-exists
@@ -6427,6 +6451,52 @@ steps:
   environment:
     GHA_APP_KEY:
       from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+  depends_on:
+  - Wait - Publish teleport-ent-updater to stable/cloud yum repo
+- name: Wait - Publish Teleport to stable/rolling apt repo
+  image: alpine:latest
+  commands:
+  - sleep 40
+  depends_on:
+  - Determine if release should go to development or production
+- name: Publish Teleport to stable/rolling apt repo
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -series-run -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
+    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
+    -input "package-to-test=teleport-ent" -input "release-channel=stable" -input "repo-type=apt"
+    -input "version-channel=rolling" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+  depends_on:
+  - Wait - Publish Teleport to stable/rolling apt repo
+- name: Wait - Publish Teleport to stable/rolling yum repo
+  image: alpine:latest
+  commands:
+  - sleep 50
+  depends_on:
+  - Determine if release should go to development or production
+- name: Publish Teleport to stable/rolling yum repo
+  image: golang:1.18-alpine
+  pull: if-not-exists
+  commands:
+  - cd "/go/src/github.com/gravitational/teleport/build.assets/tooling"
+  - 'go run ./cmd/gh-trigger-workflow -owner ${DRONE_REPO_OWNER} -repo teleport.e
+    -tag-workflow -series-run -timeout 12h0m0s -workflow deploy-packages.yaml -workflow-ref=refs/heads/master
+    -input "artifact-tag=${DRONE_TAG}" -input "environment=$(cat "/go/vars/release-environment.txt")"
+    -input "package-name-filter=$($DRONE_REPO_PRIVATE && echo "*ent*" || echo "")"
+    -input "package-to-test=teleport-ent" -input "release-channel=stable" -input "repo-type=yum"
+    -input "version-channel=rolling" '
+  environment:
+    GHA_APP_KEY:
+      from_secret: GITHUB_WORKFLOW_APP_PRIVATE_KEY
+  depends_on:
+  - Wait - Publish Teleport to stable/rolling yum repo
 image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 
@@ -17208,6 +17278,6 @@ image_pull_secrets:
 - DOCKERHUB_CREDENTIALS
 ---
 kind: signature
-hmac: d3185434ba38b96a9cbf435a59a3ab0d7e4d3ef6ef39a198164e0e2198f1286d
+hmac: 2ce36485f0e1a07a8a620d31097644e409a95700cbfd37b1ac720448226ce133
 
 ...

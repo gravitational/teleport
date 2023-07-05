@@ -39,10 +39,11 @@ type ghaWorkflow struct {
 type ghaBuildType struct {
 	buildType
 	trigger
-	pipelineName string
-	checkoutPath string
-	dependsOn    []string
-	workflows    []ghaWorkflow
+	pipelineName               string
+	checkoutPath               string
+	dependsOn                  []string
+	workflows                  []ghaWorkflow
+	enableParallelWorkflowRuns bool
 }
 
 func ghaBuildPipeline(ghaBuild ghaBuildType) pipeline {
@@ -73,17 +74,57 @@ func ghaMultiBuildPipeline(setupSteps []step, ghaBuild ghaBuildType) pipeline {
 		},
 	}
 
+	setupStepNames := getStepNames(p.Steps)
+	if ghaBuild.enableParallelWorkflowRuns && len(setupSteps) >= 1 {
+		for index := range setupSteps {
+			setupSteps[index].DependsOn = append(setupSteps[index].DependsOn, setupStepNames...)
+		}
+		setupStepNames = getStepNames(setupSteps)
+	}
+
 	p.Steps = append(p.Steps, setupSteps...)
 
-	for _, workflow := range ghaBuild.workflows {
-		p.Steps = append(p.Steps, buildGHAWorkflowCallStep(workflow, checkoutPath))
-
-		if workflow.slackOnError {
-			p.Steps = append(p.Steps, sendErrorToSlackStep())
-		}
+	for counter, workflow := range ghaBuild.workflows {
+		sleepTime := time.Duration(counter*10) * time.Second // 10 seconds for each workflow
+		p.Steps = append(p.Steps, buildWorkflowSteps(workflow, checkoutPath, ghaBuild.enableParallelWorkflowRuns, sleepTime, setupStepNames)...)
 	}
 
 	return p
+}
+
+func buildWorkflowSteps(workflow ghaWorkflow, checkoutPath string, enableParallelWorkflowRuns bool, sleepTime time.Duration, setupStepNames []string) []step {
+	steps := make([]step, 0)
+	workflowStep := buildGHAWorkflowCallStep(workflow, checkoutPath)
+
+	if enableParallelWorkflowRuns && sleepTime > 0 {
+		sleepStep := sleepStep(sleepTime, setupStepNames, workflow.stepName)
+		steps = append(steps, sleepStep)
+		workflowStep.DependsOn = append(workflowStep.DependsOn, sleepStep.Name)
+	}
+
+	steps = append(steps, workflowStep)
+
+	if workflow.slackOnError {
+		slackStep := sendErrorToSlackStep()
+		if enableParallelWorkflowRuns {
+			slackStep.DependsOn = append(slackStep.DependsOn, workflowStep.Name)
+		}
+
+		steps = append(steps, slackStep)
+	}
+
+	return steps
+}
+
+func sleepStep(sleepTime time.Duration, setupStepNames []string, stepNameSuffix string) step {
+	return step{
+		Name:  fmt.Sprintf("Wait - %s", stepNameSuffix),
+		Image: "alpine:latest",
+		Commands: []string{
+			fmt.Sprintf("sleep %v", sleepTime.Round(time.Second).Seconds()),
+		},
+		DependsOn: setupStepNames,
+	}
 }
 
 func buildGHAWorkflowCallStep(workflow ghaWorkflow, checkoutPath string) step {
