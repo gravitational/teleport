@@ -38,8 +38,8 @@ func FromResourceHeaderV1(msg *headerv1.ResourceHeader) *ResourceHeader {
 	}
 }
 
-func ResourceHeaderFromMetadata(metadata *Metadata) *ResourceHeader {
-	return &ResourceHeader{
+func ResourceHeaderFromMetadata(metadata Metadata) ResourceHeader {
+	return ResourceHeader{
 		Metadata: metadata,
 	}
 }
@@ -53,7 +53,7 @@ type ResourceHeader struct {
 	// Version is the resource version.
 	Version string `json:"version,omitempty"`
 	// Metadata is metadata for the resource.
-	Metadata *Metadata `json:"metadata,omitempty"`
+	Metadata Metadata `json:"metadata,omitempty"`
 }
 
 // GetVersion returns the resource version.
@@ -97,7 +97,7 @@ func (h *ResourceHeader) SetExpiry(t time.Time) {
 }
 
 // GetMetadata returns object metadata.
-func (h *ResourceHeader) GetMetadata() *Metadata {
+func (h *ResourceHeader) GetMetadata() Metadata {
 	return h.Metadata
 }
 
@@ -165,8 +165,8 @@ func (h *ResourceHeader) CheckAndSetDefaults() error {
 }
 
 // FromMetadataV1 converts v1 metadata into an internal metadata object.
-func FromMetadataV1(msg *headerv1.Metadata) *Metadata {
-	return &Metadata{
+func FromMetadataV1(msg *headerv1.Metadata) Metadata {
+	return Metadata{
 		Name:        msg.Name,
 		Description: msg.Description,
 		Labels:      msg.Labels,
