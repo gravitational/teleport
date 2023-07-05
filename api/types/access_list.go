@@ -28,17 +28,17 @@ import (
 
 // FromAccessListV1 converts a v1 access list into an internal access list object.
 func FromAccessListV1(msg *accesslistpb.AccessList) (*AccessList, error) {
-	owners := make([]*AccessListOwner, len(msg.Spec.Owners))
+	owners := make([]AccessListOwner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
-		owners[i] = &AccessListOwner{
+		owners[i] = AccessListOwner{
 			Name:        owner.Name,
 			Description: owner.Description,
 		}
 	}
 
-	members := make([]*AccessListMember, len(msg.Spec.Members))
+	members := make([]AccessListMember, len(msg.Spec.Members))
 	for i, member := range msg.Spec.Members {
-		members[i] = &AccessListMember{
+		members[i] = AccessListMember{
 			Name:    member.Name,
 			Joined:  member.Joined.AsTime(),
 			Expires: member.Expires.AsTime(),
@@ -47,20 +47,20 @@ func FromAccessListV1(msg *accesslistpb.AccessList) (*AccessList, error) {
 		}
 	}
 
-	accessList, err := NewAccessList(header.FromMetadataV1(msg.Header.Metadata), &AccessListSpec{
+	accessList, err := NewAccessList(header.FromMetadataV1(msg.Header.Metadata), AccessListSpec{
 		Owners: owners,
-		Audit: &AccessListAudit{
+		Audit: AccessListAudit{
 			Frequency: msg.Spec.Audit.Frequency.AsDuration(),
 		},
-		MembershipRequires: &AccessListRequires{
+		MembershipRequires: AccessListRequires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
 			Traits: traits.FromV1(msg.Spec.MembershipRequires.Traits),
 		},
-		OwnershipRequires: &AccessListRequires{
+		OwnershipRequires: AccessListRequires{
 			Roles:  msg.Spec.OwnershipRequires.Roles,
 			Traits: traits.FromV1(msg.Spec.OwnershipRequires.Traits),
 		},
-		Grants: &AccessListGrants{
+		Grants: AccessListGrants{
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: traits.FromV1(msg.Spec.Grants.Traits),
 		},
@@ -75,10 +75,10 @@ func FromAccessListV1(msg *accesslistpb.AccessList) (*AccessList, error) {
 // regularly audited.
 type AccessList struct {
 	// ResourceHeader is the common resource header for all resources.
-	*header.ResourceHeader
+	header.ResourceHeader
 
 	// Spec is the specification for the access list.
-	Spec *AccessListSpec `json:"spec" yaml:"spec"`
+	Spec AccessListSpec `json:"spec" yaml:"spec"`
 }
 
 // AccessListSpec is the specification for an access list.
@@ -87,26 +87,26 @@ type AccessListSpec struct {
 	Description string `json:"description" yaml:"description"`
 
 	// Owners is a list of owners of the access list.
-	Owners []*AccessListOwner `json:"owners" yaml:"owners"`
+	Owners []AccessListOwner `json:"owners" yaml:"owners"`
 
 	// Audit describes the frequency that this access list must be audited.
-	Audit *AccessListAudit `json:"audit" yaml:"audit"`
+	Audit AccessListAudit `json:"audit" yaml:"audit"`
 
 	// MembershipRequires describes the requirements for a user to be a member of the access list.
 	// For a membership to an access list to be effective, the user must meet the requirements of
 	// MembershipRequires and must be in the members list.
-	MembershipRequires *AccessListRequires `json:"membership_requires" yaml:"membership_requires"`
+	MembershipRequires AccessListRequires `json:"membership_requires" yaml:"membership_requires"`
 
 	// OwnershipRequires describes the requirements for a user to be an owner of the access list.
 	// For ownership of an access list to be effective, the user must meet the requirements of
 	// OwnershipRequires and must be in the owners list.
-	OwnershipRequires *AccessListRequires `json:"ownership_requires" yaml:"ownership_requires"`
+	OwnershipRequires AccessListRequires `json:"ownership_requires" yaml:"ownership_requires"`
 
 	// Grants describes the access granted by membership to this access list.
-	Grants *AccessListGrants `json:"grants" yaml:"grants"`
+	Grants AccessListGrants `json:"grants" yaml:"grants"`
 
 	// Members describes the current members of the access list.
-	Members []*AccessListMember `json:"members" yaml:"members"`
+	Members []AccessListMember `json:"members" yaml:"members"`
 }
 
 // AccessListOwner is an owner of an access list.
@@ -162,7 +162,7 @@ type AccessListMember struct {
 }
 
 // NewAccessList will create a new access list.
-func NewAccessList(metadata *header.Metadata, spec *AccessListSpec) (*AccessList, error) {
+func NewAccessList(metadata header.Metadata, spec AccessListSpec) (*AccessList, error) {
 	accessList := &AccessList{
 		ResourceHeader: header.ResourceHeaderFromMetadata(metadata),
 		Spec:           spec,
@@ -181,10 +181,6 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		return trace.Wrap(err)
 	}
 
-	if a.Spec == nil {
-		return trace.BadParameter("spec is missing")
-	}
-
 	if len(a.Spec.Owners) == 0 {
 		return trace.BadParameter("owners are missing")
 	}
@@ -199,16 +195,8 @@ func (a *AccessList) CheckAndSetDefaults() error {
 		}
 	}
 
-	if a.Spec.Audit == nil {
-		return trace.BadParameter("audit is missing")
-	}
-
 	if a.Spec.Audit.Frequency == 0 {
 		return trace.BadParameter("audit frequency must be greater than 0")
-	}
-
-	if a.Spec.Grants == nil {
-		return trace.BadParameter("grants is missing")
 	}
 
 	if len(a.Spec.Grants.Roles) == 0 && len(a.Spec.Grants.Traits) == 0 {
@@ -244,7 +232,7 @@ func (a *AccessList) CheckAndSetDefaults() error {
 }
 
 // GetOwners returns the list of owners from the access list.
-func (a *AccessList) GetOwners() []*AccessListOwner {
+func (a *AccessList) GetOwners() []AccessListOwner {
 	return a.Spec.Owners
 }
 
@@ -254,21 +242,21 @@ func (a *AccessList) GetAuditFrequency() time.Duration {
 }
 
 // GetMembershipRequires returns the membership requires configuration from the access list.
-func (a *AccessList) GetMembershipRequires() *AccessListRequires {
+func (a *AccessList) GetMembershipRequires() AccessListRequires {
 	return a.Spec.MembershipRequires
 }
 
 // GetOwnershipRequires returns the ownership requires configuration from the access list.
-func (a *AccessList) GetOwnershipRequires() *AccessListRequires {
+func (a *AccessList) GetOwnershipRequires() AccessListRequires {
 	return a.Spec.OwnershipRequires
 }
 
 // GetGrants returns the grants from the access list.
-func (a *AccessList) GetGrants() *AccessListGrants {
+func (a *AccessList) GetGrants() AccessListGrants {
 	return a.Spec.Grants
 }
 
 // GetMembers returns the members from the access list.
-func (a *AccessList) GetMembers() []*AccessListMember {
+func (a *AccessList) GetMembers() []AccessListMember {
 	return a.Spec.Members
 }
