@@ -327,7 +327,7 @@ func filterBuffer(filterWrapper responsewriters.FilterWrapper, src *responsewrit
 		return nil
 	}
 
-	filter, err := filterWrapper(responsewriters.GetContentHeader(src.Header()), src.Status())
+	filter, err := filterWrapper(responsewriters.GetContentTypeHeader(src.Header()), src.Status())
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -40,6 +40,8 @@ var awsDatabaseTypes = []string{
 	types.DatabaseTypeRedshiftServerless,
 	types.DatabaseTypeElastiCache,
 	types.DatabaseTypeMemoryDB,
+	types.DatabaseTypeAWSKeyspaces,
+	types.DatabaseTypeDynamoDB,
 }
 
 type installSystemdFlags struct {
@@ -230,6 +232,10 @@ func buildAWSConfigurator(manual bool, flags configureDatabaseAWSFlags) (configu
 			configuratorFlags.ForceElastiCachePermissions = true
 		case types.DatabaseTypeMemoryDB:
 			configuratorFlags.ForceMemoryDBPermissions = true
+		case types.DatabaseTypeAWSKeyspaces:
+			configuratorFlags.ForceAWSKeyspacesPermissions = true
+		case types.DatabaseTypeDynamoDB:
+			configuratorFlags.ForceDynamoDBPermissions = true
 		}
 	}
 
@@ -292,6 +298,12 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 		return trace.Wrap(err)
 	}
 
+	// Check if configurator actions is empty.
+	if configurator.IsEmpty() {
+		fmt.Println("The agent doesn't require any extra configuration.")
+		return nil
+	}
+
 	actions := configurator.Actions()
 	printDiscoveryConfiguratorActions(actions)
 	fmt.Print("\n")
@@ -305,12 +317,6 @@ func onConfigureDatabasesAWSCreate(flags configureDatabaseAWSCreateFlags) error 
 		if !confirmed {
 			return nil
 		}
-	}
-
-	// Check if configurator actions is empty.
-	if configurator.IsEmpty() {
-		fmt.Println("The agent doesn't require any extra configuration.")
-		return nil
 	}
 
 	err = executeDiscoveryConfiguratorActions(ctx, configurator.Name(), actions)

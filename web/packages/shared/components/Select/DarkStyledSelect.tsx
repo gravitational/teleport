@@ -29,20 +29,20 @@ const StyledDarkSelect = styled(StyledSelect)(
     padding: 0 8px;
   }
   .react-select__single-value {
-    color: ${theme.colors.text.primary}
+    color: ${theme.colors.text.main}
   }
   
   .react-select__control {
     min-height: 34px;
     height: 34px;
     border-color: rgba(255, 255, 255, 0.24);
-    color: ${theme.colors.text.secondary};
+    color: ${theme.colors.text.slightlyMuted};
     &:focus, &:active {
-      background-color: ${theme.colors.primary.lighter};
+      background-color: ${theme.colors.levels.elevated};
     }
     &:hover {
       border-color: rgba(255, 255, 255, 0.24);
-      background-color: ${theme.colors.primary.lighter};
+      background-color: ${theme.colors.levels.elevated};
       .react-select__dropdown-indicator {
         color: #666;
       }
@@ -57,7 +57,7 @@ const StyledDarkSelect = styled(StyledSelect)(
     }
   }
   .react-select__control--menu-is-open {
-    background-color: ${theme.colors.primary.lighter};
+    background-color: ${theme.colors.levels.elevated};
     border-color: transparent;
     border-radius: 4px;
     border-style: solid;
@@ -73,10 +73,10 @@ const StyledDarkSelect = styled(StyledSelect)(
     }
   }
   .react-select__input {
-    color: ${theme.colors.text.primary}
+    color: ${theme.colors.text.main}
   }
   .react-select__placeholder {
-    color: ${theme.colors.text.secondary}
+    color: ${theme.colors.text.slightlyMuted}
   }
   .react-select__option {
     padding: 4px 12px;
@@ -86,18 +86,18 @@ const StyledDarkSelect = styled(StyledSelect)(
     border-top-right-radius: 0;
   }
   .react-select__multi-value {
-    background-color: ${theme.colors.primary.dark};
-    border: 1px solid ${theme.colors.text.placeholder};
+    background-color: ${theme.colors.levels.sunkenSecondary};
+    border: 1px solid ${theme.colors.text.muted};
   }
   .react-select__multi-value__label {
-    color: ${theme.colors.text.primary};
+    color: ${theme.colors.text.main};
     padding: 0 6px;
   }
   .react-select--is-disabled {
     .react-select__single-value,
     .react-select__placeholder,
     .react-select__indicator {
-      color: ${theme.colors.text.placeholder};
+      color: ${theme.colors.text.muted};
     }
   }
 `

@@ -47,6 +47,10 @@ export interface Access {
   remove: boolean;
 }
 
+export interface AccessWithUse extends Access {
+  use: boolean;
+}
+
 export interface Acl {
   directorySharingEnabled: boolean;
   desktopSessionRecordingEnabled: boolean;
@@ -70,6 +74,10 @@ export interface Acl {
   connectionDiagnostic: Access;
   license: Access;
   download: Access;
+  plugins: Access;
+  integrations: AccessWithUse;
+  assist: Access;
+  samlIdpServiceProvider: Access;
 }
 
 export interface User {

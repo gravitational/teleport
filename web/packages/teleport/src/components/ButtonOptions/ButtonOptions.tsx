@@ -71,7 +71,7 @@ export default class ButtonOptions extends React.Component<Props, State> {
             ml={2}
             style={{ position: 'absolute', top: '6px', right: '16px' }}
             fontSize="3"
-            color="primary.lighter"
+            color="levels.elevated"
           />
         </StyledButton>
         <Menu
@@ -119,7 +119,7 @@ const menuListCss = () => `
 `;
 
 const StyledButton = styled(ButtonOutlined)`
-  border-color: ${props => props.theme.colors.primary.lighter};
+  border-color: ${props => props.theme.colors.levels.elevated};
   height: 32px;
   padding: 0 40px 0 24px;
   width: auto;

@@ -223,7 +223,7 @@ exports[`failed state 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Reset User Authentication?
         </div>
@@ -472,7 +472,7 @@ exports[`processing state 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Reset User Authentication?
         </div>
@@ -731,7 +731,7 @@ exports[`success state 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Share Link
         </div>

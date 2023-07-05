@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/proxy/v1/proxy_service.proto
 
-package v1
+package proxyv1
 
 import (
 	context "context"

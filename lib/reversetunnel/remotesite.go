@@ -135,7 +135,8 @@ func (s *remoteSite) getRemoteClient() (auth.ClientI, bool, error) {
 }
 
 func (s *remoteSite) authServerContextDialer(ctx context.Context, network, address string) (net.Conn, error) {
-	return s.DialAuthServer()
+	conn, err := s.DialAuthServer(DialParams{})
+	return conn, err
 }
 
 // GetTunnelsCount always returns 0 for local cluster
@@ -776,10 +777,13 @@ func (s *remoteSite) watchLocks() error {
 	}
 }
 
-func (s *remoteSite) DialAuthServer() (net.Conn, error) {
-	return s.connThroughTunnel(&sshutils.DialReq{
-		Address: constants.RemoteAuthServer,
+func (s *remoteSite) DialAuthServer(params DialParams) (net.Conn, error) {
+	conn, err := s.connThroughTunnel(&sshutils.DialReq{
+		Address:       constants.RemoteAuthServer,
+		ClientSrcAddr: stringOrEmpty(params.From),
+		ClientDstAddr: stringOrEmpty(params.OriginalClientDstAddr),
 	})
+	return conn, err
 }
 
 // Dial is used to connect a requesting client (say, tsh) to an SSH server
@@ -805,9 +809,12 @@ func (s *remoteSite) DialTCP(params DialParams) (net.Conn, error) {
 	s.logger.Debugf("Dialing from %v to %v.", params.From, params.To)
 
 	conn, err := s.connThroughTunnel(&sshutils.DialReq{
-		Address:  params.To.String(),
-		ServerID: params.ServerID,
-		ConnType: params.ConnType,
+		Address:         params.To.String(),
+		ServerID:        params.ServerID,
+		ConnType:        params.ConnType,
+		ClientSrcAddr:   stringOrEmpty(params.From),
+		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
+		TeleportVersion: params.TeleportVersion,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -835,9 +842,12 @@ func (s *remoteSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	}
 
 	targetConn, err := s.connThroughTunnel(&sshutils.DialReq{
-		Address:  params.To.String(),
-		ServerID: params.ServerID,
-		ConnType: params.ConnType,
+		Address:         params.To.String(),
+		ServerID:        params.ServerID,
+		ConnType:        params.ConnType,
+		ClientSrcAddr:   stringOrEmpty(params.From),
+		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
+		TeleportVersion: params.TeleportVersion,
 	})
 	if err != nil {
 		return nil, trace.NewAggregate(err, userAgent.Close())

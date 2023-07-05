@@ -37,11 +37,11 @@ import (
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/net/http/httpproxy"
 
-	"github.com/gravitational/teleport/api/client/proxy"
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/observability/tracing"
 	tracehttp "github.com/gravitational/teleport/api/observability/tracing/http"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 )
@@ -93,7 +93,7 @@ func newWebClient(cfg *Config) (*http.Client, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	rt := proxy.NewHTTPRoundTripper(&http.Transport{
+	rt := utils.NewHTTPRoundTripper(&http.Transport{
 		TLSClientConfig: &tls.Config{
 			InsecureSkipVerify: cfg.Insecure,
 			RootCAs:            cfg.Pool,
@@ -314,6 +314,8 @@ type ProxySettings struct {
 	// TLSRoutingEnabled indicates that proxy supports ALPN SNI server where
 	// all proxy services are exposed on a single TLS listener (Proxy Web Listener).
 	TLSRoutingEnabled bool `json:"tls_routing_enabled"`
+	// AssistEnabled is true when Teleport Assist is enabled.
+	AssistEnabled bool `json:"assist_enabled"`
 }
 
 // KubeProxySettings is kubernetes proxy settings
@@ -379,6 +381,8 @@ type AuthenticationSettings struct {
 	PreferredLocalMFA constants.SecondFactorType `json:"preferred_local_mfa,omitempty"`
 	// AllowPasswordless is true if passwordless logins are allowed.
 	AllowPasswordless bool `json:"allow_passwordless,omitempty"`
+	// AllowHeadless is true if headless logins are allowed.
+	AllowHeadless bool `json:"allow_headless,omitempty"`
 	// Local contains settings for local authentication.
 	Local *LocalSettings `json:"local,omitempty"`
 	// Webauthn contains MFA settings for Web Authentication.
@@ -403,6 +407,9 @@ type AuthenticationSettings struct {
 	HasMessageOfTheDay bool `json:"has_motd"`
 	// LoadAllCAs tells tsh to load CAs for all clusters when trying to ssh into a node.
 	LoadAllCAs bool `json:"load_all_cas,omitempty"`
+	// DefaultSessionTTL is the TTL requested for user certs if
+	// a TTL is not otherwise specified.
+	DefaultSessionTTL types.Duration `json:"default_session_ttl"`
 }
 
 // LocalSettings holds settings for local authentication.

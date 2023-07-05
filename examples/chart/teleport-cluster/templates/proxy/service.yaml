@@ -33,7 +33,7 @@ spec:
     port: 443
     targetPort: 3080
     protocol: TCP
-{{- if eq $proxy.proxyListenerMode "separate" }}
+{{- if ne $proxy.proxyListenerMode "multiplex" }}
   - name: sshproxy
     port: 3023
     targetPort: 3023

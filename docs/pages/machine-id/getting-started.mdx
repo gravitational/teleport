@@ -8,7 +8,7 @@ certificates that enable a bot user to connect to a remote host.
 
 Here's an overview of what you will do:
 
-1. Download and install `tbot` (=teleport.version=) on the host that will run
+1. Download and install `tbot` on the host that will run
    Machine ID.
 2. Create a bot user.
 3. Start Machine ID.
@@ -22,27 +22,7 @@ Here's an overview of what you will do:
 
 (!/docs/pages/includes/tctl.mdx!)
 
-<Admonition 
-type="note" 
-title="Machine ID and TLS Routing" 
-scopeOnly scope={["oss", "enterprise"]}
->
-
-TLS Routing support was added to Machine ID in [Teleport
-9.3](https://goteleport.com/docs/preview/upcoming-releases/#teleport-93). For
-earlier versions, the Teleport Proxy Server will need to be configured with a
-dedicated SSH listener.
-
-```yaml
-version: v1
-proxy_service:
-  enabled: "yes"
-  listen_addr: "0.0.0.0:3023"
-  ...
-```
-</Admonition>
-
-## Step 1/4. Download and install Teleport (=teleport.version=)
+## Step 1/4. Download and install Teleport
 
 In this step, you will be downloading and installing Teleport binaries onto the
 machine you wish to assign an identity to.
@@ -54,8 +34,6 @@ binaries, including `teleport`, `tctl`, `tsh`, and `tbot`:
 - `tctl` is the administrative tool you will use to create the bot user (step 1/4)
 - `tsh` is the client tool you will use to log in to the Teleport Cluster (steps 2/4 and 4/4)
 - `tbot` is the Machine ID tool you will use to associate a bot user with a machine (step 3/4)
-
-Machine ID is available starting from the Teleport `9.0.0` release. 
 
 Download the appropriate Teleport package for your platform: 
 
@@ -93,7 +71,7 @@ auditor no-login-6566121f-b602-47f1-a118-c9c618ee5aec             session:list,r
 editor                                                            user:list,create,read,update,delete,...
 ```
 
-Machine ID can join with a token or the [IAM Method](https://goteleport.com/docs/setup/guides/joining-nodes-aws) on AWS.
+Machine ID can join with a token or the [IAM Method](../management/join-services-to-your-cluster/aws-iam.mdx) on AWS.
 
 Assuming that you are using the default `access` role, ensure that you use the 
 `--logins` flag when adding your bot to specify the SSH logins that you wish to 
@@ -164,13 +142,12 @@ the foreground to better understand how it works.
 
   ```code
   $ export TELEPORT_ANONYMOUS_TELEMETRY=1
-  $ tbot start \
+  $ sudo tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=(=presets.tokens.first=) \
      --join-method=token \
-     --ca-pin=(=presets.ca_pin=) \
-     --auth-server=auth.example.com:3025
+     --auth-server=teleport.example.com:443
   ```
 
   </ScopedBlock>
@@ -178,12 +155,11 @@ the foreground to better understand how it works.
 
   ```code
   $ export TELEPORT_ANONYMOUS_TELEMETRY=1
-  $ tbot start \
+  $ sudo tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=(=presets.tokens.first=) \
      --join-method=token \
-     --ca-pin=(=presets.ca_pin=) \
      --auth-server=example.teleport.sh:443
   ```
 
@@ -196,13 +172,12 @@ the foreground to better understand how it works.
 
   ```code
   $ export TELEPORT_ANONYMOUS_TELEMETRY=1
-  $ tbot start \
+  $ sudo tbot start \
      --data-dir=/var/lib/teleport/bot \
      --destination-dir=/opt/machine-id \
      --token=iam-token \
      --join-method=iam \
-     --ca-pin=(=presets.ca_pin=) \
-     --auth-server=auth.example.com:3025
+     --auth-server=teleport.example.com:443
   ```
 
   </ScopedBlock>
@@ -215,7 +190,6 @@ the foreground to better understand how it works.
      --destination-dir=/opt/machine-id \
      --token=iam-token \
      --join-method=iam \
-     --ca-pin=(=presets.ca_pin=) \
      --auth-server=example.teleport.sh:443
   ```
 
@@ -233,7 +207,6 @@ Replace the following fields with values from your own cluster.
 <ScopedBlock scope={["cloud"]}>
 
 - `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
-- `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
 - `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
 - `auth-server` is the address of your Teleport Cloud Proxy Server, for example `example.teleport.sh:443`.
@@ -245,10 +218,10 @@ Replace the following fields with values from your own cluster.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
 - `destination-dir` is where Machine ID writes user certificates that can be used by applications and tools.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
-- `auth-server` is the address of your Teleport Auth Server, for example
-  `auth.example.com:3025`. If your Machine ID host is in a different network
-  than your Auth Server, use the public web address of your Proxy Service
-  instead (e.g., `auth.example.com:443`). 
+- `auth-server` is typically the address of your Teleport Proxy Server
+   (`teleport.example.com:443`), but can also be the address of the
+   Auth Server is direct connectivity is available.
+  `teleport.example.com:443`.
 
 </ScopedBlock>
 
@@ -258,22 +231,25 @@ Now that Machine ID has successfully started, let's investigate the
 ```code
 $ tree /opt/machine-id
 machine-id
+├── identity
 ├── key
+├── key-cert.pub
 ├── key.pub
 ├── known_hosts
 ├── ssh_config
-├── sshcacerts
-├── sshcert
-├── tlscacerts
+├── teleport-database-ca.crt
+├── teleport-host-ca.crt
+├── teleport-user-ca.crt
 └── tlscert
 
-0 directories, 8 files
+0 directories, 10 files
 ```
 
 This directory contains private key material in the `key.*` files, SSH
-certificates in the `ssh*` files, X.509 certificates in the `tls*` files, and
-OpenSSH configuration in the `ssh_config` and `known_hosts` files to make it easy
-to integrate Machine ID with external applications and tools.
+certificates in the `identity` file, X.509 certificates in the `tls*` and
+`*.crt` files, OpenSSH configuration in the `ssh_config` and
+`known_hosts` files to make it easy to integrate Machine ID with external
+ applications and tools.
 
 ## Step 4/4. Use certificates issued by Machine ID
 
@@ -287,7 +263,7 @@ Node Name Address        Labels
 node-name  127.0.0.1:3022 arch=x86_64,group=api-servers
 ```
 
-<Details title="Not seeing Nodes?" opened={false}>
+<Details title="Not seeing Nodes?">
 
 (!docs/pages/includes/node-logins.mdx!)
 
@@ -296,9 +272,23 @@ node-name  127.0.0.1:3022 arch=x86_64,group=api-servers
 To use Machine ID with the OpenSSH integration, run the following command to
 connect to `node-name` within cluster `example.com`.
 
+```code
+$ ssh -F /opt/machine-id/ssh_config root@node-name.example.com
 ```
-ssh -F /opt/machine-id/ssh_config root@node-name.example.com
+
+In addition to the `ssh` client you can use `tsh`. Replace the `--proxy` parameter
+with your proxy address. 
+
+<ScopedBlock scope={["oss","enterprise"]}>
+```code
+$ tsh ssh --proxy=teleport.example.com -i /opt/machine-id/identity root@node-name
 ```
+</ScopedBlock>
+<ScopedBlock scope={["cloud"]}>
+```code
+$ tsh ssh --proxy=mytenant.teleport.sh -i /opt/machine-id/identity root@node-name
+```
+</ScopedBlock>
 
 <Admonition type="note" title="Roles must have logins defined">
   The below error can occur when the bot does not have permission to log in to

@@ -120,7 +120,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   margin-top: 4px;
 }
@@ -366,7 +366,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Add New Two-Factor Device
           </div>
@@ -536,7 +536,7 @@ exports[`render dialog to add a new mfa device with webauthn as preferred type 1
               <input
                 autocomplete="off"
                 class="c17"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Name"
                 type="text"
@@ -713,7 +713,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   margin-top: 4px;
 }
@@ -959,7 +959,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Add New Two-Factor Device
           </div>
@@ -1136,7 +1136,7 @@ exports[`render failed state for dialog to add a new mfa device 1`] = `
               <input
                 autocomplete="off"
                 class="c18"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Name"
                 type="text"
@@ -1313,7 +1313,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   margin-top: 4px;
 }
@@ -1386,7 +1386,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c8 {
@@ -1578,7 +1578,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Add New Two-Factor Device
           </div>
@@ -1609,7 +1609,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                
               <div
                 class="c11"
-                color="text.secondary"
+                color="text.slightlyMuted"
               >
                 We recommend
                  
@@ -1706,7 +1706,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
                 <input
                   autocomplete="one-time-code"
                   class="c19"
-                  color="text.onLight"
+                  color="text.primaryInverse"
                   inputmode="numeric"
                   placeholder="123 456"
                   type="text"
@@ -1727,7 +1727,7 @@ exports[`render failed state for fetching QR Code for dialog to add a new mfa de
               <input
                 autocomplete="off"
                 class="c19"
-                color="text.onLight"
+                color="text.primaryInverse"
                 inputmode="text"
                 placeholder="Name"
                 type="text"

@@ -75,12 +75,12 @@ func (b *Bot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *ident
 		return nil, trace.BadParameter("auth client requires a fully formed identity")
 	}
 
-	tlsConfig, err := id.TLSConfig(nil /* cipherSuites */)
+	tlsConfig, err := id.TLSConfig(b.cfg.CipherSuites())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	sshConfig, err := id.SSHClientConfig()
+	sshConfig, err := id.SSHClientConfig(b.cfg.FIPS)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -357,82 +357,108 @@ func (b *Bot) getRouteToApp(ctx context.Context, client auth.ClientI, appCfg *co
 	}, nil
 }
 
+// generateImpersonatedIdentity generates an impersonated identity for a given
+// destination.
+//
+// It returns two identities:
+// - unroutedIdentity: impersonates the roles of the destination, but does not
+// include any routing specified within the destination. This gives an
+// identity which can be used to act as the roleset when interacting with the
+// Teleport API.
+// - routedIdentity: impersonates the roles and routes of the destination.
+// This identity should be the one actually written to the destination, but,
+// may not behave as expected when used to interact with the Teleport API
 func (b *Bot) generateImpersonatedIdentity(
 	ctx context.Context,
 	expires time.Time,
 	destCfg *config.DestinationConfig,
 	defaultRoles []string,
-) (*identity.Identity, error) {
-	ident, err := b.generateIdentity(
+) (routedIdentity *identity.Identity, unroutedIdentity *identity.Identity, err error) {
+	unroutedIdentity, err = b.generateIdentity(
 		ctx, b.ident(), expires, destCfg, defaultRoles, nil,
 	)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, nil, trace.Wrap(err)
 	}
 
 	// Now that we have an initial impersonated identity, we can use it to
 	// request any app/db/etc certs
 	if destCfg.Database != nil {
-		impClient, err := b.AuthenticatedUserClientFromIdentity(ctx, ident)
+		impClient, err := b.AuthenticatedUserClientFromIdentity(ctx, unroutedIdentity)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
 		defer impClient.Close()
 
 		route, err := b.getRouteToDatabase(ctx, impClient, destCfg.Database)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
 		// The impersonated identity is not allowed to reissue certificates,
 		// so we'll request the database access identity using the main bot
 		// identity (having gathered the necessary info for RouteToDatabase
-		// using the correct impersonated ident.)
-		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		// using the correct impersonated unroutedIdentity.)
+		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToDatabase = route
 		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 
 		b.log.Infof("Generated identity for database %q", destCfg.Database.Service)
 
-		return newIdent, trace.Wrap(err)
+		return routedIdentity, unroutedIdentity, nil
 	} else if destCfg.KubernetesCluster != nil {
 		// Note: the Teleport server does attempt to verify k8s cluster names
 		// and will fail to generate certs if the cluster doesn't exist or is
 		// offline.
-		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.KubernetesCluster = destCfg.KubernetesCluster.ClusterName
 		})
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
 
 		b.log.Infof("Generated identity for Kubernetes cluster %q", *destCfg.KubernetesCluster)
 
-		return newIdent, trace.Wrap(err)
+		return routedIdentity, unroutedIdentity, nil
 	} else if destCfg.App != nil {
-		impClient, err := b.AuthenticatedUserClientFromIdentity(ctx, ident)
+		impClient, err := b.AuthenticatedUserClientFromIdentity(ctx, unroutedIdentity)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
-
 		defer impClient.Close()
 
 		routeToApp, err := b.getRouteToApp(ctx, impClient, destCfg.App)
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
-		newIdent, err := b.generateIdentity(ctx, ident, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+		routedIdentity, err := b.generateIdentity(ctx, unroutedIdentity, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
 			req.RouteToApp = routeToApp
 		})
 		if err != nil {
-			return nil, trace.Wrap(err)
+			return nil, nil, trace.Wrap(err)
 		}
 
 		b.log.Infof("Generated identity for app %q", *destCfg.App)
 
-		return newIdent, nil
+		return routedIdentity, unroutedIdentity, nil
+	} else if destCfg.Cluster != "" {
+		routedIdentity, err := b.generateIdentity(
+			ctx, unroutedIdentity, expires, destCfg, defaultRoles, func(req *proto.UserCertsRequest) {
+				req.RouteToCluster = destCfg.Cluster
+			},
+		)
+		if err != nil {
+			return nil, nil, trace.Wrap(err)
+		}
+		return routedIdentity, unroutedIdentity, nil
 	}
 
-	return ident, nil
+	return unroutedIdentity, unroutedIdentity, nil
 }
 
 func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
@@ -473,6 +499,8 @@ func (b *Bot) getIdentityFromToken() (*identity.Identity, error) {
 		GetHostCredentials: client.HostCredentials,
 		JoinMethod:         b.cfg.Onboarding.JoinMethod,
 		Expires:            &expires,
+		FIPS:               b.cfg.FIPS,
+		CipherSuites:       b.cfg.CipherSuites(),
 	}
 	if params.JoinMethod == types.JoinMethodAzure {
 		params.AzureParams = auth.AzureParams{
@@ -567,7 +595,7 @@ func (b *Bot) renew(
 		return trace.Wrap(err)
 	}
 
-	identStr, err := describeTLSIdentity(b.ident())
+	identStr, err := describeTLSIdentity(newIdentity)
 	if err != nil {
 		return trace.Wrap(err, "Could not describe bot identity at %s", botDestination)
 	}
@@ -626,19 +654,19 @@ func (b *Bot) renew(
 			return trace.Wrap(err, "Could not write to destination %s, aborting.", destImpl)
 		}
 
-		impersonatedIdent, err := b.generateImpersonatedIdentity(ctx, expires, dest, defaultRoles)
+		routedIdentity, unroutedIdentity, err := b.generateImpersonatedIdentity(ctx, expires, dest, defaultRoles)
 		if err != nil {
 			return trace.Wrap(err, "Failed to generate impersonated certs for %s: %+v", destImpl, err)
 		}
 
-		impersonatedIdentStr, err := describeTLSIdentity(impersonatedIdent)
+		impersonatedIdentStr, err := describeTLSIdentity(routedIdentity)
 		if err != nil {
 			return trace.Wrap(err, "could not describe impersonated certs for destination %s", destImpl)
 		}
 
 		b.log.Infof("Successfully renewed impersonated certificates for %s, %s", destImpl, impersonatedIdentStr)
 
-		if err := identity.SaveIdentity(impersonatedIdent, destImpl, identity.DestinationKinds()...); err != nil {
+		if err := identity.SaveIdentity(routedIdentity, destImpl, identity.DestinationKinds()...); err != nil {
 			return trace.Wrap(err, "failed to save impersonated identity to destination %s", destImpl)
 		}
 
@@ -648,7 +676,7 @@ func (b *Bot) renew(
 				return trace.Wrap(err)
 			}
 
-			if err := template.Render(ctx, b, impersonatedIdent, dest); err != nil {
+			if err := template.Render(ctx, b, routedIdentity, unroutedIdentity, dest); err != nil {
 				b.log.WithError(err).Warnf("Failed to render config template %+v", templateConfig)
 			}
 		}

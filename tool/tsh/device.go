@@ -17,7 +17,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/encoding/protojson"
 
@@ -49,7 +49,7 @@ func newDeviceCommand(app *kingpin.Application) *deviceCommand {
 
 	// "tsh device enroll" command.
 	root.enroll.CmdClause = parentCmd.Command(
-		"enroll", "Enroll this device as a trusted device. Requires Teleport Enterprise")
+		"enroll", "Enroll this device as a trusted device. Requires Teleport Enterprise.")
 	root.enroll.Flag("token", "Device enrollment token").
 		Required().
 		StringVar(&root.enroll.token)
@@ -68,7 +68,7 @@ type deviceEnrollCommand struct {
 }
 
 func (c *deviceEnrollCommand) run(cf *CLIConf) error {
-	teleportClient, err := makeClient(cf, true /* useProfileLogin */)
+	teleportClient, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

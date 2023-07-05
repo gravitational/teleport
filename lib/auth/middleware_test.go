@@ -21,6 +21,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"net"
 	"testing"
 	"time"
 
@@ -32,6 +33,7 @@ import (
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/tlsca"
+	"github.com/gravitational/teleport/lib/utils"
 )
 
 func TestMiddlewareGetUser(t *testing.T) {
@@ -207,17 +209,86 @@ func TestMiddlewareGetUser(t *testing.T) {
 	}
 }
 
+func TestCheckIPPinning(t *testing.T) {
+	testCases := []struct {
+		desc       string
+		clientAddr string
+		pinnedIP   string
+		pinIP      bool
+		wantErr    string
+	}{
+		{
+			desc:       "no IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      false,
+		},
+		{
+			desc:       "IP pinning, no pinned IP",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "",
+			pinIP:      true,
+			wantErr:    "pinned IP is required for the user, but is not present on identity",
+		},
+		{
+			desc:       "Pinned IP doesn't match",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      true,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:       "Role doesn't require IP pinning now, but old certificate still pinned",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.2",
+			pinIP:      false,
+			wantErr:    "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:     "IP pinning enabled, missing client IP",
+			pinnedIP: "127.0.0.1",
+			pinIP:    true,
+			wantErr:  "missing observed client IP while checking IP pinning",
+		},
+		{
+			desc:       "correct IP pinning",
+			clientAddr: "127.0.0.1:444",
+			pinnedIP:   "127.0.0.1",
+			pinIP:      true,
+		},
+	}
+
+	for _, tt := range testCases {
+		ctx := context.Background()
+		if tt.clientAddr != "" {
+			ctx = authz.ContextWithClientAddr(ctx, utils.MustParseAddr(tt.clientAddr))
+		}
+		identity := tlsca.Identity{PinnedIP: tt.pinnedIP}
+
+		err := CheckIPPinning(ctx, identity, tt.pinIP)
+
+		if tt.wantErr != "" {
+			require.ErrorContains(t, err, tt.wantErr)
+		} else {
+			require.NoError(t, err)
+		}
+
+	}
+}
+
 // testConn is a connection that implements utils.TLSConn for testing WrapContextWithUser.
 type testConn struct {
 	tls.Conn
 
 	state           tls.ConnectionState
 	handshakeCalled bool
+	remoteAddr      net.Addr
 }
 
 func (t *testConn) ConnectionState() tls.ConnectionState   { return t.state }
 func (t *testConn) Handshake() error                       { t.handshakeCalled = true; return nil }
 func (t *testConn) HandshakeContext(context.Context) error { return t.Handshake() }
+func (t *testConn) RemoteAddr() net.Addr                   { return t.remoteAddr }
 
 func TestWrapContextWithUser(t *testing.T) {
 	localClusterName := "local"
@@ -281,6 +352,7 @@ func TestWrapContextWithUser(t *testing.T) {
 			conn := &testConn{
 				state: tls.ConnectionState{PeerCertificates: tt.peers,
 					HandshakeComplete: !tt.needsHandshake},
+				remoteAddr: utils.MustParseAddr("127.0.0.1:4242"),
 			}
 
 			parentCtx := context.Background()

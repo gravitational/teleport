@@ -34,6 +34,8 @@ const (
 	CookieName = "__Host-grv_csrf"
 	// HeaderName is the default HTTP request header to inspect.
 	HeaderName = "X-CSRF-Token"
+	// FormFieldName is the default form field to inspect.
+	FormFieldName = "csrf_token"
 	// tokenLenBytes is CSRF token length in bytes.
 	tokenLenBytes = 32
 	// defaultMaxAge is the default MaxAge for cookies.
@@ -66,6 +68,21 @@ func VerifyHTTPHeader(r *http.Request) error {
 	token := r.Header.Get(HeaderName)
 	if len(token) == 0 {
 		return trace.BadParameter("cannot retrieve CSRF token from HTTP header %q", HeaderName)
+	}
+
+	err := VerifyToken(token, r)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return nil
+}
+
+// VerifyFormField checks if HTTP form value matches the cookie.
+func VerifyFormField(r *http.Request) error {
+	token := r.FormValue(FormFieldName)
+	if len(token) == 0 {
+		return trace.BadParameter("cannot retrieve CSRF token from form field %q", FormFieldName)
 	}
 
 	err := VerifyToken(token, r)

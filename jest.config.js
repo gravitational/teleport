@@ -14,4 +14,5 @@ module.exports = {
     '**/packages/shared/components/**/*.jsx',
   ],
   coverageReporters: ['text-summary', 'lcov'],
+  setupFilesAfterEnv: ['<rootDir>/web/packages/shared/setupTests.tsx'],
 };

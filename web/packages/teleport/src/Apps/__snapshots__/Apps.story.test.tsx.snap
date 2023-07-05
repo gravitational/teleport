@@ -386,7 +386,7 @@ exports[`failed state 1`] = `
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -725,7 +725,7 @@ exports[`failed state 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -880,7 +880,7 @@ exports[`failed state 1`] = `
         >
           <div
             class="c20"
-            color="primary.contrastText"
+            color="text.contrast"
             style="text-transform: uppercase;"
           >
             Showing 
@@ -1180,7 +1180,7 @@ exports[`failed state 1`] = `
               LAUNCH
               <span
                 class="c17 c31 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -1401,7 +1401,7 @@ exports[`loaded state 1`] = `
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -1740,7 +1740,7 @@ exports[`loaded state 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -1901,7 +1901,7 @@ exports[`loaded state 1`] = `
         >
           <div
             class="c20"
-            color="primary.contrastText"
+            color="text.contrast"
             style="text-transform: uppercase;"
           >
             Showing 
@@ -2201,7 +2201,7 @@ exports[`loaded state 1`] = `
               LAUNCH
               <span
                 class="c17 c31 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -2394,7 +2394,7 @@ exports[`readonly empty state 1`] = `
     </div>
     <div
       class="c3"
-      color="text.primary"
+      color="text.main"
     >
       <div
         class="c4"

@@ -1,43 +1,44 @@
 ---
 title: Access REST APIs With Teleport Application Access
-description: How to access REST APIs with Teleport Application Access.
+description: How to access REST APIs with Teleport application access.
 ---
 
-Teleport Application Access can be used to access applications' (REST or Teleport's own gRPC) APIs with
-tools like [curl](https://man7.org/linux/man-pages/man1/curl.1.html) or Postman.
+The Teleport Application Service can be used to access applications' (REST or
+Teleport's own gRPC) APIs with tools like
+[curl](https://man7.org/linux/man-pages/man1/curl.1.html) or Postman.
 
 <Admonition type="note" title="Non-HTTP API Support">
-Use [TCP Application Access](./tcp.mdx) for non-HTTP APIs (like gRPC).
+Use [TCP application access](./tcp.mdx) for non-HTTP APIs (like gRPC).
 </Admonition>
 
 ## Prerequisites
 
-You will need a running Teleport cluster, either self hosted or in Teleport Cloud.
-We'll assume that you followed the [Getting Started](../getting-started.mdx)
-guide or the general [App Access Usage](./connecting-apps.mdx) guide to connect the web application providing an API to Teleport.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-For simplicity's sake, we'll use Grafana running in a
-[Docker container](https://grafana.com/docs/grafana/latest/installation/docker/)
-and execute API queries against it. You can launch Grafana too with a single Docker
-command:
+- (!docs/pages/includes/tctl.mdx!)
 
-```code
-$ docker run -d -p 3000:3000 grafana/grafana
-```
+- For simplicity's sake, we'll use Grafana running in a
+  [Docker container](https://grafana.com/docs/grafana/latest/installation/docker/)
+  and execute API queries against it. You can launch Grafana too with a single Docker
+  command:
 
-Connect Grafana to your Teleport cluster by adding the following section in
-the Teleport App Service YAML configuration file:
+  ```code
+  $ docker run -d -p 3000:3000 grafana/grafana
+  ```
 
-```yaml
-app_service:
-  enabled: yes
-  apps:
-  - name: "grafana"
-    description: "Test Grafana server"
-    uri: "http://localhost:3000"
-    labels:
-      "env": "dev"
-```
+  Connect Grafana to your Teleport cluster by adding the following section in
+  the Teleport App Service YAML configuration file:
+
+  ```yaml
+  app_service:
+    enabled: yes
+    apps:
+    - name: "grafana"
+      description: "Test Grafana server"
+      uri: "http://localhost:3000"
+      labels:
+        "env": "dev"
+  ```
 
 ## Accessing the API
 

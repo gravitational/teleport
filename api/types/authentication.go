@@ -29,6 +29,7 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/api/constants"
+	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/utils/keys"
 	"github.com/gravitational/teleport/api/utils/tlsutils"
 )
@@ -86,6 +87,11 @@ type AuthPreference interface {
 	// SetAllowPasswordless sets the value of the allow passwordless setting.
 	SetAllowPasswordless(b bool)
 
+	// GetAllowHeadless returns if headless is allowed by cluster settings.
+	GetAllowHeadless() bool
+	// SetAllowHeadless sets the value of the allow headless setting.
+	SetAllowHeadless(b bool)
+
 	// GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 	GetRequireMFAType() RequireMFAType
 	// GetPrivateKeyPolicy returns the configured private key policy for the cluster.
@@ -121,6 +127,11 @@ type AuthPreference interface {
 	IsSAMLIdPEnabled() bool
 	// SetSAMLIdPEnabled sets the SAML IdP to enabled.
 	SetSAMLIdPEnabled(bool)
+
+	// GetDefaultSessionTTL retrieves the max session ttl
+	GetDefaultSessionTTL() Duration
+	// SetDefaultSessionTTL sets the max session ttl
+	SetDefaultSessionTTL(Duration)
 
 	// String represents a human readable version of authentication settings.
 	String() string
@@ -341,6 +352,14 @@ func (c *AuthPreferenceV2) SetAllowPasswordless(b bool) {
 	c.Spec.AllowPasswordless = NewBoolOption(b)
 }
 
+func (c *AuthPreferenceV2) GetAllowHeadless() bool {
+	return c.Spec.AllowHeadless != nil && c.Spec.AllowHeadless.Value
+}
+
+func (c *AuthPreferenceV2) SetAllowHeadless(b bool) {
+	c.Spec.AllowHeadless = NewBoolOption(b)
+}
+
 // GetRequireMFAType returns the type of MFA requirement enforced for this cluster.
 func (c *AuthPreferenceV2) GetRequireMFAType() RequireMFAType {
 	return c.Spec.RequireMFAType
@@ -422,6 +441,16 @@ func (c *AuthPreferenceV2) SetSAMLIdPEnabled(enabled bool) {
 	c.Spec.IDP.SAML.Enabled = NewBoolOption(enabled)
 }
 
+// SetDefaultSessionTTL sets the default session ttl
+func (c *AuthPreferenceV2) SetDefaultSessionTTL(sessionTTL Duration) {
+	c.Spec.DefaultSessionTTL = sessionTTL
+}
+
+// GetDefaultSessionTTL retrieves the default session ttl
+func (c *AuthPreferenceV2) GetDefaultSessionTTL() Duration {
+	return c.Spec.DefaultSessionTTL
+}
+
 // setStaticFields sets static resource header and metadata fields.
 func (c *AuthPreferenceV2) setStaticFields() {
 	c.Kind = KindClusterAuthPreference
@@ -456,6 +485,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 	}
 	if c.Origin() == "" {
 		c.SetOrigin(OriginDynamic)
+	}
+
+	if c.Spec.DefaultSessionTTL == 0 {
+		c.Spec.DefaultSessionTTL = Duration(defaults.CertDuration)
 	}
 
 	switch c.Spec.Type {
@@ -535,6 +568,14 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		return trace.BadParameter("missing required Webauthn configuration for passwordless=true")
 	}
 
+	// Set/validate AllowHeadless. We need Webauthn first to do this properly.
+	switch {
+	case c.Spec.AllowHeadless == nil:
+		c.Spec.AllowHeadless = NewBoolOption(hasWebauthn)
+	case !hasWebauthn && c.Spec.AllowHeadless.Value:
+		return trace.BadParameter("missing required Webauthn configuration for headless=true")
+	}
+
 	// Validate connector name for type=local.
 	if c.Spec.Type == constants.Local {
 		switch connectorName := c.Spec.ConnectorName; connectorName {
@@ -542,6 +583,10 @@ func (c *AuthPreferenceV2) CheckAndSetDefaults() error {
 		case constants.PasswordlessConnector:
 			if !c.Spec.AllowPasswordless.Value {
 				return trace.BadParameter("invalid local connector %q, passwordless not allowed by cluster settings", connectorName)
+			}
+		case constants.HeadlessConnector:
+			if !c.Spec.AllowHeadless.Value {
+				return trace.BadParameter("invalid local connector %q, headless not allowed by cluster settings", connectorName)
 			}
 		default:
 			return trace.BadParameter("invalid local connector %q", connectorName)
@@ -775,7 +820,9 @@ func (d *MFADevice) MarshalJSON() ([]byte, error) {
 }
 
 func (d *MFADevice) UnmarshalJSON(buf []byte) error {
-	return jsonpb.Unmarshal(bytes.NewReader(buf), d)
+	unmarshaler := jsonpb.Unmarshaler{AllowUnknownFields: true}
+	err := unmarshaler.Unmarshal(bytes.NewReader(buf), d)
+	return trace.Wrap(err)
 }
 
 // IsSessionMFARequired returns whether this RequireMFAType requires per-session MFA.

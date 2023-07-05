@@ -33,6 +33,7 @@ import (
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/tbot/bot"
 	"github.com/gravitational/teleport/lib/tlsca"
 	"github.com/gravitational/teleport/lib/utils"
@@ -228,10 +229,11 @@ func (i *Identity) getSSHCheckers() ([]ssh.PublicKey, error) {
 
 // SSHClientConfig returns a ssh.ClientConfig used by the bot to connect to
 // the reverse tunnel server.
-func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
+func (i *Identity) SSHClientConfig(fips bool) (*ssh.ClientConfig, error) {
 	callback, err := apisshutils.NewHostKeyCallback(
 		apisshutils.HostKeyCallbackConfig{
 			GetHostCheckers: i.getSSHCheckers,
+			FIPS:            fips,
 		})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -239,12 +241,21 @@ func (i *Identity) SSHClientConfig() (*ssh.ClientConfig, error) {
 	if len(i.SSHCert.ValidPrincipals) < 1 {
 		return nil, trace.BadParameter("user cert has no valid principals")
 	}
-	return &ssh.ClientConfig{
+	config := &ssh.ClientConfig{
 		User:            i.SSHCert.ValidPrincipals[0],
 		Auth:            []ssh.AuthMethod{ssh.PublicKeys(i.KeySigner)},
 		HostKeyCallback: callback,
 		Timeout:         apidefaults.DefaultIOTimeout,
-	}, nil
+	}
+	if fips {
+		config.Config = ssh.Config{
+			KeyExchanges: defaults.FIPSKEXAlgorithms,
+			MACs:         defaults.FIPSMACAlgorithms,
+			Ciphers:      defaults.FIPSCiphers,
+		}
+	}
+
+	return config, nil
 }
 
 // ReadIdentityFromStore reads stored identity credentials

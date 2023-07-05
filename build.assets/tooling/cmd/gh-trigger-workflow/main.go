@@ -50,12 +50,14 @@ import (
 	"flag"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 
 	ghinst "github.com/bradleyfalzon/ghinstallation/v2"
 	ghapi "github.com/google/go-github/v41/github"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	retryablehttp "github.com/hashicorp/go-retryablehttp"
 
 	"github.com/gravitational/teleport/build.assets/tooling/lib/github"
 )
@@ -77,12 +79,19 @@ func main() {
 		log.Fatalf("Failed to fetch installation ID for app #%d on account %s: %s", args.appID, args.owner, err)
 	}
 
-	tx, err := ghinst.New(http.DefaultTransport, args.appID, installationID, args.appKey)
+	tx, err := ghinst.New(&retryablehttp.RoundTripper{}, args.appID, installationID, args.appKey)
 	if err != nil {
 		log.Fatalf("Failed creating authenticated transport: %s", err)
 	}
 
 	gh := ghapi.NewClient(&http.Client{Transport: tx})
+
+	if args.seriesRun {
+		err := waitForActiveWorkflowRuns(ctx, gh, args)
+		if err != nil {
+			log.Fatalf("Failed to wait for existing workflow runs: %s", err)
+		}
+	}
 
 	dispatchCtx, cancelDispatch := context.WithTimeout(ctx, 1*time.Minute)
 	defer cancelDispatch()
@@ -92,7 +101,7 @@ func main() {
 	// our dispatch event. Note that we pick a time slightly in the past to handle
 	// any clock skew.
 	baselineTime := time.Now().Add(-2 * time.Minute)
-	oldRuns, err := github.ListWorkflowRuns(dispatchCtx, gh.Actions, args.owner, args.repo, args.workflow, args.workflowRef, baselineTime)
+	oldRuns, err := github.ListWorkflowRunIDs(dispatchCtx, gh.Actions, args.owner, args.repo, args.workflow, getBranchForRef(args.workflowRef), baselineTime)
 	if err != nil {
 		log.Fatalf("Failed to fetch initial task list: %s", err)
 	}
@@ -123,7 +132,7 @@ func main() {
 	}
 	log.Printf("Workflow run: %s", run.GetHTMLURL())
 
-	conclusion, err := github.WaitForRun(ctx, gh.Actions, args.owner, args.repo, args.workflow, args.workflowRef, run.GetID())
+	conclusion, err := github.WaitForRun(ctx, gh.Actions, args.owner, args.repo, args.workflow, run.GetID())
 	if err != nil {
 		log.Fatalf("Failed to wait for run to exit %s", err)
 	}
@@ -135,13 +144,23 @@ func main() {
 	log.Printf("Workflow succeeded")
 }
 
+// Returns either the branch name for the provided reference (if it refers to a branch), or an empty string.
+func getBranchForRef(ref string) string {
+	branchRefPrefix := "refs/heads/"
+	if strings.HasPrefix(ref, branchRefPrefix) {
+		return strings.TrimPrefix(ref, branchRefPrefix)
+	}
+
+	return ""
+}
+
 // lookupInstallationID attempts to find an installation of the interface app
 // we're using to authenticate.
 func lookupInstallationID(ctx context.Context, args args) (int64, error) {
 	// Because we don't know the Installtion ID yet (otherwise we wouldn't be
 	// here at all) we have to uses a special, short-lived github client that
 	// can authenticate without it.
-	tx, err := ghinst.NewAppsTransport(http.DefaultTransport, args.appID, args.appKey)
+	tx, err := ghinst.NewAppsTransport(&retryablehttp.RoundTripper{}, args.appID, args.appKey)
 	if err != nil {
 		return 0, trace.Wrap(err, "Failed creating authenticated transport")
 	}
@@ -155,6 +174,48 @@ func lookupInstallationID(ctx context.Context, args args) (int64, error) {
 	return installationID, nil
 }
 
+// Returns the first incomplete matching workflow run found. If none are found, returns nil.
+func getIncompleteWorkflowRunID(ctx context.Context, gh *ghapi.Client, args args) (*ghapi.WorkflowRun, error) {
+	// If there are runs lasting longer than one hour then there is a probably a much larger problem at play
+	recentRuns, err := github.ListWorkflowRuns(ctx, gh.Actions, args.owner, args.repo, args.workflow, "", time.Now().Add(-time.Hour))
+	if err != nil {
+		return nil, trace.Wrap(err, "failed to get a list of current workflow runs")
+	}
+
+	for _, recentRun := range recentRuns {
+		runStatus := recentRun.GetStatus()
+		if runStatus == "" {
+			return nil, trace.Errorf("failed to get status for run ID %q", recentRun.GetID())
+		}
+
+		if runStatus != "completed" {
+			return recentRun, nil
+		}
+	}
+
+	return nil, nil
+}
+
+func waitForActiveWorkflowRuns(ctx context.Context, gh *ghapi.Client, args args) error {
+	for {
+		incompleteWorkflowRun, err := getIncompleteWorkflowRunID(ctx, gh, args)
+		if err != nil {
+			return trace.Wrap(err, "failed to check if workflow has pending runs")
+		}
+
+		if incompleteWorkflowRun == nil {
+			return nil
+		}
+
+		workflowID := incompleteWorkflowRun.GetID()
+		log.Printf("Waiting on pre-existing incomplete run: %s", incompleteWorkflowRun.GetHTMLURL())
+		_, err = github.WaitForRun(ctx, gh.Actions, args.owner, args.repo, args.workflow, workflowID)
+		if err != nil {
+			return trace.Wrap(err, "failed to wait for workflow run %d to complete", workflowID)
+		}
+	}
+}
+
 func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag string, baselineTime time.Time, existingRuns github.RunIDSet) (*ghapi.WorkflowRun, error) {
 	// Now we need to wait and see if a new workflow is spawned
 	ticker := time.NewTicker(1 * time.Second)
@@ -166,7 +227,7 @@ func waitForNewWorkflowRun(ctx context.Context, gh *ghapi.Client, args args, tag
 			log.Fatal("Timed out waiting for workflow run to start")
 
 		case <-ticker.C:
-			newRuns, err := github.ListWorkflowRuns(ctx, gh.Actions, args.owner, args.repo, args.workflow, args.workflowRef, baselineTime)
+			newRuns, err := github.ListWorkflowRunIDs(ctx, gh.Actions, args.owner, args.repo, args.workflow, getBranchForRef(args.workflowRef), baselineTime)
 			if err != nil {
 				return nil, trace.Wrap(err, "Failed polling for new workflow runs")
 			}

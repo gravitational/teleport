@@ -278,8 +278,8 @@ func (s *PresenceService) GetAuthServers() ([]types.Server, error) {
 
 // UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertAuthServer(server types.Server) error {
-	return s.upsertServer(context.TODO(), authServersPrefix, server)
+func (s *PresenceService) UpsertAuthServer(ctx context.Context, server types.Server) error {
+	return s.upsertServer(ctx, authServersPrefix, server)
 }
 
 // DeleteAllAuthServers deletes all auth servers
@@ -296,8 +296,8 @@ func (s *PresenceService) DeleteAuthServer(name string) error {
 
 // UpsertProxy registers proxy server presence, permanently if ttl is 0 or
 // for the specified duration with second resolution if it's >= 1 second
-func (s *PresenceService) UpsertProxy(server types.Server) error {
-	return s.upsertServer(context.TODO(), proxiesPrefix, server)
+func (s *PresenceService) UpsertProxy(ctx context.Context, server types.Server) error {
+	return s.upsertServer(ctx, proxiesPrefix, server)
 }
 
 // GetProxies returns a list of registered proxies
@@ -312,9 +312,9 @@ func (s *PresenceService) DeleteAllProxies() error {
 }
 
 // DeleteProxy deletes proxy
-func (s *PresenceService) DeleteProxy(name string) error {
+func (s *PresenceService) DeleteProxy(ctx context.Context, name string) error {
 	key := backend.Key(proxiesPrefix, name)
-	return s.Delete(context.TODO(), key)
+	return s.Delete(ctx, key)
 }
 
 // DeleteAllReverseTunnels deletes all reverse tunnels
@@ -1469,6 +1469,28 @@ func (s *PresenceService) GetHostUserInteractionTime(ctx context.Context, name s
 	return t, nil
 }
 
+// GetUserGroups returns all registered user groups.
+func (s *PresenceService) GetUserGroups(ctx context.Context, opts ...services.MarshalOption) ([]types.UserGroup, error) {
+	startKey := backend.Key(userGroupPrefix)
+	result, err := s.GetRange(ctx, startKey, backend.RangeEnd(startKey), backend.NoLimit)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userGroups := make([]types.UserGroup, len(result.Items))
+	for i, item := range result.Items {
+		server, err := services.UnmarshalUserGroup(
+			item.Value,
+			services.AddOptions(opts,
+				services.WithResourceID(item.ID),
+				services.WithExpires(item.Expires))...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		userGroups[i] = server
+	}
+	return userGroups, nil
+}
+
 // ListResources returns a paginated list of resources.
 // It implements various filtering for scenarios where the call comes directly
 // here (without passing through the RBAC).
@@ -1511,6 +1533,9 @@ func (s *PresenceService) listResources(ctx context.Context, req proto.ListResou
 	case types.KindKubeServer:
 		keyPrefix = []string{kubeServersPrefix}
 		unmarshalItemFunc = backendItemToKubernetesServer
+	case types.KindUserGroup:
+		keyPrefix = []string{userGroupPrefix}
+		unmarshalItemFunc = backendItemToUserGroup
 	default:
 		return nil, trace.NotImplemented("%s not implemented at ListResources", req.ResourceType)
 	}
@@ -1639,6 +1664,17 @@ func (s *PresenceService) listResourcesWithSort(ctx context.Context, req proto.L
 			return nil, trace.Wrap(err)
 		}
 		resources = kubeServers.AsResources()
+	case types.KindUserGroup:
+		userGroups, err := s.GetUserGroups(ctx)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		sortedUserGroups := types.UserGroups(userGroups)
+		if err := sortedUserGroups.SortByCustom(req.SortBy); err != nil {
+			return nil, trace.Wrap(err)
+		}
+		resources = sortedUserGroups.AsResources()
 
 	default:
 		return nil, trace.NotImplemented("resource type %q is not supported for ListResourcesWithSort", req.ResourceType)
@@ -1762,6 +1798,16 @@ func backendItemToServer(kind string) backendItemToResourceFunc {
 // `types.WindowsDesktopService`, returning it as a `types.ResourceWithLabels`.
 func backendItemToWindowsDesktopService(item backend.Item) (types.ResourceWithLabels, error) {
 	return services.UnmarshalWindowsDesktopService(
+		item.Value,
+		services.WithResourceID(item.ID),
+		services.WithExpires(item.Expires),
+	)
+}
+
+// backendItemToUserGroup unmarshals `backend.Item` into a
+// `types.UserGroup`, returning it as a `types.ResourceWithLabels`.
+func backendItemToUserGroup(item backend.Item) (types.ResourceWithLabels, error) {
+	return services.UnmarshalUserGroup(
 		item.Value,
 		services.WithResourceID(item.ID),
 		services.WithExpires(item.Expires),

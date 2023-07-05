@@ -7,34 +7,18 @@ Teleport supports exporting user SSH certificates with configurable key extensio
 
 ## Prerequisites
 
-- The Teleport Auth Service and Proxy Service v(=teleport.version=), either self hosted or deployed on Teleport Cloud.
-- The GitHub SSO authentication connector. For more information, see [GitHub SSO](../../access-controls/sso/github-sso.mdx).
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
 - Access to GitHub Enterprise and permissions to modify GitHub's SSH Certificate Authorities.
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Import the Teleport CA into GitHub
 
-In order to export the Teleport CA, execute the following command:
-
-<ScopedBlock scope={["oss", "enterprise"]}>
+In order to export the Teleport CA, execute the following command, assigning <Var name="proxy" /> to the address of your Teleport Proxy Service:
 
 ```code
-# Log in to your cluster with tsh so you can use tctl from your local machine.
-# You can also run tctl on your Auth Service host without running "tsh login"
-# first.
-$ tsh login --proxy=teleport.example.com --user=myuser
-$ tctl auth export --type=user | sed 's/^cert-authority //g'
+$ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=user' | sed 's/^cert-authority //g'
 ```
-
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-
-```code
-# Log in to your Teleport cluster so you can use tctl remotely.
-$ tsh login --proxy=mytenant.teleport.sh --user=myuser
-$ tctl auth export --type=user | sed 's/^cert-authority //g'
-```
-
-</ScopedBlock>
 
 Next, follow the instructions in the guide below to import your Teleport CA into GitHub:
 

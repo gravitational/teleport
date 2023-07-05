@@ -24,7 +24,15 @@ Teleport administrators to define policies like:
 - A Teleport role with access to edit and maintain `saml` resources. This is
   available in the default `editor` role.
 
-(!docs/pages/includes/tctl.mdx!)
+<Tabs>
+<TabItem label="Teleport Enterprise (Self-Hosted)" scope="enterprise">
+- (!docs/pages/includes/enterprise/tctl-tsh-prerequisite.mdx!)
+</TabItem>
+<TabItem label="Teleport Cloud" scope="cloud">
+- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
+</TabItem>
+</Tabs>
+
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
@@ -68,13 +76,14 @@ Provide the following values to their respective fields:
 
 #### General
 
-- Single sign on URL: `https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector`
-- Audience URI (SP Entity ID): <nobr>`https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector`</nobr>
+- Single sign on URL: `https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`
+- Audience URI (SP Entity ID): <nobr>`https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`</nobr>
 - Name ID format `EmailAddress`
 - Application username `Okta username`
 
 Replace `<cluster-url>` with your Teleport Proxy Service address or Enterprise
-Cloud tenant (e.g. `mytenant.teleport.sh`).
+Cloud tenant (e.g. `mytenant.teleport.sh`). Replace `<port>` with your Proxy
+Service listening port (`443` by default).
 
 #### Attribute Statements
 
@@ -135,22 +144,98 @@ You can also right click on the "View IdP metadata" link and select
 
 ## Step 3/4. Create a SAML connector
 
-Define a SAML connector resource in a local file named `okta-connector.yaml`:
+Define an Okta SAML connector using `tctl`. Update this example command with
+the path to your metadata file, and edit the `--attributes-to-roles` values for
+custom group assignment to roles. See [tctl sso configure
+saml](../../reference/cli.mdx#tctl-sso-configure-saml) for a full reference of
+flags for this command:
 
-```yaml
-(!examples/resources/saml-connector.yaml!)
+```code
+$ tctl sso configure saml --preset=okta \
+--entity-descriptor <Var name="https://example.okta.com/app/000000/sso/saml/metadata"/> \
+--attributes-to-roles=groups,okta-admin,editor \
+--attributes-to-roles=groups,okta-dev,access > okta.yaml
 ```
 
-Update the value of `acs` with your Teleport Proxy address or Enterprise Cloud tenant
-(e.g. `mytenant.teleport.sh`), and replace the value of `entity_descriptor_url`
-with the path you copied in the previous step.
+The contents of `okta.yaml` should resemble the following:
+
+```yaml
+kind: saml
+metadata:
+  name: okta
+spec:
+  acs: https://teleport.example.com:443/v1/webapi/saml/acs/okta
+  attributes_to_roles:
+  - name: groups
+    roles:
+    - editor
+    value: okta-admin
+  - name: groups
+    roles:
+    - access
+    value: okta-dev
+  audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
+  cert: ""
+  display: "Okta"
+  entity_descriptor: ""
+  entity_descriptor_url: https://example.okta.com/app/000000/sso/saml/metadata
+  issuer: ""
+  service_provider_issuer: https://teleport.example.com:443/v1/webapi/saml/acs/okta
+  sso: ""
+version: v2
+```
 
 The `attributes_to_roles` field in the connector resource maps key/value-like attributes of
 the assertion from Okta into a list of Teleport roles to apply to the session.
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
 
-Create the connector using `tctl` tool:
+You can test the connector before applying it to your cluster. This is strongly
+encouraged to avoid interruption to active clusters:
+
+```code
+$ cat okta.yaml | tctl sso test
+If browser window does not open automatically, open it by clicking on the link:
+ http://127.0.0.1:52519/0222b1ca...
+Success! Logged in as: alice@example.com
+--------------------------------------------------------------------------------
+Authentication details:
+   roles:
+   - editor
+   - access
+   traits:
+     groups:
+     - Everyone
+     - okta-admin
+     - okta-dev
+     username:
+     - alice@example.com
+   username: alice@example.com
+--------------------------------------------------------------------------------
+[SAML] Attributes to roles:
+- name: groups
+  roles:
+  - editor
+  value: okta-admin
+- name: groups
+  roles:
+  - access
+  value: okta-dev
+
+--------------------------------------------------------------------------------
+[SAML] Attributes statements:
+groups:
+- Everyone
+- okta-admin
+- okta-dev
+username:
+- alice@example.com
+
+--------------------------------------------------------------------------------
+For more details repeat the command with --debug flag.
+```
+
+Create the connector using `tctl`:
 
 ```code
 $ tctl create okta-connector.yaml
@@ -195,12 +280,12 @@ $ tctl create dev.yaml
 
 ## Testing
 
-The Web UI now contains a new "Okta" button at the login screen. The CLI
-behaves the same as before, but now you provide the email associated with an
-Okta account:
+The Web UI now contains a new "Okta" button at the login screen. To 
+authenticate via the `tsh` CLI, specify the Proxy Service address and `tsh` will 
+automatically use the default authentication type:
 
 ```code
-$ tsh login --proxy=proxy.example.com --user=alice@example.com
+$ tsh login --proxy=proxy.example.com
 ```
 
 This command prints the SSO login URL (and will try to open it automatically
@@ -211,7 +296,7 @@ Teleport can use multiple SAML connectors. In this case a connector name
 can be passed via the `--auth` flag. For the connector we created above:
 
 ```code
-$ tsh login --proxy=proxy.example.com --user=alice@example.com --auth=okta
+$ tsh login --proxy=proxy.example.com --auth=okta
 ```
 
 </Admonition>

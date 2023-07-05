@@ -7,15 +7,17 @@ description: How to rotate Teleport's certificate authority
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
-## Certificate Authority rotation
+## Certificate authority rotation
 
-This section will show you how to implement certificate rotation in practice.
+This section will show you how to rotate Teleport's certificate authority.
 
-If you are using [CA Pinning](../admin/adding-nodes.mdx#obtain-a-ca-pin)
-when adding new nodes, the CA pin will change after the rotation. Make sure you
-use the *new* CA pin when adding nodes after rotation.
+If you are joining Teleport processes to a cluster via the Teleport Auth Service
+using a [join token](../join-services-to-your-cluster/join-token.mdx), each
+Teleport process will need a CA pin to trust the Auth Service. The CA pin will
+change after each CA rotation. Make sure you use the *new* CA pin when adding
+Teleport services after rotation.
 
 <Admonition type="warning" title="Desktop Access">
 Teleport signs Windows Desktop certificates with the user certificate authority.
@@ -110,9 +112,9 @@ Use `tctl` to confirm that there is an active rotation in progress:
 $ tctl status
 # Cluster  acme.cluster
 # Version  (=teleport.version=)
-# Host CA  initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
-# User CA  rotated Sep 20 01:42:54 UTC
-# Jwt CA   rotated Sep 20 01:42:54 UTC
+# Host CA  initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
+# User CA  rotated Sep 20 2023 01:42:54 UTC
+# Jwt CA   rotated Sep 20 2023 01:42:54 UTC
 # CA pin   sha256:hash
 ```
 
@@ -149,7 +151,7 @@ $ tctl auth rotate --phase=update_clients --type=<Var name="type" description="C
 $ tctl status
 # Cluster  acme.cluster
 # Version  (=teleport.version=)
-# Host CA  rotating clients (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
+# Host CA  rotating clients (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
 ```
 
 <Admonition type="note">
@@ -180,7 +182,7 @@ $ tctl auth rotate --phase=update_servers --type=<Var name="type" description="C
 $ tctl status
 # Cluster  acme.cluster
 # Version  (=teleport.version=)
-# Host CA  rotating servers (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
+# Host CA  rotating servers (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
 ```
 
 <Admonition type="note">
@@ -224,9 +226,9 @@ Verify that the rotation has completed with `tctl`:
 $ tctl status
 Cluster  acme.cluster
 Version  (=teleport.version=)
-Host CA  rotated Sep 20 02:11:25 UTC
-User CA  rotated Sep 20 01:42:54 UTC
-Jwt CA   rotated Sep 20 01:42:54 UTC
+Host CA  rotated Sep 20 2023 02:11:25 UTC
+User CA  rotated Sep 20 2023 01:42:54 UTC
+Jwt CA   rotated Sep 20 2023 01:42:54 UTC
 CA pin   sha256:hash
 ```
 
@@ -294,7 +296,7 @@ Check the cluster status:
 $ tctl status
 Cluster  acme.cluster
 Version  (=teleport.version=)
-Host CA  initialized (mode: manual, started: Sep 20 01:44:36 UTC, ending: Sep 21 07:44:36 UTC)
+Host CA  initialized (mode: manual, started: Sep 20 2023 01:44:36 UTC, ending: Sep 21 2023 07:44:36 UTC)
 ```
 
 Check the status of individual nodes:

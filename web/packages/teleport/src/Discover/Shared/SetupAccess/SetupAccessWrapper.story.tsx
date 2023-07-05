@@ -94,5 +94,6 @@ const props: Props = {
   traitDescription: 'users and groups',
   hasTraits: true,
   onProceed: () => null,
+  onPrev: () => null,
   children: <div>This is where trait selection children renders</div>,
 };

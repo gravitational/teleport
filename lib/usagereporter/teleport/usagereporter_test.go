@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	usageeventsv1 "github.com/gravitational/teleport/api/gen/proto/go/usageevents/v1"
-	prehogv1 "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
+	prehogv1a "github.com/gravitational/teleport/gen/proto/go/prehog/v1alpha"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -35,8 +35,9 @@ func TestConvertUsageEvent(t *testing.T) {
 		name             string
 		event            *usageeventsv1.UsageEventOneOf
 		identityUsername string
+		isSSOUser        bool
 		errCheck         require.ErrorAssertionFunc
-		expected         *prehogv1.SubmitEventRequest
+		expected         *prehogv1a.SubmitEventRequest
 	}{
 		{
 			name: "discover started event",
@@ -48,13 +49,14 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 			identityUsername: "myuser",
 			errCheck:         require.NoError,
-			expected: &prehogv1.SubmitEventRequest{Event: &prehogv1.SubmitEventRequest_UiDiscoverStartedEvent{
-				UiDiscoverStartedEvent: &prehogv1.UIDiscoverStartedEvent{
-					Metadata: &prehogv1.DiscoverMetadata{
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiDiscoverStartedEvent{
+				UiDiscoverStartedEvent: &prehogv1a.UIDiscoverStartedEvent{
+					Metadata: &prehogv1a.DiscoverMetadata{
 						Id:       "someid",
 						UserName: expectedAnonymizedUserString,
+						Sso:      false,
 					},
-					Status: &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					Status: &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 				},
 			}},
 		},
@@ -69,14 +71,15 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 			identityUsername: "myuser",
 			errCheck:         require.NoError,
-			expected: &prehogv1.SubmitEventRequest{Event: &prehogv1.SubmitEventRequest_UiDiscoverResourceSelectionEvent{
-				UiDiscoverResourceSelectionEvent: &prehogv1.UIDiscoverResourceSelectionEvent{
-					Metadata: &prehogv1.DiscoverMetadata{
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiDiscoverResourceSelectionEvent{
+				UiDiscoverResourceSelectionEvent: &prehogv1a.UIDiscoverResourceSelectionEvent{
+					Metadata: &prehogv1a.DiscoverMetadata{
 						Id:       "someid",
 						UserName: expectedAnonymizedUserString,
+						Sso:      false,
 					},
-					Resource: &prehogv1.DiscoverResourceMetadata{Resource: prehogv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status:   &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					Resource: &prehogv1a.DiscoverResourceMetadata{Resource: prehogv1a.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:   &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 				},
 			}},
 		},
@@ -134,14 +137,15 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 			identityUsername: "myuser",
 			errCheck:         require.NoError,
-			expected: &prehogv1.SubmitEventRequest{Event: &prehogv1.SubmitEventRequest_UiDiscoverAutoDiscoveredResourcesEvent{
-				UiDiscoverAutoDiscoveredResourcesEvent: &prehogv1.UIDiscoverAutoDiscoveredResourcesEvent{
-					Metadata: &prehogv1.DiscoverMetadata{
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &prehogv1a.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata: &prehogv1a.DiscoverMetadata{
 						Id:       "someid",
 						UserName: expectedAnonymizedUserString,
+						Sso:      false,
 					},
-					Resource:       &prehogv1.DiscoverResourceMetadata{Resource: prehogv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status:         &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					Resource:       &prehogv1a.DiscoverResourceMetadata{Resource: prehogv1a.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:         &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 					ResourcesCount: 0,
 				},
 			}},
@@ -158,14 +162,15 @@ func TestConvertUsageEvent(t *testing.T) {
 			}},
 			identityUsername: "myuser",
 			errCheck:         require.NoError,
-			expected: &prehogv1.SubmitEventRequest{Event: &prehogv1.SubmitEventRequest_UiDiscoverAutoDiscoveredResourcesEvent{
-				UiDiscoverAutoDiscoveredResourcesEvent: &prehogv1.UIDiscoverAutoDiscoveredResourcesEvent{
-					Metadata: &prehogv1.DiscoverMetadata{
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiDiscoverAutoDiscoveredResourcesEvent{
+				UiDiscoverAutoDiscoveredResourcesEvent: &prehogv1a.UIDiscoverAutoDiscoveredResourcesEvent{
+					Metadata: &prehogv1a.DiscoverMetadata{
 						Id:       "someid",
 						UserName: expectedAnonymizedUserString,
+						Sso:      false,
 					},
-					Resource:       &prehogv1.DiscoverResourceMetadata{Resource: prehogv1.DiscoverResource_DISCOVER_RESOURCE_SERVER},
-					Status:         &prehogv1.DiscoverStepStatus{Status: prehogv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+					Resource:       &prehogv1a.DiscoverResourceMetadata{Resource: prehogv1a.DiscoverResource_DISCOVER_RESOURCE_SERVER},
+					Status:         &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
 					ResourcesCount: 2,
 				},
 			}},
@@ -185,12 +190,57 @@ func TestConvertUsageEvent(t *testing.T) {
 				require.True(tt, trace.IsBadParameter(err), "exepcted trace.IsBadParameter error, got: %v", err)
 			},
 		},
+		{
+			name: "discover started event with sso user",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiDiscoverStartedEvent{
+				UiDiscoverStartedEvent: &usageeventsv1.UIDiscoverStartedEvent{
+					Metadata: &usageeventsv1.DiscoverMetadata{Id: "someid"},
+					Status:   &usageeventsv1.DiscoverStepStatus{Status: usageeventsv1.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+			identityUsername: "myuser",
+			isSSOUser:        true,
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiDiscoverStartedEvent{
+				UiDiscoverStartedEvent: &prehogv1a.UIDiscoverStartedEvent{
+					Metadata: &prehogv1a.DiscoverMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Sso:      true,
+					},
+					Status: &prehogv1a.DiscoverStepStatus{Status: prehogv1a.DiscoverStatus_DISCOVER_STATUS_SUCCESS},
+				},
+			}},
+		},
+		{
+			name: "integration enroll started event",
+			event: &usageeventsv1.UsageEventOneOf{Event: &usageeventsv1.UsageEventOneOf_UiIntegrationEnrollStartEvent{
+				UiIntegrationEnrollStartEvent: &usageeventsv1.UIIntegrationEnrollStartEvent{
+					Metadata: &usageeventsv1.IntegrationEnrollMetadata{Id: "someid", Kind: usageeventsv1.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_OIDC},
+				},
+			}},
+			identityUsername: "myuser",
+			errCheck:         require.NoError,
+			expected: &prehogv1a.SubmitEventRequest{Event: &prehogv1a.SubmitEventRequest_UiIntegrationEnrollStartEvent{
+				UiIntegrationEnrollStartEvent: &prehogv1a.UIIntegrationEnrollStartEvent{
+					Metadata: &prehogv1a.IntegrationEnrollMetadata{
+						Id:       "someid",
+						UserName: expectedAnonymizedUserString,
+						Kind:     prehogv1a.IntegrationEnrollKind_INTEGRATION_ENROLL_KIND_AWS_OIDC,
+					},
+				},
+			}},
+		},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			tt := tt
 			t.Parallel()
 
-			usageEvent, err := ConvertUsageEvent(tt.event, tt.identityUsername)
+			userMD := UserMetadata{
+				Username: tt.identityUsername,
+				IsSSO:    tt.isSSOUser,
+			}
+			usageEvent, err := ConvertUsageEvent(tt.event, userMD)
 			tt.errCheck(t, err)
 			if err != nil {
 				return

@@ -586,7 +586,30 @@ const (
 	SSMRunEvent = "ssm.run"
 
 	// DeviceEvent is the catch-all event for Device Trust events.
+	// Deprecated: Use one of the more specific event codes below.
 	DeviceEvent = "device"
+	// DeviceCreateEvent is emitted on device registration.
+	// This is an inventory management event.
+	DeviceCreateEvent = "device.create"
+	// DeviceDeleteEvent is emitted on device deletion.
+	// This is an inventory management event.
+	DeviceDeleteEvent = "device.delete"
+	// DeviceUpdateEvent is emitted on device updates.
+	// This is an inventory management event.
+	DeviceUpdateEvent = "device.update"
+	// DeviceEnrollEvent is emitted when a device is enrolled.
+	// Enrollment events are issued due to end-user action, using the trusted
+	// device itself.
+	DeviceEnrollEvent = "device.enroll"
+	// DeviceAuthenticateEvent is emitted when a device is authenticated.
+	// Authentication events are issued due to end-user action, using the trusted
+	// device itself.
+	DeviceAuthenticateEvent = "device.authenticate"
+	// DeviceEnrollTokenCreateEvent is emitted when a new enrollment token is
+	// issued for a device.
+	// Device enroll tokens are issued by either a device admin or during
+	// client-side auto-enrollment.
+	DeviceEnrollTokenCreateEvent = "device.token.create"
 
 	// BotJoinEvent is emitted when a bot joins
 	BotJoinEvent = "bot.join"
@@ -612,6 +635,21 @@ const (
 
 	// SAMLIdPServiceProviderDeleteAllEvent is emitted when all service providers have been deleted.
 	SAMLIdPServiceProviderDeleteAllEvent = "saml.idp.service.provider.delete_all"
+
+	// OktaGroupsUpdate event is emitted when the groups synced from Okta have been updated.
+	OktaGroupsUpdateEvent = "okta.groups.update"
+
+	// OktaApplicationsUpdateEvent is emitted when the applications synced from Okta have been updated.
+	OktaApplicationsUpdateEvent = "okta.applications.update"
+
+	// OktaSyncFailureEvent is emitted when the Okta synchronization fails.
+	OktaSyncFailureEvent = "okta.sync.failure"
+
+	// OktaAssignmentProcessEvent is emitted when an assignment is processed.
+	OktaAssignmentProcessEvent = "okta.assignment.process"
+
+	// OktaAssignmentCleanupEvent is emitted when an assignment is cleaned up.
+	OktaAssignmentCleanupEvent = "okta.assignment.cleanup"
 
 	// UnknownEvent is any event received that isn't recognized as any other event type.
 	UnknownEvent = apievents.UnknownEvent

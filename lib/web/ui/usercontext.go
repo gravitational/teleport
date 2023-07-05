@@ -29,6 +29,7 @@ type access struct {
 	Edit   bool `json:"edit"`
 	Create bool `json:"create"`
 	Delete bool `json:"remove"`
+	Use    bool `json:"use"`
 }
 
 type accessStrategy struct {
@@ -93,6 +94,14 @@ type userACL struct {
 	Download access `json:"download"`
 	// Download defines whether the user has access to download the license
 	License access `json:"license"`
+	// Plugins defines whether the user has access to manage hosted plugin instances
+	Plugins access `json:"plugins"`
+	// Integrations defines whether the user has access to manage integrations.
+	Integrations access `json:"integrations"`
+	// Assist defines access to assist feature.
+	Assist access `json:"assist"`
+	// SAMLIdpServiceProvider defines access to `saml_idp_service_provider` objects.
+	SAMLIdpServiceProvider access `json:"samlIdpServiceProvider"`
 }
 
 type authType string
@@ -139,6 +148,7 @@ func newAccess(roleSet services.RoleSet, ctx *services.Context, kind string) acc
 		Edit:   hasAccess(roleSet, ctx, kind, types.VerbUpdate),
 		Create: hasAccess(roleSet, ctx, kind, types.VerbCreate),
 		Delete: hasAccess(roleSet, ctx, kind, types.VerbDelete),
+		Use:    hasAccess(roleSet, ctx, kind, types.VerbUse),
 	}
 }
 
@@ -185,10 +195,21 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	requestAccess := newAccess(userRoles, ctx, types.KindAccessRequest)
 	desktopAccess := newAccess(userRoles, ctx, types.KindWindowsDesktop)
 	cnDiagnosticAccess := newAccess(userRoles, ctx, types.KindConnectionDiagnostic)
+	samlIdpServiceProviderAccess := newAccess(userRoles, ctx, types.KindSAMLIdPServiceProvider)
+
+	var assistAccess access
+	if features.Assist {
+		assistAccess = newAccess(userRoles, ctx, types.KindAssistant)
+	}
 
 	var billingAccess access
 	if features.Cloud {
 		billingAccess = newAccess(userRoles, ctx, types.KindBilling)
+	}
+
+	var pluginsAccess access
+	if features.Plugins {
+		pluginsAccess = newAccess(userRoles, ctx, types.KindPlugin)
 	}
 
 	accessStrategy := getAccessStrategy(userRoles)
@@ -197,6 +218,7 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 	directorySharing := userRoles.DesktopDirectorySharing()
 	download := newAccess(userRoles, ctx, types.KindDownload)
 	license := newAccess(userRoles, ctx, types.KindLicense)
+	integrationsAccess := newAccess(userRoles, ctx, types.KindIntegration)
 
 	acl := userACL{
 		AccessRequests:          requestAccess,
@@ -221,6 +243,10 @@ func NewUserContext(user types.User, userRoles services.RoleSet, features proto.
 		DirectorySharing:        directorySharing,
 		Download:                download,
 		License:                 license,
+		Plugins:                 pluginsAccess,
+		Integrations:            integrationsAccess,
+		Assist:                  assistAccess,
+		SAMLIdpServiceProvider:  samlIdpServiceProviderAccess,
 	}
 
 	// local user

@@ -19,6 +19,7 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/types/events/events.proto";
 import "teleport/legacy/types/types.proto";
@@ -130,33 +131,18 @@ message Event {
     types.OktaImportRuleV1 OktaImportRule = 40 [(gogoproto.jsontag) = "okta_import_rule,omitempty"];
     // OktaAssignment is an OktaAssignment resource.
     types.OktaAssignmentV1 OktaAssignment = 41 [(gogoproto.jsontag) = "okta_assignment,omitempty"];
+    // Integration is an Integration resource.
+    types.IntegrationV1 Integration = 42 [(gogoproto.jsontag) = "integration,omitempty"];
   }
 }
 
 // Watch specifies watch parameters
 message Watch {
   // Kinds specifies object kinds to watch
-  repeated WatchKind Kinds = 1 [
+  repeated types.WatchKind Kinds = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "kinds,omitempty"
   ];
-}
-
-// WatchKind specifies resource kind to watch
-message WatchKind {
-  // Kind is a resource kind to watch
-  string Kind = 1 [(gogoproto.jsontag) = "kind"];
-  // LoadSecrets specifies whether to load secrets
-  bool LoadSecrets = 2 [(gogoproto.jsontag) = "load_secrets"];
-  // Name is an optional specific resource type to watch,
-  // if specified only the events with a specific resource
-  // name will be sent
-  string Name = 3 [(gogoproto.jsontag) = "name"];
-  // Filter is an optional mapping of custom filter parameters.
-  // Valid values vary by resource kind.
-  map<string, string> Filter = 4 [(gogoproto.jsontag) = "filter,omitempty"];
-  // SubKind is a resource subkind to watch
-  string SubKind = 5 [(gogoproto.jsontag) = "sub_kind,omitempty"];
 }
 
 // HostCertsRequest specifies certificate-generation parameters
@@ -315,6 +301,14 @@ message UserCertsRequest {
   // An optional field, that when provided, the response will be validated
   // and the ID of the validated MFA device will be stored in the certificate.
   MFAAuthenticateResponse MFAResponse = 18 [(gogoproto.jsontag) = "mfa_response,omitempty"];
+
+  // SSHLogin is the OS Login for the SSH session that the certificate will be used for.
+  // This login is used when performing RBAC checks to determine if MFA is required
+  // to access the resource.
+  string SSHLogin = 19;
+
+  // AttestationStatement is an attestation statement for the given public key.
+  teleport.attestation.v1.AttestationStatement attestation_statement = 20;
 }
 
 // RouteToDatabase combines parameters for database service routing information.
@@ -564,8 +558,14 @@ message Features {
   reserved 13; // bool ResourceAccessRequests
   // RecoveryCodes enables recovery codes
   bool RecoveryCodes = 14 [(gogoproto.jsontag) = "recovery_codes"];
+  // Plugins enables hosted plugins
+  bool Plugins = 15 [(gogoproto.jsontag) = "plugins"];
   // AutomaticUpgrades enables Automatic Upgrades for the agents/services.
   bool AutomaticUpgrades = 16 [(gogoproto.jsontag) = "automatic_upgrades"];
+  // IsUsageBased enables some usage-based billing features
+  bool IsUsageBased = 17 [(gogoproto.jsontag) = "is_usage_based"];
+  // Assist enables the Assistant feature
+  bool Assist = 18 [(gogoproto.jsontag) = "assist"];
 }
 
 // DeleteUserRequest is the input value for the DeleteUser method.
@@ -1082,6 +1082,20 @@ enum DeviceUsage {
   DEVICE_USAGE_PASSWORDLESS = 2;
 }
 
+// MFARequired indicates if MFA is required to access a
+// resource.
+enum MFARequired {
+  // Indicates the client/server are either old and don't support
+  // checking if MFA is required during the ceremony or that there
+  // was a catastrophic error checking RBAC to determine if completing
+  // an MFA ceremony will grant access to a resource.
+  MFA_REQUIRED_UNSPECIFIED = 0;
+  // Completing an MFA ceremony will grant access to a resource.
+  MFA_REQUIRED_YES = 1;
+  // Completing an MFA ceremony will not grant access to a resource.
+  MFA_REQUIRED_NO = 2;
+}
+
 // MFAAuthenticateChallenge is a challenge for all MFA devices registered for a
 // user.
 message MFAAuthenticateChallenge {
@@ -1096,6 +1110,11 @@ message MFAAuthenticateChallenge {
   // credentials for the ceremony (one for each U2F or Webauthn device
   // registered by the user).
   webauthn.CredentialAssertion WebauthnChallenge = 3;
+  // MFARequired indicates whether proceeding with the MFA ceremony will
+  // grant access to the resource. If `MFA_REQUIRED_NO` is returned by the
+  // server then the stream will be terminated to prevent a fruitless MFA ceremony from
+  // proceeding.
+  MFARequired MFARequired = 4;
 }
 
 // MFAAuthenticateResponse is a response to MFAAuthenticateChallenge using one
@@ -1786,6 +1805,8 @@ message PaginatedResource {
     types.WindowsDesktopServiceV3 WindowsDesktopService = 8 [(gogoproto.jsontag) = "windows_desktop_service,omitempty"];
     // DatabaseService represents a DatabaseService resource.
     types.DatabaseServiceV1 DatabaseService = 9 [(gogoproto.jsontag) = "database_service,omitempty"];
+    // UserGroup represents a UserGroup resource.
+    types.UserGroupV1 UserGroup = 10 [(gogoproto.jsontag) = "user_group,omitempty"];
   }
 }
 
@@ -2130,6 +2151,15 @@ message InventoryStatusSummary {
   repeated UpstreamInventoryHello Connected = 1 [(gogoproto.nullable) = false];
 }
 
+// InventoryConnectedServiceCountsRequest requests inventory connected service counts.
+message InventoryConnectedServiceCountsRequest {}
+
+// InventoryConnectedServiceCounts is the connected service counts seen in the inventory.
+message InventoryConnectedServiceCounts {
+  // ServiceCounts is the count of each connected service seen in the inventory.
+  map<string, uint64> ServiceCounts = 1 [(gogoproto.castkey) = "github.com/gravitational/teleport/api/types.SystemRole"];
+}
+
 // InventoryPingRequest is used to request that the specified server be sent an inventory ping
 // if it has a control stream registered.
 message InventoryPingRequest {
@@ -2210,6 +2240,27 @@ message ListReleasesRequest {
   // ListReleases currently takes no params
 }
 
+// Request for GetHeadlessAuthentication.
+message GetHeadlessAuthenticationRequest {
+  // ID is the headless authentication id.
+  string id = 1;
+}
+
+// Request for UpdateHeadlessAuthenticationState.
+message UpdateHeadlessAuthenticationStateRequest {
+  // ID is the headless authentication id.
+  string id = 1;
+
+  // State is the state that the request will be updated to.
+  // MFA verification is required if State=APPROVED.
+  types.HeadlessAuthenticationState state = 2;
+
+  // MFAResponse is an mfa challenge response used to verify the user.
+  // MFA Auth Challenges can be created for a user with the
+  // authservice.GenerateAuthenticateChallenge rpc.
+  MFAAuthenticateResponse mfa_response = 3;
+}
+
 // AuthService is authentication/authorization service implementation
 service AuthService {
   // InventoryControlStream is the per-instance stream used to advertise teleport instance
@@ -2218,6 +2269,9 @@ service AuthService {
 
   // GetInventoryStatus gets information about current instance inventory.
   rpc GetInventoryStatus(InventoryStatusRequest) returns (InventoryStatusSummary);
+
+  // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+  rpc GetInventoryConnectedServiceCounts(InventoryConnectedServiceCountsRequest) returns (InventoryConnectedServiceCounts);
 
   // PingInventory attempts to trigger a downstream inventory ping (used in testing/debug).
   rpc PingInventory(InventoryPingRequest) returns (InventoryPingResponse);
@@ -2868,4 +2922,10 @@ service AuthService {
 
   // DeleteAllUserGroups removes all user groups.
   rpc DeleteAllUserGroups(google.protobuf.Empty) returns (google.protobuf.Empty);
+
+  // GetHeadlessAuthentication is a request to retrieve a headless authentication from the backend.
+  rpc GetHeadlessAuthentication(GetHeadlessAuthenticationRequest) returns (types.HeadlessAuthentication);
+
+  // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
+  rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);
 }

@@ -15,9 +15,9 @@ limitations under the License.
 */
 
 import { IAppContext } from 'teleterm/ui/types';
-import { ClusterUri, KubeUri, RootClusterUri, routing } from 'teleterm/ui/uri';
-import { TrackedKubeConnection } from 'teleterm/ui/services/connectionTracker';
+import { ClusterUri, RootClusterUri, routing } from 'teleterm/ui/uri';
 import { Platform } from 'teleterm/mainProcess/types';
+import { DocumentOrigin } from 'teleterm/ui/services/workspacesService';
 
 const commands = {
   // For handling "tsh ssh" executed from the command bar.
@@ -26,16 +26,21 @@ const commands = {
     description: '',
     run(
       ctx: IAppContext,
-      args: { loginHost: string; localClusterUri: ClusterUri }
+      args: {
+        loginHost: string;
+        localClusterUri: ClusterUri;
+        origin: DocumentOrigin;
+      }
     ) {
-      const { loginHost, localClusterUri } = args;
+      const { loginHost, localClusterUri, origin } = args;
       const rootClusterUri = routing.ensureRootClusterUri(localClusterUri);
       const documentsService =
         ctx.workspacesService.getWorkspaceDocumentService(rootClusterUri);
 
       const doc = documentsService.createTshNodeDocumentFromLoginHost(
         localClusterUri,
-        loginHost
+        loginHost,
+        { origin }
       );
       documentsService.add(doc);
       documentsService.setLocation(doc.uri);
@@ -83,27 +88,6 @@ const commands = {
           });
         }
       );
-    },
-  },
-
-  'kube-connect': {
-    displayName: '',
-    description: '',
-    run(ctx: IAppContext, args: { kubeUri: KubeUri }) {
-      const documentsService =
-        ctx.workspacesService.getActiveWorkspaceDocumentService();
-      const kubeDoc = documentsService.createTshKubeDocument({
-        kubeUri: args.kubeUri,
-      });
-      const connection = ctx.connectionTracker.findConnectionByDocument(
-        kubeDoc
-      ) as TrackedKubeConnection;
-      documentsService.add({
-        ...kubeDoc,
-        kubeConfigRelativePath:
-          connection?.kubeConfigRelativePath || kubeDoc.kubeConfigRelativePath,
-      });
-      documentsService.open(kubeDoc.uri);
     },
   },
 

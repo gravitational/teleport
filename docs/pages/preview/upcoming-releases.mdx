@@ -8,55 +8,110 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 ## Teleport
 
-### Teleport 12.2.0
+### Teleport 12.3.0
 
-#### New hardened container images
+#### (Preview) Automatic user creation for Desktop Access
 
-New signed and hardened container images built on a distroless base which
-results in a reduced attack surface and smaller footprint.
+Teleport's passwordless access for local users will provide the ability to
+create Windows users on demand, similar to how host-user creation works for SSH
+servers.
 
-*Delayed from Teleport 12.0.0.*
+#### SFTP UX enhancements
 
-#### (Preview) IP-based validation for Kubernetes and Database Access
+Will include fixes for wildcard patterns, excessive audit logging and PyCharm
+compatibility. [#22748](https://github.com/gravitational/teleport/issues/22748)
+[#21518](https://github.com/gravitational/teleport/issues/21518)
+[#22982](https://github.com/gravitational/teleport/issues/22982)
+[#22263](https://github.com/gravitational/teleport/issues/22263)
+[#20863](https://github.com/gravitational/teleport/issues/20863)
+[#23593](https://github.com/gravitational/teleport/issues/23593)
 
-Teleport will be able to pin Kubernetes and database credentials to a
-particular IP to prevent exfiltrated credentials from being used in a different
-environment.
+| Version | Date          |
+|---------|---------------|
+| 12.3.0  | May 1st, 2023 |
 
-*Delayed from Teleport 12.0.0.*
+### Teleport 13.0.0
 
-#### (Preview) Oracle support for Database Access
+| Version        | Date             |
+|----------------|------------------|
+| 13.0.0-alpha.1 | April 17th, 2023 |
+| 13.0.0         | May 8th, 2023    |
 
-Teleport will add the ability to connect to Oracle databases to Teleport
-Database Access (Audit Log support will come in a later release).
+#### (Preview) Automatic upgrades
 
-#### (Preview) GitLab CI integration for Machine ID
+Users will be able to configure Teleport agents to upgrade automatically.
 
-Machine ID will issue short-lived credentials based on GitLab CI's workload
-identity, making it possible to use Teleport to access resource in CI/CD
-workflows without any long-lived secrets or join tokens.
+#### (Preview) TLS routing through ALB for server access and Kubernetes access
 
-#### (Preview) Headless SSO
+Teleport will support server access and Kubernetes access through load
+balancers in TLS routing mode.
 
-Teleport will introduce a new `tsh --headless` mode to allow authentication
-of SSH commands on a remote machine when webauthn is enabled.
-Currently, only `tsh ls`, `tsh ssh`and `tsh scp` are supported.
-Support for more commands will come in a later release.
+#### (Preview) Ability to import applications and groups from Okta to Application Access
 
-| Version | Date            |
-|---------|-----------------|
-| 12.2.0  | April 3rd, 2023 |
+Teleport will be able to imports Okta apps and groups and users will be able to
+use Access Requests with Okta apps and groups.
+
+#### (Preview) AWS OpenSearch support for Database Access
+
+Database access will add support for connecting to AWS OpenSearch.
+
+#### Cross-Cluster Search for Teleport Connect
+
+Teleport Connect will include a new search experience, allowing you to search
+for and connect to resources across all logged-in clusters.
+
+#### Kubernetes access performance improvements
+
+Users will experience better performance when interacting with Kubernetes clusters.
+
+#### Universal binaries (including Apple Silicon) for macOS
+
+Teleport will run natively on ARM Macs, without the need for Rosetta emulation.
+
+#### Simplified RDS onboarding flow in Access Management UI
+
+Teleport Access Management UI will provide ability to connect to AWS account
+and select RDS databases for onboarding.
+
+#### Light theme for Web UI
+
+Teleport's web UI will ship with an optional light theme.
+
+#### Other
+
+In addition, the following improvements
+
+- Improved SQL Server PKINIT Auth support
+- Session recording video export support for Desktop Access
+- Add support for locking to Web UI
+- Device listing in Web UI
+
+### 13.1.0
+
+#### (Preview) GCP Auto-Discovery for Server Access
+
+Teleport will be able to automatically enroll GCP VM for server access.
+
+#### (Preview) OpsGenie Access Request Plugin
+
+Teleport will include OpsGenie access plugin.
+
+*Delayed from Teleport 13.0.0.*
+
+| Version | Date           |
+|---------|----------------|
+| 12.3.0  | June 1st, 2023 |
 
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
-| Week of          | Description                                                                                 |
-|------------------|---------------------------------------------------------------------------------------------|
-| March 13th, 2023 | Complete rollout of [Teleport Worldwide](https://goteleport.com/blog/access-proxy-latency/) |
-| March 13th, 2023 | New dashboard experience for on-prem customers                                              |
-| March 13th, 2023 | Teleport 12.1 begins to roll out for Cloud customers                                        |
-| May 8th, 2023    | Add support for hosted Access Request plugins                                               |
+| Week of          | Description                                          |
+|------------------|------------------------------------------------------|
+| April 10th, 2023 | Teleport 12.2 begins to roll out for Cloud customers |
+| May 8th, 2023    | Add support for hosted Access Request plugins        |
+| June 5th, 2023   | Teleport 13.1 begins to roll out for Cloud customers |
+| June 5th, 2023   | Advanced Audit Log rollout begins                    |
 
 ## Production readiness
 
@@ -103,7 +158,7 @@ A product or feature may be marked as "Preview" if any of the following is
 true.
 
 - The product or feature is missing key functionality. For example, Microsoft
-  SQL Server support for Database Access initially shipped without audit
+  SQL Server support for database access initially shipped without audit
   logging support.
 - The product or feature has NOT been adopted by at least 2 existing customers.
 - The product or feature has NOT been through a security audit.

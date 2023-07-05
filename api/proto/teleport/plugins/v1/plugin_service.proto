@@ -1,0 +1,136 @@
+// Copyright 2023 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.plugins.v1;
+
+import "google/protobuf/empty.proto";
+import "teleport/legacy/types/types.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1;pluginsv1";
+
+// PluginType represents a single type of hosted plugin
+// that can be onboarded.
+message PluginType {
+  // Type is a string corresponding to api.PluginTypeXXX constants
+  string type = 1;
+
+  // OAuthClientID contains the client ID of the OAuth application
+  // that is used with this plugin's API provider.
+  // For plugins that are not authenticated via OAuth,
+  // this will be empty.
+  string oauth_client_id = 2;
+}
+
+// CreatePluginRequest creates a new plugin from the given spec and initial credentials.
+message CreatePluginRequest {
+  // Plugin is the plugin object without live credentials.
+  types.PluginV1 plugin = 1;
+  // BootstrapCredentials are the initial credentials
+  // issued by e.g. OAuth2 authorization code flow.
+  // In the scope of processing this request, these are exchanged for
+  // short-lived renewable credentials, which are stored in the Plugin.
+  types.PluginBootstrapCredentialsV1 bootstrap_credentials = 2;
+}
+
+// GetPluginRequest is a request to return a plugin instance by name.
+message GetPluginRequest {
+  // Name is the name of the plugin instance.
+  string name = 1;
+
+  // WithSecrets indicates whether plugin secrets (credentials) are requested
+  bool with_secrets = 2;
+}
+
+// ListPluginsRequest is a paginated request to list all plugin instances.
+message ListPluginsRequest {
+  // PageSize is the maximum number of plugins to return in a single response.
+  int32 page_size = 1;
+
+  // StartKey is the value of NextKey received in the last ListPluginsResponse.
+  // When making the initial request, this should be left empty.
+  string start_key = 2;
+
+  // WithSecrets indicates whether plugin secrets (credentials) are requested
+  bool with_secrets = 3;
+}
+
+// ListPluginsResponse is a paginated response to a ListPluginsRequest.
+message ListPluginsResponse {
+  // Plugins is the list of plugins.
+  repeated types.PluginV1 plugins = 1;
+
+  // NextKey is a token to retrieve the next page of results, or empty
+  // if there are no more results.
+  string next_key = 2;
+}
+
+// DeletePluginRequest is a request to delete a plugin instance by name.
+message DeletePluginRequest {
+  // Name is the name of the plugin instance.
+  string name = 1;
+}
+
+// SetPluginCredentialsRequest is a request to set credentials for an existing plugin
+message SetPluginCredentialsRequest {
+  // Name is the name of the plugin instance.
+  string name = 1;
+  // Credentials are the credentials obtained after exchanging the initial credentials,
+  // and after successive credential renewals.
+  types.PluginCredentialsV1 credentials = 2;
+}
+
+// SetPluginStatusRequest is a request to set the status for an existing plugin
+message SetPluginStatusRequest {
+  // Name is the name of the plugin instance.
+  string name = 1;
+  // Status is the plugin status.
+  types.PluginStatusV1 status = 2;
+}
+
+// GetAvailablePluginTypesRequest is the request type for GetAvailablePluginTypes
+message GetAvailablePluginTypesRequest {}
+
+// GetAvailablePluginTypesResponse is a response to for GetAvailablePluginTypes
+message GetAvailablePluginTypesResponse {
+  // PluginTypes is a list of hosted plugins
+  // that the auth service supports.
+  repeated PluginType plugin_types = 1;
+}
+
+// PluginService provides CRUD operations for Plugin resources.
+service PluginService {
+  // CreatePlugin creates a new plugin instance.
+  rpc CreatePlugin(CreatePluginRequest) returns (google.protobuf.Empty);
+
+  // GetPlugin returns a plugin instance by name.
+  rpc GetPlugin(GetPluginRequest) returns (types.PluginV1);
+
+  // DeletePlugin removes the specified plugin instance.
+  rpc DeletePlugin(DeletePluginRequest) returns (google.protobuf.Empty);
+
+  // ListPlugins returns a paginated view of plugin instances.
+  rpc ListPlugins(ListPluginsRequest) returns (ListPluginsResponse);
+
+  // SetPluginCredentials sets the credentials for the given plugin.
+  rpc SetPluginCredentials(SetPluginCredentialsRequest) returns (google.protobuf.Empty);
+
+  // SetPluginCredentials sets the status for the given plugin.
+  rpc SetPluginStatus(SetPluginStatusRequest) returns (google.protobuf.Empty);
+
+  // GetAvailablePluginTypes returns the types of plugins
+  // that the auth server supports onboarding.
+  rpc GetAvailablePluginTypes(GetAvailablePluginTypesRequest) returns (GetAvailablePluginTypesResponse);
+}

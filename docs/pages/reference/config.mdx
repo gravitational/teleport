@@ -82,7 +82,7 @@ proxy_service:
 ## Reference configurations
 
 These example configurations include all possible configuration options in YAML
-format to demonstrate proper use of indentation. 
+format to demonstrate proper use of indentation.
 
 Choose a Teleport service to view the application configuration options:
 
@@ -168,3 +168,51 @@ These settings apply to the Windows Desktop Service:
 (!docs/pages/includes/config-reference/desktop-config.yaml!)
 ```
 
+## Configuration versions
+
+In order to avoid breaking existing configurations, Teleport's configuration is
+versioned. The newer configuration version is `v3`. If a `version` is not
+specified in the configuration file, `v1` is assumed.
+
+Some new Teleport features require users to opt-in by explicitly upgrading their
+configuration to a newer version.
+
+### Config `v1`
+
+`v1` is the original version of Teleport's file configuration. It is still supported
+today, but most new users should start with the latest configuration version.
+
+### Config `v2`
+
+Configuration version `v2` was introduced in Teleport 8 as part of Teleport's
+TLS routing feature. With TLS routing, Teleport's proxy listens on a single port
+and uses ALPN and SNI to route incoming traffic to the correct Teleport service
+rather than listening on multiple protocol-specific ports.
+
+For backwards compatibility, configuration version `v1` always listens on these
+protocol-specific ports. When Teleport is using configuration version `v2`, the
+individual protocol-specific ports are not opened unless explicitly set.
+
+### Config `v3`
+
+Configuration version `v3` was introduced with Teleport 11. In version 3, the
+`auth_servers` field is no longer supported, and agents must specify one of
+`auth_server` or `proxy_server` to indicate which endpoint to use for joining a
+Teleport cluster.
+
+Previous versions of Teleport allowed for `auth_servers` to point to Auth
+Servers or Proxy Servers. As a result, Teleport would try to connect in multiple
+different modes, resulting in confusing error messages. With config version 3,
+Teleport only attempts to connect in a single mode, which is both more efficient
+and easier to troubleshoot.
+
+For example, this excerpt from a `v2` config can be converted to `v3` with the
+following changes.
+
+```diff
+-version: v2
++version: v3
+teleport:
+-  auth_servers: [ teleport.example.com:443 ]
++  proxy_server: teleport.example.com:443
+```

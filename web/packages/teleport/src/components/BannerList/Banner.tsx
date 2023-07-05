@@ -55,8 +55,17 @@ export function Banner({
     }
   };
 
+  let backgroundColor;
+  if (severity === 'danger') {
+    backgroundColor = 'danger';
+  } else if (severity === 'warning') {
+    backgroundColor = 'warning.main';
+  } else {
+    backgroundColor = 'info';
+  }
+
   return (
-    <Box bg={severity} p={1} pl={2}>
+    <Box bg={backgroundColor} p={1} pl={2}>
       <Flex alignItems="center">
         {icon}
         {isValidTeleportLink(link) ? (

@@ -14,17 +14,9 @@
  * limitations under the License.
  */
 
-import React, {
-  useContext,
-  useMemo,
-  useState,
-  useEffect,
-  useCallback,
-} from 'react';
+import React, { useContext, useState, useEffect, useCallback } from 'react';
+import { useHistory, useLocation } from 'react-router';
 
-import { useLocation, useHistory } from 'react-router';
-
-import { ResourceKind } from 'teleport/Discover/Shared';
 import {
   DiscoverEventStatus,
   DiscoverEventStepStatus,
@@ -34,44 +26,33 @@ import {
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
-import { addIndexToViews, findViewAtIndex, Resource, View } from './flow';
-import { resourceKindToEventResource } from './Shared/ResourceKind';
-import { resources } from './resources';
-import { DATABASES } from './Database/resources';
+import {
+  addIndexToViews,
+  findViewAtIndex,
+  ResourceViewConfig,
+  View,
+} from './flow';
+import { viewConfigs } from './resourceViewConfigs';
+import { EViewConfigs } from './types';
 
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
+import type { ResourceSpec } from './SelectResource';
 
-export function getKindFromString(value: string) {
-  switch (value) {
-    case 'application':
-      return ResourceKind.Application;
-    case 'database':
-      return ResourceKind.Database;
-    case 'desktop':
-      return ResourceKind.Desktop;
-    case 'kubernetes':
-      return ResourceKind.Kubernetes;
-    default:
-    case 'server':
-      return ResourceKind.Server;
-  }
-}
-
-interface DiscoverContextState<T = any> {
+export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
   currentStep: number;
   nextStep: (count?: number) => void;
   prevStep: () => void;
-  onSelectResource: (kind: ResourceKind) => void;
-  resourceState: T;
-  selectedResource: Resource<T>;
-  selectedResourceKind: ResourceKind;
-  setResourceState: (value: T) => void;
+  onSelectResource: (resource: ResourceSpec) => void;
+  exitFlow: () => void;
+  resourceSpec: ResourceSpec;
+  viewConfig: ResourceViewConfig<T>;
+  indexedViews: View[];
+  setResourceSpec: (value: T) => void;
   updateAgentMeta: (meta: AgentMeta) => void;
-  views: View[];
   emitErrorEvent(errorStr: string): void;
   emitEvent(status: DiscoverEventStepStatus, custom?: CustomEventInput): void;
   eventState: EventState;
@@ -81,60 +62,76 @@ type EventState = {
   id: string;
   currEventName: DiscoverEvent;
   manuallyEmitSuccessEvent: boolean;
-  resource: DiscoverEventResource;
 };
 
 type CustomEventInput = {
+  id?: string;
   eventName?: DiscoverEvent;
+  eventResourceName?: DiscoverEventResource;
   autoDiscoverResourcesCount?: number;
+  selectedResourcesCount?: number;
+};
+
+type DiscoverProviderProps = {
+  // mockCtx used for testing purposes.
+  mockCtx?: DiscoverContextState;
+  // Extra view configs that are passed in. This is used to add view configs from Enterprise.
+  eViewConfigs?: EViewConfigs;
+};
+
+// DiscoverUrlLocationState define fields to preserve state between
+// react routes (eg. in RDS database flow, it is required of user
+// to create a AWS OIDC integration which requires changing route
+// and then coming back to resume the flow.)
+export type DiscoverUrlLocationState = {
+  // discover contains the fields necessary to be able to resume
+  // the flow from where user left off.
+  discover: {
+    eventState: EventState;
+    resourceSpec: ResourceSpec;
+    currentStep: number;
+  };
+  // integrationName is the name of the created integration
+  // resource name (eg: integration subkind "aws-oidc")
+  integrationName: string;
 };
 
 const discoverContext = React.createContext<DiscoverContextState>(null);
 
-export function DiscoverProvider<T = any>(
-  props: React.PropsWithChildren<unknown>
-) {
-  const location = useLocation<{ entity: string }>();
+export function DiscoverProvider({
+  mockCtx,
+  children,
+  eViewConfigs = [],
+}: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
+  const location = useLocation<DiscoverUrlLocationState>();
 
   const [currentStep, setCurrentStep] = useState(0);
-  const [selectedResourceKind, setSelectedResourceKind] =
-    useState<ResourceKind>(getKindFromString(location?.state?.entity));
   const [agentMeta, setAgentMeta] = useState<AgentMeta>();
-  const [resourceState, setResourceState] = useState<T>(() => {
-    // Pre-select the most popular one, to send of a start emit event
-    // on direct rendering the database view (user comes from clicking "add database")
-    if (selectedResourceKind === ResourceKind.Database) {
-      return DATABASES[0] as unknown as T;
-    }
-  });
+  const [resourceSpec, setResourceSpec] = useState<ResourceSpec>();
+  const [viewConfig, setViewConfig] = useState<ResourceViewConfig>();
+  const [eventState, setEventState] = useState<EventState>({} as any);
 
-  const [eventState, setEventState] = useState<EventState>();
-  const selectedResource = resources.find(r => r.kind === selectedResourceKind);
-
-  const views = useMemo<View[]>(() => {
-    if (typeof selectedResource.views === 'function') {
-      return addIndexToViews(selectedResource.views(resourceState));
-    }
-
-    return addIndexToViews(selectedResource.views);
-  }, [selectedResource.views, resourceState]);
+  // indexedViews contains views of the selected resource where
+  // each view has been assigned an index value.
+  const [indexedViews, setIndexedViews] = useState<View[]>([]);
 
   const emitEvent = useCallback(
     (status: DiscoverEventStepStatus, custom?: CustomEventInput) => {
-      const { id, currEventName, resource } = eventState;
+      const { id, currEventName } = eventState;
 
       userEventService.captureDiscoverEvent({
         event: custom?.eventName || currEventName,
         eventData: {
-          id,
-          resource,
+          id: id || custom.id,
+          resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
+          selectedResourcesCount: custom?.selectedResourcesCount,
           ...status,
         },
       });
     },
-    [eventState]
+    [eventState, resourceSpec]
   );
 
   useEffect(() => {
@@ -142,16 +139,6 @@ export function DiscoverProvider<T = any>(
       if (eventState.currEventName === DiscoverEvent.Completed) {
         emitEvent({ stepStatus: DiscoverEventStatus.Success });
       } else {
-        // TODO(lisa): this is temporary fill in as Application
-        // flow is not implemented yet and user can only abort
-        // on resource selection step.
-        if (selectedResourceKind === ResourceKind.Application) {
-          emitEvent(
-            { stepStatus: DiscoverEventStatus.Aborted },
-            { eventName: DiscoverEvent.ResourceSelection }
-          );
-          return;
-        }
         emitEvent({ stepStatus: DiscoverEventStatus.Aborted });
       }
     };
@@ -175,22 +162,134 @@ export function DiscoverProvider<T = any>(
   }, [eventState, history.location.pathname, emitEvent]);
 
   useEffect(() => {
-    if (selectedResourceKind === ResourceKind.Database && !resourceState) {
-      // resourceState hasn't been loaded yet, this state is required to
-      // determine what type of database (engine/location) user
-      // selected to send the correct event. This state gets set when
-      // user selects a database (deployment type).
+    if (location.state?.discover) {
+      resumeDiscoverFlow();
+    } else {
+      initEventState();
+    }
+  }, []);
+
+  function initEventState() {
+    const id = crypto.randomUUID();
+
+    setEventState({
+      id,
+      currEventName: DiscoverEvent.Started,
+      manuallyEmitSuccessEvent: null,
+    });
+    userEventService.captureDiscoverEvent({
+      event: DiscoverEvent.Started,
+      eventData: {
+        id,
+        stepStatus: DiscoverEventStatus.Success,
+        // Started event will be the ONLY event
+        // that won't expect a resource field.
+        resource: '' as any,
+      },
+    });
+  }
+
+  // If a location.state.discover was provided, that means the user is
+  // coming back from another location to resume the flow.
+  // Users will resume at the step that is +1 from the step they left from.
+  //
+  // Example (only applies to AWS RDS & Aurora resources):
+  // A user can leave from route `web/discover/<Connect AWS Account>`
+  // to `web/integrations/enroll/<Create AWS OIDC Integration>` then
+  // come back to resume flow at `web/discover/<Enroll RDS Database>`
+  //
+  // Resuming flow at `Enroll RDS Database` means the user has
+  // successfully finished the prior `Connect AWS Account` step,
+  // so we emit a success event for that step.
+  //
+  // The location.state.discover should contain all the state that allows
+  // the user to resume from where they left of.
+  function resumeDiscoverFlow() {
+    const { discover, integrationName } = location.state;
+
+    updateAgentMeta({ integrationName } as DbMeta);
+
+    startDiscoverFlow(
+      discover.resourceSpec,
+      discover.eventState,
+      discover.currentStep + 1
+    );
+
+    emitEvent(
+      { stepStatus: DiscoverEventStatus.Success },
+      {
+        eventName: discover.eventState.currEventName,
+        eventResourceName: discover.resourceSpec.event,
+        id: discover.eventState.id,
+      }
+    );
+  }
+
+  // onSelectResources inits states, starts flow, and
+  // emits events.
+  function onSelectResource(resource: ResourceSpec) {
+    // We still want to emit an event if user clicked on an
+    // unguided link to gather data on which unguided resource
+    // is most popular.
+    if (resource.unguidedLink || resource.isDialog) {
+      emitEvent(
+        { stepStatus: DiscoverEventStatus.Success },
+        {
+          eventName: DiscoverEvent.ResourceSelection,
+          eventResourceName: resource.event,
+        }
+      );
       return;
     }
-    updateEventState();
 
-    // Only run it once on init or when resource selection
-    // or resource state has changed.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedResourceKind, resourceState]);
+    startDiscoverFlow(resource, eventState);
 
-  function onSelectResource(kind: ResourceKind) {
-    setSelectedResourceKind(kind);
+    // At this point it's considered the user has
+    // successfully selected a resource, so we send an event
+    // for it.
+    emitEvent(
+      { stepStatus: DiscoverEventStatus.Success },
+      {
+        eventName: DiscoverEvent.ResourceSelection,
+        eventResourceName: resource.event,
+      }
+    );
+  }
+
+  // startDiscoverFlow sets all the required states
+  // that will begin the flow.
+  function startDiscoverFlow(
+    resource: ResourceSpec,
+    initEventState: EventState,
+    targetViewIndex = 0
+  ) {
+    // Process each view and assign each with an index number.
+    const currCfg = [...viewConfigs, ...eViewConfigs].find(
+      r => r.kind === resource.kind
+    );
+    let indexedViews = [];
+    if (typeof currCfg.views === 'function') {
+      indexedViews = addIndexToViews(currCfg.views(resource));
+    } else {
+      indexedViews = addIndexToViews(currCfg.views);
+    }
+
+    // Find the target view to update the event state.
+    const { eventName, manuallyEmitSuccessEvent } = findViewAtIndex(
+      indexedViews,
+      targetViewIndex
+    );
+
+    // Init all required states to start the flow.
+    setEventState({
+      ...initEventState,
+      currEventName: eventName,
+      manuallyEmitSuccessEvent,
+    });
+    setViewConfig(currCfg);
+    setIndexedViews(indexedViews);
+    setResourceSpec(resource);
+    setCurrentStep(targetViewIndex);
   }
 
   // nextStep takes the user to next screen and sends reporting events.
@@ -210,7 +309,7 @@ export function DiscoverProvider<T = any>(
     }
 
     const numNextSteps = numToIncrement || 1;
-    const nextView = findViewAtIndex(views, currentStep + numNextSteps);
+    const nextView = findViewAtIndex(indexedViews, currentStep + numNextSteps);
     if (nextView) {
       setCurrentStep(currentStep + numNextSteps);
       setEventState({
@@ -228,14 +327,24 @@ export function DiscoverProvider<T = any>(
     if (!numToIncrement) {
       emitEvent({ stepStatus: DiscoverEventStatus.Skipped });
     } else if (!eventState.manuallyEmitSuccessEvent) {
-      emitEvent({ stepStatus: DiscoverEventStatus.Success });
+      // TODO(lisa): Currently the RDS enroll screen only allows
+      // user to select one RDS database to enroll so we hard code
+      // it for now.
+      if (eventState.currEventName === DiscoverEvent.DatabaseRDSEnrollEvent) {
+        emitEvent(
+          { stepStatus: DiscoverEventStatus.Success },
+          { selectedResourcesCount: 1 }
+        );
+      } else {
+        emitEvent({ stepStatus: DiscoverEventStatus.Success });
+      }
     }
 
     // Whenever a numToIncrement is > 1, it means some steps (after the current view)
     // are being skipped, which we should send events for.
     if (numToIncrement > 1) {
       for (let i = 1; i < numToIncrement; i++) {
-        const currView = findViewAtIndex(views, currentStep + i);
+        const currView = findViewAtIndex(indexedViews, currentStep + i);
         if (currView) {
           emitEvent(
             { stepStatus: DiscoverEventStatus.Skipped },
@@ -247,11 +356,25 @@ export function DiscoverProvider<T = any>(
   }
 
   function prevStep() {
-    const nextView = findViewAtIndex(views, currentStep - 1);
-
-    if (nextView) {
-      setCurrentStep(currentStep - 1);
+    if (currentStep === 0) {
+      // Emit abort since we are starting over with resource selection.
+      emitEvent({ stepStatus: DiscoverEventStatus.Aborted });
+      exitFlow();
+      return;
     }
+
+    const updatedCurrentStep = currentStep - 1;
+    const nextView = findViewAtIndex(indexedViews, updatedCurrentStep);
+    if (nextView) {
+      setCurrentStep(updatedCurrentStep);
+    }
+  }
+
+  function exitFlow() {
+    initEventState();
+    setViewConfig(null);
+    setResourceSpec(null);
+    setIndexedViews([]);
   }
 
   function updateAgentMeta(meta: AgentMeta) {
@@ -259,82 +382,35 @@ export function DiscoverProvider<T = any>(
   }
 
   function emitErrorEvent(errorStr = '') {
-    emitEvent({
-      stepStatus: DiscoverEventStatus.Error,
-      stepStatusError: errorStr,
-    });
+    emitEvent(
+      {
+        stepStatus: DiscoverEventStatus.Error,
+        stepStatusError: errorStr,
+      },
+      { autoDiscoverResourcesCount: 0, selectedResourcesCount: 0 }
+    );
   }
 
-  // updateEventState is used when the Discover component updates in the following ways:
-  //   - on initial render: sends the `start` event and will initialize the event state with
-  //     the currently selected resource and create a unique ID that will tie the rest of
-  //     the events that follow this `start` event.
-  //   - on user updating `selectedResourceKind` (eg: server to kube)
-  //     or `resourceState` (eg. postgres to mongo) which just updates the `eventState`
-  function updateEventState() {
-    const { eventName, manuallyEmitSuccessEvent } = findViewAtIndex(
-      views,
-      currentStep
-    );
-    const resource = resourceKindToEventResource(
-      selectedResourceKind,
-      resourceState
-    );
-
-    // Init the `eventState` and send the `started` event only once.
-    if (!eventState) {
-      // Generates a v4 UUID using a cryptographically secure
-      // random number.
-      const id = crypto.randomUUID();
-
-      setEventState({
-        id,
-        currEventName: eventName,
-        resource,
-        manuallyEmitSuccessEvent,
-      });
-      userEventService.captureDiscoverEvent({
-        event: DiscoverEvent.Started,
-        eventData: {
-          id,
-          stepStatus: DiscoverEventStatus.Success,
-          // Started event will be the ONLY event
-          // that won't expect a resource field.
-          resource: '' as any,
-        },
-      });
-
-      return;
-    }
-
-    setEventState({
-      ...eventState,
-      currEventName: eventName,
-      resource,
-      manuallyEmitSuccessEvent,
-    });
-  }
-
-  const value: DiscoverContextState<T> = {
+  const value: DiscoverContextState = {
     agentMeta,
     currentStep,
     nextStep,
     prevStep,
     onSelectResource,
-    resourceState,
-    selectedResource,
-    selectedResourceKind,
-    setResourceState,
+    exitFlow,
+    resourceSpec,
+    viewConfig,
+    setResourceSpec,
     updateAgentMeta,
-    views,
+    indexedViews,
     emitErrorEvent,
     emitEvent,
     eventState,
   };
 
   return (
-    <discoverContext.Provider value={value}>
-      {props.children}
+    <discoverContext.Provider value={mockCtx || value}>
+      {children}
     </discoverContext.Provider>
   );
 }
@@ -364,7 +440,10 @@ export type NodeMeta = BaseMeta & {
 // DbMeta describes the fields for a db resource
 // that needs to be preserved throughout the flow.
 export type DbMeta = BaseMeta & {
+  // TODO(lisa): when we can enroll multiple RDS's, turn this into an array?
+  // The enroll event expects num count of enrolled RDS's, update accordingly.
   db: Database;
+  integrationName?: string;
 };
 
 // KubeMeta describes the fields for a kube resource

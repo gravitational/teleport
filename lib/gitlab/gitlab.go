@@ -45,6 +45,9 @@ import (
 // https://gitlab.com/.well-known/openid-configuration
 // For GitLab self-hosted servers, this will be at
 // https://$HOSTNAME/.well-known/openid-configuration
+//
+// The minimum supported GitLab version is 15.7, as this is when ID token
+// support was introduced.
 
 // IDTokenClaims is the structure of claims contained within a GitLab issued
 // ID token.

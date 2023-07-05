@@ -171,4 +171,16 @@ export default class StoreUserContext extends Store<UserContext> {
   hasDiscoverAccess() {
     return this.hasPrereqAccessToAddAgents() || this.hasAccessToQueryAgent();
   }
+
+  getPluginsAccess() {
+    return this.state.acl.plugins;
+  }
+
+  getIntegrationsAccess() {
+    return this.state.acl.integrations;
+  }
+
+  getAssistantAccess() {
+    return this.state.acl.assist;
+  }
 }

@@ -1,8 +1,7 @@
 ---
 title: Access Controls for Servers
-description: Role-based access control (RBAC) for Teleport Server Access.
+description: Role-based access control (RBAC) for Teleport server access.
 ---
-
 
 You can use Teleport's role-based access control (RBAC) system to set up
 granular permissions for authenticating to Linux servers connected to Teleport.
@@ -14,6 +13,14 @@ emergency.*
 
 For a more general description of Teleport roles and examples see our [Access Controls guides](../access-controls/introduction.mdx), as
 this section focuses on configuring RBAC for servers connected to Teleport.
+
+<Notice type="tip">
+
+Teleport's RBAC system does not extend to OpenSSH servers, as it is not possible
+to apply labels to servers running `sshd`. You must enable access to these
+servers via the Teleport SSH Service instead.
+
+</Notice>
 
 ## Role configuration
 
@@ -169,9 +176,9 @@ spec:
       # Optional: Session recording mode for SSH sessions. 
       # If not set, the value set on default will be used.
       ssh: best_effort|strict
-    # Enterprise-only: when enabled, the source IP that was used to log in is embedded in the SSH
-    # certificate, preventing a compromised certificate from being used on other
-    # devices. The default is false.
+    # Enterprise-only: when enabled, the source IP that was used to log in is embedded in the user
+    # certificates, preventing a compromised certificate from being used on another
+    # network. The default is false.
     # Note: Source IP pinning is currently in Preview mode.
     pin_source_ip: true
     # Specify a list of names and associated values to be included in user SSH keys.

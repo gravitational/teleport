@@ -47,7 +47,7 @@ export function RegisterSuccess({
     <Card
       width="540px"
       p={6}
-      bg="primary.light"
+      bg="levels.surface"
       mt={6}
       mx="auto"
       textAlign="center"
@@ -63,7 +63,7 @@ export function RegisterSuccess({
       <Flex justifyContent="center" mb={3}>
         <Image src={shieldCheck} width="200px" height="143px" />
       </Flex>
-      <Text fontSize={2} color="text.secondary" mb={4}>
+      <Text fontSize={2} color="text.slightlyMuted" mb={4}>
         Congratulations your {actionTxt} is completed.
         <br />
         Proceed to access your account.

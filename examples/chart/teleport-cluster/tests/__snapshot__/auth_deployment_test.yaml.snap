@@ -1,6 +1,6 @@
 should add an operator side-car when operator is enabled:
   1: |
-    image: public.ecr.aws/gravitational/teleport-operator:12.1.1
+    image: public.ecr.aws/gravitational/teleport-operator:12.4.10
     imagePullPolicy: IfNotPresent
     livenessProbe:
       httpGet:
@@ -30,7 +30,7 @@ should add an operator side-car when operator is enabled:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:12.1.1
+      image: public.ecr.aws/gravitational/teleport:12.4.10
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -127,6 +127,9 @@ should set affinity when set in values:
             operator: In
             values:
             - teleport
+should set imagePullSecrets when set in values:
+  1: |
+    - name: myRegistryKeySecretName
 should set nodeSelector when set in values:
   1: |
     affinity:
@@ -135,7 +138,7 @@ should set nodeSelector when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:12.1.1
+      image: public.ecr.aws/gravitational/teleport:12.4.10
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -213,7 +216,7 @@ should set resources when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:12.1.1
+      image: public.ecr.aws/gravitational/teleport:12.4.10
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:
@@ -280,7 +283,7 @@ should set securityContext when set in values:
     - args:
       - --diag-addr=0.0.0.0:3000
       - --apply-on-startup=/etc/teleport/apply-on-startup.yaml
-      image: public.ecr.aws/gravitational/teleport:12.1.1
+      image: public.ecr.aws/gravitational/teleport:12.4.10
       imagePullPolicy: IfNotPresent
       lifecycle:
         preStop:

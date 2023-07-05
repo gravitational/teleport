@@ -1,6 +1,6 @@
 ---
 title: Database Access with AWS Keyspaces (Apache Cassandra)
-description: How to configure Teleport Database Access with AWS Keyspaces (Apache Cassandra)
+description: How to configure Teleport database access with AWS Keyspaces (Apache Cassandra)
 ---
 
 <Details
@@ -10,9 +10,8 @@ description: How to configure Teleport Database Access with AWS Keyspaces (Apach
   scopeOnly={true}
   min="11.0"
 >
-  Database Access for AWS Keyspaces (Apache Cassandra) is available starting from Teleport `v11.0`.
+  Database access for AWS Keyspaces (Apache Cassandra) is available starting from Teleport `v11.0`.
 </Details>
-
 
 This guide will help you to:
 
@@ -34,12 +33,13 @@ This guide will help you to:
 - AWS Account with AWS Keyspaces database and permissions to create and attach IAM policies
 - The `cqlsh` Cassandra client installed and added to your system's `PATH` environment variable.
 - A host, e.g., an Amazon EC2 instance, where you will run the Teleport Database Service.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/5. Set up the Teleport Database Service
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
 Install Teleport on the host where you will run the Teleport Database Service:
 
@@ -109,7 +109,6 @@ You can choose `AmazonKeyspacesReadOnlyAccess` for read-only access to AWS Keysp
 Enter a role name and press "Create role".
 ![Create Role Step 1](../../../img/database-access/guides/keyspaces/create-role-step3.png)
 
-
 ## Step 4/5. Give Teleport permissions to assume roles
 
 Next, attach the following policy to the IAM role or IAM user the Teleport
@@ -133,7 +132,6 @@ assume the IAM roles:
   You can make the policy more strict by providing specific IAM role resource
   ARNs in the "Resource" field instead of using a wildcard.
 </Admonition>
-
 
 ## Step 5/5. Connect
 

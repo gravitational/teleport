@@ -22,10 +22,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"net/http"
+	"net/http/pprof"
 	"sync"
 	"time"
 
 	"github.com/gravitational/trace"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/sirupsen/logrus"
 	"golang.org/x/sync/errgroup"
 
@@ -33,6 +36,7 @@ import (
 	"github.com/gravitational/teleport/api/client/webclient"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/tbot/config"
 	"github.com/gravitational/teleport/lib/tbot/identity"
 	"github.com/gravitational/teleport/lib/utils"
@@ -42,6 +46,7 @@ type Bot struct {
 	cfg        *config.BotConfig
 	log        logrus.FieldLogger
 	reloadChan chan struct{}
+	modules    modules.Modules
 
 	// These are protected by getter/setters with mutex locks
 	mu         sync.Mutex
@@ -62,6 +67,7 @@ func New(cfg *config.BotConfig, log logrus.FieldLogger, reloadChan chan struct{}
 		cfg:        cfg,
 		log:        log,
 		reloadChan: reloadChan,
+		modules:    modules.GetModules(),
 
 		_cas: map[types.CertAuthType][]types.CertAuthority{},
 	}
@@ -255,6 +261,44 @@ func (b *Bot) Run(ctx context.Context) error {
 		return nil
 	})
 
+	if b.cfg.DiagAddr != "" {
+		eg.Go(func() error {
+			b.log.WithField("addr", b.cfg.DiagAddr).Info(
+				"diag_addr configured, diagnostics service will be started.",
+			)
+			mux := http.NewServeMux()
+			mux.Handle("/metrics", promhttp.Handler())
+			// Only expose pprof when `-d` is provided.
+			if b.cfg.Debug {
+				b.log.Info("debug mode enabled, profiling endpoints will be served on the diagnostics service.")
+				mux.HandleFunc("/debug/pprof/", pprof.Index)
+				mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+				mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+				mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+				mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+			}
+			mux.Handle("/", http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusNotFound)
+				msg := "404 - Not Found\n\nI'm a little tbot,\nshort and stout,\nthe page you seek,\nis not about."
+				_, _ = w.Write([]byte(msg))
+			}))
+			srv := http.Server{
+				Addr:    b.cfg.DiagAddr,
+				Handler: mux,
+			}
+			go func() {
+				<-egCtx.Done()
+				if err := srv.Close(); err != nil {
+					b.log.WithError(err).Warn("Failed to close HTTP server.")
+				}
+			}()
+			if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+				return err
+			}
+			return nil
+		})
+	}
+
 	return eg.Wait()
 }
 
@@ -264,6 +308,14 @@ func (b *Bot) initialize(ctx context.Context) (func() error, error) {
 		return nil, trace.BadParameter(
 			"an auth or proxy server must be set via --auth-server or configuration",
 		)
+	}
+
+	if b.cfg.FIPS {
+		if !b.modules.IsBoringBinary() {
+			b.log.Error("FIPS mode enabled but FIPS compatible binary not in use. Ensure you are using the Enterprise FIPS binary to use this flag.")
+			return nil, trace.BadParameter("fips mode enabled but binary was not compiled with boringcrypto")
+		}
+		b.log.Info("Bot is running in FIPS compliant mode.")
 	}
 
 	// First, try to make sure all destinations are usable.

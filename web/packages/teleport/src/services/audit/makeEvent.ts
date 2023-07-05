@@ -1081,20 +1081,36 @@ export const formatters: Formatters = {
   [eventCodes.DESKTOP_SESSION_STARTED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Started',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let message = `User [${user}] has connected to Windows desktop [${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        message += ` on [${windows_domain}]`;
+      }
+      return message;
+    },
   },
   [eventCodes.DESKTOP_SESSION_STARTED_FAILED]: {
     type: 'windows.desktop.session.start',
     desc: 'Windows Desktop Session Denied',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let message = `User [${user}] was denied access to Windows desktop [${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        message += ` on [${windows_domain}]`;
+      }
+      return message;
+    },
   },
   [eventCodes.DESKTOP_SESSION_ENDED]: {
     type: 'windows.desktop.session.end',
     desc: 'Windows Desktop Session Ended',
-    format: ({ user, windows_domain, desktop_addr, windows_user }) =>
-      `Session for Windows desktop [${windows_user}@${desktop_addr}] on [${windows_domain}] has ended for user [${user}]`,
+    format: ({ user, windows_domain, desktop_addr, windows_user }) => {
+      let desktopMessage = `[${windows_user}@${desktop_addr}]`;
+      if (windows_domain) {
+        desktopMessage += ` on [${windows_domain}]`;
+      }
+      let message = `Session for Windows desktop ${desktopMessage} has ended for user [${user}]`;
+      return message;
+    },
   },
   [eventCodes.DESKTOP_CLIPBOARD_RECEIVE]: {
     type: 'desktop.clipboard.receive',
@@ -1145,52 +1161,52 @@ export const formatters: Formatters = {
       `User [${user}] failed to write [${length}] bytes to file [${file_path}] in shared directory [${directory_name}] on desktop [${desktop_addr}]`,
   },
   [eventCodes.DEVICE_CREATE]: {
-    type: 'device',
+    type: 'device.create',
     desc: 'Device Register',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has registered a device`
-        : `User [${user.user}] has failed to register a device`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has registered a device`
+        : `User [${user}] has failed to register a device`,
   },
   [eventCodes.DEVICE_DELETE]: {
-    type: 'device',
+    type: 'device.delete',
     desc: 'Device Delete',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has deleted a device`
-        : `User [${user.user}] has failed to delete a device`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has deleted a device`
+        : `User [${user}] has failed to delete a device`,
   },
   [eventCodes.DEVICE_AUTHENTICATE]: {
-    type: 'device',
+    type: 'device.authenticate',
     desc: 'Device Authenticate',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has successfully authenticated their device`
-        : `User [${user.user}] has failed to authenticate their device`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has successfully authenticated their device`
+        : `User [${user}] has failed to authenticate their device`,
   },
   [eventCodes.DEVICE_ENROLL]: {
-    type: 'device',
+    type: 'device.enroll',
     desc: 'Device Enrollment',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has successfully enrolled their device`
-        : `User [${user.user}] has failed to enroll their device`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has successfully enrolled their device`
+        : `User [${user}] has failed to enroll their device`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_CREATE]: {
-    type: 'device',
+    type: 'device.token.create',
     desc: 'Device Enroll Token Create',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] created a device enroll token`
-        : `User [${user.user}] has failed to create a device enroll token`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] created a device enroll token`
+        : `User [${user}] has failed to create a device enroll token`,
   },
   [eventCodes.DEVICE_ENROLL_TOKEN_SPENT]: {
-    type: 'device',
+    type: 'device.token.spent',
     desc: 'Device Enroll Token Spent',
-    format: ({ user, status }) =>
-      status.success
-        ? `User [${user.user}] has spent a device enroll token`
-        : `User [${user.user}] has failed to spend a device enroll token`,
+    format: ({ user, status, success }) =>
+      success || (status && status.success)
+        ? `User [${user}] has spent a device enroll token`
+        : `User [${user}] has failed to spend a device enroll token`,
   },
   [eventCodes.X11_FORWARD]: {
     type: 'x11-forward',
@@ -1337,6 +1353,47 @@ export const formatters: Formatters = {
     desc: 'SAML IdP service provider delete failed',
     format: ({ updated_by }) =>
       `User [${updated_by}] failed to delete all service providers`,
+  },
+  [eventCodes.OKTA_GROUPS_UPDATE]: {
+    type: 'okta.groups.update',
+    desc: 'Okta groups have been updated',
+    format: ({ added, updated, deleted }) =>
+      `[${added}] added, [${updated}] updated, [${deleted}] deleted`,
+  },
+  [eventCodes.OKTA_APPLICATIONS_UPDATE]: {
+    type: 'okta.applications.update',
+    desc: 'Okta applications have been updated',
+    format: ({ added, updated, deleted }) =>
+      `[${added}] added, [${updated}] updated, [${deleted}] deleted`,
+  },
+  [eventCodes.OKTA_SYNC_FAILURE]: {
+    type: 'okta.sync.failure',
+    desc: 'Okta synchronization failed',
+    format: () => `Okta synchronization failed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS]: {
+    type: 'okta.assignment.process',
+    desc: 'Okta assignment has been processed',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] has been successfully processed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_PROCESS_FAILURE]: {
+    type: 'okta.assignment.process',
+    desc: 'Okta assignment failed to process',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] processing has failed`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP]: {
+    type: 'okta.assignment.cleanup',
+    desc: 'Okta assignment has been cleaned up',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] has been successfully cleaned up`,
+  },
+  [eventCodes.OKTA_ASSIGNMENT_CLEANUP_FAILURE]: {
+    type: 'okta.assignment.cleanup',
+    desc: 'Okta assignment failed to clean up',
+    format: ({ name, source, user }) =>
+      `Okta assignment [${name}], source [${source}], user [${user}] cleanup has failed`,
   },
   [eventCodes.UNKNOWN]: {
     type: 'unknown',

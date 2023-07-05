@@ -52,7 +52,7 @@ const ChildWrapper = styled.div`
   display: flex;
   align-items: center;
   justify-content: center;
-  background: ${props => props.theme.colors.primary.lighter};
+  background: ${props => props.theme.colors.levels.elevated};
   border-radius: 200px;
 `;
 
@@ -63,7 +63,7 @@ const Wrapper = styled.div`
   width: 100%;
   border-radius: 200px;
   height: 32px;
-  background: ${props => props.theme.colors.primary.dark};
+  background: ${props => props.theme.colors.levels.sunkenSecondary};
 `;
 
 const StyledInput = styled.input`
@@ -83,16 +83,16 @@ const StyledInput = styled.input`
 
 function fromTheme(props) {
   return {
-    color: props.theme.colors.text.primary,
-    background: props.theme.colors.primary.dark,
+    color: props.theme.colors.text.main,
+    background: props.theme.colors.levels.sunkenSecondary,
 
     '&: hover, &:focus, &:active': {
-      background: props.theme.colors.primary.main,
+      background: props.theme.colors.levels.surfaceSecondary,
       boxShadow: 'inset 0 2px 4px rgba(0, 0, 0, .24)',
-      color: props.theme.colors.text.primary,
+      color: props.theme.colors.text.main,
     },
     '&::placeholder': {
-      color: props.theme.colors.text.placeholder,
+      color: props.theme.colors.text.muted,
       fontSize: props.theme.fontSizes[1],
     },
   };

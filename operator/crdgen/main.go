@@ -85,31 +85,42 @@ func newGenerator(req *gogoplugin.CodeGeneratorRequest) (*Forest, error) {
 	}, nil
 }
 
+type resource struct {
+	name string
+	opts []resourceSchemaOption
+}
+
 func generateSchema(file *File, groupName string, resp *gogoplugin.CodeGeneratorResponse) error {
 	generator := NewSchemaGenerator(groupName)
 
-	if err := generator.addResource(file, "UserV2"); err != nil {
-		return trace.Wrap(err)
+	resources := []resource{
+		{name: "UserV2"},
+		{name: "RoleV6", opts: []resourceSchemaOption{withVersionOverride(types.V5)}},
+		{name: "RoleV6"},
+		{name: "SAMLConnectorV2"},
+		{name: "OIDCConnectorV3"},
+		{name: "GithubConnectorV3"},
+		{
+			name: "LoginRule",
+			opts: []resourceSchemaOption{
+				// Overriding the version because it is not in the type name.
+				withVersionOverride(types.V1),
+				// The LoginRule proto does not have a "spec" field, so force
+				// the CRD spec to include these fields from the root.
+				withCustomSpecFields([]string{"priority", "traits_expression", "traits_map"}),
+			},
+		},
 	}
 
-	// Use RoleV6 spec but override the version to V5.
-	// This will generate crd based on RoleV6 but with resource version for v5.
-	if err := generator.addResource(file, "RoleV6", types.V5); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := generator.addResource(file, "RoleV6"); err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := generator.addResource(file, "SAMLConnectorV2"); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := generator.addResource(file, "OIDCConnectorV3"); err != nil {
-		return trace.Wrap(err)
-	}
-	if err := generator.addResource(file, "GithubConnectorV3"); err != nil {
-		return trace.Wrap(err)
+	for _, resource := range resources {
+		_, ok := file.messageByName[resource.name]
+		if !ok {
+			continue
+		}
+		err := generator.addResource(file, resource.name, resource.opts...)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	for _, root := range generator.roots {

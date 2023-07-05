@@ -65,6 +65,7 @@ func Run(args []string, stdout io.Writer) error {
 	app := utils.InitCLIParser("tbot", appHelp).Interspersed(false)
 	app.Flag("debug", "Verbose logging to stdout.").Short('d').BoolVar(&cf.Debug)
 	app.Flag("config", "Path to a configuration file.").Short('c').StringVar(&cf.ConfigPath)
+	app.Flag("fips", "Runs tbot in FIPS compliance mode. This requires the FIPS binary is in use.").BoolVar(&cf.FIPS)
 	app.HelpFlag.Short('h')
 
 	joinMethodList := fmt.Sprintf(
@@ -84,6 +85,7 @@ func Run(args []string, stdout io.Writer) error {
 	startCmd.Flag("renewal-interval", "Interval at which short-lived certificates are renewed; must be less than the certificate TTL.").DurationVar(&cf.RenewalInterval)
 	startCmd.Flag("join-method", "Method to use to join the cluster. "+joinMethodList).Default(config.DefaultJoinMethod).EnumVar(&cf.JoinMethod, config.SupportedJoinMethods...)
 	startCmd.Flag("oneshot", "If set, quit after the first renewal.").BoolVar(&cf.Oneshot)
+	startCmd.Flag("diag-addr", "If set and the bot is in debug mode, a diagnostics service will listen on specified address.").StringVar(&cf.DiagAddr)
 
 	initCmd := app.Command("init", "Initialize a certificate destination directory for writes from a separate bot user.")
 	initCmd.Flag("destination-dir", "Directory to write short-lived machine certificates to.").StringVar(&cf.DestinationDir)

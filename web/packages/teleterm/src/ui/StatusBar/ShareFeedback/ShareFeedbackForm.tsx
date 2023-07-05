@@ -42,7 +42,7 @@ export function ShareFeedbackForm(props: ShareFeedbackProps) {
     props.submitFeedbackAttempt.status === 'processing';
 
   return (
-    <Flex bg="primary.main" p={3} borderRadius={3} maxWidth="370px">
+    <Flex bg="levels.surfaceSecondary" p={3} borderRadius={3} maxWidth="370px">
       <Validation>
         {({ validator }) => (
           <Flex
@@ -56,14 +56,14 @@ export function ShareFeedbackForm(props: ShareFeedbackProps) {
             }}
           >
             <Flex justifyContent="space-between" mb={2}>
-              <Text typography="h4" bold color="text.primary">
+              <Text typography="h4" bold color="text.main">
                 Provide your feedback
               </Text>
               <ButtonIcon
                 type="button"
                 onClick={props.onClose}
                 title="Close"
-                color="text.secondary"
+                color="text.slightlyMuted"
               >
                 <Close fontSize={5} />
               </ButtonIcon>

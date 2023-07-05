@@ -28,7 +28,7 @@ export const Labels = () => (
   <>
     <Flex
       height="100px"
-      bg="primary.main"
+      bg="levels.surfaceSecondary"
       justifyContent="center"
       alignItems="center"
     >
@@ -45,7 +45,7 @@ export const Labels = () => (
     </Flex>
     <Flex
       height="100px"
-      bg="primary.main"
+      bg="levels.surfaceSecondary"
       justifyContent="center"
       alignItems="center"
     >
@@ -64,7 +64,7 @@ export const Labels = () => (
     </Flex>
     <Flex
       height="100px"
-      bg="primary.main"
+      bg="levels.surfaceSecondary"
       justifyContent="center"
       alignItems="center"
     >

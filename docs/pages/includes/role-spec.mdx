@@ -83,9 +83,9 @@ spec:
     # if unspecified. If one or more of the user's roles has disabled
     # the clipboard, then it will be disabled.
     desktop_clipboard: true
-    # enterprise-only: when enabled, the source IP that was used to log in is embedded in the SSH
-    # certificate, preventing a compromised certificate from being used on other
-    # devices. The default is false.
+    # enterprise-only: when enabled, the source IP that was used to log in is embedded in the user
+    # certificates, preventing a compromised certificate from being used on another
+    # network. The default is false.
     # Note: Source IP pinning is currently in Preview mode.
     pin_source_ip: true
     # Specify a list of names and associated values to be included in user SSH keys.
@@ -235,8 +235,15 @@ spec:
 
       # the `claims_to_roles` mapping works the same as it does in
       # the OIDC connector, with the added benefit that the roles being mapped to
-      # can also be matchers. the below mapping says that users with
-      # the claims `groups: admins` can request any role in the system.
+      # can also be matchers. 
+      #
+      # This example leverages Teleport's regular expression support, which allows 
+      # for dynamic mapping from claims. The below mapping says that users with
+      # claims that match "projects: project-(.*)" can request roles that match 
+      # "$1-admin", where "$1" is the first capture group in the 
+      # regular expression.
+      # Example: the "projects: product-foo" claim allows a user to request the
+      # "foo-admin" role
       claims_to_roles:
         - claim: 'projects'
           # matches all group names with a leading 'product-'

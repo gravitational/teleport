@@ -86,16 +86,17 @@ export function Roles(props: State) {
           <Box
             ml="auto"
             width="240px"
-            color="text.primary"
+            color="text.main"
             style={{ flexShrink: 0 }}
           >
             <Text typography="h6" mb={3} caps>
               Role-based access control
             </Text>
             <Text typography="subtitle1" mb={3}>
-              Kubernetes and SSH authentication in one place. A Teleport role
-              can be assigned based on user identity when used with single
-              sign-on (SSO).
+              Teleport Role-based access control (RBAC) provides fine-grained
+              control over who can access resources and in which contexts. A
+              Teleport role can be assigned automatically based on user identity
+              when used with single sign-on (SSO).
             </Text>
             <Text>
               Learn more in{' '}

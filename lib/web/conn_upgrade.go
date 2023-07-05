@@ -91,6 +91,7 @@ func (h *Handler) upgradeALPN(ctx context.Context, conn net.Conn) error {
 func writeUpgradeResponse(w io.Writer, upgradeType string) error {
 	header := make(http.Header)
 	header.Add(teleport.WebAPIConnUpgradeHeader, upgradeType)
+	header.Add(teleport.WebAPIConnUpgradeConnectionHeader, teleport.WebAPIConnUpgradeConnectionType)
 	response := &http.Response{
 		Status:     http.StatusText(http.StatusSwitchingProtocols),
 		StatusCode: http.StatusSwitchingProtocols,

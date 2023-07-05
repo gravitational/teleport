@@ -45,12 +45,12 @@ export function CliCommand({ cliCommand, onRun, isLoading }: CliCommandProps) {
       alignItems="center"
       justifyContent="space-between"
       borderRadius={2}
-      bg="primary.dark"
+      bg="levels.sunkenSecondary"
       mb={2}
     >
       <Flex
         mr="2"
-        color={shouldDisplayIsLoading ? 'text.secondary' : 'text.primary'}
+        color={shouldDisplayIsLoading ? 'text.slightlyMuted' : 'text.main'}
         width="100%"
         css={`
           overflow: auto;

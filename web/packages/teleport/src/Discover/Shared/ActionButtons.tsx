@@ -15,13 +15,7 @@
  */
 
 import React from 'react';
-
-import { NavLink } from 'react-router-dom';
-
-import { Box, ButtonPrimary } from 'design';
-import { ButtonSecondary } from 'design/Button';
-
-import cfg from 'teleport/config';
+import { Box, ButtonPrimary, ButtonSecondary } from 'design';
 
 export const ActionButtons = ({
   onProceed = null,
@@ -29,7 +23,7 @@ export const ActionButtons = ({
   proceedHref = '',
   disableProceed = false,
   lastStep = false,
-  hideExit = false,
+  onPrev = null,
 }: {
   onProceed?(): void;
   onSkip?(): void;
@@ -37,7 +31,7 @@ export const ActionButtons = ({
   disableProceed?: boolean;
   lastStep?: boolean;
   allowSkip?: boolean;
-  hideExit?: boolean;
+  onPrev?(): void;
 }) => {
   const allowSkip = !!onSkip;
 
@@ -71,9 +65,9 @@ export const ActionButtons = ({
           Skip
         </ButtonSecondary>
       )}
-      {!hideExit && (
-        <ButtonSecondary as={NavLink} to={cfg.routes.root} mt={3} width="165px">
-          Exit
+      {onPrev && (
+        <ButtonSecondary onClick={onPrev} mt={3} width="165px">
+          Back
         </ButtonSecondary>
       )}
     </Box>

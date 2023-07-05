@@ -23,7 +23,7 @@ Before you get started you’ll need:
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 (!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
@@ -112,8 +112,8 @@ spec:
   # The last segment of the URL must be identical to the connector metadata name.
   acs: https://teleport.example.com:3080/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
-    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 930210...>", roles: ["editor"]}
-    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "<group id 93b110...>", roles: ["dev"]}
+    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "930210...", roles: ["editor"]}
+    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "93b110...", roles: ["dev"]}
   # Populate entity_descriptor with the federator data xml or set entity_descriptor_url to automatically load from the SSO
   entity_descriptor: |
     <federationmedata.xml contents>
@@ -122,7 +122,6 @@ spec:
 (!docs/pages/includes/sso/idp-initiated.mdx!)
 
 Replace the `acs` field with your Teleport address, update the group IDs in the `attributes_to_roles` field with the actual Azure AD group ID values, and insert the downloaded Federation Metadata XML into the `entity_descriptor` field.
-
 
 Create the connector using `tctl`:
 
@@ -176,8 +175,6 @@ $ tctl create dev.yaml
 ## Testing
 
 ![Login with Microsoft](../../../img/azuread/azure-11-loginwithmsft.png)
-
-
 
 The CLI is the same as before:
 ```code
@@ -388,7 +385,6 @@ The error above is caused by a Name ID format that is not compatible with Telepo
 Change the Name ID format to use email instead:
 
 ![Change NameID format to use email](../../../img/azuread/azuread-nameid.png)
-
 
 ## Further reading
 - [Teleport Configuration Resources Reference](../../reference/resources.mdx)

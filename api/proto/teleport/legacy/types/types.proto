@@ -700,9 +700,10 @@ message ServerV2List {
 message ServerSpecV2 {
   reserved 8;
 
-  // Addr is server host:port address
+  // Addr is a host:port address where this server can be reached.
   string Addr = 1 [(gogoproto.jsontag) = "addr"];
-  // PublicAddr is the public address this cluster can be reached at.
+  // PublicAddr is the public address where this server can be reached.
+  // DELETE IN 15.0. (joerger) Deprecated in favor of public_addrs.
   string PublicAddr = 2 [(gogoproto.jsontag) = "public_addr,omitempty"];
   // Hostname is server hostname
   string Hostname = 3 [(gogoproto.jsontag) = "hostname"];
@@ -740,6 +741,8 @@ message ServerSpecV2 {
   string PeerAddr = 11 [(gogoproto.jsontag) = "peer_addr,omitempty"];
   // ProxyIDs is a list of proxy IDs this server is expected to be connected to.
   repeated string ProxyIDs = 12 [(gogoproto.jsontag) = "proxy_ids,omitempty"];
+  // PublicAddrs is a list of public addresses where this server can be reached.
+  repeated string public_addrs = 13;
 }
 
 // AppServerV3 represents a single proxied web app.
@@ -1669,6 +1672,23 @@ message AuthPreferenceSpecV2 {
   // IDP is a set of options related to accessing IdPs within Teleport.
   // Requires Teleport Enterprise.
   IdPOptions IDP = 14 [(gogoproto.jsontag) = "idp,omitempty"];
+
+  // AllowHeadless enables/disables headless support.
+  // Headless authentication requires Webauthn to work.
+  // Defaults to true if the Webauthn is configured, defaults to false
+  // otherwise.
+  BoolValue AllowHeadless = 15 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "allow_headless,omitempty",
+    (gogoproto.customtype) = "BoolOption"
+  ];
+
+  // DefaultSessionTTL is the TTL to use for user certs when
+  // an explicit TTL is not requested.
+  int64 DefaultSessionTTL = 16 [
+    (gogoproto.jsontag) = "default_session_ttl,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // U2F defines settings for U2F device.
@@ -2370,6 +2390,13 @@ message RoleOptions {
   // IDP is a set of options related to accessing IdPs within Teleport.
   // Requires Teleport Enterprise.
   IdPOptions IDP = 25 [(gogoproto.jsontag) = "idp,omitempty"];
+
+  // CreateDesktopUser allows users to be automatically created on a Windows desktop
+  BoolValue CreateDesktopUser = 26 [
+    (gogoproto.nullable) = true,
+    (gogoproto.jsontag) = "create_desktop_user",
+    (gogoproto.customtype) = "BoolOption"
+  ];
 }
 
 message RecordSession {
@@ -2538,6 +2565,16 @@ message RoleConditions {
     (gogoproto.jsontag) = "db_service_labels,omitempty",
     (gogoproto.customtype) = "Labels"
   ];
+
+  // GroupLabels is a map of labels used as part of the RBAC system.
+  wrappers.LabelValues GroupLabels = 27 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "group_labels,omitempty",
+    (gogoproto.customtype) = "Labels"
+  ];
+
+  // DesktopGroups is a list of groups for created desktop users to be added to
+  repeated string DesktopGroups = 28 [(gogoproto.jsontag) = "desktop_groups,omitempty"];
 }
 
 // KubernetesResource is the Kubernetes resource identifier.
@@ -2943,6 +2980,13 @@ message WebauthnDevice {
   // view of the registration process; the authenticator alone can determine
   // if a key is truly resident.)
   bool resident_key = 7;
+  // Relying Party ID used by the credential.
+  // Recorded on registration for new credentials, or on first successful
+  // authentication for "old" credentials (created before the field existed).
+  // Ideally, this is always the same as the configured RPID.
+  // If an RPID change does happen, this helps Teleport detect it and react
+  // accordingly.
+  string credential_rp_id = 8;
 }
 
 // WebauthnLocalAuth holds settings necessary for local webauthn use.
@@ -3723,6 +3767,9 @@ message OIDCAuthRequest {
 
   // attestation_statement is an attestation statement for the given public key.
   teleport.attestation.v1.AttestationStatement attestation_statement = 17 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+
+  // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
+  string ClientLoginIP = 18 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
 }
 
 // SAMLConnectorV2 represents a SAML connector.
@@ -3856,6 +3903,9 @@ message SAMLAuthRequest {
 
   // attestation_statement is an attestation statement for the given public key.
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+
+  // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
+  string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
 }
 
 // AttributeMapping maps a SAML attribute statement to teleport roles.
@@ -3976,6 +4026,8 @@ message GithubAuthRequest {
   GithubConnectorSpecV3 ConnectorSpec = 15 [(gogoproto.jsontag) = "connector_spec,omitempty"];
   // attestation_statement is an attestation statement for the given public key.
   teleport.attestation.v1.AttestationStatement attestation_statement = 16 [(gogoproto.jsontag) = "attestation_statement,omitempty"];
+  // ClientLoginIP specifies IP address of the client for login, it will be written to the user's certificates.
+  string ClientLoginIP = 17 [(gogoproto.jsontag) = "client_login_ip,omitempty"];
 }
 
 // SSOWarnings conveys a user-facing main message along with auxiliary warnings.
@@ -4119,6 +4171,9 @@ message SSODiagnosticInfo {
 
   // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
   GithubTokenInfo GithubTokenInfo = 33 [(gogoproto.jsontag) = "github_token_info,omitempty"];
+
+  // AppliedLoginRules stores the name of each login rule that was applied.
+  repeated string AppliedLoginRules = 34 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
 }
 
 // GithubTokenInfo stores diagnostic info about Github OAuth2 token obtained during SSO flow.
@@ -4278,7 +4333,11 @@ message LockTarget {
 
   // Node specifies the UUID of a Teleport node.
   // A matching node is also prevented from heartbeating to the auth server.
-  string Node = 4 [(gogoproto.jsontag) = "node,omitempty"];
+  // DEPRECATED: use ServerID instead.
+  string Node = 4 [
+    deprecated = true,
+    (gogoproto.jsontag) = "node,omitempty"
+  ];
 
   // MFADevice specifies the UUID of a user MFA device.
   string MFADevice = 5 [(gogoproto.jsontag) = "mfa_device,omitempty"];
@@ -4292,6 +4351,9 @@ message LockTarget {
   // Device is the device ID of a trusted device.
   // Requires Teleport Enterprise.
   string Device = 8 [(gogoproto.jsontag) = "device,omitempty"];
+
+  // ServerID is the host id of the Teleport instance.
+  string ServerID = 9 [(gogoproto.jsontag) = "server_id,omitempty"];
 }
 
 // AddressCondition represents a set of addresses. Presently the addresses are specified
@@ -4870,6 +4932,9 @@ message GetClusterAlertsRequest {
   bool WithSuperseded = 4;
   // WithAcknowledged includes acknowledged alerts in the output of the request.
   bool WithAcknowledged = 5;
+  // WithUntargeted requests that alerts be included even if they are not specifically
+  // targeted toward the caller. This has no effect unless the caller has `cluster_alert:list`.
+  bool WithUntargeted = 6;
 }
 
 // AlertAcknowledgement marks a cluster alert as having been "acknowledged".
@@ -4978,6 +5043,8 @@ message PluginSpecV1 {
   oneof settings {
     // Settings for the Slack access plugin
     PluginSlackAccessSettings slack_access_plugin = 1;
+    // Settings for OpenAI plugin
+    PluginOpenAISettings openai = 3;
   }
 }
 
@@ -4987,9 +5054,15 @@ message PluginSlackAccessSettings {
   string fallback_channel = 1;
 }
 
-message PluginInitialCredentialsV1 {
+// Defines settings for the OpenAI plugin. Currently there are no settings.
+message PluginOpenAISettings {
+  option (gogoproto.equal) = true;
+}
+
+message PluginBootstrapCredentialsV1 {
   oneof credentials {
     PluginOAuth2AuthorizationCodeCredentials oauth2_authorization_code = 1;
+    PluginBearerTokenCredentials bearer_token = 2;
   }
 }
 
@@ -5024,6 +5097,7 @@ enum PluginStatusCode {
 message PluginCredentialsV1 {
   oneof credentials {
     PluginOAuth2AccessTokenCredentials oauth2_access_token = 1;
+    PluginBearerTokenCredentials bearer_token = 2;
   }
 }
 
@@ -5034,6 +5108,14 @@ message PluginOAuth2AccessTokenCredentials {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
+}
+
+message PluginBearerTokenCredentials {
+  // Token is the literal bearer token to be submitted to the 3rd-party API provider.
+  string token = 1;
+
+  reserved 2; // token_file
+  reserved "token_file";
 }
 
 // PluginList represents a list of plugin resources
@@ -5190,44 +5272,49 @@ message OktaAssignmentV1 {
 message OktaAssignmentSpecV1 {
   // User is the user that these actions will be applied to.
   string User = 1 [(gogoproto.jsontag) = "user"];
-  // Actions is a list of Okta actions to take on a user.
-  repeated OktaAssignmentActionV1 Actions = 2 [(gogoproto.jsontag) = "actions"];
-}
+  // Targets is a list of Okta targets to take on a user.
+  repeated OktaAssignmentTargetV1 Targets = 2 [(gogoproto.jsontag) = "targets"];
+  // CleanupTime is an optional field that notes when the assignment should be cleaned up.
+  // If absent, the assignment will never be cleaned up.
+  google.protobuf.Timestamp CleanupTime = 3 [
+    (gogoproto.jsontag) = "cleanup_time",
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
 
-// OktaAssignmentActionV1 is a Okta assignment action.
-message OktaAssignmentActionV1 {
-  // OktaAssignmentStatus represents the status of an action in an Okta assignment.
-  enum OktaAssignmentActionStatus {
+  // Status is the status of the assignment.
+  OktaAssignmentStatus status = 4 [(gogoproto.jsontag) = "status"];
+
+  // OktaAssignmentStatus represents the status of an Okta assignment.
+  enum OktaAssignmentStatus {
     // UNKNOWN indicates the status is not set.
     UNKNOWN = 0;
     // PENDING indicates the action has not yet been applied.
     PENDING = 1;
-    // SUCCESSFUL indicates the action was applied successfully.
-    SUCCESSFUL = 2;
-    // FAILED indicates the action was not applied successfully. It will be retried.
-    FAILED = 3;
-    // CLEANED_UP indicates the action was cleaned up successfully.
-    CLEANED_UP = 4;
-    // CLEANUP_FAILED indicates the action was not cleaned up successfully. It will not be retried.
-    CLEANUP_FAILED = 5;
     // PROCESSSING indicates that the assignment is being applied.
-    PROCESSING = 6;
-    // CLEANUP_PENDING indicates the action needs to be cleaned up.
-    CLEANUP_PENDING = 7;
-    // CLEANUP_PROCESSING indicates the action is being cleaned up.
-    CLEANUP_PROCESSING = 8;
+    PROCESSING = 2;
+    // SUCCESSFUL indicates the action was applied successfully.
+    SUCCESSFUL = 3;
+    // FAILED indicates the action was not applied successfully. It will be retried.
+    FAILED = 4;
   }
 
-  // Status is the status of the action.
-  OktaAssignmentActionStatus status = 1 [(gogoproto.jsontag) = "status"];
-  // Target is the target of the assignment action.
-  OktaAssignmentActionTargetV1 target = 2 [(gogoproto.jsontag) = "target"];
+  // LastTransition is an optional field that notes when the last state transition
+  // occurred for this action. If absent, this object has never transitioned.
+  google.protobuf.Timestamp LastTransition = 5 [
+    (gogoproto.jsontag) = "last_transition",
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+
+  // Finalized is set when the assignment has been properly cleaned up.
+  bool Finalized = 6 [(gogoproto.jsontag) = "finalized"];
 }
 
-// OktaAssignmentActionTargetV1 is the target of an Okta assignment action.
-message OktaAssignmentActionTargetV1 {
-  // OktaAssignmentActionTargetType is the type of Okta object that an action is targeting.
-  enum OktaAssignmentActionTargetType {
+// OktaAssignmentTargetV1 is a target of an Okta assignment.
+message OktaAssignmentTargetV1 {
+  // OktaAssignmentTargetType is the type of Okta object that an assignment is targeting.
+  enum OktaAssignmentTargetType {
     // UNKNOWN indicates the target is unknown.
     UNKNOWN = 0;
     // APPLICATION indicates the target is an application.
@@ -5236,8 +5323,101 @@ message OktaAssignmentActionTargetV1 {
     GROUP = 2;
   }
 
-  // Type is the type of Okta resource this assignment action is targeting.
-  OktaAssignmentActionTargetType type = 1 [(gogoproto.jsontag) = "type"];
+  // Type is the type of Okta resource this assignment is targeting.
+  OktaAssignmentTargetType type = 1 [(gogoproto.jsontag) = "type"];
   // ID is the ID of the Okta resource that's being targeted.
   string id = 2 [(gogoproto.jsontag) = "id"];
+}
+
+// IntegrationV1 represents a connection between Teleport and some other 3rd party system.
+// This connection allows API access to that service from Teleport.
+// Each Integration instance must have a SubKind defined which identifies the external system.
+message IntegrationV1 {
+  option (gogoproto.goproto_stringer) = false;
+  option (gogoproto.stringer) = false;
+
+  // Header is the resource header.
+  ResourceHeader Header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "",
+    (gogoproto.embed) = true
+  ];
+
+  // Spec is an Integration specification.
+  IntegrationSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// IntegrationSpecV1 contains properties of all the supported integrations.
+message IntegrationSpecV1 {
+  oneof SubKindSpec {
+    // AWSOIDC contains the specific fields to handle the AWS OIDC Integration subkind
+    AWSOIDCIntegrationSpecV1 AWSOIDC = 1 [(gogoproto.jsontag) = "aws_oidc,omitempty"];
+  }
+}
+
+// AWSOIDCIntegrationSpecV1 contains the spec properties for the AWS OIDC SubKind Integration.
+message AWSOIDCIntegrationSpecV1 {
+  // RoleARN contains the Role ARN used to set up the Integration.
+  // This is the AWS Role that Teleport will use to issue tokens for API Calls.
+  string RoleARN = 1 [(gogoproto.jsontag) = "role_arn,omitempty"];
+}
+
+// HeadlessAuthentication holds data for an ongoing headless authentication attempt.
+message HeadlessAuthentication {
+  // Header is the resource header.
+  ResourceHeader header = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true
+  ];
+
+  // User is a teleport user name.
+  string user = 2;
+
+  // PublicKey is an ssh public key to sign in case of successful auth.
+  bytes public_key = 3;
+
+  // State is the headless authentication request state.
+  HeadlessAuthenticationState state = 4;
+
+  // MFADevice is the mfa device used to approve the request in case of successful auth.
+  types.MFADevice mfa_device = 5;
+
+  // ClientIPAddress is the IP address of the client being authenticated.
+  string client_ip_address = 6;
+}
+
+// HeadlessAuthenticationState is a headless authentication state.
+enum HeadlessAuthenticationState {
+  HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED = 0;
+
+  // authentication pending.
+  HEADLESS_AUTHENTICATION_STATE_PENDING = 1;
+
+  // authentication denied.
+  HEADLESS_AUTHENTICATION_STATE_DENIED = 2;
+
+  // authentication approved.
+  HEADLESS_AUTHENTICATION_STATE_APPROVED = 3;
+}
+
+// WatchKind specifies resource kind to watch
+message WatchKind {
+  // Kind is a resource kind to watch
+  string Kind = 1 [(gogoproto.jsontag) = "kind"];
+  // LoadSecrets specifies whether to load secrets
+  bool LoadSecrets = 2 [(gogoproto.jsontag) = "load_secrets"];
+  // Name is an optional specific resource type to watch,
+  // if specified only the events with a specific resource
+  // name will be sent
+  string Name = 3 [(gogoproto.jsontag) = "name"];
+  // Filter is an optional mapping of custom filter parameters.
+  // Valid values vary by resource kind.
+  map<string, string> Filter = 4 [(gogoproto.jsontag) = "filter,omitempty"];
+  // SubKind is a resource subkind to watch
+  string SubKind = 5 [(gogoproto.jsontag) = "sub_kind,omitempty"];
+  // Version optionally specifies the resource version to watch.
+  string Version = 6 [(gogoproto.jsontag) = "version,omitempty"];
 }

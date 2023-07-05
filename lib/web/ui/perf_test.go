@@ -124,9 +124,8 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 				Labels:    labels,
 			},
 			Spec: types.ServerSpecV2{
-				Addr:       addr,
-				PublicAddr: addr,
-				Version:    teleport.Version,
+				Addr:    addr,
+				Version: teleport.Version,
 			},
 		}
 		var err error
@@ -134,9 +133,9 @@ func insertServers(ctx context.Context, b *testing.B, svc services.Presence, kin
 		case types.KindNode:
 			_, err = svc.UpsertNode(ctx, server)
 		case types.KindProxy:
-			err = svc.UpsertProxy(server)
+			err = svc.UpsertProxy(ctx, server)
 		case types.KindAuthServer:
-			err = svc.UpsertAuthServer(server)
+			err = svc.UpsertAuthServer(ctx, server)
 		default:
 			b.Errorf("Unexpected server kind: %s", kind)
 		}

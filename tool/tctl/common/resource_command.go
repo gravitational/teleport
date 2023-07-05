@@ -18,13 +18,14 @@ package common
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
 	"sort"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 	log "github.com/sirupsen/logrus"
@@ -46,7 +47,6 @@ import (
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tctl/common/device"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
 )
 
@@ -124,15 +124,17 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 		types.KindSAMLIdPServiceProvider:  rc.createSAMLIdPServiceProvider,
 		types.KindDevice:                  rc.createDevice,
 		types.KindOktaImportRule:          rc.createOktaImportRule,
+		types.KindIntegration:             rc.createIntegration,
+		types.KindWindowsDesktop:          rc.createWindowsDesktop,
 	}
 	rc.config = config
 
-	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file")
+	rc.createCmd = app.Command("create", "Create or update a Teleport resource from a YAML file.")
 	rc.createCmd.Arg("filename", "resource definition file, empty for stdin").StringVar(&rc.filename)
 	rc.createCmd.Flag("force", "Overwrite the resource if already exists").Short('f').BoolVar(&rc.force)
 	rc.createCmd.Flag("confirm", "Confirm an unsafe or temporary resource update").Hidden().BoolVar(&rc.confirm)
 
-	rc.updateCmd = app.Command("update", "Update resource fields")
+	rc.updateCmd = app.Command("update", "Update resource fields.")
 	rc.updateCmd.Arg("resource type/resource name", `Resource to update
 	<resource type>  Type of a resource [for example: rc]
 	<resource name>  Resource name to update
@@ -142,7 +144,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	rc.updateCmd.Flag("set-labels", "Set labels").StringVar(&rc.labels)
 	rc.updateCmd.Flag("set-ttl", "Set TTL").StringVar(&rc.ttl)
 
-	rc.deleteCmd = app.Command("rm", "Delete a resource").Alias("del")
+	rc.deleteCmd = app.Command("rm", "Delete a resource.").Alias("del")
 	rc.deleteCmd.Arg("resource type/resource name", `Resource to delete
 	<resource type>  Type of a resource [for example: connector,user,cluster,token]
 	<resource name>  Resource name to delete
@@ -151,7 +153,7 @@ func (rc *ResourceCommand) Initialize(app *kingpin.Application, config *service.
 	$ tctl rm connector/github
 	$ tctl rm cluster/main`).SetValue(&rc.ref)
 
-	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources")
+	rc.getCmd = app.Command("get", "Print a YAML declaration of various Teleport resources.")
 	rc.getCmd.Arg("resources", "Resource spec: 'type/[name][,...]' or 'all'").Required().SetValue(&rc.refs)
 	rc.getCmd.Flag("format", "Output format: 'yaml', 'json' or 'text'").Default(teleport.YAML).StringVar(&rc.format)
 	rc.getCmd.Flag("namespace", "Namespace of the resources").Hidden().Default(apidefaults.Namespace).StringVar(&rc.namespace)
@@ -277,7 +279,7 @@ func (rc *ResourceCommand) Create(ctx context.Context, client auth.ClientI) (err
 		var raw services.UnknownResource
 		err := decoder.Decode(&raw)
 		if err != nil {
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				if count == 0 {
 					return trace.BadParameter("no resources found, empty input?")
 				}
@@ -394,6 +396,7 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 		return trace.Wrap(err)
 	}
 
+	warnAboutKubernetesResources(rc.config.Log, role)
 	roleName := role.GetName()
 	_, err = client.GetRole(ctx, roleName)
 	if err != nil && !trace.IsNotFound(err) {
@@ -408,6 +411,26 @@ func (rc *ResourceCommand) createRole(ctx context.Context, client auth.ClientI, 
 	}
 	fmt.Printf("role '%s' has been %s\n", roleName, UpsertVerb(roleExists, rc.IsForced()))
 	return nil
+}
+
+// warnAboutKubernetesResources warns about kubernetes resources
+// if kubernetes_labels are set but kubernetes_resources are not.
+func warnAboutKubernetesResources(logger utils.Logger, r types.Role) {
+	role, ok := r.(*types.RoleV6)
+	// only warn about kubernetes resources for v6 roles
+	if !ok || role.Version != types.V6 {
+		return
+	}
+	if len(role.Spec.Allow.KubernetesLabels) > 0 && len(role.Spec.Allow.KubernetesResources) == 0 {
+		logger.Warningf("role %q has allow.kubernetes_labels set but no allow.kubernetes_resources, this is probably a mistake. Teleport will restrict access to pods.", role.Metadata.Name)
+	}
+	if len(role.Spec.Allow.KubernetesLabels) == 0 && len(role.Spec.Allow.KubernetesResources) > 0 {
+		logger.Warningf("role %q has allow.kubernetes_resources set but no allow.kubernetes_labels, this is probably a mistake. kubernetes_resources won't be effective.", role.Metadata.Name)
+	}
+
+	if len(role.Spec.Deny.KubernetesLabels) > 0 && len(role.Spec.Deny.KubernetesResources) > 0 {
+		logger.Warningf("role %q has deny.kubernetes_labels set but also has deny.kubernetes_resources set, this is probably a mistake. deny.kubernetes_resources won't be effective.", role.Metadata.Name)
+	}
 }
 
 // createUser implements `tctl create user.yaml` command.
@@ -551,6 +574,20 @@ func (rc *ResourceCommand) createNetworkRestrictions(ctx context.Context, client
 		return trace.Wrap(err)
 	}
 	fmt.Printf("network restrictions have been updated\n")
+	return nil
+}
+
+func (rc *ResourceCommand) createWindowsDesktop(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	wd, err := services.UnmarshalWindowsDesktop(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := client.UpsertWindowsDesktop(ctx, wd); err != nil {
+		return trace.Wrap(err)
+	}
+
+	fmt.Printf("windows desktop %q has been updated\n", wd.GetName())
 	return nil
 }
 
@@ -775,7 +812,11 @@ func (rc *ResourceCommand) createDevice(ctx context.Context, client auth.ClientI
 		fmt.Printf("Warning: Devices cannot be overwritten with the --force flag\n")
 	}
 
-	dev, err := device.UnmarshalDevice(raw.Raw)
+	res, err := types.UnmarshalDevice(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	dev, err := types.DeviceFromResource(res)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -815,6 +856,54 @@ func (rc *ResourceCommand) createOktaImportRule(ctx context.Context, client auth
 		}
 	}
 	fmt.Printf("Okta import rule '%s' has been %s\n", importRule.GetName(), UpsertVerb(exists, rc.IsForced()))
+	return nil
+}
+
+func (rc *ResourceCommand) createIntegration(ctx context.Context, client auth.ClientI, raw services.UnknownResource) error {
+	integration, err := services.UnmarshalIntegration(raw.Raw)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	existingIntegration, err := client.GetIntegration(ctx, integration.GetName())
+	if err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	exists := (err == nil)
+
+	if exists {
+		if !rc.force {
+			return trace.AlreadyExists("Integration %q already exists", integration.GetName())
+		}
+
+		if err := existingIntegration.CanChangeStateTo(integration); err != nil {
+			return trace.Wrap(err)
+		}
+
+		switch integration.GetSubKind() {
+		case types.IntegrationSubKindAWSOIDC:
+			existingIntegration.SetAWSOIDCIntegrationSpec(integration.GetAWSOIDCIntegrationSpec())
+		default:
+			return trace.BadParameter("subkind %q is not supported", integration.GetSubKind())
+		}
+
+		if _, err := client.UpdateIntegration(ctx, existingIntegration); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Integration %q has been updated\n", integration.GetName())
+		return nil
+	}
+
+	igV1, ok := integration.(*types.IntegrationV1)
+	if !ok {
+		return trace.BadParameter("unexpected Integration type %T", integration)
+	}
+
+	if _, err := client.CreateIntegration(ctx, igV1); err != nil {
+		return trace.Wrap(err)
+	}
+	fmt.Printf("Integration %q has been created\n", integration.GetName())
+
 	return nil
 }
 
@@ -1077,6 +1166,12 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 		}
 		fmt.Printf("Device %q removed\n", rc.ref.Name)
 
+	case types.KindIntegration:
+		if err := client.DeleteIntegration(ctx, rc.ref.Name); err != nil {
+			return trace.Wrap(err)
+		}
+		fmt.Printf("Integration %q removed\n", rc.ref.Name)
+
 	case types.KindAppServer:
 		appServers, err := client.GetApplicationServers(ctx, rc.namespace)
 		if err != nil {
@@ -1100,11 +1195,6 @@ func (rc *ResourceCommand) Delete(ctx context.Context, client auth.ClientI) (err
 			return trace.Wrap(err)
 		}
 		fmt.Printf("Okta import rule %q has been deleted\n", rc.ref.Name)
-	case types.KindOktaAssignment:
-		if err := client.OktaClient().DeleteOktaAssignment(ctx, rc.ref.Name); err != nil {
-			return trace.Wrap(err)
-		}
-		fmt.Printf("Okta assignment %q has been deleted\n", rc.ref.Name)
 	case types.KindUserGroup:
 		if err := client.DeleteUserGroup(ctx, rc.ref.Name); err != nil {
 			return trace.Wrap(err)
@@ -1838,6 +1928,32 @@ func (rc *ResourceCommand) getCollection(ctx context.Context, client auth.Client
 			}
 		}
 		return &userGroupCollection{userGroups: resources}, nil
+
+	case types.KindIntegration:
+		if rc.ref.Name != "" {
+			ig, err := client.GetIntegration(ctx, rc.ref.Name)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			return &integrationCollection{integrations: []types.Integration{ig}}, nil
+		}
+
+		var resources []types.Integration
+		var igs []types.Integration
+		var err error
+		var nextKey string
+		for {
+			igs, nextKey, err = client.ListIntegrations(ctx, 0, nextKey)
+			if err != nil {
+				return nil, trace.Wrap(err)
+			}
+			resources = append(resources, igs...)
+			if nextKey == "" {
+				break
+			}
+		}
+
+		return &integrationCollection{integrations: resources}, nil
 	}
 	return nil, trace.BadParameter("getting %q is not supported", rc.ref.String())
 }

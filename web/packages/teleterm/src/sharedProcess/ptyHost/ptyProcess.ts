@@ -41,25 +41,39 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   constructor(private options: PtyProcessOptions & { ptyId: string }) {
     super();
     this._logger = new Logger(
-      `PtyProcess (id: ${options.ptyId} ${options.path} ${options.args})`
+      `PtyProcess (id: ${options.ptyId} ${options.path} ${options.args.join(
+        ' '
+      )})`
     );
   }
 
+  getPtyId() {
+    return this.options.ptyId;
+  }
+
   start(cols: number, rows: number) {
-    this._process = nodePTY.spawn(this.options.path, this.options.args, {
-      cols,
-      rows,
-      name: 'xterm-color',
-      // HOME should be always defined. But just in case it isn't let's use the cwd from process.
-      // https://unix.stackexchange.com/questions/123858
-      cwd: this.options.cwd || getDefaultCwd(this.options.env),
-      env: this.options.env,
-      // Turn off ConPTY due to an uncaught exception being thrown when a PTY is closed.
-      useConpty: false,
-    });
+    try {
+      // TODO(ravicious): Set argv0 when node-pty adds support for it.
+      // https://github.com/microsoft/node-pty/issues/472
+      this._process = nodePTY.spawn(this.options.path, this.options.args, {
+        cols,
+        rows,
+        name: 'xterm-color',
+        // HOME should be always defined. But just in case it isn't let's use the cwd from process.
+        // https://unix.stackexchange.com/questions/123858
+        cwd: this.options.cwd || getDefaultCwd(this.options.env),
+        env: this.options.env,
+        // Turn off ConPTY due to an uncaught exception being thrown when a PTY is closed.
+        useConpty: false,
+      });
+    } catch (error) {
+      this._logger.error(error);
+      this.handleStartError(error);
+      return;
+    }
 
     this._setStatus('open');
-    this.emit(TermEventEnum.OPEN);
+    this.emit(TermEventEnum.Open);
 
     this._process.onData(data => this._handleData(data));
     this._process.onExit(ev => this._handleExit(ev));
@@ -109,15 +123,35 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   onData(cb: (data: string) => void) {
-    this.addListener(TermEventEnum.DATA, cb);
+    return this.addListenerAndReturnRemovalFunction(TermEventEnum.Data, cb);
   }
 
   onOpen(cb: () => void) {
-    this.addListener(TermEventEnum.OPEN, cb);
+    return this.addListenerAndReturnRemovalFunction(TermEventEnum.Open, cb);
   }
 
   onExit(cb: (ev: { exitCode: number; signal?: number }) => void) {
-    this.addListener(TermEventEnum.EXIT, cb);
+    return this.addListenerAndReturnRemovalFunction(TermEventEnum.Exit, cb);
+  }
+
+  onStartError(cb: (message: string) => void) {
+    return this.addListenerAndReturnRemovalFunction(
+      TermEventEnum.StartError,
+      cb
+    );
+  }
+
+  private addListenerAndReturnRemovalFunction(
+    eventName: TermEventEnum,
+    listener: (...args: any[]) => void
+  ) {
+    this.addListener(eventName, listener);
+
+    // The removal function is not used from within the shared process code, it is returned only to
+    // comply with the IPtyProcess interface.
+    return () => {
+      this.removeListener(eventName, listener);
+    };
   }
 
   private getPid() {
@@ -125,7 +159,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   private _flushBuffer() {
-    this.emit(TermEventEnum.DATA, this._attachedBuffer);
+    this.emit(TermEventEnum.Data, this._attachedBuffer);
     this._attachedBuffer = null;
     clearTimeout(this._attachedBufferTimer);
     this._attachedBufferTimer = null;
@@ -141,7 +175,7 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 
   private _handleExit(e: { exitCode: number; signal?: number }) {
-    this.emit(TermEventEnum.EXIT, e);
+    this.emit(TermEventEnum.Exit, e);
     this._logger.info(`pty has been terminated with exit code: ${e.exitCode}`);
     this._setStatus('terminated');
   }
@@ -151,11 +185,19 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
       if (this._buffered) {
         this._pushToBuffer(data);
       } else {
-        this.emit(TermEventEnum.DATA, data);
+        this.emit(TermEventEnum.Data, data);
       }
     } catch (err) {
       this._logger.error('failed to parse incoming message.', err);
     }
+  }
+
+  private handleStartError(error: Error) {
+    const command = `${this.options.path} ${this.options.args.join(' ')}`;
+    this.emit(
+      TermEventEnum.StartError,
+      `Cannot execute ${command}: ${error.message}`
+    );
   }
 
   private _setStatus(value: Status) {
@@ -164,13 +206,14 @@ export class PtyProcess extends EventEmitter implements IPtyProcess {
   }
 }
 
-export const TermEventEnum = {
-  CLOSE: 'terminal.close',
-  RESET: 'terminal.reset',
-  DATA: 'terminal.data',
-  OPEN: 'terminal.open',
-  EXIT: 'terminal.exit',
-};
+export enum TermEventEnum {
+  Close = 'terminal.close',
+  Reset = 'terminal.reset',
+  Data = 'terminal.data',
+  Open = 'terminal.open',
+  Exit = 'terminal.exit',
+  StartError = 'terminal.start_error',
+}
 
 async function getWorkingDirectory(pid: number): Promise<string> {
   switch (process.platform) {

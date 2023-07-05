@@ -16,6 +16,7 @@ limitations under the License.
 import { Server, ServerSideParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { makeServer } from 'teleterm/ui/services/clusters';
+import { connectToServer } from 'teleterm/ui/services/workspacesService';
 
 import { useServerSideResources } from '../useServerSideResources';
 
@@ -37,17 +38,14 @@ export function useServers() {
   }
 
   function connect(server: ReturnType<typeof makeServer>, login: string): void {
-    const rootCluster = appContext.clustersService.findRootClusterByResource(
-      server.uri
+    const { uri, hostname } = server;
+    connectToServer(
+      appContext,
+      { uri, hostname, login },
+      {
+        origin: 'resource_table',
+      }
     );
-    const documentsService =
-      appContext.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
-    const doc = documentsService.createTshNodeDocument(server.uri);
-    doc.title = `${login}@${server.hostname}`;
-    doc.login = login;
-
-    documentsService.add(doc);
-    documentsService.setLocation(doc.uri);
   }
 
   return {

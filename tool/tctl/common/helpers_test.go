@@ -29,13 +29,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/kingpin"
-	"github.com/sirupsen/logrus"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/breaker"
-	"github.com/gravitational/teleport/api/defaults"
+	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/authclient"
@@ -84,6 +83,13 @@ func getAuthClient(ctx context.Context, t *testing.T, fc *config.FileConfig, opt
 
 	client, err := authclient.Connect(ctx, clientConfig)
 	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		if closer, ok := client.(io.Closer); ok {
+			closer.Close()
+		}
+	})
+
 	return client
 }
 
@@ -225,7 +231,46 @@ func makeAndRunTestAuthServer(t *testing.T, opts ...testServerOptionFunc) (auth 
 	// timeout here because this isn't the kind of problem that this test is meant to catch.
 	require.NoError(t, err, "auth server didn't start after 30s")
 
+	// Wait for proxy to start up if it's enabled. Otherwise we may get racy
+	// behavior between startup and shutdown.
+	if cfg.Proxy.Enabled {
+		_, err = auth.WaitForEventTimeout(30*time.Second, service.ProxyWebServerReady)
+		require.NoError(t, err, "proxy server didn't start after 30s")
+	}
+
+	if cfg.Auth.Enabled && cfg.Databases.Enabled {
+		waitForDatabases(t, auth, cfg.Databases.Databases)
+	}
 	return auth
+}
+
+func waitForDatabases(t *testing.T, auth *service.TeleportProcess, dbs []service.Database) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	for {
+		select {
+		case <-time.After(500 * time.Millisecond):
+			all, err := auth.GetAuthServer().GetDatabaseServers(ctx, apidefaults.Namespace)
+			require.NoError(t, err)
+
+			// Count how many input "dbs" are registered.
+			var registered int
+			for _, db := range dbs {
+				for _, a := range all {
+					if a.GetName() == db.Name {
+						registered++
+						break
+					}
+				}
+			}
+
+			if registered == len(dbs) {
+				return
+			}
+		case <-ctx.Done():
+			t.Fatal("databases not registered after 10s")
+		}
+	}
 }
 
 func newDynamicServiceAddr(t *testing.T) *dynamicServiceAddr {
@@ -250,25 +295,4 @@ type dynamicServiceAddr struct {
 	tunnelAddr  string
 	authAddr    string
 	descriptors []service.FileDescriptor
-}
-
-func waitForBackendDatabaseResourcePropagation(t *testing.T, authServer *auth.Server) {
-	deadlineC := time.After(5 * time.Second)
-	for {
-		select {
-		case <-time.Tick(100 * time.Millisecond):
-			databases, err := authServer.GetDatabaseServers(context.Background(), defaults.Namespace)
-			if err != nil {
-				logrus.WithError(err).Debugf("GetDatabaseServer call failed")
-				continue
-			}
-			if len(databases) == 0 {
-				logrus.Debugf("Database servers not found")
-				continue
-			}
-			return
-		case <-deadlineC:
-			t.Fatal("Failed to fetch database servers")
-		}
-	}
 }

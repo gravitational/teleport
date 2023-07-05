@@ -46,6 +46,7 @@ import (
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/testauthority"
 	"github.com/gravitational/teleport/lib/authz"
@@ -158,6 +159,19 @@ func TestAuthenticate(t *testing.T) {
 			ClusterName:       "local",
 			CachingAuthClient: ap,
 		},
+		getKubernetesServersForKubeCluster: func(ctx context.Context, name string) ([]types.KubeServer, error) {
+			servers, err := ap.GetKubernetesServers(ctx)
+			if err != nil {
+				return nil, err
+			}
+			var filtered []types.KubeServer
+			for _, server := range servers {
+				if server.GetCluster().GetName() == name {
+					filtered = append(filtered, server)
+				}
+			}
+			return filtered, nil
+		},
 	}
 
 	const remoteAddr = "user.example.com"
@@ -215,6 +229,21 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "local",
+							Labels: map[string]string{
+								"static_label1": "static_value1",
+								"static_label2": "static_value2",
+							},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -238,6 +267,30 @@ func TestAuthenticate(t *testing.T) {
 						DynamicLabels: map[string]types.CommandLabelV2{},
 					},
 				},
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "foo",
+						Labels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+				},
+				&types.KubernetesClusterV3{
+					Metadata: types.Metadata{
+						Name: "bar",
+						Labels: map[string]string{
+							"static_label1": "static_value1",
+							"static_label2": "static_value2",
+						},
+					},
+					Spec: types.KubernetesClusterSpecV3{
+						DynamicLabels: map[string]types.CommandLabelV2{},
+					},
+				},
 			),
 			wantCtx: &authContext{
 				kubeUsers:       utils.StringsSet([]string{"user-a"}),
@@ -252,6 +305,21 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "local",
+							Labels: map[string]string{
+								"static_label1": "static_value1",
+								"static_label2": "static_value2",
+							},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -284,6 +352,18 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -315,6 +395,19 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -347,6 +440,18 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -358,8 +463,6 @@ func TestAuthenticate(t *testing.T) {
 			tunnel:         tun,
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
 				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
@@ -377,8 +480,6 @@ func TestAuthenticate(t *testing.T) {
 			tunnel:         tun,
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
 				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
@@ -396,8 +497,6 @@ func TestAuthenticate(t *testing.T) {
 			tunnel:         tun,
 
 			wantCtx: &authContext{
-				kubeUsers:   utils.StringsSet([]string{"user-a"}),
-				kubeGroups:  utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
 				certExpires: certExpiration,
 				teleportCluster: teleportClusterClient{
 					name:       "remote",
@@ -448,6 +547,18 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -496,6 +607,18 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name:   "local",
+							Labels: map[string]string{},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -554,6 +677,21 @@ func TestAuthenticate(t *testing.T) {
 					name:       "local",
 					remoteAddr: *utils.MustParseAddr(remoteAddr),
 				},
+				kubeServers: newKubeServersFromKubeClusters(
+					t,
+					&types.KubernetesClusterV3{
+						Metadata: types.Metadata{
+							Name: "foo",
+							Labels: map[string]string{
+								"static_label1": "static_value1",
+								"static_label2": "static_value2",
+							},
+						},
+						Spec: types.KubernetesClusterSpecV3{
+							DynamicLabels: map[string]types.CommandLabelV2{},
+						},
+					},
+				),
 			},
 		},
 		{
@@ -566,8 +704,6 @@ func TestAuthenticate(t *testing.T) {
 			tunnel:            tun,
 
 			wantCtx: &authContext{
-				kubeUsers:       utils.StringsSet([]string{"user-a"}),
-				kubeGroups:      utils.StringsSet([]string{teleport.KubeSystemAuthenticated}),
 				kubeClusterName: "foo",
 				certExpires:     certExpiration,
 				teleportCluster: teleportClusterClient{
@@ -637,11 +773,12 @@ func TestAuthenticate(t *testing.T) {
 				require.Equal(t, trace.IsAccessDenied(err), tt.wantAuthErr)
 				return
 			}
+			err = f.authorize(context.Background(), gotCtx)
 			require.NoError(t, err)
 
 			require.Empty(t, cmp.Diff(gotCtx, tt.wantCtx,
 				cmp.AllowUnexported(authContext{}, teleportClusterClient{}),
-				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert"),
+				cmpopts.IgnoreFields(authContext{}, "clientIdleTimeout", "sessionTTL", "Context", "recordingConfig", "disconnectExpiredCert", "kubeCluster"),
 				cmpopts.IgnoreFields(teleportClusterClient{}, "dial", "isRemoteClosed"),
 			))
 
@@ -953,6 +1090,9 @@ func TestNewClusterSessionDirect(t *testing.T) {
 	f.cfg.CachingAuthClient = mockAccessPoint{
 		kubeServers: []types.KubeServer{publicKubeService, otherKubeService, tunnelKubeService, otherKubeService},
 	}
+
+	authCtx.kubeServers, err = f.cfg.CachingAuthClient.GetKubernetesServers(context.Background())
+	require.NoError(t, err)
 	sess, err := f.newClusterSession(authCtx)
 	require.NoError(t, err)
 	require.Equal(t, []kubeClusterEndpoint{publicEndpoint, tunnelEndpoint}, sess.kubeClusterEndpoints)
@@ -1649,6 +1789,94 @@ func Test_copyImpersonationHeaders(t *testing.T) {
 			dst := http.Header{}
 			copyImpersonationHeaders(dst, tt.inHeaders)
 			require.Equal(t, tt.wantHeaders, dst)
+		})
+	}
+}
+
+func Test_authContext_eventClusterMeta(t *testing.T) {
+	t.Parallel()
+	kubeClusterLabels := map[string]string{
+		"label": "value",
+	}
+	type args struct {
+		req *http.Request
+		ctx *authContext
+	}
+	tests := []struct {
+		name string
+		args args
+		want apievents.KubernetesClusterMetadata
+	}{
+		{
+			name: "no headers in request",
+			args: args{
+				req: &http.Request{
+					Header: http.Header{},
+				},
+				ctx: &authContext{
+					kubeClusterName:   "clusterName",
+					kubeClusterLabels: kubeClusterLabels,
+					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}},
+					kubeUsers:         map[string]struct{}{"kube-user-a": {}},
+				},
+			},
+			want: apievents.KubernetesClusterMetadata{
+				KubernetesCluster: "clusterName",
+				KubernetesLabels:  kubeClusterLabels,
+				KubernetesGroups:  []string{"kube-group-a", "kube-group-b"},
+				KubernetesUsers:   []string{"kube-user-a"},
+			},
+		},
+		{
+			name: "with filter headers in request",
+			args: args{
+				req: &http.Request{
+					Header: http.Header{
+						ImpersonateUserHeader:  []string{"kube-user-a"},
+						ImpersonateGroupHeader: []string{"kube-group-b", "kube-group-c"},
+					},
+				},
+				ctx: &authContext{
+					kubeClusterName:   "clusterName",
+					kubeClusterLabels: kubeClusterLabels,
+					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
+					kubeUsers:         map[string]struct{}{"kube-user-a": {}, "kube-user-b": {}},
+				},
+			},
+			want: apievents.KubernetesClusterMetadata{
+				KubernetesCluster: "clusterName",
+				KubernetesLabels:  kubeClusterLabels,
+				KubernetesGroups:  []string{"kube-group-b", "kube-group-c"},
+				KubernetesUsers:   []string{"kube-user-a"},
+			},
+		},
+		{
+			name: "without filter headers in request and multi groups",
+			args: args{
+				req: &http.Request{
+					Header: http.Header{},
+				},
+				ctx: &authContext{
+					kubeClusterName:   "clusterName",
+					kubeClusterLabels: kubeClusterLabels,
+					kubeGroups:        map[string]struct{}{"kube-group-a": {}, "kube-group-b": {}, "kube-group-c": {}},
+					kubeUsers:         map[string]struct{}{"kube-user-a": {}, "kube-user-b": {}},
+				},
+			},
+			want: apievents.KubernetesClusterMetadata{
+				KubernetesCluster: "clusterName",
+				KubernetesLabels:  kubeClusterLabels,
+				KubernetesGroups:  []string{"kube-group-a", "kube-group-b", "kube-group-c"},
+				KubernetesUsers:   []string{"kube-user-a", "kube-user-b"},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := tt.args.ctx.eventClusterMeta(tt.args.req)
+			sort.Strings(got.KubernetesGroups)
+			sort.Strings(got.KubernetesGroups)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

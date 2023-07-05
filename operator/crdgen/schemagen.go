@@ -36,7 +36,7 @@ const k8sKindPrefix = "Teleport"
 
 // Add names to this array when adding support to new Teleport resources that could conflict with Kubernetes
 var kubernetesReservedNames = []string{"role"}
-var regexpResourceName = regexp.MustCompile(`^([A-Za-z]+)(V[0-9]+)$`)
+var regexpResourceName = regexp.MustCompile(`^([A-Za-z]+)(V[0-9]+)?$`)
 
 // SchemaGenerator generates the OpenAPI v3 schema from a proto file.
 type SchemaGenerator struct {
@@ -87,33 +87,75 @@ func NewSchema() *Schema {
 	}}
 }
 
-func (generator *SchemaGenerator) addResource(file *File, name string, overrideVersion ...string) error {
+type resourceSchemaConfig struct {
+	versionOverride  string
+	customSpecFields []string
+}
+
+type resourceSchemaOption func(*resourceSchemaConfig)
+
+func withVersionOverride(version string) resourceSchemaOption {
+	return func(cfg *resourceSchemaConfig) {
+		cfg.versionOverride = version
+	}
+}
+
+func withCustomSpecFields(customSpecFields []string) resourceSchemaOption {
+	return func(cfg *resourceSchemaConfig) {
+		cfg.customSpecFields = customSpecFields
+	}
+}
+
+func (generator *SchemaGenerator) addResource(file *File, name string, opts ...resourceSchemaOption) error {
+	var cfg resourceSchemaConfig
+	for _, opt := range opts {
+		opt(&cfg)
+	}
+
 	rootMsg, ok := file.messageByName[name]
 	if !ok {
 		return trace.NotFound("resource %q is not found", name)
 	}
 
-	specField, ok := rootMsg.GetField("Spec")
-	if !ok {
-		return trace.NotFound("message %q does not have Spec field", name)
+	var schema *Schema
+	if len(cfg.customSpecFields) > 0 {
+		schema = NewSchema()
+		for _, fieldName := range cfg.customSpecFields {
+			field, ok := rootMsg.GetField(fieldName)
+			if !ok {
+				return trace.NotFound("field %q not found", fieldName)
+			}
+			var err error
+			schema.Properties[fieldName], err = generator.prop(field)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	} else {
+		specField, ok := rootMsg.GetField("Spec")
+		if !ok {
+			return trace.NotFound("message %q does not have Spec field", name)
+		}
+
+		specMsg := specField.TypeMessage()
+		if specMsg == nil {
+			return trace.NotFound("message %q Spec type is not a message", name)
+		}
+
+		var err error
+		schema, err = generator.traverseInner(specMsg)
+		if err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
-	specMsg := specField.TypeMessage()
-	if specMsg == nil {
-		return trace.NotFound("message %q Spec type is not a message", name)
-	}
-
-	schema, err := generator.traverseInner(specMsg)
-	if err != nil {
-		return trace.Wrap(err)
-	}
 	schema = schema.DeepCopy()
 	resourceKind, resourceVersion, err := parseKindAndVersion(rootMsg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if len(overrideVersion) > 0 {
-		resourceVersion = overrideVersion[0]
+	if cfg.versionOverride != "" {
+		resourceVersion = cfg.versionOverride
 	}
 	schema.Description = fmt.Sprintf("%s resource definition %s from Teleport", resourceKind, resourceVersion)
 
@@ -168,40 +210,52 @@ func (generator *SchemaGenerator) traverseInner(message *Message) (*Schema, erro
 			continue
 		}
 
-		prop := apiextv1.JSONSchemaProps{Description: field.LeadingComments()}
-
-		if field.IsRepeated() {
-			prop.Type = "array"
-			prop.Items = &apiextv1.JSONSchemaPropsOrArray{
-				Schema: &apiextv1.JSONSchemaProps{},
-			}
-			generator.singularProp(field, prop.Items.Schema)
-		} else {
-			generator.singularProp(field, &prop)
+		var err error
+		schema.Properties[jsonName], err = generator.prop(field)
+		if err != nil {
+			return nil, trace.Wrap(err)
 		}
-
-		if field.IsNullable() && (prop.Type == "array" || prop.Type == "object") {
-			prop.Nullable = true
-		}
-
-		// Labels are relying on `utils.Strings`, which can either marshall as an array of strings or a single string
-		// This does not pass Schema validation from the apiserver, to workaround we don't specify type for those fields
-		// and ask Kubernetes to preserve unknown fields.
-		if field.CustomType() == "Labels" {
-			prop.Type = "object"
-			preserveUnknownFields := true
-			prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
-				Schema: &apiextv1.JSONSchemaProps{
-					XPreserveUnknownFields: &preserveUnknownFields,
-				},
-			}
-		}
-
-		schema.Properties[jsonName] = prop
 	}
 	schema.built = true
 
 	return schema, nil
+}
+
+func (generator *SchemaGenerator) prop(field *Field) (apiextv1.JSONSchemaProps, error) {
+	prop := apiextv1.JSONSchemaProps{Description: field.LeadingComments()}
+
+	if field.IsRepeated() && !field.IsMap() {
+		prop.Type = "array"
+		prop.Items = &apiextv1.JSONSchemaPropsOrArray{
+			Schema: &apiextv1.JSONSchemaProps{},
+		}
+		if err := generator.singularProp(field, prop.Items.Schema); err != nil {
+			return prop, trace.Wrap(err)
+		}
+	} else {
+		if err := generator.singularProp(field, &prop); err != nil {
+			return prop, trace.Wrap(err)
+		}
+	}
+
+	if field.IsNullable() && (prop.Type == "array" || prop.Type == "object") {
+		prop.Nullable = true
+	}
+
+	// Labels are relying on `utils.Strings`, which can either marshall as an array of strings or a single string
+	// This does not pass Schema validation from the apiserver, to workaround we don't specify type for those fields
+	// and ask Kubernetes to preserve unknown fields.
+	if field.CustomType() == "Labels" {
+		prop.Type = "object"
+		preserveUnknownFields := true
+		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
+			Schema: &apiextv1.JSONSchemaProps{
+				XPreserveUnknownFields: &preserveUnknownFields,
+			},
+		}
+	}
+
+	return prop, nil
 }
 
 func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSONSchemaProps) error {
@@ -238,6 +292,14 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 	case field.TypeName() == ".types.CertExtensionType" || field.TypeName() == ".types.CertExtensionMode":
 		prop.Type = "integer"
 		prop.Format = "int32"
+	case strings.HasSuffix(field.TypeName(), ".v1.LoginRule.TraitsMapEntry"):
+		prop.Type = "object"
+		prop.AdditionalProperties = &apiextv1.JSONSchemaPropsOrBool{
+			Schema: &apiextv1.JSONSchemaProps{
+				Type:  "array",
+				Items: &apiextv1.JSONSchemaPropsOrArray{Schema: &apiextv1.JSONSchemaProps{Type: "string"}},
+			},
+		}
 	case field.IsMessage():
 		inner := field.TypeMessage()
 		if inner == nil {
@@ -253,8 +315,6 @@ func (generator *SchemaGenerator) singularProp(field *Field, prop *apiextv1.JSON
 		return trace.Errorf("unsupported casttype %s.%s", field.Message().Name(), field.Name())
 	case field.CustomType() != "":
 		return trace.Errorf("unsupported customtype %s.%s", field.Message().Name(), field.Name())
-	case field.IsMap():
-		return trace.Errorf("maps are not supported %s.%s", field.Message().Name(), field.Name())
 	default:
 		return trace.Errorf("unsupported %s.%s", field.Message().Name(), field.Name())
 	}
@@ -301,8 +361,7 @@ func (root RootSchema) CustomResourceDefinition() apiextv1.CustomResourceDefinit
 	// Some types are special and require manual overrides, like metav1.Time.
 	crdtools.AddKnownTypes(parser)
 
-	// hack, we should be able to retrieve the path instead
-	pkgs, err := loader.LoadRoots("../...")
+	pkgs, err := loader.LoadRoots("github.com/gravitational/teleport/operator/apis/...")
 	if err != nil {
 		fmt.Printf("parser error: %s", err)
 	}

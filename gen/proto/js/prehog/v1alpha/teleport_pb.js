@@ -20,13 +20,21 @@ goog.object.extend(proto, google_protobuf_duration_pb);
 var google_protobuf_timestamp_pb = require('google-protobuf/google/protobuf/timestamp_pb.js');
 goog.object.extend(proto, google_protobuf_timestamp_pb);
 goog.exportSymbol('proto.prehog.v1alpha.AgentMetadataEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.AssistCompletionEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.BotCreateEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.BotJoinEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.CTA', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.DiscoverMetadata', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.DiscoverResource', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.DiscoverResourceMetadata', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.DiscoverStatus', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.DiscoverStepStatus', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.EditorChangeEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.EditorChangeStatus', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.HelloTeleportRequest', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.HelloTeleportResponse', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.IntegrationEnrollKind', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.IntegrationEnrollMetadata', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.KubeRequestEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.ResourceCreateEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.ResourceHeartbeatEvent', null, global);
@@ -41,6 +49,7 @@ goog.exportSymbol('proto.prehog.v1alpha.SubmitEventResponse', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.SubmitEventsRequest', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.SubmitEventsResponse', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIBannerClickEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.UICallToActionClickEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UICreateNewRoleCancelClickEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UICreateNewRoleClickEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UICreateNewRoleSaveClickEvent', null, global);
@@ -49,17 +58,22 @@ goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverAutoDiscoveredResourcesEvent',
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverCompletedEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDatabaseConfigureIAMPolicyEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDatabaseConfigureMTLSEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDatabaseRegisterEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDeployServiceEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDesktopActiveDirectoryConfigureEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverDesktopActiveDirectoryToolsInstallEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverPrincipalsConfigureEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverResourceSelectionEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverStartedEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIDiscoverTestConnectionEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.UIIntegrationEnrollStartEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIOnboardAddFirstResourceClickEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIOnboardAddFirstResourceLaterClickEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIOnboardCompleteGoToDashboardClickEvent', null, global);
+goog.exportSymbol('proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIOnboardRegisterChallengeSubmitEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIOnboardSetCredentialSubmitEvent', null, global);
 goog.exportSymbol('proto.prehog.v1alpha.UIRecoveryCodesContinueClickEvent', null, global);
@@ -329,6 +343,27 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
+proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.displayName = 'proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
 proto.prehog.v1alpha.UIRecoveryCodesContinueClickEvent = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
@@ -486,6 +521,48 @@ if (goog.DEBUG && !COMPILED) {
    * @override
    */
   proto.prehog.v1alpha.UIDiscoverResourceSelectionEvent.displayName = 'proto.prehog.v1alpha.UIDiscoverResourceSelectionEvent';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.displayName = 'proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.displayName = 'proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -728,6 +805,48 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
+proto.prehog.v1alpha.BotCreateEvent = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.BotCreateEvent, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.BotCreateEvent.displayName = 'proto.prehog.v1alpha.BotCreateEvent';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.prehog.v1alpha.BotJoinEvent = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.BotJoinEvent, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.BotJoinEvent.displayName = 'proto.prehog.v1alpha.BotJoinEvent';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
 proto.prehog.v1alpha.UICreateNewRoleClickEvent = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
@@ -812,6 +931,27 @@ if (goog.DEBUG && !COMPILED) {
  * @extends {jspb.Message}
  * @constructor
  */
+proto.prehog.v1alpha.UICallToActionClickEvent = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.UICallToActionClickEvent, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.UICallToActionClickEvent.displayName = 'proto.prehog.v1alpha.UICallToActionClickEvent';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
 proto.prehog.v1alpha.KubeRequestEvent = function(opt_data) {
   jspb.Message.initialize(this, opt_data, 0, -1, null, null);
 };
@@ -864,6 +1004,111 @@ if (goog.DEBUG && !COMPILED) {
    * @override
    */
   proto.prehog.v1alpha.AgentMetadataEvent.displayName = 'proto.prehog.v1alpha.AgentMetadataEvent';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.prehog.v1alpha.AssistCompletionEvent = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.AssistCompletionEvent, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.AssistCompletionEvent.displayName = 'proto.prehog.v1alpha.AssistCompletionEvent';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.IntegrationEnrollMetadata, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.IntegrationEnrollMetadata.displayName = 'proto.prehog.v1alpha.IntegrationEnrollMetadata';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.UIIntegrationEnrollStartEvent, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.displayName = 'proto.prehog.v1alpha.UIIntegrationEnrollStartEvent';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.displayName = 'proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent';
+}
+/**
+ * Generated by JsPbCodeGenerator.
+ * @param {Array=} opt_data Optional initial data array, typically from a
+ * server response, or constructed directly in Javascript. The array is used
+ * in place and becomes part of the constructed object. It is not cloned.
+ * If no data is provided, the constructed object will be empty, but still
+ * valid.
+ * @extends {jspb.Message}
+ * @constructor
+ */
+proto.prehog.v1alpha.EditorChangeEvent = function(opt_data) {
+  jspb.Message.initialize(this, opt_data, 0, -1, null, null);
+};
+goog.inherits(proto.prehog.v1alpha.EditorChangeEvent, jspb.Message);
+if (goog.DEBUG && !COMPILED) {
+  /**
+   * @public
+   * @override
+   */
+  proto.prehog.v1alpha.EditorChangeEvent.displayName = 'proto.prehog.v1alpha.EditorChangeEvent';
 }
 /**
  * Generated by JsPbCodeGenerator.
@@ -3032,6 +3277,136 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
+proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    userName: jspb.Message.getFieldWithDefault(msg, 1, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent}
+ */
+proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent;
+  return proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent}
+ */
+proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUserName(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getUserName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string user_name = 1;
+ * @return {string}
+ */
+proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.prototype.getUserName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent} returns this
+ */
+proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.prototype.setUserName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
 proto.prehog.v1alpha.UIRecoveryCodesContinueClickEvent.prototype.toObject = function(opt_includeInstance) {
   return proto.prehog.v1alpha.UIRecoveryCodesContinueClickEvent.toObject(opt_includeInstance, this);
 };
@@ -3439,7 +3814,8 @@ proto.prehog.v1alpha.DiscoverMetadata.prototype.toObject = function(opt_includeI
 proto.prehog.v1alpha.DiscoverMetadata.toObject = function(includeInstance, msg) {
   var f, obj = {
     id: jspb.Message.getFieldWithDefault(msg, 1, ""),
-    userName: jspb.Message.getFieldWithDefault(msg, 2, "")
+    userName: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    sso: jspb.Message.getBooleanFieldWithDefault(msg, 3, false)
   };
 
   if (includeInstance) {
@@ -3484,6 +3860,10 @@ proto.prehog.v1alpha.DiscoverMetadata.deserializeBinaryFromReader = function(msg
       var value = /** @type {string} */ (reader.readString());
       msg.setUserName(value);
       break;
+    case 3:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setSso(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -3527,6 +3907,13 @@ proto.prehog.v1alpha.DiscoverMetadata.serializeBinaryToWriter = function(message
       f
     );
   }
+  f = message.getSso();
+  if (f) {
+    writer.writeBool(
+      3,
+      f
+    );
+  }
 };
 
 
@@ -3563,6 +3950,24 @@ proto.prehog.v1alpha.DiscoverMetadata.prototype.getUserName = function() {
  */
 proto.prehog.v1alpha.DiscoverMetadata.prototype.setUserName = function(value) {
   return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional bool sso = 3;
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.DiscoverMetadata.prototype.getSso = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 3, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.prehog.v1alpha.DiscoverMetadata} returns this
+ */
+proto.prehog.v1alpha.DiscoverMetadata.prototype.setSso = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 3, value);
 };
 
 
@@ -4308,6 +4713,542 @@ proto.prehog.v1alpha.UIDiscoverResourceSelectionEvent.prototype.clearStatus = fu
  */
 proto.prehog.v1alpha.UIDiscoverResourceSelectionEvent.prototype.hasStatus = function() {
   return jspb.Message.getField(this, 3) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    metadata: (f = msg.getMetadata()) && proto.prehog.v1alpha.DiscoverMetadata.toObject(includeInstance, f),
+    resource: (f = msg.getResource()) && proto.prehog.v1alpha.DiscoverResourceMetadata.toObject(includeInstance, f),
+    status: (f = msg.getStatus()) && proto.prehog.v1alpha.DiscoverStepStatus.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent}
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent;
+  return proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent}
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.prehog.v1alpha.DiscoverMetadata;
+      reader.readMessage(value,proto.prehog.v1alpha.DiscoverMetadata.deserializeBinaryFromReader);
+      msg.setMetadata(value);
+      break;
+    case 2:
+      var value = new proto.prehog.v1alpha.DiscoverResourceMetadata;
+      reader.readMessage(value,proto.prehog.v1alpha.DiscoverResourceMetadata.deserializeBinaryFromReader);
+      msg.setResource(value);
+      break;
+    case 3:
+      var value = new proto.prehog.v1alpha.DiscoverStepStatus;
+      reader.readMessage(value,proto.prehog.v1alpha.DiscoverStepStatus.deserializeBinaryFromReader);
+      msg.setStatus(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getMetadata();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.prehog.v1alpha.DiscoverMetadata.serializeBinaryToWriter
+    );
+  }
+  f = message.getResource();
+  if (f != null) {
+    writer.writeMessage(
+      2,
+      f,
+      proto.prehog.v1alpha.DiscoverResourceMetadata.serializeBinaryToWriter
+    );
+  }
+  f = message.getStatus();
+  if (f != null) {
+    writer.writeMessage(
+      3,
+      f,
+      proto.prehog.v1alpha.DiscoverStepStatus.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional DiscoverMetadata metadata = 1;
+ * @return {?proto.prehog.v1alpha.DiscoverMetadata}
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.getMetadata = function() {
+  return /** @type{?proto.prehog.v1alpha.DiscoverMetadata} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.DiscoverMetadata, 1));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.DiscoverMetadata|undefined} value
+ * @return {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent} returns this
+*/
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.setMetadata = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent} returns this
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.clearMetadata = function() {
+  return this.setMetadata(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.hasMetadata = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional DiscoverResourceMetadata resource = 2;
+ * @return {?proto.prehog.v1alpha.DiscoverResourceMetadata}
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.getResource = function() {
+  return /** @type{?proto.prehog.v1alpha.DiscoverResourceMetadata} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.DiscoverResourceMetadata, 2));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.DiscoverResourceMetadata|undefined} value
+ * @return {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent} returns this
+*/
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.setResource = function(value) {
+  return jspb.Message.setWrapperField(this, 2, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent} returns this
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.clearResource = function() {
+  return this.setResource(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.hasResource = function() {
+  return jspb.Message.getField(this, 2) != null;
+};
+
+
+/**
+ * optional DiscoverStepStatus status = 3;
+ * @return {?proto.prehog.v1alpha.DiscoverStepStatus}
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.getStatus = function() {
+  return /** @type{?proto.prehog.v1alpha.DiscoverStepStatus} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.DiscoverStepStatus, 3));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.DiscoverStepStatus|undefined} value
+ * @return {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent} returns this
+*/
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.setStatus = function(value) {
+  return jspb.Message.setWrapperField(this, 3, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent} returns this
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.clearStatus = function() {
+  return this.setStatus(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.prototype.hasStatus = function() {
+  return jspb.Message.getField(this, 3) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    metadata: (f = msg.getMetadata()) && proto.prehog.v1alpha.DiscoverMetadata.toObject(includeInstance, f),
+    resource: (f = msg.getResource()) && proto.prehog.v1alpha.DiscoverResourceMetadata.toObject(includeInstance, f),
+    status: (f = msg.getStatus()) && proto.prehog.v1alpha.DiscoverStepStatus.toObject(includeInstance, f),
+    selectedResourcesCount: jspb.Message.getFieldWithDefault(msg, 4, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent;
+  return proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.prehog.v1alpha.DiscoverMetadata;
+      reader.readMessage(value,proto.prehog.v1alpha.DiscoverMetadata.deserializeBinaryFromReader);
+      msg.setMetadata(value);
+      break;
+    case 2:
+      var value = new proto.prehog.v1alpha.DiscoverResourceMetadata;
+      reader.readMessage(value,proto.prehog.v1alpha.DiscoverResourceMetadata.deserializeBinaryFromReader);
+      msg.setResource(value);
+      break;
+    case 3:
+      var value = new proto.prehog.v1alpha.DiscoverStepStatus;
+      reader.readMessage(value,proto.prehog.v1alpha.DiscoverStepStatus.deserializeBinaryFromReader);
+      msg.setStatus(value);
+      break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setSelectedResourcesCount(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getMetadata();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.prehog.v1alpha.DiscoverMetadata.serializeBinaryToWriter
+    );
+  }
+  f = message.getResource();
+  if (f != null) {
+    writer.writeMessage(
+      2,
+      f,
+      proto.prehog.v1alpha.DiscoverResourceMetadata.serializeBinaryToWriter
+    );
+  }
+  f = message.getStatus();
+  if (f != null) {
+    writer.writeMessage(
+      3,
+      f,
+      proto.prehog.v1alpha.DiscoverStepStatus.serializeBinaryToWriter
+    );
+  }
+  f = message.getSelectedResourcesCount();
+  if (f !== 0) {
+    writer.writeInt64(
+      4,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional DiscoverMetadata metadata = 1;
+ * @return {?proto.prehog.v1alpha.DiscoverMetadata}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.getMetadata = function() {
+  return /** @type{?proto.prehog.v1alpha.DiscoverMetadata} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.DiscoverMetadata, 1));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.DiscoverMetadata|undefined} value
+ * @return {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} returns this
+*/
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.setMetadata = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} returns this
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.clearMetadata = function() {
+  return this.setMetadata(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.hasMetadata = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+/**
+ * optional DiscoverResourceMetadata resource = 2;
+ * @return {?proto.prehog.v1alpha.DiscoverResourceMetadata}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.getResource = function() {
+  return /** @type{?proto.prehog.v1alpha.DiscoverResourceMetadata} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.DiscoverResourceMetadata, 2));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.DiscoverResourceMetadata|undefined} value
+ * @return {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} returns this
+*/
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.setResource = function(value) {
+  return jspb.Message.setWrapperField(this, 2, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} returns this
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.clearResource = function() {
+  return this.setResource(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.hasResource = function() {
+  return jspb.Message.getField(this, 2) != null;
+};
+
+
+/**
+ * optional DiscoverStepStatus status = 3;
+ * @return {?proto.prehog.v1alpha.DiscoverStepStatus}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.getStatus = function() {
+  return /** @type{?proto.prehog.v1alpha.DiscoverStepStatus} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.DiscoverStepStatus, 3));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.DiscoverStepStatus|undefined} value
+ * @return {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} returns this
+*/
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.setStatus = function(value) {
+  return jspb.Message.setWrapperField(this, 3, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} returns this
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.clearStatus = function() {
+  return this.setStatus(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.hasStatus = function() {
+  return jspb.Message.getField(this, 3) != null;
+};
+
+
+/**
+ * optional int64 selected_resources_count = 4;
+ * @return {number}
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.getSelectedResourcesCount = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} returns this
+ */
+proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.prototype.setSelectedResourcesCount = function(value) {
+  return jspb.Message.setProto3IntField(this, 4, value);
 };
 
 
@@ -7047,6 +7988,476 @@ if (jspb.Message.GENERATE_TO_OBJECT) {
  *     http://goto/soy-param-migration
  * @return {!Object}
  */
+proto.prehog.v1alpha.BotCreateEvent.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.BotCreateEvent.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.BotCreateEvent} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.BotCreateEvent.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    userName: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    botUserName: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    roleName: jspb.Message.getFieldWithDefault(msg, 3, ""),
+    roleCount: jspb.Message.getFieldWithDefault(msg, 4, 0),
+    joinMethod: jspb.Message.getFieldWithDefault(msg, 5, ""),
+    botName: jspb.Message.getFieldWithDefault(msg, 6, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.BotCreateEvent}
+ */
+proto.prehog.v1alpha.BotCreateEvent.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.BotCreateEvent;
+  return proto.prehog.v1alpha.BotCreateEvent.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.BotCreateEvent} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.BotCreateEvent}
+ */
+proto.prehog.v1alpha.BotCreateEvent.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUserName(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBotUserName(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setRoleName(value);
+      break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setRoleCount(value);
+      break;
+    case 5:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setJoinMethod(value);
+      break;
+    case 6:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBotName(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.BotCreateEvent.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.BotCreateEvent} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.BotCreateEvent.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getUserName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getBotUserName();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getRoleName();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+  f = message.getRoleCount();
+  if (f !== 0) {
+    writer.writeInt64(
+      4,
+      f
+    );
+  }
+  f = message.getJoinMethod();
+  if (f.length > 0) {
+    writer.writeString(
+      5,
+      f
+    );
+  }
+  f = message.getBotName();
+  if (f.length > 0) {
+    writer.writeString(
+      6,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string user_name = 1;
+ * @return {string}
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.getUserName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.BotCreateEvent} returns this
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.setUserName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string bot_user_name = 2;
+ * @return {string}
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.getBotUserName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.BotCreateEvent} returns this
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.setBotUserName = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string role_name = 3;
+ * @return {string}
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.getRoleName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.BotCreateEvent} returns this
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.setRoleName = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+/**
+ * optional int64 role_count = 4;
+ * @return {number}
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.getRoleCount = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.prehog.v1alpha.BotCreateEvent} returns this
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.setRoleCount = function(value) {
+  return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional string join_method = 5;
+ * @return {string}
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.getJoinMethod = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 5, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.BotCreateEvent} returns this
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.setJoinMethod = function(value) {
+  return jspb.Message.setProto3StringField(this, 5, value);
+};
+
+
+/**
+ * optional string bot_name = 6;
+ * @return {string}
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.getBotName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 6, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.BotCreateEvent} returns this
+ */
+proto.prehog.v1alpha.BotCreateEvent.prototype.setBotName = function(value) {
+  return jspb.Message.setProto3StringField(this, 6, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.prehog.v1alpha.BotJoinEvent.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.BotJoinEvent.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.BotJoinEvent} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.BotJoinEvent.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    botName: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    joinMethod: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    joinTokenName: jspb.Message.getFieldWithDefault(msg, 3, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.BotJoinEvent}
+ */
+proto.prehog.v1alpha.BotJoinEvent.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.BotJoinEvent;
+  return proto.prehog.v1alpha.BotJoinEvent.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.BotJoinEvent} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.BotJoinEvent}
+ */
+proto.prehog.v1alpha.BotJoinEvent.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setBotName(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setJoinMethod(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setJoinTokenName(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.BotJoinEvent.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.BotJoinEvent.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.BotJoinEvent} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.BotJoinEvent.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getBotName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getJoinMethod();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getJoinTokenName();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string bot_name = 1;
+ * @return {string}
+ */
+proto.prehog.v1alpha.BotJoinEvent.prototype.getBotName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.BotJoinEvent} returns this
+ */
+proto.prehog.v1alpha.BotJoinEvent.prototype.setBotName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string join_method = 2;
+ * @return {string}
+ */
+proto.prehog.v1alpha.BotJoinEvent.prototype.getJoinMethod = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.BotJoinEvent} returns this
+ */
+proto.prehog.v1alpha.BotJoinEvent.prototype.setJoinMethod = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional string join_token_name = 3;
+ * @return {string}
+ */
+proto.prehog.v1alpha.BotJoinEvent.prototype.getJoinTokenName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.BotJoinEvent} returns this
+ */
+proto.prehog.v1alpha.BotJoinEvent.prototype.setJoinTokenName = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
 proto.prehog.v1alpha.UICreateNewRoleClickEvent.prototype.toObject = function(opt_includeInstance) {
   return proto.prehog.v1alpha.UICreateNewRoleClickEvent.toObject(opt_includeInstance, this);
 };
@@ -7548,6 +8959,166 @@ proto.prehog.v1alpha.UICreateNewRoleViewDocumentationClickEvent.prototype.getUse
  */
 proto.prehog.v1alpha.UICreateNewRoleViewDocumentationClickEvent.prototype.setUserName = function(value) {
   return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.prehog.v1alpha.UICallToActionClickEvent.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.UICallToActionClickEvent.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.UICallToActionClickEvent} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UICallToActionClickEvent.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    userName: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    cta: jspb.Message.getFieldWithDefault(msg, 2, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.UICallToActionClickEvent}
+ */
+proto.prehog.v1alpha.UICallToActionClickEvent.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.UICallToActionClickEvent;
+  return proto.prehog.v1alpha.UICallToActionClickEvent.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.UICallToActionClickEvent} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.UICallToActionClickEvent}
+ */
+proto.prehog.v1alpha.UICallToActionClickEvent.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUserName(value);
+      break;
+    case 2:
+      var value = /** @type {!proto.prehog.v1alpha.CTA} */ (reader.readEnum());
+      msg.setCta(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.UICallToActionClickEvent.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.UICallToActionClickEvent.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.UICallToActionClickEvent} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UICallToActionClickEvent.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getUserName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getCta();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string user_name = 1;
+ * @return {string}
+ */
+proto.prehog.v1alpha.UICallToActionClickEvent.prototype.getUserName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.UICallToActionClickEvent} returns this
+ */
+proto.prehog.v1alpha.UICallToActionClickEvent.prototype.setUserName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional CTA cta = 2;
+ * @return {!proto.prehog.v1alpha.CTA}
+ */
+proto.prehog.v1alpha.UICallToActionClickEvent.prototype.getCta = function() {
+  return /** @type {!proto.prehog.v1alpha.CTA} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {!proto.prehog.v1alpha.CTA} value
+ * @return {!proto.prehog.v1alpha.UICallToActionClickEvent} returns this
+ */
+proto.prehog.v1alpha.UICallToActionClickEvent.prototype.setCta = function(value) {
+  return jspb.Message.setProto3EnumField(this, 2, value);
 };
 
 
@@ -8317,6 +9888,908 @@ proto.prehog.v1alpha.AgentMetadataEvent.prototype.setCloudEnvironment = function
 
 
 
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.AssistCompletionEvent.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.AssistCompletionEvent} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    userName: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    conversationId: jspb.Message.getFieldWithDefault(msg, 2, ""),
+    totalTokens: jspb.Message.getFieldWithDefault(msg, 3, 0),
+    promptTokens: jspb.Message.getFieldWithDefault(msg, 4, 0),
+    completionTokens: jspb.Message.getFieldWithDefault(msg, 5, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.AssistCompletionEvent}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.AssistCompletionEvent;
+  return proto.prehog.v1alpha.AssistCompletionEvent.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.AssistCompletionEvent} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.AssistCompletionEvent}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUserName(value);
+      break;
+    case 2:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setConversationId(value);
+      break;
+    case 3:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setTotalTokens(value);
+      break;
+    case 4:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setPromptTokens(value);
+      break;
+    case 5:
+      var value = /** @type {number} */ (reader.readInt64());
+      msg.setCompletionTokens(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.AssistCompletionEvent.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.AssistCompletionEvent} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getUserName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getConversationId();
+  if (f.length > 0) {
+    writer.writeString(
+      2,
+      f
+    );
+  }
+  f = message.getTotalTokens();
+  if (f !== 0) {
+    writer.writeInt64(
+      3,
+      f
+    );
+  }
+  f = message.getPromptTokens();
+  if (f !== 0) {
+    writer.writeInt64(
+      4,
+      f
+    );
+  }
+  f = message.getCompletionTokens();
+  if (f !== 0) {
+    writer.writeInt64(
+      5,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string user_name = 1;
+ * @return {string}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.getUserName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.AssistCompletionEvent} returns this
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.setUserName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional string conversation_id = 2;
+ * @return {string}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.getConversationId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 2, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.AssistCompletionEvent} returns this
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.setConversationId = function(value) {
+  return jspb.Message.setProto3StringField(this, 2, value);
+};
+
+
+/**
+ * optional int64 total_tokens = 3;
+ * @return {number}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.getTotalTokens = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 3, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.prehog.v1alpha.AssistCompletionEvent} returns this
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.setTotalTokens = function(value) {
+  return jspb.Message.setProto3IntField(this, 3, value);
+};
+
+
+/**
+ * optional int64 prompt_tokens = 4;
+ * @return {number}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.getPromptTokens = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 4, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.prehog.v1alpha.AssistCompletionEvent} returns this
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.setPromptTokens = function(value) {
+  return jspb.Message.setProto3IntField(this, 4, value);
+};
+
+
+/**
+ * optional int64 completion_tokens = 5;
+ * @return {number}
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.getCompletionTokens = function() {
+  return /** @type {number} */ (jspb.Message.getFieldWithDefault(this, 5, 0));
+};
+
+
+/**
+ * @param {number} value
+ * @return {!proto.prehog.v1alpha.AssistCompletionEvent} returns this
+ */
+proto.prehog.v1alpha.AssistCompletionEvent.prototype.setCompletionTokens = function(value) {
+  return jspb.Message.setProto3IntField(this, 5, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.IntegrationEnrollMetadata.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.IntegrationEnrollMetadata} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    id: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    kind: jspb.Message.getFieldWithDefault(msg, 2, 0),
+    userName: jspb.Message.getFieldWithDefault(msg, 3, "")
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.IntegrationEnrollMetadata}
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.IntegrationEnrollMetadata;
+  return proto.prehog.v1alpha.IntegrationEnrollMetadata.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.IntegrationEnrollMetadata} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.IntegrationEnrollMetadata}
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setId(value);
+      break;
+    case 2:
+      var value = /** @type {!proto.prehog.v1alpha.IntegrationEnrollKind} */ (reader.readEnum());
+      msg.setKind(value);
+      break;
+    case 3:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUserName(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.IntegrationEnrollMetadata.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.IntegrationEnrollMetadata} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getId();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getKind();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      2,
+      f
+    );
+  }
+  f = message.getUserName();
+  if (f.length > 0) {
+    writer.writeString(
+      3,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string id = 1;
+ * @return {string}
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.prototype.getId = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.IntegrationEnrollMetadata} returns this
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.prototype.setId = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional IntegrationEnrollKind kind = 2;
+ * @return {!proto.prehog.v1alpha.IntegrationEnrollKind}
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.prototype.getKind = function() {
+  return /** @type {!proto.prehog.v1alpha.IntegrationEnrollKind} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {!proto.prehog.v1alpha.IntegrationEnrollKind} value
+ * @return {!proto.prehog.v1alpha.IntegrationEnrollMetadata} returns this
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.prototype.setKind = function(value) {
+  return jspb.Message.setProto3EnumField(this, 2, value);
+};
+
+
+/**
+ * optional string user_name = 3;
+ * @return {string}
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.prototype.getUserName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 3, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.IntegrationEnrollMetadata} returns this
+ */
+proto.prehog.v1alpha.IntegrationEnrollMetadata.prototype.setUserName = function(value) {
+  return jspb.Message.setProto3StringField(this, 3, value);
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.UIIntegrationEnrollStartEvent} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    metadata: (f = msg.getMetadata()) && proto.prehog.v1alpha.IntegrationEnrollMetadata.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.UIIntegrationEnrollStartEvent}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.UIIntegrationEnrollStartEvent;
+  return proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.UIIntegrationEnrollStartEvent} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.UIIntegrationEnrollStartEvent}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.prehog.v1alpha.IntegrationEnrollMetadata;
+      reader.readMessage(value,proto.prehog.v1alpha.IntegrationEnrollMetadata.deserializeBinaryFromReader);
+      msg.setMetadata(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.UIIntegrationEnrollStartEvent} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getMetadata();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.prehog.v1alpha.IntegrationEnrollMetadata.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional IntegrationEnrollMetadata metadata = 1;
+ * @return {?proto.prehog.v1alpha.IntegrationEnrollMetadata}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.prototype.getMetadata = function() {
+  return /** @type{?proto.prehog.v1alpha.IntegrationEnrollMetadata} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.IntegrationEnrollMetadata, 1));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.IntegrationEnrollMetadata|undefined} value
+ * @return {!proto.prehog.v1alpha.UIIntegrationEnrollStartEvent} returns this
+*/
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.prototype.setMetadata = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.UIIntegrationEnrollStartEvent} returns this
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.prototype.clearMetadata = function() {
+  return this.setMetadata(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.prototype.hasMetadata = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    metadata: (f = msg.getMetadata()) && proto.prehog.v1alpha.IntegrationEnrollMetadata.toObject(includeInstance, f)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent;
+  return proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = new proto.prehog.v1alpha.IntegrationEnrollMetadata;
+      reader.readMessage(value,proto.prehog.v1alpha.IntegrationEnrollMetadata.deserializeBinaryFromReader);
+      msg.setMetadata(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getMetadata();
+  if (f != null) {
+    writer.writeMessage(
+      1,
+      f,
+      proto.prehog.v1alpha.IntegrationEnrollMetadata.serializeBinaryToWriter
+    );
+  }
+};
+
+
+/**
+ * optional IntegrationEnrollMetadata metadata = 1;
+ * @return {?proto.prehog.v1alpha.IntegrationEnrollMetadata}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.prototype.getMetadata = function() {
+  return /** @type{?proto.prehog.v1alpha.IntegrationEnrollMetadata} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.IntegrationEnrollMetadata, 1));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.IntegrationEnrollMetadata|undefined} value
+ * @return {!proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent} returns this
+*/
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.prototype.setMetadata = function(value) {
+  return jspb.Message.setWrapperField(this, 1, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent} returns this
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.prototype.clearMetadata = function() {
+  return this.setMetadata(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.prototype.hasMetadata = function() {
+  return jspb.Message.getField(this, 1) != null;
+};
+
+
+
+
+
+if (jspb.Message.GENERATE_TO_OBJECT) {
+/**
+ * Creates an object representation of this proto.
+ * Field names that are reserved in JavaScript and will be renamed to pb_name.
+ * Optional fields that are not set will be set to undefined.
+ * To access a reserved field use, foo.pb_<name>, eg, foo.pb_default.
+ * For the list of reserved names please see:
+ *     net/proto2/compiler/js/internal/generator.cc#kKeyword.
+ * @param {boolean=} opt_includeInstance Deprecated. whether to include the
+ *     JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @return {!Object}
+ */
+proto.prehog.v1alpha.EditorChangeEvent.prototype.toObject = function(opt_includeInstance) {
+  return proto.prehog.v1alpha.EditorChangeEvent.toObject(opt_includeInstance, this);
+};
+
+
+/**
+ * Static version of the {@see toObject} method.
+ * @param {boolean|undefined} includeInstance Deprecated. Whether to include
+ *     the JSPB instance for transitional soy proto support:
+ *     http://goto/soy-param-migration
+ * @param {!proto.prehog.v1alpha.EditorChangeEvent} msg The msg instance to transform.
+ * @return {!Object}
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.EditorChangeEvent.toObject = function(includeInstance, msg) {
+  var f, obj = {
+    userName: jspb.Message.getFieldWithDefault(msg, 1, ""),
+    status: jspb.Message.getFieldWithDefault(msg, 2, 0)
+  };
+
+  if (includeInstance) {
+    obj.$jspbMessageInstance = msg;
+  }
+  return obj;
+};
+}
+
+
+/**
+ * Deserializes binary data (in protobuf wire format).
+ * @param {jspb.ByteSource} bytes The bytes to deserialize.
+ * @return {!proto.prehog.v1alpha.EditorChangeEvent}
+ */
+proto.prehog.v1alpha.EditorChangeEvent.deserializeBinary = function(bytes) {
+  var reader = new jspb.BinaryReader(bytes);
+  var msg = new proto.prehog.v1alpha.EditorChangeEvent;
+  return proto.prehog.v1alpha.EditorChangeEvent.deserializeBinaryFromReader(msg, reader);
+};
+
+
+/**
+ * Deserializes binary data (in protobuf wire format) from the
+ * given reader into the given message object.
+ * @param {!proto.prehog.v1alpha.EditorChangeEvent} msg The message object to deserialize into.
+ * @param {!jspb.BinaryReader} reader The BinaryReader to use.
+ * @return {!proto.prehog.v1alpha.EditorChangeEvent}
+ */
+proto.prehog.v1alpha.EditorChangeEvent.deserializeBinaryFromReader = function(msg, reader) {
+  while (reader.nextField()) {
+    if (reader.isEndGroup()) {
+      break;
+    }
+    var field = reader.getFieldNumber();
+    switch (field) {
+    case 1:
+      var value = /** @type {string} */ (reader.readString());
+      msg.setUserName(value);
+      break;
+    case 2:
+      var value = /** @type {!proto.prehog.v1alpha.EditorChangeStatus} */ (reader.readEnum());
+      msg.setStatus(value);
+      break;
+    default:
+      reader.skipField();
+      break;
+    }
+  }
+  return msg;
+};
+
+
+/**
+ * Serializes the message to binary data (in protobuf wire format).
+ * @return {!Uint8Array}
+ */
+proto.prehog.v1alpha.EditorChangeEvent.prototype.serializeBinary = function() {
+  var writer = new jspb.BinaryWriter();
+  proto.prehog.v1alpha.EditorChangeEvent.serializeBinaryToWriter(this, writer);
+  return writer.getResultBuffer();
+};
+
+
+/**
+ * Serializes the given message to binary data (in protobuf wire
+ * format), writing to the given BinaryWriter.
+ * @param {!proto.prehog.v1alpha.EditorChangeEvent} message
+ * @param {!jspb.BinaryWriter} writer
+ * @suppress {unusedLocalVariables} f is only used for nested messages
+ */
+proto.prehog.v1alpha.EditorChangeEvent.serializeBinaryToWriter = function(message, writer) {
+  var f = undefined;
+  f = message.getUserName();
+  if (f.length > 0) {
+    writer.writeString(
+      1,
+      f
+    );
+  }
+  f = message.getStatus();
+  if (f !== 0.0) {
+    writer.writeEnum(
+      2,
+      f
+    );
+  }
+};
+
+
+/**
+ * optional string user_name = 1;
+ * @return {string}
+ */
+proto.prehog.v1alpha.EditorChangeEvent.prototype.getUserName = function() {
+  return /** @type {string} */ (jspb.Message.getFieldWithDefault(this, 1, ""));
+};
+
+
+/**
+ * @param {string} value
+ * @return {!proto.prehog.v1alpha.EditorChangeEvent} returns this
+ */
+proto.prehog.v1alpha.EditorChangeEvent.prototype.setUserName = function(value) {
+  return jspb.Message.setProto3StringField(this, 1, value);
+};
+
+
+/**
+ * optional EditorChangeStatus status = 2;
+ * @return {!proto.prehog.v1alpha.EditorChangeStatus}
+ */
+proto.prehog.v1alpha.EditorChangeEvent.prototype.getStatus = function() {
+  return /** @type {!proto.prehog.v1alpha.EditorChangeStatus} */ (jspb.Message.getFieldWithDefault(this, 2, 0));
+};
+
+
+/**
+ * @param {!proto.prehog.v1alpha.EditorChangeStatus} value
+ * @return {!proto.prehog.v1alpha.EditorChangeEvent} returns this
+ */
+proto.prehog.v1alpha.EditorChangeEvent.prototype.setStatus = function(value) {
+  return jspb.Message.setProto3EnumField(this, 2, value);
+};
+
+
+
 /**
  * Oneof group definitions for this message. Each group defines the field
  * numbers belonging to that group. When of these fields' value is set, all
@@ -8325,7 +10798,7 @@ proto.prehog.v1alpha.AgentMetadataEvent.prototype.setCloudEnvironment = function
  * @private {!Array<!Array<number>>}
  * @const
  */
-proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_ = [[3,4,5,6,7,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39]];
+proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_ = [[3,4,5,6,7,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28,29,30,31,32,33,34,35,36,37,38,39,40,41,42,43,44,45,46,47,48,49]];
 
 /**
  * @enum {number}
@@ -8367,7 +10840,17 @@ proto.prehog.v1alpha.SubmitEventRequest.EventCase = {
   KUBE_REQUEST: 36,
   SFTP: 37,
   AGENT_METADATA_EVENT: 38,
-  RESOURCE_HEARTBEAT: 39
+  RESOURCE_HEARTBEAT: 39,
+  UI_DISCOVER_INTEGRATION_AWS_OIDC_CONNECT_EVENT: 40,
+  UI_DISCOVER_DATABASE_RDS_ENROLL_EVENT: 41,
+  UI_CALL_TO_ACTION_CLICK_EVENT: 42,
+  ASSIST_COMPLETION: 43,
+  UI_INTEGRATION_ENROLL_START_EVENT: 44,
+  UI_INTEGRATION_ENROLL_COMPLETE_EVENT: 45,
+  EDITOR_CHANGE_EVENT: 46,
+  BOT_CREATE: 47,
+  UI_ONBOARD_QUESTIONNAIRE_SUBMIT: 48,
+  BOT_JOIN: 49
 };
 
 /**
@@ -8445,7 +10928,17 @@ proto.prehog.v1alpha.SubmitEventRequest.toObject = function(includeInstance, msg
     kubeRequest: (f = msg.getKubeRequest()) && proto.prehog.v1alpha.KubeRequestEvent.toObject(includeInstance, f),
     sftp: (f = msg.getSftp()) && proto.prehog.v1alpha.SFTPEvent.toObject(includeInstance, f),
     agentMetadataEvent: (f = msg.getAgentMetadataEvent()) && proto.prehog.v1alpha.AgentMetadataEvent.toObject(includeInstance, f),
-    resourceHeartbeat: (f = msg.getResourceHeartbeat()) && proto.prehog.v1alpha.ResourceHeartbeatEvent.toObject(includeInstance, f)
+    resourceHeartbeat: (f = msg.getResourceHeartbeat()) && proto.prehog.v1alpha.ResourceHeartbeatEvent.toObject(includeInstance, f),
+    uiDiscoverIntegrationAwsOidcConnectEvent: (f = msg.getUiDiscoverIntegrationAwsOidcConnectEvent()) && proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.toObject(includeInstance, f),
+    uiDiscoverDatabaseRdsEnrollEvent: (f = msg.getUiDiscoverDatabaseRdsEnrollEvent()) && proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.toObject(includeInstance, f),
+    uiCallToActionClickEvent: (f = msg.getUiCallToActionClickEvent()) && proto.prehog.v1alpha.UICallToActionClickEvent.toObject(includeInstance, f),
+    assistCompletion: (f = msg.getAssistCompletion()) && proto.prehog.v1alpha.AssistCompletionEvent.toObject(includeInstance, f),
+    uiIntegrationEnrollStartEvent: (f = msg.getUiIntegrationEnrollStartEvent()) && proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.toObject(includeInstance, f),
+    uiIntegrationEnrollCompleteEvent: (f = msg.getUiIntegrationEnrollCompleteEvent()) && proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.toObject(includeInstance, f),
+    editorChangeEvent: (f = msg.getEditorChangeEvent()) && proto.prehog.v1alpha.EditorChangeEvent.toObject(includeInstance, f),
+    botCreate: (f = msg.getBotCreate()) && proto.prehog.v1alpha.BotCreateEvent.toObject(includeInstance, f),
+    uiOnboardQuestionnaireSubmit: (f = msg.getUiOnboardQuestionnaireSubmit()) && proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.toObject(includeInstance, f),
+    botJoin: (f = msg.getBotJoin()) && proto.prehog.v1alpha.BotJoinEvent.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -8670,6 +11163,56 @@ proto.prehog.v1alpha.SubmitEventRequest.deserializeBinaryFromReader = function(m
       var value = new proto.prehog.v1alpha.ResourceHeartbeatEvent;
       reader.readMessage(value,proto.prehog.v1alpha.ResourceHeartbeatEvent.deserializeBinaryFromReader);
       msg.setResourceHeartbeat(value);
+      break;
+    case 40:
+      var value = new proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.deserializeBinaryFromReader);
+      msg.setUiDiscoverIntegrationAwsOidcConnectEvent(value);
+      break;
+    case 41:
+      var value = new proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.deserializeBinaryFromReader);
+      msg.setUiDiscoverDatabaseRdsEnrollEvent(value);
+      break;
+    case 42:
+      var value = new proto.prehog.v1alpha.UICallToActionClickEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.UICallToActionClickEvent.deserializeBinaryFromReader);
+      msg.setUiCallToActionClickEvent(value);
+      break;
+    case 43:
+      var value = new proto.prehog.v1alpha.AssistCompletionEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.AssistCompletionEvent.deserializeBinaryFromReader);
+      msg.setAssistCompletion(value);
+      break;
+    case 44:
+      var value = new proto.prehog.v1alpha.UIIntegrationEnrollStartEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.deserializeBinaryFromReader);
+      msg.setUiIntegrationEnrollStartEvent(value);
+      break;
+    case 45:
+      var value = new proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.deserializeBinaryFromReader);
+      msg.setUiIntegrationEnrollCompleteEvent(value);
+      break;
+    case 46:
+      var value = new proto.prehog.v1alpha.EditorChangeEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.EditorChangeEvent.deserializeBinaryFromReader);
+      msg.setEditorChangeEvent(value);
+      break;
+    case 47:
+      var value = new proto.prehog.v1alpha.BotCreateEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.BotCreateEvent.deserializeBinaryFromReader);
+      msg.setBotCreate(value);
+      break;
+    case 48:
+      var value = new proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.deserializeBinaryFromReader);
+      msg.setUiOnboardQuestionnaireSubmit(value);
+      break;
+    case 49:
+      var value = new proto.prehog.v1alpha.BotJoinEvent;
+      reader.readMessage(value,proto.prehog.v1alpha.BotJoinEvent.deserializeBinaryFromReader);
+      msg.setBotJoin(value);
       break;
     default:
       reader.skipField();
@@ -9001,6 +11544,86 @@ proto.prehog.v1alpha.SubmitEventRequest.serializeBinaryToWriter = function(messa
       39,
       f,
       proto.prehog.v1alpha.ResourceHeartbeatEvent.serializeBinaryToWriter
+    );
+  }
+  f = message.getUiDiscoverIntegrationAwsOidcConnectEvent();
+  if (f != null) {
+    writer.writeMessage(
+      40,
+      f,
+      proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent.serializeBinaryToWriter
+    );
+  }
+  f = message.getUiDiscoverDatabaseRdsEnrollEvent();
+  if (f != null) {
+    writer.writeMessage(
+      41,
+      f,
+      proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent.serializeBinaryToWriter
+    );
+  }
+  f = message.getUiCallToActionClickEvent();
+  if (f != null) {
+    writer.writeMessage(
+      42,
+      f,
+      proto.prehog.v1alpha.UICallToActionClickEvent.serializeBinaryToWriter
+    );
+  }
+  f = message.getAssistCompletion();
+  if (f != null) {
+    writer.writeMessage(
+      43,
+      f,
+      proto.prehog.v1alpha.AssistCompletionEvent.serializeBinaryToWriter
+    );
+  }
+  f = message.getUiIntegrationEnrollStartEvent();
+  if (f != null) {
+    writer.writeMessage(
+      44,
+      f,
+      proto.prehog.v1alpha.UIIntegrationEnrollStartEvent.serializeBinaryToWriter
+    );
+  }
+  f = message.getUiIntegrationEnrollCompleteEvent();
+  if (f != null) {
+    writer.writeMessage(
+      45,
+      f,
+      proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent.serializeBinaryToWriter
+    );
+  }
+  f = message.getEditorChangeEvent();
+  if (f != null) {
+    writer.writeMessage(
+      46,
+      f,
+      proto.prehog.v1alpha.EditorChangeEvent.serializeBinaryToWriter
+    );
+  }
+  f = message.getBotCreate();
+  if (f != null) {
+    writer.writeMessage(
+      47,
+      f,
+      proto.prehog.v1alpha.BotCreateEvent.serializeBinaryToWriter
+    );
+  }
+  f = message.getUiOnboardQuestionnaireSubmit();
+  if (f != null) {
+    writer.writeMessage(
+      48,
+      f,
+      proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent.serializeBinaryToWriter
+    );
+  }
+  f = message.getBotJoin();
+  if (f != null) {
+    writer.writeMessage(
+      49,
+      f,
+      proto.prehog.v1alpha.BotJoinEvent.serializeBinaryToWriter
     );
   }
 };
@@ -10393,6 +13016,376 @@ proto.prehog.v1alpha.SubmitEventRequest.prototype.hasResourceHeartbeat = functio
 };
 
 
+/**
+ * optional UIDiscoverIntegrationAWSOIDCConnectEvent ui_discover_integration_aws_oidc_connect_event = 40;
+ * @return {?proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getUiDiscoverIntegrationAwsOidcConnectEvent = function() {
+  return /** @type{?proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent, 40));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.UIDiscoverIntegrationAWSOIDCConnectEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setUiDiscoverIntegrationAwsOidcConnectEvent = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 40, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearUiDiscoverIntegrationAwsOidcConnectEvent = function() {
+  return this.setUiDiscoverIntegrationAwsOidcConnectEvent(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasUiDiscoverIntegrationAwsOidcConnectEvent = function() {
+  return jspb.Message.getField(this, 40) != null;
+};
+
+
+/**
+ * optional UIDiscoverDatabaseRDSEnrollEvent ui_discover_database_rds_enroll_event = 41;
+ * @return {?proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getUiDiscoverDatabaseRdsEnrollEvent = function() {
+  return /** @type{?proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent, 41));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.UIDiscoverDatabaseRDSEnrollEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setUiDiscoverDatabaseRdsEnrollEvent = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 41, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearUiDiscoverDatabaseRdsEnrollEvent = function() {
+  return this.setUiDiscoverDatabaseRdsEnrollEvent(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasUiDiscoverDatabaseRdsEnrollEvent = function() {
+  return jspb.Message.getField(this, 41) != null;
+};
+
+
+/**
+ * optional UICallToActionClickEvent ui_call_to_action_click_event = 42;
+ * @return {?proto.prehog.v1alpha.UICallToActionClickEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getUiCallToActionClickEvent = function() {
+  return /** @type{?proto.prehog.v1alpha.UICallToActionClickEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.UICallToActionClickEvent, 42));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.UICallToActionClickEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setUiCallToActionClickEvent = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 42, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearUiCallToActionClickEvent = function() {
+  return this.setUiCallToActionClickEvent(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasUiCallToActionClickEvent = function() {
+  return jspb.Message.getField(this, 42) != null;
+};
+
+
+/**
+ * optional AssistCompletionEvent assist_completion = 43;
+ * @return {?proto.prehog.v1alpha.AssistCompletionEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getAssistCompletion = function() {
+  return /** @type{?proto.prehog.v1alpha.AssistCompletionEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.AssistCompletionEvent, 43));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.AssistCompletionEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setAssistCompletion = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 43, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearAssistCompletion = function() {
+  return this.setAssistCompletion(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasAssistCompletion = function() {
+  return jspb.Message.getField(this, 43) != null;
+};
+
+
+/**
+ * optional UIIntegrationEnrollStartEvent ui_integration_enroll_start_event = 44;
+ * @return {?proto.prehog.v1alpha.UIIntegrationEnrollStartEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getUiIntegrationEnrollStartEvent = function() {
+  return /** @type{?proto.prehog.v1alpha.UIIntegrationEnrollStartEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.UIIntegrationEnrollStartEvent, 44));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.UIIntegrationEnrollStartEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setUiIntegrationEnrollStartEvent = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 44, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearUiIntegrationEnrollStartEvent = function() {
+  return this.setUiIntegrationEnrollStartEvent(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasUiIntegrationEnrollStartEvent = function() {
+  return jspb.Message.getField(this, 44) != null;
+};
+
+
+/**
+ * optional UIIntegrationEnrollCompleteEvent ui_integration_enroll_complete_event = 45;
+ * @return {?proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getUiIntegrationEnrollCompleteEvent = function() {
+  return /** @type{?proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent, 45));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.UIIntegrationEnrollCompleteEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setUiIntegrationEnrollCompleteEvent = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 45, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearUiIntegrationEnrollCompleteEvent = function() {
+  return this.setUiIntegrationEnrollCompleteEvent(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasUiIntegrationEnrollCompleteEvent = function() {
+  return jspb.Message.getField(this, 45) != null;
+};
+
+
+/**
+ * optional EditorChangeEvent editor_change_event = 46;
+ * @return {?proto.prehog.v1alpha.EditorChangeEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getEditorChangeEvent = function() {
+  return /** @type{?proto.prehog.v1alpha.EditorChangeEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.EditorChangeEvent, 46));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.EditorChangeEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setEditorChangeEvent = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 46, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearEditorChangeEvent = function() {
+  return this.setEditorChangeEvent(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasEditorChangeEvent = function() {
+  return jspb.Message.getField(this, 46) != null;
+};
+
+
+/**
+ * optional BotCreateEvent bot_create = 47;
+ * @return {?proto.prehog.v1alpha.BotCreateEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getBotCreate = function() {
+  return /** @type{?proto.prehog.v1alpha.BotCreateEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.BotCreateEvent, 47));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.BotCreateEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setBotCreate = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 47, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearBotCreate = function() {
+  return this.setBotCreate(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasBotCreate = function() {
+  return jspb.Message.getField(this, 47) != null;
+};
+
+
+/**
+ * optional UIOnboardQuestionnaireSubmitEvent ui_onboard_questionnaire_submit = 48;
+ * @return {?proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getUiOnboardQuestionnaireSubmit = function() {
+  return /** @type{?proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent, 48));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.UIOnboardQuestionnaireSubmitEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setUiOnboardQuestionnaireSubmit = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 48, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearUiOnboardQuestionnaireSubmit = function() {
+  return this.setUiOnboardQuestionnaireSubmit(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasUiOnboardQuestionnaireSubmit = function() {
+  return jspb.Message.getField(this, 48) != null;
+};
+
+
+/**
+ * optional BotJoinEvent bot_join = 49;
+ * @return {?proto.prehog.v1alpha.BotJoinEvent}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.getBotJoin = function() {
+  return /** @type{?proto.prehog.v1alpha.BotJoinEvent} */ (
+    jspb.Message.getWrapperField(this, proto.prehog.v1alpha.BotJoinEvent, 49));
+};
+
+
+/**
+ * @param {?proto.prehog.v1alpha.BotJoinEvent|undefined} value
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+*/
+proto.prehog.v1alpha.SubmitEventRequest.prototype.setBotJoin = function(value) {
+  return jspb.Message.setOneofWrapperField(this, 49, proto.prehog.v1alpha.SubmitEventRequest.oneofGroups_[0], value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.prehog.v1alpha.SubmitEventRequest} returns this
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.clearBotJoin = function() {
+  return this.setBotJoin(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.prehog.v1alpha.SubmitEventRequest.prototype.hasBotJoin = function() {
+  return jspb.Message.getField(this, 49) != null;
+};
+
+
 
 
 
@@ -10991,7 +13984,27 @@ proto.prehog.v1alpha.DiscoverResource = {
   DISCOVER_RESOURCE_DATABASE_REDIS_SELF_HOSTED: 14,
   DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP: 15,
   DISCOVER_RESOURCE_DATABASE_MYSQL_GCP: 16,
-  DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP: 17
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP: 17,
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT_SERVERLESS: 18,
+  DISCOVER_RESOURCE_DATABASE_POSTGRES_AZURE: 19,
+  DISCOVER_RESOURCE_DATABASE_DYNAMODB: 20,
+  DISCOVER_RESOURCE_DATABASE_CASSANDRA_KEYSPACES: 21,
+  DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED: 22,
+  DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED: 23,
+  DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE: 24,
+  DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB: 25,
+  DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE: 26,
+  DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED: 27,
+  DISCOVER_RESOURCE_DATABASE_MYSQL_AZURE: 28,
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_AZURE: 29,
+  DISCOVER_RESOURCE_DATABASE_SQLSERVER_MICROSOFT: 30,
+  DISCOVER_RESOURCE_DATABASE_COCKROACHDB_SELF_HOSTED: 31,
+  DISCOVER_RESOURCE_DATABASE_MONGODB_ATLAS: 32,
+  DISCOVER_RESOURCE_DATABASE_SNOWFLAKE: 33,
+  DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY: 34,
+  DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY: 35,
+  DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION: 36,
+  DISCOVER_RESOURCE_SAML_APPLICATION: 37
 };
 
 /**
@@ -11003,6 +14016,46 @@ proto.prehog.v1alpha.DiscoverStatus = {
   DISCOVER_STATUS_SKIPPED: 2,
   DISCOVER_STATUS_ERROR: 3,
   DISCOVER_STATUS_ABORTED: 4
+};
+
+/**
+ * @enum {number}
+ */
+proto.prehog.v1alpha.CTA = {
+  CTA_UNSPECIFIED: 0,
+  CTA_AUTH_CONNECTOR: 1,
+  CTA_ACTIVE_SESSIONS: 2,
+  CTA_ACCESS_REQUESTS: 3,
+  CTA_PREMIUM_SUPPORT: 4,
+  CTA_TRUSTED_DEVICES: 5,
+  CTA_UPGRADE_BANNER: 6
+};
+
+/**
+ * @enum {number}
+ */
+proto.prehog.v1alpha.IntegrationEnrollKind = {
+  INTEGRATION_ENROLL_KIND_UNSPECIFIED: 0,
+  INTEGRATION_ENROLL_KIND_SLACK: 1,
+  INTEGRATION_ENROLL_KIND_AWS_OIDC: 2,
+  INTEGRATION_ENROLL_KIND_PAGERDUTY: 3,
+  INTEGRATION_ENROLL_KIND_EMAIL: 4,
+  INTEGRATION_ENROLL_KIND_JIRA: 5,
+  INTEGRATION_ENROLL_KIND_DISCORD: 6,
+  INTEGRATION_ENROLL_KIND_MATTERMOST: 7,
+  INTEGRATION_ENROLL_KIND_MS_TEAMS: 8,
+  INTEGRATION_ENROLL_KIND_OPSGENIE: 9,
+  INTEGRATION_ENROLL_KIND_OKTA: 10,
+  INTEGRATION_ENROLL_KIND_JAMF: 11
+};
+
+/**
+ * @enum {number}
+ */
+proto.prehog.v1alpha.EditorChangeStatus = {
+  EDITOR_CHANGE_STATUS_UNSPECIFIED: 0,
+  EDITOR_CHANGE_STATUS_ROLE_GRANTED: 1,
+  EDITOR_CHANGE_STATUS_ROLE_REMOVED: 2
 };
 
 goog.object.extend(exports, proto.prehog.v1alpha);

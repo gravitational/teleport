@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=12.1.1
+VERSION=12.4.10
 
 DOCKER_IMAGE ?= teleport
 
@@ -45,8 +45,12 @@ else
 BUILDFLAGS ?= $(ADDFLAGS) -ldflags '-w -s' -trimpath
 endif
 
-OS ?= $(shell go env GOOS)
-ARCH ?= $(shell go env GOARCH)
+GO_ENV_OS := $(shell go env GOOS)
+OS ?= $(GO_ENV_OS)
+
+GO_ENV_ARCH := $(shell go env GOARCH)
+ARCH ?= $(GO_ENV_ARCH)
+
 FIPS ?=
 RELEASE = teleport-$(GITTAG)-$(OS)-$(ARCH)-bin
 
@@ -79,8 +83,10 @@ endif
 CHECK_CARGO := $(shell cargo --version 2>/dev/null)
 CHECK_RUST := $(shell rustc --version 2>/dev/null)
 
-with_rdpclient := no
-RDPCLIENT_MESSAGE := without-Windows-RDP-client
+# Have cargo use sparse crates.io protocol:
+# https://blog.rust-lang.org/2023/03/09/Rust-1.68.0.html
+# TODO: Delete when it becomes default in Rust 1.70.0
+export CARGO_REGISTRIES_CRATES_IO_PROTOCOL=sparse
 
 CARGO_TARGET_darwin_amd64 := x86_64-apple-darwin
 CARGO_TARGET_darwin_arm64 := aarch64-apple-darwin
@@ -89,6 +95,14 @@ CARGO_TARGET_linux_amd64 := x86_64-unknown-linux-gnu
 
 CARGO_TARGET := --target=${CARGO_TARGET_${OS}_${ARCH}}
 
+# If set to 1, Windows RDP client is not built.
+RDPCLIENT_SKIP_BUILD ?= 0
+
+# Enable Windows RDP client build?
+with_rdpclient := no
+RDPCLIENT_MESSAGE := without-Windows-RDP-client
+
+ifeq ($(RDPCLIENT_SKIP_BUILD),0)
 ifneq ($(CHECK_RUST),)
 ifneq ($(CHECK_CARGO),)
 
@@ -101,6 +115,7 @@ RDPCLIENT_TAG := desktop_access_rdp
 endif
 endif
 
+endif
 endif
 endif
 
@@ -424,6 +439,8 @@ build-archive:
 release-unix: clean full build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
+include darwin-signing.mk
+
 .PHONY: release-darwin-unsigned
 release-darwin-unsigned: RELEASE:=$(RELEASE)-unsigned
 release-darwin-unsigned: clean full build-archive
@@ -431,12 +448,7 @@ release-darwin-unsigned: clean full build-archive
 .PHONY: release-darwin
 release-darwin: ABSOLUTE_BINARY_PATHS:=$(addprefix $(CURDIR)/,$(BINARIES))
 release-darwin: release-darwin-unsigned
-	# Only run if Apple username/pass for notarization are provided
-	if [ -n "$$APPLE_USERNAME" -a -n "$$APPLE_PASSWORD" ]; then \
-		cd ./build.assets/tooling/ && \
-		go run ./cmd/notarize-apple-binaries/*.go \
-			--log-level=debug $(ABSOLUTE_BINARY_PATHS); \
-	fi
+	$(NOTARIZE_BINARIES)
 	$(MAKE) build-archive
 	@if [ -f e/Makefile ]; then $(MAKE) -C e release; fi
 
@@ -499,6 +511,28 @@ release-windows: release-windows-unsigned
 	zip -9 -y -r -q $(RELEASE).zip teleport/
 	rm -rf teleport/
 	@echo "---> Created $(RELEASE).zip."
+
+#
+# make release-connect produces a release package of Teleport Connect.
+# It is used only for MacOS releases. Windows releases do not use this
+# Makefile. Linux uses the `teleterm` target in build.assets/Makefile.
+#
+# Only export the CSC_NAME (developer key ID) when the recipe is run, so
+# that we do not shell out and run the `security` command if not necessary.
+#
+# Either CONNECT_TSH_BIN_PATH or CONNECT_TSH_APP_PATH environment variable
+# should be defined for the `yarn package-term` command to succeed. CI sets
+# this appropriately depending on whether a push build is running, or a
+# proper release (a proper release needs the APP_PATH as that points to
+# the complete signed package). See web/packages/teleterm/README.md for
+# details.
+#
+.PHONY: release-connect
+release-connect:
+	$(eval export CSC_NAME)
+	yarn install --frozen-lockfile
+	yarn build-term
+	yarn package-term -c.extraMetadata.version=$(VERSION)
 
 #
 # Remove trailing whitespace in all markdown files under docs/.
@@ -578,6 +612,8 @@ test-go: PACKAGES = $(shell go list ./... | grep -v -e integration -e tool/tsh -
 test-go: CHAOS_FOLDERS = $(shell find . -type f -name '*chaos*.go' | xargs dirname | uniq)
 test-go: $(VERSRC) $(TEST_LOG_DIR)
 	$(CGOFLAG) go test -cover -json -tags "$(PAM_TAG) $(FIPS_TAG) $(BPF_TAG) $(RDPCLIENT_TAG) $(TOUCHID_TAG) $(PIV_TEST_TAG)" $(PACKAGES) $(FLAGS) $(ADDFLAGS) \
+		| tee $(TEST_LOG_DIR)/unit.json \
+		| ${RENDER_TESTS}
 
 # rdpclient and libfido2 don't play well together, so we run libfido2 tests
 # separately.
@@ -877,12 +913,13 @@ $(VERSRC): Makefile
 # 		- build binaries with 'make release'
 # 		- run `make tag` and use its output to 'git tag' and 'git push --tags'
 .PHONY: update-tag
+update-tag: TAG_REMOTE ?= origin
 update-tag:
 	@test $(VERSION)
 	git tag $(GITTAG)
 	git tag api/$(GITTAG)
 	(cd e && git tag $(GITTAG) && git push origin $(GITTAG))
-	git push origin $(GITTAG) && git push origin api/$(GITTAG)
+	git push $(TAG_REMOTE) $(GITTAG) && git push $(TAG_REMOTE) api/$(GITTAG)
 
 .PHONY: test-package
 test-package: remove-temp-files
@@ -942,6 +979,9 @@ enter-root:
 enter/centos7:
 	make -C build.assets enter/centos7
 
+.PHONY:enter/grpcbox
+enter/grpcbox:
+	make -C build.assets enter/grpcbox
 
 BUF := buf
 
@@ -963,8 +1003,17 @@ protos/lint: buf/installed
 	$(BUF) lint
 	$(BUF) lint --config=api/proto/buf-legacy.yaml api/proto
 
+.PHONY: protos/breaking
+protos/breaking: BASE=origin/master
+protos/breaking: buf/installed
+	@echo Checking compatibility against BASE=$(BASE)
+	buf breaking . --against '.git#branch=$(BASE)'
+
 .PHONY: lint-protos
 lint-protos: protos/lint
+
+.PHONY: lint-breaking
+lint-breaking: protos/breaking
 
 .PHONY: buf/installed
 buf/installed:
@@ -1060,18 +1109,20 @@ endif
 # build .pkg
 .PHONY: pkg
 pkg:
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
 	mkdir -p $(BUILDDIR)/
 	cp ./build.assets/build-package.sh ./build.assets/build-common.sh $(BUILDDIR)/
 	chmod +x $(BUILDDIR)/build-package.sh
 	# arch and runtime are currently ignored on OS X
 	# we pass them through for consistency - they will be dropped by the build script
-	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
+	cd $(BUILDDIR) && ./build-package.sh -t oss -v $(VERSION) -p pkg -b $(TELEPORT_BUNDLEID) -a $(ARCH) $(RUNTIME_SECTION) $(TARBALL_PATH_SECTION)
 	if [ -f e/Makefile ]; then $(MAKE) -C e pkg; fi
 
 # build tsh client-only .pkg
 .PHONY: pkg-tsh
 pkg-tsh:
-	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) $(TARBALL_PATH_SECTION)
+	$(eval export DEVELOPER_ID_APPLICATION DEVELOPER_ID_INSTALLER)
+	./build.assets/build-pkg-tsh.sh -t oss -v $(VERSION) -b $(TSH_BUNDLEID) $(TARBALL_PATH_SECTION)
 	mkdir -p $(BUILDDIR)/
 	mv tsh*.pkg* $(BUILDDIR)/
 

@@ -85,7 +85,7 @@ export default function RecoveryCodesDialog({
       >
         <Flex
           flex={4}
-          bg="primary.light"
+          bg="levels.surface"
           minWidth="584px"
           flexDirection="column"
           p={5}
@@ -108,7 +108,7 @@ export default function RecoveryCodesDialog({
               Recovery Codes ({recoveryCodes?.codes.length} Total)
             </Text>
             <Flex
-              bg="primary.dark"
+              bg="levels.sunkenSecondary"
               p={2}
               pb={4}
               pl={3}
@@ -146,7 +146,7 @@ export default function RecoveryCodesDialog({
         </Flex>
         <Flex
           flex={2}
-          bg="primary.main"
+          bg="levels.surfaceSecondary"
           minWidth="384px"
           flexDirection="column"
           p={5}
@@ -155,7 +155,7 @@ export default function RecoveryCodesDialog({
             <Text typography="h4" mb={2}>
               Why do I need these codes?
             </Text>
-            <Text color="text.secondary">
+            <Text color="text.slightlyMuted">
               Use them in the event of losing your password or two-factor
               device.
             </Text>
@@ -164,7 +164,7 @@ export default function RecoveryCodesDialog({
             <Text typography="h4" mb={2}>
               How long do the codes last for?
             </Text>
-            <Text color="text.secondary">
+            <Text color="text.slightlyMuted">
               Recovery codes can only be used once. After recovering your
               account, we will generate a new set of codes for you.
             </Text>
@@ -174,7 +174,7 @@ export default function RecoveryCodesDialog({
               <Text typography="h4" mb={2}>
                 What about my old codes?
               </Text>
-              <Text color="text.secondary">
+              <Text color="text.slightlyMuted">
                 Your old recovery codes are no longer valid, please replace them
                 with these new ones.
               </Text>

@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.devicetrust.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1;devicetrustv1";
 
 // OSType represents the operating system of a device.
 enum OSType {

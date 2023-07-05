@@ -27,27 +27,27 @@ const kind = props => {
     case 'danger':
       return {
         background: theme.colors.danger,
-        color: theme.colors.primary.contrastText,
+        color: theme.colors.text.contrast,
       };
     case 'info':
       return {
         background: theme.colors.info,
-        color: theme.colors.primary.contrastText,
+        color: theme.colors.text.contrast,
       };
     case 'warning':
       return {
-        background: theme.colors.warning,
-        color: theme.colors.primary.contrastText,
+        background: theme.colors.warning.main,
+        color: theme.colors.text.contrast,
       };
     case 'success':
       return {
         background: theme.colors.success,
-        color: theme.colors.primary.contrastText,
+        color: theme.colors.text.contrast,
       };
     default:
       return {
         background: theme.colors.danger,
-        color: theme.colors.primary.contrastText,
+        color: theme.colors.text.contrast,
       };
   }
 };

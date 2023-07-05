@@ -37,9 +37,13 @@ import type { ParticipantMode } from 'teleport/services/session';
 const cfg = {
   isEnterprise: false,
   isCloud: false,
+  assistEnabled: false,
+  automaticUpgrades: false,
   isDashboard: false,
   tunnelPublicAddress: '',
   recoveryCodesEnabled: false,
+  // IsUsageBasedBilling determines if the user subscription is usage-based (pay-as-you-go).
+  isUsageBasedBilling: false,
 
   configDir: '$HOME/.config',
 
@@ -62,6 +66,8 @@ const cfg = {
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
     privateKeyPolicy: 'none' as PrivateKeyPolicy,
+    // motd is message of the day, displayed to users before login.
+    motd: '',
   },
 
   proxyCluster: 'localhost',
@@ -74,6 +80,8 @@ const cfg = {
   routes: {
     root: '/web',
     discover: '/web/discover',
+    assistBase: '/web/assist/',
+    assist: '/web/assist/:conversationId?',
     apps: '/web/cluster/:clusterId/apps',
     appLauncher: '/web/launch/:fqdn/:clusterId?/:publicAddr?/:arn?',
     support: '/web/support',
@@ -110,6 +118,10 @@ const cfg = {
     userReset: '/web/reset/:tokenId',
     userResetContinue: '/web/reset/:tokenId/continue',
     kubernetes: '/web/cluster/:clusterId/kubernetes',
+    headlessSso: `/web/headless/:requestId`,
+    integrations: '/web/integrations',
+    integrationEnroll: '/web/integrations/new/:type?',
+
     // whitelist sso handlers
     oidcHandler: '/v1/webapi/oidc/*',
     samlHandler: '/v1/webapi/saml/*',
@@ -153,10 +165,10 @@ const cfg = {
     desktopPlaybackWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
     desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
-    siteSessionPath: '/v1/webapi/sites/:siteId/sessions',
     ttyWsAddr:
       'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
-    terminalSessionPath: '/v1/webapi/sites/:clusterId/sessions/:sid?',
+    activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
+    sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
       '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
@@ -177,6 +189,8 @@ const cfg = {
     mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
     mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
     mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
+
+    headlessSsoPath: `/v1/webapi/headless/:requestId`,
 
     mfaCreateRegistrationChallengePath:
       '/v1/webapi/mfa/token/:tokenId/registerchallenge',
@@ -200,7 +214,28 @@ const cfg = {
     captureUserEventPath: '/v1/webapi/capture',
     capturePreUserEventPath: '/v1/webapi/precapture',
 
+    headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
+
     webapiPingPath: '/v1/webapi/ping',
+
+    integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
+    thumbprintPath: '/v1/webapi/thumbprint',
+    awsRdsDbListPath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
+
+    userGroupsListPath:
+      '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+
+    assistConversationsPath: '/v1/webapi/assistant/conversations',
+    assistSetConversationTitlePath:
+      '/v1/webapi/assistant/conversations/:conversationId/title',
+    assistGenerateSummaryPath: '/v1/webapi/assistant/title/summary',
+    assistConversationWebSocketPath:
+      'wss://:hostname/v1/webapi/sites/:clusterId/assistant',
+    assistConversationHistoryPath:
+      '/v1/webapi/assistant/conversations/:conversationId',
+    assistExecuteCommandWebSocketPath:
+      'wss://:hostname/v1/webapi/command/:clusterId/execute',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -242,6 +277,10 @@ const cfg = {
     return cfg.auth ? cfg.auth.preferredLocalMfa : null;
   },
 
+  getMotd() {
+    return cfg.auth.motd;
+  },
+
   getLocalAuthFlag() {
     return cfg.auth.localAuthEnabled;
   },
@@ -274,6 +313,10 @@ const cfg = {
 
   getAuditRoute(clusterId: string) {
     return generatePath(cfg.routes.audit, { clusterId });
+  },
+
+  getIntegrationEnrollRoute(type?: string) {
+    return generatePath(cfg.routes.integrationEnroll, { type });
   },
 
   getNodesRoute(clusterId: string) {
@@ -427,6 +470,10 @@ const cfg = {
     return generatePath(cfg.routes.userResetContinue, { tokenId });
   },
 
+  getHeadlessSsoPath(requestId: string) {
+    return generatePath(cfg.api.headlessSsoPath, { requestId });
+  },
+
   getUserInviteTokenRoute(tokenId = '') {
     return generatePath(cfg.routes.userInvite, { tokenId });
   },
@@ -447,8 +494,12 @@ const cfg = {
     return generatePath(cfg.api.userWithUsernamePath, { username });
   },
 
-  getTerminalSessionUrl({ clusterId, sid }: UrlParams) {
-    return generatePath(cfg.api.terminalSessionPath, { clusterId, sid });
+  getSshPlaybackPrefixUrl({ clusterId, sid }: UrlParams) {
+    return generatePath(cfg.api.sshPlaybackPrefix, { clusterId, sid });
+  },
+
+  getActiveAndPendingSessionsUrl({ clusterId }: UrlParams) {
+    return generatePath(cfg.api.activeAndPendingSessionsPath, { clusterId });
   },
 
   getClusterNodesUrl(clusterId: string, params: UrlResourcesParams) {
@@ -576,8 +627,88 @@ const cfg = {
     });
   },
 
+  getIntegrationsUrl(integrationName?: string) {
+    // Currently you can only create integrations at the root cluster.
+    const clusterId = cfg.proxyCluster;
+    return generatePath(cfg.api.integrationsPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getUserGroupsListUrl(clusterId: string, params: UrlResourcesParams) {
+    return generateResourcePath(cfg.api.userGroupsListPath, {
+      clusterId,
+      ...params,
+    });
+  },
+
+  getAwsRdsDbListUrl(integrationName: string) {
+    // Currently you can only create integrations at the root cluster.
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsRdsDbListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
   getUIConfig() {
     return cfg.ui;
+  },
+
+  getAssistSetConversationTitleUrl(conversationId: string) {
+    return generatePath(cfg.api.assistSetConversationTitlePath, {
+      conversationId,
+    });
+  },
+
+  getAssistConversationWebSocketUrl(
+    hostname: string,
+    clusterId: string,
+    accessToken: string,
+    conversationId: string
+  ) {
+    const searchParams = new URLSearchParams();
+
+    searchParams.set('access_token', accessToken);
+    searchParams.set('conversation_id', conversationId);
+
+    return (
+      generatePath(cfg.api.assistConversationWebSocketPath, {
+        hostname,
+        clusterId,
+      }) + `?${searchParams.toString()}`
+    );
+  },
+
+  getAssistConversationHistoryUrl(conversationId: string) {
+    return generatePath(cfg.api.assistConversationHistoryPath, {
+      conversationId,
+    });
+  },
+
+  getAssistExecuteCommandUrl(
+    hostname: string,
+    clusterId: string,
+    accessToken: string,
+    params: Record<string, string>
+  ) {
+    const searchParams = new URLSearchParams();
+
+    searchParams.set('access_token', accessToken);
+    searchParams.set('params', JSON.stringify(params));
+
+    return (
+      generatePath(cfg.api.assistExecuteCommandWebSocketPath, {
+        hostname,
+        clusterId,
+      }) + `?${searchParams.toString()}`
+    );
+  },
+
+  getAssistConversationUrl(conversationId: string) {
+    return generatePath(cfg.routes.assist, { conversationId });
   },
 
   init(backendConfig = {}) {

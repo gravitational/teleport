@@ -76,7 +76,7 @@ func TestTemplateSSHClient_Render(t *testing.T) {
 				},
 			}
 
-			err = template.Render(context.Background(), mockBot, ident, dest)
+			err = template.Render(context.Background(), mockBot, ident, ident, dest)
 			require.NoError(t, err)
 
 			replaceTestDir := func(b []byte) []byte {

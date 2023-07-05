@@ -261,7 +261,7 @@ func (s *Server) CreateWebSessionFromReq(ctx context.Context, req types.NewWebSe
 	return session, nil
 }
 
-func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
+func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, publicKey []byte, compatibility, routeToCluster, kubernetesCluster, loginIP string, attestationReq *keys.AttestationStatement) ([]byte, []byte, error) {
 	// It's safe to extract the access info directly from services.User because
 	// this occurs during the initial login before the first certs have been
 	// generated, so there's no possibility of any active access requests.
@@ -285,6 +285,7 @@ func (s *Server) CreateSessionCert(user types.User, sessionTTL time.Duration, pu
 		routeToCluster:       routeToCluster,
 		kubernetesCluster:    kubernetesCluster,
 		attestationStatement: attestationReq,
+		loginIP:              loginIP,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -336,6 +337,10 @@ func (s *Server) CreateSAMLIdPSession(ctx context.Context, req types.CreateSAMLI
 	identity tlsca.Identity, checker services.AccessChecker,
 ) (types.WebSession, error) {
 	// TODO(mdwn): implement a module.Features() check.
+
+	if req.SAMLSession == nil {
+		return nil, trace.BadParameter("required SAML session is not populated")
+	}
 
 	// Create services.WebSession for this session.
 	session, err := types.NewWebSession(req.SessionID, types.KindSAMLIdPSession, types.WebSessionSpecV2{

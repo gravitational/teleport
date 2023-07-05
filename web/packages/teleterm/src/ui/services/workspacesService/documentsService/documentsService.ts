@@ -33,6 +33,8 @@ import {
   DocumentAccessRequests,
   DocumentCluster,
   DocumentGateway,
+  DocumentGatewayCliClient,
+  DocumentOrigin,
   DocumentTshKube,
   DocumentTshNode,
   DocumentTshNodeWithLoginHost,
@@ -104,23 +106,28 @@ export class DocumentsService {
         options.kubeConfigRelativePath ||
         `${params.rootClusterId}/${params.kubeId}-${unique(5)}`,
       title: params.kubeId,
+      origin: options.origin,
     };
   }
 
-  createTshNodeDocument(serverUri: ServerUri): DocumentTshNodeWithServerId {
-    const { params } = routing.parseServerUri(serverUri);
+  createTshNodeDocument(
+    serverUri: ServerUri,
+    params: { origin: DocumentOrigin }
+  ): DocumentTshNodeWithServerId {
+    const { params: routingParams } = routing.parseServerUri(serverUri);
     const uri = routing.getDocUri({ docId: unique() });
 
     return {
       uri,
       kind: 'doc.terminal_tsh_node',
       status: 'connecting',
-      rootClusterId: params.rootClusterId,
-      leafClusterId: params.leafClusterId,
-      serverId: params.serverId,
+      rootClusterId: routingParams.rootClusterId,
+      leafClusterId: routingParams.leafClusterId,
+      serverId: routingParams.serverId,
       serverUri,
       title: '',
       login: '',
+      origin: params.origin,
     };
   }
 
@@ -132,12 +139,15 @@ export class DocumentsService {
    * the command will succeed only if the given cluster has only a single server with the hostname
    * matching `host`.
    * @param loginHost - the "user@host" pair.
+   * @param params - additional parameters.
+   * @param params.origin - where the document was opened from.
    */
   createTshNodeDocumentFromLoginHost(
     clusterUri: ClusterUri,
-    loginHost: string
+    loginHost: string,
+    params: { origin: DocumentOrigin }
   ): DocumentTshNodeWithLoginHost {
-    const { params } = routing.parseClusterUri(clusterUri);
+    const { params: routingParams } = routing.parseClusterUri(clusterUri);
     const uri = routing.getDocUri({ docId: unique() });
 
     return {
@@ -145,9 +155,10 @@ export class DocumentsService {
       kind: 'doc.terminal_tsh_node',
       title: loginHost,
       status: 'connecting',
-      rootClusterId: params.rootClusterId,
-      leafClusterId: params.leafClusterId,
+      rootClusterId: routingParams.rootClusterId,
+      leafClusterId: routingParams.leafClusterId,
       loginHost,
+      origin: params.origin,
     };
   }
 
@@ -162,6 +173,7 @@ export class DocumentsService {
       targetSubresourceName,
       port,
       gatewayUri,
+      origin,
     } = opts;
     const uri = routing.getDocUri({ docId: unique() });
     const title = `${targetUser}@${targetName}`;
@@ -176,6 +188,35 @@ export class DocumentsService {
       gatewayUri,
       title,
       port,
+      origin,
+    };
+  }
+
+  createGatewayCliDocument({
+    title,
+    targetUri,
+    targetUser,
+    targetName,
+    targetProtocol,
+  }: Pick<
+    DocumentGatewayCliClient,
+    'title' | 'targetUri' | 'targetUser' | 'targetName' | 'targetProtocol'
+  >): DocumentGatewayCliClient {
+    const clusterUri = routing.ensureClusterUri(targetUri);
+    const { rootClusterId, leafClusterId } =
+      routing.parseClusterUri(clusterUri).params;
+
+    return {
+      kind: 'doc.gateway_cli_client',
+      uri: routing.getDocUri({ docId: unique() }),
+      title,
+      status: 'connecting',
+      rootClusterId,
+      leafClusterId,
+      targetUri,
+      targetUser,
+      targetName,
+      targetProtocol,
     };
   }
 
@@ -184,6 +225,7 @@ export class DocumentsService {
       const activeDocument = this.getActive();
 
       if (activeDocument && activeDocument.kind == 'doc.terminal_shell') {
+        // Copy activeDocument to use the same cwd in the new doc.
         return {
           ...activeDocument,
           uri: routing.getDocUri({ docId: unique() }),

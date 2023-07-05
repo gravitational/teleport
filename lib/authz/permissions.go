@@ -172,11 +172,30 @@ Loop:
 		}
 		lockTargets = append(lockTargets, unmappedTarget)
 	}
-	if r, ok := c.Identity.(BuiltinRole); ok && r.Role == types.RoleNode {
-		lockTargets = append(lockTargets,
-			types.LockTarget{Node: r.GetServerID()},
-			types.LockTarget{Node: r.Identity.Username},
-		)
+	if r, ok := c.Identity.(BuiltinRole); ok {
+		switch r.Role {
+		// Node role is a special case because it was previously suported as a
+		// lock target that only locked the `ssh_service`. If the same Teleport server
+		// had multiple roles, Node lock would only lock the `ssh_service` while
+		// other roles would be able to authenticate into Teleport without a problem.
+		// To remove the ambiguity, we now lock the entire Teleport server for
+		// all roles using the LockTarget.ServerID field and `Node` field is
+		// deprecated.
+		// In order to support legacy behavior, we need fill in both `ServerID`
+		// and `Node` fields if the role is `Node` so that the previous behavior
+		// is preserved.
+		// This is a legacy behavior that we need to support for backwards compatibility.
+		case types.RoleNode:
+			lockTargets = append(lockTargets,
+				types.LockTarget{Node: r.GetServerID(), ServerID: r.GetServerID()},
+				types.LockTarget{Node: r.Identity.Username, ServerID: r.Identity.Username},
+			)
+		default:
+			lockTargets = append(lockTargets,
+				types.LockTarget{ServerID: r.GetServerID()},
+				types.LockTarget{ServerID: r.Identity.Username},
+			)
+		}
 	}
 	return lockTargets
 }
@@ -367,7 +386,12 @@ func (a *authorizer) authorizeRemoteUser(ctx context.Context, u RemoteUser) (*Co
 		RouteToDatabase:   u.Identity.RouteToDatabase,
 		MFAVerified:       u.Identity.MFAVerified,
 		LoginIP:           u.Identity.LoginIP,
+		PinnedIP:          u.Identity.PinnedIP,
 		PrivateKeyPolicy:  u.Identity.PrivateKeyPolicy,
+		UserType:          u.Identity.UserType,
+	}
+	if checker.PinSourceIP() && identity.PinnedIP == "" {
+		return nil, trace.AccessDenied("pinned IP is required for the user, but is not present on identity")
 	}
 
 	return &Context{
@@ -518,6 +542,17 @@ func roleSpecForProxy(clusterName string) types.RoleSpecV6 {
 				types.NewRule(types.KindDatabaseService, services.RO()),
 				types.NewRule(types.KindSAMLIdPServiceProvider, services.RO()),
 				types.NewRule(types.KindUserGroup, services.RO()),
+				types.NewRule(types.KindIntegration, services.RO()),
+				// this rule allows cloud proxies to read
+				// plugins of `openai` type, since Assist uses the OpenAI API and runs in Proxy.
+				{
+					Resources: []string{types.KindPlugin},
+					Verbs:     []string{types.VerbRead},
+					Where: builder.Equals(
+						builder.Identifier(`resource.metadata.labels["type"]`),
+						builder.String("openai"),
+					).String(),
+				},
 				// this rule allows local proxy to update the remote cluster's host certificate authorities
 				// during certificates renewal
 				{
@@ -636,7 +671,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindSessionRecordingConfig, services.RO()),
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindAppServer, services.RW()),
-						types.NewRule(types.KindApp, services.RW()),
+						types.NewRule(types.KindApp, services.RO()),
 						types.NewRule(types.KindWebSession, services.RO()),
 						types.NewRule(types.KindWebToken, services.RO()),
 						types.NewRule(types.KindJWT, services.RW()),
@@ -668,7 +703,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindClusterAuthPreference, services.RO()),
 						types.NewRule(types.KindDatabaseServer, services.RW()),
 						types.NewRule(types.KindDatabaseService, services.RW()),
-						types.NewRule(types.KindDatabase, services.RW()),
+						types.NewRule(types.KindDatabase, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindLock, services.RO()),
 						types.NewRule(types.KindConnectionDiagnostic, services.RW()),
@@ -712,6 +747,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 					Logins:                []string{},
 					NodeLabels:            types.Labels{types.Wildcard: []string{types.Wildcard}},
 					AppLabels:             types.Labels{types.Wildcard: []string{types.Wildcard}},
+					GroupLabels:           types.Labels{types.Wildcard: []string{types.Wildcard}},
 					KubernetesLabels:      types.Labels{types.Wildcard: []string{types.Wildcard}},
 					DatabaseLabels:        types.Labels{types.Wildcard: []string{types.Wildcard}},
 					DatabaseServiceLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
@@ -753,7 +789,7 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 						types.NewRule(types.KindRole, services.RO()),
 						types.NewRule(types.KindNamespace, services.RO()),
 						types.NewRule(types.KindLock, services.RO()),
-						types.NewRule(types.KindKubernetesCluster, services.RW()),
+						types.NewRule(types.KindKubernetesCluster, services.RO()),
 						types.NewRule(types.KindSemaphore, services.RW()),
 					},
 				},
@@ -807,16 +843,24 @@ func definitionForBuiltinRole(clusterName string, recConfig types.SessionRecordi
 			role.String(),
 			types.RoleSpecV6{
 				Allow: types.RoleConditions{
-					Namespaces: []string{types.Wildcard},
-					AppLabels:  types.Labels{types.Wildcard: []string{types.Wildcard}},
+					Namespaces:  []string{types.Wildcard},
+					AppLabels:   types.Labels{types.Wildcard: []string{types.Wildcard}},
+					GroupLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
 					Rules: []types.Rule{
+						types.NewRule(types.KindClusterName, services.RO()),
+						types.NewRule(types.KindCertAuthority, services.ReadNoSecrets()),
+						types.NewRule(types.KindSemaphore, services.RW()),
 						types.NewRule(types.KindEvent, services.RW()),
-						types.NewRule(types.KindAccessRequest, services.RO()),
-						types.NewRule(types.KindApp, services.RW()),
+						types.NewRule(types.KindAppServer, services.RW()),
+						types.NewRule(types.KindClusterNetworkingConfig, services.RO()),
 						types.NewRule(types.KindUser, services.RO()),
 						types.NewRule(types.KindUserGroup, services.RW()),
 						types.NewRule(types.KindOktaImportRule, services.RO()),
 						types.NewRule(types.KindOktaAssignment, services.RW()),
+						types.NewRule(types.KindProxy, services.RO()),
+						types.NewRule(types.KindClusterAuthPreference, services.RO()),
+						types.NewRule(types.KindRole, services.RO()),
+						types.NewRule(types.KindLock, services.RO()),
 					},
 				},
 			})
@@ -934,19 +978,40 @@ func ClientUsername(ctx context.Context) string {
 	return identity.Username
 }
 
+func userIdentityFromContext(ctx context.Context) (*tlsca.Identity, error) {
+	userWithIdentity, err := UserFromContext(ctx)
+	if err != nil {
+		return nil, trace.AccessDenied("missing identity")
+	}
+
+	identity := userWithIdentity.GetIdentity()
+	if identity.Username == "" {
+		return nil, trace.AccessDenied("missing identity username")
+	}
+
+	return &identity, nil
+}
+
 // GetClientUsername returns the username of a remote HTTP client making the call.
 // If ctx didn't pass through auth middleware or did not come from an HTTP
 // request, returns an error.
 func GetClientUsername(ctx context.Context) (string, error) {
-	userWithIdentity, err := UserFromContext(ctx)
+	identity, err := userIdentityFromContext(ctx)
 	if err != nil {
-		return "", trace.AccessDenied("missing identity")
-	}
-	identity := userWithIdentity.GetIdentity()
-	if identity.Username == "" {
-		return "", trace.AccessDenied("missing identity username")
+		return "", trace.Wrap(err)
 	}
 	return identity.Username, nil
+}
+
+// GetClientUserIsSSO extracts the identity of a remote HTTP client and indicates whether that is an SSO user.
+// If ctx didn't pass through auth middleware or did not come from an HTTP
+// request, returns an error.
+func GetClientUserIsSSO(ctx context.Context) (bool, error) {
+	identity, err := userIdentityFromContext(ctx)
+	if err != nil {
+		return false, trace.Wrap(err)
+	}
+	return identity.UserType == types.UserTypeSSO, nil
 }
 
 // ClientImpersonator returns the impersonator username of a remote client

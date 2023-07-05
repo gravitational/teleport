@@ -23,7 +23,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 
 	"github.com/gravitational/teleport"
@@ -61,17 +61,17 @@ type InventoryCommand struct {
 // Initialize allows AccessRequestCommand to plug itself into the CLI parser
 func (c *InventoryCommand) Initialize(app *kingpin.Application, config *service.Config) {
 	c.config = config
-	inventory := app.Command("inventory", "Manage Teleport instance inventory").Hidden()
+	inventory := app.Command("inventory", "Manage Teleport instance inventory.").Hidden()
 
-	c.inventoryStatus = inventory.Command("status", "Show inventory status summary")
+	c.inventoryStatus = inventory.Command("status", "Show inventory status summary.")
 	c.inventoryStatus.Flag("connected", "Show locally connected instances summary").BoolVar(&c.getConnected)
 
-	c.inventoryList = inventory.Command("list", "List teleport instance inventory").Alias("ls")
+	c.inventoryList = inventory.Command("list", "List Teleport instance inventory.").Alias("ls")
 	c.inventoryList.Flag("version", "Filter output by version").StringVar(&c.version)
 	c.inventoryList.Flag("services", "Filter output by service (node,kube,proxy,etc)").StringVar(&c.services)
 	c.inventoryList.Flag("format", "Output format, 'text' or 'json'").Default(teleport.Text).StringVar(&c.format)
 
-	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance")
+	c.inventoryPing = inventory.Command("ping", "Ping locally connected instance.")
 	c.inventoryPing.Arg("server-id", "ID of target server").Required().StringVar(&c.serverID)
 	c.inventoryPing.Flag("control-log", "Use control log for ping").Hidden().BoolVar(&c.controlLog)
 }

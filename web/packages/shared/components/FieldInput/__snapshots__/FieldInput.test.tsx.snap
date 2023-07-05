@@ -25,7 +25,7 @@ exports[`snapshot tests 1`] = `
   padding: 0 16px;
   outline: none;
   width: 100%;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   margin-top: 4px;
   border: 2px solid #ff1744;
@@ -82,7 +82,6 @@ exports[`snapshot tests 1`] = `
 <div>
   <div
     class="c0"
-    name="optional name"
   >
     <label
       class="c1"
@@ -98,8 +97,9 @@ exports[`snapshot tests 1`] = `
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
+        color="text.primaryInverse"
         inputmode="text"
+        name="optional name"
         type="text"
         value="value"
       />
@@ -107,7 +107,6 @@ exports[`snapshot tests 1`] = `
   </div>
   <div
     class="c0"
-    name="optional name"
   >
     <label
       class="c1"
@@ -117,8 +116,9 @@ exports[`snapshot tests 1`] = `
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
+        color="text.primaryInverse"
         inputmode="text"
+        name="optional name"
         placeholder="placeholder"
         type="text"
         value=""
@@ -127,7 +127,6 @@ exports[`snapshot tests 1`] = `
   </div>
   <div
     class="c0"
-    name="optional name"
   >
     <label
       class="c1"
@@ -150,8 +149,9 @@ exports[`snapshot tests 1`] = `
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
+        color="text.primaryInverse"
         inputmode="text"
+        name="optional name"
         placeholder="placeholder"
         type="text"
         value=""
@@ -160,7 +160,6 @@ exports[`snapshot tests 1`] = `
   </div>
   <div
     class="c0"
-    name="optional name"
   >
     <label
       class="c1"
@@ -189,8 +188,9 @@ exports[`snapshot tests 1`] = `
       <input
         autocomplete="off"
         class="c3"
-        color="text.onLight"
+        color="text.primaryInverse"
         inputmode="text"
+        name="optional name"
         placeholder="placeholder"
         type="text"
         value=""
@@ -203,7 +203,7 @@ exports[`snapshot tests 1`] = `
     <input
       autocomplete="off"
       class="c3"
-      color="text.onLight"
+      color="text.primaryInverse"
       inputmode="text"
       placeholder="without label"
       type="text"

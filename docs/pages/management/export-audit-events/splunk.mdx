@@ -38,7 +38,7 @@ visualization and alerting.
 - On Splunk Enterprise, port `8088` should be open to traffic from the host
   running the Teleport Event Handler and Universal Forwarder.
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/4. Set up the Teleport Event Handler plugin
 
@@ -65,37 +65,7 @@ We'll re-purpose the files generated for Fluentd in our Universal Forwarder conf
 
 ### Define RBAC resources
 
-The `teleport-event-handler configure` command generated a file called
-`teleport-event-handler-role.yaml`. This file defines a `teleport-event-handler`
-role and a user with read-only access to the `event` API:
-
-```yaml
-kind: role
-metadata:
-  name: teleport-event-handler
-spec:
-  allow:
-    rules:
-      - resources: ['event', 'session']
-        verbs: ['list','read']
-version: v5
----
-kind: user
-metadata:
-  name: teleport-event-handler
-spec:
-  roles: ['teleport-event-handler']
-version: v2
-```
-
-Move this file to your workstation (or recreate it by pasting the snippet above)
-and use `tctl` on your workstation to create the role and the user:
-
-```code
-$ tctl create -f teleport-event-handler-role.yaml
-# user "teleport-event-handler" has been created
-# role 'teleport-event-handler' has been created
-```
+(!docs/pages/includes/plugins/event-handler-role-user.mdx!)
 
 ### Enable impersonation of the Teleport Event Handler plugin user
 
@@ -141,89 +111,9 @@ $ tctl create -f teleport-event-handler-impersonator.yaml
 
 Log out of your Teleport cluster and log in again to assume the new role.
 
-### Export the access plugin identity
+### Export the plugin identity
 
-Like all Teleport users, `teleport-event-handler` needs signed credentials in
-order to connect to your Teleport cluster. You will use the `tctl auth sign`
-command to request these credentials for the plugin.
-
-<ScopedBlock scope={["enterprise", "oss"]}>
-
-The format of the credentials depends on whether you have set up your Teleport
-cluster so clients and services connect to the Teleport Proxy Service or to the
-Teleport Auth Service instead.
-
-<Tabs>
-<TabItem label="Connect to the Proxy Service">
-
-The following `tctl auth sign` command impersonates the `teleport-event-handler`
-user, generates signed credentials, and writes an identity file to the local
-directory. It uses the `--ttl` flag to request a certificate with a lifetime of
-10 days:
-
-```code
-$ tctl auth sign --user=teleport-event-handler --out=auth.pem --ttl=240h
-```
-
-The Event Handler plugin listens for audit logs by connecting to the Teleport
-Auth Service's gRPC endpoint over TLS.
-
-The identity file, `auth.pem`, includes both TLS and SSH credentials. Your
-Event Handler plugin uses the SSH credentials to connect to the Proxy Service,
-which establishes a reverse tunnel connection to the Auth Service. The plugin
-uses this reverse tunnel, along with your TLS credentials, to connect to the
-Auth Service's gRPC endpoint.
-
-You will refer to this file later when configuring the plugin.
-
-</TabItem>
-<TabItem label="Connect to the Auth Service">
-
-If your network allows your plugin to access the Auth Service directly, e.g.,
-you are running the plugin on the Auth Service host, the plugin uses TLS
-credentials to connect to the Auth Service's gRPC endpoint and listen for audit
-events.
-
-You can generate TLS credentials with the following command, which uses the
-`--ttl` flag to request a certificate with a lifetime of 10 days:
-
-```code
-$ tctl auth sign --format=tls --user=teleport-event-handler --out=auth --ttl=240h
-```
-
-This command should result in three PEM-encoded files: `auth.crt`,
-`auth.key`, and `auth.cas` (certificate, private key, and CA certs
-respectively). Later, you will configure the plugin to use these credentials to
-connect to the Auth Service.
-
-</TabItem>
-</Tabs>
-
-</ScopedBlock>
-
-<ScopedBlock scope="cloud">
-
-The following `tctl auth sign` command impersonates the `teleport-event-handler`
-user, generates signed credentials, and writes an identity file to the local
-directory. It uses the `--ttl` flag to request a certificate with a lifetime of
-10 days:
-
-```code
-$ tctl auth sign --user=teleport-event-handler --out=auth.pem --ttl=240h
-```
-
-Teleport's Event Handler plugin listens for new and updated audit logs by
-connecting to the Teleport Auth Service's gRPC endpoint over TLS.
-
-The identity file, `auth.pem`, includes both TLS and SSH credentials. The Event
-Handler plugin uses the SSH credentials to connect to the Proxy Service, which
-establishes a reverse tunnel connection to the Auth Service. The plugin uses
-this reverse tunnel, along with your TLS credentials, to connect to the Auth
-Service's gRPC endpoint.
-
-You will refer to this file later when configuring the plugin.
-
-</ScopedBlock>
+(!docs/pages/includes/plugins/identity-export.mdx user="teleport-event-handler"!)
 
 Move the credentials you generated to the host where you are running the
 Teleport Event Handler plugin.
@@ -306,7 +196,6 @@ In the **Input Settings** view (above), next to the **Source type** field, click
 then **_json**. Splunk will index incoming logs as JSON, which is the format the
 Event Handler uses to send logs to the Universal Forwarder.
 
-
 In the **Index** section, select the `teleport-audit-logs` index you created
 earlier. Click **Review** then view the summary and click **Submit**. Copy the
 **Token Value** field and keep it somewhere safe so you can use it later in this
@@ -332,7 +221,6 @@ $ sudo chown splunk:splunk server.pem
 ```
 
 ### Configure the HTTP Event Collector
-
 
 On your Universal Forwarder host, create a file at
 `/opt/splunkforwarder/etc/system/local/inputs.conf` with the following content:
@@ -498,37 +386,15 @@ Adding the `noop` query parameter causes the Teleport Event Handler to append
 the routing information as the parameter's value so the Universal Forwarder can
 discard it.
 
-Change `teleport.addr` to the host and port of your Teleport Proxy Service, or
-the Auth Service if you have configured the Teleport Event Handler to connect to
-it directly, e.g., `mytenant.teleport.sh:443`.
+Next, edit the `teleport` section of the configuration as follows:
 
-<Tabs>
-<TabItem label="Connect to the Proxy Service">
+(!docs/pages/includes/plugins/config-toml-teleport.mdx!)
 
-Assign `teleport.identity` to a path to the identity file you exported earlier,
-e.g., `/home/auth.pem`.
-
-Ensure that the Teleport Event Handler can read these credentials:
+Ensure that the Teleport Event Handler can read the identity file:
 
 ```code
 $ chmod +r auth.pem
 ```
-
-</TabItem>
-<TabItem label="Connect to the Auth Service">
-
-Assign `teleport.ca`, `teleport.cert`, and `teleport.key` to the paths of the
-TLS credentials you generated earlier. Respectively, these are the certificate
-authority, certificate, and private key.
-
-Ensure that the Teleport Event Handler can read these credentials:
-
-```code
-$ chmod +r auth.cas auth.crt auth.key
-```
-
-</TabItem>
-</Tabs>
 
 ### Start the Teleport Event Handler
 
@@ -622,7 +488,7 @@ Teleport Cluster, ensure that:
   `--ttl` flag in the `tctl auth sign` command, which is 12 hours by default.
 - Ensure that in your Teleport Event Handler configuration file
   (`teleport-event-handler.toml`), you have provided the correct host *and* port
-  for the Teleport Proxy Service or Auth Service.
+  for the Teleport Proxy Service.
 
 ## Next steps
 

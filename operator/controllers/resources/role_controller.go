@@ -39,7 +39,7 @@ const teleportRoleKind = "TeleportRole"
 // This means we'll have to move back to a statically typed client.
 // This will require removing the crdgen hack, fixing TeleportRole JSON serialization
 
-var teleportRoleGVKV5 = schema.GroupVersionKind{
+var TeleportRoleGVKV5 = schema.GroupVersionKind{
 	Group:   resourcesv5.GroupVersion.Group,
 	Version: resourcesv5.GroupVersion.Version,
 	Kind:    teleportRoleKind,
@@ -68,7 +68,7 @@ func (r *RoleReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
 	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context.
 	// TODO: (Check how to handle multiple versions)
-	obj := getUnstructuredObjectFromGVK(teleportRoleGVKV5)
+	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
 	return ResourceBaseReconciler{
 		Client:         r.Client,
 		DeleteExternal: r.Delete,
@@ -84,7 +84,7 @@ func (r *RoleReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	// The unstructured object will be converted later to a typed one, in r.UpsertExternal.
 	// See `/operator/crdgen/schemagen.go` and https://github.com/gravitational/teleport/issues/15204 for context
 	// TODO: (Check how to handle multiple versions)
-	obj := getUnstructuredObjectFromGVK(teleportRoleGVKV5)
+	obj := GetUnstructuredObjectFromGVK(TeleportRoleGVKV5)
 	return ctrl.NewControllerManagedBy(mgr).
 		For(obj).
 		Complete(r)
@@ -132,14 +132,20 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 		return trace.Wrap(err)
 	}
 
-	newOwnershipCondition, isOwned := checkOwnership(existingResource)
-	meta.SetStatusCondition(k8sResource.StatusConditions(), newOwnershipCondition)
-	if !isOwned {
-		silentUpdateStatus(ctx, r.Client, k8sResource)
-		return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
+	if err == nil {
+		// The resource already exists
+		newOwnershipCondition, isOwned := checkOwnership(existingResource)
+		meta.SetStatusCondition(k8sResource.StatusConditions(), newOwnershipCondition)
+		if !isOwned {
+			silentUpdateStatus(ctx, r.Client, k8sResource)
+			return trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName())
+		}
+	} else {
+		// The resource does not yet exist
+		meta.SetStatusCondition(k8sResource.StatusConditions(), newResourceCondition)
 	}
 
-	r.addTeleportResourceOrigin(teleportResource)
+	r.AddTeleportResourceOrigin(teleportResource)
 
 	// If an error happens we want to put it in status.conditions before returning.
 	err = teleportClient.UpsertRole(ctx, teleportResource)
@@ -154,7 +160,7 @@ func (r *RoleReconciler) Upsert(ctx context.Context, obj kclient.Object) error {
 	return trace.Wrap(r.Status().Update(ctx, k8sResource))
 }
 
-func (r *RoleReconciler) addTeleportResourceOrigin(resource types.Role) {
+func (r *RoleReconciler) AddTeleportResourceOrigin(resource types.Role) {
 	metadata := resource.GetMetadata()
 	if metadata.Labels == nil {
 		metadata.Labels = make(map[string]string)
@@ -163,7 +169,7 @@ func (r *RoleReconciler) addTeleportResourceOrigin(resource types.Role) {
 	resource.SetMetadata(metadata)
 }
 
-func getUnstructuredObjectFromGVK(gvk schema.GroupVersionKind) *unstructured.Unstructured {
+func GetUnstructuredObjectFromGVK(gvk schema.GroupVersionKind) *unstructured.Unstructured {
 	obj := unstructured.Unstructured{}
 	obj.SetGroupVersionKind(gvk)
 	return &obj

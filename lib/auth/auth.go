@@ -34,7 +34,6 @@ import (
 	"math"
 	"math/big"
 	insecurerand "math/rand"
-	"net"
 	"os"
 	"sort"
 	"strings"
@@ -58,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
@@ -168,6 +168,9 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 	if cfg.Status == nil {
 		cfg.Status = local.NewStatusService(cfg.Backend)
 	}
+	if cfg.Assist == nil {
+		cfg.Assist = local.NewAssistService(cfg.Backend)
+	}
 	if cfg.Events == nil {
 		cfg.Events = local.NewEventsService(cfg.Backend)
 	}
@@ -214,7 +217,13 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.UsageReporter = usagereporter.DiscardUsageReporter{}
 	}
 	if cfg.Okta == nil {
-		cfg.Okta, err = local.NewOktaService(cfg.Backend)
+		cfg.Okta, err = local.NewOktaService(cfg.Backend, cfg.Backend.Clock())
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+	}
+	if cfg.Integrations == nil {
+		cfg.Integrations, err = local.NewIntegrationsService(cfg.Backend)
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
@@ -267,10 +276,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		UserGroups:              cfg.UserGroups,
 		SessionTrackerService:   cfg.SessionTrackerService,
 		ConnectionsDiagnostic:   cfg.ConnectionsDiagnostic,
+		Integrations:            cfg.Integrations,
+		Okta:                    cfg.Okta,
 		StatusInternal:          cfg.Status,
 		UsageReporter:           cfg.UsageReporter,
-
-		okta: cfg.Okta,
+		Assistant:               cfg.Assist,
 	}
 
 	closeCtx, cancelFunc := context.WithCancel(context.TODO())
@@ -289,11 +299,11 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		Services:        services,
 		Cache:           services,
 		keyStore:        keyStore,
-		inventory:       inventory.NewController(cfg.Presence, services, inventory.WithAuthServerID(cfg.HostUUID)),
 		traceClient:     cfg.TraceClient,
 		fips:            cfg.FIPS,
 		loadAllCAs:      cfg.LoadAllCAs,
 	}
+	as.inventory = inventory.NewController(&as, services, inventory.WithAuthServerID(cfg.HostUUID))
 	for _, o := range opts {
 		if err := o(&as); err != nil {
 			return nil, trace.Wrap(err)
@@ -361,11 +371,12 @@ type Services struct {
 	services.SessionTrackerService
 	services.ConnectionsDiagnostic
 	services.StatusInternal
+	services.Integrations
+	services.Okta
+	services.Assistant
 	usagereporter.UsageReporter
 	types.Events
 	events.IAuditLog
-
-	okta services.Okta
 }
 
 // GetWebSession returns existing web session described by req.
@@ -382,7 +393,7 @@ func (r *Services) GetWebToken(ctx context.Context, req types.GetWebTokenRequest
 
 // OktaClient returns the okta client.
 func (r *Services) OktaClient() services.Okta {
-	return r.okta
+	return r
 }
 
 var (
@@ -452,6 +463,11 @@ var (
 		registeredAgents, migrations,
 	}
 )
+
+// LoginHook is a function that will be called on a successful login. This will likely be used
+// for enterprise services that need to add in feature specific operations after a user has been
+// successfully authenticated. An example would be creating objects based on the user.
+type LoginHook func(context.Context, types.User) error
 
 // Server keeps the cluster together. It acts as a certificate authority (CA) for
 // a cluster and:
@@ -559,6 +575,14 @@ type Server struct {
 
 	// license is the Teleport Enterprise license used to start the auth server
 	license *liblicense.License
+
+	// headlessAuthenticationWatcher is a headless authentication watcher,
+	// used to catch and propagate headless authentication request changes.
+	headlessAuthenticationWatcher *local.HeadlessAuthenticationWatcher
+
+	loginHooksMu sync.RWMutex
+	// loginHooks are a list of hooks that will be called on login.
+	loginHooks []LoginHook
 }
 
 // SetSAMLService registers svc as the SAMLService that provides the SAML
@@ -600,6 +624,41 @@ func (a *Server) GetLoginRuleEvaluator() loginrule.Evaluator {
 	return a.loginRuleEvaluator
 }
 
+// RegisterLoginHook will register a login hook with the auth server.
+func (a *Server) RegisterLoginHook(hook LoginHook) {
+	a.loginHooksMu.Lock()
+	defer a.loginHooksMu.Unlock()
+
+	a.loginHooks = append(a.loginHooks, hook)
+}
+
+// CallLoginHooks will call the registered login hooks.
+func (a *Server) CallLoginHooks(ctx context.Context, user types.User) error {
+	// Make a copy of the login hooks to operate on.
+	a.loginHooksMu.RLock()
+	loginHooks := make([]LoginHook, len(a.loginHooks))
+	copy(loginHooks, a.loginHooks)
+	a.loginHooksMu.RUnlock()
+
+	if len(loginHooks) == 0 {
+		return nil
+	}
+
+	var errs []error
+	for _, hook := range loginHooks {
+		errs = append(errs, hook(ctx, user))
+	}
+
+	return trace.NewAggregate(errs...)
+}
+
+// ResetLoginHooks will clear out the login hooks.
+func (a *Server) ResetLoginHooks() {
+	a.loginHooksMu.Lock()
+	a.loginHooks = nil
+	a.loginHooksMu.Unlock()
+}
+
 // CloseContext returns the close context
 func (a *Server) CloseContext() context.Context {
 	return a.closeCtx
@@ -619,6 +678,12 @@ func (a *Server) checkLockInForce(mode constants.LockingMode, targets []types.Lo
 		return trace.BadParameter("lockWatcher is not set")
 	}
 	return a.lockWatcher.CheckLockInForce(mode, targets...)
+}
+
+func (a *Server) SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher *local.HeadlessAuthenticationWatcher) {
+	a.lock.Lock()
+	defer a.lock.Unlock()
+	a.headlessAuthenticationWatcher = headlessAuthenticationWatcher
 }
 
 // runPeriodicOperations runs some periodic bookkeeping operations
@@ -867,7 +932,7 @@ func (a *Server) doReleaseAlertSync(ctx context.Context, current vc.Target, visi
 		}
 	}
 
-	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) {
+	if sp := visitor.NewestSecurityPatch(); sp.Ok() && sp.NewerThan(current) && !sp.SecurityPatchAltOf(current) {
 		// explicit security patch alerts have a more limited audience, so we generate
 		// them as their own separate alert.
 		log.Warnf("A newer security patch has been detected. current=%s, patch=%s", current.Version(), sp.Version())
@@ -1047,6 +1112,13 @@ func (a *Server) SetEmitter(emitter apievents.Emitter) {
 	a.emitter = emitter
 }
 
+// EmitAuditEvent implements [apievents.Emitter] by delegating to its dedicated
+// emitter rather than falling back to the implementation from [Services] (using
+// the audit log directly, which is almost never what you want).
+func (a *Server) EmitAuditEvent(ctx context.Context, e apievents.AuditEvent) error {
+	return trace.Wrap(a.emitter.EmitAuditEvent(ctx, e))
+}
+
 // SetUsageReporter sets the server's usage reporter. Note that this is only
 // safe to use before server start.
 func (a *Server) SetUsageReporter(reporter usagereporter.UsageReporter) {
@@ -1129,13 +1201,31 @@ func (a *Server) generateHostCert(p services.HostCertParams) ([]byte, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	if p.Role == types.RoleNode {
-		if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
-			[]types.LockTarget{{Node: p.HostID}, {Node: HostFQDN(p.HostID, p.ClusterName)}},
-		); lockErr != nil {
-			return nil, trace.Wrap(lockErr)
-		}
+
+	var locks []types.LockTarget
+	switch p.Role {
+	case types.RoleNode:
+		// Node role is a special case because it was previously suported as a
+		// lock target that only locked the `ssh_service`. If the same Teleport server
+		// had multiple roles, Node lock would only lock the `ssh_service` while
+		// other roles would be able to generate certificates without a problem.
+		// To remove the ambiguity, we now lock the entire Teleport server for
+		// all roles using the LockTarget.ServerID field and `Node` field is
+		// deprecated.
+		// In order to support legacy behavior, we need fill in both `ServerID`
+		// and `Node` fields if the role is `Node` so that the previous behavior
+		// is preserved.
+		// This is a legacy behavior that we need to support for backwards compatibility.
+		locks = []types.LockTarget{{ServerID: p.HostID, Node: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName), Node: HostFQDN(p.HostID, p.ClusterName)}}
+	default:
+		locks = []types.LockTarget{{ServerID: p.HostID}, {ServerID: HostFQDN(p.HostID, p.ClusterName)}}
 	}
+	if lockErr := a.checkLockInForce(authPref.GetLockingMode(),
+		locks,
+	); lockErr != nil {
+		return nil, trace.Wrap(lockErr)
+	}
+
 	return a.Authority.GenerateHostCert(p)
 }
 
@@ -1280,9 +1370,20 @@ func certRequestDeviceExtensions(ext tlsca.DeviceExtensions) certRequestOption {
 	}
 }
 
+// GenerateUserTestCertsRequest is a request to generate test certificates.
+type GenerateUserTestCertsRequest struct {
+	Key            []byte
+	Username       string
+	TTL            time.Duration
+	Compatibility  string
+	RouteToCluster string
+	PinnedIP       string
+	MFAVerified    string
+}
+
 // GenerateUserTestCerts is used to generate user certificate, used internally for tests
-func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Duration, compatibility, routeToCluster, pinnedIP string) ([]byte, []byte, error) {
-	user, err := a.GetUser(username, false)
+func (a *Server) GenerateUserTestCerts(req GenerateUserTestCertsRequest) ([]byte, []byte, error) {
+	user, err := a.GetUser(req.Username, false)
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
 	}
@@ -1297,14 +1398,15 @@ func (a *Server) GenerateUserTestCerts(key []byte, username string, ttl time.Dur
 	}
 	certs, err := a.generateUserCert(certRequest{
 		user:           user,
-		ttl:            ttl,
-		compatibility:  compatibility,
-		publicKey:      key,
-		routeToCluster: routeToCluster,
+		ttl:            req.TTL,
+		compatibility:  req.Compatibility,
+		publicKey:      req.Key,
+		routeToCluster: req.RouteToCluster,
 		checker:        checker,
 		traits:         user.GetTraits(),
-		loginIP:        pinnedIP,
-		pinIP:          pinnedIP != "",
+		loginIP:        req.PinnedIP,
+		pinIP:          req.PinnedIP != "",
+		mfaVerified:    req.MFAVerified,
 	})
 	if err != nil {
 		return nil, nil, trace.Wrap(err)
@@ -1392,6 +1494,8 @@ type DatabaseTestCertRequest struct {
 	Username string
 	// RouteToDatabase contains database routing information.
 	RouteToDatabase tlsca.RouteToDatabase
+	// PinnedIP is an IP new certificate should be pinned to.
+	PinnedIP string
 }
 
 // GenerateDatabaseTestCert generates a database access certificate for the
@@ -1413,6 +1517,8 @@ func (a *Server) GenerateDatabaseTestCert(req DatabaseTestCertRequest) ([]byte, 
 	certs, err := a.generateUserCert(certRequest{
 		user:      user,
 		publicKey: req.PublicKey,
+		loginIP:   req.PinnedIP,
+		pinIP:     req.PinnedIP != "",
 		checker:   checker,
 		ttl:       time.Hour,
 		traits: map[string][]string{
@@ -1768,6 +1874,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 	var sessionTTL time.Duration
 	var allowedLogins []string
 
+	if req.ttl == 0 {
+		req.ttl = time.Duration(authPref.GetDefaultSessionTTL())
+	}
+
 	// If the role TTL is ignored, do not restrict session TTL and allowed logins.
 	// The only caller setting this parameter should be "tctl auth sign".
 	// Otherwise, set the session TTL to the smallest of all roles and
@@ -1781,10 +1891,10 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			return nil, trace.Wrap(err)
 		}
 	} else {
-		// Adjust session TTL to the smaller of two values: the session TTL
-		// requested in tsh or the session TTL for the role.
+		// Adjust session TTL to the smaller of two values: the session TTL requested
+		// in tsh (possibly using default_session_ttl) or the session TTL for the
+		// role.
 		sessionTTL = req.checker.AdjustSessionTTL(req.ttl)
-
 		// Return a list of logins that meet the session TTL limit. This means if
 		// the requested session TTL is larger than the max session TTL for a login,
 		// that login will not be included in the list of allowed logins.
@@ -1978,6 +2088,7 @@ func (a *Server) generateUserCert(req certRequest) (*proto.Certs, error) {
 			AssetTag:     req.deviceExtensions.AssetTag,
 			CredentialID: req.deviceExtensions.CredentialID,
 		},
+		UserType: req.user.GetUserType(),
 	}
 	subject, err := identity.Subject()
 	if err != nil {
@@ -2472,16 +2583,16 @@ func (a *Server) deleteMFADeviceSafely(ctx context.Context, user, deviceName str
 	}
 
 	// Prevent users from deleting their last device for clusters that require second factors.
-	const minDevices = 2
+	const minDevices = 1
 	switch sf := authPref.GetSecondFactor(); sf {
 	case constants.SecondFactorOff, constants.SecondFactorOptional: // MFA is not required, allow deletion
 	case constants.SecondFactorOn:
-		if knownDevices < minDevices {
+		if knownDevices <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last MFA device for this user; add a replacement device first to avoid getting locked out")
 		}
 	case constants.SecondFactorOTP, constants.SecondFactorWebauthn:
-		if sfToCount[sf] < minDevices {
+		if sfToCount[sf] <= minDevices {
 			return nil, trace.BadParameter(
 				"cannot delete the last %s device for this user; add a replacement device first to avoid getting locked out", sf)
 		}
@@ -2948,7 +3059,7 @@ func (a *Server) GenerateHostCerts(ctx context.Context, req *proto.HostCertsRequ
 
 	// only observe latencies for non-throttled requests
 	start := a.clock.Now()
-	defer generateRequestsLatencies.Observe(time.Since(start).Seconds())
+	defer func() { generateRequestsLatencies.Observe(time.Since(start).Seconds()) }()
 
 	generateRequestsCount.Inc()
 	generateRequestsCurrent.Inc()
@@ -3168,6 +3279,18 @@ func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStat
 		})
 	}
 	return rsp
+}
+
+// GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
+func (a *Server) GetInventoryConnectedServiceCounts() proto.InventoryConnectedServiceCounts {
+	return proto.InventoryConnectedServiceCounts{
+		ServiceCounts: a.inventory.ConnectedServiceCounts(),
+	}
+}
+
+// GetInventoryConnectedServiceCount returns the counts of a particular connected service seen in the inventory.
+func (a *Server) GetInventoryConnectedServiceCount(service types.SystemRole) uint64 {
+	return a.inventory.ConnectedServiceCount(service)
 }
 
 func (a *Server) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
@@ -3666,6 +3789,16 @@ func (a *Server) KeepAliveServer(ctx context.Context, h types.KeepAlive) error {
 	if kind == 0 {
 		return nil
 	}
+
+	// KubeServiceV2 (used by v11 kube agents) keepalives as
+	// KeepAlive_KUBERNETES but with no HostID; we shouldn't count those, as the
+	// name is going to be the host ID of the agent rather than the kube cluster
+	// name.
+	// DELETE IN: 13.0
+	if h.Type == types.KeepAlive_KUBERNETES && h.HostID == "" {
+		return nil
+	}
+
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   h.Name,
 		Kind:   kind,
@@ -4190,7 +4323,17 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 		return trace.Wrap(err)
 	}
 
-	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), username)
+	userIsSSO, err := authz.GetClientUserIsSSO(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	userMetadata := usagereporter.UserMetadata{
+		Username: username,
+		IsSSO:    userIsSSO,
+	}
+
+	event, err := usagereporter.ConvertUsageEvent(req.GetEvent(), userMetadata)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -4198,6 +4341,25 @@ func (a *Server) SubmitUsageEvent(ctx context.Context, req *proto.SubmitUsageEve
 	a.AnonymizeAndSubmit(event)
 
 	return nil
+}
+
+// Ping gets basic info about the auth server.
+// Please note that Ping is publicly accessible (not protected by any RBAC) by design,
+// and thus PingResponse must never contain any sensitive information.
+func (a *Server) Ping(ctx context.Context) (proto.PingResponse, error) {
+	cn, err := a.GetClusterName()
+	if err != nil {
+		return proto.PingResponse{}, trace.Wrap(err)
+	}
+
+	return proto.PingResponse{
+		ClusterName:     cn.GetClusterName(),
+		ServerVersion:   teleport.Version,
+		ServerFeatures:  modules.GetModules().Features().ToProto(),
+		ProxyPublicAddr: a.getProxyPublicAddr(),
+		IsBoring:        modules.GetModules().IsBoringBinary(),
+		LoadAllCAs:      a.loadAllCAs,
+	}, nil
 }
 
 func (a *Server) isMFARequired(ctx context.Context, checker services.AccessChecker, req *proto.IsMFARequiredRequest) (*proto.IsMFARequiredResponse, error) {
@@ -4222,23 +4384,17 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		if t.Node.Login == "" {
 			return nil, trace.BadParameter("empty Login field")
 		}
+
 		// Find the target node and check whether MFA is required.
-		nodes, err := a.GetNodes(ctx, apidefaults.Namespace)
+		matches, err := client.GetResourcesWithFilters(ctx, a, proto.ListResourcesRequest{
+			ResourceType:   types.KindNode,
+			Namespace:      apidefaults.Namespace,
+			SearchKeywords: []string{t.Node.Node},
+		})
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
-		var matches []types.Server
-		for _, n := range nodes {
-			// Get the server address without port number.
-			addr, _, err := net.SplitHostPort(n.GetAddr())
-			if err != nil {
-				addr = n.GetAddr()
-			}
-			// Match NodeName to UUID, hostname or self-reported server address.
-			if n.GetName() == t.Node.Node || n.GetHostname() == t.Node.Node || addr == t.Node.Node {
-				matches = append(matches, n)
-			}
-		}
+
 		if len(matches) == 0 {
 			// If t.Node.Node is not a known registered node, it may be an
 			// unregistered host running OpenSSH with a certificate created via
@@ -4254,7 +4410,18 @@ func (a *Server) isMFARequired(ctx context.Context, checker services.AccessCheck
 		// Check RBAC against all matching nodes and return the first error.
 		// If at least one node requires MFA, we'll catch it.
 		for _, n := range matches {
-			err := checker.CheckAccess(
+			srv, ok := n.(types.Server)
+			if !ok {
+				continue
+			}
+
+			// Filter out any matches on labels before checking access
+			fieldVals := append(srv.GetPublicAddrs(), srv.GetName(), srv.GetHostname(), srv.GetAddr())
+			if !types.MatchSearch(fieldVals, []string{t.Node.Node}, nil) {
+				continue
+			}
+
+			err = checker.CheckAccess(
 				n,
 				services.AccessState{},
 				services.NewLoginMatcher(t.Node.Login),
@@ -4630,7 +4797,7 @@ func newKeySet(ctx context.Context, keyStore *keystore.Manager, caID types.CertA
 			return keySet, trace.Wrap(err)
 		}
 		keySet.SSH = append(keySet.SSH, sshKeyPair)
-	case types.JWTSigner:
+	case types.JWTSigner, types.OIDCIdPCA:
 		jwtKeyPair, err := keyStore.NewJWTKeyPair(ctx)
 		if err != nil {
 			return keySet, trace.Wrap(err)
@@ -4709,7 +4876,7 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		return trace.Wrap(err)
 	}
 
-	var usedKeys [][]byte
+	var activeKeys [][]byte
 	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: clusterName.GetClusterName()}
 		ca, err := a.Services.GetCertAuthority(ctx, caID, true)
@@ -4718,17 +4885,23 @@ func (a *Server) deleteUnusedKeys(ctx context.Context) error {
 		}
 		for _, keySet := range []types.CAKeySet{ca.GetActiveKeys(), ca.GetAdditionalTrustedKeys()} {
 			for _, sshKeyPair := range keySet.SSH {
-				usedKeys = append(usedKeys, sshKeyPair.PrivateKey)
+				activeKeys = append(activeKeys, sshKeyPair.PrivateKey)
 			}
 			for _, tlsKeyPair := range keySet.TLS {
-				usedKeys = append(usedKeys, tlsKeyPair.Key)
+				activeKeys = append(activeKeys, tlsKeyPair.Key)
 			}
 			for _, jwtKeyPair := range keySet.JWT {
-				usedKeys = append(usedKeys, jwtKeyPair.PrivateKey)
+				activeKeys = append(activeKeys, jwtKeyPair.PrivateKey)
 			}
 		}
 	}
-	return trace.Wrap(a.keyStore.DeleteUnusedKeys(ctx, usedKeys))
+	if err := a.keyStore.DeleteUnusedKeys(ctx, activeKeys); err != nil {
+		// Key deletion is best-effort, log a warning if it fails and carry on.
+		// We don't want to prevent a CA rotation, which may be necessary in
+		// some cases where this would fail.
+		log.WithError(err).Warning("Failed attempt to delete unused HSM keys")
+	}
+	return nil
 }
 
 // GetLicense return the license used the start the teleport enterprise auth server
@@ -4740,6 +4913,91 @@ func (a *Server) GetLicense(ctx context.Context) (string, error) {
 		return "", trace.NotFound("license not found")
 	}
 	return fmt.Sprintf("%s%s", a.license.CertPEM, a.license.KeyPEM), nil
+}
+
+// GetHeadlessAuthenticationFromWatcher gets a headless authentication from the headless
+// authentication watcher.
+func (a *Server) GetHeadlessAuthenticationFromWatcher(ctx context.Context, username, name string) (*types.HeadlessAuthentication, error) {
+	sub, err := a.headlessAuthenticationWatcher.Subscribe(ctx, username, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer sub.Close()
+
+	// Wait for the login process to insert the headless authentication resource into the backend.
+	// If it already exists and passes the condition, WaitForUpdate will return it immediately.
+	headlessAuthn, err := sub.WaitForUpdate(ctx, func(ha *types.HeadlessAuthentication) (bool, error) {
+		return services.ValidateHeadlessAuthentication(ha) == nil, nil
+	})
+	return headlessAuthn, trace.Wrap(err)
+}
+
+// CreateHeadlessAuthenticationStub creates a headless authentication stub for the user
+// that will expire after the standard callback timeout.
+func (a *Server) CreateHeadlessAuthenticationStub(ctx context.Context, username string) error {
+	// Create the stub. If it already exists, update its expiration.
+	expires := a.clock.Now().Add(defaults.CallbackTimeout)
+	stub, err := types.NewHeadlessAuthentication(username, services.HeadlessAuthenticationUserStubID, expires)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	err = a.Services.UpsertHeadlessAuthentication(ctx, stub)
+	return trace.Wrap(err)
+}
+
+// GetAssistantMessages returns all messages with given conversation ID.
+func (a *Server) GetAssistantMessages(ctx context.Context, req *assist.GetAssistantMessagesRequest) (*assist.GetAssistantMessagesResponse, error) {
+	resp, err := a.Services.GetAssistantMessages(ctx, req)
+	return resp, trace.Wrap(err)
+}
+
+// CreateAssistantMessage adds the message to the backend.
+func (a *Server) CreateAssistantMessage(ctx context.Context, msg *assist.CreateAssistantMessageRequest) error {
+	return trace.Wrap(a.Services.CreateAssistantMessage(ctx, msg))
+}
+
+// UpdateAssistantConversationInfo stores the given conversation title in the backend.
+func (a *Server) UpdateAssistantConversationInfo(ctx context.Context, msg *assist.UpdateAssistantConversationInfoRequest) error {
+	return trace.Wrap(a.Services.UpdateAssistantConversationInfo(ctx, msg))
+}
+
+// CreateAssistantConversation creates a new conversation entry in the backend.
+func (a *Server) CreateAssistantConversation(ctx context.Context, req *assist.CreateAssistantConversationRequest) (*assist.CreateAssistantConversationResponse, error) {
+	resp, err := a.Services.CreateAssistantConversation(ctx, req)
+	return resp, trace.Wrap(err)
+}
+
+// GetAssistantConversations returns all conversations started by a user.
+func (a *Server) GetAssistantConversations(ctx context.Context, request *assist.GetAssistantConversationsRequest) (*assist.GetAssistantConversationsResponse, error) {
+	resp, err := a.Services.GetAssistantConversations(ctx, request)
+	return resp, trace.Wrap(err)
+}
+
+// CompareAndSwapHeadlessAuthentication performs a compare
+// and swap replacement on a headless authentication resource.
+func (a *Server) CompareAndSwapHeadlessAuthentication(ctx context.Context, old, new *types.HeadlessAuthentication) (*types.HeadlessAuthentication, error) {
+	headlessAuthn, err := a.Services.CompareAndSwapHeadlessAuthentication(ctx, old, new)
+	return headlessAuthn, trace.Wrap(err)
+}
+
+// getProxyPublicAddr returns the first valid, non-empty proxy public address it
+// finds, or empty otherwise.
+func (a *Server) getProxyPublicAddr() string {
+	if proxies, err := a.GetProxies(); err == nil {
+		for _, p := range proxies {
+			addr := p.GetPublicAddr()
+			if addr == "" {
+				continue
+			}
+			if _, err := utils.ParseAddr(addr); err != nil {
+				log.Warningf("Invalid public address on the proxy %q: %q: %v.", p.GetName(), addr, err)
+				continue
+			}
+			return addr
+		}
+	}
+	return ""
 }
 
 // authKeepAliver is a keep aliver using auth server directly
@@ -4907,7 +5165,16 @@ func WithClusterCAs(tlsConfig *tls.Config, ap AccessCache, currentClusterName st
 
 // DefaultDNSNamesForRole returns default DNS names for the specified role.
 func DefaultDNSNamesForRole(role types.SystemRole) []string {
-	if (types.SystemRoles{role}).IncludeAny(types.RoleAuth, types.RoleAdmin, types.RoleProxy, types.RoleKube, types.RoleApp, types.RoleDatabase, types.RoleWindowsDesktop) {
+	if (types.SystemRoles{role}).IncludeAny(
+		types.RoleAuth,
+		types.RoleAdmin,
+		types.RoleProxy,
+		types.RoleKube,
+		types.RoleApp,
+		types.RoleDatabase,
+		types.RoleWindowsDesktop,
+		types.RoleOkta,
+	) {
 		return []string{
 			"*." + constants.APIDomain,
 			constants.APIDomain,

@@ -18,6 +18,12 @@ import { DbProtocol } from 'shared/services/databases';
 
 import { AgentLabel } from 'teleport/services/agents';
 
+import { RdsEngine } from '../integrations';
+
+export type Aws = {
+  rds?: { resourceId: string };
+};
+
 export interface Database {
   name: string;
   description: string;
@@ -27,6 +33,7 @@ export interface Database {
   names?: string[];
   users?: string[];
   hostname: string;
+  aws?: Aws;
 }
 
 export type DatabasesResponse = {
@@ -44,7 +51,7 @@ export type UpdateDatabaseRequest = Omit<
 
 export type CreateDatabaseRequest = {
   name: string;
-  protocol: DbProtocol;
+  protocol: DbProtocol | RdsEngine;
   uri: string;
   labels?: AgentLabel[];
   awsRds?: AwsRds;

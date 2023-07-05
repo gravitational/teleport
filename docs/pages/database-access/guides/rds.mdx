@@ -1,7 +1,7 @@
 ---
 title: Database Access with AWS RDS and Aurora
 h1: Database Access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB
-description: How to configure Teleport Database Access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB.
+description: How to configure Teleport database access with AWS RDS and Aurora for PostgreSQL, MySQL and MariaDB.
 ---
 
 This guide will help you to:
@@ -18,7 +18,7 @@ This guide will help you to:
 </ScopedBlock>
 
 <Admonition type="note" title="Supported versions">
-    The following products are not compatible with Database Access as they don't support IAM authentication:
+    The following products are not compatible with database access as they don't support IAM authentication:
     - Aurora Serverless v1.
     - RDS MariaDB versions lower than 10.6.
 
@@ -35,8 +35,7 @@ This guide will help you to:
   IAM policies.
 - A host, e.g., an EC2 instance, where you will run the Teleport Database
   Service.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/6. Create a Teleport user
 
@@ -45,6 +44,8 @@ This guide will help you to:
 ## Step 2/6. Create a Database Service configuration
 
 (!docs/pages/includes/database-access/token.mdx!)
+
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
 Install Teleport on the host where you will run the Teleport Database Service:
 

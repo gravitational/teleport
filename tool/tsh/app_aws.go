@@ -65,7 +65,12 @@ func onAWS(cf *CLIConf) error {
 		args = append(args, "--endpoint-url", awsApp.GetEndpointURL())
 	}
 
-	cmd := exec.Command(awsCLIBinaryName, args...)
+	commandToRun := awsCLIBinaryName
+	if cf.Exec != "" {
+		commandToRun = cf.Exec
+	}
+
+	cmd := exec.Command(commandToRun, args...)
 	return awsApp.RunCommand(cmd)
 }
 
@@ -249,7 +254,7 @@ func (a *awsApp) RunCommand(cmd *exec.Cmd) error {
 
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *awsApp) startLocalALPNProxy(port string) error {
-	tc, err := makeClient(a.cf, false)
+	tc, err := makeClient(a.cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

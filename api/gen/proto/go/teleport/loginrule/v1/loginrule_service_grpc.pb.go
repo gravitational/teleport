@@ -18,7 +18,7 @@
 // - protoc             (unknown)
 // source: teleport/loginrule/v1/loginrule_service.proto
 
-package v1
+package loginrulev1
 
 import (
 	context "context"

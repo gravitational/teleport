@@ -265,7 +265,7 @@ exports[`rendering of Session Recordings 1`] = `
   min-height: 34px;
   height: 34px;
   border-color: rgba(255,255,255,0.24);
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c3 .react-select__control:focus,
@@ -318,7 +318,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c3 .react-select__placeholder {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c3 .react-select__option {
@@ -332,7 +332,7 @@ exports[`rendering of Session Recordings 1`] = `
 
 .c3 .react-select__multi-value {
   background-color: #111B48;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
 }
 
 .c3 .react-select__multi-value__label {
@@ -343,7 +343,7 @@ exports[`rendering of Session Recordings 1`] = `
 .c3 .react-select--is-disabled .react-select__single-value,
 .c3 .react-select--is-disabled .react-select__placeholder,
 .c3 .react-select--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c1 {
@@ -546,7 +546,7 @@ exports[`rendering of Session Recordings 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -645,7 +645,7 @@ exports[`rendering of Session Recordings 1`] = `
         >
           <div
             class="c11"
-            color="primary.contrastText"
+            color="text.contrast"
             style="white-space: nowrap; text-transform: uppercase;"
           >
             Showing 

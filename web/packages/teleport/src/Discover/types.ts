@@ -15,6 +15,7 @@
  */
 
 import { State } from './useDiscover';
+import { ResourceViewConfig } from './flow';
 
 export type AgentStepProps = {
   // agentMeta describes fields specific to an agent kind.
@@ -26,8 +27,10 @@ export type AgentStepProps = {
   nextStep?: State['nextStep'];
   // prevStep decrements the `currentStep` to go to the prev step.
   prevStep?: State['prevStep'];
-  selectedResourceKind?: State['selectedResourceKind'];
-  resourceState?: State['resourceState'];
+  resourceSpec?: State['resourceSpec'];
 };
 
 export type AgentStepComponent = (props: AgentStepProps) => JSX.Element;
+
+/** EViewConfigs are enterprise-only view configs to add to Discover that arent defined in `Discover/resourceViewConfigs.ts`. */
+export type EViewConfigs = ResourceViewConfig[];

@@ -65,10 +65,9 @@ func NewID() ID {
 	return ID(uuid.New().String())
 }
 
-// Session is an interactive collaboration session that represents one
-// or many sessions started by the teleport user.
+// Session is a session of any kind (SSH, Kubernetes, Desktop, etc)
 type Session struct {
-	// Kind describes what kind of session this is e.g. ssh or kubernetes.
+	// Kind describes what kind of session this is e.g. ssh or k8s.
 	Kind types.SessionKind `json:"kind"`
 	// ID is a unique session identifier
 	ID ID `json:"id"`
@@ -106,6 +105,8 @@ type Session struct {
 	AppName string `json:"app_name"`
 	// Owner is the name of the session owner, ie the one who created the session.
 	Owner string `json:"owner"`
+	// Moderated is true if the session requires moderation (only relevant for Kind = ssh/k8s).
+	Moderated bool `json:"moderated"`
 }
 
 // Participants returns the usernames of the current session participants.

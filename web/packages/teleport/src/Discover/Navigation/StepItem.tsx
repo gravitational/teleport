@@ -16,23 +16,59 @@
 
 import React from 'react';
 import styled from 'styled-components';
+import { Flex } from 'design';
+
+import { icons } from 'teleport/Discover/SelectResource/icons';
 
 import { StepList } from './StepList';
 
 import type { View } from 'teleport/Discover/flow';
+import type { ResourceSpec } from '../SelectResource';
 
-interface StepItemProps {
+// FirstStepItemProps are the required
+// props to render the first step item
+// in the step navigation.
+type FirstStepItemProps = {
+  view?: never;
+  currentStep?: never;
+  index?: never;
+  selectedResource: ResourceSpec;
+};
+
+// RestOfStepItemProps are the required
+// props to render the rest of the step item's
+// after the `FirstStepItemProps`.
+type RestOfStepItemProps = {
   view: View;
   currentStep: number;
   index: number;
-}
+  selectedResource?: never;
+};
+
+export type StepItemProps = FirstStepItemProps | RestOfStepItemProps;
 
 export function StepItem(props: StepItemProps) {
+  if (props.selectedResource) {
+    return (
+      <StepsContainer>
+        <StepTitle>
+          {getBulletIcon({
+            Icon: icons[props.selectedResource.icon],
+          })}
+          {props.selectedResource.name}
+        </StepTitle>
+      </StepsContainer>
+    );
+  }
+
   if (props.view.hide) {
     return null;
   }
 
   let isActive = props.currentStep === props.view.index;
+  // Make items for nested views.
+  // Nested views is possible when a view has it's
+  // own set of sub-steps.
   if (props.view.views) {
     return (
       <StepList
@@ -48,15 +84,32 @@ export function StepItem(props: StepItemProps) {
   return (
     <StepsContainer active={isDone || isActive}>
       <StepTitle>
-        {getBulletIcon(isDone, isActive, props.view.index + 1)}
-
+        {getBulletIcon({
+          isDone,
+          isActive,
+          stepNumber: props.view.index + 1,
+        })}
         {props.view.title}
       </StepTitle>
     </StepsContainer>
   );
 }
 
-function getBulletIcon(isDone: boolean, isActive: boolean, stepNumber: number) {
+function getBulletIcon({
+  isDone,
+  isActive,
+  Icon,
+  stepNumber,
+}: {
+  isDone?: boolean;
+  isActive?: boolean;
+  Icon?: JSX.Element;
+  stepNumber?: number;
+}) {
+  if (Icon) {
+    return <Flex mr={2}>{Icon}</Flex>;
+  }
+
   if (isActive) {
     return <ActiveBullet />;
   }
@@ -86,31 +139,32 @@ const Bullet = styled.span`
 `;
 
 const ActiveBullet = styled(Bullet)`
-  border-color: ${props => props.theme.colors.secondary.main};
-  background: ${props => props.theme.colors.secondary.main};
+  border-color: ${props => props.theme.colors.brand};
+  background: ${props => props.theme.colors.brand};
 
   :before {
     content: '';
     height: 8px;
     width: 8px;
     border-radius: 50%;
-    border: 2px solid ${props => props.theme.colors.primary.main};
+    border: 2px solid ${props => props.theme.colors.levels.surfaceSecondary};
   }
 `;
 
 const CheckedBullet = styled(Bullet)`
-  border-color: ${props => props.theme.colors.secondary.main};
-  background: ${props => props.theme.colors.secondary.main};
+  border-color: ${props => props.theme.colors.brand};
+  background: ${props => props.theme.colors.brand};
 
   :before {
     content: '✓';
+    color: ${props => props.theme.colors.levels.popout};
   }
 `;
 
 const StepsContainer = styled.div<{ active: boolean }>`
   display: flex;
   flex-direction: column;
-  color: ${p => (p.active ? 'inherit' : p.theme.colors.text.secondary)};
+  color: ${p => (p.active ? 'inherit' : p.theme.colors.text.slightlyMuted)};
   margin-right: 32px;
   position: relative;
 
@@ -118,7 +172,7 @@ const StepsContainer = styled.div<{ active: boolean }>`
     position: absolute;
     content: '';
     width: 16px;
-    background: #222c59;
+    background: ${({ theme }) => theme.colors.brand};
     height: 1px;
     top: 50%;
     transform: translate(0, -50%);

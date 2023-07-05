@@ -26,7 +26,7 @@ describe('design/ButtonOutlined', () => {
     expect(container.firstChild.nodeName).toBe('BUTTON');
     expect(container.firstChild).toHaveStyle('font-size: 12px');
     expect(container.firstChild).toHaveStyle({
-      'border-color': theme.colors.text.primary,
+      'border-color': theme.colors.text.main,
     });
   });
 
@@ -48,7 +48,7 @@ describe('design/ButtonOutlined', () => {
   it('respects "kind" primary prop', () => {
     const { container } = render(<ButtonOutlined kind="primary" />);
     expect(container.firstChild).toHaveStyle({
-      'border-color': theme.colors.secondary.main,
+      'border-color': theme.colors.brand,
     });
   });
 });

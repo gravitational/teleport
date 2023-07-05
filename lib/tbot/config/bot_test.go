@@ -21,7 +21,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -147,6 +146,10 @@ func newMockAuth(t *testing.T) *mockAuth {
 	}
 }
 
+func (m *mockAuth) Close() error {
+	return nil
+}
+
 // mockBot is a minimal Bot impl that can be used in tests
 type mockBot struct {
 	cfg  *BotConfig
@@ -170,12 +173,8 @@ func (b *mockBot) GetCertAuthorities(ctx context.Context, caType types.CertAuthT
 	return b.auth.GetCertAuthorities(ctx, caType, false)
 }
 
-func (b *mockBot) Client() auth.ClientI {
-	return b.auth
-}
-
 func (b *mockBot) AuthenticatedUserClientFromIdentity(ctx context.Context, id *identity.Identity) (auth.ClientI, error) {
-	return nil, trace.NotImplemented("not implemented")
+	return b.auth, nil
 }
 
 func (b *mockBot) Config() *BotConfig {

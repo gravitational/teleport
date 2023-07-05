@@ -20,50 +20,30 @@ import { MemoryRouter } from 'react-router';
 
 import { render, screen } from 'design/utils/testing';
 
-import { Acl, makeUserContext } from 'teleport/services/user';
-import TeleportContext from 'teleport/teleportContext';
+import { Acl } from 'teleport/services/user';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
 import { Discover } from 'teleport/Discover/Discover';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import { fullAcl } from 'teleport/mocks/contexts';
+import { getAcl, createTeleportContext } from 'teleport/mocks/contexts';
 import { getOSSFeatures } from 'teleport/features';
 import cfg from 'teleport/config';
+import {
+  SERVERS,
+  APPLICATIONS,
+  KUBERNETES,
+  WINDOWS_DESKTOPS,
+} from 'teleport/Discover/SelectResource/resources';
+import {
+  DATABASES,
+  DATABASES_UNGUIDED,
+  DATABASES_UNGUIDED_DOC,
+} from 'teleport/Discover/SelectResource/databases';
 
-const crypto = require('crypto');
-
-// eslint-disable-next-line jest/require-hook
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
-  },
-});
-
-const userContextJson = {
-  authType: 'sso',
-  userName: 'Sam',
-  accessCapabilities: {
-    suggestedReviewers: ['george_washington@gmail.com', 'chad'],
-    requestableRoles: ['dev-a', 'dev-b', 'dev-c', 'dev-d'],
-  },
-  cluster: {
-    name: 'aws',
-    lastConnected: '2020-09-26T17:30:23.512876876Z',
-    status: 'online',
-    nodeCount: 1,
-    publicURL: 'localhost',
-    authVersion: '4.4.0-dev',
-    proxyVersion: '4.4.0-dev',
-  },
-};
+import { ResourceKind } from './Shared';
 
 describe('discover', () => {
   function create(initialEntry: string, userAcl: Acl) {
-    const ctx = new TeleportContext();
-
-    ctx.storeUser.state = makeUserContext({
-      ...userContextJson,
-      userAcl,
-    });
+    const ctx = createTeleportContext({ customAcl: userAcl });
 
     return render(
       <MemoryRouter
@@ -81,32 +61,54 @@ describe('discover', () => {
   }
 
   describe('server', () => {
-    test('shows the server view when the location state is server', () => {
-      create('server', {
-        ...fullAcl,
-      });
+    test('shows all the servers when location state is server', () => {
+      create('server', getAcl());
 
-      expect(
-        screen.getByText(
-          /Teleport officially supports the following operating systems/
-        )
-      ).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+      expect(screen.getAllByTestId(ResourceKind.Server)).toHaveLength(
+        SERVERS.length
+      );
     });
   });
 
   describe('desktop', () => {
-    test('shows the desktop view when the location state is desktop', () => {
-      create('desktop', {
-        ...fullAcl,
-      });
+    test('shows the desktops when the location state is desktop', () => {
+      create('desktop', getAcl());
 
-      expect(
-        screen.getByText(
-          /Teleport Desktop Access currently only supports Windows Desktops managed by Active Directory/
-        )
-      ).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: 'Next' })).toBeEnabled();
+      expect(screen.getAllByTestId(ResourceKind.Desktop)).toHaveLength(
+        WINDOWS_DESKTOPS.length
+      );
+    });
+  });
+
+  describe('application', () => {
+    test('shows the apps when the location state is application', () => {
+      create('application', getAcl());
+
+      expect(screen.getAllByTestId(ResourceKind.Application)).toHaveLength(
+        APPLICATIONS.length
+      );
+    });
+  });
+
+  describe('database', () => {
+    test('shows the database when the location state is database', () => {
+      create('database', getAcl());
+
+      expect(screen.getAllByTestId(ResourceKind.Database)).toHaveLength(
+        DATABASES.length +
+          DATABASES_UNGUIDED.length +
+          DATABASES_UNGUIDED_DOC.length
+      );
+    });
+  });
+
+  describe('kube', () => {
+    test('shows the kubes when the location state is kubernetes', () => {
+      create('kubernetes', getAcl());
+
+      expect(screen.getAllByTestId(ResourceKind.Kubernetes)).toHaveLength(
+        KUBERNETES.length
+      );
     });
   });
 });

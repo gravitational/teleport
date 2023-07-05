@@ -192,6 +192,9 @@ type AccessChecker interface {
 	// a role disallows host user creation
 	HostUsers(types.Server) (*HostUsersInfo, error)
 
+	// DesktopGroups returns the desktop groups a user is allowed to create or an access denied error if a role disallows desktop user creation
+	DesktopGroups(types.WindowsDesktop) ([]string, error)
+
 	// PinSourceIP forces the same client IP for certificate generation and SSH usage
 	PinSourceIP() bool
 

@@ -1,6 +1,6 @@
 ---
 title: Access AWS With Teleport Application Access
-description: How to access AWS with Teleport Application Access.
+description: How to access AWS with Teleport application access.
 videoBanner: GVcy_rffxQw
 ---
 
@@ -17,14 +17,18 @@ This guide will explain how to:
 
 ## Prerequisites
 
-- A running Teleport cluster, either self hosted or in Teleport Cloud.
-- A host running the `teleport` daemon with Application Access enabled. Follow
-  the [Getting Started](../getting-started.mdx) or
-  [Connecting Apps](../guides/connecting-apps.mdx) guides to get it running.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
+
+- (!docs/pages/includes/tctl.mdx!)
+- A host running the `teleport` daemon with the Teleport Application Service
+  enabled. Follow the [Getting Started](../getting-started.mdx) or [Connecting
+  Apps](../guides/connecting-apps.mdx) guides to get it running.
 - IAM permissions in the AWS account you want to connect.
-- AWS EC2 or other instance where you can assign a IAM Security Role for the Teleport Agent.
-- `aws` command line interface (CLI) tool in PATH. [Installing or updating the latest version of the AWS CLI
-](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
+- AWS EC2 or other instance where you can assign a IAM Security Role for the
+  Teleport Agent.
+- `aws` command line interface (CLI) tool in PATH. [Installing or updating the
+  latest version of the AWS CLI
+  ](https://docs.aws.amazon.com/cli/latest/userguide/cli-chap-install.html)
 
 <Admonition type="note">
 If using Teleport deployed in AWS EKS, you cannot use Helm chart
@@ -62,11 +66,9 @@ Enter a role name and press create role.
 
 ![Create Role Step 3](../../../img/application-access/create-role-example-readonly-3.png)
 
-
 ### Repeat for Power User
 
 Follow the same steps and select `PowerUserAccess` IAM Policy to create a `ExamplePowerUser` role.
-
 
 ## Step 2/9. Update IAM role trust relationships
 
@@ -128,7 +130,7 @@ You can make the policy more strict by providing specific IAM role resource
 ARNs in the Resource field instead of using a wildcard.
 </Admonition>
 
-Attach this policy to the IAM role/user your Teleport application service agent
+Attach this policy to the IAM role/user your Teleport Application Service agent
 is using.
 
 ![AWS Attach Security Role](../../../img/application-access/attach-security-role.png)

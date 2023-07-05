@@ -375,6 +375,7 @@ func (p *Proxy) handleConn(ctx context.Context, clientConn net.Conn, defaultOver
 		SNI:  hello.ServerName,
 		ALPN: hello.SupportedProtos,
 	}
+	ctx = utils.ClientAddrContext(ctx, clientConn.RemoteAddr(), clientConn.LocalAddr())
 
 	if handlerDesc.ForwardTLS {
 		return trace.Wrap(handlerDesc.handle(ctx, conn, connInfo))

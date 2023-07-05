@@ -22,6 +22,46 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestSecurityPatchAlts(t *testing.T) {
+	tts := []struct {
+		desc string
+		a, b Target
+		alt  bool
+	}{
+		{
+			desc: "basic alt case",
+			a:    NewTarget("v1.2.3", SecurityPatch(true), SecurityPatchAlts("v1.2.2", "v1.2.1")),
+			b:    NewTarget("v1.2.1"),
+			alt:  true,
+		},
+		{
+			desc: "minimal alt case",
+			a:    NewTarget("v1.2.3", SecurityPatchAlts("v1.2.1")),
+			b:    NewTarget("v1.2.1"),
+			alt:  true,
+		},
+		{
+			desc: "trivial non-alt case",
+			a:    NewTarget("v1.2.3"),
+			b:    NewTarget("v1.2.1"),
+			alt:  false,
+		},
+		{
+			desc: "non-matching non-alt case case",
+			a:    NewTarget("v1.2.3", SecurityPatchAlts("v1.2.2")),
+			b:    NewTarget("v1.2.1"),
+			alt:  false,
+		},
+	}
+
+	for _, tt := range tts {
+		// check alt status is expected
+		require.Equal(t, tt.alt, tt.a.SecurityPatchAltOf(tt.b), "desc=%q", tt.desc)
+		// check alt status is bidirectional
+		require.Equal(t, tt.alt, tt.b.SecurityPatchAltOf(tt.a), "desc=%q", tt.desc)
+	}
+}
+
 func TestVisitorBasics(t *testing.T) {
 	tts := []struct {
 		versions         []string

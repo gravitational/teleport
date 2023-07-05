@@ -18,6 +18,8 @@ package srv
 
 import (
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -180,6 +182,47 @@ type Server interface {
 
 	// TargetMetadata returns metadata about the session target node.
 	TargetMetadata() apievents.ServerMetadata
+}
+
+// childProcessError is used to provide an underlying error
+// from a re-executed Teleport child process to its parent.
+type childProcessError struct {
+	Code     int    `json:"code"`
+	RawError []byte `json:"rawError"`
+}
+
+// writeChildError encodes the provided error
+// as json and writes it to w. Special care
+// is taken to preserve the error type by
+// including the error code and raw message
+// so that [DecodeChildError] will return
+// the matching error type and message.
+func writeChildError(w io.Writer, err error) {
+	if w == nil || err == nil {
+		return
+	}
+
+	data, jerr := json.Marshal(err)
+	if jerr != nil {
+		return
+	}
+
+	_ = json.NewEncoder(w).Encode(childProcessError{
+		Code:     trace.ErrorToCode(err),
+		RawError: data,
+	})
+}
+
+// DecodeChildError consumes the output from a child
+// process decoding it from its raw form back into
+// a concrete error.
+func DecodeChildError(r io.Reader) error {
+	var c childProcessError
+	if err := json.NewDecoder(r).Decode(&c); err != nil {
+		return nil
+	}
+
+	return trace.ReadError(c.Code, c.RawError)
 }
 
 // IdentityContext holds all identity information associated with the user
@@ -351,6 +394,12 @@ type ServerContext struct {
 	killShellr *os.File
 	killShellw *os.File
 
+	// multiWriter is used to record non-interactive session output.
+	// Currently, used by Assist.
+	multiWriter io.Writer
+	// recordNonInteractiveSession enables non-interactive session recording. Used by Assist.
+	recordNonInteractiveSession bool
+
 	// ChannelType holds the type of the channel. For example "session" or
 	// "direct-tcpip". Used to create correct subcommand during re-exec.
 	ChannelType string
@@ -373,6 +422,12 @@ type ServerContext struct {
 	// parent process when X11 forwarding is set up.
 	x11rdyr *os.File
 	x11rdyw *os.File
+
+	// err{r,w} is used to propagate errors from the child process to the
+	// parent process so the parent can get more information about why the child
+	// process failed and act accordingly.
+	errr *os.File
+	errw *os.File
 
 	// x11Config holds the xauth and XServer listener config for this session.
 	x11Config *X11Config
@@ -519,6 +574,15 @@ func NewServerContext(ctx context.Context, parent *sshutils.ConnectionContext, s
 	child.AddCloser(child.x11rdyr)
 	child.AddCloser(child.x11rdyw)
 
+	// Create pipe used to get errors from the child process.
+	child.errr, child.errw, err = os.Pipe()
+	if err != nil {
+		childErr := child.Close()
+		return nil, nil, trace.NewAggregate(err, childErr)
+	}
+	child.AddCloser(child.errr)
+	child.AddCloser(child.errw)
+
 	return ctx, child, nil
 }
 
@@ -664,11 +728,11 @@ func (c *ServerContext) SetAllowFileCopying(allow bool) {
 func (c *ServerContext) CheckFileCopyingAllowed() error {
 	// Check if remote file operations are disabled for this node.
 	if !c.AllowFileCopying {
-		return ErrNodeFileCopyingNotPermitted
+		return trace.Wrap(ErrNodeFileCopyingNotPermitted)
 	}
 	// Check if the user's RBAC role allows remote file operations.
 	if !c.Identity.AccessChecker.CanCopyFiles() {
-		return errRoleFileCopyingNotPermitted
+		return trace.Wrap(errRoleFileCopyingNotPermitted)
 	}
 
 	return nil
@@ -816,7 +880,7 @@ func (c *ServerContext) x11Ready() (bool, error) {
 	// Wait for child process to send signal (1 byte)
 	// or EOF if signal was already received.
 	_, err := io.ReadFull(c.x11rdyr, make([]byte, 1))
-	if err == io.EOF {
+	if errors.Is(err, io.EOF) {
 		return true, nil
 	} else if err != nil {
 		return false, trace.Wrap(err)
@@ -827,6 +891,11 @@ func (c *ServerContext) x11Ready() (bool, error) {
 		return false, trace.Wrap(err)
 	}
 	return true, nil
+}
+
+// GetChildError returns the error from the child process
+func (c *ServerContext) GetChildError() error {
+	return DecodeChildError(c.errr)
 }
 
 // takeClosers returns all resources that should be closed and sets the properties to null

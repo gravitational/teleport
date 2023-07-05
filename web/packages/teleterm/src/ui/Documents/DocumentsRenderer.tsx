@@ -21,6 +21,8 @@ import styled from 'styled-components';
 // @ts-ignore
 import { DocumentAccessRequests } from 'e-teleterm/ui/DocumentAccessRequests/DocumentAccessRequests';
 
+import { DocumentGatewayCliClient } from 'teleterm/ui/DocumentGatewayCliClient';
+
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import * as types from 'teleterm/ui/services/workspacesService';
 import {
@@ -96,6 +98,8 @@ function MemoizedDocument(props: { doc: types.Document; visible: boolean }) {
         return <DocumentCluster doc={doc} visible={visible} />;
       case 'doc.gateway':
         return <DocumentGateway doc={doc} visible={visible} />;
+      case 'doc.gateway_cli_client':
+        return <DocumentGatewayCliClient doc={doc} visible={visible} />;
       case 'doc.terminal_shell':
       case 'doc.terminal_tsh_node':
       case 'doc.terminal_tsh_kube':

@@ -41,12 +41,12 @@ import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
 
 import {
   ActionButtons,
-  Header,
   HeaderSubtitle,
   Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
+  Header,
 } from '../../Shared';
 
 import type { AgentStepProps } from '../../types';
@@ -64,19 +64,23 @@ export default function Container(props: AgentStepProps) {
     // join token api fetch error and loading states.
     <CatchError
       onRetry={() => clearCachedJoinTokenResult(ResourceKind.Kubernetes)}
-      fallbackFn={props => (
+      fallbackFn={fallbackProps => (
         <Box>
           <Heading />
           <StepOne />
           <StepTwo
             onEdit={() => setShowHelmChart(false)}
-            error={props.error}
+            error={fallbackProps.error}
             namespace={namespace}
             setNamespace={setNamespace}
             clusterName={clusterName}
             setClusterName={setClusterName}
           />
-          <ActionButtons onProceed={() => null} disableProceed={true} />
+          <ActionButtons
+            onProceed={() => null}
+            disableProceed={true}
+            onPrev={props.prevStep}
+          />
         </Box>
       )}
     >
@@ -92,7 +96,11 @@ export default function Container(props: AgentStepProps) {
               clusterName={clusterName}
               setClusterName={setClusterName}
             />
-            <ActionButtons onProceed={() => null} disableProceed={true} />
+            <ActionButtons
+              onProceed={() => null}
+              disableProceed={true}
+              onPrev={props.prevStep}
+            />
           </Box>
         }
       >
@@ -108,7 +116,11 @@ export default function Container(props: AgentStepProps) {
               clusterName={clusterName}
               setClusterName={setClusterName}
             />
-            <ActionButtons onProceed={() => null} disableProceed={true} />
+            <ActionButtons
+              onProceed={() => null}
+              disableProceed={true}
+              onPrev={props.prevStep}
+            />
           </Box>
         )}
         {showHelmChart && (
@@ -153,6 +165,7 @@ export function HelmChart(
         setClusterName={props.setClusterName}
       />
       <InstallHelmChart
+        prevStep={props.prevStep}
         namespace={props.namespace}
         clusterName={props.clusterName}
         joinToken={joinToken}
@@ -340,12 +353,14 @@ const InstallHelmChart = ({
   clusterName,
   joinToken,
   nextStep,
+  prevStep,
   updateAgentMeta,
 }: {
   namespace: string;
   clusterName: string;
   joinToken: JoinToken;
   nextStep(): void;
+  prevStep(): void;
   updateAgentMeta(a: AgentMeta): void;
 }) => {
   const ctx = useTeleport();
@@ -444,15 +459,18 @@ const InstallHelmChart = ({
         <TextSelectCopyMulti lines={[{ text: command }]} />
       </CommandBox>
       {hint}
-      <ActionButtons onProceed={handleOnProceed} disableProceed={!result} />
+      <ActionButtons
+        onProceed={handleOnProceed}
+        disableProceed={!result}
+        onPrev={prevStep}
+      />
     </>
   );
 };
 
 const StyledBox = styled(Box)`
   max-width: 1000px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
-  border: 2px solid #2f3659;
 `;

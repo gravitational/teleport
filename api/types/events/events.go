@@ -16,7 +16,9 @@ limitations under the License.
 
 package events
 
-import "github.com/gogo/protobuf/proto"
+import (
+	"github.com/gravitational/teleport/api/utils"
+)
 
 func trimN(s string, n int) string {
 	// Starting at 2 to leave room for quotes at the begging and end.
@@ -50,7 +52,7 @@ func (m *DatabaseSessionQuery) TrimToMaxSize(maxSize int) AuditEvent {
 		return m
 	}
 
-	out := proto.Clone(m).(*DatabaseSessionQuery)
+	out := utils.CloneProtoMsg(m)
 	out.DatabaseQuery = ""
 	out.DatabaseQueryParameters = nil
 
@@ -88,7 +90,7 @@ func (e *SessionStart) TrimToMaxSize(maxSize int) AuditEvent {
 		return e
 	}
 
-	out := proto.Clone(e).(*SessionStart)
+	out := utils.CloneProtoMsg(e)
 	out.InitialCommand = nil
 
 	// Use 10% max size ballast + message size without InitialCommand
@@ -114,7 +116,7 @@ func (e *Exec) TrimToMaxSize(maxSize int) AuditEvent {
 		return e
 	}
 
-	out := proto.Clone(e).(*Exec)
+	out := utils.CloneProtoMsg(e)
 	out.Command = ""
 
 	// Use 10% max size ballast + message size without Command
@@ -137,7 +139,7 @@ func (e *UserLogin) TrimToMaxSize(maxSize int) AuditEvent {
 		return e
 	}
 
-	out := proto.Clone(e).(*UserLogin)
+	out := utils.CloneProtoMsg(e)
 	out.Status.Error = ""
 	out.Status.UserMessage = ""
 

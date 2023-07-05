@@ -6,7 +6,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-4"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -16,7 +16,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-3"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 rules:
   - apiGroups: [""]
     resources: ["secrets",]
@@ -30,7 +30,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-2"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 roleRef:
   apiGroup: rbac.authorization.k8s.io
   kind: Role
@@ -48,7 +48,7 @@ metadata:
   annotations:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-1"
-    "helm.sh/hook-delete-policy": hook-succeeded
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 spec:
   template:
     metadata:
@@ -67,6 +67,10 @@ spec:
       tolerations:
         {{- toYaml .Values.tolerations | nindent 6 }}
 {{- end }}
+{{- if .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml .Values.nodeSelector | nindent 8 }}
+{{- end }}
       containers:
       - name: post-delete-job
         env:
@@ -82,3 +86,6 @@ spec:
         {{- end }}
         command: ["teleport"]
         args: ["kube-state", "delete"]
+        {{- if .Values.securityContext }}
+        securityContext: {{- toYaml .Values.securityContext | nindent 10 }}
+        {{- end }}

@@ -74,7 +74,7 @@ export default function LoginForm(props: Props) {
   // and display sso providers if any.
   if (!isLocalAuthEnabled && ssoEnabled) {
     return (
-      <Card bg="primary.light" my="5" mx="auto" width="464px" pb={4}>
+      <Card bg="levels.surface" my="5" mx="auto" width="464px" pb={4}>
         <Text typography="h3" pt={4} textAlign="center" color="light">
           {title}
         </Text>
@@ -90,7 +90,7 @@ export default function LoginForm(props: Props) {
 
   if (!isLocalAuthEnabled) {
     return (
-      <Card bg="primary.light" my="5" mx="auto" width="464px" px={5} pb={4}>
+      <Card bg="levels.surface" my="5" mx="auto" width="464px" px={5} pb={4}>
         <Text typography="h3" pt={4} textAlign="center" color="light">
           {title}
         </Text>
@@ -105,7 +105,7 @@ export default function LoginForm(props: Props) {
 
   // Everything below requires local auth to be enabled.
   return (
-    <Card bg="primary.light" my="5" mx="auto" width={464} pb={4}>
+    <Card bg="levels.surface" my="5" mx="auto" width={464} pb={4}>
       <Text typography="h3" pt={4} textAlign="center" color="light">
         {title}
       </Text>
@@ -175,7 +175,7 @@ const Passwordless = ({
             <Key mr={3} fontSize={16} />
             <Box>
               <Text typography="h6">Passwordless</Text>
-              <Text fontSize={1} color="text.secondary">
+              <Text fontSize={1} color="text.slightlyMuted">
                 Follow the prompt from your browser
               </Text>
             </Box>
@@ -470,7 +470,7 @@ const Divider = () => (
     justifyContent="center"
     flexDirection="column"
     borderBottom={1}
-    borderColor="text.placeholder"
+    borderColor="text.muted"
     mx={5}
     mt={5}
     mb={2}
@@ -482,7 +482,7 @@ const Divider = () => (
 const StyledPaswordlessBtn = styled(ButtonText)`
   display: block;
   text-align: left;
-  border: 1px solid ${({ theme }) => theme.colors.text.placeholder};
+  border: 1px solid ${({ theme }) => theme.colors.text.muted};
 
   &:hover,
   &:active,
@@ -498,7 +498,7 @@ const StyledPaswordlessBtn = styled(ButtonText)`
 `;
 
 const StyledOr = styled.div`
-  background: ${props => props.theme.colors.primary.light};
+  background: ${props => props.theme.colors.levels.surface};
   display: flex;
   align-items: center;
   font-size: 10px;

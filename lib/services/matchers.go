@@ -192,7 +192,8 @@ func MatchResourceByFilters(resource types.ResourceWithLabels, filter MatchResou
 	case types.KindNode,
 		types.KindDatabaseService,
 		types.KindKubernetesCluster, types.KindKubePod,
-		types.KindWindowsDesktop, types.KindWindowsDesktopService:
+		types.KindWindowsDesktop, types.KindWindowsDesktopService,
+		types.KindUserGroup:
 		specResource = resource
 		resourceKey.name = specResource.GetName()
 
@@ -363,15 +364,29 @@ const (
 
 // SupportedAWSMatchers is list of AWS services currently supported by the
 // Teleport discovery service.
-var SupportedAWSMatchers = []string{
+var SupportedAWSMatchers = append([]string{
 	AWSMatcherEC2,
 	AWSMatcherEKS,
+}, SupportedAWSDatabaseMatchers...)
+
+// SupportedAWSDatabaseMatchers is a list of the AWS databases currently
+// supported by the Teleport discovery service.
+var SupportedAWSDatabaseMatchers = []string{
 	AWSMatcherRDS,
 	AWSMatcherRDSProxy,
 	AWSMatcherRedshift,
 	AWSMatcherRedshiftServerless,
 	AWSMatcherElastiCache,
 	AWSMatcherMemoryDB,
+}
+
+// RequireAWSIAMRolesAsUsersMatchers is a list of the AWS databases that
+// require AWS IAM roles as database users.
+// IMPORTANT: if you add database matchers for AWS keyspaces, OpenSearch, or
+// DynamoDB discovery, add them here and in RequireAWSIAMRolesAsUsers in
+// api/types.
+var RequireAWSIAMRolesAsUsersMatchers = []string{
+	AWSMatcherRedshiftServerless,
 }
 
 const (

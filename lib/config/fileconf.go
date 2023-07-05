@@ -31,6 +31,7 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go/aws/endpoints"
+	"github.com/coreos/go-oidc/oauth2"
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/crypto/acme"
@@ -832,6 +833,8 @@ type CachePolicy struct {
 	EnabledFlag string `yaml:"enabled,omitempty"`
 	// TTL sets maximum TTL for the cached values
 	TTL string `yaml:"ttl,omitempty"`
+	// MaxBackoff sets the maximum backoff on error.
+	MaxBackoff time.Duration `yaml:"max_backoff,omitempty"`
 }
 
 // Enabled determines if a given "_service" section has been set to 'true'
@@ -846,7 +849,8 @@ func (c *CachePolicy) Enabled() bool {
 // Parse parses cache policy from Teleport config
 func (c *CachePolicy) Parse() (*service.CachePolicy, error) {
 	out := service.CachePolicy{
-		Enabled: c.Enabled(),
+		Enabled:        c.Enabled(),
+		MaxRetryPeriod: c.MaxBackoff,
 	}
 	if err := out.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
@@ -986,6 +990,10 @@ type Auth struct {
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
+
+	// HostedPlugins configures the hosted plugins runtime.
+	// This is currently Cloud-specific.
+	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
 }
 
 // hasCustomNetworkingConfig returns true if any of the networking
@@ -1152,9 +1160,18 @@ type AuthenticationConfig struct {
 	// otherwise.
 	Passwordless *types.BoolOption `yaml:"passwordless"`
 
+	// Headless enables/disables headless support.
+	// Requires Webauthn to work.
+	// Defaults to true if the Webauthn is configured, defaults to false
+	// otherwise.
+	Headless *types.BoolOption `yaml:"headless"`
+
 	// DeviceTrust holds settings related to trusted device verification.
 	// Requires Teleport Enterprise.
 	DeviceTrust *DeviceTrust `yaml:"device_trust,omitempty"`
+
+	// DefaultSessionTTL is the default cluster max session ttl
+	DefaultSessionTTL types.Duration `yaml:"default_session_ttl"`
 }
 
 // Parse returns valid types.AuthPreference instance.
@@ -1195,7 +1212,9 @@ func (a *AuthenticationConfig) Parse() (types.AuthPreference, error) {
 		LockingMode:       a.LockingMode,
 		AllowLocalAuth:    a.LocalAuth,
 		AllowPasswordless: a.Passwordless,
+		AllowHeadless:     a.Headless,
 		DeviceTrust:       dt,
+		DefaultSessionTTL: a.DefaultSessionTTL,
 	})
 }
 
@@ -1294,6 +1313,78 @@ type DeviceTrust struct {
 func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 	return &types.DeviceTrust{
 		Mode: dt.Mode,
+	}, nil
+}
+
+// AssistOptions is a set of options related to the Teleport Assist feature.
+type AssistOptions struct {
+	// OpenAI is a set of options related to the OpenAI assist backend.
+	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
+}
+
+// OpenAIOptions stores options related to the OpenAI assist backend.
+type OpenAIOptions struct {
+	// APITokenPath is the path to a file with OpenAI API key.
+	APITokenPath string `yaml:"api_token_path,omitempty"`
+}
+
+// HostedPlugins defines 'auth_service/plugins' Enterprise extension
+type HostedPlugins struct {
+	Enabled        bool                 `yaml:"enabled"`
+	OAuthProviders PluginOAuthProviders `yaml:"oauth_providers,omitempty"`
+}
+
+// PluginOAuthProviders holds application credentials for each
+// 3rd party API provider.
+type PluginOAuthProviders struct {
+	Slack *OAuthClientCredentials `yaml:"slack,omitempty"`
+}
+
+func (p *PluginOAuthProviders) Parse() (service.PluginOAuthProviders, error) {
+	out := service.PluginOAuthProviders{}
+	if p.Slack == nil {
+		return out, trace.BadParameter("when plugin runtime is enabled, at least one plugin provider must be specified")
+	}
+
+	slack, err := p.Slack.Parse()
+	if err != nil {
+		return out, trace.Wrap(err)
+	}
+	out.Slack = slack
+	return out, nil
+}
+
+// OAuthClientCredentials holds paths from which to read
+// client credentials for Teleport's OAuth app.
+type OAuthClientCredentials struct {
+	// ClientID is the path to the file containing the Client ID
+	ClientID string `yaml:"client_id"`
+	// ClientSecret is the path to the file containing the Client Secret
+	ClientSecret string `yaml:"client_secret"`
+}
+
+func (o *OAuthClientCredentials) Parse() (*oauth2.ClientCredentials, error) {
+	if o.ClientID == "" || o.ClientSecret == "" {
+		return nil, trace.BadParameter("both client_id and client_secret paths must be specified")
+	}
+
+	var clientID, clientSecret string
+
+	content, err := os.ReadFile(o.ClientID)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientID = strings.TrimSpace(string(content))
+
+	content, err = os.ReadFile(o.ClientSecret)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	clientSecret = strings.TrimSpace(string(content))
+
+	return &oauth2.ClientCredentials{
+		ID:     clientID,
+		Secret: clientSecret,
 	}, nil
 }
 
@@ -1412,6 +1503,15 @@ type Discovery struct {
 
 	// GCPMatchers are used to match GCP resources.
 	GCPMatchers []GCPMatcher `yaml:"gcp,omitempty"`
+
+	// DiscoveryGroup is the name of the discovery group that the current
+	// discovery service is a part of.
+	// It is used to filter out discovered resources that belong to another
+	// discovery services. When running in high availability mode and the agents
+	// have access to the same cloud resources, this field value must be the same
+	// for all discovery services. If different agents are used to discover different
+	// sets of cloud resources, this field must be different for each set of agents.
+	DiscoveryGroup string `yaml:"discovery_group,omitempty"`
 }
 
 // GCPMatcher matches GCP resources.
@@ -1921,6 +2021,9 @@ type Proxy struct {
 
 	// UI provides config options for the web UI
 	UI *UIConfig `yaml:"ui,omitempty"`
+
+	// Assist is a set of options related to the Teleport Assist feature.
+	Assist *AssistOptions `yaml:"assist,omitempty"`
 }
 
 // UIConfig provides config options for the web UI served by the proxy service.

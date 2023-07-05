@@ -292,7 +292,12 @@ func newRemoteClient(ctx context.Context, sctx *SessionContext, site reversetunn
 // clusterDialer returns DialContext function using cluster's dial function
 func clusterDialer(remoteCluster reversetunnel.RemoteSite) apiclient.ContextDialer {
 	return apiclient.ContextDialerFunc(func(in context.Context, network, _ string) (net.Conn, error) {
-		return remoteCluster.DialAuthServer()
+		dialParams := reversetunnel.DialParams{}
+		clientSrcAddr, clientDstAddr := utils.ClientAddrFromContext(in)
+		dialParams.From = clientSrcAddr
+		dialParams.OriginalClientDstAddr = clientDstAddr
+
+		return remoteCluster.DialAuthServer(dialParams)
 	})
 }
 
@@ -752,56 +757,13 @@ func (s *sessionCache) AuthenticateWebUser(
 	return s.proxyClient.AuthenticateWebUser(ctx, authReq)
 }
 
-// GetCertificateWithoutOTP returns a new user certificate for the specified request.
-func (s *sessionCache) GetCertificateWithoutOTP(
-	ctx context.Context, c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
-) (*auth.SSHLoginResponse, error) {
-	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
-		AuthenticateUserRequest: auth.AuthenticateUserRequest{
-			Username: c.User,
-			Pass: &auth.PassCreds{
-				Password: []byte(c.Password),
-			},
-			ClientMetadata: clientMeta,
-		},
-		PublicKey:            c.PubKey,
-		CompatibilityMode:    c.Compatibility,
-		TTL:                  c.TTL,
-		RouteToCluster:       c.RouteToCluster,
-		KubernetesCluster:    c.KubernetesCluster,
-		AttestationStatement: c.AttestationStatement,
-	})
-}
-
-// GetCertificateWithOTP returns a new user certificate for the specified request.
-// The request is used with the given OTP token.
-func (s *sessionCache) GetCertificateWithOTP(
-	ctx context.Context, c client.CreateSSHCertReq, clientMeta *auth.ForwardedClientMetadata,
-) (*auth.SSHLoginResponse, error) {
-	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
-		AuthenticateUserRequest: auth.AuthenticateUserRequest{
-			Username: c.User,
-			OTP: &auth.OTPCreds{
-				Password: []byte(c.Password),
-				Token:    c.OTPToken,
-			},
-			ClientMetadata: clientMeta,
-		},
-		PublicKey:            c.PubKey,
-		CompatibilityMode:    c.Compatibility,
-		TTL:                  c.TTL,
-		RouteToCluster:       c.RouteToCluster,
-		KubernetesCluster:    c.KubernetesCluster,
-		AttestationStatement: c.AttestationStatement,
-	})
-}
-
 func (s *sessionCache) AuthenticateSSHUser(
 	ctx context.Context, c client.AuthenticateSSHUserRequest, clientMeta *auth.ForwardedClientMetadata,
 ) (*auth.SSHLoginResponse, error) {
 	authReq := auth.AuthenticateUserRequest{
 		Username:       c.User,
 		ClientMetadata: clientMeta,
+		PublicKey:      c.PubKey,
 	}
 	if c.Password != "" {
 		authReq.Pass = &auth.PassCreds{Password: []byte(c.Password)}
@@ -817,7 +779,6 @@ func (s *sessionCache) AuthenticateSSHUser(
 	}
 	return s.proxyClient.AuthenticateSSHUser(ctx, auth.AuthenticateSSHRequest{
 		AuthenticateUserRequest: authReq,
-		PublicKey:               c.PubKey,
 		CompatibilityMode:       c.Compatibility,
 		TTL:                     c.TTL,
 		RouteToCluster:          c.RouteToCluster,

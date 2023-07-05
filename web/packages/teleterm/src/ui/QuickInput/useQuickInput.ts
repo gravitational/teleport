@@ -35,7 +35,12 @@ import { assertUnreachable, retryWithRelogin } from '../utils';
 
 export default function useQuickInput() {
   const appContext = useAppContext();
-  const { quickInputService, workspacesService, commandLauncher } = appContext;
+  const {
+    quickInputService,
+    workspacesService,
+    commandLauncher,
+    usageService,
+  } = appContext;
   workspacesService.useState();
   const documentsService =
     workspacesService.getActiveWorkspaceDocumentService();
@@ -105,6 +110,14 @@ export default function useQuickInput() {
         const params = routing.parseClusterUri(
           workspacesService.getActiveWorkspace()?.localClusterUri
         ).params;
+        // ugly hack but QuickInput will be removed in v13
+        if (inputValue.startsWith('tsh proxy db')) {
+          usageService.captureProtocolUse(
+            workspacesService.getRootClusterUri(),
+            'db',
+            'search_bar'
+          );
+        }
         documentsService.openNewTerminal({
           initCommand: inputValue,
           rootClusterId: routing.parseClusterUri(
@@ -120,6 +133,7 @@ export default function useQuickInput() {
         commandLauncher.executeCommand('tsh-ssh', {
           loginHost: command.loginHost,
           localClusterUri,
+          origin: 'search_bar',
         });
         break;
       }

@@ -31,7 +31,7 @@ export const FormPasswordless = ({
       px={3}
       border={1}
       borderRadius={2}
-      borderColor="text.placeholder"
+      borderColor="text.muted"
       width="100%"
       onClick={onLoginWithPasswordless}
       disabled={loginAttempt.status === 'processing'}
@@ -42,7 +42,7 @@ export const FormPasswordless = ({
           <Key mr={3} fontSize={16} />
           <Box>
             <Text typography="h6">Passwordless</Text>
-            <Text fontSize={1} color="text.secondary">
+            <Text fontSize={1} color="text.slightlyMuted">
               Follow the prompts
             </Text>
           </Box>
@@ -56,7 +56,7 @@ export const FormPasswordless = ({
 const StyledPaswordlessBtn = styled(ButtonText)`
   display: block;
   text-align: left;
-  border: 1px solid ${({ theme }) => theme.colors.text.placeholder};
+  border: 1px solid ${({ theme }) => theme.colors.text.muted};
 
   &:hover,
   &:active,

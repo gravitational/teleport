@@ -103,6 +103,8 @@ type AccessRequest interface {
 	GetDryRun() bool
 	// SetDryRun sets the dry run flag on the request.
 	SetDryRun(bool)
+	// Copy returns a copy of the access request resource.
+	Copy() AccessRequest
 }
 
 // NewAccessRequest assembles an AccessRequest resource.
@@ -168,7 +170,7 @@ func (r *AccessRequestV3) GetCreationTime() time.Time {
 
 // SetCreationTime sets CreationTime
 func (r *AccessRequestV3) SetCreationTime(t time.Time) {
-	r.Spec.Created = t
+	r.Spec.Created = t.UTC()
 }
 
 // GetAccessExpiry gets AccessExpiry
@@ -178,7 +180,7 @@ func (r *AccessRequestV3) GetAccessExpiry() time.Time {
 
 // SetAccessExpiry sets AccessExpiry
 func (r *AccessRequestV3) SetAccessExpiry(expiry time.Time) {
-	r.Spec.Expires = expiry
+	r.Spec.Expires = expiry.UTC()
 }
 
 // GetRequestReason gets RequestReason
@@ -261,7 +263,12 @@ func (r *AccessRequestV3) SetRoleThresholdMapping(rtm map[string]ThresholdIndexS
 
 // SetReviews sets the list of currently applied access reviews.
 func (r *AccessRequestV3) SetReviews(revs []AccessReview) {
-	r.Spec.Reviews = revs
+	utcRevs := make([]AccessReview, len(revs))
+	for i, rev := range revs {
+		utcRevs[i] = rev
+		utcRevs[i].Created = rev.Created.UTC()
+	}
+	r.Spec.Reviews = utcRevs
 }
 
 // GetReviews gets the list of currently applied access reviews.
@@ -363,7 +370,7 @@ func (r *AccessRequestV3) Expiry() time.Time {
 
 // SetExpiry sets Expiry
 func (r *AccessRequestV3) SetExpiry(expiry time.Time) {
-	r.Metadata.SetExpiry(expiry)
+	r.Metadata.SetExpiry(expiry.UTC())
 }
 
 // GetMetadata gets Metadata
@@ -410,6 +417,11 @@ func (r *AccessRequestV3) GetDryRun() bool {
 // SetDryRun sets the dry run flag on the request.
 func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
+}
+
+// Copy returns a copy of the access request resource.
+func (r *AccessRequestV3) Copy() AccessRequest {
+	return utils.CloneProtoMsg(r)
 }
 
 // GetLabel retrieves the label with the provided key. If not found

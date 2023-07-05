@@ -57,6 +57,7 @@ const props: State = {
     statusText: '',
   },
   onProceed: () => null,
+  onPrev: () => null,
   fetchUserTraits: () => null,
   isSsoUser: false,
   canEditUser: true,
@@ -66,7 +67,7 @@ const props: State = {
     initSelectedOptionsHelper({ trait, staticTraits, dynamicTraits }),
   dynamicTraits: {} as any,
   staticTraits: {} as any,
-  resourceState: {} as any,
+  resourceSpec: {} as any,
 };
 
 const staticTraits = {

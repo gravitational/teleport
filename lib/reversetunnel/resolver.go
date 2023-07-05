@@ -70,39 +70,32 @@ func CachingResolver(ctx context.Context, resolver Resolver, clock clockwork.Clo
 
 // WebClientResolver returns a Resolver which uses the web proxy to
 // discover where the SSH reverse tunnel server is running.
-func WebClientResolver(addrs []utils.NetAddr, insecureTLS bool) Resolver {
+func WebClientResolver(cfg *webclient.Config) Resolver {
 	return func(ctx context.Context) (*utils.NetAddr, types.ProxyListenerMode, error) {
-		var errs []error
 		mode := types.ProxyListenerMode_Separate
-		for _, addr := range addrs {
-			// In insecure mode, any certificate is accepted. In secure mode the hosts
-			// CAs are used to validate the certificate on the proxy.
-			resp, err := webclient.Find(&webclient.Config{Context: ctx, ProxyAddr: addr.String(), Insecure: insecureTLS})
+		// In insecure mode, any certificate is accepted. In secure mode the hosts
+		// CAs are used to validate the certificate on the proxy.
+		resp, err := webclient.Find(cfg)
 
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-
-			tunnelAddr, err := resp.Proxy.TunnelAddr()
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-
-			addr, err := utils.ParseAddr(tunnelAddr)
-			if err != nil {
-				errs = append(errs, err)
-				continue
-			}
-
-			addr.Addr = utils.ReplaceUnspecifiedHost(addr, defaults.HTTPListenPort)
-			if resp.Proxy.TLSRoutingEnabled {
-				mode = types.ProxyListenerMode_Multiplex
-			}
-			return addr, mode, nil
+		if err != nil {
+			return nil, mode, trace.Wrap(err)
 		}
-		return nil, mode, trace.NewAggregate(errs...)
+
+		tunnelAddr, err := resp.Proxy.TunnelAddr()
+		if err != nil {
+			return nil, mode, trace.Wrap(err)
+		}
+
+		addr, err := utils.ParseAddr(tunnelAddr)
+		if err != nil {
+			return nil, mode, trace.Wrap(err)
+		}
+
+		addr.Addr = utils.ReplaceUnspecifiedHost(addr, defaults.HTTPListenPort)
+		if resp.Proxy.TLSRoutingEnabled {
+			mode = types.ProxyListenerMode_Multiplex
+		}
+		return addr, mode, nil
 	}
 }
 

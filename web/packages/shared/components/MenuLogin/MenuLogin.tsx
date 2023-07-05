@@ -81,7 +81,7 @@ export const MenuLogin = React.forwardRef<MenuLoginHandle, MenuLoginProps>(
           onClick={onOpen}
         >
           CONNECT
-          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.secondary" />
+          <CarrotDown ml={2} mr={-2} fontSize="2" color="text.slightlyMuted" />
         </ButtonBorder>
         <Menu
           anchorOrigin={anchorOrigin}
@@ -146,7 +146,7 @@ function getLoginItemListContent(
         <Indicator
           css={({ theme }) => `
             align-self: center;
-            color: ${theme.colors.secondary.dark}
+            color: ${theme.colors.text.main}
           `}
         />
       );

@@ -405,6 +405,7 @@ func getJoinScript(ctx context.Context, settings scriptSettings, m nodeAPIGetter
 		"caPinsOld":                  strings.Join(caPins, " "),
 		"caPins":                     strings.Join(caPins, ","),
 		"packageName":                packageName,
+		"installUpdater":             "false", // Hard coded to ensure the script doesn't change compared to v13+
 		"repoChannel":                repoChannel,
 		"version":                    version,
 		"appInstallMode":             strconv.FormatBool(settings.appInstallMode),

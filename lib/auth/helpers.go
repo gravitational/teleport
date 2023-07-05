@@ -141,7 +141,7 @@ func NewTestServer(cfg TestServerConfig) (*TestServer, error) {
 		tlsCfg.APIConfig.AuditLog = authServer.AuditLog
 	}
 	if tlsCfg.APIConfig.Emitter == nil {
-		tlsCfg.APIConfig.Emitter = authServer.AuthServer.emitter
+		tlsCfg.APIConfig.Emitter = authServer.AuthServer
 	}
 	if tlsCfg.AcceptedUsage == nil {
 		tlsCfg.AcceptedUsage = authServer.AcceptedUsage
@@ -353,6 +353,17 @@ func NewTestAuthServer(cfg TestAuthServerConfig) (*TestAuthServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	srv.AuthServer.SetLockWatcher(srv.LockWatcher)
+
+	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(ctx, local.HeadlessAuthenticationWatcherConfig{
+		Backend: b,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	if err := headlessAuthenticationWatcher.WaitInit(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+	srv.AuthServer.SetHeadlessAuthenticationWatcher(headlessAuthenticationWatcher)
 
 	srv.Authorizer, err = authz.NewAuthorizer(authz.AuthorizerOpts{
 		ClusterName: srv.ClusterName,
@@ -574,7 +585,7 @@ func (a *TestAuthServer) NewTestTLSServer() (*TestTLSServer, error) {
 		AuthServer: a.AuthServer,
 		Authorizer: a.Authorizer,
 		AuditLog:   a.AuditLog,
-		Emitter:    a.AuthServer.emitter,
+		Emitter:    a.AuthServer,
 	}
 	srv, err := NewTestTLSServer(TestTLSServerConfig{
 		APIConfig:     apiConfig,

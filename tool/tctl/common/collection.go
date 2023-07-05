@@ -36,8 +36,8 @@ import (
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/sshutils"
 	"github.com/gravitational/teleport/lib/utils"
-	"github.com/gravitational/teleport/tool/tctl/common/device"
 	"github.com/gravitational/teleport/tool/tctl/common/loginrule"
+	"github.com/gravitational/teleport/tool/tctl/common/oktaassignment"
 )
 
 type ResourceCollection interface {
@@ -952,6 +952,36 @@ func (c *installerCollection) writeText(w io.Writer) error {
 	return nil
 }
 
+type integrationCollection struct {
+	integrations []types.Integration
+}
+
+func (c *integrationCollection) resources() (r []types.Resource) {
+	for _, ig := range c.integrations {
+		r = append(r, ig)
+	}
+	return r
+}
+func (c *integrationCollection) writeText(w io.Writer) error {
+	sort.Sort(types.Integrations(c.integrations))
+	var rows [][]string
+	for _, ig := range c.integrations {
+		specProps := []string{}
+		switch ig.GetSubKind() {
+		case types.IntegrationSubKindAWSOIDC:
+			specProps = append(specProps, fmt.Sprintf("RoleARN=%s", ig.GetAWSOIDCIntegrationSpec().RoleARN))
+		}
+
+		rows = append(rows, []string{
+			ig.GetName(), ig.GetSubKind(), strings.Join(specProps, ","),
+		})
+	}
+	headers := []string{"Name", "Type", "Spec"}
+	t := asciitable.MakeTable(headers, rows...)
+	_, err := t.AsBuffer().WriteTo(w)
+	return trace.Wrap(err)
+}
+
 type databaseServiceCollection struct {
 	databaseServices []types.DatabaseService
 }
@@ -1053,11 +1083,11 @@ type deviceCollection struct {
 }
 
 func (c *deviceCollection) resources() []types.Resource {
-	r := make([]types.Resource, len(c.devices))
-	for i, resource := range c.devices {
-		r[i] = device.ProtoToResource(resource)
+	resources := make([]types.Resource, len(c.devices))
+	for i, dev := range c.devices {
+		resources[i] = types.DeviceToResource(dev)
 	}
-	return r
+	return resources
 }
 
 func (c *deviceCollection) writeText(w io.Writer) error {
@@ -1104,7 +1134,7 @@ type oktaAssignmentCollection struct {
 func (c *oktaAssignmentCollection) resources() []types.Resource {
 	r := make([]types.Resource, len(c.assignments))
 	for i, resource := range c.assignments {
-		r[i] = resource
+		r[i] = oktaassignment.ToResource(resource)
 	}
 	return r
 }

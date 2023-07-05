@@ -1,6 +1,6 @@
 ---
 title: Teleport Core Concepts
-description: Learn the the key components that make up Teleport.
+description: Learn the key components that make up Teleport.
 ---
 
 Here are the core concepts that describe a Teleport deployment. You will see
@@ -11,13 +11,13 @@ familiar with them before following other pages in the documentation.
 
 The key concept of Teleport's architecture is the **cluster**. A Teleport
 cluster consists of the **Teleport Auth Service** and **Teleport Proxy
-Service**, plus the **Teleport Services** that manage traffic to resources
+Service**, plus the **Teleport services** that manage traffic to resources
 within your infrastructure, such as Kubernetes clusters and Windows desktops.
 
 A minimal Teleport cluster consists of the **Teleport Auth Service** and
 **Teleport Proxy Service**. In a demo environment, you can run these two
 services from a single `teleport` process on a [Linux
-host](./try-out-teleport/linux-server.mdx).
+host](./get-started.mdx).
 
 ### Teleport Auth Service
 
@@ -28,7 +28,7 @@ issues certificates to clients and maintains an audit log.
 
 The Auth Service is the only component of a cluster that has to be connected to
 a backend, which it uses to store cluster state and the certificate authorities'
-private keys. **Teleport Services** are stateless and interact with the Auth
+private keys. **Teleport services** are stateless and interact with the Auth
 Service via a gRPC API.
 
 You can run multiple Auth Service instances in a cluster for high availability.
@@ -38,7 +38,7 @@ Read our guides to how [authorization](./architecture/authorization.mdx) and
 
 ### Teleport Proxy Service
 
-The **Teleport Proxy Service** allows for secure access to resources in a your
+The **Teleport Proxy Service** allows for secure access to resources in your
 infrastructure from the public internet without the need for a VPN. 
 
 It establishes reverse tunnels to the **Teleport Auth Service** and **Teleport
@@ -52,13 +52,13 @@ resources with Teleport-issued certificates directly.
 Read our guide to [how the Teleport Proxy Service
 works](./architecture/proxy.mdx).
 
-## Teleport Services
+## Teleport services
 
-A **Teleport Service** manages access to resources in your infrastructure, such
+A **Teleport service** manages access to resources in your infrastructure, such
 as Kubernetes clusters, Windows desktops, internal web applications, and
 databases.
 
-A single running `teleport` process can run one or more **Teleport Services**,
+A single running `teleport` process can run one or more **Teleport services**,
 depending on the user's configuration. Read about all subcommands of `teleport`
 in our [CLI Reference](./reference/cli.mdx#teleport).
 
@@ -110,15 +110,15 @@ Bot users can connect to resources in your infrastructure without relying
 on static credentials (e.g., certificates and private keys) that become more
 vulnerable to attacks the longer they remain in use.
 
-Unlike other **Teleport Services**, Machine ID runs via the `tbot` binary,
+Unlike other **Teleport services**, Machine ID runs via the `tbot` binary,
 rather than the `teleport` binary.
 
 Read more in our [Machine ID guide](./machine-id/introduction.mdx).
 
 ### Agent
 
-An instance of a **Teleport Service** is called an **agent**. For all Teleport
-Services besides the **Teleport SSH Service**, an agent can enable access to
+An instance of a **Teleport service** is called an **agent**. For all Teleport
+services besides the **Teleport SSH Service**, an agent can enable access to
 multiple resources, and can run on a separate host from the resources it enables
 access to. All agents must run in the same network as their target resources.
 
@@ -129,24 +129,17 @@ source core, which is available at the
 [`gravitational/teleport`](https://github.com/gravitational/teleport) repository
 on GitHub.
 
-You can find a detailed comparison of Teleport's editions in our [Frequently
-Asked Questions](./faq.mdx#how-is-open-source-different-from-enterprise) page.
+You can find a detailed comparison of Teleport's editions in our [Choose an
+Edition](./choose-an-edition/introduction.mdx) documentation.
 
-### Teleport Community Edition
+### Teleport Team
 
-**Teleport Community Edition** is a free, open source distribution of Teleport
-that anyone can download, install, and host on their own infrastructure.
+Teleport Team makes it easier for small organizations to get started with
+enabling secure access to their infrastructure. It includes a subset of Teleport
+Enterprise Cloud features, and teams can switch to Teleport Enterprise Cloud
+as they scale up their Teleport usage.
 
-### Teleport Enterprise
-
-**Teleport Enterprise** is a paid plan that includes all of the features of
-**Teleport Community Edition**, plus advanced features for organizations with
-advanced security needs, such as support for Federal Information Processing
-Standards (FIPS) and a hardware security module (HSM). Teleport Enterprise
-includes a support agreement with Teleport.
-
-Read more in our [Teleport Enterprise
-guide](./choose-an-edition/teleport-enterprise/introduction.mdx).
+[Read more about Teleport Team](choose-an-edition/teleport-team.mdx).
 
 ### Teleport Enterprise Cloud
 
@@ -160,6 +153,22 @@ subdomain of `.teleport.sh`, e.g., `mytenant.teleport.sh`.
 
 Read more in our [Teleport Enterprise Cloud
 guide](./choose-an-edition/teleport-cloud/introduction.mdx).
+
+### Teleport Enterprise
+
+**Teleport Enterprise** is a paid plan that includes all of the features of
+**Teleport Community Edition**, plus advanced features for organizations with
+advanced security needs, such as support for Federal Information Processing
+Standards (FIPS) and a hardware security module (HSM). Teleport Enterprise
+includes a support agreement with Teleport.
+
+Read more in our [Teleport Enterprise
+guide](./choose-an-edition/teleport-enterprise/introduction.mdx).
+
+### Teleport Community Edition
+
+**Teleport Community Edition** is a free, open source distribution of Teleport
+that anyone can download, install, and host on their own infrastructure.
 
 ## Configuration resources
 

@@ -44,6 +44,7 @@ import (
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/srv/db/common"
+	"github.com/gravitational/teleport/lib/srv/db/common/enterprise"
 	"github.com/gravitational/teleport/lib/srv/db/dbutils"
 	"github.com/gravitational/teleport/lib/srv/db/mysql"
 	"github.com/gravitational/teleport/lib/srv/db/postgres"
@@ -67,10 +68,10 @@ type ProxyServer struct {
 	log logrus.FieldLogger
 }
 
-// ConnMonitor monitors authorized connnections and terminates them when
+// ConnMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnMonitor interface {
-	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, error)
+	MonitorConn(ctx context.Context, authzCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ProxyServerConfig is the proxy configuration.
@@ -327,6 +328,9 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 		s.cfg.IngressReporter.ConnectionAuthenticated(ingress.DatabaseTLS, conn)
 		defer s.cfg.IngressReporter.AuthenticatedConnectionClosed(ingress.DatabaseTLS, conn)
 	}
+	if enterprise.ProtocolValidation(proxyCtx.Identity.RouteToDatabase.Protocol); err != nil {
+		return trace.Wrap(err)
+	}
 
 	switch proxyCtx.Identity.RouteToDatabase.Protocol {
 	case defaults.ProtocolPostgres, defaults.ProtocolCockroachDB:
@@ -339,7 +343,7 @@ func (s *ProxyServer) handleConnection(conn net.Conn) error {
 	case defaults.ProtocolSQLServer:
 		return s.SQLServerProxy().HandleConnection(s.closeCtx, proxyCtx, tlsConn)
 	}
-	serviceConn, err := s.Connect(s.closeCtx, proxyCtx)
+	serviceConn, err := s.Connect(s.closeCtx, proxyCtx, conn.RemoteAddr(), conn.LocalAddr())
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -421,7 +425,7 @@ func (s *ProxyServer) SQLServerProxy() *sqlserver.Proxy {
 // decoded from the client certificate by auth.Middleware.
 //
 // Implements common.Service.
-func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext) (net.Conn, error) {
+func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext, clientSrcAddr, clientDstAddr net.Addr) (net.Conn, error) {
 	// There may be multiple database servers proxying the same database. If
 	// we get a connection problem error trying to dial one of them, likely
 	// the database server is down so try the next one.
@@ -431,12 +435,14 @@ func (s *ProxyServer) Connect(ctx context.Context, proxyCtx *common.ProxyContext
 		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+
 		serviceConn, err := proxyCtx.Cluster.Dial(reversetunnel.DialParams{
-			From:     &utils.NetAddr{AddrNetwork: "tcp", Addr: "@db-proxy"},
-			To:       &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
-			ServerID: fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
-			ConnType: types.DatabaseTunnel,
-			ProxyIDs: server.GetProxyIDs(),
+			From:                  clientSrcAddr,
+			To:                    &utils.NetAddr{AddrNetwork: "tcp", Addr: reversetunnel.LocalNode},
+			OriginalClientDstAddr: clientDstAddr,
+			ServerID:              fmt.Sprintf("%v.%v", server.GetHostID(), proxyCtx.Cluster.GetName()),
+			ConnType:              types.DatabaseTunnel,
+			ProxyIDs:              server.GetProxyIDs(),
 		})
 		if err != nil {
 			// If an agent is down, we'll retry on the next one (if available).
@@ -469,7 +475,8 @@ func isReverseTunnelDownError(err error) bool {
 func (s *ProxyServer) Proxy(ctx context.Context, proxyCtx *common.ProxyContext, clientConn, serviceConn net.Conn) error {
 	// Wrap a client connection with a monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	ctx, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, proxyCtx.AuthContext, clientConn)
+	var err error
+	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, proxyCtx.AuthContext, clientConn)
 	if err != nil {
 		clientConn.Close()
 		serviceConn.Close()
@@ -490,6 +497,12 @@ func (s *ProxyServer) Authorize(ctx context.Context, tlsConn utils.TLSConn, para
 		return nil, trace.Wrap(err)
 	}
 	identity := authContext.Identity.GetIdentity()
+
+	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
+	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	if params.User != "" {
 		identity.RouteToDatabase.Username = params.User
 	}

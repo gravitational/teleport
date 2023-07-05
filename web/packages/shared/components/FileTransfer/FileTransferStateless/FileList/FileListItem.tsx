@@ -110,7 +110,7 @@ const Li = styled.li`
 
 const ProgressBackground = styled.div`
   border-radius: 50px;
-  background: rgba(255, 255, 255, 0.05);
+  background: ${props => props.theme.colors.spotBackground[0]};
   width: 100%;
 `;
 

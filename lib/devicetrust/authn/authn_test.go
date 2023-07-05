@@ -30,7 +30,6 @@ import (
 func TestRunCeremony(t *testing.T) {
 	env := testenv.MustNew()
 	defer env.Close()
-	t.Cleanup(resetNative())
 
 	devices := env.DevicesClient
 	ctx := context.Background()
@@ -57,27 +56,18 @@ func TestRunCeremony(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			*authn.GetDeviceCredential = func() (*devicepb.DeviceCredential, error) {
-				return test.dev.DeviceCredential(), nil
+			ceremony := authn.Ceremony{
+				GetDeviceCredential: func() (*devicepb.DeviceCredential, error) {
+					return test.dev.DeviceCredential(), nil
+				},
+				CollectDeviceData: test.dev.CollectDeviceData,
+				SignChallenge:     test.dev.SignChallenge,
 			}
-			*authn.CollectDeviceData = test.dev.CollectDeviceData
-			*authn.SignChallenge = test.dev.SignChallenge
 
-			_, err := authn.RunCeremony(ctx, devices, test.certs)
+			_, err := ceremony.Run(ctx, devices, test.certs)
 			// A nil error is good enough for this test.
 			assert.NoError(t, err, "RunCeremony failed")
 		})
-	}
-}
-
-func resetNative() func() {
-	gdc := authn.GetDeviceCredential
-	cdd := authn.CollectDeviceData
-	sc := authn.SignChallenge
-	return func() {
-		authn.GetDeviceCredential = gdc
-		authn.CollectDeviceData = cdd
-		authn.SignChallenge = sc
 	}
 }
 

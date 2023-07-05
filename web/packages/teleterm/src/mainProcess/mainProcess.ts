@@ -294,10 +294,24 @@ export default class MainProcess {
   private _setAppMenu() {
     const isMac = this.settings.platform === 'darwin';
 
+    // Enable actions like reload or toggle dev tools only in dev mode.
+    const viewMenuTemplate: MenuItemConstructorOptions = this.settings.dev
+      ? { role: 'viewMenu' }
+      : {
+          label: 'View',
+          submenu: [
+            { role: 'resetZoom' },
+            { role: 'zoomIn' },
+            { role: 'zoomOut' },
+            { type: 'separator' },
+            { role: 'togglefullscreen' },
+          ],
+        };
+
     const macTemplate: MenuItemConstructorOptions[] = [
       { role: 'appMenu' },
       { role: 'editMenu' },
-      { role: 'viewMenu' },
+      viewMenuTemplate,
       {
         label: 'Window',
         submenu: [{ role: 'minimize' }, { role: 'zoom' }],
@@ -311,16 +325,13 @@ export default class MainProcess {
     const otherTemplate: MenuItemConstructorOptions[] = [
       { role: 'fileMenu' },
       { role: 'editMenu' },
-      { role: 'viewMenu' },
+      viewMenuTemplate,
       { role: 'windowMenu' },
       {
         role: 'help',
         submenu: [
           { label: 'Learn More', click: openDocsUrl },
-          {
-            label: 'About Teleport Connect',
-            click: app.showAboutPanel,
-          },
+          { role: 'about' },
         ],
       },
     ];
@@ -330,8 +341,7 @@ export default class MainProcess {
   }
 
   private updateAboutPanelIfNeeded(): void {
-    // There is no about menu for Linux. See https://github.com/electron/electron/issues/18918
-    // On Windows default menu does not show copyrights.
+    // On Windows and Linux default menu does not show copyrights.
     if (
       this.settings.platform === 'linux' ||
       this.settings.platform === 'win32'

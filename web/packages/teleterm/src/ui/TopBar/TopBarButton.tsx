@@ -22,7 +22,7 @@ export const TopBarButton = styled.button`
   background: inherit;
   cursor: pointer;
   align-items: center;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   flex-direction: row;
   height: 100%;
   border-radius: 4px;
@@ -34,6 +34,6 @@ export const TopBarButton = styled.button`
       : 'transparent'};
 
   &:hover {
-    background: ${props => props.theme.colors.primary.light};
+    background: ${props => props.theme.colors.levels.surface};
   }
 `;

@@ -81,7 +81,7 @@ exports[`loaded 1`] = `
   display: inline-block;
   transition: color 0.3s;
   margin-left: 4px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -120,6 +120,7 @@ exports[`loaded 1`] = `
   margin-bottom: 24px;
   display: flex;
   align-items: center;
+  justify-content: space-between;
   flex-shrink: 0;
   border-bottom: 1px solid #1C254D;
   height: 56px;
@@ -314,7 +315,7 @@ exports[`loaded 1`] = `
 }
 
 .c5::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -358,7 +359,7 @@ exports[`loaded 1`] = `
       >
         <div
           class="c9"
-          color="primary.contrastText"
+          color="text.contrast"
           style="white-space: nowrap; text-transform: uppercase;"
         >
           Showing 
@@ -515,7 +516,7 @@ exports[`loaded 1`] = `
               Join
               <span
                 class="c12 c20 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -576,6 +577,699 @@ exports[`loaded 1`] = `
         <td>
           <span
             class="c12 c17 icon icon-new-tab c12 c17"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          grafana
+        </td>
+        <td>
+          cafefbb4-3885-4d08-a466-de832a7313131
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          13 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+    </tbody>
+  </table>
+</div>
+`;
+
+exports[`loaded with CTA 1`] = `
+.c3 {
+  box-sizing: border-box;
+  width: 340px;
+}
+
+.c22 {
+  box-sizing: border-box;
+  width: 80px;
+  text-align: center;
+}
+
+.c4 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #512FC9;
+  color: rgba(255,255,255,0.87);
+  min-height: 32px;
+  font-size: 12px;
+  padding: 0px 24px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  width: 100%;
+  height: 36px;
+}
+
+.c4:active {
+  opacity: 0.56;
+}
+
+.c4:hover,
+.c4:focus {
+  background: #651FFF;
+}
+
+.c4:active {
+  background: #354AA4;
+}
+
+.c4:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c23 {
+  line-height: 1.5;
+  margin: 0;
+  display: inline-flex;
+  justify-content: center;
+  align-items: center;
+  box-sizing: border-box;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: 600;
+  outline: none;
+  position: relative;
+  text-align: center;
+  text-decoration: none;
+  text-transform: uppercase;
+  transition: all 0.3s;
+  -webkit-font-smoothing: antialiased;
+  background: #2C3A73;
+  border: 1px solid #1C254D;
+  opacity: .87;
+  color: rgba(255,255,255,0.87);
+  font-size: 10px;
+  min-height: 24px;
+  padding: 0px 16px;
+}
+
+.c23:active {
+  opacity: 0.56;
+}
+
+.c23:hover,
+.c23:focus {
+  background: #2C3A73;
+  border: 1px solid rgba(255,255,255,0.1);
+  opacity: 1;
+}
+
+.c23:active {
+  opacity: 0.24;
+}
+
+.c23:disabled {
+  background: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.3);
+}
+
+.c7 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+}
+
+.c18 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c21 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-right: 16px;
+  padding: 4px;
+  color: #FFFFFF;
+  font-size: 16px;
+}
+
+.c24 {
+  display: inline-block;
+  transition: color 0.3s;
+  margin-left: 4px;
+  color: rgba(255,255,255,0.72);
+  font-size: 14px;
+}
+
+.c15 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 400;
+  font-size: 12px;
+  line-height: 16px;
+  margin: 0px;
+  margin-right: 4px;
+  color: #FFFFFF;
+}
+
+.c5 {
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+}
+
+.c13 {
+  box-sizing: border-box;
+  width: 100%;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.c14 {
+  box-sizing: border-box;
+  margin-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.c16 {
+  box-sizing: border-box;
+  display: flex;
+}
+
+.c1 {
+  box-sizing: border-box;
+  margin-bottom: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-shrink: 0;
+  border-bottom: 1px solid #1C254D;
+  height: 56px;
+  margin-left: -40px;
+  margin-right: -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 300;
+  font-size: 22px;
+  line-height: 32px;
+  margin: 0px;
+  white-space: nowrap;
+}
+
+.c0 {
+  box-sizing: border-box;
+  padding-left: 40px;
+  padding-right: 40px;
+  display: flex;
+  width: 100%;
+  height: 100%;
+  flex-direction: column;
+}
+
+.c0::after {
+  content: ' ';
+  padding-bottom: 24px;
+}
+
+.c8 {
+  color: inherit;
+  font-weight: 500;
+  font-size: 15px;
+  margin-right: 4px;
+}
+
+.c19 {
+  background: #222C59;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.24);
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 12px;
+  width: 100%;
+  border-top-left-radius: 0px;
+  border-top-right-radius: 0px;
+  border-bottom-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+}
+
+.c19 > thead > tr > th,
+.c19 > tbody > tr > th,
+.c19 > tfoot > tr > th,
+.c19 > thead > tr > td,
+.c19 > tbody > tr > td,
+.c19 > tfoot > tr > td {
+  padding: 8px 8px;
+  vertical-align: middle;
+}
+
+.c19 > thead > tr > th:first-child,
+.c19 > tbody > tr > th:first-child,
+.c19 > tfoot > tr > th:first-child,
+.c19 > thead > tr > td:first-child,
+.c19 > tbody > tr > td:first-child,
+.c19 > tfoot > tr > td:first-child {
+  padding-left: 24px;
+}
+
+.c19 > thead > tr > th:last-child,
+.c19 > tbody > tr > th:last-child,
+.c19 > tfoot > tr > th:last-child,
+.c19 > thead > tr > td:last-child,
+.c19 > tbody > tr > td:last-child,
+.c19 > tfoot > tr > td:last-child {
+  padding-right: 24px;
+}
+
+.c19 > tbody > tr > td {
+  vertical-align: middle;
+}
+
+.c19 > thead > tr > th {
+  background: #111B48;
+  color: #FFFFFF;
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 400;
+  padding-bottom: 0;
+  padding-top: 0;
+  text-align: left;
+  opacity: 0.75;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.c19 > thead > tr > th .c6 {
+  font-weight: bold;
+  font-size: 8px;
+  margin-left: 8px;
+}
+
+.c19 > tbody > tr > td {
+  color: rgba(255,255,255,0.87);
+  line-height: 16px;
+}
+
+.c19 tbody tr {
+  border-bottom: 1px solid #1C254D;
+}
+
+.c19 tbody tr:hover {
+  background-color: rgb(37,49,98);
+}
+
+.c9 {
+  padding: 16px 24px;
+  display: flex;
+  height: 24px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: space-between;
+  background: #222C59;
+  border-top-left-radius: 8px;
+  border-top-right-radius: 8px;
+}
+
+.c17 {
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
+.c17 .c6 {
+  font-size: 20px;
+  transition: all 0.3s;
+  opacity: 0.5;
+}
+
+.c17:hover .c6,
+.c17:focus .c6 {
+  opacity: 1;
+}
+
+.c17:disabled {
+  cursor: default;
+}
+
+.c17:disabled .c6 {
+  opacity: 0.1;
+}
+
+.c12 {
+  position: absolute;
+  height: 100%;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #2C3A73;
+  border-radius: 200px;
+}
+
+.c10 {
+  position: relative;
+  display: flex;
+  overflow: hidden;
+  width: 100%;
+  border-radius: 200px;
+  height: 32px;
+  background: #111B48;
+}
+
+.c11 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  font-size: 12px;
+  width: 100%;
+  transition: all 0.2s;
+  padding-left: 16px;
+  padding-right: 16px;
+  color: rgba(255,255,255,0.87);
+  background: #111B48;
+  padding-right: 184px;
+}
+
+.c11:hover,
+.c11:focus,
+.c11:active {
+  background: #1C254D;
+  box-shadow: inset 0 2px 4px rgba(0,0,0,.24);
+  color: rgba(255,255,255,0.87);
+}
+
+.c11::placeholder {
+  color: rgba(255,255,255,0.54);
+  font-size: 12px;
+}
+
+.c20 tbody > tr > td {
+  vertical-align: middle;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+  >
+    <div
+      class="c2"
+    >
+      Active Sessions
+    </div>
+    <div
+      class="c3"
+      width="340px"
+    >
+      <a
+        class="c4"
+        height="36px"
+        href="https://goteleport.com/r/upgrade-team?4.4.0-dev&campaign=CTA_ACTIVE_SESSIONS"
+        kind="primary"
+        style="text-transform: none;"
+        target="blank"
+        width="100%"
+      >
+        <div
+          class="c5"
+        >
+          <span
+            class="c6 c7 icon icon-unlock c8"
+            color="light"
+          />
+          Join Active Sessions With Teleport Enterprise
+        </div>
+      </a>
+    </div>
+  </div>
+  <nav
+    class="c9"
+  >
+    <div
+      class="c10"
+    >
+      <input
+        class="c11"
+        placeholder="SEARCH..."
+        value=""
+      />
+      <div
+        class="c12"
+      />
+    </div>
+    <div
+      class="c13"
+      width="100%"
+    >
+      <div
+        class="c14"
+      >
+        <div
+          class="c15"
+          color="text.contrast"
+          style="white-space: nowrap; text-transform: uppercase;"
+        >
+          Showing 
+          <strong>
+            1
+          </strong>
+           - 
+          <strong>
+            5
+          </strong>
+           of
+           
+          <strong>
+            5
+          </strong>
+        </div>
+      </div>
+      <div
+        class="c16"
+      >
+        <button
+          class="c17"
+          disabled=""
+          title="Previous page"
+        >
+          <span
+            class="c6 c18 icon icon-arrow-left-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+        <button
+          class="c17"
+          disabled=""
+          title="Next page"
+        >
+          <span
+            class="c6 c18 icon icon-arrow-right-circle "
+            color="light"
+            font-size="3"
+          />
+        </button>
+      </div>
+    </div>
+  </nav>
+  <table
+    class="c19 c20"
+  >
+    <thead>
+      <tr>
+        <th>
+          <a>
+            Type
+            <span
+              class="c6 c7 icon icon-chevrons-expand-vertical "
+              color="light"
+              title="sort items"
+            />
+          </a>
+        </th>
+        <th>
+          <a>
+            Name
+            <span
+              class="c6 c7 icon icon-chevrons-expand-vertical "
+              color="light"
+              title="sort items"
+            />
+          </a>
+        </th>
+        <th
+          style="cursor: default;"
+        >
+          Session ID
+        </th>
+        <th
+          style="cursor: default;"
+        >
+          Users
+        </th>
+        <th>
+          <a>
+            Duration
+            <span
+              class="c6 c7 icon icon-chevron-up "
+              color="light"
+              title="sort items asc"
+            />
+          </a>
+        </th>
+        <th
+          style="cursor: default;"
+        />
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>
+          <span
+            class="c6 c21 icon icon-kubernetes c6 c21"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          minikube
+        </td>
+        <td>
+          7174aded-340a-4863-b661-7ba52aeb22c8
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          59 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c6 c21 icon icon-terminal c6 c21"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          im-a-nodename
+        </td>
+        <td>
+          c7befbb4-3885-4d08-a466-de832a73c3d4
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          5 seconds
+        </td>
+        <td
+          align="right"
+          height="26px"
+        >
+          <div
+            class="c22"
+            width="80px"
+          >
+            <button
+              class="c23"
+              kind="border"
+            >
+              Join
+              <span
+                class="c6 c24 icon icon-caret-down "
+                color="text.slightlyMuted"
+                font-size="2"
+              />
+            </button>
+          </div>
+        </td>
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c6 c21 icon icon-desktop c6 c21"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          desktop-2
+        </td>
+        <td>
+          acacfbb4-3885-4d08-a466-de832a73ffac
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          5 seconds
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c6 c21 icon icon-database c6 c21"
+            color="light"
+            font-size="3"
+          />
+        </td>
+        <td>
+          databse-32
+        </td>
+        <td>
+          2314fbb4-3885-4d08-a466-de832a731222
+        </td>
+        <td>
+          lisa2
+        </td>
+        <td>
+          3 minutes
+        </td>
+        <td
+          align="right"
+          height="26px"
+        />
+      </tr>
+      <tr>
+        <td>
+          <span
+            class="c6 c21 icon icon-new-tab c6 c21"
             color="light"
             font-size="3"
           />

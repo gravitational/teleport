@@ -62,8 +62,14 @@ type Features struct {
 	Desktop bool
 	// RecoveryCodes enables account recovery codes
 	RecoveryCodes bool
+	// Plugins enables hosted plugins
+	Plugins bool
 	// AutomaticUpgrades enables automatic upgrades of agents/services.
 	AutomaticUpgrades bool
+	// IsUsageBasedBilling enables some usage-based billing features
+	IsUsageBasedBilling bool
+	// Assist enables Assistant feature
+	Assist bool
 }
 
 // ToProto converts Features into proto.Features
@@ -80,7 +86,10 @@ func (f Features) ToProto() *proto.Features {
 		HSM:                     f.HSM,
 		Desktop:                 f.Desktop,
 		RecoveryCodes:           f.RecoveryCodes,
+		Plugins:                 f.Plugins,
 		AutomaticUpgrades:       f.AutomaticUpgrades,
+		IsUsageBased:            f.IsUsageBasedBilling,
+		Assist:                  f.Assist,
 	}
 }
 
@@ -93,12 +102,16 @@ type Modules interface {
 	IsBoringBinary() bool
 	// Features returns supported features
 	Features() Features
+	// SetFeatures set features queried from Cloud
+	SetFeatures(Features)
 	// BuildType returns build type (OSS or Enterprise)
 	BuildType() string
 	// AttestHardwareKey attests a hardware key and returns its associated private key policy.
 	AttestHardwareKey(context.Context, interface{}, keys.PrivateKeyPolicy, *keys.AttestationStatement, crypto.PublicKey, time.Duration) (keys.PrivateKeyPolicy, error)
 	// EnableRecoveryCodes enables the usage of recovery codes for resetting forgotten passwords
 	EnableRecoveryCodes()
+	// EnablePlugins enables the hosted plugins runtime
+	EnablePlugins()
 }
 
 const (
@@ -174,7 +187,13 @@ func (p *defaultModules) Features() Features {
 		App:               true,
 		Desktop:           true,
 		AutomaticUpgrades: p.automaticUpgrades,
+		Assist:            true,
 	}
+}
+
+// SetFeatures sets features queried from Cloud.
+// This is a noop since OSS teleport does not support enterprise features
+func (p *defaultModules) SetFeatures(f Features) {
 }
 
 func (p *defaultModules) IsBoringBinary() bool {
@@ -194,6 +213,11 @@ func (p *defaultModules) AttestHardwareKey(_ context.Context, _ interface{}, _ k
 // EnableRecoveryCodes enables recovery codes. This is a noop since OSS teleport does not
 // support recovery codes
 func (p *defaultModules) EnableRecoveryCodes() {
+}
+
+// EnablePlugins enables hosted plugins runtime.
+// This is a noop since OSS teleport does not support hosted plugins
+func (p *defaultModules) EnablePlugins() {
 }
 
 var (

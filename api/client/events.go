@@ -195,6 +195,10 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_OktaAssignment{
 			OktaAssignment: r,
 		}
+	case *types.IntegrationV1:
+		out.Resource = &proto.Event_Integration{
+			Integration: r,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -339,6 +343,9 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 		out.Resource = r
 		return &out, nil
 	} else if r := in.GetOktaAssignment(); r != nil {
+		out.Resource = r
+		return &out, nil
+	} else if r := in.GetIntegration(); r != nil {
 		out.Resource = r
 		return &out, nil
 	} else {

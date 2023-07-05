@@ -1,0 +1,6032 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`render with URL loc state set to "server" 1`] = `
+.c8 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 15px;
+}
+
+.c20 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 22px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  height: 90px;
+  width: 600px;
+}
+
+.c7 {
+  box-sizing: border-box;
+  margin-left: 4px;
+  margin-right: 4px;
+  height: 18px;
+  width: 18px;
+  background-color: #2d3762;
+  text-align: center;
+  border-radius: 4px;
+}
+
+.c16 {
+  box-sizing: border-box;
+}
+
+.c21 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c24 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-left: 8px;
+}
+
+.c15 {
+  display: block;
+  outline: none;
+  width: 24.65px;
+  height: 14.36px;
+}
+
+.c19 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  margin: 0px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c9 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+}
+
+.c17 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  color: #a8afb2;
+}
+
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c22 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  color: white;
+}
+
+.c23 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  margin-top: 40px;
+}
+
+.c13 {
+  box-sizing: border-box;
+  padding-left: 8px;
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.c14 {
+  box-sizing: border-box;
+  margin-right: 16px;
+  width: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.c10 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill,320px);
+  column-gap: 10px;
+  row-gap: 15px;
+}
+
+.c11 {
+  display: flex;
+  position: relative;
+  align-items: center;
+  background: rgba(255,255,255,0.05);
+  transition: all 0.3s;
+  border-radius: 8px;
+  padding: 12px 12px 12px 12px;
+  color: white;
+  cursor: pointer;
+  height: 48px;
+  opacity: 1;
+}
+
+.c11:hover {
+  background: rgba(255,255,255,0.09);
+}
+
+.c12 {
+  position: absolute;
+  background: rgb(81,48,201);
+  padding: 0px 6px;
+  border-top-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
+.c4 {
+  border-radius: 200px;
+  height: 40px;
+  border: 1px solid #ffffff1c;
+}
+
+.c4:hover,
+.c4:focus,
+.c4:active {
+  background: #1C254D;
+}
+
+.c5 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  transition: all 0.2s;
+  color: #FFFFFF;
+  background: transparent;
+  margin-right: 16px;
+  margin-bottom: 8px;
+  padding: 16px;
+  opacity: 0.8;
+}
+
+.c5:placeholder {
+  color: white;
+  opacity: 0.6;
+}
+
+.c6 {
+  box-sizing: border-box;
+  margin-top: 4px;
+  width: 120px;
+  display: flex;
+  align-items: center;
+  font-size: 12px;
+  opacity: 0.7;
+}
+
+.c6:hover {
+  cursor: pointer;
+  opacity: 1;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+    font-size="18px"
+  >
+    Select Resource To Add
+  </div>
+  <div
+    class="c2"
+  >
+    Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
+  </div>
+  <div
+    class="c3"
+    height="90px"
+    width="600px"
+  >
+    <div
+      class="c4"
+    >
+      <input
+        class="c5"
+        max="100"
+        placeholder="Search for a resource"
+        value="server"
+      />
+    </div>
+    <div
+      class="c6"
+      width="120px"
+    >
+      <div
+        class="c7"
+        height="18px"
+        width="18px"
+      >
+        <span
+          class="c8 icon icon-close "
+          color="light"
+          font-size="15px"
+        />
+      </div>
+      <div
+        class="c9"
+      >
+        Clear search
+      </div>
+    </div>
+  </div>
+  <div
+    class="c10"
+  >
+    <div
+      class="c11"
+      data-testid="4"
+    >
+      <div
+        class="c12"
+      >
+        Guided
+      </div>
+      <div
+        class="c13"
+      >
+        <div
+          class="c14"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c18"
+          >
+            Amazon Linux 2
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c11"
+      data-testid="4"
+    >
+      <div
+        class="c12"
+      >
+        Guided
+      </div>
+      <div
+        class="c13"
+      >
+        <div
+          class="c14"
+          width="24px"
+        >
+          <img
+            class="c19"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c18"
+          >
+            Debian 8+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c11"
+      data-testid="4"
+    >
+      <div
+        class="c12"
+      >
+        Guided
+      </div>
+      <div
+        class="c13"
+      >
+        <div
+          class="c14"
+          width="24px"
+        >
+          <span
+            class="c20 icon icon-apple "
+            color="light"
+            font-size="22"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c18"
+          >
+            macOS (Intel)
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c11"
+      data-testid="4"
+    >
+      <div
+        class="c12"
+      >
+        Guided
+      </div>
+      <div
+        class="c13"
+      >
+        <div
+          class="c14"
+          width="24px"
+        >
+          <img
+            class="c19"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c18"
+          >
+            RHEL/CentOS 7+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c11"
+      data-testid="4"
+    >
+      <div
+        class="c12"
+      >
+        Guided
+      </div>
+      <div
+        class="c13"
+      >
+        <div
+          class="c14"
+          width="24px"
+        >
+          <img
+            class="c19"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c18"
+          >
+            Ubuntu 14.04+
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c21 c11"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/redshift-serverless"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c13"
+      >
+        <div
+          class="c14"
+          width="24px"
+        >
+          <img
+            class="c19"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c22"
+            color="white"
+          >
+            Redshift Serverless
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c21 c11"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/azure-sql-server-ad"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c13"
+      >
+        <div
+          class="c14"
+          width="24px"
+        >
+          <img
+            class="c19"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c22"
+            color="white"
+          >
+            SQL Server (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c21 c11"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/sql-server-ad"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c13"
+      >
+        <div
+          class="c14"
+          width="24px"
+        >
+          <img
+            class="c19"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c16"
+        >
+          <div
+            class="c17"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Microsoft
+          </div>
+          <div
+            class="c22"
+            color="white"
+          >
+            SQL Server (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div
+    class="c23"
+    font-size="12px"
+  >
+    Looking for something else?
+     
+    <a
+      class="c24"
+      href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
+      rel="noreferrer"
+      target="_blank"
+    >
+      Request a feature
+    </a>
+  </div>
+</div>
+`;
+
+exports[`render with all access 1`] = `
+.c16 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 22px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  height: 90px;
+  width: 600px;
+}
+
+.c12 {
+  box-sizing: border-box;
+}
+
+.c17 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c20 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-left: 8px;
+}
+
+.c11 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
+.c15 {
+  display: block;
+  outline: none;
+  width: 24.65px;
+  height: 14.36px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  margin: 0px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  color: #a8afb2;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c18 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  color: white;
+}
+
+.c19 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  margin-top: 40px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  padding-left: 8px;
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.c10 {
+  box-sizing: border-box;
+  margin-right: 16px;
+  width: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.c6 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill,320px);
+  column-gap: 10px;
+  row-gap: 15px;
+}
+
+.c7 {
+  display: flex;
+  position: relative;
+  align-items: center;
+  background: rgba(255,255,255,0.05);
+  transition: all 0.3s;
+  border-radius: 8px;
+  padding: 12px 12px 12px 12px;
+  color: white;
+  cursor: pointer;
+  height: 48px;
+  opacity: 1;
+}
+
+.c7:hover {
+  background: rgba(255,255,255,0.09);
+}
+
+.c8 {
+  position: absolute;
+  background: rgb(81,48,201);
+  padding: 0px 6px;
+  border-top-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
+.c4 {
+  border-radius: 200px;
+  height: 40px;
+  border: 1px solid #ffffff1c;
+}
+
+.c4:hover,
+.c4:focus,
+.c4:active {
+  background: #1C254D;
+}
+
+.c5 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  transition: all 0.2s;
+  color: #FFFFFF;
+  background: transparent;
+  margin-right: 16px;
+  margin-bottom: 8px;
+  padding: 16px;
+  opacity: 0.8;
+}
+
+.c5:placeholder {
+  color: white;
+  opacity: 0.6;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+    font-size="18px"
+  >
+    Select Resource To Add
+  </div>
+  <div
+    class="c2"
+  >
+    Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
+  </div>
+  <div
+    class="c3"
+    height="90px"
+    width="600px"
+  >
+    <div
+      class="c4"
+    >
+      <input
+        class="c5"
+        max="100"
+        placeholder="Search for a resource"
+        value=""
+      />
+    </div>
+    
+  </div>
+  <div
+    class="c6"
+  >
+    <div
+      class="c7"
+      data-testid="2"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Windows Desktop
+          </div>
+          <div
+            class="c14"
+          >
+            Active Directory
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Amazon Linux 2
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="0"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Application
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            Aurora MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Debian 8+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="3"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Kubernetes
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <span
+            class="c16 icon icon-apple "
+            color="light"
+            font-size="22"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            macOS (Intel)
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c14"
+          >
+            MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c14"
+          >
+            PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            RDS MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            RDS PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            RHEL/CentOS 7+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Ubuntu 14.04+
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/azure-redis"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Cache for Redis
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/cassandra-self-hosted"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Cassandra & ScyllaDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/mysql-cloudsql"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Google Cloud Provider (GCP)
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Cloud SQL MySQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/postgres-cloudsql"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Google Cloud Provider (GCP)
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Cloud SQL PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/cockroachdb-self-hosted"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            CockroachDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/dynamic-registration"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Dynamic Registration
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/aws-dynamodb"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            DynamoDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/redis-aws"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            ElastiCache & MemoryDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/elastic"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Elasticsearch
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/ha"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            High Availability
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/aws-cassandra-keyspaces"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Keyspaces (Apache Cassandra)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/mongodb-self-hosted"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            MongoDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/mongodb-atlas"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c18"
+            color="white"
+          >
+            MongoDB Atlas
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/azure-postgres-mysql"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            MySQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/azure-postgres-mysql"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/rds-proxy"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            RDS Proxy
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/redis"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Redis
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/redis-cluster"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Redis Cluster
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/postgres-redshift"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Redshift PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/redshift-serverless"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            Redshift Serverless
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/snowflake"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c18"
+            color="white"
+          >
+            Snowflake (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/azure-sql-server-ad"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            SQL Server (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c17 c7"
+      data-testid="1"
+      href="https://goteleport.com/docs/database-access/guides/sql-server-ad"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Microsoft
+          </div>
+          <div
+            class="c18"
+            color="white"
+          >
+            SQL Server (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div
+    class="c19"
+    font-size="12px"
+  >
+    Looking for something else?
+     
+    <a
+      class="c20"
+      href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
+      rel="noreferrer"
+      target="_blank"
+    >
+      Request a feature
+    </a>
+  </div>
+</div>
+`;
+
+exports[`render with no access 1`] = `
+.c18 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 22px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  height: 90px;
+  width: 600px;
+}
+
+.c12 {
+  box-sizing: border-box;
+}
+
+.c16 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c20 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-left: 8px;
+}
+
+.c11 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
+.c15 {
+  display: block;
+  outline: none;
+  width: 24.65px;
+  height: 14.36px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  margin: 0px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  color: #a8afb2;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c17 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  color: white;
+}
+
+.c19 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  margin-top: 40px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  padding-left: 8px;
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.c10 {
+  box-sizing: border-box;
+  margin-right: 16px;
+  width: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.c6 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill,320px);
+  column-gap: 10px;
+  row-gap: 15px;
+}
+
+.c7 {
+  display: flex;
+  position: relative;
+  align-items: center;
+  background: rgba(255,255,255,0.05);
+  transition: all 0.3s;
+  border-radius: 8px;
+  padding: 12px 12px 12px 12px;
+  color: white;
+  cursor: pointer;
+  height: 48px;
+  opacity: 0.45;
+}
+
+.c7:hover {
+  background: rgba(255,255,255,0.09);
+}
+
+.c4 {
+  border-radius: 200px;
+  height: 40px;
+  border: 1px solid #ffffff1c;
+}
+
+.c4:hover,
+.c4:focus,
+.c4:active {
+  background: #1C254D;
+}
+
+.c5 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  transition: all 0.2s;
+  color: #FFFFFF;
+  background: transparent;
+  margin-right: 16px;
+  margin-bottom: 8px;
+  padding: 16px;
+  opacity: 0.8;
+}
+
+.c5:placeholder {
+  color: white;
+  opacity: 0.6;
+}
+
+.c8 {
+  position: absolute;
+  background: #ff1744;
+  padding: 0px 6px;
+  border-top-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+    font-size="18px"
+  >
+    Select Resource To Add
+  </div>
+  <div
+    class="c2"
+  >
+    Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
+  </div>
+  <div
+    class="c3"
+    height="90px"
+    width="600px"
+  >
+    <div
+      class="c4"
+    >
+      <input
+        class="c5"
+        max="100"
+        placeholder="Search for a resource"
+        value=""
+      />
+    </div>
+    
+  </div>
+  <div
+    class="c6"
+  >
+    <div
+      class="c7"
+      data-testid="2"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Windows Desktop
+          </div>
+          <div
+            class="c14"
+          >
+            Active Directory
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Amazon Linux 2
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="0"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Application
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            Aurora MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Cache for Redis
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Cassandra & ScyllaDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Google Cloud Provider (GCP)
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Cloud SQL MySQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Google Cloud Provider (GCP)
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Cloud SQL PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            CockroachDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Debian 8+
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Dynamic Registration
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            DynamoDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            ElastiCache & MemoryDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Elasticsearch
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            High Availability
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Keyspaces (Apache Cassandra)
+          </div>
+        </div>
+      </div>
+    </a>
+    <div
+      class="c7"
+      data-testid="3"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Kubernetes
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <span
+            class="c18 icon icon-apple "
+            color="light"
+            font-size="22"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            macOS (Intel)
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            MongoDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c17"
+            color="white"
+          >
+            MongoDB Atlas
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            MySQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c14"
+          >
+            MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c14"
+          >
+            PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            RDS MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="1"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            RDS PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            RDS Proxy
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Redis
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Redis Cluster
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Redshift PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            Redshift Serverless
+          </div>
+        </div>
+      </div>
+    </a>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            RHEL/CentOS 7+
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c17"
+            color="white"
+          >
+            Snowflake (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            SQL Server (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c16 c7"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Microsoft
+          </div>
+          <div
+            class="c17"
+            color="white"
+          >
+            SQL Server (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Ubuntu 14.04+
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div
+    class="c19"
+    font-size="12px"
+  >
+    Looking for something else?
+     
+    <a
+      class="c20"
+      href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
+      rel="noreferrer"
+      target="_blank"
+    >
+      Request a feature
+    </a>
+  </div>
+</div>
+`;
+
+exports[`render with partial access 1`] = `
+.c16 {
+  display: inline-block;
+  transition: color 0.3s;
+  color: #FFFFFF;
+  font-size: 22px;
+}
+
+.c0 {
+  box-sizing: border-box;
+  margin-top: 24px;
+}
+
+.c3 {
+  box-sizing: border-box;
+  height: 90px;
+  width: 600px;
+}
+
+.c12 {
+  box-sizing: border-box;
+}
+
+.c19 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+}
+
+.c22 {
+  color: #03a9f4;
+  font-weight: normal;
+  background: none;
+  text-decoration: underline;
+  text-transform: none;
+  margin-left: 8px;
+}
+
+.c11 {
+  display: block;
+  outline: none;
+  width: 23.9px;
+  height: 24px;
+}
+
+.c15 {
+  display: block;
+  outline: none;
+  width: 24.65px;
+  height: 14.36px;
+}
+
+.c1 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  font-size: 18px;
+  margin: 0px;
+  margin-top: 4px;
+  margin-bottom: 4px;
+}
+
+.c2 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin: 0px;
+  margin-bottom: 32px;
+}
+
+.c13 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  color: #a8afb2;
+}
+
+.c14 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+}
+
+.c20 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-weight: 600;
+  margin: 0px;
+  color: white;
+}
+
+.c21 {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  margin: 0px;
+  margin-top: 40px;
+}
+
+.c9 {
+  box-sizing: border-box;
+  padding-left: 8px;
+  padding-right: 8px;
+  display: flex;
+  align-items: center;
+}
+
+.c10 {
+  box-sizing: border-box;
+  margin-right: 16px;
+  width: 24px;
+  display: flex;
+  justify-content: center;
+}
+
+.c6 {
+  display: grid;
+  grid-template-columns: repeat(auto-fill,320px);
+  column-gap: 10px;
+  row-gap: 15px;
+}
+
+.c7 {
+  display: flex;
+  position: relative;
+  align-items: center;
+  background: rgba(255,255,255,0.05);
+  transition: all 0.3s;
+  border-radius: 8px;
+  padding: 12px 12px 12px 12px;
+  color: white;
+  cursor: pointer;
+  height: 48px;
+  opacity: 1;
+}
+
+.c7:hover {
+  background: rgba(255,255,255,0.09);
+}
+
+.c17 {
+  display: flex;
+  position: relative;
+  align-items: center;
+  background: rgba(255,255,255,0.05);
+  transition: all 0.3s;
+  border-radius: 8px;
+  padding: 12px 12px 12px 12px;
+  color: white;
+  cursor: pointer;
+  height: 48px;
+  opacity: 0.45;
+}
+
+.c17:hover {
+  background: rgba(255,255,255,0.09);
+}
+
+.c8 {
+  position: absolute;
+  background: rgb(81,48,201);
+  padding: 0px 6px;
+  border-top-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
+.c4 {
+  border-radius: 200px;
+  height: 40px;
+  border: 1px solid #ffffff1c;
+}
+
+.c4:hover,
+.c4:focus,
+.c4:active {
+  background: #1C254D;
+}
+
+.c5 {
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  transition: all 0.2s;
+  color: #FFFFFF;
+  background: transparent;
+  margin-right: 16px;
+  margin-bottom: 8px;
+  padding: 16px;
+  opacity: 0.8;
+}
+
+.c5:placeholder {
+  color: white;
+  opacity: 0.6;
+}
+
+.c18 {
+  position: absolute;
+  background: #ff1744;
+  padding: 0px 6px;
+  border-top-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+}
+
+<div
+  class="c0"
+>
+  <div
+    class="c1"
+    font-size="18px"
+  >
+    Select Resource To Add
+  </div>
+  <div
+    class="c2"
+  >
+    Teleport can integrate into most, if not all of your infrastructure. Search for what resource you want to add.
+  </div>
+  <div
+    class="c3"
+    height="90px"
+    width="600px"
+  >
+    <div
+      class="c4"
+    >
+      <input
+        class="c5"
+        max="100"
+        placeholder="Search for a resource"
+        value=""
+      />
+    </div>
+    
+  </div>
+  <div
+    class="c6"
+  >
+    <div
+      class="c7"
+      data-testid="2"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Windows Desktop
+          </div>
+          <div
+            class="c14"
+          >
+            Active Directory
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Amazon Linux 2
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="0"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Application
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Debian 8+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="3"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c14"
+          >
+            Kubernetes
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <span
+            class="c16 icon icon-apple "
+            color="light"
+            font-size="22"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            macOS (Intel)
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            RHEL/CentOS 7+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c7"
+      data-testid="4"
+    >
+      <div
+        class="c8"
+      >
+        Guided
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Server
+          </div>
+          <div
+            class="c14"
+          >
+            Ubuntu 14.04+
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c17"
+      data-testid="1"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            Aurora MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c17"
+      data-testid="1"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            Aurora PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Cache for Redis
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Cassandra & ScyllaDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Google Cloud Provider (GCP)
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Cloud SQL MySQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Google Cloud Provider (GCP)
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Cloud SQL PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            CockroachDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Dynamic Registration
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            DynamoDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            ElastiCache & MemoryDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Elasticsearch
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Database
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            High Availability
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Keyspaces (Apache Cassandra)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            MongoDB
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c20"
+            color="white"
+          >
+            MongoDB Atlas
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            MySQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <div
+      class="c17"
+      data-testid="1"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c14"
+          >
+            MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c17"
+      data-testid="1"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c14"
+          >
+            PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <div
+      class="c17"
+      data-testid="1"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            RDS MySQL/MariaDB
+          </div>
+        </div>
+      </div>
+    </div>
+    <div
+      class="c17"
+      data-testid="1"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c14"
+          >
+            RDS PostgreSQL
+          </div>
+        </div>
+      </div>
+    </div>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c15"
+            height="14.36px"
+            src="file_stub"
+            width="24.65px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            RDS Proxy
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Redis
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Self-Hosted
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Redis Cluster
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Redshift PostgreSQL
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Amazon Web Services (AWS)
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            Redshift Serverless
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          
+          <div
+            class="c20"
+            color="white"
+          >
+            Snowflake (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Azure
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            SQL Server (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+    <a
+      class="c19 c17"
+      data-testid="1"
+      rel="noreferrer"
+      style="text-decoration: none;"
+      target="_blank"
+    >
+      <div
+        class="c18"
+      >
+        Lacking Permissions
+      </div>
+      <div
+        class="c9"
+      >
+        <div
+          class="c10"
+          width="24px"
+        >
+          <img
+            class="c11"
+            height="24px"
+            src="file_stub"
+            width="23.9px"
+          />
+        </div>
+        <div
+          class="c12"
+        >
+          <div
+            class="c13"
+            color="#a8afb2"
+            font-size="12px"
+          >
+            Microsoft
+          </div>
+          <div
+            class="c20"
+            color="white"
+          >
+            SQL Server (Preview)
+          </div>
+        </div>
+      </div>
+    </a>
+  </div>
+  <div
+    class="c21"
+    font-size="12px"
+  >
+    Looking for something else?
+     
+    <a
+      class="c22"
+      href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
+      rel="noreferrer"
+      target="_blank"
+    >
+      Request a feature
+    </a>
+  </div>
+</div>
+`;

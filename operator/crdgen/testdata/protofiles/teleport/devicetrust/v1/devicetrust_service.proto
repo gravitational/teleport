@@ -1,0 +1,354 @@
+// Copyright 2022 Gravitational, Inc
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//      http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package teleport.devicetrust.v1;
+
+import "google/protobuf/empty.proto";
+import "google/rpc/status.proto";
+import "teleport/devicetrust/v1/device.proto";
+import "teleport/devicetrust/v1/device_collected_data.proto";
+import "teleport/devicetrust/v1/device_enroll_token.proto";
+import "teleport/devicetrust/v1/user_certificates.proto";
+
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1";
+
+// DeviceTrustService provides methods to manage, enroll and authenticate
+// trusted devices.
+//
+// A trusted device is a device that is registered and enrolled with Teleport,
+// thus allowing the system to provide some guarantees about its provenance and
+// state.
+//
+// Managing devices requires the corresponding CRUD "device" permission.
+// Additionally, creating enrollment tokens requires the "create_enroll_token"
+// permission and enrolling devices requires the "enroll" permission. See
+// CreateDevice, CreateDeviceEnrollToken and EnrollDevice for reference.
+//
+// An authenticated, trusted device allows its user to perform device-aware
+// actions. Such actions include accessing an SSH node, managing sensitive
+// resources via `tctl`, etc. The enforcement mode is defined via cluster-wide
+// and/or per-role toggles. Device authentication is automatic for enrolled
+// devices communicating with Enterprise clusters. See AuthenticateDevice for
+// reference.
+//
+// Device Trust is a Teleport Enterprise feature. Open Source Teleport clusters
+// treat all Device RPCs as unimplemented (which, in fact, they are for OSS.)
+service DeviceTrustService {
+  // CreateDevice creates a device, effectively registering it on Teleport.
+  // Devices need to be registered before they can be enrolled.
+  //
+  // It is possible to create both a Device and a DeviceEnrollToken in a
+  // single invocation, see CreateDeviceRequest.create_enroll_token.
+  rpc CreateDevice(CreateDeviceRequest) returns (Device);
+
+  // DeleteDevice hard-deletes a device, removing it and all collected data
+  // history from the system.
+  //
+  // Prefer locking the device instead (see the `tctl lock` command). Deleting a
+  // device doesn't invalidate existing device certificates, but does prevent
+  // new device authentication ceremonies from occurring.
+  //
+  // Use with caution.
+  rpc DeleteDevice(DeleteDeviceRequest) returns (google.protobuf.Empty);
+
+  // FindDevices retrieves devices by device ID and/or asset tag.
+  //
+  // It provides an in-between search between fetching a device by ID and
+  // listing all devices.
+  //
+  // ID matches are guaranteed to be present in the response.
+  rpc FindDevices(FindDevicesRequest) returns (FindDevicesResponse);
+
+  // GetDevice retrieves a device by ID.
+  rpc GetDevice(GetDeviceRequest) returns (Device);
+
+  // ListDevices lists all registered devices.
+  rpc ListDevices(ListDevicesRequest) returns (ListDevicesResponse);
+
+  // BulkCreateDevices is a bulk variant of CreateDevice.
+  //
+  // Unlike CreateDevice, it does not support creation of enrollment tokens, as
+  // it is meant for bulk inventory registration.
+  rpc BulkCreateDevices(BulkCreateDevicesRequest) returns (BulkCreateDevicesResponse);
+
+  // CreateDeviceEnrollToken creates a DeviceEnrollToken for a Device.
+  // An enrollment token is required for the enrollment ceremony. See
+  // EnrollDevice.
+  rpc CreateDeviceEnrollToken(CreateDeviceEnrollTokenRequest) returns (DeviceEnrollToken);
+
+  // EnrollDevice performs the device enrollment ceremony.
+  //
+  // Enrollment requires a previously-registered Device and a DeviceEnrollToken,
+  // see CreateDevice and CreateDeviceEnrollToken.
+  //
+  // An enrolled device is allowed, via AuthenticateDevice, to acquire
+  // certificates containing device extensions, thus gaining access to
+  // device-aware actions.
+  rpc EnrollDevice(stream EnrollDeviceRequest) returns (stream EnrollDeviceResponse);
+
+  // AuthenticateDevice performs the device authentication ceremony.
+  //
+  // Device authentication exchanges existing user certificates without device
+  // extensions for certificates augmented with device extensions. The new
+  // certificates allow the user to perform device-aware actions.
+  //
+  // Only registered and enrolled devices may perform device authentication.
+  rpc AuthenticateDevice(stream AuthenticateDeviceRequest) returns (stream AuthenticateDeviceResponse);
+}
+
+// Request for CreateDevice.
+message CreateDeviceRequest {
+  // Device to create.
+  Device device = 1;
+
+  // If true, a DeviceEnrollToken is created along with the Device.
+  bool create_enroll_token = 2;
+
+  // If true, create the device as a Teleport resource, meaning that fields that
+  // are usually considered read-only or system managed are copied as provided
+  // to storage.
+  // Prefer using non-resource creation semantics if possible.
+  bool create_as_resource = 3;
+}
+
+// Request for DeleteDevice.
+message DeleteDeviceRequest {
+  // ID of the Device to delete.
+  string device_id = 1;
+}
+
+// Request for FindDevices.
+//
+// Inspect the returned devices to determine whether the match was by ID or
+// asset tag.
+message FindDevicesRequest {
+  // Device ID or asset tag.
+  string id_or_tag = 1;
+}
+
+// Response for FindDevices.
+message FindDevicesResponse {
+  // Devices that matched the search.
+  // The number of resulting devices is expected to be low and may be
+  // artificially capped by the server otherwise.
+  repeated Device devices = 1;
+}
+
+// Request for GetDevice.
+message GetDeviceRequest {
+  // ID of the device.
+  string device_id = 1;
+}
+
+// Request for ListDevices.
+//
+// Follows the pagination semantics of
+// https://cloud.google.com/apis/design/standard_methods#list.
+message ListDevicesRequest {
+  // The maximum number of items to return.
+  // The server may impose a different page size at its discretion.
+  int32 page_size = 1;
+
+  // The next_page_token value returned from a previous List request, if any.
+  string page_token = 2;
+
+  // Specifies which fields of the resource should be returned in the response.
+  // Defaults to DEVICE_VIEW_LIST.
+  DeviceView view = 3;
+}
+
+// Response for ListDevices.
+message ListDevicesResponse {
+  // Devices that matched the search.
+  repeated Device devices = 1;
+
+  // Token to retrieve the next page of results, or empty if there are no
+  // more results in the list.
+  string next_page_token = 2;
+}
+
+// DeviceView specifies which fields of returned devices should be present.
+enum DeviceView {
+  DEVICE_VIEW_UNSPECIFIED = 0;
+
+  // View for general device listings, like `tctl devices ls`.
+  // Contains only basic information, such as IDs and enrollment status.
+  DEVICE_VIEW_LIST = 1;
+
+  // View for detailed device queries, like `tctl get devices`.
+  // Presents a complete view of the device.
+  DEVICE_VIEW_RESOURCE = 2;
+}
+
+// Request for BulkCreateDevices.
+message BulkCreateDevicesRequest {
+  // Devices to create.
+  repeated Device devices = 1;
+
+  // If true, create the device as a Teleport resource, meaning that fields that
+  // are usually considered read-only or system managed are copied as provided
+  // to storage.
+  // Prefer using non-resource creation semantics if possible.
+  bool create_as_resource = 2;
+}
+
+// Response for BulkCreateDevices.
+message BulkCreateDevicesResponse {
+  // Created devices or a failure reason.
+  // Responses are sorted according to the request.
+  repeated DeviceOrStatus devices = 1;
+}
+
+// DeviceOrStatus contains either a device ID, in case of success, or a status
+// in case of failures.
+message DeviceOrStatus {
+  // Status of the operation.
+  // May either be absent or contain the OK code for successes, at the
+  // implementation's discretion.
+  google.rpc.Status status = 1;
+
+  // ID of the created device.
+  // Only present if the status is OK.
+  string id = 2;
+}
+
+// Request for CreateDeviceEnrollToken.
+message CreateDeviceEnrollTokenRequest {
+  // ID of the device.
+  string device_id = 1;
+}
+
+// Request for EnrollDevice.
+//
+// macOS enrollment flow:
+// -> EnrollDeviceInit (client)
+// <- MacOSEnrollChallenge (server)
+// -> MacOSEnrollChallengeResponse
+// <- EnrollDeviceSuccess
+//
+// Only macOS enrollments are supported at the moment.
+message EnrollDeviceRequest {
+  oneof payload {
+    EnrollDeviceInit init = 1;
+    MacOSEnrollChallengeResponse macos_challenge_response = 2;
+  }
+}
+
+// Response for EnrollDevice.
+message EnrollDeviceResponse {
+  oneof payload {
+    EnrollDeviceSuccess success = 1;
+    MacOSEnrollChallenge macos_challenge = 2;
+  }
+}
+
+// EnrollDeviceInit initiates the enrollment ceremony.
+message EnrollDeviceInit {
+  // Device enrollment token.
+  // See CreateDevice or CreateDeviceEnrollToken.
+  string token = 1;
+
+  // ID of the device credential.
+  string credential_id = 2;
+
+  // Device collected data.
+  // Matched against the device registration information and any previously
+  // collected data.
+  DeviceCollectedData device_data = 3;
+
+  // Payload for macOS-specific data.
+  MacOSEnrollPayload macos = 4;
+}
+
+// EnrollDeviceSuccess marks a successful device enrollment ceremony.
+message EnrollDeviceSuccess {
+  // The enrolled device.
+  Device device = 1;
+}
+
+// MacOSEnrollPayload is the macOS-specific enrollment payload.
+message MacOSEnrollPayload {
+  // Device public key marshaled as a PKIX, ASN.1 DER.
+  bytes public_key_der = 2;
+}
+
+// MacOSEnrollChallenge is a macOS enrollment challenge.
+message MacOSEnrollChallenge {
+  // Randomly-generated, opaque challenge to be signed using the device key.
+  bytes challenge = 1;
+}
+
+// MacOSEnrollChallengeResponse is a macOS enrollment challenge response.
+message MacOSEnrollChallengeResponse {
+  // Signature over the challenge, using the device key.
+  bytes signature = 2;
+}
+
+// Request for AuthenticateDevice.
+//
+// Authentication ceremony flow:
+// -> AuthenticateDeviceInit (client)
+// <- AuthenticateDeviceChallenge (server)
+// -> AuthenticateDeviceChallengeResponse
+// <- UserCertificates
+message AuthenticateDeviceRequest {
+  oneof payload {
+    AuthenticateDeviceInit init = 1;
+    AuthenticateDeviceChallengeResponse challenge_response = 2;
+  }
+}
+
+// Response for AuthenticateDevice.
+message AuthenticateDeviceResponse {
+  oneof payload {
+    AuthenticateDeviceChallenge challenge = 1;
+    UserCertificates user_certificates = 2;
+  }
+}
+
+// AuthenticateDeviceInit initiates the device authentication ceremony.
+message AuthenticateDeviceInit {
+  // In-band user certificates to augment with device extensions.
+  // - The x509 certificate is acquired from the mTLS connection, thus the
+  //   in-band certificate is ignored.
+  // - All certificates must be valid and issued by the Teleport CA.
+  // - All certificates must match (same public key, same Teleport user, plus
+  //   whatever additional checks the backend sees fit).
+  // - Augmented certificates have the same expiration as the original
+  //   certificates.
+  UserCertificates user_certificates = 1;
+
+  // ID of the enrolled device credential.
+  string credential_id = 2;
+
+  // Device collected data.
+  // Matched against the device registration information and any previously
+  // collected data.
+  DeviceCollectedData device_data = 3;
+}
+
+// AuthenticateDeviceChallenge carries the authentication challenge.
+message AuthenticateDeviceChallenge {
+  // Randomly-generated, opaque challenge to be signed using the device key.
+  bytes challenge = 1;
+}
+
+// AuthenticateDeviceChallengeResponse carries the authentication challenge
+// response.
+message AuthenticateDeviceChallengeResponse {
+  // Signature over the challenge, using the device key.
+  bytes signature = 1;
+}

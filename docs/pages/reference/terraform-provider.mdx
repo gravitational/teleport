@@ -19,7 +19,6 @@ Supported resources:
 - [teleport_trusted_cluster](#teleport_trusted_cluster)
 - [teleport_user](#teleport_user)
 
-
 ## Provider configuration
 
 Add the following configuration section to your `terraform` configuration block:
@@ -36,7 +35,6 @@ terraform {
 ```
 
 The provider supports the following options:
-
 
 | Name                   | Type   | Description                                                                    | Environment Variable               |
 | ---------------------- | ------ | ------------------------------------------------------------------------------ | ---------------------------------- |
@@ -55,13 +53,12 @@ The provider supports the following options:
 | `retry_cap_duration`   | string | Max duration between retries. [Format](https://pkg.go.dev/time#ParseDuration)  | `TF_TELEPORT_RETRY_CAP_DURATION`   |
 | `retry_max_tries`      | string | Max number of retries.                                                         | `TF_TELEPORT_RETRY_MAX_TRIES`      |
 
-
 You need to specify at least one of:
 
 - `cert_path`, `key_path`,`root_ca_path` and `addr` to connect using key files.
 - `cert_base64`, `key_base64`,`root_ca_base64` and `addr` to connect using a base64-encoded key.
 - `identity_file_path` or `identity_file_base64` and `addr` to connect using an identity file.
-- `profile_name` and `profile_dir` (both can be empty) and Teleport will try to connect using current profile from `~/.tsh`
+- `profile_name`, `profile_dir` (both can be empty) and `addr` to connect using current profile from `~/.tsh`
 
 The `retry_*` values are used to retry the API calls to Teleport when the cache is stale.
 
@@ -87,7 +84,6 @@ provider "teleport" {
 | sub_kind | string |          | SubKind is an optional resource subkind. |
 | version  | string |          | Version is the resource version.         |
 
-
 ### metadata
 
 Metadata is the app resource metadata.
@@ -99,7 +95,6 @@ Metadata is the app resource metadata.
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | name        | string         | *        | Name is an object name                                                                                         |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
-
 
 ### spec
 
@@ -115,7 +110,6 @@ Spec is the app resource spec.
 | rewrite              | object |          | Rewrite is a list of rewriting rules to apply to requests and responses. |
 | uri                  | string |          | URI is the web app endpoint.                                             |
 
-
 #### spec.aws
 
 AWS contains additional options for AWS applications.
@@ -123,7 +117,6 @@ AWS contains additional options for AWS applications.
 |    Name     |  Type  | Required |                               Description                               |
 |-------------|--------|----------|-------------------------------------------------------------------------|
 | external_id | string |          | ExternalID is the AWS External ID used when assuming roles in this app. |
-
 
 #### spec.dynamic_labels
 
@@ -135,7 +128,6 @@ DynamicLabels are the app's command labels.
 | period  | duration         |          | Period is a time between command runs |
 | result  | string           |          | Result captures standard output       |
 
-
 #### spec.rewrite
 
 Rewrite is a list of rewriting rules to apply to requests and responses.
@@ -145,7 +137,6 @@ Rewrite is a list of rewriting rules to apply to requests and responses.
 | headers  | object           |          | Headers is a list of headers to inject when passing the request over to the application.                                                          |
 | redirect | array of strings |          | Redirect defines a list of hosts which will be rewritten to the public address of the application if they occur in the &#34;Location&#34; header. |
 
-
 ##### spec.rewrite.headers
 
 Headers is a list of headers to inject when passing the request over to the application.
@@ -154,7 +145,6 @@ Headers is a list of headers to inject when passing the request over to the appl
 |-------|--------|----------|---------------------------------|
 | name  | string |          | Name is the http header name.   |
 | value | string |          | Value is the http header value. |
-
 
 Example:
 
@@ -185,7 +175,6 @@ resource "teleport_app" "example" {
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
 | version  | string |          | Version is a resource version                                    |
 
-
 ### metadata
 
 Metadata is resource metadata
@@ -196,7 +185,6 @@ Metadata is resource metadata
 | expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
-
 
 ### spec
 
@@ -219,15 +207,13 @@ Spec is an AuthPreference specification
 | u2f                     | object |          | U2F are the settings for the U2F device.                                                                                           |
 | webauthn                | object |          | Webauthn are the settings for server-side Web Authentication support.                                                              |
 
-
 #### spec.device_trust
 
 DeviceTrust holds settings related to trusted device verification. Requires Teleport Enterprise.
 
 | Name |  Type  | Required |                                                                                                                                                                                                                                             Description                                                                                                                                                                                                                                              |
 |------|--------|----------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| mode | string |          | Mode of verification for trusted devices.  The following modes are supported:  - &#34;off&#34;: disables both device authentication and authorization. - &#34;optional&#34;: allows both device authentication and authorization, but doesn&#39;t enforce the presence of device extensions for sensitive endpoints. - &#34;required&#34;: enforces the presence of device extensions for sensitive endpoints.  Mode is always &#34;off&#34; for OSS. Defaults to &#34;optional&#34; for Enterprise. |
-
+| mode | string |          | Mode of verification for trusted devices.  The following modes are supported:  - &#34;off&#34;: disables both device authentication and authorization. - &#34;optional&#34;: allows both device authentication and authorization, but doesn't enforce the presence of device extensions for sensitive endpoints. - &#34;required&#34;: enforces the presence of device extensions for sensitive endpoints.  Mode is always &#34;off&#34; for OSS. Defaults to &#34;optional&#34; for Enterprise. |
 
 #### spec.idp
 
@@ -237,7 +223,6 @@ IDP is a set of options related to accessing IdPs within Teleport. Requires Tele
 |------|--------|----------|----------------------------------------------------|
 | saml | object |          | SAML are options related to the Teleport SAML IdP. |
 
-
 ##### spec.idp.saml
 
 SAML are options related to the Teleport SAML IdP.
@@ -245,7 +230,6 @@ SAML are options related to the Teleport SAML IdP.
 |  Name   | Type | Required | Description |
 |---------|------|----------|-------------|
 | enabled | bool |          |             |
-
 
 #### spec.u2f
 
@@ -257,7 +241,6 @@ U2F are the settings for the U2F device.
 | device_attestation_cas | array of strings |          | DeviceAttestationCAs contains the trusted attestation CAs for U2F devices.                                                                                                                                |
 | facets                 | array of strings |          | Facets returns the facets for universal second factor. Deprecated: Kept for backwards compatibility reasons, but Facets have no effect since Teleport v10, when Webauthn replaced the U2F implementation. |
 
-
 #### spec.webauthn
 
 Webauthn are the settings for server-side Web Authentication support.
@@ -267,7 +250,6 @@ Webauthn are the settings for server-side Web Authentication support.
 | attestation_allowed_cas | array of strings |          | Allow list of device attestation CAs in PEM format. If present, only devices whose attestation certificates match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationDeniedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default all devices are allowed.         |
 | attestation_denied_cas  | array of strings |          | Deny list of device attestation CAs in PEM format. If present, only devices whose attestation certificates don&#39;t match the certificates specified here may be registered (existing registrations are unchanged). If supplied in conjunction with AttestationAllowedCAs, then both conditions need to be true for registration to be allowed (the device MUST match an allowed CA and MUST NOT match a denied CA). By default no devices are denied. |
 | rp_id                   | string           |          | RPID is the ID of the Relying Party. It should be set to the domain name of the Teleport installation.  IMPORTANT: RPID must never change in the lifetime of the cluster, because it&#39;s recorded in the registration data on the WebAuthn device. If the RPID changes, all existing WebAuthn key registrations will become invalid and all users who use WebAuthn as the second factor will need to re-register.                                     |
-
 
 Example:
 
@@ -301,7 +283,6 @@ resource "teleport_auth_preference" "example" {
 | token_ttl | string               |          | The desired TTL for the token if one is created. If unset, a server default is used                                                                           |
 | traits    | map of string arrays |          |                                                                                                                                                               |
 | user_name | string               |          | The name of the generated bot user                                                                                                                            |
-
 
 Example:
 
@@ -353,7 +334,6 @@ resource "teleport_bot" "example" {
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
 | version  | string |          | Version is a resource version                                    |
 
-
 ### metadata
 
 Metadata is resource metadata
@@ -364,7 +344,6 @@ Metadata is resource metadata
 | expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
-
 
 ### spec
 
@@ -383,7 +362,6 @@ Spec is a ClusterNetworkingConfig specification
 | tunnel_strategy         | object   |          | TunnelStrategyV1 determines the tunnel strategy used in the cluster.                                                                                                                                    |
 | web_idle_timeout        | duration |          | WebIdleTimeout sets global cluster default setting for the web UI idle timeouts.                                                                                                                        |
 
-
 #### spec.tunnel_strategy
 
 TunnelStrategyV1 determines the tunnel strategy used in the cluster.
@@ -393,24 +371,17 @@ TunnelStrategyV1 determines the tunnel strategy used in the cluster.
 | agent_mesh    | object |          |             |
 | proxy_peering | object |          |             |
 
-
 ##### spec.tunnel_strategy.agent_mesh
-
-
 
 |  Name  | Type | Required |                          Description                          |
 |--------|------|----------|---------------------------------------------------------------|
 | active | bool |          | Automatically generated field preventing empty message errors |
 
-
 ##### spec.tunnel_strategy.proxy_peering
-
-
 
 |          Name          |  Type  | Required | Description |
 |------------------------|--------|----------|-------------|
 | agent_connection_count | number |          |             |
-
 
 Example:
 
@@ -441,7 +412,6 @@ resource "teleport_cluster_networking_config" "example" {
 | sub_kind | string |          | SubKind is an optional resource subkind. |
 | version  | string |          | Version is the resource version.         |
 
-
 ### metadata
 
 Metadata is the database metadata.
@@ -453,7 +423,6 @@ Metadata is the database metadata.
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | name        | string         | *        | Name is an object name                                                                                         |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
-
 
 ### spec
 
@@ -472,7 +441,6 @@ Spec is the database spec.
 | tls            | object |          | TLS is the TLS configuration used when establishing connection to target database. Allows to provide custom CA cert or override server name. |
 | uri            | string | *        | URI is the database connection endpoint.                                                                                                     |
 
-
 #### spec.ad
 
 AD is the Active Directory configuration for the database.
@@ -485,7 +453,6 @@ AD is the Active Directory configuration for the database.
 | krb5_file     | string |          | Krb5File is the path to the Kerberos configuration file. Defaults to /etc/krb5.conf.    |
 | ldap_cert     | string |          | LDAPCert is a certificate from Windows LDAP/AD, optional; only for x509 Authentication. |
 | spn           | string |          | SPN is the service principal name for the database.                                     |
-
 
 #### spec.aws
 
@@ -504,7 +471,6 @@ AWS contains AWS specific settings for RDS/Aurora/Redshift databases.
 | region              | string |          | Region is a AWS cloud region.                                                                  |
 | secret_store        | object |          | SecretStore contains secret store configurations.                                              |
 
-
 ##### spec.aws.elasticache
 
 ElastiCache contains AWS ElastiCache Redis specific metadata.
@@ -515,7 +481,6 @@ ElastiCache contains AWS ElastiCache Redis specific metadata.
 | replication_group_id       | string           |          | ReplicationGroupID is the Redis replication group ID.                              |
 | transit_encryption_enabled | bool             |          | TransitEncryptionEnabled indicates whether in-transit encryption (TLS) is enabled. |
 | user_group_ids             | array of strings |          | UserGroupIDs is a list of user group IDs.                                          |
-
 
 ##### spec.aws.memorydb
 
@@ -528,7 +493,6 @@ MemoryDB contains AWS MemoryDB specific metadata.
 | endpoint_type | string |          | EndpointType is the type of the endpoint.                            |
 | tls_enabled   | bool   |          | TLSEnabled indicates whether in-transit encryption (TLS) is enabled. |
 
-
 ##### spec.aws.rds
 
 RDS contains RDS specific metadata.
@@ -540,7 +504,6 @@ RDS contains RDS specific metadata.
 | instance_id | string |          | InstanceID is the RDS instance identifier.                        |
 | resource_id | string |          | ResourceID is the RDS instance resource identifier (db-xxx).      |
 
-
 ##### spec.aws.rdsproxy
 
 RDSProxy contains AWS Proxy specific metadata.
@@ -551,7 +514,6 @@ RDSProxy contains AWS Proxy specific metadata.
 | name                 | string |          | Name is the identifier of an RDS Proxy.                               |
 | resource_id          | string |          | ResourceID is the RDS instance resource identifier (prx-xxx).         |
 
-
 ##### spec.aws.redshift
 
 Redshift contains Redshift specific metadata.
@@ -559,7 +521,6 @@ Redshift contains Redshift specific metadata.
 |    Name    |  Type  | Required |                  Description                  |
 |------------|--------|----------|-----------------------------------------------|
 | cluster_id | string |          | ClusterID is the Redshift cluster identifier. |
-
 
 ##### spec.aws.redshift_serverless
 
@@ -571,7 +532,6 @@ RedshiftServerless contains AWS Redshift Serverless specific metadata.
 | workgroup_id   | string |          | WorkgroupID is the workgroup ID.       |
 | workgroup_name | string |          | WorkgroupName is the workgroup name.   |
 
-
 ##### spec.aws.secret_store
 
 SecretStore contains secret store configurations.
@@ -580,7 +540,6 @@ SecretStore contains secret store configurations.
 |------------|--------|----------|----------------------------------------------------|
 | key_prefix | string |          | KeyPrefix specifies the secret key prefix.         |
 | kms_key_id | string |          | KMSKeyID specifies the AWS KMS key for encryption. |
-
 
 #### spec.azure
 
@@ -593,7 +552,6 @@ Azure contains Azure specific database metadata.
 | redis           | object |          | Redis contains Azure Cache for Redis specific database metadata.   |
 | resource_id     | string |          | ResourceID is the Azure fully qualified ID for the resource.       |
 
-
 ##### spec.azure.redis
 
 Redis contains Azure Cache for Redis specific database metadata.
@@ -601,7 +559,6 @@ Redis contains Azure Cache for Redis specific database metadata.
 |       Name        |  Type  | Required |                           Description                           |
 |-------------------|--------|----------|-----------------------------------------------------------------|
 | clustering_policy | string |          | ClusteringPolicy is the clustering policy for Redis Enterprise. |
-
 
 #### spec.dynamic_labels
 
@@ -613,7 +570,6 @@ DynamicLabels is the database dynamic labels.
 | period  | duration         |          | Period is a time between command runs |
 | result  | string           |          | Result captures standard output       |
 
-
 #### spec.gcp
 
 GCP contains parameters specific to GCP Cloud SQL databases.
@@ -623,7 +579,6 @@ GCP contains parameters specific to GCP Cloud SQL databases.
 | instance_id | string |          | InstanceID is the Cloud SQL instance ID.                           |
 | project_id  | string |          | ProjectID is the GCP project ID the Cloud SQL instance resides in. |
 
-
 #### spec.mysql
 
 MySQL is an additional section with MySQL database options.
@@ -631,7 +586,6 @@ MySQL is an additional section with MySQL database options.
 |      Name      |  Type  | Required |                                              Description                                              |
 |----------------|--------|----------|-------------------------------------------------------------------------------------------------------|
 | server_version | string |          | ServerVersion is the server version reported by DB proxy if the runtime information is not available. |
-
 
 #### spec.tls
 
@@ -642,7 +596,6 @@ TLS is the TLS configuration used when establishing connection to target databas
 | ca_cert     | string |          | CACert is an optional user provided CA certificate used for verifying database TLS connection.                                     |
 | mode        | number |          | Mode is a TLS connection mode. See DatabaseTLSMode for details.                                                                    |
 | server_name | string |          | ServerName allows to provide custom hostname. This value will override the servername/hostname on a certificate during validation. |
-
 
 Example:
 
@@ -674,7 +627,6 @@ resource "teleport_database" "example" {
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
 | version  | string |          | Version is a resource version.                                    |
 
-
 ### metadata
 
 Metadata holds resource metadata.
@@ -686,7 +638,6 @@ Metadata holds resource metadata.
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | name        | string         | *        | Name is an object name                                                                                         |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
-
 
 ### spec
 
@@ -702,7 +653,6 @@ Spec is an Github connector specification.
 | teams_to_logins | object |          | TeamsToLogins maps Github team memberships onto allowed logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles instead. |
 | teams_to_roles  | object |          | TeamsToRoles maps Github team memberships onto allowed roles.                                                                       |
 
-
 #### spec.teams_to_logins
 
 TeamsToLogins maps Github team memberships onto allowed logins/roles.  DELETE IN 11.0.0 Deprecated: use GithubTeamsToRoles instead.
@@ -715,7 +665,6 @@ TeamsToLogins maps Github team memberships onto allowed logins/roles.  DELETE IN
 | organization      | string           |          | Organization is a Github organization a user belongs to.                          |
 | team              | string           |          | Team is a team within the organization a user belongs to.                         |
 
-
 #### spec.teams_to_roles
 
 TeamsToRoles maps Github team memberships onto allowed roles.
@@ -725,7 +674,6 @@ TeamsToRoles maps Github team memberships onto allowed roles.
 | organization | string           |          | Organization is a Github organization a user belongs to.  |
 | roles        | array of strings |          | Roles is a list of allowed logins for this org/team.      |
 | team         | string           |          | Team is a team within the organization a user belongs to. |
-
 
 Example:
 
@@ -770,7 +718,6 @@ resource "teleport_github_connector" "github" {
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
 | version  | string |          | Version is a resource version.                                    |
 
-
 ### metadata
 
 Metadata holds resource metadata.
@@ -782,7 +729,6 @@ Metadata holds resource metadata.
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | name        | string         | *        | Name is an object name                                                                                         |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
-
 
 ### spec
 
@@ -806,7 +752,6 @@ Spec is an OIDC connector specification.
 | scope                      | array of strings |          | Scope specifies additional scopes set by provider.                                                                                            |
 | username_claim             | string           |          | UsernameClaim specifies the name of the claim from the OIDC connector to be used as the user&#39;s username.                                  |
 
-
 #### spec.claims_to_roles
 
 ClaimsToRoles specifies a dynamic mapping from claims to roles.
@@ -816,7 +761,6 @@ ClaimsToRoles specifies a dynamic mapping from claims to roles.
 | claim | string           |          | Claim is a claim name.                             |
 | roles | array of strings |          | Roles is a list of static teleport roles to match. |
 | value | string           |          | Value is a claim value to match.                   |
-
 
 Example:
 
@@ -860,7 +804,6 @@ resource "teleport_oidc_connector" "example" {
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
 | version  | string |          | Version is version                                               |
 
-
 ### metadata
 
 Metadata is resource metadata
@@ -872,7 +815,6 @@ Metadata is resource metadata
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | name        | string         |          | Name is an object name                                                                                         |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
-
 
 ### spec
 
@@ -892,7 +834,6 @@ Spec is a provisioning token V2 spec
 | suggested_agent_matcher_labels | map of string arrays |          |                                                                                                                                                            |
 | suggested_labels               | map of string arrays |          |                                                                                                                                                            |
 
-
 #### spec.allow
 
 Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.
@@ -904,7 +845,6 @@ Allow is a list of TokenRules, nodes using this token must match one allow rule 
 | aws_regions | array of strings |          | AWSRegions is used for the EC2 join method and is a list of AWS regions a node is allowed to join from.                                        |
 | aws_role    | string           |          | AWSRole is used for the EC2 join method and is the the ARN of the AWS role that the auth server will assume in order to call the ec2 API.      |
 
-
 #### spec.azure
 
 Azure allows the configuration of options specific to the "azure" join method.
@@ -912,7 +852,6 @@ Azure allows the configuration of options specific to the "azure" join method.
 | Name  |  Type  | Required |                                          Description                                          |
 |-------|--------|----------|-----------------------------------------------------------------------------------------------|
 | allow | object |          | Allow is a list of Rules, nodes using this token must match one allow rule to use this token. |
-
 
 ##### spec.azure.allow
 
@@ -923,7 +862,6 @@ Allow is a list of Rules, nodes using this token must match one allow rule to us
 | resource_groups | array of strings |          | ResourceGroups is a list of Azure resource groups the node is allowed to join from. |
 | subscription    | string           |          | Subscription is the Azure subscription.                                             |
 
-
 #### spec.circleci
 
 CircleCI allows the configuration of options specific to the "circleci" join method.
@@ -932,7 +870,6 @@ CircleCI allows the configuration of options specific to the "circleci" join met
 |-----------------|--------|----------|----------------------------------------------------------------------------------------------------|
 | allow           | object |          | Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token. |
 | organization_id | string |          |                                                                                                    |
-
 
 ##### spec.circleci.allow
 
@@ -943,7 +880,6 @@ Allow is a list of TokenRules, nodes using this token must match one allow rule 
 | context_id | string |          |             |
 | project_id | string |          |             |
 
-
 #### spec.github
 
 GitHub allows the configuration of options specific to the "github" join method.
@@ -952,7 +888,6 @@ GitHub allows the configuration of options specific to the "github" join method.
 |------------------------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | allow                  | object |          | Allow is a list of TokenRules, nodes using this token must match one allow rule to use this token.                                                                                                                                                                                                                                                                                                                                                                                                  |
 | enterprise_server_host | string |          | EnterpriseServerHost allows joining from runners associated with a GitHub Enterprise Server instance. When unconfigured, tokens will be validated against github.com, but when configured to the host of a GHES instance, then the tokens will be validated against host.  This value should be the hostname of the GHES instance, and should not include the scheme or a path. The instance must be accessible over HTTPS at this hostname and the certificate must be trusted by the Auth Server. |
-
 
 ##### spec.github.allow
 
@@ -966,9 +901,8 @@ Allow is a list of TokenRules, nodes using this token must match one allow rule 
 | ref_type         | string |          | The type of ref, for example: &#34;branch&#34;.                                                                                                             |
 | repository       | string |          | The repository from where the workflow is running. This includes the name of the owner e.g `gravitational/teleport`                                         |
 | repository_owner | string |          | The name of the organization in which the repository is stored.                                                                                             |
-| sub              | string |          | Sub also known as Subject is a string that roughly uniquely indentifies the workload. The format of this varies depending on the type of github action run. |
+| sub              | string |          | Sub also known as Subject is a string that roughly uniquely identifies the workload. The format of this varies depending on the type of github action run. |
 | workflow         | string |          | The name of the workflow.                                                                                                                                   |
-
 
 #### spec.kubernetes
 
@@ -978,7 +912,6 @@ Kubernetes allows the configuration of options specific to the "kubernetes" join
 |-------|--------|----------|-----------------------------------------------------------------------------------------------|
 | allow | object |          | Allow is a list of Rules, nodes using this token must match one allow rule to use this token. |
 
-
 ##### spec.kubernetes.allow
 
 Allow is a list of Rules, nodes using this token must match one allow rule to use this token.
@@ -986,7 +919,6 @@ Allow is a list of Rules, nodes using this token must match one allow rule to us
 |      Name       |  Type  | Required |                                                         Description                                                         |
 |-----------------|--------|----------|-----------------------------------------------------------------------------------------------------------------------------|
 | service_account | string |          | ServiceAccount is the namespaced name of the Kubernetes service account. Its format is &#34;namespace:service-account&#34;. |
-
 
 Example:
 
@@ -1020,7 +952,6 @@ resource "teleport_provision_token" "example" {
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
 | version  | string |          | Version is version                                               |
 
-
 ### metadata
 
 Metadata is resource metadata
@@ -1033,7 +964,6 @@ Metadata is resource metadata
 | name        | string         | *        | Name is an object name                                                                                         |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
 
-
 ### spec
 
 Spec is a role specification
@@ -1043,7 +973,6 @@ Spec is a role specification
 | allow   | object |          | Allow is the set of conditions evaluated to grant access.                               |
 | deny    | object |          | Deny is the set of conditions evaluated to deny access. Deny takes priority over allow. |
 | options | object |          | Options is for OpenSSH options like agent forwarding.                                   |
-
 
 #### spec.allow
 
@@ -1058,7 +987,7 @@ Allow is the set of conditions evaluated to grant access.
 | db_labels              | map of string arrays |          |                                                                                                                                 |
 | db_names               | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                   |
 | db_service_labels      | map of string arrays |          |                                                                                                                                 |
-| db_users               | array of strings     |          | DatabaseUsers is a list of databaes users this role is allowed to connect as.                                                   |
+| db_users               | array of strings     |          | DatabaseUsers is a list of databases users this role is allowed to connect as.                                                   |
 | gcp_service_accounts   | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                            |
 | host_groups            | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                 |
 | host_sudoers           | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                              |
@@ -1077,7 +1006,6 @@ Allow is the set of conditions evaluated to grant access.
 | windows_desktop_labels | map of string arrays |          |                                                                                                                                 |
 | windows_desktop_logins | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                      |
 
-
 ##### spec.allow.impersonate
 
 Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.
@@ -1087,7 +1015,6 @@ Impersonate specifies what users and roles this role is allowed to impersonate b
 | roles | array of strings |          | Roles is a list of resources this role is allowed to impersonate                                               |
 | users | array of strings |          | Users is a list of resources this role is allowed to impersonate, could be an empty list or a Wildcard pattern |
 | where | string           |          | Where specifies optional advanced matcher                                                                      |
-
 
 ##### spec.allow.join_sessions
 
@@ -1100,7 +1027,6 @@ JoinSessions specifies policies to allow users to join other sessions.
 | name  | string           |          | Name is the name of the policy.                                 |
 | roles | array of strings |          | Roles is a list of roles that you can join the session of.      |
 
-
 ##### spec.allow.kubernetes_resources
 
 KubernetesResources is the Kubernetes Resources this Role grants access to.
@@ -1111,10 +1037,7 @@ KubernetesResources is the Kubernetes Resources this Role grants access to.
 | name      | string |          | Name is the resource name. It supports wildcards.                                           |
 | namespace | string |          | Namespace is the resource namespace. It supports wildcards.                                 |
 
-
 ##### spec.allow.request
-
-
 
 |        Name         |         Type         | Required |                                                                                                                    Description                                                                                                                    |
 |---------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -1124,7 +1047,6 @@ KubernetesResources is the Kubernetes Resources this Role grants access to.
 | search_as_roles     | array of strings     |          | SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request. |
 | suggested_reviewers | array of strings     |          | SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.                                                                                                                            |
 | thresholds          | object               |          | Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.                                        |
-
 
 ###### spec.allow.request.claims_to_roles
 
@@ -1136,7 +1058,6 @@ ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
 | roles | array of strings |          | Roles is a list of static teleport roles to match. |
 | value | string           |          | Value is a claim value to match.                   |
 
-
 ###### spec.allow.request.thresholds
 
 Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.
@@ -1147,7 +1068,6 @@ Thresholds is a list of thresholds, one of which must be met in order for review
 | deny    | number |          | Deny is the number of denials needed for state-transition.                                   |
 | filter  | string |          | Filter is an optional predicate used to determine which reviews count toward this threshold. |
 | name    | string |          | Name is the optional human-readable name of the threshold.                                   |
-
 
 ##### spec.allow.require_session_join
 
@@ -1162,7 +1082,6 @@ RequireSessionJoin specifies policies for required users to start a session.
 | name     | string           |          | Name is the name of the policy.                                                                     |
 | on_leave | string           |          | OnLeave is the behaviour that&#39;s used when the policy is no longer fulfilled for a live session. |
 
-
 ##### spec.allow.review_requests
 
 ReviewRequests defines conditions for submitting access reviews.
@@ -1174,7 +1093,6 @@ ReviewRequests defines conditions for submitting access reviews.
 | roles            | array of strings |          | Roles is the name of roles which may be reviewed.                                                                                                                                                                     |
 | where            | string           |          | Where is an optional predicate which further limits which requests are reviewable.                                                                                                                                    |
 
-
 ###### spec.allow.review_requests.claims_to_roles
 
 ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
@@ -1184,7 +1102,6 @@ ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
 | claim | string           |          | Claim is a claim name.                             |
 | roles | array of strings |          | Roles is a list of static teleport roles to match. |
 | value | string           |          | Value is a claim value to match.                   |
-
 
 ##### spec.allow.rules
 
@@ -1196,7 +1113,6 @@ Rules is a list of rules and their access levels. Rules are a high level constru
 | resources | array of strings |          | Resources is a list of resources                                |
 | verbs     | array of strings |          | Verbs is a list of verbs                                        |
 | where     | string           |          | Where specifies optional advanced matcher                       |
-
 
 #### spec.deny
 
@@ -1211,7 +1127,7 @@ Deny is the set of conditions evaluated to deny access. Deny takes priority over
 | db_labels              | map of string arrays |          |                                                                                                                                 |
 | db_names               | array of strings     |          | DatabaseNames is a list of database names this role is allowed to connect to.                                                   |
 | db_service_labels      | map of string arrays |          |                                                                                                                                 |
-| db_users               | array of strings     |          | DatabaseUsers is a list of databaes users this role is allowed to connect as.                                                   |
+| db_users               | array of strings     |          | DatabaseUsers is a list of database users this role is allowed to connect as.                                                   |
 | gcp_service_accounts   | array of strings     |          | GCPServiceAccounts is a list of GCP service accounts this role is allowed to assume.                                            |
 | host_groups            | array of strings     |          | HostGroups is a list of groups for created users to be added to                                                                 |
 | host_sudoers           | array of strings     |          | HostSudoers is a list of entries to include in a users sudoer file                                                              |
@@ -1230,7 +1146,6 @@ Deny is the set of conditions evaluated to deny access. Deny takes priority over
 | windows_desktop_labels | map of string arrays |          |                                                                                                                                 |
 | windows_desktop_logins | array of strings     |          | WindowsDesktopLogins is a list of desktop login names allowed/denied for Windows desktops.                                      |
 
-
 ##### spec.deny.impersonate
 
 Impersonate specifies what users and roles this role is allowed to impersonate by issuing certificates or other possible means.
@@ -1240,7 +1155,6 @@ Impersonate specifies what users and roles this role is allowed to impersonate b
 | roles | array of strings |          | Roles is a list of resources this role is allowed to impersonate                                               |
 | users | array of strings |          | Users is a list of resources this role is allowed to impersonate, could be an empty list or a Wildcard pattern |
 | where | string           |          | Where specifies optional advanced matcher                                                                      |
-
 
 ##### spec.deny.join_sessions
 
@@ -1253,7 +1167,6 @@ JoinSessions specifies policies to allow users to join other sessions.
 | name  | string           |          | Name is the name of the policy.                                 |
 | roles | array of strings |          | Roles is a list of roles that you can join the session of.      |
 
-
 ##### spec.deny.kubernetes_resources
 
 KubernetesResources is the Kubernetes Resources this Role grants access to.
@@ -1264,10 +1177,7 @@ KubernetesResources is the Kubernetes Resources this Role grants access to.
 | name      | string |          | Name is the resource name. It supports wildcards.                                           |
 | namespace | string |          | Namespace is the resource namespace. It supports wildcards.                                 |
 
-
 ##### spec.deny.request
-
-
 
 |        Name         |         Type         | Required |                                                                                                                    Description                                                                                                                    |
 |---------------------|----------------------|----------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
@@ -1277,7 +1187,6 @@ KubernetesResources is the Kubernetes Resources this Role grants access to.
 | search_as_roles     | array of strings     |          | SearchAsRoles is a list of extra roles which should apply to a user while they are searching for resources as part of a Resource Access Request, and defines the underlying roles which will be requested as part of any Resource Access Request. |
 | suggested_reviewers | array of strings     |          | SuggestedReviewers is a list of reviewer suggestions.  These can be teleport usernames, but that is not a requirement.                                                                                                                            |
 | thresholds          | object               |          | Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.                                        |
-
 
 ###### spec.deny.request.claims_to_roles
 
@@ -1289,7 +1198,6 @@ ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
 | roles | array of strings |          | Roles is a list of static teleport roles to match. |
 | value | string           |          | Value is a claim value to match.                   |
 
-
 ###### spec.deny.request.thresholds
 
 Thresholds is a list of thresholds, one of which must be met in order for reviews to trigger a state-transition.  If no thresholds are provided, a default threshold of 1 for approval and denial is used.
@@ -1300,7 +1208,6 @@ Thresholds is a list of thresholds, one of which must be met in order for review
 | deny    | number |          | Deny is the number of denials needed for state-transition.                                   |
 | filter  | string |          | Filter is an optional predicate used to determine which reviews count toward this threshold. |
 | name    | string |          | Name is the optional human-readable name of the threshold.                                   |
-
 
 ##### spec.deny.require_session_join
 
@@ -1315,7 +1222,6 @@ RequireSessionJoin specifies policies for required users to start a session.
 | name     | string           |          | Name is the name of the policy.                                                                     |
 | on_leave | string           |          | OnLeave is the behaviour that&#39;s used when the policy is no longer fulfilled for a live session. |
 
-
 ##### spec.deny.review_requests
 
 ReviewRequests defines conditions for submitting access reviews.
@@ -1327,7 +1233,6 @@ ReviewRequests defines conditions for submitting access reviews.
 | roles            | array of strings |          | Roles is the name of roles which may be reviewed.                                                                                                                                                                     |
 | where            | string           |          | Where is an optional predicate which further limits which requests are reviewable.                                                                                                                                    |
 
-
 ###### spec.deny.review_requests.claims_to_roles
 
 ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
@@ -1337,7 +1242,6 @@ ClaimsToRoles specifies a mapping from claims (traits) to teleport roles.
 | claim | string           |          | Claim is a claim name.                             |
 | roles | array of strings |          | Roles is a list of static teleport roles to match. |
 | value | string           |          | Value is a claim value to match.                   |
-
 
 ##### spec.deny.rules
 
@@ -1349,7 +1253,6 @@ Rules is a list of rules and their access levels. Rules are a high level constru
 | resources | array of strings |          | Resources is a list of resources                                |
 | verbs     | array of strings |          | Verbs is a list of verbs                                        |
 | where     | string           |          | Where specifies optional advanced matcher                       |
-
 
 #### spec.options
 
@@ -1377,12 +1280,11 @@ Options is for OpenSSH options like agent forwarding.
 | pin_source_ip              | bool             |          | PinSourceIP forces the same client IP for certificate generation and usage                                                                                                 |
 | port_forwarding            | bool             |          |                                                                                                                                                                            |
 | record_session             | object           |          | RecordDesktopSession indicates whether desktop access sessions should be recorded. It defaults to true unless explicitly set to false.                                     |
-| request_access             | string           |          | RequestAccess defines the access request stategy (optional|note|always) where optional is the default.                                                                     |
+| request_access             | string           |          | RequestAccess defines the access request strategy (optional|note|always) where optional is the default.                                                                     |
 | request_prompt             | string           |          | RequestPrompt is an optional message which tells users what they aught to                                                                                                  |
 | require_mfa_type           | number           |          | RequireMFAType is the type of MFA requirement enforced for this user.                                                                                                      |
 | require_session_mfa        | bool             |          | RequireSessionMFA specifies whether a user is required to do an MFA check for every session.  DELETE IN 13.0.0 in favor of RequireMFAType                                  |
 | ssh_file_copy              | bool             |          |                                                                                                                                                                            |
-
 
 ##### spec.options.cert_extensions
 
@@ -1393,8 +1295,7 @@ CertExtensions specifies the key/values
 | mode  | number |          | Mode is the type of extension to be used -- currently critical-option is not supported   |
 | name  | string |          | Name specifies the key to be used in the cert extension.                                 |
 | type  | number |          | Type represents the certificate type being extended, only ssh is supported at this time. |
-| value | string |          | Value specifies the valueg to be used in the cert extension.                             |
-
+| value | string |          | Value specifies the value to be used in the cert extension.                             |
 
 ##### spec.options.idp
 
@@ -1404,7 +1305,6 @@ IDP is a set of options related to accessing IdPs within Teleport. Requires Tele
 |------|--------|----------|----------------------------------------------------|
 | saml | object |          | SAML are options related to the Teleport SAML IdP. |
 
-
 ###### spec.options.idp.saml
 
 SAML are options related to the Teleport SAML IdP.
@@ -1412,7 +1312,6 @@ SAML are options related to the Teleport SAML IdP.
 |  Name   | Type | Required | Description |
 |---------|------|----------|-------------|
 | enabled | bool |          |             |
-
 
 ##### spec.options.record_session
 
@@ -1423,7 +1322,6 @@ RecordDesktopSession indicates whether desktop access sessions should be recorde
 | default | string |          | Default indicates the default value for the services. |
 | desktop | bool   |          |                                                       |
 | ssh     | string |          | SSH indicates the session mode used on SSH sessions.  |
-
 
 Example:
 
@@ -1489,7 +1387,6 @@ resource "teleport_role" "example" {
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
 | version  | string |          | Version is a resource version.                                    |
 
-
 ### metadata
 
 Metadata holds resource metadata.
@@ -1501,7 +1398,6 @@ Metadata holds resource metadata.
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | name        | string         | *        | Name is an object name                                                                                         |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
-
 
 ### spec
 
@@ -1524,7 +1420,6 @@ Spec is an SAML connector specification.
 | signing_key_pair        | object |          | SigningKeyPair is an x509 key pair used to sign AuthnRequest.                                                                                                     |
 | sso                     | string |          | SSO is the URL of the identity provider&#39;s SSO service.                                                                                                        |
 
-
 #### spec.assertion_key_pair
 
 EncryptionKeyPair is a key pair used for decrypting SAML assertions.
@@ -1533,7 +1428,6 @@ EncryptionKeyPair is a key pair used for decrypting SAML assertions.
 |-------------|--------|----------|-----------------------------------------------|
 | cert        | string |          | Cert is a PEM-encoded x509 certificate.       |
 | private_key | string |          | PrivateKey is a PEM encoded x509 private key. |
-
 
 #### spec.attributes_to_roles
 
@@ -1545,7 +1439,6 @@ AttributesToRoles is a list of mappings of attribute statements to roles.
 | roles | array of strings |          | Roles is a list of static teleport roles to map to. |
 | value | string           |          | Value is an attribute statement value to match.     |
 
-
 #### spec.signing_key_pair
 
 SigningKeyPair is an x509 key pair used to sign AuthnRequest.
@@ -1554,7 +1447,6 @@ SigningKeyPair is an x509 key pair used to sign AuthnRequest.
 |-------------|--------|----------|-----------------------------------------------|
 | cert        | string |          | Cert is a PEM-encoded x509 certificate.       |
 | private_key | string |          | PrivateKey is a PEM encoded x509 private key. |
-
 
 Example:
 
@@ -1613,7 +1505,6 @@ resource "teleport_saml_connector" "example" {
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
 | version  | string |          | Version is a resource version                                    |
 
-
 ### metadata
 
 Metadata is resource metadata
@@ -1625,7 +1516,6 @@ Metadata is resource metadata
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
 
-
 ### spec
 
 Spec is a SessionRecordingConfig specification
@@ -1634,7 +1524,6 @@ Spec is a SessionRecordingConfig specification
 |------------------------|--------|----------|------------------------------------------------------|
 | mode                   | string |          | Mode controls where (or if) the session is recorded. |
 | proxy_checks_host_keys | bool   |          |                                                      |
-
 
 Example:
 
@@ -1665,7 +1554,6 @@ resource "teleport_session_recording_config" "example" {
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources. |
 | version  | string |          | Version is a resource version.                                    |
 
-
 ### metadata
 
 Metadata holds resource metadata.
@@ -1677,7 +1565,6 @@ Metadata holds resource metadata.
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | name        | string         | *        | Name is an object name                                                                                         |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
-
 
 ### spec
 
@@ -1692,7 +1579,6 @@ Spec is a Trusted Cluster specification.
 | tunnel_addr    | string           |          | ReverseTunnelAddress is the address of the SSH proxy server of the cluster to join. If not set, it is derived from &lt;metadata.name&gt;:&lt;default reverse tunnel port&gt;.       |
 | web_proxy_addr | string           |          | ProxyAddress is the address of the web proxy server of the cluster to join. If not set, it is derived from &lt;metadata.name&gt;:&lt;default web proxy server port&gt;.             |
 
-
 #### spec.role_map
 
 RoleMap specifies role mappings to remote roles.
@@ -1701,7 +1587,6 @@ RoleMap specifies role mappings to remote roles.
 |--------|------------------|----------|-----------------------------------------------|
 | local  | array of strings |          | Local specifies local roles to map to         |
 | remote | string           |          | Remote specifies remote role name to map from |
-
 
 Example:
 
@@ -1740,7 +1625,6 @@ resource "teleport_trusted_cluster" "cluster" {
 | sub_kind | string |          | SubKind is an optional resource sub kind, used in some resources |
 | version  | string |          | Version is version                                               |
 
-
 ### metadata
 
 Metadata is resource metadata
@@ -1752,7 +1636,6 @@ Metadata is resource metadata
 | labels      | map of strings |          | Labels is a set of labels                                                                                      |
 | name        | string         | *        | Name is an object name                                                                                         |
 | namespace   | string         |          | Namespace is object namespace. The field should be called &#34;namespace&#34; when it returns in Teleport 2.4. |
-
 
 ### spec
 
@@ -1766,7 +1649,6 @@ Spec is a user specification
 | saml_identities   | object               |          | SAMLIdentities lists associated SAML identities that let user log in using externally verified identity           |
 | traits            | map of string arrays |          |                                                                                                                   |
 
-
 #### spec.github_identities
 
 GithubIdentities list associated Github OAuth2 identities that let user log in using externally verified identity
@@ -1775,7 +1657,6 @@ GithubIdentities list associated Github OAuth2 identities that let user log in u
 |--------------|--------|----------|-----------------------------------------------------------------------------------|
 | connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. &#39;google-example.com&#39; |
 | username     | string |          | Username is username supplied by external identity provider                       |
-
 
 #### spec.oidc_identities
 
@@ -1786,7 +1667,6 @@ OIDCIdentities lists associated OpenID Connect identities that let user log in u
 | connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. &#39;google-example.com&#39; |
 | username     | string |          | Username is username supplied by external identity provider                       |
 
-
 #### spec.saml_identities
 
 SAMLIdentities lists associated SAML identities that let user log in using externally verified identity
@@ -1795,7 +1675,6 @@ SAMLIdentities lists associated SAML identities that let user log in using exter
 |--------------|--------|----------|-----------------------------------------------------------------------------------|
 | connector_id | string |          | ConnectorID is id of registered OIDC connector, e.g. &#39;google-example.com&#39; |
 | username     | string |          | Username is username supplied by external identity provider                       |
-
 
 Example:
 
@@ -1841,6 +1720,67 @@ resource "teleport_user" "example" {
       connector_id = "example-saml"
       username     = "example"
     }]
+  }
+}
+```
+
+## teleport_login_rule
+
+|       Name        |  Type  | Required |                                                                            Description                                                                            |
+|-------------------|--------|----------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| metadata          | object |          | Metadata is resource metadata.                                                                                                                                    |
+| version           | string |          | Version is the resource version.                                                                                                                                  |
+| priority          | number |          | Priority is the priority of the login rule relative to other login rules in the same cluster. Login rules with a lower numbered priority will be evaluated first. |
+| traits_expression | string |          | TraitsExpression is a predicate expression which should return the desired traits for the user upon login.                                                        |
+| traits_map        | object |          | TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.                                    |
+
+
+### teleport_login_rule.metadata
+
+Metadata is resource metadata.
+
+|    Name     |      Type      | Required |                                                  Description                                                   |
+|-------------|----------------|----------|----------------------------------------------------------------------------------------------------------------|
+| description | string         |          | Description is object description                                                                              |
+| expires     | RFC3339 time   |          | Expires is a global expiry time header can be set on any resource in the system.                               |
+| labels      | map of strings |          | Labels is a set of labels                                                                                      |
+| name        | string         |          | Name is an object name                                                                                         |
+
+
+### teleport_login_rule.traits_map
+
+TraitsMap is a map of trait keys to lists of predicate expressions which should evaluate to the desired values for that trait.
+
+|  Name  |       Type       | Required | Description |
+|--------|------------------|----------|-------------|
+| values | array of strings |          |             |
+
+
+Example:
+
+```
+# Teleport Login Rule resource
+resource "teleport_login_rule" "example" {
+  metadata = {
+    description = "Example Login Rule"
+    labels = {
+      "example" = "yes"
+    }
+  }
+  version  = "v1"
+  priority = 0
+  traits_map = {
+    "logins" = {
+      values = [
+        "external.logins",
+        "external.username",
+      ]
+    }
+    "groups" = {
+      values = [
+        "external.groups",
+      ]
+    }
   }
 }
 ```

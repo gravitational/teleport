@@ -10,3 +10,13 @@ See https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-kube
 
 To remove this warning, explicitly set "podSecurityPolicy.enabled=false".
 {{- end }}
+
+{{- if .Values.teleportVersionOverride }}
+
+DANGER: `teleportVersionOverride` MUST NOT be used to control the Teleport version.
+This chart is designed to run Teleport version {{ .Chart.AppVersion }}.
+You will face compatibility issues trying to run a different Teleport version with it.
+
+If you want to run Teleport version {{.Values.teleportVersionOverride}},
+you should use `helm --version {{.Values.teleportVersionOverride}}` instead.
+{{- end }}

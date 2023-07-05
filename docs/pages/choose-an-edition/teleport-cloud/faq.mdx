@@ -25,6 +25,21 @@ Yes. Customers can subscribe to Teleport Enterprise Cloud updates at [status.tel
 
 Please [reach out to sales](https://goteleport.com/signup/enterprise) to discuss pricing.
 
+## Are upgrades times configurable for my Teleport Enterprise Cloud tenant?
+
+Yes, you can set the window start time that works best for your organization
+for upgrades. Teleport provides a scheduled maintenance time window for any
+upgrades, patches and other required updates for all tenants. An upgrade for
+your tenant will not start earlier than the window start time you set.
+
+To set the window start time select your username in the Web UI, then the Help
+& Support option from the drop-down. The Scheduled Upgrades section within that
+page allows you to configure the window start time.
+
+Teleport recommends subscribing to the Teleport Enterprise Cloud updates at
+[status.teleport.sh](https://status.teleport.sh) to keep up to date on
+scheduled maintenance.
+
 ## If I start with Teleport Enterprise Cloud, can I move to Teleport Enterprise or Teleport Open Source, or do I need to start again?
 
 If you plan to use S3 and DynamoDB as storage backends, we can provide data for you to import. But you should reach out to us first. If you use a different backend, you will need to start over.
@@ -48,8 +63,8 @@ See our documentation on [data retention](./architecture.mdx#data-retention).
 
 ## How do I add Nodes to Teleport Enterprise Cloud?
 
-You can connect servers, Kubernetes clusters, databases and applications
-using [reverse tunnels](../../management/admin/adding-nodes.mdx).
+You can connect servers, Kubernetes clusters, databases and applications using
+[reverse tunnels](../../management/join-services-to-your-cluster.mdx).
 
 There is no need to open any ports on your infrastructure for inbound traffic.
 
@@ -122,7 +137,7 @@ $ tctl tokens add --type=node
 ## Are dynamic node tokens available?
 
 After [connecting](#how-can-i-access-the-tctl-admin-tool) `tctl` to Teleport Enterprise Cloud, users can generate
-[dynamic tokens](../../management/admin/adding-nodes.mdx):
+[dynamic tokens](../../management/join-services-to-your-cluster/join-token.mdx):
 
 ```code
 $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
@@ -130,7 +145,8 @@ $ tctl nodes add --ttl=5m --roles=node,proxy --token=$(uuid)
 
 ## Is an independent security audit available?
 
-Security audits by independent third-parties are performed at least annually, with the results made available on our [Audit Reports](https://goteleport.com/resources/audits/) page.
+Security audits by independent third-parties are performed at least annually. You can request audit results and other
+related information on the [Teleport Trust Portal](https://trust.goteleport.com).
 
 ## Where does Teleport Enterprise Cloud run?
 
@@ -195,9 +211,9 @@ Enterprise Cloud.
 
 We do not have plans to offer support for inbound connection IP allowlists.
 
-We believe mTLS with strong user and [device
-identity](../../access-controls/guides/device-trust.mdx) provide the best
-available security for client authentication.
+We believe mTLS with strong user and [device identity](
+../../access-controls/device-trust/guide.mdx) provide the best available
+security for client authentication.
 
 For customers that require IP-based control for compliance purposes, we do
 support IP Pinning. For more information see `pin_source_ip` in our [Teleport
@@ -233,10 +249,6 @@ The ability to download recordings for offline viewing will be available in a fu
 ## Is there a way to forward Teleport Enterprise Cloud audit events to my company's internal Security Information and Event Management (SIEM)?
 
 Yes. We recommend Teleport's [event handler plugin](../../management/export-audit-events/fluentd.mdx) to export Teleport Enterprise Cloud audit events.
-
-## I'm noticing high latency / terminal sessions are slow ?
-
-Please reach out to support@goteleport.com. Our latency design is still being rolled out, and needs to be opted into.
 
 ## What is the maximum number of nodes a customer can connect to their cluster?
 

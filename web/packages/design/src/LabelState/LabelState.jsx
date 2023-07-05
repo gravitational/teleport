@@ -23,28 +23,28 @@ import { fade } from 'design/theme/utils/colorManipulator';
 const kinds = ({ theme, kind, shadow }) => {
   // default is primary
   const styles = {
-    background: theme.colors.secondary.main,
-    color: theme.colors.text.secondary.contrastText,
+    background: theme.colors.brand,
+    color: theme.colors.text.contrast,
   };
 
   if (kind === 'secondary') {
-    styles.background = theme.colors.primary.dark;
-    styles.color = theme.colors.text.primary;
+    styles.background = theme.colors.levels.sunkenSecondary;
+    styles.color = theme.colors.text.main;
   }
 
   if (kind === 'warning') {
-    styles.background = theme.colors.warning;
-    styles.color = theme.colors.primary.contrastText;
+    styles.background = theme.colors.warning.main;
+    styles.color = theme.colors.text.contrast;
   }
 
   if (kind === 'danger') {
     styles.background = theme.colors.danger;
-    styles.color = theme.colors.primary.contrastText;
+    styles.color = theme.colors.text.contrast;
   }
 
   if (kind === 'success') {
     styles.background = theme.colors.success;
-    styles.color = theme.colors.primary.contrastText;
+    styles.color = theme.colors.text.contrast;
   }
 
   if (shadow) {

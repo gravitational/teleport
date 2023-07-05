@@ -27,10 +27,10 @@ import ReAuthenticate from 'teleport/components/ReAuthenticate';
 import {
   ActionButtons,
   HeaderSubtitle,
-  HeaderWithBackBtn,
+  Header,
   ConnectionDiagnosticResult,
 } from '../../Shared';
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { useTestConnection, State } from './useTestConnection';
 
@@ -85,7 +85,7 @@ export function TestConnectionView({
           onClose={cancelMfaDialog}
         />
       )}
-      <HeaderWithBackBtn onPrev={prevStep}>Test Connection</HeaderWithBackBtn>
+      <Header>Test Connection</Header>
       <HeaderSubtitle>
         Optionally verify that you can successfully connect to the Database you
         just added.
@@ -129,7 +129,7 @@ export function TestConnectionView({
               attempt.status === 'processing' || nameOpts.length === 0
             }
             // Database name is required for Postgres.
-            isClearable={dbEngine !== DatabaseEngine.PostgreSQL}
+            isClearable={dbEngine !== DatabaseEngine.Postgres}
           />
         </Box>
       </StyledBox>
@@ -161,14 +161,14 @@ export function TestConnectionView({
           <TextSelectCopy mt="1" text={tshDbCmd} />
         </Box>
       </StyledBox>
-      <ActionButtons onProceed={nextStep} lastStep={true} />
+      <ActionButtons onProceed={nextStep} lastStep={true} onPrev={prevStep} />
     </Box>
   );
 }
 
 const StyledBox = styled(Box)`
   max-width: 800px;
-  background-color: rgba(255, 255, 255, 0.05);
+  background-color: ${props => props.theme.colors.spotBackground[0]};
   border-radius: 8px;
   padding: 20px;
 `;

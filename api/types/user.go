@@ -26,6 +26,16 @@ import (
 	"github.com/gravitational/teleport/api/utils"
 )
 
+// UserType is the user's types that indicates where it was created.
+type UserType string
+
+const (
+	// UserTypeSSO identifies a user that was created from an SSO provider.
+	UserTypeSSO UserType = "sso"
+	// UserTypeLocal identifies a user that was created in Teleport itself and has no connection to an external identity.
+	UserTypeLocal UserType = "local"
+)
+
 // User represents teleport embedded user or external user.
 type User interface {
 	// ResourceWithSecrets provides common resource properties
@@ -98,6 +108,8 @@ type User interface {
 	GetCreatedBy() CreatedBy
 	// SetCreatedBy sets created by information
 	SetCreatedBy(CreatedBy)
+	// GetUserType indicates if the User was created by an SSO Provider or locally.
+	GetUserType() UserType
 	// GetTraits gets the trait map for this user used to populate role variables.
 	GetTraits() map[string][]string
 	// SetTraits sets the trait map for this user used to populate role variables.
@@ -393,6 +405,15 @@ func (u UserV2) GetGCPServiceAccounts() []string {
 	return u.getTrait(constants.TraitGCPServiceAccounts)
 }
 
+// GetUserType indicates if the User was created by an SSO Provider or locally.
+func (u UserV2) GetUserType() UserType {
+	if u.GetCreatedBy().Connector == nil {
+		return UserTypeLocal
+	}
+
+	return UserTypeSSO
+}
+
 func (u *UserV2) String() string {
 	return fmt.Sprintf("User(name=%v, roles=%v, identities=%v)", u.Metadata.Name, u.Spec.Roles, u.Spec.OIDCIdentities)
 }
@@ -402,6 +423,7 @@ func (u *UserV2) SetLocked(until time.Time, reason string) {
 	u.Spec.Status.IsLocked = true
 	u.Spec.Status.LockExpires = until
 	u.Spec.Status.LockedMessage = reason
+	u.Spec.Status.LockedTime = time.Now().UTC()
 }
 
 // SetRecoveryAttemptLockExpires sets the lock expiry time for both recovery and login attempt.
@@ -416,6 +438,11 @@ func (u *UserV2) ResetLocks() {
 	u.Spec.Status.LockedMessage = ""
 	u.Spec.Status.LockExpires = time.Time{}
 	u.Spec.Status.RecoveryAttemptLockExpires = time.Time{}
+}
+
+// DeepCopy creates a clone of this user value.
+func (u *UserV2) DeepCopy() User {
+	return utils.CloneProtoMsg(u)
 }
 
 // IsEmpty returns true if there's no info about who created this user

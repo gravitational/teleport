@@ -67,6 +67,12 @@ type DialParams struct {
 	// FromPeerProxy indicates that the dial request is being tunneled from
 	// a peer proxy.
 	FromPeerProxy bool
+
+	// TeleportVersion shows version of the target node, if we know that it's teleport node.
+	TeleportVersion string
+
+	// OriginalClientDstAddr is used in PROXY headers to show where client originally contacted Teleport infrastructure
+	OriginalClientDstAddr net.Addr
 }
 
 func (params DialParams) String() string {
@@ -77,21 +83,27 @@ func (params DialParams) String() string {
 	return fmt.Sprintf("from: %q to: %q", params.From, to)
 }
 
+func stringOrEmpty(addr net.Addr) string {
+	if addr == nil {
+		return ""
+	}
+	return addr.String()
+}
+
 // RemoteSite represents remote teleport site that can be accessed via
 // teleport tunnel or directly by proxy
 //
 // There are two implementations of this interface: local and remote sites.
 type RemoteSite interface {
 	// DialAuthServer returns a net.Conn to the Auth Server of a site.
-	DialAuthServer() (net.Conn, error)
+	DialAuthServer(DialParams) (conn net.Conn, err error)
 	// Dial dials any address within the site network, in terminating
 	// mode it uses local instance of forwarding server to terminate
-	// and record the connection
-	Dial(DialParams) (net.Conn, error)
-	// DialTCP dials any address within the site network,
-	// ignores recording mode and always uses TCP dial, used
-	// in components that need direct dialer.
-	DialTCP(DialParams) (net.Conn, error)
+	// and record the connection.
+	Dial(DialParams) (conn net.Conn, err error)
+	// DialTCP dials any address within the site network and
+	// ignores recording mode, used in components that need direct dialer.
+	DialTCP(DialParams) (conn net.Conn, err error)
 	// GetLastConnected returns last time the remote site was seen connected
 	GetLastConnected() time.Time
 	// GetName returns site name (identified by authority domain's name)
@@ -156,4 +168,10 @@ const (
 	// It usually happens when a database agent has shut down (or crashed) but
 	// hasn't expired from the backend yet.
 	NoDatabaseTunnel = "could not find reverse tunnel, check that Database Service agent proxying this database is up and running"
+	// NoOktaTunnel is the error message returned when an Okta
+	// reverse tunnel cannot be found.
+	//
+	// It usually happens when an Okta service has shut down (or crashed) but
+	// hasn't expired from the backend yet.
+	NoOktaTunnel = "could not find reverse tunnel, check that Okta Service agent proxying this application is up and running"
 )

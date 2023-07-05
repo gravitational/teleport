@@ -106,6 +106,31 @@ This parameter is not mandatory to preserve backwards compatibility with older c
 
 If you specify a role here, you may also need to specify some other settings which are detailed in this reference.
 
+## `enterprise`
+
+| Type     | Default value |
+|----------|---------------|
+| `bool`   | `false`       |
+
+When `enterprise` is set to `true`, the container image used for Teleport agent
+pods run by the `teleport-kube-agent` chart will be the enterprise version.
+This should be set to `true` for connecting to Teleport Cloud and self-hosted
+Teleport Enterprise clusters to use enterprise features within the Kube Agent. 
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  enterprise: true
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```code
+  $ --set enterprise=true
+  ```
+
+  </TabItem>
+</Tabs>
+
 ## `roleBindingName`
 
 | Type     | Default value | Required? |
@@ -226,8 +251,10 @@ These sub-values must be configured for the agent to connect to a cluster.
 `joinParams.method` defines which join method will be used to join the Teleport cluster.
 Possible values are `token`, `iam` and `ec2`.
 
-- For `iam`, see [Joining Nodes Via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx).
-- For `ec2`, see [Joining Nodes Via AWS IAM Role](../../management/guides/joining-nodes-aws-ec2.mdx).
+- For `iam`, see [Joining Nodes Via AWS IAM
+  Role](../../management/join-services-to-your-cluster/aws-iam.mdx).
+- For `ec2`, see [Joining Nodes Via AWS IAM
+  Role](../../management/join-services-to-your-cluster/aws-ec2.mdx).
 - For `token` (default value), the token must be provided through `joinParams.tokenName` or
   [through an existing Kubernetes Secret](#secretName).
 
@@ -377,7 +404,7 @@ You can specify multiple apps by adding additional list elements.
 |--------|---------------|--------------------------------------------------------------------------------------|
 | `list` | `[]`          | When `app` chart role is used at least one of `apps` and `appResources` is required. |
 
-`appResources` is a YAML list object detailing the resource selectors of the applications that should be proxied by Teleport Application Access.
+`appResources` is a YAML list object detailing the resource selectors of the applications that should be proxied by the Teleport Application Service.
 
 You can specify multiple selectors by including additional list elements.
 
@@ -644,7 +671,7 @@ You can specify multiple databases by adding additional list elements.
 |--------|---------------|---------------------------------------------------------------------------------------------------------------------------------------|
 | `list` | `[]`          | When the `db` chart role is used at least one of `databases`, `awsDatabases`,<br/> `azureDatabases`, `databaseResources` is required. |
 
-`databaseResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by Teleport Database Access.
+`databaseResources` is a YAML list object detailing the resource selectors of the databases that should be proxied by the Teleport Database Service.
 
 You can specify multiple selectors by adding elements to the list.
 
@@ -687,16 +714,20 @@ You can specify multiple selectors by adding elements to the list.
 |----------|---------------|
 | `string` | `nil`         |
 
-Normally the version of Teleport being used will match the version of the chart being installed. If you install chart version
-10.0.0, you'll be using Teleport 10.0.0.
+Normally the version of Teleport being used will match the version of the chart
+being installed. If you install chart version 10.0.0, you'll be using Teleport
+10.0.0. Upgrading the Helm chart will use the latest version from the repo.
 
-You can optionally override this to use a different published Teleport Docker image tag like `10.2.2` or `11`.
+You can optionally override this to use a different published Teleport Docker
+image tag like `10.1.2` or `11`.
 
-See [this link for information on Community Docker image versions](../../management/guides/docker.mdx#step-14-pick-your-image).
+<Admonition type="danger">
+`teleportVersionOverride` is intended for development and MUST NOT be used to control the Teleport version in a typical deployment.
+This chart is designed to run a specific Teleport version. You will face
+compatibility issues trying to run a different Teleport version with it.
 
-<Admonition type="note">
-  The `teleport-kube-agent` chart always runs using Teleport Community edition as it does not require any Enterprise features, so it does
-  not require a Teleport license file to be provided.
+If you want to run Teleport version `X.Y.Z`, you should use
+`helm --version X.Y.Z` instead.
 </Admonition>
 
 <Tabs>
@@ -721,7 +752,7 @@ See [this link for information on Community Docker image versions](../../managem
 When `caPin` is set, the Teleport pod will use its values to check the
 Auth Service's identity when first joining a cluster. This enables a more secure
 way of adding new Teleport instances to a cluster. See
-["Adding Nodes to the Cluster"](../../management/admin/adding-nodes.mdx).
+["Adding Nodes to the Cluster"](../../management/join-services-to-your-cluster/join-token.mdx).
 
 Each list element can be the pin itself (recommended, works out of the box),
 or a path to a file containing the pin. For the latter it is your
@@ -1241,7 +1272,6 @@ Ensures that this number of replicas is available during voluntary disruptions, 
 |----------|---------------|
 | `string` | `nil`         |
 
-
 `clusterRoleBindingName` can be optionally used to override the name of the Kubernetes `ClusterRoleBinding` used by the `teleport-kube-agent` chart's `ServiceAccount`.
 
 <Tabs>
@@ -1670,7 +1700,6 @@ the Teleport pod.
   </Admonition>
   </TabItem>
 </Tabs>
-
 
 ## `extraLabels.roleBinding`
 

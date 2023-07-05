@@ -15,7 +15,6 @@ when gradually transitioning large server fleets to Teleport.
   ![Teleport OpenSSH Recording Proxy](../../../img/server-access/openssh-proxy.svg)
 </Figure>
 
-
 <ScopedBlock scope={["cloud"]}>
 
 Teleport Cloud only supports session recording at the Node level. If you are
@@ -35,43 +34,10 @@ The Teleport Proxy Service should be available to clients and set up with TLS.
 
 ## Prerequisites
 
-<Tabs>
-<TabItem scope={["oss"]} label="Self-Hosted">
-
-- A running Teleport cluster. For details on how to set this up, see [Getting
-  Started on a Linux Server](../../try-out-teleport/linux-server.mdx).
-
-- The `tctl` admin tool version >= (=teleport.version=).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](../../installation.mdx) for details.
+(!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
 - A host where you will run an OpenSSH server.
-
-</TabItem>
-<TabItem
-  scope={["enterprise"]} label="Enterprise">
-
-- A running Teleport cluster. For details on setting this up, see our
-  [Enterprise getting started guide](../../choose-an-edition/teleport-enterprise/getting-started.mdx).
-
-- The `tctl` admin tool version >= (=teleport.version=), which you can download
-  by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-- A host where you will run an OpenSSH server.
-
-</TabItem>
-</Tabs>
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Configure Teleport
 
@@ -120,11 +86,10 @@ auth_service:
 by the Teleport User CA. Start by exporting the Teleport CA public key.
 
 On your Teleport Node, export the Teleport Certificate Authority certificate
-into a file and update your SSH configuration to trust Teleport's CA:
+into a file and update your SSH configuration to trust Teleport's CA. Assign <Var name="proxy" /> to the address of your Teleport Proxy Service:
 
 ```code
-# tctl needs to be run on the Auth Server.
-$ sudo tctl auth export --type=user | sed s/cert-authority\ // > teleport_user_ca.pub
+$ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=user' | sed s/cert-authority\ // > teleport_user_ca.pub
 $ sudo mv ./teleport_user_ca.pub /etc/ssh/teleport_user_ca.pub
 $ echo "TrustedUserCAKeys /etc/ssh/teleport_user_ca.pub" | sudo tee -a /etc/ssh/sshd_config
 ```

@@ -98,22 +98,22 @@ const StyledTabItem = styled.div(({ theme, active, dragging, canDrag }) => {
     flexBasis: '0',
     flexGrow: '1',
     opacity: '1',
-    color: theme.colors.text.secondary,
+    color: theme.colors.text.slightlyMuted,
     alignItems: 'center',
     minWidth: '0',
     height: '100%',
     border: 'none',
     borderRadius: '8px 8px 0 0',
     '&:hover, &:focus': {
-      color: theme.colors.primary.contrastText,
+      color: theme.colors.text.contrast,
       transition: 'color .3s',
     },
     position: 'relative',
   };
 
   if (active) {
-    styles['backgroundColor'] = theme.colors.primary.darker;
-    styles['color'] = theme.colors.secondary.contrastText;
+    styles['backgroundColor'] = theme.colors.levels.sunken;
+    styles['color'] = theme.colors.text.contrast;
     styles['transition'] = 'none';
   }
 

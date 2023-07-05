@@ -185,10 +185,9 @@ EC2 instances. Do not use a keypair that you do not have access to.
 
 ### license_path
 
-Setting `export TF_VAR_license_path="/home/user/teleport-license.pem"`
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
 
-The full local path to your Teleport license file, which customers can download from
-[the Teleport customer dashboard](https://dashboard.gravitational.com/).
+Set `export TF_VAR_license_path="/home/user/teleport-license.pem"`
 
 This license will be uploaded to AWS SSM and automatically downloaded to Teleport auth nodes in order to enable
 Teleport Enterprise/Pro functionality.
@@ -226,7 +225,7 @@ This must be a subdomain of the domain you chose for [`route53_zone`](#route53\_
 
 Setting `export TF_VAR_add_wildcard_route53_record="true"`
 
-Used to enable Application Access for subdomains of the Teleport Proxy Service's public web address. A wildcard entry for the public-facing 
+Used to enable the Teleport Application Service for subdomains of the Teleport Proxy Service's public web address. A wildcard entry for the public-facing 
 domain will be set in Route 53, e.g., `*.teleport.example.com`, to point to the Teleport load balancer. For ACM a wildcard 
 certificate is included if this is set to `true`. Let's Encrypt automatically includes a wildcard subdomain in certificates that it issues.
 
@@ -730,7 +729,8 @@ To add new nodes/EC2 servers that you can "SSH into" you'll need to:
 - [Install the Teleport binary on the Server](../../installation.mdx)
 - [Run Teleport - we recommend using systemd](../../management/admin/daemon.mdx)
 - [Set the correct settings in /etc/teleport.yaml](../../reference/config.mdx)
-- [Add Nodes to the Teleport cluster](../../management/admin/adding-nodes.mdx)
+- [Add Nodes to the Teleport
+  cluster](../../management/join-services-to-your-cluster.mdx)
 
 ### Getting the CA pin hash
 
@@ -752,7 +752,7 @@ $ aws ssm get-parameter --region ${TF_VAR_region} --name "/teleport/${TF_VAR_clu
 # 992a9725-0a64-428d-8e5e-308e6877743d
 ```
 
-You can also generate a Node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../management/admin/adding-nodes.mdx).
+You can also generate a Node join token using `tctl tokens add --type=node` [as detailed here in our admin guide](../../management/join-services-to-your-cluster/join-token.mdx).
 
 ### Joining Nodes via the Teleport Auth Service
 
@@ -773,7 +773,7 @@ auth_server: example-cluster-auth-c5b0fc2764ee015b.elb.us-east-1.amazonaws.com:3
 ### Joining Nodes via Teleport IoT/Node tunneling
 
 To join Teleport Nodes from outside the same VPC, you will either need to investigate VPC peering/gateways (out of scope
-for this document) or join your nodes using [Teleport's node tunneling](../../management/admin/adding-nodes.mdx) functionality.
+for this document) or join your nodes using [Teleport's node tunneling](../../management/join-services-to-your-cluster/join-token.mdx) functionality.
 
 With this method, you can join the nodes using the public facing proxy address - `teleport.example.com:443` for our
 example.

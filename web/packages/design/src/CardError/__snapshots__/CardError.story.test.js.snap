@@ -32,7 +32,7 @@ exports[`rendering of Error Cards 1`] = `
   margin-bottom: 40px;
   padding: 32px;
   width: 540px;
-  color: #324148;
+  color: #000000;
   background-color: #FFFFFF;
   box-shadow: 0 4px 16px rgba(0,0,0,0.24);
   border-radius: 8px;
@@ -51,7 +51,7 @@ exports[`rendering of Error Cards 1`] = `
 
 <div
   class="c0"
-  color="text.onLight"
+  color="text.primaryInverse"
   width="540px"
 >
   <div

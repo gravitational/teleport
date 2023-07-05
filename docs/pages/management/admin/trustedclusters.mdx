@@ -27,7 +27,7 @@ A leaf cluster always creates an outbound reverse SSH tunnel to the root cluster
 <Notice type="tip">
 Individual nodes and proxies can create reverse tunnels to proxy services without creating a new cluster.
 You don't need to set up a trusted cluster just to connect a couple of servers, kubernetes clusters or
-databases behind a firewall. For more information, see [Adding Nodes to the Cluster](./adding-nodes.mdx).
+databases behind a firewall. For more information, see [Adding Nodes to the Cluster](../join-services-to-your-cluster/join-token.mdx).
 </Notice>
 
 When a user tries to connect to any resource inside the leaf cluster using the root's proxy
@@ -45,49 +45,32 @@ This guide will explain how to:
 <TabItem scope={["oss"]} label="Open Source">
 
 - Two running Teleport clusters. For details on how to set up your clusters, see
-  one of our [Getting Started](/docs/getting-started) guides.
+  our [Getting Started](../../get-started.mdx) guide.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=).
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
-
-  See [Installation](/docs/installation.mdx) for details.
+  See [Installation](../../installation.mdx) for details.
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](adding-nodes.mdx) for how to launch a Teleport Node in
-  your cluster.
+  See [Joining Services to your Cluster](../join-services-to-your-cluster.mdx) for how to launch a
+  Teleport agent in your cluster.
 
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 
 - Two running Teleport clusters. For details on how to set up your clusters, see
-  our Enterprise [Getting Started](/docs/enterprise/getting-started) guide.
+  our Enterprise [Getting
+  Started](../../choose-an-edition/teleport-enterprise/introduction.mdx) guide.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=teleport.version=),
-  which you can download by visiting the
-  [customer portal](https://dashboard.gravitational.com/web/login).
-
-  ```code
-  $ tctl version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=teleport.version=) go(=teleport.golang=)
-  ```
+- (!docs/pages/includes/enterprise/tctl-tsh-prerequisite.mdx!)
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](adding-nodes.mdx) for how to launch a Teleport Node in
+  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a Teleport Node in
   your cluster.
 
 </TabItem>
@@ -98,27 +81,18 @@ This guide will explain how to:
   [sign up page](https://goteleport.com/signup/) to begin your free trial.
 
 - A second Teleport cluster, which will act as the leaf cluster. For details on
-how to set up this cluster, see one of our
-[Getting Started](/docs/getting-started) guides.
+how to set up this cluster, see our
+[Getting Started](../../get-started.mdx) guide.
 
   As an alternative, you can set up a second Teleport Cloud account.
 
-- The `tctl` admin tool and `tsh` client tool version >= (=cloud.version=).
-  To download these tools, visit the [Downloads](../../choose-an-edition/teleport-cloud/downloads.mdx) page.
-
-  ```code
-  $ tctl version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-
-  $ tsh version
-  # Teleport v(=cloud.version=) go(=teleport.golang=)
-  ```
+- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](adding-nodes.mdx) for how to launch a Teleport Node in
-  your cluster.
+  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a
+  Teleport Node in your cluster.
 
 </TabItem>
 </Tabs>
@@ -303,15 +277,21 @@ Execute the following command on your development machine:
 
 ```code
 # Generates a Trusted Cluster token to allow an inbound connection from a leaf cluster:
-$ tctl tokens add --type=trusted_cluster --ttl=15m
+$ tctl tokens add --type=trusted_cluster --ttl=5m
 The cluster invite token: (=presets.tokens.first=)
-This token will expire in 15 minutes
+This token will expire in 5 minutes
 
 Use this token when defining a trusted cluster resource on a remote cluster.
 ```
 
 This command generates a Trusted Cluster join token. The token can be used
 multiple times and has an expiration time of 5 minutes.
+
+<Details title="Optional: Add labels">
+The `--labels` flag will add labels to the trusted cluster. This lets teams use
+the same RBAC controls used on individual resources to approve or deny access
+to clusters.
+</Details>
 
 Copy the join token for later use. If you need to display your join token again,
 run the following command against your root cluster:
@@ -323,7 +303,7 @@ Token                                                            Type           
 (=presets.tokens.first=)                                 trusted_cluster          28 Apr 22 19:19 UTC (4m48s)
 ```
 
-<Details title="Revoking join tokens" opened={false}>
+<Details title="Revoking join tokens">
 
 You can revoke a join token with the following command:
 
@@ -569,7 +549,7 @@ Create the Trusted Cluster:
 $ tctl create trusted_cluster.yaml
 ```
 
-<Details title="Creating Trusted Clusters via the Web UI" opened={false}>
+<Details title="Creating Trusted Clusters via the Web UI">
 
 You can easily configure leaf nodes using the Teleport Web UI.
 
@@ -778,7 +758,7 @@ certificate authority. A certificate contains four important pieces of data:
 - Metadata (certificate extensions): additional data protected by the signature
   above. Teleport uses the metadata to store the list of user roles and SSH
   options like "permit-agent-forwarding".
-- The expiration date.
+- The expiration date, or time-to-live (**TTL**).
 
 When a user from the root cluster attempts to access a Node in the leaf cluster,
 the leaf cluster's Auth Service authenticates the user's certificate and reads
@@ -789,7 +769,7 @@ these pieces of data from it. It then performs the following actions:
   cluster with one of the remote user's roles.
 - Checks if the local role allows the requested identity (Unix login) to have
   access.
-- Checks that the certificate has not expired.
+- Checks that the certificate has not expired. The TTL is set by the root cluster.
 
 </Details>
 
@@ -813,10 +793,12 @@ these pieces of data from it. It then performs the following actions:
   type="tip"
   title="Note"
 >
+Trusted Clusters work only in one direction. In the example above, users from
+the leaf cluster cannot see or connect to Nodes in the root cluster.
 
-  Trusted Clusters work only in one direction. In the example above, users from
-  the leaf cluster cannot see or connect to Nodes in the root cluster.
-
+The Teleport root cluster's Web UI will not populate available OS users for
+leaf cluster Nodes. When using the web UI, type in the host user when creating
+SSH sessions.
 </Admonition>
 
 ## Step 5/5. Remove trust between your clusters

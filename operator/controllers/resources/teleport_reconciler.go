@@ -29,8 +29,14 @@ import (
 	"github.com/gravitational/teleport/api/types"
 )
 
+type TeleportResource interface {
+	GetName() string
+	SetOrigin(string)
+	GetMetadata() types.Metadata
+}
+
 // TeleportKubernetesResource is a Kubernetes resource representing a Teleport resource
-type TeleportKubernetesResource[T types.Resource] interface {
+type TeleportKubernetesResource[T TeleportResource] interface {
 	kclient.Object
 	ToTeleport() T
 	StatusConditions() *[]v1.Condition
@@ -38,7 +44,7 @@ type TeleportKubernetesResource[T types.Resource] interface {
 
 // TeleportResourceReconciler is a Teleport generic reconciler. It reconciles TeleportKubernetesResource
 // with Teleport's types.ResourceWithOrigin
-type TeleportResourceReconciler[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]] struct {
+type TeleportResourceReconciler[T TeleportResource, K TeleportKubernetesResource[T]] struct {
 	ResourceBaseReconciler
 	resourceClient TeleportResourceClient[T]
 }
@@ -46,7 +52,7 @@ type TeleportResourceReconciler[T types.ResourceWithOrigin, K TeleportKubernetes
 // TeleportResourceClient is a CRUD client for a specific Teleport resource.
 // Implementing this interface allows to be reconciled by the TeleportResourceReconciler
 // instead of writing a new specific reconciliation loop.
-type TeleportResourceClient[T types.Resource] interface {
+type TeleportResourceClient[T TeleportResource] interface {
 	Get(context.Context, string) (T, error)
 	Create(context.Context, T) error
 	Update(context.Context, T) error
@@ -54,7 +60,7 @@ type TeleportResourceClient[T types.Resource] interface {
 }
 
 // NewTeleportResourceReconciler instanciates a TeleportResourceReconciler from a TeleportResourceClient.
-func NewTeleportResourceReconciler[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]](
+func NewTeleportResourceReconciler[T TeleportResource, K TeleportKubernetesResource[T]](
 	client kclient.Client,
 	resourceClient TeleportResourceClient[T]) *TeleportResourceReconciler[T, K] {
 
@@ -84,13 +90,17 @@ func (r TeleportResourceReconciler[T, K]) Upsert(ctx context.Context, obj kclien
 	// If err is nil, we found the resource. If err != nil (and we did return), then the error was `NotFound`
 	exists := err == nil
 
-	newOwnershipCondition, isOwned := checkOwnership(existingResource)
-	meta.SetStatusCondition(k8sResource.StatusConditions(), newOwnershipCondition)
-	if !isOwned {
-		return trace.NewAggregate(
-			trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName()),
-			r.Status().Update(ctx, k8sResource),
-		)
+	if exists {
+		newOwnershipCondition, isOwned := checkOwnership(existingResource)
+		meta.SetStatusCondition(k8sResource.StatusConditions(), newOwnershipCondition)
+		if !isOwned {
+			return trace.NewAggregate(
+				trace.AlreadyExists("unowned resource '%s' already exists", existingResource.GetName()),
+				r.Status().Update(ctx, k8sResource),
+			)
+		}
+	} else {
+		meta.SetStatusCondition(k8sResource.StatusConditions(), newResourceCondition)
 	}
 
 	teleportResource.SetOrigin(types.OriginKubernetes)
@@ -132,7 +142,7 @@ func (r TeleportResourceReconciler[T, K]) SetupWithManager(mgr ctrl.Manager) err
 
 // newKubeResource creates a new TeleportKubernetesResource
 // the function supports structs or pointer to struct implementations of the TeleportKubernetesResource interface
-func newKubeResource[T types.ResourceWithOrigin, K TeleportKubernetesResource[T]]() K {
+func newKubeResource[T TeleportResource, K TeleportKubernetesResource[T]]() K {
 	// We create a new instance of K.
 	var resource K
 	// We take the type of K

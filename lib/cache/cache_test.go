@@ -86,6 +86,7 @@ type testPack struct {
 	samlIDPServiceProviders services.SAMLIdPServiceProviders
 	userGroups              services.UserGroups
 	okta                    services.Okta
+	integrations            services.Integrations
 }
 
 func (t *testPack) Close() {
@@ -209,11 +210,17 @@ func newPackWithoutCache(dir string, opts ...packOption) (*testPack, error) {
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	oktaSvc, err := local.NewOktaService(p.backend)
+	oktaSvc, err := local.NewOktaService(p.backend, p.backend.Clock())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	p.okta = oktaSvc
+
+	igSvc, err := local.NewIntegrationsService(p.backend)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	p.integrations = igSvc
 
 	return p, nil
 }
@@ -251,6 +258,7 @@ func newPack(dir string, setupConfig func(c Config) Config, opts ...packOption) 
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
+		Integrations:            p.integrations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -638,6 +646,7 @@ func TestCompletenessInit(t *testing.T) {
 			SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 			UserGroups:              p.userGroups,
 			Okta:                    p.okta,
+			Integrations:            p.integrations,
 			MaxRetryPeriod:          200 * time.Millisecond,
 			EventsC:                 p.eventsC,
 		}))
@@ -705,6 +714,7 @@ func TestCompletenessReset(t *testing.T) {
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
+		Integrations:            p.integrations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -884,6 +894,7 @@ func TestListResources_NodesTTLVariant(t *testing.T) {
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
+		Integrations:            p.integrations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 		neverOK:                 true, // ensure reads are never healthy
@@ -961,6 +972,7 @@ func initStrategy(t *testing.T) {
 		SAMLIdPServiceProviders: p.samlIDPServiceProviders,
 		UserGroups:              p.userGroups,
 		Okta:                    p.okta,
+		Integrations:            p.integrations,
 		MaxRetryPeriod:          200 * time.Millisecond,
 		EventsC:                 p.eventsC,
 	}))
@@ -1718,11 +1730,13 @@ func TestNodes(t *testing.T) {
 func TestProxies(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
 	server := suite.NewServer(types.KindProxy, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
-	err := p.presenceS.UpsertProxy(server)
+	err := p.presenceS.UpsertProxy(ctx, server)
 	require.NoError(t, err)
 
 	out, err := p.presenceS.GetProxies()
@@ -1747,7 +1761,7 @@ func TestProxies(t *testing.T) {
 	// update srv parameters
 	srv.SetAddr("127.0.0.2:2033")
 
-	err = p.presenceS.UpsertProxy(srv)
+	err = p.presenceS.UpsertProxy(ctx, srv)
 	require.NoError(t, err)
 
 	out, err = p.presenceS.GetProxies()
@@ -1787,11 +1801,13 @@ func TestProxies(t *testing.T) {
 func TestAuthServers(t *testing.T) {
 	t.Parallel()
 
+	ctx := context.Background()
+
 	p := newPackForProxy(t)
 	t.Cleanup(p.Close)
 
 	server := suite.NewServer(types.KindAuthServer, "srv1", "127.0.0.1:2022", apidefaults.Namespace)
-	err := p.presenceS.UpsertAuthServer(server)
+	err := p.presenceS.UpsertAuthServer(ctx, server)
 	require.NoError(t, err)
 
 	out, err := p.presenceS.GetAuthServers()
@@ -1816,7 +1832,7 @@ func TestAuthServers(t *testing.T) {
 	// update srv parameters
 	srv.SetAddr("127.0.0.2:2033")
 
-	err = p.presenceS.UpsertAuthServer(srv)
+	err = p.presenceS.UpsertAuthServer(ctx, srv)
 	require.NoError(t, err)
 
 	out, err = p.presenceS.GetAuthServers()
@@ -2619,20 +2635,14 @@ func TestOktaAssignments(t *testing.T) {
 				},
 				types.OktaAssignmentSpecV1{
 					User: "test-user@test.user",
-					Actions: []*types.OktaAssignmentActionV1{
+					Targets: []*types.OktaAssignmentTargetV1{
 						{
-							Status: types.OktaAssignmentActionV1_PENDING,
-							Target: &types.OktaAssignmentActionTargetV1{
-								Type: types.OktaAssignmentActionTargetV1_APPLICATION,
-								Id:   "123456",
-							},
+							Type: types.OktaAssignmentTargetV1_APPLICATION,
+							Id:   "123456",
 						},
 						{
-							Status: types.OktaAssignmentActionV1_SUCCESSFUL,
-							Target: &types.OktaAssignmentActionTargetV1{
-								Type: types.OktaAssignmentActionTargetV1_GROUP,
-								Id:   "234567",
-							},
+							Type: types.OktaAssignmentTargetV1_GROUP,
+							Id:   "234567",
 						},
 					},
 				},
@@ -2655,6 +2665,43 @@ func TestOktaAssignments(t *testing.T) {
 			return trace.Wrap(err)
 		},
 		deleteAll: p.okta.DeleteAllOktaAssignments,
+	})
+}
+
+// TestIntegrations tests that CRUD operations on integrations resources are
+// replicated from the backend to the cache.
+func TestIntegrations(t *testing.T) {
+	t.Parallel()
+
+	p := newTestPack(t, ForAuth)
+	t.Cleanup(p.Close)
+
+	testResources(t, p, testFuncs[types.Integration]{
+		newResource: func(name string) (types.Integration, error) {
+			return types.NewIntegrationAWSOIDC(
+				types.Metadata{Name: name},
+				&types.AWSOIDCIntegrationSpecV1{
+					RoleARN: "arn:aws:iam::123456789012:role/OpsTeam",
+				},
+			)
+		},
+		create: func(ctx context.Context, i types.Integration) error {
+			_, err := p.integrations.CreateIntegration(ctx, i)
+			return err
+		},
+		list: func(ctx context.Context) ([]types.Integration, error) {
+			results, _, err := p.integrations.ListIntegrations(ctx, 0, "")
+			return results, err
+		},
+		cacheList: func(ctx context.Context) ([]types.Integration, error) {
+			results, _, err := p.cache.ListIntegrations(ctx, 0, "")
+			return results, err
+		},
+		update: func(ctx context.Context, i types.Integration) error {
+			_, err := p.integrations.UpdateIntegration(ctx, i)
+			return err
+		},
+		deleteAll: p.integrations.DeleteAllIntegrations,
 	})
 }
 
@@ -2916,7 +2963,7 @@ func TestCache_Backoff(t *testing.T) {
 	p.eventsS.closeWatchers()
 	p.backend.SetReadError(trace.ConnectionProblem(nil, "backend is unavailable"))
 
-	step := p.cache.Config.MaxRetryPeriod / 5.0
+	step := p.cache.Config.MaxRetryPeriod / 16.0
 	for i := 0; i < 5; i++ {
 		// wait for cache to reload
 		select {
@@ -2925,8 +2972,16 @@ func TestCache_Backoff(t *testing.T) {
 			duration, err := time.ParseDuration(event.Event.Resource.GetKind())
 			require.NoError(t, err)
 
-			stepMin := step * time.Duration(i) / 2
-			stepMax := step * time.Duration(i+1)
+			// emulate the logic of exponential backoff multiplier calc
+			var mul int64
+			if i == 0 {
+				mul = 0
+			} else {
+				mul = 1 << (i - 1)
+			}
+
+			stepMin := step * time.Duration(mul) / 2
+			stepMax := step * time.Duration(mul+1)
 
 			require.GreaterOrEqual(t, duration, stepMin)
 			require.LessOrEqual(t, duration, stepMax)
@@ -3049,6 +3104,7 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 		types.KindUserGroup:               &types.UserGroupV1{},
 		types.KindOktaImportRule:          &types.OktaImportRuleV1{},
 		types.KindOktaAssignment:          &types.OktaAssignmentV1{},
+		types.KindIntegration:             &types.IntegrationV1{},
 	}
 
 	for name, cfg := range cases {
@@ -3068,6 +3124,106 @@ func TestCacheWatchKindExistsInEvents(t *testing.T) {
 
 				require.Empty(t, cmp.Diff(resource, event.Resource))
 			}
+		})
+	}
+}
+
+// TestInvalidDatbases given a database that returns an error on validation, the
+// cache should not be impacted, and the database must be on it. This scenario
+// is most common on Teleport upgrades/downgrades where the database validation
+// can have new rules, causing the existing database to fail on validation.
+func TestInvalidDatabases(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+
+	generateInvalidDB := func(t *testing.T, resourceID int64, name string) types.Database {
+		db := &types.DatabaseV3{Metadata: types.Metadata{
+			ID:   resourceID,
+			Name: name,
+		}, Spec: types.DatabaseSpecV3{
+			Protocol: "invalid-protocol",
+			URI:      "non-empty-uri",
+		}}
+		// Just ensures the database we're using on this test will trigger a
+		// validation failure.
+		require.Error(t, services.ValidateDatabase(db))
+		return db
+	}
+
+	for name, tc := range map[string]struct {
+		storeFunc func(*testing.T, *backend.Wrapper, *Cache)
+	}{
+		"CreateDatabase": {
+			storeFunc: func(t *testing.T, b *backend.Wrapper, _ *Cache) {
+				db := generateInvalidDB(t, 0, "invalid-db")
+				value, err := services.MarshalDatabase(db)
+				require.NoError(t, err)
+				_, err = b.Create(ctx, backend.Item{
+					Key:     backend.Key("db", db.GetName()),
+					Value:   value,
+					Expires: db.Expiry(),
+					ID:      db.GetResourceID(),
+				})
+				require.NoError(t, err)
+			},
+		},
+		"UpdateDatabase": {
+			storeFunc: func(t *testing.T, b *backend.Wrapper, c *Cache) {
+				dbName := "updated-db"
+				validDB, err := types.NewDatabaseV3(types.Metadata{
+					Name: dbName,
+				}, types.DatabaseSpecV3{
+					Protocol: defaults.ProtocolPostgres,
+					URI:      "postgres://localhost",
+				})
+				require.NoError(t, err)
+				require.NoError(t, services.ValidateDatabase(validDB))
+
+				marshalledDB, err := services.MarshalDatabase(validDB)
+				require.NoError(t, err)
+				_, err = b.Create(ctx, backend.Item{
+					Key:     backend.Key("db", validDB.GetName()),
+					Value:   marshalledDB,
+					Expires: validDB.Expiry(),
+					ID:      validDB.GetResourceID(),
+				})
+				require.NoError(t, err)
+
+				// Wait until the database appear on cache.
+				require.Eventually(t, func() bool {
+					if dbs, err := c.GetDatabases(ctx); err == nil {
+						return len(dbs) == 1
+					}
+
+					return false
+				}, time.Second, 100*time.Millisecond, "expected database to be on cache, but nothing found")
+
+				cacheDB, err := c.GetDatabase(ctx, dbName)
+				require.NoError(t, err)
+
+				invalidDB := generateInvalidDB(t, cacheDB.GetResourceID(), cacheDB.GetName())
+				value, err := services.MarshalDatabase(invalidDB)
+				require.NoError(t, err)
+				_, err = b.Update(ctx, backend.Item{
+					Key:     backend.Key("db", cacheDB.GetName()),
+					Value:   value,
+					Expires: invalidDB.Expiry(),
+					ID:      cacheDB.GetResourceID(),
+				})
+				require.NoError(t, err)
+			},
+		},
+	} {
+		tc := tc
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			p := newTestPack(t, ForAuth)
+			t.Cleanup(p.Close)
+
+			tc.storeFunc(t, p.backend, p.cache)
+
+			// Events processing should not restart due to an invalid database error.
+			unexpectedEvent(t, p.eventsC, Reloading)
 		})
 	}
 }

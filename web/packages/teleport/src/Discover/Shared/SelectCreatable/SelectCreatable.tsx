@@ -24,22 +24,26 @@ const styles = {
   },
   multiValueLabel: (base, state) => {
     if (state.data.isFixed) {
-      return { ...base, color: theme.colors.text.onDark, paddingRight: 6 };
+      return { ...base, color: theme.colors.text.main, paddingRight: 6 };
     }
 
     if (state.isDisabled) {
       return { ...base, paddingRight: 6 };
     }
 
-    return { ...base, color: theme.colors.text.onLight };
+    return { ...base, color: theme.colors.text.primaryInverse };
   },
   multiValueRemove: (base, state) => {
     return state.data.isFixed || state.isDisabled
       ? { ...base, display: 'none' }
-      : { ...base, cursor: 'pointer', color: theme.colors.text.onLight };
+      : {
+          ...base,
+          cursor: 'pointer',
+          color: theme.colors.text.primaryInverse,
+        };
   },
   menuList: base => {
-    return { ...base, color: theme.colors.text.onLight };
+    return { ...base, color: theme.colors.text.primaryInverse };
   },
 };
 

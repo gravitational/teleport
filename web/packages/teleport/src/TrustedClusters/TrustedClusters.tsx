@@ -95,7 +95,7 @@ export default function TrustedClusters() {
           <Info
             ml="4"
             width="240px"
-            color="text.primary"
+            color="text.main"
             style={{ flexShrink: 0 }}
           />
         </Flex>

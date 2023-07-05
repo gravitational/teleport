@@ -285,10 +285,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login to the root cluster.
 	resp, err := s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:      pub,
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 	})
@@ -324,10 +324,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login to the leaf cluster.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    "leaf.localhost",
 		KubernetesCluster: "leaf-kube-cluster",
@@ -372,10 +372,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "root-kube-cluster",
@@ -404,10 +404,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// automatically.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:      pub,
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 		// Intentionally empty, auth server should default to a registered
@@ -449,10 +449,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login specifying a valid kube cluster. It should appear in the TLS cert.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "root-kube-cluster",
@@ -481,10 +481,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// automatically.
 	resp, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:      pub,
 		TTL:            time.Hour,
 		RouteToCluster: s.clusterName.GetClusterName(),
 		// Intentionally empty, auth server should default to a registered
@@ -514,10 +514,10 @@ func TestAuthenticateSSHUser(t *testing.T) {
 	// Login specifying an invalid kube cluster. This should fail.
 	_, err = s.a.AuthenticateSSHUser(ctx, AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Username: user,
-			Pass:     &PassCreds{Password: pass},
+			Username:  user,
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
-		PublicKey:         pub,
 		TTL:               time.Hour,
 		RouteToCluster:    s.clusterName.GetClusterName(),
 		KubernetesCluster: "invalid-kube-cluster",
@@ -1126,9 +1126,9 @@ func TestServer_AugmentContextUserCertificates(t *testing.T) {
 			Pass: &PassCreds{
 				Password: []byte(pass),
 			},
+			PublicKey: pub,
 		},
-		PublicKey: pub,
-		TTL:       1 * time.Hour,
+		TTL: 1 * time.Hour,
 	})
 	require.NoError(t, err, "AuthenticateSSHUser failed")
 
@@ -1283,9 +1283,9 @@ func TestServer_AugmentContextUserCertificates_errors(t *testing.T) {
 				Pass: &PassCreds{
 					Password: []byte(pass),
 				},
+				PublicKey: ssh.MarshalAuthorizedKey(sPubKey),
 			},
-			PublicKey: ssh.MarshalAuthorizedKey(sPubKey),
-			TTL:       1 * time.Hour,
+			TTL: 1 * time.Hour,
 		})
 		require.NoError(t, err, "AuthenticateSSHUser(%q) failed", user)
 
@@ -1750,10 +1750,10 @@ func TestGenerateUserCertIPPinning(t *testing.T) {
 
 	baseAuthRequest := AuthenticateSSHRequest{
 		AuthenticateUserRequest: AuthenticateUserRequest{
-			Pass: &PassCreds{Password: pass},
+			Pass:      &PassCreds{Password: pass},
+			PublicKey: pub,
 		},
 		TTL:            time.Hour,
-		PublicKey:      pub,
 		RouteToCluster: s.clusterName.GetClusterName(),
 	}
 
@@ -1949,7 +1949,7 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 		p.clusterName.GetClusterName(), types.RoleNode, time.Minute)
 	require.NoError(t, err)
 
-	target := types.LockTarget{Node: hostID}
+	target := types.LockTarget{ServerID: hostID}
 	lockWatch, err := p.a.lockWatcher.Subscribe(ctx, target)
 	require.NoError(t, err)
 	defer lockWatch.Close()
@@ -1970,9 +1970,9 @@ func TestGenerateHostCertWithLocks(t *testing.T) {
 	require.Error(t, err)
 	require.EqualError(t, err, services.LockInForceAccessDenied(lock).Error())
 
-	// Locks targeting nodes should not apply to other system roles.
+	// Locks targeting server IDs should apply to other system roles.
 	_, err = p.a.GenerateHostCert(ctx, pub, hostID, "test-proxy", []string{}, p.clusterName.GetClusterName(), types.RoleProxy, time.Minute)
-	require.NoError(t, err)
+	require.Error(t, err)
 }
 
 func TestNewWebSession(t *testing.T) {
@@ -2017,13 +2017,16 @@ func TestNewWebSession(t *testing.T) {
 
 func TestDeleteMFADeviceSync(t *testing.T) {
 	t.Parallel()
-	srv := newTestTLSServer(t)
-	ctx := context.Background()
+
+	testServer := newTestTLSServer(t)
+	authServer := testServer.Auth()
 	mockEmitter := &eventstest.MockEmitter{}
-	srv.Auth().emitter = mockEmitter
+	authServer.emitter = mockEmitter
+
+	ctx := context.Background()
 
 	username := "llama@goteleport.com"
-	_, _, err := CreateUserAndRole(srv.Auth(), username, []string{username})
+	_, _, err := CreateUserAndRole(authServer, username, []string{username})
 	require.NoError(t, err)
 
 	authPreference, err := types.NewAuthPreference(types.AuthPreferenceSpecV2{
@@ -2034,73 +2037,80 @@ func TestDeleteMFADeviceSync(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	err = srv.Auth().SetAuthPreference(ctx, authPreference)
+	err = authServer.SetAuthPreference(ctx, authPreference)
 	require.NoError(t, err)
 
-	clt, err := srv.NewClient(TestUser(username))
+	clt, err := testServer.NewClient(TestUser(username))
 	require.NoError(t, err)
 
 	// Insert dummy devices.
 	webDev1, err := RegisterTestDevice(ctx, clt, "web-1", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, nil /* authenticator */)
 	require.NoError(t, err)
-	webDev2, err := RegisterTestDevice(ctx, clt, "web-2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, webDev1)
+	_, err = RegisterTestDevice(ctx, clt, "web-2", proto.DeviceType_DEVICE_TYPE_WEBAUTHN, webDev1)
 	require.NoError(t, err)
-	totpDev1, err := RegisterTestDevice(ctx, clt, "otp-1", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(srv.Clock()))
+	totpDev1, err := RegisterTestDevice(ctx, clt, "otp-1", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(testServer.Clock()))
 	require.NoError(t, err)
-	totpDev2, err := RegisterTestDevice(ctx, clt, "otp-2", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(srv.Clock()))
+	_, err = RegisterTestDevice(ctx, clt, "otp-2", proto.DeviceType_DEVICE_TYPE_TOTP, webDev1, WithTestDeviceClock(testServer.Clock()))
 	require.NoError(t, err)
 
 	tests := []struct {
 		name           string
-		deviceToDelete string
 		tokenReq       CreateUserTokenRequest
+		deviceToDelete string
 	}{
 		{
-			name:           "recovery approved token",
-			deviceToDelete: webDev1.MFA.GetName(),
+			name: "recovery approved token",
 			tokenReq: CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypeRecoveryApproved,
 			},
+			deviceToDelete: webDev1.MFA.GetName(),
 		},
 		{
-			name:           "privilege token",
-			deviceToDelete: totpDev1.MFA.GetName(),
+			name: "privilege token",
 			tokenReq: CreateUserTokenRequest{
 				Name: username,
 				TTL:  5 * time.Minute,
 				Type: UserTokenTypePrivilege,
 			},
+			deviceToDelete: totpDev1.MFA.GetName(),
 		},
 	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			token, err := srv.Auth().newUserToken(tc.tokenReq)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			token, err := authServer.newUserToken(test.tokenReq)
 			require.NoError(t, err)
-			_, err = srv.Auth().CreateUserToken(ctx, token)
+			_, err = authServer.CreateUserToken(ctx, token)
 			require.NoError(t, err)
 
-			// Delete the TOTP device.
-			err = srv.Auth().DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
+			// Delete the device.
+			mockEmitter.Reset()
+			err = authServer.DeleteMFADeviceSync(ctx, &proto.DeleteMFADeviceSyncRequest{
 				TokenID:    token.GetName(),
-				DeviceName: tc.deviceToDelete,
+				DeviceName: test.deviceToDelete,
 			})
-			require.NoError(t, err)
+			require.NoError(t, err, "DeleteMFADeviceSync failed")
+
+			// Verify device deletion.
+			devs, err := authServer.Services.GetMFADevices(ctx, username, false /* withSecrets */)
+			require.NoError(t, err, "GetMFADevices failed")
+			for _, dev := range devs {
+				if dev.GetName() == test.deviceToDelete {
+					t.Errorf("DeleteMFADeviceSync(%q): device not deleted", test.deviceToDelete)
+					return
+				}
+			}
+
+			// Verify deletion event.
+			event := mockEmitter.LastEvent()
+			assert.Equal(t, events.MFADeviceDeleteEvent, event.GetType(), "event.Type")
+			assert.Equal(t, events.MFADeviceDeleteEventCode, event.GetCode(), "event.Code")
+			require.IsType(t, &apievents.MFADeviceDelete{}, event, "underlying event type")
+			deleteEvent := event.(*apievents.MFADeviceDelete) // asserted above
+			assert.Equal(t, username, deleteEvent.User, "event.User")
 		})
 	}
-
-	// Check it's been deleted.
-	devs, err := srv.Auth().Services.GetMFADevices(ctx, username, false)
-	require.NoError(t, err)
-	compareDevices(t, false /* ignoreUpdateAndCounter */, devs, webDev2.MFA, totpDev2.MFA)
-
-	// Test last events emitted.
-	event := mockEmitter.LastEvent()
-	require.Equal(t, events.MFADeviceDeleteEvent, event.GetType())
-	require.Equal(t, events.MFADeviceDeleteEventCode, event.GetCode())
-	require.Equal(t, event.(*apievents.MFADeviceDelete).UserMetadata.User, username)
 }
 
 func TestDeleteMFADeviceSync_WithErrors(t *testing.T) {

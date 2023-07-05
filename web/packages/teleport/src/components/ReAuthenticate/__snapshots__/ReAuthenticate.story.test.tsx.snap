@@ -147,7 +147,7 @@ exports[`render failed state for re-authentication dialog 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -320,13 +320,13 @@ exports[`render failed state for re-authentication dialog 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Verify your identity
           </div>
           <div
             class="c6"
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
             You must verify your identity with one of your existing two-factor devices before 
             performing this action
@@ -565,7 +565,7 @@ exports[`render re-authentication dialog 1`] = `
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   text-align: center;
 }
 
@@ -738,13 +738,13 @@ exports[`render re-authentication dialog 1`] = `
         >
           <div
             class="c5"
-            color="text.primary"
+            color="text.main"
           >
             Verify your identity
           </div>
           <div
             class="c6"
-            color="text.secondary"
+            color="text.slightlyMuted"
           >
             You must verify your identity with one of your existing two-factor devices before 
             performing this action

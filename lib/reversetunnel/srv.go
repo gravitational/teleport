@@ -42,6 +42,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events"
 	"github.com/gravitational/teleport/lib/limiter"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/services"
@@ -115,6 +116,9 @@ type server struct {
 	// offlineThreshold is how long to wait for a keep alive message before
 	// marking a reverse tunnel connection as invalid.
 	offlineThreshold time.Duration
+
+	// proxySigner is used to sign PROXY headers to securely propagate client IP information
+	proxySigner multiplexer.PROXYHeaderSigner
 }
 
 // Config is a reverse tunnel server configuration
@@ -209,8 +213,12 @@ type Config struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
+
 	// IngressReporter reports new and active connections.
 	IngressReporter *ingress.Reporter
+
+	// PROXYSigner is used to sign PROXY headers to securely propagate client IP information.
+	PROXYSigner multiplexer.PROXYHeaderSigner
 }
 
 // CheckAndSetDefaults checks parameters and sets default values
@@ -319,6 +327,7 @@ func NewServer(cfg Config) (Server, error) {
 		clusterPeers:     make(map[string]*clusterPeers),
 		log:              cfg.Log,
 		offlineThreshold: offlineThreshold,
+		proxySigner:      cfg.PROXYSigner,
 	}
 
 	localSite, err := newLocalSite(srv, cfg.ClusterName, cfg.LocalAuthAddresses)
@@ -604,8 +613,6 @@ func (s *server) Close() error {
 func (s *server) DrainConnections(ctx context.Context) error {
 	// Ensure listener is closed before sending reconnects.
 	err := s.srv.Close()
-	s.srv.Wait(ctx)
-
 	s.RLock()
 	s.log.Debugf("Advising reconnect to local site: %s", s.localSite.GetName())
 	go s.localSite.adviseReconnect(ctx)
@@ -616,6 +623,7 @@ func (s *server) DrainConnections(ctx context.Context) error {
 	}
 	s.RUnlock()
 
+	s.srv.Wait(ctx)
 	return trace.Wrap(err)
 }
 
@@ -679,6 +687,8 @@ func (s *server) handleTransport(sconn *ssh.ServerConn, nch ssh.NewChannel) {
 		component:        teleport.ComponentReverseTunnelServer,
 		localClusterName: s.ClusterName,
 		emitter:          s.Emitter,
+		proxySigner:      s.proxySigner,
+		sconn:            sconn,
 	}
 	go t.start()
 }
@@ -719,6 +729,8 @@ func (s *server) handleHeartbeat(conn net.Conn, sconn *ssh.ServerConn, nch ssh.N
 		s.handleNewCluster(conn, sconn, nch)
 	case types.RoleWindowsDesktop:
 		s.handleNewService(role, conn, sconn, nch, types.WindowsDesktopTunnel)
+	case types.RoleOkta:
+		s.handleNewService(role, conn, sconn, nch, types.OktaTunnel)
 	// Unknown role.
 	default:
 		s.log.Errorf("Unsupported role attempting to connect: %v", val)

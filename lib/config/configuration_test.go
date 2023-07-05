@@ -19,6 +19,7 @@ package config
 import (
 	"bytes"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -795,6 +796,8 @@ SREzU8onbBsjMg9QDiSf5oJLKvd/Ren+zGY7
 			DisconnectExpiredCert: types.NewBoolOption(false),
 			LockingMode:           constants.LockingModeBestEffort,
 			AllowPasswordless:     types.NewBoolOption(true),
+			AllowHeadless:         types.NewBoolOption(true),
+			DefaultSessionTTL:     types.Duration(apidefaults.CertDuration),
 			IDP: &types.IdPOptions{
 				SAML: &types.IdPSAMLOptions{
 					Enabled: types.NewBoolOption(true),
@@ -1118,6 +1121,17 @@ func TestProxyPeeringPublicAddr(t *testing.T) {
 	}
 }
 
+func TestProxyMustJoinViaAuth(t *testing.T) {
+	cfg := service.MakeDefaultConfig()
+
+	err := ApplyFileConfig(&FileConfig{
+		Version: defaults.TeleportConfigVersionV3,
+		Proxy:   Proxy{Service: Service{EnabledFlag: "yes"}},
+		Global:  Global{ProxyServer: "proxy.example.com:3080"},
+	}, cfg)
+	require.True(t, trace.IsBadParameter(err), "expected bad parameter, got %v", err)
+}
+
 func TestBackendDefaults(t *testing.T) {
 	read := func(val string) *service.Config {
 		// Default value is lite backend.
@@ -1356,6 +1370,7 @@ func checkStaticConfig(t *testing.T, conf *FileConfig) {
 	policy, err := conf.CachePolicy.Parse()
 	require.NoError(t, err)
 	require.True(t, policy.Enabled)
+	require.Equal(t, time.Minute*12, policy.MaxRetryPeriod)
 }
 
 var (
@@ -2413,7 +2428,7 @@ func TestAppsCLF(t *testing.T) {
 			outApps:   nil,
 			requireError: func(t require.TestingT, err error, i ...interface{}) {
 				require.True(t, trace.IsBadParameter(err))
-				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/teleport/docs/application-access/#application-name")
+				require.ErrorContains(t, err, "application name \"-foo\" must be a valid DNS subdomain: https://goteleport.com/docs/application-access/guides/connecting-apps/#application-name")
 			},
 		},
 		{
@@ -3330,6 +3345,154 @@ func TestApplyFileConfig_deviceTrustMode_errors(t *testing.T) {
 	}
 }
 
+func TestAuthHostedPlugins(t *testing.T) {
+	t.Parallel()
+
+	badParameter := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.Error(t, err)
+		require.True(t, trace.IsBadParameter(err), `expected "bad parameter", but got %v`, err)
+	}
+	notExist := func(t require.TestingT, err error, msgAndArgs ...interface{}) {
+		require.Error(t, err)
+		require.True(t, errors.Is(err, os.ErrNotExist), `expected "does not exist", but got %v`)
+	}
+
+	tmpDir := t.TempDir()
+	clientIDFile := filepath.Join(tmpDir, "id")
+	clientSecretFile := filepath.Join(tmpDir, "secret")
+	err := os.WriteFile(clientIDFile, []byte("foo\n"), 0o777)
+	require.NoError(t, err)
+	err = os.WriteFile(clientSecretFile, []byte("bar\n"), 0o777)
+	require.NoError(t, err)
+
+	tests := []struct {
+		desc     string
+		config   string
+		readErr  require.ErrorAssertionFunc
+		applyErr require.ErrorAssertionFunc
+		assert   func(t *testing.T, p service.HostedPluginsConfig)
+	}{
+		{
+			desc: "Plugins disabled by default",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: require.NoError,
+			assert: func(t *testing.T, p service.HostedPluginsConfig) {
+				require.False(t, p.Enabled)
+			},
+		},
+		{
+			desc: "Plugins enabled but zero providers defined",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  hosted_plugins:",
+				"    enabled: yes",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: badParameter,
+		},
+		{
+			desc: "Unknown OAuth provider specified",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  hosted_plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      acmecorp:",
+				"        client_id: foo",
+				"        client_secret: bar",
+			}, "\n"),
+			readErr:  require.Error,
+			applyErr: require.NoError,
+		},
+		{
+			desc: "OAuth client ID without the secret",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  hosted_plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_id: foo",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: badParameter,
+		},
+		{
+			desc: "OAuth client secret without the ID",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"  hosted_plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_secret: bar",
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: badParameter,
+		},
+		{
+			desc: "OAuth provider in non-existent file",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"",
+				"  hosted_plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_id: /tmp/this-does-not-exist",
+				"        client_secret: " + clientSecretFile,
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: notExist,
+		},
+		{
+			desc: "OAuth provider in existent files",
+			config: strings.Join([]string{
+				"auth_service:",
+				"  enabled: yes",
+				"",
+				"  hosted_plugins:",
+				"    enabled: yes",
+				"    oauth_providers:",
+				"      slack:",
+				"        client_id: " + clientIDFile,
+				"        client_secret: " + clientSecretFile,
+			}, "\n"),
+			readErr:  require.NoError,
+			applyErr: require.NoError,
+			assert: func(t *testing.T, p service.HostedPluginsConfig) {
+				require.True(t, p.Enabled)
+				require.NotNil(t, p.OAuthProviders.Slack)
+				require.Equal(t, "foo", p.OAuthProviders.Slack.ID)
+				require.Equal(t, "bar", p.OAuthProviders.Slack.Secret)
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(bytes.NewBufferString(tc.config))
+			tc.readErr(t, err)
+
+			cfg := service.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+			tc.applyErr(t, err)
+			if tc.assert != nil {
+				tc.assert(t, cfg.Auth.HostedPlugins)
+			}
+		})
+	}
+}
+
 func TestApplyDiscoveryConfig(t *testing.T) {
 	t.Parallel()
 	tests := []struct {
@@ -3538,6 +3701,65 @@ func TestApplyOktaConfig(t *testing.T) {
 			if err == nil {
 				require.Equal(t, expectedOkta, cfg.Okta)
 			}
+		})
+	}
+}
+
+func TestAssistKey(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		desc        string
+		input       string
+		expectKey   string
+		expectError bool
+	}{
+		{
+			desc: "api token is set",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+      api_token_path: testdata/test-api-key
+`,
+			expectKey: "123-abc-zzz",
+		},
+		{
+			desc: "api token file does not exist",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+      api_token_path: testdata/non-existent-file
+`,
+			expectError: true,
+		},
+		{
+			desc: "missing api token doesn't error",
+			input: `
+teleport:
+proxy_service:
+  assist:
+    openai:
+`,
+			expectKey: "",
+		},
+	} {
+		t.Run(tc.desc, func(t *testing.T) {
+			conf, err := ReadConfig(strings.NewReader(tc.input))
+			require.NoError(t, err)
+
+			cfg := service.MakeDefaultConfig()
+			err = ApplyFileConfig(conf, cfg)
+
+			if tc.expectError {
+				require.Error(t, err)
+				return
+			}
+
+			require.Equal(t, tc.expectKey, cfg.Proxy.AssistAPIKey)
 		})
 	}
 }

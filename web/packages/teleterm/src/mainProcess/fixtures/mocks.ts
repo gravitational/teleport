@@ -33,7 +33,7 @@ export class MockMainProcessClient implements MainProcessClient {
   }
 
   getRuntimeSettings(): RuntimeSettings {
-    return { ...defaultRuntimeSettings, ...this.runtimeSettings };
+    return makeRuntimeSettings(this.runtimeSettings);
   }
 
   getResolvedChildProcessAddresses = () =>
@@ -70,7 +70,9 @@ export class MockMainProcessClient implements MainProcessClient {
   }
 }
 
-const defaultRuntimeSettings = {
+export const makeRuntimeSettings = (
+  runtimeSettings?: Partial<RuntimeSettings>
+): RuntimeSettings => ({
   platform: 'darwin' as const,
   dev: true,
   userDataDir: '',
@@ -95,4 +97,5 @@ const defaultRuntimeSettings = {
   arch: 'arm64',
   osVersion: '22.2.0',
   appVersion: '11.1.0',
-};
+  ...runtimeSettings,
+});

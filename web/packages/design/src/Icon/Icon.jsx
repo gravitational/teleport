@@ -77,6 +77,7 @@ export const ChatBubble = makeFontIcon(
   'ChatBubble',
   'icon-chat_bubble_outline'
 );
+export const Chart = makeFontIcon('Chart', 'icon-chart-bars');
 export const Check = makeFontIcon('Check', 'icon-check');
 export const ChevronCircleDown = makeFontIcon(
   'ChevronCircleDown',
@@ -164,6 +165,7 @@ export const ForwarderAdded = makeFontIcon(
 export const Github = makeFontIcon('Github', 'icon-github');
 export const Google = makeFontIcon('Google', 'icon-google-plus');
 export const Graph = makeFontIcon('Graph', 'icon-graph');
+export const Hashtag = makeFontIcon('Hashtag', 'icon-hashtag');
 export const Home = makeFontIcon('Home', 'icon-home3');
 export const Info = makeFontIcon('Info', 'icon-info_outline');
 export const InfoFilled = makeFontIcon('Info', 'icon-info');
@@ -221,6 +223,7 @@ export const Play = makeFontIcon('Play', 'icon-play');
 export const PowerSwitch = makeFontIcon('PowerSwitch', 'icon-power-switch');
 export const Profile = makeFontIcon('Profile', 'icon-profile');
 export const Question = makeFontIcon('Question', 'icon-question-circle');
+export const Refresh = makeFontIcon('Refresh', 'icon-redo2');
 export const Restore = makeFontIcon('Restore', 'icon-restore');
 export const Server = makeFontIcon('Server', 'icon-server');
 export const SettingsInputComposite = makeFontIcon(
@@ -232,7 +235,6 @@ export const SettingsOverscan = makeFontIcon(
   'icon-settings_overscan'
 );
 export const Share = makeFontIcon('Share', 'icon-share');
-export const Shart = makeFontIcon('Shart', 'icon-chart-bars');
 export const ShieldCheck = makeFontIcon('ShieldCheck', 'icon-shield-check');
 export const Shrink = makeFontIcon('Shrink', 'icon-shrink');
 export const SmallArrowDown = makeFontIcon(

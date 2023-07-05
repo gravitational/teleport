@@ -92,7 +92,7 @@ function Radio(props: RadioProps) {
         autoFocus={props.autoFocus}
         css={`
           margin: 0 ${props => props.theme.space[2]}px 0 0;
-          accent-color: ${props => props.theme.colors.accent};
+          accent-color: ${props => props.theme.colors.brandAccent};
           cursor: inherit;
         `}
         type="radio"

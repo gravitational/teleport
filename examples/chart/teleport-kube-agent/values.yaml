@@ -103,7 +103,12 @@ databaseResources: []
 # Values that you may need to change.
 ################################################################
 
-# Version of teleport image, if different from appVersion in Chart.yaml.
+# Version of teleport image, if different from chart version in Chart.yaml.
+# DANGER: `teleportVersionOverride` MUST NOT be used to control the Teleport version.
+# This chart is designed to run a specific teleport version (see Chart.yaml).
+# You will face compatibility issues trying to run a different Teleport version with it.
+#
+# If you want to run Teleport version X, you should use `helm --version X` instead.
 teleportVersionOverride: ""
 
 # Optional CA pins of the auth server. This enables a more secure way of
@@ -356,7 +361,7 @@ initSecurityContext:
   runAsNonRoot: true
   runAsUser: 9807
 
-# Security context to add to the container
+# Security context to add to other containers
 securityContext:
   allowPrivilegeEscalation: false
   capabilities:

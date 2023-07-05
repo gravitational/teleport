@@ -141,16 +141,23 @@ auth_service:
         # - 'otp' and 'webauthn' require the corresponding second factor.
         second_factor: otp
 
-        # Sets whether passwordless authorization is allowed.
+        # Sets whether passwordless authentication is allowed.
         # Passwordless requires WebAuthn.
         # Defaults to "true".
         #passwordless: true
 
-        # Sets the authenticator connector for SSO (Enterprise) or the default
-        # connector for "local" authentication.
-        # See SSO for Enterprise (https://goteleport.com/docs/enterprise/sso/).
-        # See Passwordless for local
-        # (http://goteleport.com/docs/access-controls/guides/passwordless/#optional-enable-passwordless-by-default).
+        # Sets whether headless authentication is allowed.
+        # Headless authentication requires WebAuthn.
+        # Defaults to "true".
+        #headless: true
+
+        # Sets the default authentication connector for the cluster:
+        # - 'local' for local authentication (password, WebAuthn, etc.)
+        # - 'passwordless' for passwordless authentication
+        #   (http://goteleport.com/docs/access-controls/guides/passwordless/#optional-enable-passwordless-by-default)
+        # - 'headless' for headless authentication
+        #   (http://goteleport.com/docs/access-controls/guides/headless-login/#optional-enable-passwordless-by-default)
+        # - A specific SSO connector name - see https://goteleport.com/docs/access-controls/sso/ for details.
         # Defaults to "local".
         #connector_name: local
 
@@ -230,6 +237,11 @@ auth_service:
           #   Additionally, it requires a trusted device for all SSH, Database
           #   and Kubernetes connections.
           mode: optional # always "off" for OSS
+
+        # Determines the default time to live for user certificates
+        # issued by this auth server, defaults to 12 hours.  Examples:
+        # "14h30m", "1h" etc.
+        default_session_ttl: 12h
 
     # IP and the port to bind to. Other Teleport Nodes will be connecting to
     # this port (AKA "Auth API" or "Cluster API") to validate client

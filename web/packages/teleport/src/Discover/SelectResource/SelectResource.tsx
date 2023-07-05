@@ -15,206 +15,462 @@
  */
 
 import React, { useState } from 'react';
-import SlideTabs from 'design/SlideTabs';
-import { Box, Flex, Image, Text } from 'design';
+import { useLocation, useHistory } from 'react-router';
 
-import AddApp from 'teleport/Apps/AddApp';
-import AddDatabase from 'teleport/Discover/Database/AddDatabaseModal';
+import * as Icons from 'design/Icon';
+import styled from 'styled-components';
+import { Box, Flex, Text, Popover, Link } from 'design';
+
 import useTeleport from 'teleport/useTeleport';
-
 import { Acl } from 'teleport/services/user';
-
-import { ResourceKind, Header, HeaderSubtitle } from 'teleport/Discover/Shared';
 import {
-  DiscoverEvent,
-  DiscoverEventStatus,
-} from 'teleport/services/userEvent';
+  ResourceKind,
+  Header,
+  HeaderSubtitle,
+  PermissionsErrorMessage,
+} from 'teleport/Discover/Shared';
+import {
+  getResourcePretitle,
+  RESOURCES,
+} from 'teleport/Discover/SelectResource/resources';
+import AddApp from 'teleport/Apps/AddApp';
 
-import { ApplicationResource } from '../Application/ApplicationResource';
-import { DatabaseResource } from '../Database/DatabaseResource';
-import { DesktopResource } from '../Desktop/DesktopResource';
-import { KubernetesResource } from '../Kubernetes/KubernetesResource';
-import { ServerResource } from '../Server/ServerResource';
-import { DatabaseEngine, DatabaseLocation } from '../Database/resources';
-import { useDiscover } from '../useDiscover';
+import { icons } from './icons';
 
-import k8sIcon from './assets/kubernetes.png';
-import serverIcon from './assets/server.png';
-import databaseIcon from './assets/database.png';
-import applicationIcon from './assets/application.png';
+import type { ResourceSpec } from './types';
+import type { AddButtonResourceKind } from 'teleport/components/AgentButtonAdd/AgentButtonAdd';
 
-import type { TabComponent } from 'design/SlideTabs/SlideTabs';
-import type { Database } from '../Database/resources';
-
-function checkPermissions(acl: Acl, tab: Tab) {
-  const basePermissionsNeeded = [acl.tokens.create];
-
-  const permissionsNeeded = [
-    ...basePermissionsNeeded,
-    ...tab.permissionsNeeded,
-  ];
-
-  // if some (1+) are false, we do not have enough permissions
-  return permissionsNeeded.some(value => !value);
+interface SelectResourceProps {
+  onSelect: (resource: ResourceSpec) => void;
 }
 
-interface Tab extends TabComponent {
-  permissionsNeeded: boolean[];
-  kind: ResourceKind;
-}
-
-interface SelectResourceProps<T = any> {
-  onSelect: (kind: ResourceKind) => void;
-  onNext: () => void;
-  selectedResourceKind: ResourceKind;
-  resourceState: T;
-}
-
-export function SelectResource(props: SelectResourceProps) {
+export function SelectResource({ onSelect }: SelectResourceProps) {
   const ctx = useTeleport();
-  const { emitEvent } = useDiscover();
+  const location = useLocation<{ entity: AddButtonResourceKind }>();
+  const history = useHistory();
 
-  const userContext = ctx.storeUser.state;
-  const { acl } = userContext;
+  const [search, setSearch] = useState('');
+  const [resources, setResources] = useState<ResourceSpec[]>([]);
+  const [defaultResources, setDefaultResources] = useState<ResourceSpec[]>([]);
+  const [showApp, setShowApp] = useState(false);
 
-  const [showAddApp, setShowAddApp] = useState(false);
-  const [showAddDB, setShowAddDB] = useState(false);
+  function onSearch(s: string, customList?: ResourceSpec[]) {
+    const list = customList || defaultResources;
+    const splitted = s.split(' ').map(s => s.toLowerCase());
+    const foundResources = list.filter(r => {
+      const match = splitted.every(s => r.keywords.includes(s));
+      if (match) {
+        return r;
+      }
+    });
+    setResources(foundResources);
+    setSearch(s);
+  }
 
-  const tabs: Tab[] = [
-    {
-      name: 'server',
-      kind: ResourceKind.Server,
-      component: <TabItem iconSrc={serverIcon} title="Server" />,
-      permissionsNeeded: [acl.nodes.list],
-    },
+  function onClearSearch() {
+    history.replace({ state: {} }); // Clear any loc state.
+    onSearch('');
+  }
 
-    {
-      name: 'database',
-      kind: ResourceKind.Database,
-      component: <TabItem iconSrc={databaseIcon} title="Database" />,
-      permissionsNeeded: [acl.dbServers.read, acl.dbServers.list],
-    },
+  React.useEffect(() => {
+    // Apply access check to each resource.
+    const userContext = ctx.storeUser.state;
+    const { acl } = userContext;
+    const updatedResources = makeResourcesWithHasAccessField(acl);
 
-    {
-      name: 'kubernetes',
-      kind: ResourceKind.Kubernetes,
-      component: <TabItem iconSrc={k8sIcon} title="Kubernetes" />,
-      permissionsNeeded: [acl.kubeServers.read, acl.kubeServers.list],
-    },
+    // Sort resources that user has access to the
+    // the top of the list, so it is more visible to
+    // the user.
+    const filteredResourcesByPerm = [
+      ...updatedResources.filter(r => r.hasAccess),
+      ...updatedResources.filter(r => !r.hasAccess),
+    ];
+    const sortedResources = sortResources(filteredResourcesByPerm);
+    setDefaultResources(sortedResources);
 
-    {
-      name: 'application',
-      kind: ResourceKind.Application,
-      component: <TabItem iconSrc={applicationIcon} title="Application" />,
-      permissionsNeeded: [acl.appServers.read, acl.appServers.list],
-    },
-    {
-      name: 'desktop',
-      kind: ResourceKind.Desktop,
-      component: <TabItem iconSrc={serverIcon} title="Desktop" />,
-      permissionsNeeded: [acl.desktops.read, acl.desktops.list],
-    },
-  ];
+    // A user can come to this screen by clicking on
+    // a `add <specific-resource-type>` button.
+    // We sort the list by the specified resource type,
+    // and then apply a search filter to it to reduce
+    // the amount of results.
+    const resourceKindSpecifiedByUrlLoc = location.state?.entity;
+    if (resourceKindSpecifiedByUrlLoc) {
+      const sortedResourcesByKind = sortResourcesByKind(
+        resourceKindSpecifiedByUrlLoc,
+        sortedResources
+      );
+      onSearch(resourceKindSpecifiedByUrlLoc, sortedResourcesByKind);
+    } else {
+      setResources(sortedResources);
+    }
 
-  const index = tabs.findIndex(
-    component => component.kind === props.selectedResourceKind
-  );
-  const selectedTabIndex = Math.max(0, index);
-
-  const disabled = checkPermissions(acl, tabs[selectedTabIndex]);
+    // Processing of the lists should only happen once on init.
+    // User perms remain static and URL loc state does not change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
-    <Box>
-      <Header>Select Resource Type</Header>
+    <Box mt={4}>
+      <Header>Select Resource To Add</Header>
       <HeaderSubtitle>
-        Users are able to add and access many different types of resources
-        through Teleport. Start by selecting the type of resource you want to
-        add.
+        Teleport can integrate into most, if not all of your infrastructure.
+        Search for what resource you want to add.
       </HeaderSubtitle>
-      <SlideTabs
-        initialSelected={selectedTabIndex}
-        tabs={tabs}
-        onChange={index => props.onSelect(tabs[index].kind)}
-      />
-      {props.selectedResourceKind === ResourceKind.Database && (
-        <DatabaseResource
-          disabled={disabled}
-          onProceed={() => {
-            const state = props.resourceState as Database;
-            if (state.location === DatabaseLocation.SelfHosted) {
-              if (
-                state.engine === DatabaseEngine.PostgreSQL ||
-                state.engine === DatabaseEngine.MySQL
-              ) {
-                props.onNext();
-                return;
-              }
-            }
+      <Box height="90px" width="600px">
+        <InputWrapper mb={2}>
+          <StyledInput
+            placeholder="Search for a resource"
+            autoFocus
+            value={search}
+            onChange={e => onSearch(e.target.value)}
+            max={100}
+          />
+        </InputWrapper>
+        {search && <ClearSearch onClick={onClearSearch} />}
+      </Box>
+      {resources.length > 0 && (
+        <>
+          <Grid>
+            {resources.map((r, index) => {
+              const title = r.name;
+              const pretitle = getResourcePretitle(r);
 
-            if (state.location === DatabaseLocation.AWS) {
-              if (
-                state.engine === DatabaseEngine.PostgreSQL ||
-                state.engine === DatabaseEngine.MySQL
-              ) {
-                props.onNext();
-                return;
+              let resourceCardProps;
+              if (r.kind === ResourceKind.Application) {
+                resourceCardProps = {
+                  onClick: () => {
+                    if (r.hasAccess) {
+                      setShowApp(true);
+                      onSelect(r);
+                    }
+                  },
+                };
+              } else if (r.unguidedLink) {
+                resourceCardProps = {
+                  as: Link,
+                  href: r.hasAccess ? r.unguidedLink : null,
+                  target: '_blank',
+                  style: { textDecoration: 'none' },
+                };
+              } else {
+                resourceCardProps = {
+                  onClick: () => r.hasAccess && onSelect(r),
+                };
               }
-            }
 
-            // Unsupported databases will default to the modal popup.
-            emitEvent({ stepStatus: DiscoverEventStatus.Success });
-            return setShowAddDB(true);
-          }}
-        />
+              // There can be three types of click behavior with the resource cards:
+              //  1) If the resource has no interactive UI flow ("unguided"),
+              //     clicking on the card will take a user to our docs page
+              //     on a new tab.
+              //  2) If the resource is guided, we start the "flow" by
+              //     taking user to the next step.
+              //  3) If the resource is kind 'Application', it will render the legacy
+              //     popup modal where it shows user to add app manually or automatically.
+              return (
+                <ResourceCard
+                  data-testid={r.kind}
+                  key={`${index}${pretitle}${title}`}
+                  hasAccess={r.hasAccess}
+                  {...resourceCardProps}
+                >
+                  {!r.unguidedLink && r.hasAccess && (
+                    <BadgeGuided>Guided</BadgeGuided>
+                  )}
+                  {!r.hasAccess && (
+                    <ToolTip
+                      children={<PermissionsErrorMessage resource={r} />}
+                    />
+                  )}
+                  <Flex px={2} alignItems="center">
+                    <Flex mr={3} justifyContent="center" width="24px">
+                      {icons[r.icon]}
+                    </Flex>
+                    <Box>
+                      {pretitle && (
+                        <Text fontSize="12px" color="#a8afb2">
+                          {pretitle}
+                        </Text>
+                      )}
+                      {r.unguidedLink ? (
+                        <Text bold color="white">
+                          {title}
+                        </Text>
+                      ) : (
+                        <Text bold>{title}</Text>
+                      )}
+                    </Box>
+                  </Flex>
+                </ResourceCard>
+              );
+            })}
+          </Grid>
+          <Text mt={6} fontSize="12px">
+            Looking for something else?{' '}
+            <Link
+              href="https://github.com/gravitational/teleport/issues/new?assignees=&labels=feature-request&template=feature_request.md"
+              target="_blank"
+              ml={2}
+            >
+              Request a feature
+            </Link>
+          </Text>
+        </>
       )}
-      {props.selectedResourceKind === ResourceKind.Application && (
-        <ApplicationResource
-          disabled={disabled}
-          onProceed={() => {
-            setShowAddApp(true);
-            emitEvent(
-              { stepStatus: DiscoverEventStatus.Success },
-              { eventName: DiscoverEvent.ResourceSelection }
-            );
-          }}
-        />
-      )}
-      {props.selectedResourceKind === ResourceKind.Desktop && (
-        <DesktopResource disabled={disabled} onProceed={() => props.onNext()} />
-      )}
-      {props.selectedResourceKind === ResourceKind.Kubernetes && (
-        <KubernetesResource
-          disabled={disabled}
-          onProceed={() => props.onNext()}
-        />
-      )}
-      {props.selectedResourceKind === ResourceKind.Server && (
-        <ServerResource disabled={disabled} onProceed={() => props.onNext()} />
-      )}
-      {showAddApp && <AddApp onClose={() => setShowAddApp(false)} />}
-      {showAddDB && (
-        <AddDatabase
-          isEnterprise={ctx.isEnterprise}
-          username={userContext.username}
-          version={userContext.cluster.authVersion}
-          authType={userContext.authType}
-          onClose={() => setShowAddDB(false)}
-          selectedDb={props.resourceState}
-        />
-      )}
+      {showApp && <AddApp onClose={() => setShowApp(false)} />}
     </Box>
   );
 }
 
-const TabItem = ({ iconSrc, title }: { iconSrc: string; title: string }) => (
-  <Flex
-    css={`
-      align-items: center;
-    `}
-  >
-    <Image src={iconSrc} width="32px" mr={2} />
-    <Text bold typography="h5">
-      {title}
-    </Text>
-  </Flex>
-);
+const ClearSearch = ({ onClick }: { onClick(): void }) => {
+  return (
+    <Flex
+      width="120px"
+      onClick={onClick}
+      alignItems="center"
+      mt={1}
+      css={`
+        font-size: 12px;
+        opacity: 0.7;
+        :hover {
+          cursor: pointer;
+          opacity: 1;
+        }
+      `}
+    >
+      <Box
+        mr={1}
+        ml={1}
+        width="18px"
+        height="18px"
+        bg="#2d3762"
+        borderRadius="4px"
+        textAlign="center"
+      >
+        <Icons.Close fontSize="15px" />
+      </Box>
+      <Text>Clear search</Text>
+    </Flex>
+  );
+};
+
+const ToolTip: React.FC = ({ children }) => {
+  const [anchorEl, setAnchorEl] = useState();
+  const open = Boolean(anchorEl);
+
+  function handlePopoverOpen(event) {
+    setAnchorEl(event.currentTarget);
+  }
+
+  function handlePopoverClose() {
+    setAnchorEl(null);
+  }
+
+  return (
+    <>
+      <div
+        aria-owns={open ? 'mouse-over-popover' : undefined}
+        onMouseEnter={handlePopoverOpen}
+        onMouseLeave={handlePopoverClose}
+        css={`
+          position: absolute;
+          background: ${p => p.theme.colors.error.main};
+          padding: 0px 6px;
+          border-top-right-radius: 8px;
+          border-bottom-left-radius: 8px;
+          top: 0px;
+          right: 0px;
+          font-size: 10px;
+        `}
+      >
+        Lacking Permissions
+      </div>
+      <Popover
+        modalCss={() => `pointer-events: none;`}
+        onClose={handlePopoverClose}
+        open={open}
+        anchorEl={anchorEl}
+        anchorOrigin={{
+          vertical: 'bottom',
+          horizontal: 'left',
+        }}
+        transformOrigin={{
+          vertical: 'top',
+          horizontal: 'left',
+        }}
+      >
+        <StyledOnHover px={3} py={2}>
+          {children}
+        </StyledOnHover>
+      </Popover>
+    </>
+  );
+};
+
+function checkHasAccess(acl: Acl, resourceKind: ResourceKind) {
+  const basePerm = acl.tokens.create;
+  if (!basePerm) {
+    return false;
+  }
+
+  switch (resourceKind) {
+    case ResourceKind.Application:
+      return acl.appServers.read && acl.appServers.list;
+    case ResourceKind.Database:
+      return acl.dbServers.read && acl.dbServers.list;
+    case ResourceKind.Desktop:
+      return acl.desktops.read && acl.desktops.list;
+    case ResourceKind.Kubernetes:
+      return acl.kubeServers.read && acl.kubeServers.list;
+    case ResourceKind.Server:
+      return acl.nodes.list;
+    case ResourceKind.SamlApplication:
+      return acl.samlIdpServiceProvider.create;
+    default:
+      return false;
+  }
+}
+
+function sortResourcesByKind(
+  resourceKind: AddButtonResourceKind,
+  resources: ResourceSpec[]
+) {
+  let sorted: ResourceSpec[] = [];
+  switch (resourceKind) {
+    case 'server':
+      sorted = [
+        ...resources.filter(r => r.kind === ResourceKind.Server),
+        ...resources.filter(r => r.kind !== ResourceKind.Server),
+      ];
+      break;
+    case 'application':
+      sorted = [
+        ...resources.filter(r => r.kind === ResourceKind.Application),
+        ...resources.filter(r => r.kind !== ResourceKind.Application),
+      ];
+      break;
+    case 'database':
+      sorted = [
+        ...resources.filter(r => r.kind === ResourceKind.Database),
+        ...resources.filter(r => r.kind !== ResourceKind.Database),
+      ];
+      break;
+    case 'desktop':
+      sorted = [
+        ...resources.filter(r => r.kind === ResourceKind.Desktop),
+        ...resources.filter(r => r.kind !== ResourceKind.Desktop),
+      ];
+      break;
+    case 'kubernetes':
+      sorted = [
+        ...resources.filter(r => r.kind === ResourceKind.Kubernetes),
+        ...resources.filter(r => r.kind !== ResourceKind.Kubernetes),
+      ];
+      break;
+  }
+  return sorted;
+}
+
+// Sort the resources alphabetically and with the Guided resources listed first.
+export function sortResources(resources: ResourceSpec[]) {
+  const sortedResources = [...resources];
+  sortedResources.sort((a, b) => {
+    if (!a.unguidedLink && a.hasAccess && !b.unguidedLink && b.hasAccess) {
+      return a.name.localeCompare(b.name);
+    }
+    if (!b.unguidedLink && b.hasAccess) {
+      return 1;
+    }
+    if (!a.unguidedLink && a.hasAccess) {
+      return -1;
+    }
+    return a.name.localeCompare(b.name);
+  });
+
+  return sortedResources;
+}
+
+function makeResourcesWithHasAccessField(acl: Acl): ResourceSpec[] {
+  return RESOURCES.map(r => {
+    const hasAccess = checkHasAccess(acl, r.kind);
+    switch (r.kind) {
+      case ResourceKind.Database:
+        return { ...r, dbMeta: { ...r.dbMeta }, hasAccess };
+      default:
+        return { ...r, hasAccess };
+    }
+  });
+}
+
+const Grid = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fill, 320px);
+  column-gap: 10px;
+  row-gap: 15px;
+`;
+
+const ResourceCard = styled.div`
+  display: flex;
+  position: relative;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.05);
+  transition: all 0.3s;
+
+  border-radius: 8px;
+  padding: 12px 12px 12px 12px;
+  color: white;
+  cursor: pointer;
+  height: 48px;
+
+  opacity: ${props => (props.hasAccess ? '1' : '0.45')};
+
+  :hover {
+    background: rgba(255, 255, 255, 0.09);
+  }
+`;
+
+const BadgeGuided = styled.div`
+  position: absolute;
+  background: rgb(81, 48, 201);
+  padding: 0px 6px;
+  border-top-right-radius: 8px;
+  border-bottom-left-radius: 8px;
+  top: 0px;
+  right: 0px;
+  font-size: 10px;
+`;
+
+const StyledOnHover = styled(Text)`
+  background-color: white;
+  color: black;
+  max-width: 350px;
+`;
+
+const InputWrapper = styled.div`
+  border-radius: 200px;
+  height: 40px;
+  border: 1px solid #ffffff1c;
+  &:hover,
+  &:focus,
+  &:active {
+    background: ${props => props.theme.colors.levels.surfaceSecondary};
+  }
+`;
+
+const StyledInput = styled.input`
+  border: none;
+  outline: none;
+  box-sizing: border-box;
+  height: 100%;
+  width: 100%;
+  transition: all 0.2s;
+  color: ${props => props.theme.colors.text.contrast};
+  background: transparent;
+  margin-right: ${props => props.theme.space[3]}px;
+  margin-bottom: ${props => props.theme.space[2]}px;
+  padding: ${props => props.theme.space[3]}px;
+  opacity: 0.8;
+  &:placeholder {
+    color: white;
+    opacity: 0.6;
+  }
+`;

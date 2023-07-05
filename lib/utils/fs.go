@@ -254,3 +254,13 @@ func overwriteFile(filePath string) (err error) {
 	_, err = io.CopyN(f, rand.Reader, size)
 	return trace.Wrap(err)
 }
+
+// RemoveFileIfExist removes file if exits.
+func RemoveFileIfExist(filePath string) {
+	if !FileExists(filePath) {
+		return
+	}
+	if err := os.Remove(filePath); err != nil {
+		log.WithError(err).Warnf("Failed to remove %v", filePath)
+	}
+}

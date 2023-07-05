@@ -2,27 +2,17 @@ name: Build on Windows
 run-name: Build on Windows
 
 on:
-  push:
-    branches:
-      - master
-  pull_request:
-    # We only build tsh on Windows so only consider Go code as tsh doesn't
-    # run any Rust.
-    paths:
-      - '**.go'
-      - 'go.mod'
-      - 'go.sum'
-      - 'build.assets/Makefile'
-      - 'build.assets/Dockerfile*'
   merge_group:
     # We only build tsh on Windows so only consider Go code as tsh doesn't
     # run any Rust.
     paths:
+      - '.github/workflows/build-windows.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   build:
@@ -43,8 +33,9 @@ jobs:
         run: echo "go-version=$(make --no-print-directory print-go-version | tr -d '\n')" >> $GITHUB_OUTPUT
 
       - name: Setup Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v4
         with:
+          cache: false
           go-version: ${{ steps.go-version.outputs.go-version }}
 
       - name: Build

@@ -62,7 +62,7 @@ This list is called "role mappings".
 Teleport supports non-interactive users for automation services, e.g. Jenkins or micro-services
 running in your organization.
 
-### Local non-interactive users
+#### Local non-interactive users
 
 Local non-interactive users also have a user entry that maps their name to roles,
 but they do not have credentials stored in the database.
@@ -79,7 +79,7 @@ of non-interactive users:
 ![Certificates for services](../../img/architecture/certs-machine-id@1.8x.svg)
 </Figure>
 
-### External non-interactive users
+#### External non-interactive users
 
 External non-interactive users behave just like local ones, but it is another
 cluster or certificate authority that issues certificates for them.
@@ -207,7 +207,6 @@ The same applies to Kubernetes:
 
 - Alice can access kubernetes cluster as `system:masters` if it's labeled as `test` or `stage`.
 - Alice can access kubernetes clusters only as a `view` role if it's labeled as `prod`.
-
 
 ### Role templates
 

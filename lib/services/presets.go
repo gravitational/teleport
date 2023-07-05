@@ -83,6 +83,11 @@ func NewPresetEditorRole() types.Role {
 					types.NewRule(types.KindUserGroup, RW()),
 					types.NewRule(types.KindOktaImportRule, RW()),
 					types.NewRule(types.KindOktaAssignment, RW()),
+					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+					types.NewRule(types.KindPlugin, RW()),
+					types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
+					types.NewRule(types.KindBilling, RW()),
+					types.NewRule(types.KindClusterAlert, RW()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -136,6 +141,7 @@ func NewPresetAccessRole() types.Role {
 						Where:     "contains(session.participants, user.metadata.name)",
 					},
 					types.NewRule(types.KindInstance, RO()),
+					types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -177,6 +183,7 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindSession, RO()),
 					types.NewRule(types.KindEvent, RO()),
 					types.NewRule(types.KindSessionTracker, RO()),
+					types.NewRule(types.KindClusterAlert, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -201,6 +208,15 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindSAMLIdPServiceProvider, RW()),
 			types.NewRule(types.KindOktaImportRule, RW()),
 			types.NewRule(types.KindOktaAssignment, RW()),
+			types.NewRule(types.KindPlugin, RW()),
+			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
+			types.NewRule(types.KindBilling, RW()),
+			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
+		},
+		teleport.PresetAccessRoleName: {
+			// Allow assist access to access role. This role only allow access
+			// to the assist console, not any other cluster resources.
+			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 		},
 	}
 }

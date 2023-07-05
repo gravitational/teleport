@@ -59,6 +59,7 @@ function getMockDocuments(): Document[] {
       targetUri: '/clusters/bar/dbs/foobar',
       targetName: 'foobar',
       targetUser: 'foo',
+      origin: 'resource_table',
     },
     {
       kind: 'doc.gateway',
@@ -68,6 +69,7 @@ function getMockDocuments(): Document[] {
       targetUri: '/clusters/bar/dbs/foobar',
       targetName: 'foobar',
       targetUser: 'bar',
+      origin: 'resource_table',
     },
     {
       kind: 'doc.cluster',

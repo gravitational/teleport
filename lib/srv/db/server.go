@@ -897,7 +897,7 @@ func (s *Server) handleConnection(ctx context.Context, clientConn net.Conn) erro
 
 	// Wrap a client connection into monitor that auto-terminates
 	// idle connection and connection with expired cert.
-	ctx, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, sessionCtx.AuthContext, clientConn)
+	ctx, clientConn, err = s.cfg.ConnectionMonitor.MonitorConn(ctx, sessionCtx.AuthContext, clientConn)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -996,6 +996,12 @@ func (s *Server) authorize(ctx context.Context) (*common.Session, error) {
 	}
 	identity := authContext.Identity.GetIdentity()
 	s.log.Debugf("Client identity: %#v.", identity)
+
+	// TODO(anton): Move this into authorizer.Authorize when we can enable it for all protocols
+	if err := auth.CheckIPPinning(ctx, identity, authContext.Checker.PinSourceIP()); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	// Fetch the requested database server.
 	var database types.Database
 	registeredDatabases := s.getProxiedDatabases()

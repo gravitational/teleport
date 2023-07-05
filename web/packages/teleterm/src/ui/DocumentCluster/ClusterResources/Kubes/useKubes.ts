@@ -17,6 +17,7 @@ limitations under the License.
 import { Kube, ServerSideParams } from 'teleterm/services/tshd/types';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { useClusterContext } from 'teleterm/ui/DocumentCluster/clusterContext';
+import { KubeUri } from 'teleterm/ui/uri';
 
 import { useServerSideResources } from '../useServerSideResources';
 
@@ -29,7 +30,8 @@ export function useKubes() {
   );
 
   return {
-    connect: ctx.connectKube,
+    connect: (kubeUri: KubeUri) =>
+      ctx.connectKube(kubeUri, { origin: 'resource_table' }),
     fetchAttempt,
     ...serversideResources,
   };

@@ -114,6 +114,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
+		{Kind: types.KindIntegration},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	return cfg
@@ -369,16 +370,17 @@ func ForDiscovery(cfg Config) Config {
 func ForOkta(cfg Config) Config {
 	cfg.target = "okta"
 	cfg.Watches = []types.WatchKind{
+		{Kind: types.KindClusterName},
+		{Kind: types.KindCertAuthority, LoadSecrets: false},
 		{Kind: types.KindUser},
-
-		// The access request entry here is primarily for event propagation and not for
-		// cache reads. The Okta service is not expected to read access requests from
-		// the cache.
-		{Kind: types.KindAccessRequest},
-		{Kind: types.KindApp},
+		{Kind: types.KindAppServer},
+		{Kind: types.KindClusterNetworkingConfig},
 		{Kind: types.KindUserGroup},
 		{Kind: types.KindOktaImportRule},
 		{Kind: types.KindOktaAssignment},
+		{Kind: types.KindProxy},
+		{Kind: types.KindRole},
+		{Kind: types.KindClusterAuthPreference},
 	}
 	cfg.QueueSize = defaults.DiscoveryQueueSize
 	return cfg
@@ -460,6 +462,7 @@ type Cache struct {
 	samlIdPServiceProvidersCache services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroupsCache              services.UserGroups
 	oktaCache                    services.Okta
+	integrationsCache            services.Integrations
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -527,6 +530,7 @@ func (c *Cache) read() (readGuard, error) {
 			samlIdPServiceProviders: c.samlIdPServiceProvidersCache,
 			userGroups:              c.userGroupsCache,
 			okta:                    c.oktaCache,
+			integrations:            c.integrationsCache,
 		}, nil
 	}
 	c.rw.RUnlock()
@@ -552,6 +556,7 @@ func (c *Cache) read() (readGuard, error) {
 		samlIdPServiceProviders: c.Config.SAMLIdPServiceProviders,
 		userGroups:              c.Config.UserGroups,
 		okta:                    c.Config.Okta,
+		integrations:            c.Config.Integrations,
 		release:                 nil,
 	}, nil
 }
@@ -582,6 +587,7 @@ type readGuard struct {
 	samlIdPServiceProviders services.SAMLIdPServiceProviders //nolint:revive // Because we want this to be IdP.
 	userGroups              services.UserGroups
 	okta                    services.Okta
+	integrations            services.Integrations
 	release                 func()
 	released                bool
 }
@@ -655,6 +661,8 @@ type Config struct {
 	UserGroups services.UserGroups
 	// Okta is an Okta service.
 	Okta services.Okta
+	// Integrations is an Integrations service.
+	Integrations services.Integrations
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -711,9 +719,22 @@ func (c *Config) CheckAndSetDefaults() error {
 	}
 	if c.MaxRetryPeriod == 0 {
 		c.MaxRetryPeriod = defaults.MaxWatcherBackoff
+
+		// non-control-plane caches should use a longer backoff in order to limit
+		// thundering herd effects upon restart of control-plane elements.
+		if !isControlPlane(c.target) {
+			c.MaxRetryPeriod = defaults.MaxLongWatcherBackoff
+		}
 	}
 	if c.WatcherInitTimeout == 0 {
-		c.WatcherInitTimeout = time.Minute
+		c.WatcherInitTimeout = defaults.MaxWatcherBackoff
+
+		// permit non-control-plane watchers to take a while to start up. slow receipt of
+		// init events is a common symptom of the thundering herd effect caused by restarting
+		// control plane elements.
+		if !isControlPlane(c.target) {
+			c.WatcherInitTimeout = defaults.MaxLongWatcherBackoff
+		}
 	}
 	if c.CacheInitTimeout == 0 {
 		c.CacheInitTimeout = time.Second * 20
@@ -795,7 +816,13 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
-	oktaCache, err := local.NewOktaService(config.Backend)
+	oktaCache, err := local.NewOktaService(config.Backend, config.Clock)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
+	integrationsCache, err := local.NewIntegrationsService(config.Backend)
 	if err != nil {
 		cancel()
 		return nil, trace.Wrap(err)
@@ -828,6 +855,7 @@ func New(config Config) (*Cache, error) {
 		samlIdPServiceProvidersCache: samlIdPServiceProvidersCache,
 		userGroupsCache:              userGroupsCache,
 		oktaCache:                    oktaCache,
+		integrationsCache:            integrationsCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -854,13 +882,14 @@ func New(config Config) (*Cache, error) {
 
 // Start the cache. Should only be called once.
 func (c *Cache) Start() error {
-	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
-		First:  utils.FullJitter(c.MaxRetryPeriod / 10),
-		Step:   c.MaxRetryPeriod / 5,
+	retry, err := retryutils.NewRetryV2(retryutils.RetryV2Config{
+		First:  utils.FullJitter(c.MaxRetryPeriod / 16),
+		Driver: retryutils.NewExponentialDriver(c.MaxRetryPeriod / 16),
 		Max:    c.MaxRetryPeriod,
 		Jitter: retryutils.NewHalfJitter(),
 		Clock:  c.Clock,
 	})
+
 	if err != nil {
 		c.Close()
 		return trace.Wrap(err)
@@ -1312,12 +1341,21 @@ func tracedApplyFn(parent oteltrace.Span, tracer oteltrace.Tracer, kind resource
 // throttled to limit load spiking during a mass
 // restart of nodes
 func fetchLimit(target string) int {
-	switch target {
-	case "auth", "proxy":
+	if isControlPlane(target) {
 		return 5
 	}
 
 	return 1
+}
+
+// isControlPlane checks if the cache target is a control-plane element.
+func isControlPlane(target string) bool {
+	switch target {
+	case "auth", "proxy":
+		return true
+	}
+
+	return false
 }
 
 func (c *Cache) fetch(ctx context.Context) (fn applyFn, err error) {
@@ -2379,6 +2417,32 @@ func (c *Cache) GetOktaAssignment(ctx context.Context, name string) (types.OktaA
 	}
 	defer rg.Release()
 	return rg.okta.GetOktaAssignment(ctx, name)
+}
+
+// ListIntegrations returns a paginated list of all Integrations resources.
+func (c *Cache) ListIntegrations(ctx context.Context, pageSize int, nextKey string) ([]types.Integration, string, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/ListIntegrations")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, "", trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.integrations.ListIntegrations(ctx, pageSize, nextKey)
+}
+
+// GetIntegration returns the specified Integration resources.
+func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integration, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetIntegration")
+	defer span.End()
+
+	rg, err := c.read()
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.integrations.GetIntegration(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation

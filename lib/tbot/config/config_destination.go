@@ -127,6 +127,14 @@ type DestinationConfig struct {
 	// App is an app access request. Mutually exclusive with `database`,
 	// `kubernetes_cluster`, and other special cert requests.
 	App *App `yaml:"app,omitempty"`
+
+	// Cluster allows certificates to be generated for a leaf cluster of the
+	// cluster that the bot is connected to. These certificates can be used
+	// to directly connect to a Teleport proxy of that leaf cluster, or used
+	// with the root cluster's proxy which will forward the request to the
+	// leaf cluster.
+	// For now, only SSH is supported.
+	Cluster string `yaml:"cluster,omitempty"`
 }
 
 // destinationDefaults applies defaults for an output sink's destination. Since
@@ -198,6 +206,10 @@ func (dc *DestinationConfig) CheckAndSetDefaults() error {
 	if notNilCount > 1 {
 		return trace.BadParameter("a destination can make at most one " +
 			"special certificate request (database, kubernetes_cluster, etc)")
+	}
+
+	if notNilCount > 0 && dc.Cluster != "" {
+		return trace.BadParameter("the cluster option can only be used with ssh certificates")
 	}
 
 	// Note: empty roles is allowed; interpreted to mean "all" at generation

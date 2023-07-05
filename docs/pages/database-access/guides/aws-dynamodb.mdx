@@ -1,6 +1,6 @@
 ---
 title: Database Access with AWS DynamoDB
-description: How to access AWS DynamoDB with Teleport Database Access
+description: How to access AWS DynamoDB with Teleport database access
 ---
 
 Access to AWS DynamoDB can be provided by [Teleport Database
@@ -31,8 +31,7 @@ This guide will help you to:
 - A host, e.g., an EC2 instance, where you will run the Teleport Database Service.
   This guide assumes an EC2 instance when creating and applying IAM roles, and
   must be adjusted accordingly for custom configurations.
-
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 <Admonition type="note" title="Example Access Control">
 This guide provides an example configuration of IAM access roles as a model,
@@ -44,10 +43,10 @@ organization's access conventions. You should adjust the AWS IAM permissions to 
 ## Step 1/4. Create IAM roles for DynamoDB access
 
 The setup described in this guide requires two IAM roles:
-- One associated with the EC2 instance running the Teleport Database Access
-  service, which lets it assume additional roles granted to the user.
-- One that can be assumed by the EC2 instance role and grants access to
-  DynamoDB services to users.
+- One associated with the EC2 instance running the Teleport Database Service,
+  which lets it assume additional roles granted to the user.
+- One that can be assumed by the EC2 instance role and grants access to DynamoDB
+  services to users.
 
 ### EC2 instance role
 
@@ -152,30 +151,9 @@ the correct STS endpoint.
 
 ### Generate a token
 
-<Details title="Alterative methods">
+(!docs/pages/includes/database-access/alternative-methods-join.mdx!)
 
-For users with a lot of infrastructure in AWS, or who might create or recreate
-many instances, consider alternative methods for joining new EC2 instances running
-Teleport:
-
-- [Configure Teleport to Automatically Enroll EC2 instances (Preview)](../../server-access/guides/ec2-discovery.mdx)
-- [Joining Nodes via AWS IAM Role](../../management/guides/joining-nodes-aws-iam.mdx)
-- [Joining Nodes via AWS EC2 Identity Document](../../management/guides/joining-nodes-aws-ec2.mdx)
-
-</Details>
-
-A join token is required to authorize a Teleport Database Service instance
-to join the cluster. Generate a short-lived join token and save the output of
-the command:
-
-```code
-$ tctl tokens add \
-    --type=db \
-    --db-name=example-dynamodb \
-    --db-protocol=dynamodb
-```
-
-Use the token provided by the output of this command in the next step.
+(!docs/pages/includes/database-access/token.mdx!)
 
 ### Install and start Teleport
 
@@ -193,12 +171,9 @@ teleport:
   nodename: CHANGEME
   data_dir: /var/lib/teleport
   proxy_server: teleport.example.com:443
-  auth_token: (=presets.tokens.first=)
+  auth_token: /tmp/token
 db_service:
   enabled: "yes"
-  resources:
-  - labels:
-      "*": "*"
   # Lists statically registered databases proxied by this agent.
   databases:
     - name: "example-dynamodb"
@@ -215,28 +190,9 @@ db_service:
 
 Substitute `teleport.example.com` with the address of your Teleport Proxy Service.
 (For Teleport Cloud customers, this will be similar to `mytenant.teleport.sh`.)
-Replace the value of `auth_token` with the token generated in the previous step.
+The token generated should have been placed in the file `/tmp/token`.
 
-Now start the Teleport Database Service:
-
-<Tabs>
-<TabItem label="Package Manager">
-
-```code
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-<TabItem label="TAR archive">
-
-```code
-$ sudo teleport install systemd --output=/etc/systemd/system/teleport.service;
-$ sudo systemctl enable teleport
-$ sudo systemctl start teleport
-```
-
-</TabItem>
-</Tabs>
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 
 ## Step 4/4 Connect
 

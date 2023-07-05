@@ -41,17 +41,17 @@ const TopNavItem = styled.button`
   &:hover {
     background: ${props =>
       props.active
-        ? props.theme.colors.primary.light
+        ? props.theme.colors.levels.surface
         : 'rgba(255, 255, 255, .06)'};
   }
 
   &.active {
-    background: ${props => props.theme.colors.primary.light};
+    background: ${props => props.theme.colors.levels.surface};
     color: ${props => props.theme.colors.light};
   }
 
   &.active:after {
-    background-color: ${props => props.theme.colors.accent};
+    background-color: ${props => props.theme.colors.brandAccent};
     content: '';
     position: absolute;
     bottom: 0;

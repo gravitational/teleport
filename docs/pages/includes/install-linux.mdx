@@ -1,13 +1,12 @@
 <ScopedBlock scope={["enterprise"]}>
 
-Visit the [Downloads Page](https://dashboard.gravitational.com/web/downloads) in
-the customer portal and select the URL for your package of choice.
+Visit your [Teleport account](https://teleport.sh) and select the URL for your package of choice.
 
 </ScopedBlock>
 
 <ScopedBlock scope={["cloud"]}>
 
-Visit the [Downloads Page](/docs/choose-an-edition/teleport-cloud/downloads.mdx)
+Visit the [Downloads Page](../choose-an-edition/teleport-cloud/downloads.mdx)
 and select the URL for your package of choice.
 
 </ScopedBlock>
@@ -61,6 +60,17 @@ Use the appropriate commands for your environment to install your package.
   # $ sudo dnf config-manager --add-repo https://rpm.releases.teleport.dev/teleport.repo
   # $ sudo dnf install teleport
   ```
+
+  <Admonition type="warning" title="Amazon Linux 2023 Installations">
+  Amazon Linux 2023 users should utilize the tarball or RPM file to install Teleport.
+  You can download the matching RPM architecture for your instance
+  from the [Teleport Downloads page](https://goteleport.com/download) and install with the example command below.
+
+  ```code
+  # Replace <arch> with the architecture type (amd64, arm64,...)
+  $ rpm -i teleport-(=teleport.version=)-1.<arch>.rpm
+  ```
+  </Admonition>
 
   </TabItem>
   <TabItem label="Tarball" scope="oss">

@@ -1,6 +1,6 @@
 ---
 title: Using the tsh Command Line Tool
-description: Using the tsh command line tool
+description: This reference shows you how to use Teleport's tsh tool to authenticate to a cluster, explore your infrastructure, and connect to a resource.
 ---
 
 This guide will show you how to use the Teleport client tool, `tsh`.
@@ -149,7 +149,7 @@ $ tsh login --proxy=mytenant.teleport.sh
 
 | Port | Description |
 | - | - |
-| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to `3080`). |
+| https_proxy_port | the HTTPS port the proxy host is listening to (defaults to `443` and `3080`). |
 
 The login command retrieves a user's certificate and stores it in `~/.tsh`
 directory as well as in the [ssh agent](https://en.wikipedia.org/wiki/Ssh-agent) if there is one running.
@@ -338,8 +338,13 @@ Regular users of Teleport must request an auto-expiring SSH certificate, usually
 every day. This doesn't work for non-interactive scripts, like cron jobs or a
 CI/CD pipeline.
 
-For this kind of automation, it is recommended to create a separate Teleport
-user for bots and request a certificate for them with a long time to live (TTL).
+The most secure way to generate certificates for automation purposes is to use
+[Machine ID](../machine-id/introduction.mdx). This ensures that your automation
+is taking advantage of the security properties of short-lived credentials.
+
+If Machine ID does not support your preferred CI/CD platform, you can create a
+local user for use in automation and request a long-lived certificate for that
+user.
 
 In this example, we're creating a certificate with a TTL of one hour for the
 `jenkins` user and storing it in a `jenkins.pem` file, which can be later used with
@@ -374,10 +379,6 @@ Now `jenkins.pem` can be copied to the Jenkins server and passed to the `-i`
 `tctl auth sign` is an admin's equivalent of `tsh login --out` and allows for
 unrestricted certificate TTL values.
 
-For non-production usage, you can use
-[Machine ID](../machine-id/introduction.mdx), currently in preview, to
-provide your bot user with automatically updated, short-lived credentials.
-
 ## Exploring the cluster
 
 In a Teleport cluster, all Nodes periodically ping the cluster's Auth Service
@@ -410,7 +411,7 @@ $ tsh ls os=osx
 
 [CLI Docs -tsh ls](../reference/cli.mdx#tsh-ls)
 
-<Details title="Not seeing Nodes?" opened={false}>
+<Details title="Not seeing Nodes?">
 
 (!docs/pages/includes/node-logins.mdx!)
 
@@ -597,7 +598,7 @@ $ scp -P 61122 -r files root@node:/path/to/dest
 
 Starting from Teleport 9 the SCP and SFTP protocols are both supported by Server
 Access. OpenSSH `scp` or `sftp` commands can both be used in place of `tsh scp`
-if desired. 
+if desired.
 
 ## Sharing sessions
 
@@ -769,7 +770,7 @@ $ tsh status
 
 ## Custom aliases and defaults
 
-You can configure `tsh` to define aliases, custom commands and command-specific flag defaults. Using aliases, you can run frequently used `tsh` commands more easily. 
+You can configure `tsh` to define aliases, custom commands and command-specific flag defaults. Using aliases, you can run frequently used `tsh` commands more easily.
 
 Aliases are defined in configuration files using the following syntax:
 
@@ -810,7 +811,7 @@ aliases:
     "connect": "bash -c 'tsh login $0 && tsh ssh $1'"
 ```
 
-The example above demonstrates the usage of variables `$0` and `$1`. They represent arguments provided to the alias. With the definition above, `tsh connect foo bar` resolves to `bash -c 'tsh login foo && tsh ssh bar'`. 
+The example above demonstrates the usage of variables `$0` and `$1`. They represent arguments provided to the alias. With the definition above, `tsh connect foo bar` resolves to `bash -c 'tsh login foo && tsh ssh bar'`.
 
 The alias can use as many arguments as needed. If the alias is invoked with too few arguments, `tsh` will report an error. Conversely, providing additional arguments is *not* an error. `tsh` will append any additional arguments to the end of an alias definition.
 
@@ -840,8 +841,8 @@ DEBU [TSH]       Self re-exec command: tsh [status --format=json]. tsh/aliases.g
 
 ## Interactive Recording
 
-Within the Teleport cluster the Server and Kubernetes recorded sessions are available for listing and replay for authorized users via `tsh`.
-The same listings, including Desktop Access sessions, are available in the Web Console under Session Recordings in the Activity section.
+Within the Teleport cluster, server and Kubernetes recorded sessions are available for listing and replay for authorized users via `tsh`.
+The same listings, including Windows desktop sessions, are available in the Web Console under Session Recordings in the Activity section.
 
 ### List and Play Recordings
 
@@ -850,11 +851,11 @@ The time range can be customized with the `--last`, `--from-utc`, and `--to-utc`
 
 ```code
 $ tsh recordings ls
-ID                                   Type Participants Hostname Timestamp           
------------------------------------- ---- ------------ -------- ------------------- 
-b0a04442-70dc-4be8-9308-7b7901d2d600 ssh  jeff         dev       Nov 26 16:36:16 UTC 
-c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Nov 26 20:36:16 UTC 
-d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16 UTC 
+ID                                   Type Participants Hostname Timestamp
+------------------------------------ ---- ------------ -------- -------------------
+b0a04442-70dc-4be8-9308-7b7901d2d600 ssh  jeff         dev       Nov 26 16:36:16 UTC
+c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Nov 26 20:36:16 UTC
+d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16 UTC
 ```
 
 To play sessions, use the `tsh play <sessionid>` command. The screen will reset playing the interactive session with the timestamp in the upper right.
@@ -873,7 +874,6 @@ tmpfs            1982720       0   1982720   0% /proc/acpi
 tmpfs            1982720       0   1982720   0% /sys/firmware
 root@ubuntu:/# exit
 exit
-
 
 end of session playback
 ```

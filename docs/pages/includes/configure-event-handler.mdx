@@ -48,7 +48,7 @@ secret so the Helm chart can mount them to their appropriate path.
 You'll see the following output:
 
 ```txt
-Teleport event handler 0.0.1 07617b0ad0829db043fe779faf1669defdc8d84e
+Teleport event handler (=teleport.version=)
 
 [1] mTLS Fluentd certificates generated and saved to ca.crt, ca.key, server.crt, server.key, client.crt, client.key
 [2] Generated sample teleport-event-handler role and user file teleport-event-handler-role.yaml
@@ -57,7 +57,7 @@ Teleport event handler 0.0.1 07617b0ad0829db043fe779faf1669defdc8d84e
 
 Follow-along with our getting started guide:
 
-https://goteleport.com/setup/guides/fluentd
+https://goteleport.com/docs/management/export-audit-events/fluentd/
 ```
 
 The plugin generates several setup files:
@@ -82,3 +82,30 @@ $ ls -l
 | `client.crt` and `client.key`      | Fluentd client certificate and key, all signed by the generated CA  |
 | `teleport-event-handler-role.yaml` | `user` and `role` resource definitions for Teleport's event handler |
 | `fluent.conf`                      | Fluentd plugin configuration                                        |
+
+<Details title="Running the Event Handler separately from the log forwarder">
+
+This guide assumes that you are running the Event Handler on the same host or
+Kubernetes pod as your log forwarder. If you are not, you will need to instruct
+the Event Handler to generate mTLS certificates for subjects besides
+`localhost`. To do this, use the `--cn` and `--dns-names` flags of the
+`teleport-event-handler` configure command.
+
+For example, if your log forwarder is addressable at `forwarder.example.com` and the
+Event Handler at `handler.example.com`, you would run the following `configure`
+command:
+
+```code
+$ teleport-event-handler configure --cn=handler.example.com --dns-names=forwarder.example.com
+```
+
+The command generates client and server certificates with the subjects set to
+the value of `--cn`.
+
+The `--dns-names` flag accepts a comma-separated list of DNS names. It will
+append subject alternative names (SANs) to the server certificate (the one you
+will provide to your log forwarder) for each DNS name in the list. The Event
+Handler looks up each DNS name before appending it as an SAN and exits with an
+error if the lookup fails.
+
+</Details>

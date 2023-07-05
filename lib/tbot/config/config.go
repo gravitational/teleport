@@ -24,13 +24,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 	"gopkg.in/yaml.v3"
 
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -151,6 +152,18 @@ type CLIConf struct {
 	// RemainingArgs is the remaining string arguments for commands that
 	// require them.
 	RemainingArgs []string
+
+	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
+	// regulations. This means the bot should:
+	// - Refuse to run if not compiled with boringcrypto
+	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
+	// - Restrict TLS / SSH cipher suites and TLS version
+	// - RSA2048 should be used for private key generation
+	FIPS bool
+
+	// DiagAddr is the address the diagnostics http service should listen on.
+	// If not set, no diagnostics listener is created.
+	DiagAddr string
 }
 
 // AzureOnboardingConfig holds configuration relevant to the "azure" join method.
@@ -227,6 +240,23 @@ type BotConfig struct {
 	CertificateTTL  time.Duration `yaml:"certificate_ttl"`
 	RenewalInterval time.Duration `yaml:"renewal_interval"`
 	Oneshot         bool          `yaml:"oneshot"`
+	// FIPS instructs `tbot` to run in a mode designed to comply with FIPS
+	// regulations. This means the bot should:
+	// - Refuse to run if not compiled with boringcrypto
+	// - Use FIPS relevant endpoints for cloud providers (e.g AWS)
+	// - Restrict TLS / SSH cipher suites and TLS version
+	// - RSA2048 should be used for private key generation
+	FIPS bool `yaml:"fips"`
+	// DiagAddr is the address the diagnostics http service should listen on.
+	// If not set, no diagnostics listener is created.
+	DiagAddr string `yaml:"diag_addr,omitempty"`
+}
+
+func (conf *BotConfig) CipherSuites() []uint16 {
+	if conf.FIPS {
+		return defaults.FIPSCipherSuites
+	}
+	return utils.DefaultCipherSuites()
 }
 
 func (conf *BotConfig) CheckAndSetDefaults() error {
@@ -436,6 +466,17 @@ func FromCLIConf(cf *CLIConf) (*BotConfig, error) {
 		}
 
 		config.Onboarding.SetToken(cf.Token)
+	}
+
+	if cf.FIPS {
+		config.FIPS = cf.FIPS
+	}
+
+	if cf.DiagAddr != "" {
+		if config.DiagAddr != "" {
+			log.Warnf("CLI parameters are overriding diagnostics address configured in %s", cf.ConfigPath)
+		}
+		config.DiagAddr = cf.DiagAddr
 	}
 
 	if err := config.CheckAndSetDefaults(); err != nil {

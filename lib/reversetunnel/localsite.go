@@ -35,6 +35,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/observability/metrics"
 	"github.com/gravitational/teleport/lib/proxy/peer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
@@ -217,7 +218,7 @@ func (s *localSite) GetLastConnected() time.Time {
 	return s.clock.Now()
 }
 
-func (s *localSite) DialAuthServer() (net.Conn, error) {
+func (s *localSite) DialAuthServer(params DialParams) (net.Conn, error) {
 	if len(s.authServers) == 0 {
 		return nil, trace.ConnectionProblem(nil, "no auth servers available")
 	}
@@ -226,6 +227,10 @@ func (s *localSite) DialAuthServer() (net.Conn, error) {
 	conn, err := net.DialTimeout("tcp", addr, apidefaults.DefaultIOTimeout)
 	if err != nil {
 		return nil, trace.ConnectionProblem(err, "unable to connect to auth server")
+	}
+
+	if err := s.maybeSendSignedPROXYHeader(params, conn, false, false); err != nil {
+		return nil, trace.ConnectionProblem(err, "unable to send signed PROXY header to auth server")
 	}
 
 	return conn, nil
@@ -247,15 +252,45 @@ func (s *localSite) Dial(params DialParams) (net.Conn, error) {
 	return s.DialTCP(params)
 }
 
+func shouldSendSignedPROXYHeader(signer multiplexer.PROXYHeaderSigner, version string, useTunnel, checkVersion bool, srcAddr, dstAddr net.Addr) bool {
+	return !(signer == nil ||
+		useTunnel ||
+		(checkVersion && utils.CheckVersion(version, utils.MinIPPropagationVersion) != nil) ||
+		srcAddr == nil ||
+		dstAddr == nil)
+}
+
+func (s *localSite) maybeSendSignedPROXYHeader(params DialParams, conn net.Conn, useTunnel, checkVersion bool) error {
+	if !shouldSendSignedPROXYHeader(s.srv.proxySigner, params.TeleportVersion, useTunnel, checkVersion, params.From, params.OriginalClientDstAddr) {
+		return nil
+	}
+
+	header, err := s.srv.proxySigner.SignPROXYHeader(params.From, params.OriginalClientDstAddr)
+	if err != nil {
+		return trace.Wrap(err, "could not create signed PROXY header")
+	}
+
+	_, err = conn.Write(header)
+	if err != nil {
+		return trace.Wrap(err, "could not write signed PROXY header into connection")
+	}
+	return nil
+}
+
 // TODO(awly): unit test this
 func (s *localSite) DialTCP(params DialParams) (net.Conn, error) {
 	s.log.Debugf("Dialing %v.", params)
 
-	conn, _, err := s.getConn(params)
+	conn, useTunnel, err := s.getConn(params)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	s.log.Debugf("Succeeded dialing %v.", params)
+
+	isKubeOrDB := params.ConnType == types.KubeTunnel || params.ConnType == types.DatabaseTunnel
+	if err := s.maybeSendSignedPROXYHeader(params, conn, useTunnel, !isKubeOrDB); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return conn, nil
 }
@@ -317,6 +352,10 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
 	}
 
+	if err := s.maybeSendSignedPROXYHeader(params, targetConn, useTunnel, true); err != nil {
+		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
+	}
+
 	// Get a host certificate for the forwarding node from the cache.
 	hostCertificate, err := s.certificateCache.getHostCertificate(context.TODO(), params.Address, params.Principals)
 	if err != nil {
@@ -350,14 +389,14 @@ func (s *localSite) dialWithAgent(params DialParams) (net.Conn, error) {
 	}
 	remoteServer, err := forward.New(serverConfig)
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
 	}
 	go remoteServer.Serve()
 
 	// Return a connection to the forwarding server.
 	conn, err := remoteServer.Dial()
 	if err != nil {
-		return nil, trace.Wrap(err)
+		return nil, trace.NewAggregate(trace.Wrap(err), userAgent.Close())
 	}
 
 	return conn, nil
@@ -370,7 +409,7 @@ func (s *localSite) dialTunnel(dreq *sshutils.DialReq) (net.Conn, error) {
 		return nil, trace.NotFound("no tunnel connection found: %v", err)
 	}
 
-	s.log.Debugf("Tunnel dialing to %v.", dreq.ServerID)
+	s.log.Debugf("Tunnel dialing to %v, client source %v", dreq.ServerID, dreq.ClientSrcAddr)
 
 	conn, err := s.chanTransportConn(rconn, dreq)
 	if err != nil {
@@ -402,7 +441,7 @@ func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 	// over a direct dial.
 	switch params.ConnType {
 	case types.KubeTunnel, types.NodeTunnel, types.ProxyTunnel, types.WindowsDesktopTunnel:
-	case types.AppTunnel, types.DatabaseTunnel:
+	case types.AppTunnel, types.DatabaseTunnel, types.OktaTunnel:
 		return true, nil
 	default:
 		return true, trace.BadParameter("unknown tunnel type: %s", params.ConnType)
@@ -415,7 +454,7 @@ func (s *localSite) skipDirectDial(params DialParams) (bool, error) {
 	}
 
 	// This node can only be reached over a tunnel, don't attempt to dial
-	// remotely.
+	// directly.
 	if params.To == nil || params.To.String() == "" || params.To.String() == LocalNode {
 		return true, nil
 	}
@@ -442,8 +481,11 @@ with the cluster.`
 
 func (s *localSite) getConn(params DialParams) (conn net.Conn, useTunnel bool, err error) {
 	dreq := &sshutils.DialReq{
-		ServerID: params.ServerID,
-		ConnType: params.ConnType,
+		ServerID:        params.ServerID,
+		ConnType:        params.ConnType,
+		ClientSrcAddr:   stringOrEmpty(params.From),
+		ClientDstAddr:   stringOrEmpty(params.OriginalClientDstAddr),
+		TeleportVersion: params.TeleportVersion,
 	}
 	if params.To != nil {
 		dreq.Address = params.To.String()

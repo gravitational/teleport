@@ -23,16 +23,14 @@ Standalone Teleport Cluster](./register-clusters/static-kubeconfig.mdx).
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
 
-- The `jq` tool to process `JSON` output. This is available via common package managers.
-
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Deployment overview
 
-In this guide, we deploy the Teleport Kubernetes Service, which connects
-Kubernetes cluster `cookie` to Teleport cluster `tele.example.com`:
+In this guide, we deploy the Teleport Kubernetes Service, which connects a
+Kubernetes cluster to a Teleport cluster:
 
 <Notice type="tip" scope={["cloud"]}>
 
@@ -41,9 +39,20 @@ domain name, e.g., `mytenant.teleport.sh`, rather than `teleport.example.com`.
 
 </Notice>
 
-<Figure align="left" bordered caption="Kubernetes Service dialing back to the Teleport cluster">
-  ![Kubernetes agent](../../img/k8s/agent.svg)
-</Figure>
+```mermaid
+flowchart TB
+subgraph priv[Private Network]
+  ks[Teleport Kubernetes Service]<--> kube[Kubernetes API Server]
+end
+
+subgraph pub[ ]
+  Users-- "kubectl get pods (mTLS)" -->proxy[Teleport Proxy Service\nteleport.example.com]
+end
+
+style pub fill:#0000,stroke:#0000;
+
+ks<-- Encrypted Tunnel -->proxy
+```
 
 ## Step 1/3. Get a join token
 
@@ -52,7 +61,7 @@ join token from the Teleport Auth Service:
 
 ```code
 # Create a join token for the Teleport Kubernetes Service to authenticate
-$ TOKEN=$(tctl nodes add --roles=kube --ttl=1h --format=json | jq -r '.[0]')
+$ TOKEN=$(tctl tokens add --type=kube --ttl=1h --format=text)
 $ echo $TOKEN
 ```
 
@@ -68,21 +77,57 @@ or up to one major version back. You can set the version override with the overr
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 <Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
+<TabItem scope={["oss"]} label="Open Source">
 
 Switch `kubectl` to the Kubernetes cluster `cookie` and run the following
 commands, assigning `PROXY_ADDR` to the address of your Auth Service or Proxy
 Service.
 
 ```code
-$ PROXY_ADDR=tele.example.com:443
-
-# Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
+$ PROXY_ADDR=teleport.example.com:443
 $ CLUSTER=cookie
+# Create the values.yaml file
+$ cat > values.yaml << EOF
+authToken: "${TOKEN}"
+proxyAddr: "${PROXY_ADDR}"
+roles: "kube"
+joinParams:
+  method: "token"
+  tokenName: "${TOKEN}"
+kubeClusterName: "${CLUSTER}"
+EOF
+# Install the helm chart with the values.yaml setting
 $ helm install teleport-agent teleport/teleport-kube-agent \
-  --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY_ADDR?} \
-  --set authToken=${TOKEN?} \
+  -f values.yaml \
+  --create-namespace \
+  --namespace=teleport-agent \
+  --version (=teleport.version=)
+```
+
+</TabItem>
+<TabItem scope={["enterprise"]} label="Enterprise">
+
+Switch `kubectl` to the Kubernetes cluster `cookie` and run the following
+commands, assigning `PROXY_ADDR` to the address of your Auth Service or Proxy
+Service.
+
+```code
+$ PROXY_ADDR=teleport.example.com:443
+$ CLUSTER=cookie
+# Create the values.yaml file
+$ cat > values.yaml << EOF
+authToken: "${TOKEN}"
+proxyAddr: "${PROXY_ADDR}"
+roles: "kube"
+joinParams:
+  method: "token"
+  tokenName: "${TOKEN}"
+kubeClusterName: "${CLUSTER}"
+enterprise: true
+EOF
+# Install the helm chart with the values.yaml setting
+$ helm install teleport-agent teleport/teleport-kube-agent \
+  -f values.yaml \
   --create-namespace \
   --namespace=teleport-agent \
   --version (=teleport.version=)
@@ -99,11 +144,20 @@ $ PROXY_ADDR=mytenant.teleport.sh:443
 
 # Install Kubernetes agent. It dials back to the Teleport cluster at $PROXY_ADDR
 $ CLUSTER=cookie
+# Create the values.yaml file
+$ cat > values.yaml << EOF
+authToken: "${TOKEN}"
+proxyAddr: "${PROXY_ADDR}"
+roles: "kube"
+joinParams:
+  method: "token"
+  tokenName: "${TOKEN}"
+kubeClusterName: "${CLUSTER}"
+enterprise: true
+EOF
 # Run the helm install specifying to match to the Teleport Cloud version of Teleport
 $ helm install teleport-agent teleport/teleport-kube-agent \
-  --set kubeClusterName=${CLUSTER?} \
-  --set proxyAddr=${PROXY_ADDR?} \
-  --set authToken=${TOKEN?} \
+  -f values.yaml \
   --create-namespace \
   --namespace=teleport-agent \
   --version (=cloud.version=)

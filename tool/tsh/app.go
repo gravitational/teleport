@@ -43,7 +43,7 @@ import (
 
 // onAppLogin implements "tsh apps login" command.
 func onAppLogin(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -281,7 +281,7 @@ func getRegisteredApp(cf *CLIConf, tc *client.TeleportClient) (app types.Applica
 
 // onAppLogout implements "tsh apps logout" command.
 func onAppLogout(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -326,7 +326,7 @@ func onAppLogout(cf *CLIConf) error {
 
 // onAppConfig implements "tsh apps config" command.
 func onAppConfig(cf *CLIConf) error {
-	tc, err := makeClient(cf, false)
+	tc, err := makeClient(cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}
@@ -487,18 +487,7 @@ func pickActiveApp(cf *CLIConf) (*tlsca.RouteToApp, error) {
 
 // removeAppLocalFiles removes generated local files for the provided app.
 func removeAppLocalFiles(profile *client.ProfileStatus, appName string) {
-	removeFileIfExist(profile.AppLocalCAPath(appName))
-}
-
-// removeFileIfExist removes a local file if it exists.
-func removeFileIfExist(filePath string) {
-	if !utils.FileExists(filePath) {
-		return
-	}
-
-	if err := os.Remove(filePath); err != nil {
-		log.WithError(err).Warnf("Failed to remove %v", filePath)
-	}
+	utils.RemoveFileIfExist(profile.AppLocalCAPath(appName))
 }
 
 // loadAppSelfSignedCA loads self-signed CA for provided app, or tries to

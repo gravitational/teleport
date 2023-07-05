@@ -27,7 +27,7 @@ export default {
 const singleFlow = { default: [Body1, Body2] };
 export const SingleStaticFlow = () => {
   return (
-    <Card bg="primary.light" my="5" mx="auto" width={464}>
+    <Card bg="levels.surface" my="5" mx="auto" width={464}>
       <Text typography="h3" pt={5} textAlign="center" color="light">
         Static Title
       </Text>
@@ -61,7 +61,7 @@ export const MultiCardFlow = () => {
   }
 
   return (
-    <Card as="form" bg="primary.light" mx="auto" width={464}>
+    <Card as="form" bg="levels.surface" mx="auto" width={464}>
       <StepSlider<typeof multiflows>
         flows={multiflows}
         currFlow={flow}

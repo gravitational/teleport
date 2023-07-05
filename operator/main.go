@@ -27,6 +27,7 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
+
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
@@ -36,6 +37,7 @@ import (
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/utils/retryutils"
+	resourcesv1 "github.com/gravitational/teleport/operator/apis/resources/v1"
 	resourcesv2 "github.com/gravitational/teleport/operator/apis/resources/v2"
 	resourcesv3 "github.com/gravitational/teleport/operator/apis/resources/v3"
 	resourcesv5 "github.com/gravitational/teleport/operator/apis/resources/v5"
@@ -55,6 +57,7 @@ func init() {
 	utilruntime.Must(resourcesv5.AddToScheme(scheme))
 	utilruntime.Must(resourcesv3.AddToScheme(scheme))
 	utilruntime.Must(resourcesv2.AddToScheme(scheme))
+	utilruntime.Must(resourcesv1.AddToScheme(scheme))
 	//+kubebuilder:scaffold:scheme
 
 	utilruntime.Must(apiextv1.AddToScheme(scheme))
@@ -174,6 +177,16 @@ func main() {
 		}
 	} else {
 		setupLog.Info("SAML connectors are only available in Teleport Enterprise edition. TeleportSAMLConnector resources won't be reconciled")
+	}
+
+	// Login Rules are enterprise-only but there is no specific feature flag for them.
+	if features.OIDC || features.SAML {
+		if err := resourcescontrollers.NewLoginRuleReconciler(mgr.GetClient(), bot.GetClient).SetupWithManager(mgr); err != nil {
+			setupLog.Error(err, "unable to create controller", "controller", "TeleportLoginRule")
+			os.Exit(1)
+		}
+	} else {
+		setupLog.Info("Login Rules are only available in Teleport Enterprise edition. TeleportLoginRule resources won't be reconciled")
 	}
 
 	//+kubebuilder:scaffold:builder

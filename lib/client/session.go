@@ -18,6 +18,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -226,10 +227,10 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 	}
 
 	// pass language info into the remote session.
-	evarsToPass := []string{"LANG", "LANGUAGE"}
-	for _, evar := range evarsToPass {
-		if value := os.Getenv(evar); value != "" {
-			err = sess.Setenv(ctx, evar, value)
+	langVars := []string{"LANG", "LANGUAGE"}
+	for _, env := range langVars {
+		if value := os.Getenv(env); value != "" {
+			err = sess.Setenv(ctx, env, value)
 			if err != nil {
 				log.Warn(err)
 			}
@@ -269,7 +270,7 @@ func selectKeyAgent(tc *TeleportClient) agent.ExtendedAgent {
 	switch tc.ForwardAgent {
 	case ForwardAgentYes:
 		log.Debugf("Selecting system key agent.")
-		return tc.localAgent.systemAgent
+		return connectToSSHAgent()
 	case ForwardAgentLocal:
 		log.Debugf("Selecting local Teleport key agent.")
 		return tc.localAgent.ExtendedAgent
@@ -643,7 +644,7 @@ func handleNonPeerControls(mode types.SessionParticipantMode, term *terminal.Ter
 	for {
 		buf := make([]byte, 1)
 		_, err := term.Stdin().Read(buf)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			return
 		}
 

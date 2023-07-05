@@ -35,10 +35,10 @@ describe('design/Alert', () => {
     });
   });
 
-  test('"kind" warning renders bg == theme.colors.warning', () => {
+  test('"kind" warning renders bg == theme.colors.warning.main', () => {
     const { container } = render(<Warning />);
     expect(container.firstChild).toHaveStyle({
-      background: theme.colors.warning,
+      background: theme.colors.warning.main,
     });
   });
 

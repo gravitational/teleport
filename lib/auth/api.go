@@ -19,6 +19,7 @@ package auth
 import (
 	"context"
 	"io"
+	"time"
 
 	"github.com/gravitational/trace"
 
@@ -36,11 +37,11 @@ type Announcer interface {
 
 	// UpsertProxy registers proxy presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertProxy(s types.Server) error
+	UpsertProxy(ctx context.Context, s types.Server) error
 
 	// UpsertAuthServer registers auth server presence, permanently if ttl is 0 or
 	// for the specified duration with second resolution if it's >= 1 second
-	UpsertAuthServer(s types.Server) error
+	UpsertAuthServer(ctx context.Context, s types.Server) error
 
 	// UpsertKubeService registers kubernetes presence, permanently if ttl is 0
 	// or for the specified duration with second resolution if it's >= 1 second
@@ -732,14 +733,24 @@ type DiscoveryAccessPoint interface {
 // ReadOktaAccessPoint is a read only API interface to be
 // used by an Okta component.
 //
-// NOTE: This interface must provide read interfaces for the [types.WatchKind] registered in [cache.ForOkta]
-// except for access requests, which are expected to only be used by events.
+// NOTE: This interface must provide read interfaces for the [types.WatchKind] registered in [cache.ForOkta].
 type ReadOktaAccessPoint interface {
 	// Closer closes all the resources
 	io.Closer
 
+	AccessCache
+
 	// NewWatcher returns a new event watcher.
 	NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error)
+
+	// GetProxies returns a list of proxy servers registered in the cluster
+	GetProxies() ([]types.Server, error)
+
+	// GetAuthPreference returns the cluster authentication configuration.
+	GetAuthPreference(ctx context.Context) (types.AuthPreference, error)
+
+	// GetRole returns role by name
+	GetRole(ctx context.Context, name string) (types.Role, error)
 
 	// GetUser returns a services.User for this cluster.
 	GetUser(name string, withSecrets bool) (types.User, error)
@@ -762,11 +773,11 @@ type ReadOktaAccessPoint interface {
 	// GetOktaAssignmen treturns the specified Okta assignment resources.
 	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
 
-	// GetApps returns all application resources.
-	GetApps(context.Context) ([]types.Application, error)
+	// GetApplicationServers returns all registered application servers.
+	GetApplicationServers(ctx context.Context, namespace string) ([]types.AppServer, error)
 
-	// GetApp returns the specified application resource.
-	GetApp(ctx context.Context, name string) (types.Application, error)
+	// ListResources returns a paginated list of resources.
+	ListResources(ctx context.Context, req proto.ListResourcesRequest) (*types.ListResourcesResponse, error)
 }
 
 // OktaAccessPoint is a read caching interface used by an Okta component.
@@ -801,17 +812,15 @@ type OktaAccessPoint interface {
 	// UpdateOktaAssignment updates an existing Okta assignment resource.
 	UpdateOktaAssignment(context.Context, types.OktaAssignment) (types.OktaAssignment, error)
 
+	// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+	// since the last transition.
+	UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error
+
 	// DeleteOktaAssignment removes the specified Okta assignment resource.
 	DeleteOktaAssignment(ctx context.Context, name string) error
 
-	// CreateApp creates a new application resource.
-	CreateApp(context.Context, types.Application) error
-
-	// UpdateApp updates an existing application resource.
-	UpdateApp(context.Context, types.Application) error
-
-	// DeleteApp removes the specified application resource.
-	DeleteApp(ctx context.Context, name string) error
+	// DeleteApplicationServer removes specified application server.
+	DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error
 }
 
 // AccessCache is a subset of the interface working on the certificate authorities
@@ -1009,6 +1018,19 @@ type Cache interface {
 	ListSAMLIdPServiceProviders(ctx context.Context, pageSize int, nextKey string) ([]types.SAMLIdPServiceProvider, string, error)
 	// GetSAMLIdPServiceProvider returns the specified SAML IdP service provider resources.
 	GetSAMLIdPServiceProvider(ctx context.Context, name string) (types.SAMLIdPServiceProvider, error)
+
+	// ListOktaAssignments returns a paginated list of all Okta assignment resources.
+	ListOktaAssignments(context.Context, int, string) ([]types.OktaAssignment, string, error)
+	// GetOktaAssignment returns the specified Okta assignment resources.
+	GetOktaAssignment(ctx context.Context, name string) (types.OktaAssignment, error)
+
+	// ListUserGroups returns a paginated list of all user group resources.
+	ListUserGroups(context.Context, int, string) ([]types.UserGroup, string, error)
+	// GetUserGroup returns the specified user group resources.
+	GetUserGroup(ctx context.Context, name string) (types.UserGroup, error)
+
+	// IntegrationsGetter defines read/list methods for integrations.
+	services.IntegrationsGetter
 }
 
 type NodeWrapper struct {
@@ -1263,24 +1285,20 @@ func (w *OktaWrapper) UpdateOktaAssignment(ctx context.Context, assignment types
 	return w.NoCache.UpdateOktaAssignment(ctx, assignment)
 }
 
+// UpdateOktaAssignmentStatus will update the status for an Okta assignment if the given time has passed
+// since the last transition.
+func (w *OktaWrapper) UpdateOktaAssignmentStatus(ctx context.Context, name, status string, timeHasPassed time.Duration) error {
+	return w.NoCache.UpdateOktaAssignmentStatus(ctx, name, status, timeHasPassed)
+}
+
 // DeleteOktaAssignment removes the specified Okta assignment resource.
 func (w *OktaWrapper) DeleteOktaAssignment(ctx context.Context, name string) error {
 	return w.NoCache.DeleteOktaAssignment(ctx, name)
 }
 
-// CreateApp creates a new application resource.
-func (w *OktaWrapper) CreateApp(ctx context.Context, app types.Application) error {
-	return w.NoCache.CreateApp(ctx, app)
-}
-
-// UpdateApp updates an existing application resource.
-func (w *OktaWrapper) UpdateApp(ctx context.Context, app types.Application) error {
-	return w.NoCache.UpdateApp(ctx, app)
-}
-
-// DeleteApp removes the specified application resource.
-func (w *OktaWrapper) DeleteApp(ctx context.Context, name string) error {
-	return w.NoCache.DeleteApp(ctx, name)
+// DeleteApplicationServer removes specified application server.
+func (w *OktaWrapper) DeleteApplicationServer(ctx context.Context, namespace, hostID, name string) error {
+	return w.NoCache.DeleteApplicationServer(ctx, namespace, hostID, name)
 }
 
 // Close closes all associated resources

@@ -25,21 +25,21 @@ describe('design/Button', () => {
     const { container } = render(<Button />);
     expect(container.firstChild.nodeName).toBe('BUTTON');
     expect(container.firstChild).toHaveStyle({
-      background: theme.colors.secondary.main,
+      background: theme.colors.brand,
     });
   });
 
-  test('"kind" primary renders bg == theme.colors.secondary.main', () => {
+  test('"kind" primary renders bg == theme.colors.brand', () => {
     const { container } = render(<ButtonPrimary />);
     expect(container.firstChild).toHaveStyle({
-      background: theme.colors.secondary.main,
+      background: theme.colors.brand,
     });
   });
 
-  test('"kind" secondary renders bg == theme.colors.primary.light', () => {
+  test('"kind" secondary renders bg == theme.colors.levels.surface', () => {
     const { container } = render(<ButtonSecondary />);
     expect(container.firstChild).toHaveStyle({
-      background: theme.colors.primary.light,
+      background: theme.colors.levels.surface,
     });
   });
 

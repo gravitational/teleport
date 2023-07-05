@@ -23,7 +23,8 @@ import defaultTheme from 'design/theme';
  */
 const FeatureHeader = styled(Flex)`
   flex-shrink: 0;
-  border-bottom: 1px solid ${props => props.theme.colors.primary.main};
+  border-bottom: 1px solid
+    ${props => props.theme.colors.levels.surfaceSecondary};
   height: 56px;
   margin-left: -40px;
   margin-right: -40px;
@@ -89,7 +90,7 @@ const AppHorizontalSplit = styled.div`
 `;
 
 const TabItem = styled.button`
-  color: ${props => props.theme.colors.text.secondary};
+  color: ${props => props.theme.colors.text.slightlyMuted};
   cursor: pointer;
   display: inline-flex;
   font-size: 14px;
@@ -101,7 +102,7 @@ const TabItem = styled.button`
   &:hover {
     background: ${props =>
       props.active
-        ? props.theme.colors.primary.light
+        ? props.theme.colors.levels.surface
         : 'rgba(255, 255, 255, .06)'};
   }
 
@@ -110,7 +111,7 @@ const TabItem = styled.button`
   }
 
   &.active:after {
-    background-color: ${props => props.theme.colors.accent};
+    background-color: ${props => props.theme.colors.brandAccent};
     content: '';
     position: absolute;
     bottom: 0;

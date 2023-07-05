@@ -33,16 +33,23 @@ linters:
 
 linters-settings:
   depguard:
-    list-type: denylist
-    include-go-root: true # check against stdlib
-    packages-with-error-message:
-      - io/ioutil: 'use "io" or "os" packages instead'
-      - github.com/golang/protobuf: 'use "google.golang.org/protobuf"'
-      - github.com/hashicorp/go-uuid: 'use "github.com/google/uuid" instead'
-      - github.com/pborman/uuid: 'use "github.com/google/uuid" instead'
-      - github.com/siddontang/go-log/log: 'use "github.com/sirupsen/logrus" instead'
-      - github.com/siddontang/go/log: 'use "github.com/sirupsen/logrus" instead'
-      - go.uber.org/atomic: 'use "sync/atomic" instead'
+    rules:
+      main:
+        deny:
+          - pkg: io/ioutil
+            desc: 'use "io" or "os" packages instead'
+          - pkg: github.com/golang/protobuf
+            desc: 'use "google.golang.org/protobuf"'
+          - pkg: github.com/hashicorp/go-uuid
+            desc: 'use "github.com/google/uuid" instead'
+          - pkg: github.com/pborman/uuid
+            desc: 'use "github.com/google/uuid" instead'
+          - pkg: github.com/siddontang/go-log/log
+            desc: 'use "github.com/sirupsen/logrus" instead'
+          - pkg: github.com/siddontang/go/log
+            desc: 'use "github.com/sirupsen/logrus" instead'
+          - pkg: go.uber.org/atomic
+            desc: 'use "sync/atomic" instead'
   gci:
     sections:
       - standard # Standard section: captures all standard packages.

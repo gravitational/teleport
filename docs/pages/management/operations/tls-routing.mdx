@@ -13,23 +13,8 @@ description: How to upgrade an existing Teleport cluster to single-port TLS rout
   TLS routing is available starting from Teleport `8.0`.
 </Details>
 
-<Admonition scope={["cloud"]} type="tip" scopeOnly>
-
-Teleport Cloud manages the Proxy Service's networking configuration for you.
-
-To see which ports and networking settings the Proxy Service is configured to
-use in your Teleport Cloud tenant, run the following command, replacing
-`mytenant.teleport.sh` with your tenant address:
-
-```code
-$ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
-```
-
-</Admonition>
-
-Starting from version `8.0` Teleport supports TLS routing. In this mode, all
-client connections are wrapped in TLS and multiplexed on one Teleport proxy
-port.
+Teleport supports TLS routing. In this mode, all client connections are wrapped
+in TLS and multiplexed on one Teleport proxy port.
 
 TLS routing has multiple benefits compared to the deployment where each protocol
 is served on a separate port:
@@ -44,6 +29,22 @@ is served on a separate port:
 Existing clusters upgraded to `8.0` will not utilize TLS routing by default and
 keep working in backwards-compatibility mode. Follow this guide to migrate your
 Teleport installation to TLS routing.
+
+<Notice type="tip">
+
+Teleport Cloud manages the Proxy Service's networking configuration for you.
+Get started with a [free trial](https://goteleport.com/signup?t_source=docs) of
+Teleport Cloud.
+
+To see which ports and networking settings the Proxy Service is configured to
+use in your Teleport Cloud tenant, run the following command, replacing
+`mytenant.teleport.sh` with your tenant address:
+
+```code
+$ curl https://mytenant.teleport.sh/webapi/ping | jq '.proxy'
+```
+
+</Notice>
 
 ## Requirements
 

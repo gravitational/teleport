@@ -3,13 +3,6 @@ title: Getting Started - Kubernetes with SSO
 description: Getting started with Teleport. Let's deploy Teleport in a Kubernetes with SSO and Audit logs
 ---
 
-<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
-This guide shows you how to deploy the Teleport Auth Service and Proxy Service on a Kubernetes cluster. These services are fully managed in Teleport Cloud.
-
-Instead, Teleport Cloud users should consult the following guide, which shows you how to connect a Teleport Kubernetes Service instance to an existing Teleport cluster:
-
-</ScopedBlock>
-
 Teleport can provide secure, unified access to your Kubernetes clusters. This guide will show you how to:
 
 <ScopedBlock scope={["enterprise"]}>
@@ -22,9 +15,10 @@ Teleport can provide secure, unified access to your Kubernetes clusters. This gu
 
 While completing this guide, you will deploy one Teleport pod each for the Auth Service and Proxy Service in your Kubernetes cluster, and a load balancer that allows outside traffic to your Teleport cluster. Users can then access your Kubernetes cluster via the Teleport cluster running within it.
 
-<Admonition type="tip" title="Have an existing Teleport cluster?">
-If you are already running Teleport on another platform, you can use your existing Teleport deployment to access your Kubernetes cluster. [Follow our guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes cluster to Teleport.
-</Admonition>
+If you are already running Teleport on another platform, you can use your
+existing Teleport deployment to access your Kubernetes cluster. [Follow our
+guide](../../kubernetes-access/getting-started.mdx) to connect your Kubernetes
+cluster to Teleport.
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -42,10 +36,6 @@ If you are already running Teleport on another platform, you can use your existi
 ## Prerequisites
 - A registered domain name. This is required for Teleport to set up TLS via Let's Encrypt and for Teleport clients to verify the Proxy Service host.
 - A Kubernetes cluster hosted by a cloud provider, which is required for the load balancer we deploy in this guide.
-
-<Admonition title="Local-only setups" type="tip">
-Teleport also supports Kubernetes in on-premise and air-gapped environments. If you would like to try out Teleport on your local machine, we recommend following our [Docker Compose guide](../../try-out-teleport/docker-compose.mdx).
-</Admonition>
 
 (!docs/pages/includes/kubernetes-access/helm-k8s.mdx!)
 
@@ -424,7 +414,7 @@ guide](../../reference/helm-reference/teleport-cluster.mdx).
 Read our guides to additional ways you can protect Kubernetes clusters with
 Teleport:
 
-- [Connect Multiple Kubernetes Clusters](../../kubernetes-access/register-clusters/register-via-deployment.mdx)
+- Connect another Kubernetes cluster to Teleport by [deploying the Teleport Kubernetes Service](../../kubernetes-access/getting-started.mdx)
 - [Set up Machine ID with Kubernetes](../../machine-id/guides/kubernetes.mdx)
 - [Federated Access using Trusted Clusters](../../kubernetes-access/manage-access/federation.mdx)
 - [Single-Sign On and Kubernetes Access Control](../../kubernetes-access/controls.mdx)

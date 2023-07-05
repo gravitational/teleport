@@ -22,9 +22,9 @@ import Label, { Primary, Secondary, Warning, Danger } from './Label';
 
 describe('design/Label', () => {
   const colors = [
-    theme.colors.secondary.main,
-    theme.colors.primary.dark,
-    theme.colors.warning,
+    theme.colors.brand,
+    theme.colors.levels.sunkenSecondary,
+    theme.colors.warning.main,
     theme.colors.danger,
   ];
 

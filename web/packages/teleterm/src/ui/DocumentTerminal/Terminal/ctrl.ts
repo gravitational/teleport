@@ -37,6 +37,7 @@ export default class TtyTerminal {
   private resizeHandler: IDisposable;
   private debouncedResize: () => void;
   private logger = new Logger('lib/term/terminal');
+  private removePtyProcessOnDataListener: () => void;
 
   constructor(private ptyProcess: IPtyProcess, private options: Options) {
     this.el = options.el;
@@ -61,7 +62,7 @@ export default class TtyTerminal {
       fontSize: this.options.fontSize,
       scrollback: 5000,
       theme: {
-        background: theme.colors.primary.darker,
+        background: theme.colors.levels.sunken,
       },
       windowOptions: {
         setWinSizeChars: true,
@@ -84,8 +85,14 @@ export default class TtyTerminal {
       this.ptyProcess.resize(size.cols, size.rows);
     });
 
-    this.ptyProcess.onData(data => this.handleData(data));
+    this.removePtyProcessOnDataListener = this.ptyProcess.onData(data =>
+      this.handleData(data)
+    );
 
+    // TODO(ravicious): Don't call start if the process was already started.
+    // This is what is causing the terminal to visually repeat the input on hot reload.
+    // The shared process version of PtyProcess knows whether it was started or not (the status
+    // field), so it's a matter of exposing this field through gRPC and reading it here.
     this.ptyProcess.start(this.term.cols, this.term.rows);
 
     window.addEventListener('resize', this.debouncedResize);
@@ -105,7 +112,7 @@ export default class TtyTerminal {
   }
 
   destroy(): void {
-    this.ptyProcess?.dispose();
+    this.removePtyProcessOnDataListener?.();
     this.term?.dispose();
     this.fitAddon.dispose();
     this.resizeHandler?.dispose();

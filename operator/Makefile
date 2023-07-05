@@ -8,9 +8,6 @@ VERSION ?= 0.0.1
 # Image URL to use all building/pushing image targets
 IMG ?= teleport-operator:latest
 
-# ENVTEST_K8S_VERSION refers to the version of kubebuilder assets to be downloaded by envtest binary.
-ENVTEST_K8S_VERSION = 1.23
-
 # Setting SHELL to bash allows bash commands to be executed by recipes.
 # This is a requirement for 'setup-envtest.sh' in the test target.
 # Options are set to exit when a recipe line exits non-zero or a piped command fails.
@@ -19,6 +16,9 @@ SHELL = /usr/bin/env bash -o pipefail
 
 # include BUILDBOX_VERSION, BUILDBOX and BUILDBOX_variant variables
 include ../build.assets/images.mk
+
+# include setup-envtest binary
+include ./envtest.mk
 
 # Configure which compiler and buildbox to use
 OS ?= $(shell go env GOOS)
@@ -65,6 +65,10 @@ help: ## Display this help.
 crdgen: ## Generate CRDs
 	make -C crdgen
 
+PROTOS = \
+	teleport/loginrule/v1/loginrule.proto \
+	teleport/legacy/types/types.proto
+
 .PHONY: manifests
 manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole and CustomResourceDefinition objects.
 # Generate CRDs for apis/resources (custom generation through protoc plugin).
@@ -72,17 +76,15 @@ manifests: crdgen controller-gen ## Generate WebhookConfiguration, ClusterRole a
 # The wrappers.proto file needed for this generator exist only inside the go mod cache,
 # so we retrieve the file path for the cached proto files with go mod tools.
 	$(eval PROTOBUF_MOD_PATH := $(shell go mod download --json github.com/gogo/protobuf | awk -F: '/"Dir"/ { print $$2 }' | tr -d ' ",'))
-	$(eval CUSTOM_IMPORTS_TMP_DIR := $(shell mktemp -d))
-	mkdir -p $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/proto/teleport/legacy/types/wrappers
-	cp ../api/proto/teleport/legacy/types/wrappers/wrappers.proto $(CUSTOM_IMPORTS_TMP_DIR)/github.com/gravitational/teleport/api/proto/teleport/legacy/types/wrappers
-	protoc \
-		-I=../api/proto \
-		-I=$(PROTOBUF_MOD_PATH) \
-		-I=$(CUSTOM_IMPORTS_TMP_DIR) \
-		--plugin=./crdgen/protoc-gen-crd \
-		--crd_out=:./config/crd/bases \
-		../api/proto/teleport/legacy/types/types.proto
-	rm -rf $(CUSTOM_IMPORTS_TMP_DIR)
+
+	for proto in $(PROTOS); do \
+		protoc \
+			-I=../api/proto \
+			-I=$(PROTOBUF_MOD_PATH) \
+			--plugin=./crdgen/protoc-gen-crd \
+			--crd_out=:./config/crd/bases \
+			"$${proto}"; \
+	done
 
 # Some comments have `{{xyz}}` which triggers the golang templating engine when installing the chart.
 # We don't want that, so we escape them.
@@ -102,8 +104,10 @@ vet: ## Run go vet against code.
 	go vet ./...
 
 .PHONY: test
-test: manifests generate fmt vet envtest crdgen-test ## Run tests.
-	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
+test: manifests generate fmt vet $(ENVTEST) crdgen-test ## Run tests.
+test: export KUBEBUILDER_ASSETS=$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)
+test:
+	go test ./... -coverprofile cover.out
 
 .PHONY: crdgen-test
 crdgen-test: ## Run crdgen tests.
@@ -137,7 +141,6 @@ $(LOCALBIN):
 
 ## Tool Binaries
 CONTROLLER_GEN ?= $(LOCALBIN)/controller-gen
-ENVTEST ?= $(LOCALBIN)/setup-envtest
 
 ## Tool Versions
 KUSTOMIZE_VERSION ?= v3.8.7
@@ -147,8 +150,3 @@ CONTROLLER_TOOLS_VERSION ?= v0.9.0
 controller-gen: $(CONTROLLER_GEN) ## Download controller-gen locally if necessary.
 $(CONTROLLER_GEN): $(LOCALBIN)
 	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-tools/cmd/controller-gen@$(CONTROLLER_TOOLS_VERSION)
-
-.PHONY: envtest
-envtest: $(ENVTEST) ## Download envtest-setup locally if necessary.
-$(ENVTEST): $(LOCALBIN)
-	GOBIN=$(LOCALBIN) go install sigs.k8s.io/controller-runtime/tools/setup-envtest@latest

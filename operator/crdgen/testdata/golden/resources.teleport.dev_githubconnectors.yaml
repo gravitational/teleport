@@ -35,6 +35,10 @@ spec:
           spec:
             description: GithubConnector resource definition v3 from Teleport
             properties:
+              api_endpoint_url:
+                description: APIEndpointURL is the URL of the API endpoint of the
+                  Github instance this connector is for.
+                type: string
               client_id:
                 description: ClientID is the Github OAuth app client ID.
                 type: string
@@ -43,6 +47,10 @@ spec:
                 type: string
               display:
                 description: Display is the connector display name.
+                type: string
+              endpoint_url:
+                description: EndpointURL is the URL of the GitHub instance this connector
+                  is for.
                 type: string
               redirect_url:
                 description: RedirectURL is the authorization callback URL.

@@ -27,7 +27,7 @@ import { Tabs } from 'teleport/components/Tabs';
 
 import { HeaderSubtitle, ActionButtons, Mark, Header } from '../../Shared';
 import { dbCU } from '../../yamlTemplates';
-import { DatabaseEngine } from '../resources';
+import { DatabaseEngine } from '../../SelectResource';
 
 import { useMutualTls, State } from './useMutualTls';
 
@@ -124,7 +124,7 @@ export function MutualTlsView({
 }
 
 function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
-  if (dbEngine === DatabaseEngine.PostgreSQL) {
+  if (dbEngine === DatabaseEngine.Postgres) {
     return (
       <Box>
         <Text mb={1}>
@@ -154,7 +154,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
     );
   }
 
-  if (dbEngine === DatabaseEngine.Mongo) {
+  if (dbEngine === DatabaseEngine.MongoDb) {
     return (
       <Box>
         <Text mb={3}>
@@ -212,7 +212,7 @@ function DbEngineInstructions({ dbEngine }: { dbEngine: DatabaseEngine }) {
     );
   }
 
-  if (dbEngine === DatabaseEngine.MySQL) {
+  if (dbEngine === DatabaseEngine.MySql) {
     return (
       <Box>
         <Text mb={3}>

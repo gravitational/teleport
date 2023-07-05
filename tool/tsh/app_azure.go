@@ -197,7 +197,7 @@ func (a *azureApp) RunCommand(cmd *exec.Cmd) error {
 
 // startLocalALPNProxy starts the local ALPN proxy.
 func (a *azureApp) startLocalALPNProxy(port string) error {
-	tc, err := makeClient(a.cf, false)
+	tc, err := makeClient(a.cf)
 	if err != nil {
 		return trace.Wrap(err)
 	}

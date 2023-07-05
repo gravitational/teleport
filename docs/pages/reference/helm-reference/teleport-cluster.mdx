@@ -38,7 +38,7 @@ Get started with a guide for each mode:
 | `standalone` | Runs by relying only on Kubernetes resources. | [Getting Started - Kubernetes with SSO](../../deploy-a-cluster/helm-deployments/kubernetes-cluster.mdx) |
 | `aws` | Leverages AWS managed services to store data. | [Running an HA Teleport cluster using an AWS EKS Cluster](../../deploy-a-cluster/helm-deployments/aws.mdx) |
 | `gcp` | Leverages GCP managed services to store data. | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx) |
-| `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx) |
+| `scratch` (v12 and above) | Generates empty Teleport configuration. User must pass their own config. This is discouraged, use `standalone` mode with [`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig) instead. | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx) |
 
 <Admonition type="note" title="Custom mode removal">
 `custom` mode has been removed in Teleport version 12. See the [version 12
@@ -99,9 +99,11 @@ This name will be shown to Teleport users connecting to the Kubernetes cluster.
 |----------|---------------|-----------|
 | `object` | {}            | no        |
 
-The `teleport-cluster` chart deploys two sets of pods: auth and proxy.
-`auth` contains values specific for the auth pods. You can use it to
-set specific values for auth pods, taking precedence over chart-scoped values.
+The `teleport-cluster` chart deploys two sets of pods, one for the Auth Service
+and another for the Proxy Service.
+
+`auth` contains values specific for Auth Service pods. You can use it to set
+specific values for auth pods, taking precedence over chart-scoped values.
 
 For example, to override the [`postStart`](#postStart) value only for auth pods:
 ```yaml
@@ -122,7 +124,9 @@ auth:
 
 `auth.teleportConfig` contains YAML teleport configuration for auth pods.
 The configuration will be merged with the chart-generated configuration
-and will take precedence in case of conflict.
+and will take precedence in case of conflict. This field allows customization of/overrides to
+any bit of configuration in `teleport.yaml` without having to use
+[the `scratch` chart mode](#chartmode).
 
 The merge logic is as follows:
 - object fields are merged recursively
@@ -148,8 +152,10 @@ auth:
 |----------|---------------|-----------|
 | `object` | {}            | no        |
 
-The `teleport-cluster` charts deploys two sets of pods: auth and proxy.
-`proxy` contains values specific to the proxy pods. You can use it to
+The `teleport-cluster` charts deploys two sets of pods: one for the Auth Service
+and another for the Proxy Service.
+
+`proxy` contains values specific to Proxy Service pods. You can use it to
 set specific values for proxy pods, taking precedence over chart-scoped values.
 
 For example, to override the [`postStart`](#postStart) value only for proxy pods:
@@ -171,7 +177,9 @@ proxy:
 
 `proxy.teleportConfig` contains YAML teleport configuration for proxy pods
 The configuration will be merged with the chart-generated configuration
-and will take precedence in case of conflict.
+and will take precedence in case of conflict. This field allows customization of/overrides to
+any bit of configuration in `teleport.yaml` without having to use
+[the `scratch` chart mode](#chartmode).
 
 The merge logic is as follows:
 - object fields are merged recursively
@@ -346,15 +354,15 @@ For possible values, [see the Teleport Configuration Reference](../../reference/
   </TabItem>
 </Tabs>
 
-
 ## `separatePostgresListener`
 
 | Type   | Default value | Required? | `teleport.yaml` equivalent           |
 |--------|---------------|-----------|--------------------------------------|
 | `bool` | `false`       | no        | `proxy_service.postgres_listen_addr` |
 
-`separatePostgresListener` controls whether Teleport will multiplex PostgreSQL traffic for Teleport Database Access
-over a separate TLS listener to Teleport's web UI.
+`separatePostgresListener` controls whether Teleport will multiplex PostgreSQL
+traffic for the Teleport Database Service over a separate TLS listener to
+Teleport's web UI.
 
 When `separatePostgresListener` is `false` (the default), PostgreSQL traffic will be directed to port 443 (the default Teleport web
 UI port). This works in situations when Teleport is terminating its own TLS traffic, i.e. when using certificates from LetsEncrypt
@@ -385,7 +393,7 @@ These settings will not apply if [`proxyListenerMode`](#proxylistenermode) is se
 |--------|---------------|-----------|-----------------------------------|
 | `bool` | `false`       | no        | `proxy_service.mongo_listen_addr` |
 
-`separateMongoListener` controls whether Teleport will multiplex PostgreSQL traffic for Teleport Database Access
+`separateMongoListener` controls whether Teleport will multiplex PostgreSQL traffic for the Teleport Database Service
 over a separate TLS listener to Teleport's web UI.
 
 When `separateMongoListener` is `false` (the default), MongoDB traffic will be directed to port 443 (the default Teleport web
@@ -527,7 +535,6 @@ else [`clusterName`](#clusterName) is used. Default port is 3036.
   ```
   </TabItem>
 </Tabs>
-
 
 ## `postgresPublicAddr`
 
@@ -762,10 +769,21 @@ It is recommended to set resource requests/limits for each container based on th
 |----------|---------------|
 | `string` | `nil`         |
 
-Normally the version of Teleport being used will match the version of the chart being installed. If you install chart version
-10.0.0, you'll be using Teleport 10.0.0. Upgrading the Helm chart will use the latest version from the repo.
+Normally the version of Teleport being used will match the version of the chart
+being installed. If you install chart version 10.0.0, you'll be using Teleport
+10.0.0. Upgrading the Helm chart will use the latest version from the repo.
 
-You can optionally override this to use a different published Teleport Docker image tag like `10.1.2` or `11`.
+You can optionally override this to use a different published Teleport Docker
+image tag like `10.1.2` or `11`.
+
+<Admonition type="danger">
+`teleportVersionOverride` MUST NOT be used to control the Teleport version.
+This chart is designed to run a specific Teleport version. You will face
+compatibility issues trying to run a different Teleport version with it.
+
+If you want to run Teleport version `X.Y.Z`, you should use
+`helm --version X.Y.Z` instead.
+</Admonition>
 
 See our [installation guide](../../installation.mdx#docker) for information on
 Docker image versions.
@@ -920,9 +938,19 @@ Teleport's RBAC policies to define access rules for the cluster.
 | `gcp`        | [Running an HA Teleport cluster using a Google Cloud GKE cluster](../../deploy-a-cluster/helm-deployments/gcp.mdx) |
 | `scratch`    | [Running a Teleport cluster with a custom config](../../deploy-a-cluster/helm-deployments/custom.mdx)              |
 
+<Admonition type="warning">
+Using the `scratch` chart mode is discouraged. Precise chart and Teleport
+knowledge is required to write a fully working cluster configuration.
+
+If you want a working cluster with blocks of custom configuration, it is
+recommended to use one of the other modes and rely on
+[`auth.teleportConfig`](#authteleportconfig) and [`proxy.teleportConfig`](#proxyteleportconfig)
+to inject your custom configuration.
+</Admonition>
+
 ## `persistence`
 
-<Details title="Read this if using Kubernetes 1.23+ on EKS" opened={false}>
+<Details title="Read this if using Kubernetes 1.23+ on EKS">
 
 Changes in Kubernetes 1.23+ mean that persistent volumes will not automatically be provisioned in AWS EKS clusters
 without additional configuration.
@@ -1154,7 +1182,7 @@ cluster deployed in HA mode.
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-36-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 ### `highAvailability.certManager.addCommonName`
@@ -1169,7 +1197,7 @@ Setting `highAvailability.certManager.addCommonName` to `true` will instruct `ce
   You must install and configure `cert-manager` in your Kubernetes cluster yourself.
 
   See the [cert-manager Helm install instructions](https://cert-manager.io/docs/installation/kubernetes/#option-2-install-crds-as-part-of-the-helm-release)
-  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+  and the relevant sections of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-36-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 <Tabs>
@@ -1203,7 +1231,7 @@ Sets the name of the `cert-manager` `Issuer` or `ClusterIssuer` to use for issui
   You must install configure an appropriate `Issuer` supporting a DNS01 challenge yourself.
 
   Please see the [cert-manager DNS01 docs](https://cert-manager.io/docs/configuration/acme/dns01/#supported-dns01-providers) and the relevant sections
-  of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-47-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-47-install-and-configure-cert-manager) guides for more information.
+  of the [AWS](../../deploy-a-cluster/helm-deployments/aws.mdx#step-36-configure-tls-certificates-for-teleport) and [GCP](../../deploy-a-cluster/helm-deployments/gcp.mdx#step-36-install-and-configure-cert-manager) guides for more information.
 </Admonition>
 
 <Tabs>
@@ -1877,7 +1905,6 @@ A list of extra environment variables to be set on the main Teleport container.
   </TabItem>
 </Tabs>
 
-
 ## `extraVolumes`
 
 | Type   | Default value |
@@ -1952,6 +1979,30 @@ Allows the `imagePullPolicy` for any pods created by the chart to be overridden.
   <TabItem label="--set">
   ```code
   $ --set imagePullPolicy=Always
+  ```
+  </TabItem>
+</Tabs>
+
+## `imagePullSecrets`
+
+| Type   | Default value |
+|--------|---------------|
+| `list` | `[]`          |
+
+[Kubernetes reference](https://kubernetes.io/docs/concepts/containers/images/#specifying-imagepullsecrets-on-a-pod)
+
+A list of secrets containing authorization tokens which can be optionally used to access a private Docker registry.
+
+<Tabs>
+  <TabItem label="values.yaml">
+  ```yaml
+  imagePullSecrets:
+  - name: my-docker-registry-key
+  ```
+  </TabItem>
+  <TabItem label="--set">
+  ```shell
+  --set "imagePullSecrets[0].name=my-docker-registry-key"
   ```
   </TabItem>
 </Tabs>

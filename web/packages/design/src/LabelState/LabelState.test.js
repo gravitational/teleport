@@ -26,9 +26,9 @@ import LabelState, {
 } from './LabelState';
 
 const colors = {
-  primary: theme.colors.secondary.main,
-  info: theme.colors.primary.dark,
-  warning: theme.colors.warning,
+  primary: theme.colors.brand,
+  info: theme.colors.levels.sunkenSecondary,
+  warning: theme.colors.warning.main,
   danger: theme.colors.danger,
   success: theme.colors.success,
 };

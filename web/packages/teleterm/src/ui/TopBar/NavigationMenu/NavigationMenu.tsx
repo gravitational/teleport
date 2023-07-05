@@ -145,10 +145,10 @@ const Menu = styled.menu`
   display: flex;
   flex-direction: column;
   min-width: 280px;
-  background: ${props => props.theme.colors.primary.light};
+  background: ${props => props.theme.colors.levels.surface};
 `;
 
 const Separator = styled.div`
-  background: ${props => props.theme.colors.primary.lighter};
+  background: ${props => props.theme.colors.levels.elevated};
   height: 1px;
 `;

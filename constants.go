@@ -38,8 +38,8 @@ const (
 	// SSHTeleportUser is the current Teleport user that is logged in.
 	SSHTeleportUser = "SSH_TELEPORT_USER"
 
-	// SSHSessionWebproxyAddr is the address the web proxy.
-	SSHSessionWebproxyAddr = "SSH_SESSION_WEBPROXY_ADDR"
+	// SSHSessionWebProxyAddr is the address the web proxy.
+	SSHSessionWebProxyAddr = "SSH_SESSION_WEBPROXY_ADDR"
 
 	// SSHTeleportClusterName is the name of the cluster this node belongs to.
 	SSHTeleportClusterName = "SSH_TELEPORT_CLUSTER_NAME"
@@ -49,6 +49,9 @@ const (
 
 	// SSHSessionID is the UUID of the current session.
 	SSHSessionID = "SSH_SESSION_ID"
+
+	// EnableNonInteractiveSessionRecording can be used to record non-interactive SSH session.
+	EnableNonInteractiveSessionRecording = "SSH_TELEPORT_RECORD_NON_INTERACTIVE"
 )
 
 const (
@@ -810,4 +813,11 @@ const (
 	// WebAPIConnUpgradeTypeALPN is a connection upgrade type that specifies
 	// the upgraded connection should be handled by the ALPN handler.
 	WebAPIConnUpgradeTypeALPN = "alpn"
+	// WebAPIConnUpgradeConnectionHeader is the standard header that controls
+	// whether the network connection stays open after the current transaction
+	// finishes.
+	WebAPIConnUpgradeConnectionHeader = "Connection"
+	// WebAPIConnUpgradeConnectionType is the value of the "Connection" header
+	// used for connection upgrades.
+	WebAPIConnUpgradeConnectionType = "Upgrade"
 )

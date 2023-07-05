@@ -171,9 +171,7 @@ $ docker stop teleport
   $ del C:\Path\To\tsh.exe
   ```
 
-  You can uninstall Teleport Connect from the "Apps and Features" section of the Control Panel.
-
-  For reference, Teleport Connect binaries are installed to `%LOCALAPPDATA%\Programs\teleport-connect`.
+(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
 
   </TabItem>
   </Tabs>
@@ -291,9 +289,7 @@ $ docker stop teleport
   $ del C:\Path\To\tsh.exe
   ```
 
-  You can uninstall Teleport Connect from the "Apps and Features" section of the Control Panel.
-
-  For reference, Teleport Connect binaries are installed to `%LOCALAPPDATA%\Programs\teleport-connect`.
+(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
 
   </TabItem>
   </Tabs>
@@ -409,9 +405,7 @@ $ docker stop teleport
   $ del C:\Path\To\tsh.exe
   ```
 
-  You can uninstall Teleport Connect from the "Apps and Features" section of the Control Panel.
-
-  For reference, Teleport Connect binaries are installed to `%LOCALAPPDATA%\Programs\teleport-connect`.
+(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
 
   </TabItem>
   </Tabs>
@@ -445,7 +439,7 @@ $ docker stop teleport
 
     ```code
     $ sudo rm -f /etc/tsh.yaml
-    $ sudo rm -rf ~/.tsh
+    $ rm -rf ~/.tsh
     ```
   </TabItem>
   <TabItem label="MacOS">
@@ -475,9 +469,9 @@ $ docker stop teleport
     ```code
     # tsh
     $ sudo rm -f /etc/tsh.yaml
-    $ sudo rm -rf ~/.tsh
+    $ rm -rf ~/.tsh
     # Teleport Connect
-    $ sudo rm -rf ~/Library/Application\ Support/Teleport\ Connect
+    $ rm -rf ~/Library/Application\ Support/Teleport\ Connect
     ```
   </TabItem>
   <TabItem label="Windows">
@@ -499,4 +493,4 @@ $ docker stop teleport
 
 Teleport is now removed from your system.
 
-Any Teleport Services will stop appearing in your Teleport Web UI or the output of `tsh ls` once their last heartbeat has timed out. This usually occurs within 10-15 minutes of stopping the Teleport process.
+Any Teleport services will stop appearing in your Teleport Web UI or the output of `tsh ls` once their last heartbeat has timed out. This usually occurs within 10-15 minutes of stopping the Teleport process.

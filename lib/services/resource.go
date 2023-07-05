@@ -195,6 +195,8 @@ func ParseShortcut(in string) (string, error) {
 		return types.KindOktaImportRule, nil
 	case types.KindOktaAssignment, types.KindOktaAssignment + "s", "oktaassignment", "oktaassignments":
 		return types.KindOktaAssignment, nil
+	case types.KindIntegration, types.KindIntegration + "s":
+		return types.KindIntegration, nil
 	}
 	return "", trace.BadParameter("unsupported resource: %q - resources should be expressed as 'type/name', for example 'connector/github'", in)
 }
@@ -551,6 +553,24 @@ func init() {
 			return nil, trace.Wrap(err)
 		}
 		return token, nil
+	})
+	RegisterResourceMarshaler(types.KindLock, func(resource types.Resource, opts ...MarshalOption) ([]byte, error) {
+		lock, ok := resource.(types.Lock)
+		if !ok {
+			return nil, trace.BadParameter("expected lock, got %T", resource)
+		}
+		bytes, err := MarshalLock(lock, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return bytes, nil
+	})
+	RegisterResourceUnmarshaler(types.KindLock, func(bytes []byte, opts ...MarshalOption) (types.Resource, error) {
+		lock, err := UnmarshalLock(bytes, opts...)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		return lock, nil
 	})
 }
 

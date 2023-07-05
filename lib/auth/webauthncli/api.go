@@ -28,6 +28,12 @@ import (
 	"github.com/gravitational/teleport/lib/auth/webauthnwin"
 )
 
+// ErrUsingNonRegisteredDevice is returned from Login when the user attempts to
+// authenticate with a non-registered security key.
+// The error message is meant to be displayed to end-users, thus it breaks the
+// usual Go error conventions (capitalized sentences, punctuation).
+var ErrUsingNonRegisteredDevice = errors.New("You are using a security key that is not registered with Teleport. Try a different security key.")
+
 // AuthenticatorAttachment allows callers to choose a specific attachment.
 type AuthenticatorAttachment int
 

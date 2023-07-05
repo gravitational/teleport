@@ -19,6 +19,7 @@ package utils
 import (
 	"archive/tar"
 	"compress/gzip"
+	"errors"
 	"io"
 	"io/fs"
 	"testing"
@@ -102,7 +103,7 @@ func TestCompressAsTarGzArchive(t *testing.T) {
 		tarReader := tar.NewReader(gzipReader)
 		for {
 			header, err := tarReader.Next()
-			if err == io.EOF {
+			if errors.Is(err, io.EOF) {
 				break
 			}
 			require.NoError(t, err)

@@ -217,7 +217,7 @@ exports[`reset link dialog 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Share Link
         </div>
@@ -490,7 +490,7 @@ exports[`reset link dialog as invite 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Share Link
         </div>

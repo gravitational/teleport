@@ -205,6 +205,11 @@ type Role interface {
 	// SetHostGroups sets the list of groups this role is put in when users are provisioned
 	SetHostGroups(RoleConditionType, []string)
 
+	// GetDesktopGroups gets the list of groups this role is put in when desktop users are provisioned
+	GetDesktopGroups(RoleConditionType) []string
+	// SetDesktopGroups sets the list of groups this role is put in when desktop users are provisioned
+	SetDesktopGroups(RoleConditionType, []string)
+
 	// GetHostSudoers gets the list of sudoers entries for the role
 	GetHostSudoers(RoleConditionType) []string
 	// SetHostSudoers sets the list of sudoers entries for the role
@@ -215,8 +220,13 @@ type Role interface {
 
 	// GetDatabaseServiceLabels gets the map of db service labels this role is allowed or denied access to.
 	GetDatabaseServiceLabels(RoleConditionType) Labels
-	// SetDatabaseLabels sets the map of db service labels this role is allowed or denied access to.
+	// SetDatabaseServiceLabels sets the map of db service labels this role is allowed or denied access to.
 	SetDatabaseServiceLabels(RoleConditionType, Labels)
+
+	// GetGroupLabels gets the map of group labels this role is allowed or denied access to.
+	GetGroupLabels(RoleConditionType) Labels
+	// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
+	SetGroupLabels(RoleConditionType, Labels)
 }
 
 // NewRole constructs new standard V6 role.
@@ -714,7 +724,7 @@ func (r *RoleV6) SetRules(rct RoleConditionType, in []Rule) {
 	}
 }
 
-// GetGroups gets all groups for provisioned user
+// GetHostGroups gets all groups for provisioned user
 func (r *RoleV6) GetHostGroups(rct RoleConditionType) []string {
 	if rct == Allow {
 		return r.Spec.Allow.HostGroups
@@ -729,6 +739,24 @@ func (r *RoleV6) SetHostGroups(rct RoleConditionType, groups []string) {
 		r.Spec.Allow.HostGroups = ncopy
 	} else {
 		r.Spec.Deny.HostGroups = ncopy
+	}
+}
+
+// GetDesktopGroups gets all groups for provisioned user
+func (r *RoleV6) GetDesktopGroups(rct RoleConditionType) []string {
+	if rct == Allow {
+		return r.Spec.Allow.DesktopGroups
+	}
+	return r.Spec.Deny.DesktopGroups
+}
+
+// SetDesktopGroups sets all groups for provisioned user
+func (r *RoleV6) SetDesktopGroups(rct RoleConditionType, groups []string) {
+	ncopy := utils.CopyStrings(groups)
+	if rct == Allow {
+		r.Spec.Allow.DesktopGroups = ncopy
+	} else {
+		r.Spec.Deny.DesktopGroups = ncopy
 	}
 }
 
@@ -767,6 +795,23 @@ func (r *RoleV6) setStaticFields() {
 	r.Kind = KindRole
 	if r.Version != V3 && r.Version != V4 && r.Version != V5 {
 		r.Version = V6
+	}
+}
+
+// GetGroupLabels gets the map of group labels this role is allowed or denied access to.
+func (r *RoleV6) GetGroupLabels(rct RoleConditionType) Labels {
+	if rct == Allow {
+		return r.Spec.Allow.GroupLabels
+	}
+	return r.Spec.Deny.GroupLabels
+}
+
+// SetGroupLabels sets the map of group labels this role is allowed or denied access to.
+func (r *RoleV6) SetGroupLabels(rct RoleConditionType, labels Labels) {
+	if rct == Allow {
+		r.Spec.Allow.GroupLabels = labels.Clone()
+	} else {
+		r.Spec.Deny.GroupLabels = labels.Clone()
 	}
 }
 
@@ -811,6 +856,9 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 	if r.Spec.Options.CreateHostUser == nil {
 		r.Spec.Options.CreateHostUser = NewBoolOption(false)
 	}
+	if r.Spec.Options.CreateDesktopUser == nil {
+		r.Spec.Options.CreateDesktopUser = NewBoolOption(false)
+	}
 	if r.Spec.Options.SSHFileCopy == nil {
 		r.Spec.Options.SSHFileCopy = NewBoolOption(true)
 	}
@@ -846,24 +894,11 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 			r.Spec.Allow.DatabaseLabels = Labels{Wildcard: []string{Wildcard}}
 		}
 
-		if len(r.Spec.Allow.KubernetesResources) == 0 {
-			r.Spec.Allow.KubernetesResources = []KubernetesResource{
-				{
-					Kind:      KindKubePod,
-					Namespace: Wildcard,
-					Name:      Wildcard,
-				},
-			}
-		} else {
-			if err := validateRoleSpecKubeResources(r.Spec); err != nil {
-				return trace.Wrap(err)
-			}
-		}
+		fallthrough
 	case V4, V5:
 		// Labels default to nil/empty for v4+ roles
-
 		// Allow unrestricted access to all pods.
-		if len(r.Spec.Allow.KubernetesResources) == 0 {
+		if len(r.Spec.Allow.KubernetesResources) == 0 && len(r.Spec.Allow.KubernetesLabels) > 0 {
 			r.Spec.Allow.KubernetesResources = []KubernetesResource{
 				{
 					Kind:      KindKubePod,
@@ -871,11 +906,12 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 					Name:      Wildcard,
 				},
 			}
-		} else {
-			if err := validateRoleSpecKubeResources(r.Spec); err != nil {
-				return trace.Wrap(err)
-			}
 		}
+
+		if err := validateRoleSpecKubeResources(r.Spec); err != nil {
+			return trace.Wrap(err)
+		}
+
 	case V6:
 		if err := validateRoleSpecKubeResources(r.Spec); err != nil {
 			return trace.Wrap(err)
@@ -947,6 +983,7 @@ func (r *RoleV6) CheckAndSetDefaults() error {
 		r.Spec.Allow.KubernetesLabels,
 		r.Spec.Allow.DatabaseLabels,
 		r.Spec.Allow.WindowsDesktopLabels,
+		r.Spec.Allow.GroupLabels,
 	} {
 		if err := checkWildcardSelector(labels); err != nil {
 			return trace.Wrap(err)

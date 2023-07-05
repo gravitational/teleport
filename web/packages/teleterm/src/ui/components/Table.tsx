@@ -36,11 +36,11 @@ function getTableTheme(theme) {
       primary: {
         ...theme.colors.primary,
         dark: 'rgba(255, 255, 255, 0.05)',
-        light: theme.colors.primary.dark,
-        lighter: theme.colors.primary.light,
-        main: theme.colors.primary.darker,
+        light: theme.colors.levels.sunkenSecondary,
+        lighter: theme.colors.levels.surface,
+        main: theme.colors.levels.sunken,
       },
-      link: theme.colors.text.primary,
+      link: theme.colors.text.main,
     },
   };
 }

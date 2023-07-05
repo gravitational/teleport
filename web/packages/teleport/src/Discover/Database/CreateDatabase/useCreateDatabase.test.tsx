@@ -20,15 +20,18 @@ import { renderHook, act } from '@testing-library/react-hooks';
 
 import { createTeleportContext } from 'teleport/mocks/contexts';
 import { ContextProvider } from 'teleport';
-import { DiscoverProvider } from 'teleport/Discover/useDiscover';
+import {
+  DiscoverProvider,
+  DiscoverContextState,
+} from 'teleport/Discover/useDiscover';
 import api from 'teleport/services/api';
 import { FeaturesContextProvider } from 'teleport/FeaturesContext';
-import {
-  DiscoverEvent,
-  DiscoverEventResource,
-  userEventService,
-} from 'teleport/services/userEvent';
+import { userEventService } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
+import {
+  DatabaseEngine,
+  DatabaseLocation,
+} from 'teleport/Discover/SelectResource';
 
 import {
   useCreateDatabase,
@@ -37,15 +40,6 @@ import {
 } from './useCreateDatabase';
 
 import type { CreateDatabaseRequest } from 'teleport/services/databases';
-
-const crypto = require('crypto');
-
-// eslint-disable-next-line jest/require-hook
-Object.defineProperty(globalThis, 'crypto', {
-  value: {
-    randomUUID: () => crypto.randomUUID(),
-  },
-});
 
 const dbLabels = [
   { name: 'env', value: 'prod' },
@@ -84,7 +78,19 @@ const services = [
 
 const testCases = [
   {
-    name: 'match in multiple services',
+    name: 'match with a service',
+    newLabels: dbLabels,
+    services: [
+      {
+        name: 'svc4',
+        matcherLabels: { env: ['prod'] },
+        awsIdentity: emptyAwsIdentity,
+      },
+    ],
+    expectedMatch: 'svc4',
+  },
+  {
+    name: 'match among multple service',
     newLabels: dbLabels,
     services,
     expectedMatch: 'svc2',
@@ -94,23 +100,11 @@ const testCases = [
     newLabels: dbLabels,
     services: [
       {
-        name: 'svc1',
-        matcherLabels: { os: ['windows', 'mac'], env: ['staging'] },
-        awsIdentity: emptyAwsIdentity,
-      },
-      {
         name: 'svc2',
         matcherLabels: {
           os: ['windows', 'mac', 'linux'],
-          tag: ['v11.0.0'],
-          env: ['staging', 'prod'],
           fruit: ['apple', '*'], // the non-matching label
         },
-        awsIdentity: emptyAwsIdentity,
-      },
-      {
-        name: 'svc3',
-        matcherLabels: { env: ['prod'], fruit: ['orange'] },
         awsIdentity: emptyAwsIdentity,
       },
     ],
@@ -158,7 +152,7 @@ const testCases = [
         name: 'svc2',
         matcherLabels: {
           os: ['linux', 'mac'],
-          '*': ['prod', 'apple', 'v11.0.0'],
+          '*': ['prod', 'apple'],
         },
         awsIdentity: emptyAwsIdentity,
       },
@@ -171,7 +165,7 @@ const testCases = [
     services: [
       {
         name: 'svc1',
-        matcherLabels: { '*': ['windows', 'mac'] },
+        matcherLabels: { '*': ['windows'] },
         awsIdentity: emptyAwsIdentity,
       },
     ],
@@ -201,7 +195,7 @@ const testCases = [
         name: 'svc1',
         matcherLabels: {
           fruit: ['*'],
-          os: ['mac'],
+          os: ['windows'],
         },
         awsIdentity: emptyAwsIdentity,
       },
@@ -236,9 +230,11 @@ const testCases = [
   },
 ];
 
-test.each(testCases)('$name', ({ newLabels, services, expectedMatch }) => {
-  const foundSvc = findActiveDatabaseSvc(newLabels, services);
-  expect(foundSvc?.name).toEqual(expectedMatch);
+describe('findActiveDatabaseSvc()', () => {
+  test.each(testCases)('$name', ({ newLabels, services, expectedMatch }) => {
+    const foundSvc = findActiveDatabaseSvc(newLabels, services);
+    expect(foundSvc?.name).toEqual(expectedMatch);
+  });
 });
 
 const newDatabaseReq: CreateDatabaseRequest = {
@@ -251,18 +247,28 @@ const newDatabaseReq: CreateDatabaseRequest = {
 jest.useFakeTimers();
 
 describe('registering new databases, mainly error checking', () => {
-  const props = {
+  const discoverCtx: DiscoverContextState = {
     agentMeta: {} as any,
-    updateAgentMeta: jest.fn(x => x),
+    currentStep: 0,
     nextStep: jest.fn(x => x),
-    resourceState: {},
-    eventState: {
-      currEventName: DiscoverEvent.DatabaseRegister,
-      id: '1234',
-      resource: DiscoverEventResource.DatabaseMysqlSelfHosted,
-    },
+    prevStep: () => null,
+    onSelectResource: () => null,
+    resourceSpec: {
+      dbMeta: {
+        location: DatabaseLocation.Aws,
+        engine: DatabaseEngine.AuroraMysql,
+      },
+    } as any,
+    exitFlow: () => null,
+    viewConfig: null,
+    indexedViews: [],
+    setResourceSpec: () => null,
+    updateAgentMeta: jest.fn(x => x),
+    emitErrorEvent: () => null,
+    emitEvent: () => null,
+    eventState: null,
   };
-  const ctx = createTeleportContext();
+  const teleCtx = createTeleportContext();
 
   let wrapper;
 
@@ -272,13 +278,17 @@ describe('registering new databases, mainly error checking', () => {
     jest
       .spyOn(userEventService, 'captureDiscoverEvent')
       .mockResolvedValue(null as never); // return value does not matter but required by ts
+    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+      agents: [{ name: 'new-db', labels: dbLabels } as any],
+    });
     jest
-      .spyOn(ctx.databaseService, 'fetchDatabases')
-      .mockResolvedValue({ agents: [{ name: 'new-db' } as any] });
-    jest.spyOn(ctx.databaseService, 'createDatabase').mockResolvedValue(null); // ret val not used
-    jest.spyOn(ctx.databaseService, 'updateDatabase').mockResolvedValue(null); // ret val not used
+      .spyOn(teleCtx.databaseService, 'createDatabase')
+      .mockResolvedValue(null); // ret val not used
     jest
-      .spyOn(ctx.databaseService, 'fetchDatabaseServices')
+      .spyOn(teleCtx.databaseService, 'updateDatabase')
+      .mockResolvedValue(null); // ret val not used
+    jest
+      .spyOn(teleCtx.databaseService, 'fetchDatabaseServices')
       .mockResolvedValue({ services });
 
     wrapper = ({ children }) => (
@@ -287,9 +297,11 @@ describe('registering new databases, mainly error checking', () => {
           { pathname: cfg.routes.discover, state: { entity: 'database' } },
         ]}
       >
-        <ContextProvider ctx={ctx}>
+        <ContextProvider ctx={teleCtx}>
           <FeaturesContextProvider value={[]}>
-            <DiscoverProvider>{children}</DiscoverProvider>
+            <DiscoverProvider mockCtx={discoverCtx}>
+              {children}
+            </DiscoverProvider>
           </FeaturesContextProvider>
         </ContextProvider>
       </MemoryRouter>
@@ -301,34 +313,40 @@ describe('registering new databases, mainly error checking', () => {
   });
 
   test('with matching service, activates polling', async () => {
-    const { result } = renderHook(() => useCreateDatabase(props), {
+    const { result } = renderHook(() => useCreateDatabase(), {
       wrapper,
     });
 
     // Check polling hasn't started.
-    expect(ctx.databaseService.fetchDatabases).not.toHaveBeenCalled();
+    expect(teleCtx.databaseService.fetchDatabases).not.toHaveBeenCalled();
 
     await act(async () => {
       result.current.registerDatabase(newDatabaseReq);
     });
-    expect(ctx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
+      1
+    );
 
     await act(async () => jest.advanceTimersByTime(3000));
-    expect(ctx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
-    expect(props.nextStep).toHaveBeenCalledWith(2);
-    expect(props.updateAgentMeta).toHaveBeenCalledWith({
+    expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalledTimes(1);
+    expect(discoverCtx.updateAgentMeta).toHaveBeenCalledWith({
       resourceName: 'db-name',
       agentMatcherLabels: dbLabels,
-      db: { name: 'new-db' },
+      db: { name: 'new-db', labels: dbLabels },
     });
+
+    // Test the dynamic definition of nextStep is called with a number
+    // of steps to skip.
+    result.current.nextStep();
+    expect(discoverCtx.nextStep).toHaveBeenCalledWith(2);
   });
 
   test('when there are no services, skips polling', async () => {
     jest
-      .spyOn(ctx.databaseService, 'fetchDatabaseServices')
+      .spyOn(teleCtx.databaseService, 'fetchDatabaseServices')
       .mockResolvedValue({ services: [] } as any);
-    const { result, waitFor } = renderHook(() => useCreateDatabase(props), {
+    const { result, waitFor } = renderHook(() => useCreateDatabase(), {
       wrapper,
     });
 
@@ -337,44 +355,48 @@ describe('registering new databases, mainly error checking', () => {
     });
 
     await waitFor(() => {
-      expect(ctx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
+      expect(teleCtx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
     });
 
     await waitFor(() => {
-      expect(ctx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
-        1
-      );
+      expect(
+        teleCtx.databaseService.fetchDatabaseServices
+      ).toHaveBeenCalledTimes(1);
     });
-
-    expect(props.nextStep).toHaveBeenCalledWith();
-    expect(props.updateAgentMeta).toHaveBeenCalledWith({
+    expect(discoverCtx.updateAgentMeta).toHaveBeenCalledWith({
       resourceName: 'db-name',
       agentMatcherLabels: [],
     });
-    expect(ctx.databaseService.fetchDatabases).not.toHaveBeenCalled();
+    expect(teleCtx.databaseService.fetchDatabases).not.toHaveBeenCalled();
+
+    // Test the dynamic definition of nextStep is called without
+    // number of steps to skip defined.
+    result.current.nextStep();
+    expect(discoverCtx.nextStep).toHaveBeenCalledWith();
   });
 
   test('when failed to create db, stops flow', async () => {
-    jest.spyOn(ctx.databaseService, 'createDatabase').mockRejectedValue(null);
-    const { result } = renderHook(() => useCreateDatabase(props), {
+    jest
+      .spyOn(teleCtx.databaseService, 'createDatabase')
+      .mockRejectedValue(null);
+    const { result } = renderHook(() => useCreateDatabase(), {
       wrapper,
     });
 
     await act(async () => {
       result.current.registerDatabase({ ...newDatabaseReq, labels: [] });
     });
-
-    expect(ctx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabases).not.toHaveBeenCalled();
-    expect(props.nextStep).not.toHaveBeenCalled();
+    expect(teleCtx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.fetchDatabases).not.toHaveBeenCalled();
+    expect(discoverCtx.nextStep).not.toHaveBeenCalled();
     expect(result.current.attempt.status).toBe('failed');
   });
 
   test('when failed to fetch services, stops flow and retries properly', async () => {
     jest
-      .spyOn(ctx.databaseService, 'fetchDatabaseServices')
+      .spyOn(teleCtx.databaseService, 'fetchDatabaseServices')
       .mockRejectedValue(null);
-    const { result } = renderHook(() => useCreateDatabase(props), {
+    const { result } = renderHook(() => useCreateDatabase(), {
       wrapper,
     });
 
@@ -382,10 +404,12 @@ describe('registering new databases, mainly error checking', () => {
       result.current.registerDatabase({ ...newDatabaseReq, labels: [] });
     });
 
-    expect(ctx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabases).not.toHaveBeenCalled();
-    expect(props.nextStep).not.toHaveBeenCalled();
+    expect(teleCtx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
+      1
+    );
+    expect(teleCtx.databaseService.fetchDatabases).not.toHaveBeenCalled();
+    expect(discoverCtx.nextStep).not.toHaveBeenCalled();
     expect(result.current.attempt.status).toBe('failed');
 
     // Test retrying with same request, skips creating database since it's been already created.
@@ -393,8 +417,10 @@ describe('registering new databases, mainly error checking', () => {
     await act(async () => {
       result.current.registerDatabase({ ...newDatabaseReq, labels: [] });
     });
-    expect(ctx.databaseService.createDatabase).not.toHaveBeenCalled();
-    expect(ctx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.createDatabase).not.toHaveBeenCalled();
+    expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
+      1
+    );
     expect(result.current.attempt.status).toBe('failed');
 
     // Test retrying with updated field, triggers create database.
@@ -406,17 +432,19 @@ describe('registering new databases, mainly error checking', () => {
         uri: 'diff-uri',
       });
     });
-    expect(ctx.databaseService.createDatabase).not.toHaveBeenCalled();
-    expect(ctx.databaseService.updateDatabase).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.createDatabase).not.toHaveBeenCalled();
+    expect(teleCtx.databaseService.updateDatabase).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
+      1
+    );
     expect(result.current.attempt.status).toBe('failed');
   });
 
   test('when polling timeout, retries properly', async () => {
     jest
-      .spyOn(ctx.databaseService, 'fetchDatabases')
+      .spyOn(teleCtx.databaseService, 'fetchDatabases')
       .mockResolvedValue({ agents: [] });
-    const { result } = renderHook(() => useCreateDatabase(props), {
+    const { result } = renderHook(() => useCreateDatabase(), {
       wrapper,
     });
 
@@ -426,10 +454,12 @@ describe('registering new databases, mainly error checking', () => {
 
     act(() => jest.advanceTimersByTime(WAITING_TIMEOUT + 1));
 
-    expect(ctx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabases).toHaveBeenCalled();
-    expect(props.nextStep).not.toHaveBeenCalled();
+    expect(teleCtx.databaseService.createDatabase).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
+      1
+    );
+    expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalled();
+    expect(discoverCtx.nextStep).not.toHaveBeenCalled();
     expect(result.current.attempt.status).toBe('failed');
     expect(result.current.attempt.statusText).toContain('could not detect');
 
@@ -440,9 +470,11 @@ describe('registering new databases, mainly error checking', () => {
     });
     act(() => jest.advanceTimersByTime(WAITING_TIMEOUT + 1));
 
-    expect(ctx.databaseService.createDatabase).not.toHaveBeenCalled();
-    expect(ctx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabases).toHaveBeenCalled();
+    expect(teleCtx.databaseService.createDatabase).not.toHaveBeenCalled();
+    expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
+      1
+    );
+    expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalled();
     expect(result.current.attempt.status).toBe('failed');
 
     // Test retrying with request with updated fields, updates db and fetches new services.
@@ -455,10 +487,12 @@ describe('registering new databases, mainly error checking', () => {
     });
     act(() => jest.advanceTimersByTime(WAITING_TIMEOUT + 1));
 
-    expect(ctx.databaseService.updateDatabase).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.createDatabase).not.toHaveBeenCalled();
-    expect(ctx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(1);
-    expect(ctx.databaseService.fetchDatabases).toHaveBeenCalled();
+    expect(teleCtx.databaseService.updateDatabase).toHaveBeenCalledTimes(1);
+    expect(teleCtx.databaseService.createDatabase).not.toHaveBeenCalled();
+    expect(teleCtx.databaseService.fetchDatabaseServices).toHaveBeenCalledTimes(
+      1
+    );
+    expect(teleCtx.databaseService.fetchDatabases).toHaveBeenCalled();
     expect(result.current.attempt.status).toBe('failed');
   });
 });

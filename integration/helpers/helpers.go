@@ -48,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/lib/client/identityfile"
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleagent"
@@ -204,11 +205,13 @@ func MustCreateUserIdentityFile(t *testing.T, tc *TeleInstance, username string,
 	require.NoError(t, err)
 	key.ClusterName = tc.Secrets.SiteName
 
-	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(
-		key.MarshalSSHPublicKey(), username, ttl,
-		constants.CertificateFormatStandard,
-		tc.Secrets.SiteName, "",
-	)
+	sshCert, tlsCert, err := tc.Process.GetAuthServer().GenerateUserTestCerts(auth.GenerateUserTestCertsRequest{
+		Key:            key.MarshalSSHPublicKey(),
+		Username:       username,
+		TTL:            ttl,
+		Compatibility:  constants.CertificateFormatStandard,
+		RouteToCluster: tc.Secrets.SiteName,
+	})
 	require.NoError(t, err)
 
 	key.Cert = sshCert
@@ -309,6 +312,21 @@ func WaitForDatabaseServers(t *testing.T, authServer *auth.Server, dbs []service
 			require.Fail(t, "database servers not registered after 10s")
 		}
 	}
+}
+
+// CreatePROXYEnabledListener creates net.Listener that can handle receiving signed PROXY headers
+func CreatePROXYEnabledListener(ctx context.Context, t *testing.T, address string, caGetter multiplexer.CertAuthorityGetter, clusterName string) (net.Listener, error) {
+	t.Helper()
+
+	listener, err := net.Listen("tcp", address)
+	require.NoError(t, err)
+
+	return multiplexer.NewPROXYEnabledListener(multiplexer.Config{
+		Listener:            listener,
+		Context:             ctx,
+		CertAuthorityGetter: caGetter,
+		LocalClusterName:    clusterName,
+	})
 }
 
 // MakeTestServers starts an Auth and a Proxy Service.

@@ -59,10 +59,13 @@ The top bar of Teleport Connect consists of:
   Trusted Clusters and there are leaf clusters connected to the root cluster. It lets you browse
   leaf cluster resources. It also changes which cluster the commands in the command bar are going to target.
 
+The **status bar** at the bottom displays **cluster breadcrumbs** in the bottom left, indicating
+which cluster the current tab is bound to, and the **Share Feedback** button in the bottom right.
+
 ## Connecting to an SSH server
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
-   You can also press `Ctrl/Cmd + T` to achieve the same result.
+   You can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
 2. Look for the SSH server you want to connect to and click the Connect button to the right.
 3. Select or enter the SSH user you wish to log in as and press `Enter`.
 4. A new tab will open with a shell session on the chosen server.
@@ -73,7 +76,7 @@ you connect to a server.
 ## Connecting to a Kubernetes cluster
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the right end of the tab bar.
-   You can also press `Ctrl/Cmd + T` to achieve the same result.
+   You can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
 2. Select the Kubes section.
 3. Look for the cluster you wish to connect to and click the Connect button to the right.
 4. A new local terminal tab will open which is preconfigured with the `$KUBECONFIG` environment variable
@@ -84,7 +87,7 @@ you connect to a server.
 ## Connecting to a database
 
 1. Open a tab with cluster resources by clicking on the plus symbol at the end of the tab bar. You
-  can also press `Ctrl/Cmd + T` to achieve the same result.
+  can also press <span style="white-space: nowrap;">`Ctrl/Cmd + T`</span> to achieve the same result.
 2. Select the Databases section.
 3. Look for the database server you wish to connect to and click the Connect button to the right.
 4. Select or enter the database user you with to use and press `Enter`.
@@ -112,7 +115,7 @@ your first cluster, open the profile selector at the top right and click the *+A
 button. You can switch between active profiles in multiple ways:
 
 - Click at the profile selector button at the top right.
-- Open the profile selector with a shortcut (`Ctrl/Cmd + I`).
+- Open the profile selector with a shortcut (<span style="white-space: nowrap;">`Ctrl/Cmd + I`</span>).
 - Using the connection list at the top left to select a connection will automatically switch you to
   the right profile.
 
@@ -138,7 +141,6 @@ the moment tsh and Teleport Connect operate on different sets of profiles, as Te
 a custom home location through [the `TELEPORT_HOME` environment
 variable](../reference/cli.mdx#tsh-environment-variables). For example, logging in to a new cluster
 through tsh will not make that cluster show up in Teleport Connect.
-
 
 <Tabs>
 <TabItem label="macOS">
@@ -173,7 +175,6 @@ The file will open in your default editor.
 
 Below is the list of the supported config properties.
 
-
 | Property                      | Default                                                                                                              | Description                                                            |
 |-------------------------------|----------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------------------|
 | `usageReporting.enabled`      | `false`                                                                                                              | Enables collecting anonymous usage data (see [Telemetry](#telemetry)). |
@@ -199,7 +200,7 @@ Below is the list of the supported config properties.
 
 ### Configuring keyboard shortcuts
 
-A valid shortcut contains at least one modifier and a single key code, for example `Shift+Tab`.
+A valid shortcut contains at least one modifier and a single key code, for example <span style="white-space: nowrap;">`Shift+Tab`</span>.
 Function keys such as `F1` do not require a modifier.
 Modifiers and a key code must be combined by the `+` character.
 
@@ -214,7 +215,6 @@ Available key codes:
 - `F1` to `F24`
 - `,`, `.`, `/`, `\`, `` ` ``, `-`, `=`, `;`, `'`, `[`, `]`
 - `Space`, `Tab`, `CapsLock`, `NumLock`, `ScrollLock`, `Backspace`, `Delete`, `Insert`, `Enter`, `Up`, `Down`, `Left`, `Right`, `Home`, `End`, `PageUp`, `PageDown`, `Escape`, `IntlBackslash`
-
 
 ## Telemetry
 
@@ -315,5 +315,54 @@ From the Command Prompt, open Teleport Connect with the `--insecure` flag:
 ```code
 $ "%LocalAppData%\Programs\teleport-connect\Teleport Connect.exe" --insecure
 ````
+</TabItem>
+</Tabs>
+
+## Uninstalling Teleport Connect
+
+<Tabs>
+<TabItem label="macOS">
+
+Remove Teleport Connect for MacOS from the Applications directory with this command:
+
+```code
+$ sudo rm -f /Applications/Teleport\ Connect.app
+```
+
+To remove the local user data directory:
+
+```code
+$ rm -rf ~/Library/Application\ Support/Teleport\ Connect
+```
+
+</TabItem>
+<TabItem label="Windows">
+
+(!docs/pages/includes/uninstall-teleport-connect-windows.mdx!)
+
+To remove the local user data directory:
+
+```powershell
+$ rmdir /s /q "%APPDATA%\Teleport Connect"
+```
+
+</TabItem>
+<TabItem label="Linux">
+
+For DEB installations uninstall Teleport Connect using APT:
+
+```code
+$ sudo apt remove teleport-connect
+```
+
+For RPM installations uninstall Teleport Connect using YUM:
+
+```code
+$ sudo yum remove teleport-connect
+```
+
+Installs based on a tarball should remove the
+`teleport-connect` directory and any copied/linked executables.
+
 </TabItem>
 </Tabs>

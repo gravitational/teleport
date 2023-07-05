@@ -172,6 +172,45 @@ message SAMLIdPServiceProviderMetadata {
   string ServiceProviderShortcut = 2 [(gogoproto.jsontag) = "service_provider_shortcut,omitempty"];
 }
 
+// OktaResourcesUpdatedMetadata contains common metadata for Okta resources updated events.
+message OktaResourcesUpdatedMetadata {
+  // Added is the number of resources added.
+  int32 Added = 1 [(gogoproto.jsontag) = "added"];
+  // Updated is the number of resources updated.
+  int32 Updated = 2 [(gogoproto.jsontag) = "updated"];
+  // Deleted is the number of resources deleted.
+  int32 Deleted = 3 [(gogoproto.jsontag) = "deleted"];
+  // AddedResources is a list of the actual resources that were added.
+  repeated OktaResource AddedResources = 4 [(gogoproto.jsontag) = "added_resources"];
+  // UpdatedResources is a list of the actual resources that were updated.
+  repeated OktaResource UpdatedResources = 5 [(gogoproto.jsontag) = "updated_resources"];
+  // DeletedResources is a list of the actual resources that were deleted.
+  repeated OktaResource DeletedResources = 6 [(gogoproto.jsontag) = "deleted_resources"];
+}
+
+// OktaResource is a descriptor of an Okta resource.
+message OktaResource {
+  // ID is the identifier of the Okta resource.
+  string ID = 1 [(gogoproto.jsontag) = "id"];
+  // Description is the description of the Okta resource.
+  string Description = 2 [(gogoproto.jsontag) = "description"];
+}
+
+// OktaAssignmentMetadata contains common metadata for Okta assignment events.
+message OktaAssignmentMetadata {
+  // Source is the source of the Okta assignment.
+  string Source = 1 [(gogoproto.jsontag) = "source,omitempty"];
+
+  // User is the user the Okta assignment is for.
+  string User = 2 [(gogoproto.jsontag) = "user,omitempty"];
+
+  // StartingStatus is the starting status of the assignment.
+  string StartingStatus = 3 [(gogoproto.jsontag) = "starting_status,omitempty"];
+
+  // EndingStatus is the ending status of the assignment.
+  string EndingStatus = 4 [(gogoproto.jsontag) = "ending_status,omitempty"];
+}
+
 // SessionStart is a session start event
 message SessionStart {
   // Metadata is a common event metadata
@@ -1060,6 +1099,10 @@ message UserLogin {
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""
   ];
+
+  // AppliedLoginRules stores the name of each login rule that was applied
+  // during the login.
+  repeated string AppliedLoginRules = 9 [(gogoproto.jsontag) = "applied_login_rules,omitempty"];
 }
 
 // ResourceMetadata is a common resource metadata
@@ -1501,6 +1544,7 @@ enum SFTPAction {
   RENAME = 16;
   READLINK = 17;
   SYMLINK = 18;
+  LINK = 19;
 }
 
 // SFTP is emitted when file operations have occurred between server and client
@@ -3092,18 +3136,19 @@ enum OSType {
 // DeviceMetadata groups device information for events.
 message DeviceMetadata {
   // ID of the device.
-  string device_id = 1;
+  string device_id = 1 [(gogoproto.jsontag) = "device_id"];
   // OS of the device.
-  OSType os_type = 2;
+  OSType os_type = 2 [(gogoproto.jsontag) = "os_type,omitempty"];
   // Device inventory identifier.
-  string asset_tag = 3;
+  string asset_tag = 3 [(gogoproto.jsontag) = "asset_tag,omitempty"];
   // Device credential identifier.
-  string credential_id = 4;
+  string credential_id = 4 [(gogoproto.jsontag) = "credential_id,omitempty"];
 }
 
 // DeviceEvent is a device-related event.
 // The event type (Metadata.Type) for device events is always "device". See the
 // event code (Metadata.Code) for its meaning.
+// Deprecated: Use DeviceEvent2 instead.
 message DeviceEvent {
   // Metadata holds common event metadata.
   Metadata metadata = 1 [
@@ -3117,6 +3162,40 @@ message DeviceEvent {
   DeviceMetadata device = 3;
   // UserMetadata holds metadata about the user behind the event.
   UserMetadata user = 4;
+}
+
+// DeviceEvent2 is a device-related event.
+// See the "lib/events.Device*Event" and "lib/events.Device*Code" for the
+// various event types and codes, respectively.
+// Replaces the previous [DeviceEvent] proto, presenting a more standard event
+// interface with various embeds.
+message DeviceEvent2 {
+  // Metadata holds common event metadata.
+  Metadata metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // Reserved to avoid clashes with the non-embedded "Status status" field in
+  // the legacy event.
+  reserved 2;
+  // DeviceMetadata holds metadata about the user device.
+  DeviceMetadata device = 3 [(gogoproto.jsontag) = "device"];
+  // Reserved to avoid clashes with the non-embedded "UserMetadata user" field
+  // in the legacy event.
+  reserved 4;
+  // Status indicates the outcome of the event.
+  Status status = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+  // UserMetadata holds metadata about the user behind the event.
+  UserMetadata user = 6 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
 }
 
 // OneOf is a union of one of audit events submitted to the auth service
@@ -3241,6 +3320,10 @@ message OneOf {
     events.SAMLIdPServiceProviderUpdate SAMLIdPServiceProviderUpdate = 117;
     events.SAMLIdPServiceProviderDelete SAMLIdPServiceProviderDelete = 118;
     events.SAMLIdPServiceProviderDeleteAll SAMLIdPServiceProviderDeleteAll = 119;
+    events.DeviceEvent2 DeviceEvent2 = 121;
+    events.OktaResourcesUpdate OktaResourcesUpdate = 122;
+    events.OktaSyncFailure OktaSyncFailure = 123;
+    events.OktaAssignmentResult OktaAssignmentResult = 124;
   }
 }
 
@@ -3925,13 +4008,13 @@ message DatabaseSessionMalformedPacket {
 // ElasticsearchCategory specifies Elasticsearch request category.
 enum ElasticsearchCategory {
   // GENERAL is for otherwise uncategorized calls.
-  GENERAL = 0;
+  ELASTICSEARCH_CATEGORY_GENERAL = 0;
   // SECURITY is for _security and _ssl APIs.
-  SECURITY = 1;
+  ELASTICSEARCH_CATEGORY_SECURITY = 1;
   // SEARCH is for search-related APIs.
-  SEARCH = 2;
+  ELASTICSEARCH_CATEGORY_SEARCH = 2;
   // SQL covers _sql API.
-  SQL = 3;
+  ELASTICSEARCH_CATEGORY_SQL = 3;
 }
 
 // ElasticsearchRequest is emitted when user executes an Elasticsearch request, which isn't
@@ -4565,6 +4648,92 @@ message SAMLIdPServiceProviderDeleteAll {
 
   // ResourceMetadata is common resource event metadata
   ResourceMetadata Resource = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// OktaResourcesUpdate is emitted when Okta related resources have been updated.
+message OktaResourcesUpdate {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Server is a common server metadata.
+  ServerMetadata Server = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Updated is common metadata related to Okta resources being updated.
+  OktaResourcesUpdatedMetadata Updated = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// OktaSyncFailure is emitted when an Okta synchronization attempt has failed.
+message OktaSyncFailure {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Server is a common server metadata.
+  ServerMetadata Server = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status contains error information for the synchronization failure.
+  Status Status = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+}
+
+// OktaAssignmentResult is emitted when an Okta assignment processing or cleanup was attempted.
+message OktaAssignmentResult {
+  // Metadata is common event metadata
+  Metadata Metadata = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Server is a common server metadata.
+  ServerMetadata Server = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // ResourceMetadata is common resource event metadata
+  ResourceMetadata Resource = 3 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // Status indicates whether the assignment processing was successful.
+  Status Status = 4 [
+    (gogoproto.nullable) = false,
+    (gogoproto.embed) = true,
+    (gogoproto.jsontag) = ""
+  ];
+
+  // OktaAssignmentMetadata is common Okta assignment metadata.
+  OktaAssignmentMetadata OktaAssignment = 5 [
     (gogoproto.nullable) = false,
     (gogoproto.embed) = true,
     (gogoproto.jsontag) = ""

@@ -9,7 +9,7 @@ host without sacrificing availability.
 <Details title="Using containers?">
 
 If you are running `teleport` as a container, see
-[How to Run Teleport Using Docker](../guides/docker.mdx) for information on
+[How to Run Teleport Using Docker](../../installation.mdx#docker) for information on
 specifying a version.
 
 </Details>
@@ -38,7 +38,7 @@ $ sudo mv ${DIR}/teleport ${DIR}/teleport.bak
 
 Install the newest version of Teleport on the host:
 
-(!/docs/pages/includes/install-linux.mdx!)
+(!docs/pages/includes/install-linux.mdx!)
 
 ## Step 2/3. Fork the `teleport` process
 
@@ -58,7 +58,7 @@ $ pidof teleport
 
 In our example, `235276` is a PID of the child process, and `235119` is a PID of the parent.
 
-<Details type="tip" opened={false} title="Not sure which process is the parent?">
+<Details type="tip" title="Not sure which process is the parent?">
 
 You can use the following command, which prints the parent for each PID returned
 by `pidof`:

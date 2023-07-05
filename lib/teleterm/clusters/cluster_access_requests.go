@@ -252,8 +252,9 @@ func (c *Cluster) AssumeRole(ctx context.Context, req *api.AssumeRoleRequest) er
 				params.AccessRequests = append(params.AccessRequests, reqID)
 			}
 		}
-
-		return c.clusterClient.ReissueUserCerts(ctx, client.CertCacheKeep, params)
+		// When assuming a role, we want to drop all cached certs otherwise
+		// tsh will continue to use the old certs.
+		return c.clusterClient.ReissueUserCerts(ctx, client.CertCacheDrop, params)
 	})
 	if err != nil {
 		return trace.Wrap(err)

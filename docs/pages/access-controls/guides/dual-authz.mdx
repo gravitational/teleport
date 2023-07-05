@@ -41,7 +41,7 @@ of two team members for a privileged role `dbadmin`.
 
 </Admonition>
 
-(!docs/pages/includes/tctl.mdx!)
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Set up a Teleport bot
 
@@ -69,7 +69,7 @@ Create the bot and save the access token.
 
 ### Export the access-plugin identity files
 
-(!docs/pages/includes/plugins/identity-export.mdx!)
+(!docs/pages/includes/plugins/identity-export.mdx user="access-plugin"!)
 
 We'll reference the exported file(s) later when configuring the plugin.
 
@@ -96,25 +96,15 @@ We'll reference the exported file(s) later when configuring the plugin.
 </TabItem>
 </Tabs>
 
-
 ```code
 $ teleport-mattermost configure > /etc/teleport-mattermost.toml
 ```
 
-Update the config with the Teleport address, Mattermost URL, and a bot token.
+Update the config with the Teleport address, Mattermost URL, and a bot token:
 
-<Tabs>
-<TabItem scope={["oss", "enterprise"]} label="Self-Hosted">
-```yaml
-(!examples/resources/plugins/teleport-mattermost-self.toml!)
-```
-</TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
 ```yaml
 (!examples/resources/plugins/teleport-mattermost-cloud.toml!)
 ```
-</TabItem>
-</Tabs>
 
 ## Step 2/3. Configure dual authorization
 
@@ -218,7 +208,6 @@ If Bob has created a request using CLI, he will assume it once it has been appro
 Bob can also assume granted Access Request roles using Web UI:
 
 ![Teleport Assume](../../../img/access-controls/dual-authz/teleport-7-bob-assume.png)
-
 
 {/* TODO: This H2 will show up in the table of contents when this section is invisible.
 We need a way to hide invisible H2s from the TOC. */}

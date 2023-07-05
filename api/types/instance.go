@@ -19,11 +19,11 @@ package types
 import (
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // Match checks if the given instance appears to match this filter.
@@ -247,10 +247,10 @@ func (i *InstanceV1) expireControlLog(now time.Time, ttl time.Duration) time.Tim
 }
 
 func (i *InstanceV1) Clone() Instance {
-	return proto.Clone(i).(*InstanceV1)
+	return utils.CloneProtoMsg(i)
 }
 
 func (e *InstanceControlLogEntry) Clone() InstanceControlLogEntry {
 	e.Time = e.Time.UTC()
-	return *proto.Clone(e).(*InstanceControlLogEntry)
+	return *utils.CloneProtoMsg(e)
 }

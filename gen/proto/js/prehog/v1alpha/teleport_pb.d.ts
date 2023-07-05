@@ -321,6 +321,27 @@ export namespace UIOnboardRegisterChallengeSubmitEvent {
     }
 }
 
+export class UIOnboardQuestionnaireSubmitEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UIOnboardQuestionnaireSubmitEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIOnboardQuestionnaireSubmitEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIOnboardQuestionnaireSubmitEvent): UIOnboardQuestionnaireSubmitEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIOnboardQuestionnaireSubmitEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIOnboardQuestionnaireSubmitEvent;
+    static deserializeBinaryFromReader(message: UIOnboardQuestionnaireSubmitEvent, reader: jspb.BinaryReader): UIOnboardQuestionnaireSubmitEvent;
+}
+
+export namespace UIOnboardQuestionnaireSubmitEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
 export class UIRecoveryCodesContinueClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UIRecoveryCodesContinueClickEvent;
@@ -391,6 +412,9 @@ export class DiscoverMetadata extends jspb.Message {
     getUserName(): string;
     setUserName(value: string): DiscoverMetadata;
 
+    getSso(): boolean;
+    setSso(value: boolean): DiscoverMetadata;
+
 
     serializeBinary(): Uint8Array;
     toObject(includeInstance?: boolean): DiscoverMetadata.AsObject;
@@ -406,6 +430,7 @@ export namespace DiscoverMetadata {
     export type AsObject = {
         id: string,
         userName: string,
+        sso: boolean,
     }
 }
 
@@ -521,6 +546,86 @@ export namespace UIDiscoverResourceSelectionEvent {
         metadata?: DiscoverMetadata.AsObject,
         resource?: DiscoverResourceMetadata.AsObject,
         status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverIntegrationAWSOIDCConnectEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverIntegrationAWSOIDCConnectEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverIntegrationAWSOIDCConnectEvent): UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverIntegrationAWSOIDCConnectEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverIntegrationAWSOIDCConnectEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverIntegrationAWSOIDCConnectEvent, reader: jspb.BinaryReader): UIDiscoverIntegrationAWSOIDCConnectEvent;
+}
+
+export namespace UIDiscoverIntegrationAWSOIDCConnectEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+    }
+}
+
+export class UIDiscoverDatabaseRDSEnrollEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): DiscoverMetadata | undefined;
+    setMetadata(value?: DiscoverMetadata): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    hasResource(): boolean;
+    clearResource(): void;
+    getResource(): DiscoverResourceMetadata | undefined;
+    setResource(value?: DiscoverResourceMetadata): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    hasStatus(): boolean;
+    clearStatus(): void;
+    getStatus(): DiscoverStepStatus | undefined;
+    setStatus(value?: DiscoverStepStatus): UIDiscoverDatabaseRDSEnrollEvent;
+
+    getSelectedResourcesCount(): number;
+    setSelectedResourcesCount(value: number): UIDiscoverDatabaseRDSEnrollEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIDiscoverDatabaseRDSEnrollEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIDiscoverDatabaseRDSEnrollEvent): UIDiscoverDatabaseRDSEnrollEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIDiscoverDatabaseRDSEnrollEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIDiscoverDatabaseRDSEnrollEvent;
+    static deserializeBinaryFromReader(message: UIDiscoverDatabaseRDSEnrollEvent, reader: jspb.BinaryReader): UIDiscoverDatabaseRDSEnrollEvent;
+}
+
+export namespace UIDiscoverDatabaseRDSEnrollEvent {
+    export type AsObject = {
+        metadata?: DiscoverMetadata.AsObject,
+        resource?: DiscoverResourceMetadata.AsObject,
+        status?: DiscoverStepStatus.AsObject,
+        selectedResourcesCount: number,
     }
 }
 
@@ -933,6 +1038,76 @@ export namespace RoleCreateEvent {
     }
 }
 
+export class BotCreateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): BotCreateEvent;
+
+    getBotUserName(): string;
+    setBotUserName(value: string): BotCreateEvent;
+
+    getRoleName(): string;
+    setRoleName(value: string): BotCreateEvent;
+
+    getRoleCount(): number;
+    setRoleCount(value: number): BotCreateEvent;
+
+    getJoinMethod(): string;
+    setJoinMethod(value: string): BotCreateEvent;
+
+    getBotName(): string;
+    setBotName(value: string): BotCreateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): BotCreateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: BotCreateEvent): BotCreateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: BotCreateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): BotCreateEvent;
+    static deserializeBinaryFromReader(message: BotCreateEvent, reader: jspb.BinaryReader): BotCreateEvent;
+}
+
+export namespace BotCreateEvent {
+    export type AsObject = {
+        userName: string,
+        botUserName: string,
+        roleName: string,
+        roleCount: number,
+        joinMethod: string,
+        botName: string,
+    }
+}
+
+export class BotJoinEvent extends jspb.Message { 
+    getBotName(): string;
+    setBotName(value: string): BotJoinEvent;
+
+    getJoinMethod(): string;
+    setJoinMethod(value: string): BotJoinEvent;
+
+    getJoinTokenName(): string;
+    setJoinTokenName(value: string): BotJoinEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): BotJoinEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: BotJoinEvent): BotJoinEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: BotJoinEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): BotJoinEvent;
+    static deserializeBinaryFromReader(message: BotJoinEvent, reader: jspb.BinaryReader): BotJoinEvent;
+}
+
+export namespace BotJoinEvent {
+    export type AsObject = {
+        botName: string,
+        joinMethod: string,
+        joinTokenName: string,
+    }
+}
+
 export class UICreateNewRoleClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UICreateNewRoleClickEvent;
@@ -1014,6 +1189,31 @@ export class UICreateNewRoleViewDocumentationClickEvent extends jspb.Message {
 export namespace UICreateNewRoleViewDocumentationClickEvent {
     export type AsObject = {
         userName: string,
+    }
+}
+
+export class UICallToActionClickEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UICallToActionClickEvent;
+
+    getCta(): CTA;
+    setCta(value: CTA): UICallToActionClickEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UICallToActionClickEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UICallToActionClickEvent): UICallToActionClickEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UICallToActionClickEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UICallToActionClickEvent;
+    static deserializeBinaryFromReader(message: UICallToActionClickEvent, reader: jspb.BinaryReader): UICallToActionClickEvent;
+}
+
+export namespace UICallToActionClickEvent {
+    export type AsObject = {
+        userName: string,
+        cta: CTA,
     }
 }
 
@@ -1125,6 +1325,145 @@ export namespace AgentMetadataEvent {
         containerRuntime: string,
         containerOrchestrator: string,
         cloudEnvironment: string,
+    }
+}
+
+export class AssistCompletionEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): AssistCompletionEvent;
+
+    getConversationId(): string;
+    setConversationId(value: string): AssistCompletionEvent;
+
+    getTotalTokens(): number;
+    setTotalTokens(value: number): AssistCompletionEvent;
+
+    getPromptTokens(): number;
+    setPromptTokens(value: number): AssistCompletionEvent;
+
+    getCompletionTokens(): number;
+    setCompletionTokens(value: number): AssistCompletionEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): AssistCompletionEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: AssistCompletionEvent): AssistCompletionEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: AssistCompletionEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): AssistCompletionEvent;
+    static deserializeBinaryFromReader(message: AssistCompletionEvent, reader: jspb.BinaryReader): AssistCompletionEvent;
+}
+
+export namespace AssistCompletionEvent {
+    export type AsObject = {
+        userName: string,
+        conversationId: string,
+        totalTokens: number,
+        promptTokens: number,
+        completionTokens: number,
+    }
+}
+
+export class IntegrationEnrollMetadata extends jspb.Message { 
+    getId(): string;
+    setId(value: string): IntegrationEnrollMetadata;
+
+    getKind(): IntegrationEnrollKind;
+    setKind(value: IntegrationEnrollKind): IntegrationEnrollMetadata;
+
+    getUserName(): string;
+    setUserName(value: string): IntegrationEnrollMetadata;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): IntegrationEnrollMetadata.AsObject;
+    static toObject(includeInstance: boolean, msg: IntegrationEnrollMetadata): IntegrationEnrollMetadata.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: IntegrationEnrollMetadata, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): IntegrationEnrollMetadata;
+    static deserializeBinaryFromReader(message: IntegrationEnrollMetadata, reader: jspb.BinaryReader): IntegrationEnrollMetadata;
+}
+
+export namespace IntegrationEnrollMetadata {
+    export type AsObject = {
+        id: string,
+        kind: IntegrationEnrollKind,
+        userName: string,
+    }
+}
+
+export class UIIntegrationEnrollStartEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): IntegrationEnrollMetadata | undefined;
+    setMetadata(value?: IntegrationEnrollMetadata): UIIntegrationEnrollStartEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIIntegrationEnrollStartEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIIntegrationEnrollStartEvent): UIIntegrationEnrollStartEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIIntegrationEnrollStartEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIIntegrationEnrollStartEvent;
+    static deserializeBinaryFromReader(message: UIIntegrationEnrollStartEvent, reader: jspb.BinaryReader): UIIntegrationEnrollStartEvent;
+}
+
+export namespace UIIntegrationEnrollStartEvent {
+    export type AsObject = {
+        metadata?: IntegrationEnrollMetadata.AsObject,
+    }
+}
+
+export class UIIntegrationEnrollCompleteEvent extends jspb.Message { 
+
+    hasMetadata(): boolean;
+    clearMetadata(): void;
+    getMetadata(): IntegrationEnrollMetadata | undefined;
+    setMetadata(value?: IntegrationEnrollMetadata): UIIntegrationEnrollCompleteEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIIntegrationEnrollCompleteEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIIntegrationEnrollCompleteEvent): UIIntegrationEnrollCompleteEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIIntegrationEnrollCompleteEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIIntegrationEnrollCompleteEvent;
+    static deserializeBinaryFromReader(message: UIIntegrationEnrollCompleteEvent, reader: jspb.BinaryReader): UIIntegrationEnrollCompleteEvent;
+}
+
+export namespace UIIntegrationEnrollCompleteEvent {
+    export type AsObject = {
+        metadata?: IntegrationEnrollMetadata.AsObject,
+    }
+}
+
+export class EditorChangeEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): EditorChangeEvent;
+
+    getStatus(): EditorChangeStatus;
+    setStatus(value: EditorChangeStatus): EditorChangeEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): EditorChangeEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: EditorChangeEvent): EditorChangeEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: EditorChangeEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): EditorChangeEvent;
+    static deserializeBinaryFromReader(message: EditorChangeEvent, reader: jspb.BinaryReader): EditorChangeEvent;
+}
+
+export namespace EditorChangeEvent {
+    export type AsObject = {
+        userName: string,
+        status: EditorChangeStatus,
     }
 }
 
@@ -1355,6 +1694,66 @@ export class SubmitEventRequest extends jspb.Message {
     setResourceHeartbeat(value?: ResourceHeartbeatEvent): SubmitEventRequest;
 
 
+    hasUiDiscoverIntegrationAwsOidcConnectEvent(): boolean;
+    clearUiDiscoverIntegrationAwsOidcConnectEvent(): void;
+    getUiDiscoverIntegrationAwsOidcConnectEvent(): UIDiscoverIntegrationAWSOIDCConnectEvent | undefined;
+    setUiDiscoverIntegrationAwsOidcConnectEvent(value?: UIDiscoverIntegrationAWSOIDCConnectEvent): SubmitEventRequest;
+
+
+    hasUiDiscoverDatabaseRdsEnrollEvent(): boolean;
+    clearUiDiscoverDatabaseRdsEnrollEvent(): void;
+    getUiDiscoverDatabaseRdsEnrollEvent(): UIDiscoverDatabaseRDSEnrollEvent | undefined;
+    setUiDiscoverDatabaseRdsEnrollEvent(value?: UIDiscoverDatabaseRDSEnrollEvent): SubmitEventRequest;
+
+
+    hasUiCallToActionClickEvent(): boolean;
+    clearUiCallToActionClickEvent(): void;
+    getUiCallToActionClickEvent(): UICallToActionClickEvent | undefined;
+    setUiCallToActionClickEvent(value?: UICallToActionClickEvent): SubmitEventRequest;
+
+
+    hasAssistCompletion(): boolean;
+    clearAssistCompletion(): void;
+    getAssistCompletion(): AssistCompletionEvent | undefined;
+    setAssistCompletion(value?: AssistCompletionEvent): SubmitEventRequest;
+
+
+    hasUiIntegrationEnrollStartEvent(): boolean;
+    clearUiIntegrationEnrollStartEvent(): void;
+    getUiIntegrationEnrollStartEvent(): UIIntegrationEnrollStartEvent | undefined;
+    setUiIntegrationEnrollStartEvent(value?: UIIntegrationEnrollStartEvent): SubmitEventRequest;
+
+
+    hasUiIntegrationEnrollCompleteEvent(): boolean;
+    clearUiIntegrationEnrollCompleteEvent(): void;
+    getUiIntegrationEnrollCompleteEvent(): UIIntegrationEnrollCompleteEvent | undefined;
+    setUiIntegrationEnrollCompleteEvent(value?: UIIntegrationEnrollCompleteEvent): SubmitEventRequest;
+
+
+    hasEditorChangeEvent(): boolean;
+    clearEditorChangeEvent(): void;
+    getEditorChangeEvent(): EditorChangeEvent | undefined;
+    setEditorChangeEvent(value?: EditorChangeEvent): SubmitEventRequest;
+
+
+    hasBotCreate(): boolean;
+    clearBotCreate(): void;
+    getBotCreate(): BotCreateEvent | undefined;
+    setBotCreate(value?: BotCreateEvent): SubmitEventRequest;
+
+
+    hasUiOnboardQuestionnaireSubmit(): boolean;
+    clearUiOnboardQuestionnaireSubmit(): void;
+    getUiOnboardQuestionnaireSubmit(): UIOnboardQuestionnaireSubmitEvent | undefined;
+    setUiOnboardQuestionnaireSubmit(value?: UIOnboardQuestionnaireSubmitEvent): SubmitEventRequest;
+
+
+    hasBotJoin(): boolean;
+    clearBotJoin(): void;
+    getBotJoin(): BotJoinEvent | undefined;
+    setBotJoin(value?: BotJoinEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1407,6 +1806,16 @@ export namespace SubmitEventRequest {
         sftp?: SFTPEvent.AsObject,
         agentMetadataEvent?: AgentMetadataEvent.AsObject,
         resourceHeartbeat?: ResourceHeartbeatEvent.AsObject,
+        uiDiscoverIntegrationAwsOidcConnectEvent?: UIDiscoverIntegrationAWSOIDCConnectEvent.AsObject,
+        uiDiscoverDatabaseRdsEnrollEvent?: UIDiscoverDatabaseRDSEnrollEvent.AsObject,
+        uiCallToActionClickEvent?: UICallToActionClickEvent.AsObject,
+        assistCompletion?: AssistCompletionEvent.AsObject,
+        uiIntegrationEnrollStartEvent?: UIIntegrationEnrollStartEvent.AsObject,
+        uiIntegrationEnrollCompleteEvent?: UIIntegrationEnrollCompleteEvent.AsObject,
+        editorChangeEvent?: EditorChangeEvent.AsObject,
+        botCreate?: BotCreateEvent.AsObject,
+        uiOnboardQuestionnaireSubmit?: UIOnboardQuestionnaireSubmitEvent.AsObject,
+        botJoin?: BotJoinEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1483,6 +1892,26 @@ export namespace SubmitEventRequest {
     AGENT_METADATA_EVENT = 38,
 
     RESOURCE_HEARTBEAT = 39,
+
+    UI_DISCOVER_INTEGRATION_AWS_OIDC_CONNECT_EVENT = 40,
+
+    UI_DISCOVER_DATABASE_RDS_ENROLL_EVENT = 41,
+
+    UI_CALL_TO_ACTION_CLICK_EVENT = 42,
+
+    ASSIST_COMPLETION = 43,
+
+    UI_INTEGRATION_ENROLL_START_EVENT = 44,
+
+    UI_INTEGRATION_ENROLL_COMPLETE_EVENT = 45,
+
+    EDITOR_CHANGE_EVENT = 46,
+
+    BOT_CREATE = 47,
+
+    UI_ONBOARD_QUESTIONNAIRE_SUBMIT = 48,
+
+    BOT_JOIN = 49,
 
     }
 
@@ -1608,6 +2037,26 @@ export enum DiscoverResource {
     DISCOVER_RESOURCE_DATABASE_POSTGRES_GCP = 15,
     DISCOVER_RESOURCE_DATABASE_MYSQL_GCP = 16,
     DISCOVER_RESOURCE_DATABASE_SQLSERVER_GCP = 17,
+    DISCOVER_RESOURCE_DATABASE_POSTGRES_REDSHIFT_SERVERLESS = 18,
+    DISCOVER_RESOURCE_DATABASE_POSTGRES_AZURE = 19,
+    DISCOVER_RESOURCE_DATABASE_DYNAMODB = 20,
+    DISCOVER_RESOURCE_DATABASE_CASSANDRA_KEYSPACES = 21,
+    DISCOVER_RESOURCE_DATABASE_CASSANDRA_SELF_HOSTED = 22,
+    DISCOVER_RESOURCE_DATABASE_ELASTICSEARCH_SELF_HOSTED = 23,
+    DISCOVER_RESOURCE_DATABASE_REDIS_ELASTICACHE = 24,
+    DISCOVER_RESOURCE_DATABASE_REDIS_MEMORYDB = 25,
+    DISCOVER_RESOURCE_DATABASE_REDIS_AZURE_CACHE = 26,
+    DISCOVER_RESOURCE_DATABASE_REDIS_CLUSTER_SELF_HOSTED = 27,
+    DISCOVER_RESOURCE_DATABASE_MYSQL_AZURE = 28,
+    DISCOVER_RESOURCE_DATABASE_SQLSERVER_AZURE = 29,
+    DISCOVER_RESOURCE_DATABASE_SQLSERVER_MICROSOFT = 30,
+    DISCOVER_RESOURCE_DATABASE_COCKROACHDB_SELF_HOSTED = 31,
+    DISCOVER_RESOURCE_DATABASE_MONGODB_ATLAS = 32,
+    DISCOVER_RESOURCE_DATABASE_SNOWFLAKE = 33,
+    DISCOVER_RESOURCE_DOC_DATABASE_RDS_PROXY = 34,
+    DISCOVER_RESOURCE_DOC_DATABASE_HIGH_AVAILABILITY = 35,
+    DISCOVER_RESOURCE_DOC_DATABASE_DYNAMIC_REGISTRATION = 36,
+    DISCOVER_RESOURCE_SAML_APPLICATION = 37,
 }
 
 export enum DiscoverStatus {
@@ -1616,4 +2065,35 @@ export enum DiscoverStatus {
     DISCOVER_STATUS_SKIPPED = 2,
     DISCOVER_STATUS_ERROR = 3,
     DISCOVER_STATUS_ABORTED = 4,
+}
+
+export enum CTA {
+    CTA_UNSPECIFIED = 0,
+    CTA_AUTH_CONNECTOR = 1,
+    CTA_ACTIVE_SESSIONS = 2,
+    CTA_ACCESS_REQUESTS = 3,
+    CTA_PREMIUM_SUPPORT = 4,
+    CTA_TRUSTED_DEVICES = 5,
+    CTA_UPGRADE_BANNER = 6,
+}
+
+export enum IntegrationEnrollKind {
+    INTEGRATION_ENROLL_KIND_UNSPECIFIED = 0,
+    INTEGRATION_ENROLL_KIND_SLACK = 1,
+    INTEGRATION_ENROLL_KIND_AWS_OIDC = 2,
+    INTEGRATION_ENROLL_KIND_PAGERDUTY = 3,
+    INTEGRATION_ENROLL_KIND_EMAIL = 4,
+    INTEGRATION_ENROLL_KIND_JIRA = 5,
+    INTEGRATION_ENROLL_KIND_DISCORD = 6,
+    INTEGRATION_ENROLL_KIND_MATTERMOST = 7,
+    INTEGRATION_ENROLL_KIND_MS_TEAMS = 8,
+    INTEGRATION_ENROLL_KIND_OPSGENIE = 9,
+    INTEGRATION_ENROLL_KIND_OKTA = 10,
+    INTEGRATION_ENROLL_KIND_JAMF = 11,
+}
+
+export enum EditorChangeStatus {
+    EDITOR_CHANGE_STATUS_UNSPECIFIED = 0,
+    EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1,
+    EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2,
 }

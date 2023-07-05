@@ -28,11 +28,16 @@ import (
 type License interface {
 	Resource
 
-	// GetReportsUsage returns true if teleport cluster reports usage
-	// to control plane
+	// GetReportsUsage returns true if the Teleport cluster should report usage
+	// to the Houston control plane.
 	GetReportsUsage() Bool
-	// SetReportsUsage sets usage report
+	// SetReportsUsage sets the Houston usage reporting flag.
 	SetReportsUsage(Bool)
+	// GetSalesCenterReporting returns true if the Teleport cluster should
+	// report usage to Sales Center.
+	GetSalesCenterReporting() Bool
+	// SetSalesCenterReporting sets the Sales Center usage reporting flag.
+	SetSalesCenterReporting(Bool)
 
 	// GetCloud returns true if teleport cluster is hosted by Gravitational
 	GetCloud() Bool
@@ -71,6 +76,33 @@ type License interface {
 	// SetSupportsDesktopAccess sets desktop access support flag
 	SetSupportsDesktopAccess(Bool)
 
+	// GetSupportsModeratedSessions returns moderated sessions support flag
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
+	GetSupportsModeratedSessions() Bool
+	// SetSupportsModeratedSessions sets moderated sessions support flag
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
+	SetSupportsModeratedSessions(Bool)
+
+	// GetSupportsMachineID returns MachineID support flag
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
+	GetSupportsMachineID() Bool
+	// SetSupportsMachineID sets MachineID support flag
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
+	SetSupportsMachineID(Bool)
+
+	// GetSupportsResourceAccessRequests returns resource access requests support flag
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
+	GetSupportsResourceAccessRequests() Bool
+	// SetSupportsResourceAccessRequests sets resource access requests support flag
+	// Note: this flag is unused in Teleport v11+ but it's still used to
+	// generate licenses that support older versions of Teleport
+	SetSupportsResourceAccessRequests(Bool)
+
 	// GetTrial returns the trial flag.
 	//  Note: This is not applicable to Cloud licenses
 	GetTrial() Bool
@@ -84,7 +116,19 @@ type License interface {
 	// GetAccountID returns Account ID.
 	//  Note: This is not applicable to all Cloud licenses
 	GetAccountID() string
+
+	// GetFeatureSource returns where the features should be loaded from.
+	GetFeatureSource() FeatureSource
 }
+
+// FeatureSource defines where the list of features enabled
+// by the license is.
+type FeatureSource string
+
+const (
+	FeatureSourceLicense FeatureSource = "license"
+	FeatureSourceCloud   FeatureSource = "cloud"
+)
 
 // NewLicense is a convenience method to create LicenseV3.
 func NewLicense(name string, spec LicenseSpecV3) (License, error) {
@@ -100,7 +144,9 @@ func NewLicense(name string, spec LicenseSpecV3) (License, error) {
 	return l, nil
 }
 
-// LicenseV3 represents License resource version V3
+// LicenseV3 represents License resource version V3. When changing this, keep in
+// mind that other consumers of teleport/api (Houston, Sales Center) might still
+// need to generate or parse licenses for older versions of Teleport.
 type LicenseV3 struct {
 	// Kind is a resource kind - always resource.
 	Kind string `json:"kind"`
@@ -183,10 +229,16 @@ func (c *LicenseV3) GetMetadata() Metadata {
 	return c.Metadata
 }
 
-// GetReportsUsage returns true if teleport cluster reports usage
-// to control plane
+// GetReportsUsage returns true if the Teleport cluster should report usage to
+// the Houston control plane.
 func (c *LicenseV3) GetReportsUsage() Bool {
 	return c.Spec.ReportsUsage
+}
+
+// GetSalesCenterReporting returns true if the Teleport cluster should report
+// usage to Sales Center.
+func (c *LicenseV3) GetSalesCenterReporting() Bool {
+	return c.Spec.SalesCenterReporting
 }
 
 // GetCloud returns true if teleport cluster is hosted by Gravitational
@@ -199,9 +251,14 @@ func (c *LicenseV3) SetCloud(cloud Bool) {
 	c.Spec.Cloud = cloud
 }
 
-// SetReportsUsage sets usage report
+// SetReportsUsage sets the Houston usage reporting flag.
 func (c *LicenseV3) SetReportsUsage(reports Bool) {
 	c.Spec.ReportsUsage = reports
+}
+
+// SetSalesCenterReporting sets the Sales Center usage reporting flag.
+func (c *LicenseV3) SetSalesCenterReporting(reports Bool) {
+	c.Spec.SalesCenterReporting = reports
 }
 
 // setStaticFields sets static resource header and metadata fields.
@@ -213,6 +270,9 @@ func (c *LicenseV3) setStaticFields() {
 // CheckAndSetDefaults verifies the constraints for License.
 func (c *LicenseV3) CheckAndSetDefaults() error {
 	c.setStaticFields()
+	if c.Spec.FeatureSource == "" {
+		c.Spec.FeatureSource = FeatureSourceLicense
+	}
 	if err := c.Metadata.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -292,6 +352,36 @@ func (c *LicenseV3) SetSupportsDesktopAccess(value Bool) {
 	c.Spec.SupportsDesktopAccess = value
 }
 
+// GetSupportsModeratedSessions returns moderated sessions support flag
+func (c *LicenseV3) GetSupportsModeratedSessions() Bool {
+	return c.Spec.SupportsModeratedSessions
+}
+
+// SetSupportsModeratedSessions sets moderated sessions support flag
+func (c *LicenseV3) SetSupportsModeratedSessions(value Bool) {
+	c.Spec.SupportsModeratedSessions = value
+}
+
+// GetSupportsMachineID returns MachineID support flag
+func (c *LicenseV3) GetSupportsMachineID() Bool {
+	return c.Spec.SupportsMachineID
+}
+
+// SetSupportsMachineID sets MachineID support flag
+func (c *LicenseV3) SetSupportsMachineID(value Bool) {
+	c.Spec.SupportsMachineID = value
+}
+
+// GetSupportsResourceAccessRequests returns resource access requests support flag
+func (c *LicenseV3) GetSupportsResourceAccessRequests() Bool {
+	return c.Spec.SupportsResourceAccessRequests
+}
+
+// SetSupportsResourceAccessRequests sets resource access requests support flag
+func (c *LicenseV3) SetSupportsResourceAccessRequests(value Bool) {
+	c.Spec.SupportsResourceAccessRequests = value
+}
+
 // GetTrial returns the trial flag
 func (c *LicenseV3) GetTrial() Bool {
 	return c.Spec.Trial
@@ -341,7 +431,20 @@ func (c *LicenseV3) String() string {
 	return strings.Join(features, ",")
 }
 
-// LicenseSpecV3 is the actual data we care about for LicenseV3.
+// GetFeatureSource returns the source Teleport should use to read the features
+func (c *LicenseV3) GetFeatureSource() FeatureSource {
+	// defaults to License for backward compatibility
+	if c.Spec.FeatureSource == "" {
+		return FeatureSourceLicense
+	}
+
+	return c.Spec.FeatureSource
+}
+
+// LicenseSpecV3 is the actual data we care about for LicenseV3. When changing
+// this, keep in mind that other consumers of teleport/api (Houston, Sales
+// Center) might still need to generate or parse licenses for older versions of
+// Teleport.
 type LicenseSpecV3 struct {
 	// AccountID is a customer account ID
 	AccountID string `json:"account_id,omitempty"`
@@ -358,9 +461,20 @@ type LicenseSpecV3 struct {
 	SupportsDatabaseAccess Bool `json:"db,omitempty"`
 	// SupportsDesktopAccess turns desktop access on or off
 	SupportsDesktopAccess Bool `json:"desktop,omitempty"`
-	// ReportsUsage turns usage reporting on or off
+	// ReportsUsage turns Houston usage reporting on or off
 	ReportsUsage Bool `json:"usage,omitempty"`
+	// SalesCenterReporting turns Sales Center usage reporting on or off
+	SalesCenterReporting Bool `json:"reporting,omitempty"`
 	// Cloud is turned on when teleport is hosted by Gravitational
 	Cloud Bool `json:"cloud,omitempty"`
+	// SupportsModeratedSessions turns on moderated sessions
+	SupportsModeratedSessions Bool `json:"moderated_sessions,omitempty"`
+	// SupportsMachineID turns MachineID support on or off
+	SupportsMachineID Bool `json:"machine_id,omitempty"`
+	// SupportsResourceAccessRequests turns resource access request support on or off
+	SupportsResourceAccessRequests Bool `json:"resource_access_requests,omitempty"`
+	// Trial is true for trial licenses
 	Trial Bool `json:"trial,omitempty"`
+	// FeatureSource is the source of the set of enabled feature
+	FeatureSource FeatureSource `json:"feature_source"`
 }

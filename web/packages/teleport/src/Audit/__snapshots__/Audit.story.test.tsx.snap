@@ -284,12 +284,12 @@ exports[`list of all events 1`] = `
 }
 
 .c2::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
 .c17 {
-  background: #000;
+  background: #000000;
   border: 2px solid #651FFF;
   color: rgba(255,255,255,0.87);
   cursor: pointer;
@@ -350,7 +350,7 @@ exports[`list of all events 1`] = `
       >
         <div
           class="c6"
-          color="primary.contrastText"
+          color="text.contrast"
           style="white-space: nowrap; text-transform: uppercase;"
         >
           Showing 
@@ -359,12 +359,12 @@ exports[`list of all events 1`] = `
           </strong>
            - 
           <strong>
-            178
+            192
           </strong>
            of
            
           <strong>
-            178
+            192
           </strong>
         </div>
         <button
@@ -437,6 +437,302 @@ exports[`list of all events 1`] = `
       </tr>
     </thead>
     <tbody>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-warning c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Okta assignment failed to clean up
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Okta assignment [assignment-id], source [source], user [mike] cleanup has failed
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-05-08T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Okta assignment has been cleaned up
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Okta assignment [assignment-id], source [source], user [mike] has been successfully cleaned up
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-05-08T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-warning c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Okta assignment failed to process
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Okta assignment [assignment-id], source [source], user [mike] processing has failed
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-05-08T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Okta assignment has been processed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Okta assignment [assignment-id], source [source], user [mike] has been successfully processed
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-05-08T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-warning c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Okta synchronization failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          Okta synchronization failed
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-05-08T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Okta applications have been updated
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          [5] added, [1] updated, [7] deleted
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-05-08T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Okta groups have been updated
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          [5] added, [1] updated, [7] deleted
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-05-08T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            SAML IdP service provider delete failed
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [mike] failed to delete all service providers
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-25T19:21:36.144Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
       <tr>
         <td
           style="vertical-align: inherit;"
@@ -1344,6 +1640,228 @@ exports[`list of all events 1`] = `
           style="word-break: break-word;"
         >
           User [3827e8ad-7cbe-4423-a80f-dfc89e83eb86.im-a-cluster-name] has registered a device
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Authenticate
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] has failed to authenticate their device
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Enrollment
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] has failed to enroll their device
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Enroll Token Spent
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] has spent a device enroll token
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Enroll Token Create
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] created a device enroll token
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Delete
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] has deleted a device
+        </td>
+        <td
+          style="min-width: 120px;"
+        >
+          2023-01-12T19:28:36.842Z
+        </td>
+        <td
+          align="right"
+        >
+          <button
+            class="c16"
+            kind="border"
+            width="87px"
+          >
+            Details
+          </button>
+        </td>
+      </tr>
+      <tr>
+        <td
+          style="vertical-align: inherit;"
+        >
+          <div
+            class="c14"
+          >
+            <span
+              class="c10 c15 icon icon-info_outline c10 c15"
+              color="light"
+              font-size="3"
+            />
+            Device Register
+          </div>
+        </td>
+        <td
+          style="word-break: break-word;"
+        >
+          User [[object Object]] has registered a device
         </td>
         <td
           style="min-width: 120px;"
@@ -7304,7 +7822,7 @@ exports[`loaded audit log screen 1`] = `
   min-height: 34px;
   height: 34px;
   border-color: rgba(255,255,255,0.24);
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c3 .react-select__control:focus,
@@ -7357,7 +7875,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c3 .react-select__placeholder {
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
 }
 
 .c3 .react-select__option {
@@ -7371,7 +7889,7 @@ exports[`loaded audit log screen 1`] = `
 
 .c3 .react-select__multi-value {
   background-color: #111B48;
-  border: 1px solid rgba(255,255,255,0.24);
+  border: 1px solid rgba(255,255,255,0.54);
 }
 
 .c3 .react-select__multi-value__label {
@@ -7382,7 +7900,7 @@ exports[`loaded audit log screen 1`] = `
 .c3 .react-select--is-disabled .react-select__single-value,
 .c3 .react-select--is-disabled .react-select__placeholder,
 .c3 .react-select--is-disabled .react-select__indicator {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
 }
 
 .c1 {
@@ -7585,7 +8103,7 @@ exports[`loaded audit log screen 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -7693,7 +8211,7 @@ exports[`loaded audit log screen 1`] = `
       >
         <div
           class="c11"
-          color="primary.contrastText"
+          color="text.contrast"
           style="white-space: nowrap; text-transform: uppercase;"
         >
           Showing 

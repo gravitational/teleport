@@ -87,6 +87,10 @@ spec:
 {{- if $auth.tolerations }}
       tolerations: {{- toYaml $auth.tolerations | nindent 6 }}
 {{- end }}
+{{- if $auth.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml $auth.imagePullSecrets | nindent 6 }}
+{{- end }}
 {{- if $auth.initContainers }}
       initContainers:
   {{- range $initContainer := $auth.initContainers }}

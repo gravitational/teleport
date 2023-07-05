@@ -66,9 +66,15 @@ void RunDiag(DiagResult *diagOut) {
   // This fails if Touch ID is not available or cannot be used for various
   // reasons (no password set, device locked, lid is closed, etc).
   LAContext *ctx = [[LAContext alloc] init];
+  NSError *laError = NULL;
   diagOut->passed_la_policy_test =
       [ctx canEvaluatePolicy:LAPolicyDeviceOwnerAuthenticationWithBiometrics
-                       error:NULL];
+                       error:&laError];
+  if (laError) {
+    diagOut->la_error_code = [laError code];
+    diagOut->la_error_domain = CopyNSString([laError domain]);
+    diagOut->la_error_description = CopyNSString([laError description]);
+  }
 
   // Attempt to write a non-permanent key to the enclave.
   NSDictionary *attributes = @{

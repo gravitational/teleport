@@ -137,7 +137,7 @@ function Install-Node {
 function Enable-Node {
     <#
     .SYNOPSIS
-        Adds the Node toolchaion to the system search path 
+        Adds the Node toolchain to the system search path
     #>
     [CmdletBinding()]
     param(

@@ -38,6 +38,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/multiplexer"
 	"github.com/gravitational/teleport/lib/reversetunnel/track"
 	alpncommon "github.com/gravitational/teleport/lib/srv/alpnproxy/common"
 	"github.com/gravitational/teleport/lib/utils"
@@ -133,6 +134,8 @@ type AgentPoolConfig struct {
 	// LocalAuthAddresses is a list of auth servers to use when dialing back to
 	// the local cluster.
 	LocalAuthAddresses []string
+	// PROXYSigner is used to sign PROXY headers for securely propagating client IP address
+	PROXYSigner multiplexer.PROXYHeaderSigner
 }
 
 // CheckAndSetDefaults checks and sets defaults.
@@ -197,7 +200,8 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: teleport.ComponentReverseTunnelAgent,
 			trace.ComponentFields: logrus.Fields{
-				"cluster": config.Cluster,
+				"targetCluster": config.Cluster,
+				"localCluster":  config.LocalCluster,
 			},
 		}),
 		runtimeConfig: newAgentPoolRuntimeConfig(),
@@ -379,7 +383,7 @@ func (p *AgentPool) isAgentRequired() bool {
 		return true
 	}
 
-	return p.active.len() < p.runtimeConfig.connectionCount
+	return p.active.len() < p.runtimeConfig.getConnectionCount()
 }
 
 // disconnectAgents handles disconnecting agents that are no longer required.
@@ -497,6 +501,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 		options:     options,
 		username:    p.HostUUID,
 		log:         p.log,
+		isClaimed:   p.tracker.IsClaimed,
 	}
 
 	agent, err := newAgent(agentConfig{
@@ -510,6 +515,7 @@ func (p *AgentPool) newAgent(ctx context.Context, tracker *track.Tracker, lease 
 		clock:              p.Clock,
 		log:                p.log,
 		localAuthAddresses: p.LocalAuthAddresses,
+		proxySigner:        p.PROXYSigner,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -551,19 +557,21 @@ func (p *AgentPool) getVersion(ctx context.Context) (string, error) {
 // transport creates a new transport instance.
 func (p *AgentPool) transport(ctx context.Context, channel ssh.Channel, requests <-chan *ssh.Request, conn sshutils.Conn) *transport {
 	return &transport{
-		closeContext:        ctx,
-		component:           p.Component,
-		localClusterName:    p.LocalCluster,
-		kubeDialAddr:        p.KubeDialAddr,
-		authClient:          p.Client,
-		reverseTunnelServer: p.ReverseTunnelServer,
-		server:              p.Server,
-		emitter:             p.Client,
-		sconn:               conn,
-		channel:             channel,
-		requestCh:           requests,
-		log:                 p.log,
-		authServers:         p.LocalAuthAddresses,
+		closeContext:         ctx,
+		component:            p.Component,
+		localClusterName:     p.LocalCluster,
+		kubeDialAddr:         p.KubeDialAddr,
+		authClient:           p.Client,
+		reverseTunnelServer:  p.ReverseTunnelServer,
+		server:               p.Server,
+		emitter:              p.Client,
+		sconn:                conn,
+		channel:              channel,
+		requestCh:            requests,
+		log:                  p.log,
+		authServers:          p.LocalAuthAddresses,
+		proxySigner:          p.PROXYSigner,
+		forwardClientAddress: true,
 	}
 }
 
@@ -624,6 +632,12 @@ func (c *agentPoolRuntimeConfig) restrictConnectionCount() bool {
 		return false
 	}
 	return c.tunnelStrategyType == types.ProxyPeering
+}
+
+func (c *agentPoolRuntimeConfig) getConnectionCount() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.connectionCount
 }
 
 // useReverseTunnelV2 returns true if reverse tunnel should be used.

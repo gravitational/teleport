@@ -107,7 +107,7 @@ type Option = { value: string; label: string };
 const StyledSelect = styled(DarkStyledSelect)(
   ({ theme }) => `
   .react-select-container {
-    background: ${theme.colors.primary.light};
+    background: ${theme.colors.levels.surface};
   }
 
   .react-select__single-value {

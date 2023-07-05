@@ -1,6 +1,6 @@
 ---
 title: Introduction to Teleport
-description: How to install and quickly get up and running with Teleport.
+description: Teleport is an identity-aware, multi-protocol access proxy with native support for SSH, RDP, Kubernetes, and more. Get started with the Teleport documentation.
 layout: tocless-doc
 videoBanner: ki-uVTSocGE
 ---
@@ -31,17 +31,15 @@ Client](./connect-your-client/introduction.mdx) guides for instructions.
 
 ## Try out Teleport
 
-The fastest way to try out Teleport is to sign up for a free trial of Teleport
-Enterprise Cloud and add your first resource. In our [getting started
-guide](./choose-an-edition/teleport-cloud/getting-started.mdx), you will
-register a local container, access it securely from your browser, record your
-SSH session, and play it back.
+If you are curious to see how Teleport works, you can get started by [spinning
+up a demo cluster](./get-started.mdx) on a Linux server. After seeing how your
+demo Teleport cluster lets you securely access a server and play back your SSH
+sessions, you can configure RBAC, add resources, and protect your home lab with
+Teleport.
 
-After getting acquainted with how Teleport enables secure access to your
-infrastructure, follow our [Try out
-Teleport](./try-out-teleport/introduction.mdx) guides to set up a demo Teleport
-cluster in an environment that works best for you, whether this is a
-browser-based lab, virtual machine, or local Kubernetes cluster.
+You can also get started right away with a production-ready Teleport cluster.
+[Sign up for a free trial](https://goteleport.com/signup/) of Teleport
+Team.
 
 Once you are ready to learn more about Teleport, read our [Core Concepts
 guide](./core-concepts.mdx), which introduces the components of a Teleport
@@ -51,9 +49,15 @@ documentation.
 ## Choose an edition
 
 After trying out Teleport, you are ready to deploy a cluster to your
-infrastructure. Teleport has three editions, Teleport Enterprise, Teleport
-Enterprise Cloud, and Teleport Community Edition, and you can compare these in
-our [Choose an Edition](./choose-an-edition/introduction.mdx) section.
+infrastructure. Teleport has four editions: 
+
+- Teleport Team
+- Teleport Enterprise Cloud
+- Teleport Enterprise
+- Teleport Community Edition
+
+You can compare these in our [Choose an
+Edition](./choose-an-edition/introduction.mdx) section.
 
 <Notice type="tip">
 
@@ -96,7 +100,8 @@ infrastructure.
 
 Read about how to enable access to:
 
-- [Servers](./server-access/getting-started.mdx)
+- [Servers](./server-access/getting-started.mdx), including OpenSSH servers that
+  [do not have Teleport installed](./server-access/guides/openssh.mdx)
 - [Kubernetes clusters](./kubernetes-access/introduction.mdx)
 - [Databases](./database-access/introduction.mdx)
 - [Applications](./application-access/introduction.mdx)

@@ -1,4 +1,4 @@
-//go:build eimports
+//go:build e_imports && !e_imports
 
 // Copyright 2022 Gravitational, Inc
 //
@@ -43,14 +43,42 @@ comm -13 <(
 */
 
 import (
+	_ "github.com/alecthomas/kingpin/v2"
 	_ "github.com/beevik/etree"
 	_ "github.com/coreos/go-oidc/oidc"
 	_ "github.com/go-piv/piv-go/piv"
 	_ "github.com/google/go-attestation/attest"
 	_ "github.com/gravitational/form"
+	_ "github.com/gravitational/license"
+	_ "github.com/gravitational/roundtrip"
+	_ "github.com/gravitational/trace"
+	_ "github.com/gravitational/trace/trail"
+	_ "github.com/jonboulle/clockwork"
+	_ "github.com/julienschmidt/httprouter"
+	_ "github.com/mitchellh/mapstructure"
 	_ "github.com/okta/okta-sdk-golang/v2/okta"
+	_ "golang.org/x/time/rate"
 	_ "google.golang.org/api/admin/directory/v1"
 	_ "google.golang.org/api/cloudidentity/v1"
 	_ "google.golang.org/genproto/googleapis/rpc/status"
 	_ "gopkg.in/check.v1"
+	_ "k8s.io/apimachinery/pkg/util/yaml"
+
+	_ "github.com/gravitational/teleport/api/breaker"
+	_ "github.com/gravitational/teleport/api/client"
+	_ "github.com/gravitational/teleport/api/client/proto"
+	_ "github.com/gravitational/teleport/api/client/webclient"
+	_ "github.com/gravitational/teleport/api/constants"
+	_ "github.com/gravitational/teleport/api/defaults"
+	_ "github.com/gravitational/teleport/api/gen/proto/go/attestation/v1"
+	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
+	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
+	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
+	_ "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	_ "github.com/gravitational/teleport/api/types"
+	_ "github.com/gravitational/teleport/api/types/events"
+	_ "github.com/gravitational/teleport/api/types/wrappers"
+	_ "github.com/gravitational/teleport/api/utils"
+	_ "github.com/gravitational/teleport/api/utils/keys"
+	_ "github.com/gravitational/teleport/api/utils/retryutils"
 )

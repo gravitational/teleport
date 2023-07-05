@@ -74,9 +74,22 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_service_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DatabaseServiceLabels are used in RBAC system to
+                      allow/deny access to Database Services.
+                    type: object
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  gcp_service_accounts:
+                    description: GCPServiceAccounts is a list of GCP service accounts
+                      this role is allowed to assume.
                     items:
                       type: string
                     nullable: true
@@ -244,10 +257,11 @@ spec:
                         nullable: true
                         type: array
                       search_as_roles:
-                        description: SearchAsRoles is a list of roles which the user
-                          should be able to "assume" while searching for resources,
-                          and should be able to request with a search-based access
-                          request.
+                        description: SearchAsRoles is a list of extra roles which
+                          should apply to a user while they are searching for resources
+                          as part of a Resource Access Request, and defines the underlying
+                          roles which will be requested as part of any Resource Access
+                          Request.
                         items:
                           type: string
                         nullable: true
@@ -349,6 +363,15 @@ spec:
                               description: Value is a claim value to match.
                               type: string
                           type: object
+                        type: array
+                      preview_as_roles:
+                        description: PreviewAsRoles is a list of extra roles which
+                          should apply to a reviewer while they are viewing a Resource
+                          Access Request for the purposes of viewing details such
+                          as the hostname and labels of requested resources.
+                        items:
+                          type: string
+                        nullable: true
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
@@ -447,9 +470,22 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_service_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DatabaseServiceLabels are used in RBAC system to
+                      allow/deny access to Database Services.
+                    type: object
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  gcp_service_accounts:
+                    description: GCPServiceAccounts is a list of GCP service accounts
+                      this role is allowed to assume.
                     items:
                       type: string
                     nullable: true
@@ -617,10 +653,11 @@ spec:
                         nullable: true
                         type: array
                       search_as_roles:
-                        description: SearchAsRoles is a list of roles which the user
-                          should be able to "assume" while searching for resources,
-                          and should be able to request with a search-based access
-                          request.
+                        description: SearchAsRoles is a list of extra roles which
+                          should apply to a user while they are searching for resources
+                          as part of a Resource Access Request, and defines the underlying
+                          roles which will be requested as part of any Resource Access
+                          Request.
                         items:
                           type: string
                         nullable: true
@@ -723,6 +760,15 @@ spec:
                               type: string
                           type: object
                         type: array
+                      preview_as_roles:
+                        description: PreviewAsRoles is a list of extra roles which
+                          should apply to a reviewer while they are viewing a Resource
+                          Access Request for the purposes of viewing details such
+                          as the hostname and labels of requested resources.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
                         items:
@@ -799,7 +845,7 @@ spec:
                           format: int32
                           type: integer
                         value:
-                          description: Value specifies the valueg to be used in the
+                          description: Value specifies the value to be used in the
                             cert extension.
                           type: string
                       type: object
@@ -829,6 +875,11 @@ spec:
                       sharing is allowed between the user's workstation and the remote
                       desktop. It defaults to false unless explicitly set to true.
                     type: boolean
+                  device_trust_mode:
+                    description: DeviceTrustMode is the device authorization mode
+                      used for the resources associated with the role. See DeviceTrust.Mode.
+                      Reserved for future use, not yet used by Teleport.
+                    type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert sets disconnect clients on
                       expired certificates.
@@ -843,6 +894,22 @@ spec:
                   forward_agent:
                     description: ForwardAgent is SSH agent forwarding.
                     type: boolean
+                  idp:
+                    description: IDP is a set of options related to accessing IdPs
+                      within Teleport. Requires Teleport Enterprise.
+                    nullable: true
+                    properties:
+                      saml:
+                        description: SAML are options related to the Teleport SAML
+                          IdP.
+                        nullable: true
+                        properties:
+                          enabled:
+                            description: Enabled is set to true if this option allows
+                              access to the Teleport SAML IdP.
+                            type: boolean
+                        type: object
+                    type: object
                   lock:
                     description: Lock specifies the locking mode (strict|best_effort)
                       to be applied with the role.
@@ -898,7 +965,7 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request stategy
+                    description: RequestAccess defines the access request strategy
                       (optional|note|always) where optional is the default.
                     type: string
                   request_prompt:
@@ -906,8 +973,14 @@ spec:
                       users what they aught to
                     type: string
                   require_session_mfa:
-                    description: RequireSessionMFA specifies whether a user is required
-                      to do an MFA check for every session.
+                    description: RequireMFAType is the type of MFA requirement enforced
+                      for this user.
+                    format: int32
+                    type: integer
+                  ssh_file_copy:
+                    description: SSHFileCopy indicates whether remote file operations
+                      via SCP or SFTP are allowed over an SSH session. It defaults
+                      to true unless explicitly set to false.
                     type: boolean
                 type: object
             type: object
@@ -1055,9 +1128,22 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_service_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DatabaseServiceLabels are used in RBAC system to
+                      allow/deny access to Database Services.
+                    type: object
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  gcp_service_accounts:
+                    description: GCPServiceAccounts is a list of GCP service accounts
+                      this role is allowed to assume.
                     items:
                       type: string
                     nullable: true
@@ -1225,10 +1311,11 @@ spec:
                         nullable: true
                         type: array
                       search_as_roles:
-                        description: SearchAsRoles is a list of roles which the user
-                          should be able to "assume" while searching for resources,
-                          and should be able to request with a search-based access
-                          request.
+                        description: SearchAsRoles is a list of extra roles which
+                          should apply to a user while they are searching for resources
+                          as part of a Resource Access Request, and defines the underlying
+                          roles which will be requested as part of any Resource Access
+                          Request.
                         items:
                           type: string
                         nullable: true
@@ -1330,6 +1417,15 @@ spec:
                               description: Value is a claim value to match.
                               type: string
                           type: object
+                        type: array
+                      preview_as_roles:
+                        description: PreviewAsRoles is a list of extra roles which
+                          should apply to a reviewer while they are viewing a Resource
+                          Access Request for the purposes of viewing details such
+                          as the hostname and labels of requested resources.
+                        items:
+                          type: string
+                        nullable: true
                         type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
@@ -1428,9 +1524,22 @@ spec:
                       type: string
                     nullable: true
                     type: array
+                  db_service_labels:
+                    additionalProperties:
+                      x-kubernetes-preserve-unknown-fields: true
+                    description: DatabaseServiceLabels are used in RBAC system to
+                      allow/deny access to Database Services.
+                    type: object
                   db_users:
-                    description: DatabaseUsers is a list of databaes users this role
+                    description: DatabaseUsers is a list of databases users this role
                       is allowed to connect as.
+                    items:
+                      type: string
+                    nullable: true
+                    type: array
+                  gcp_service_accounts:
+                    description: GCPServiceAccounts is a list of GCP service accounts
+                      this role is allowed to assume.
                     items:
                       type: string
                     nullable: true
@@ -1598,10 +1707,11 @@ spec:
                         nullable: true
                         type: array
                       search_as_roles:
-                        description: SearchAsRoles is a list of roles which the user
-                          should be able to "assume" while searching for resources,
-                          and should be able to request with a search-based access
-                          request.
+                        description: SearchAsRoles is a list of extra roles which
+                          should apply to a user while they are searching for resources
+                          as part of a Resource Access Request, and defines the underlying
+                          roles which will be requested as part of any Resource Access
+                          Request.
                         items:
                           type: string
                         nullable: true
@@ -1704,6 +1814,15 @@ spec:
                               type: string
                           type: object
                         type: array
+                      preview_as_roles:
+                        description: PreviewAsRoles is a list of extra roles which
+                          should apply to a reviewer while they are viewing a Resource
+                          Access Request for the purposes of viewing details such
+                          as the hostname and labels of requested resources.
+                        items:
+                          type: string
+                        nullable: true
+                        type: array
                       roles:
                         description: Roles is the name of roles which may be reviewed.
                         items:
@@ -1780,7 +1899,7 @@ spec:
                           format: int32
                           type: integer
                         value:
-                          description: Value specifies the valueg to be used in the
+                          description: Value specifies the value to be used in the
                             cert extension.
                           type: string
                       type: object
@@ -1810,6 +1929,11 @@ spec:
                       sharing is allowed between the user's workstation and the remote
                       desktop. It defaults to false unless explicitly set to true.
                     type: boolean
+                  device_trust_mode:
+                    description: DeviceTrustMode is the device authorization mode
+                      used for the resources associated with the role. See DeviceTrust.Mode.
+                      Reserved for future use, not yet used by Teleport.
+                    type: string
                   disconnect_expired_cert:
                     description: DisconnectExpiredCert sets disconnect clients on
                       expired certificates.
@@ -1824,6 +1948,22 @@ spec:
                   forward_agent:
                     description: ForwardAgent is SSH agent forwarding.
                     type: boolean
+                  idp:
+                    description: IDP is a set of options related to accessing IdPs
+                      within Teleport. Requires Teleport Enterprise.
+                    nullable: true
+                    properties:
+                      saml:
+                        description: SAML are options related to the Teleport SAML
+                          IdP.
+                        nullable: true
+                        properties:
+                          enabled:
+                            description: Enabled is set to true if this option allows
+                              access to the Teleport SAML IdP.
+                            type: boolean
+                        type: object
+                    type: object
                   lock:
                     description: Lock specifies the locking mode (strict|best_effort)
                       to be applied with the role.
@@ -1879,7 +2019,7 @@ spec:
                         type: string
                     type: object
                   request_access:
-                    description: RequestAccess defines the access request stategy
+                    description: RequestAccess defines the access request strategy
                       (optional|note|always) where optional is the default.
                     type: string
                   request_prompt:
@@ -1887,8 +2027,14 @@ spec:
                       users what they aught to
                     type: string
                   require_session_mfa:
-                    description: RequireSessionMFA specifies whether a user is required
-                      to do an MFA check for every session.
+                    description: RequireMFAType is the type of MFA requirement enforced
+                      for this user.
+                    format: int32
+                    type: integer
+                  ssh_file_copy:
+                    description: SSHFileCopy indicates whether remote file operations
+                      via SCP or SFTP are allowed over an SSH session. It defaults
+                      to true unless explicitly set to false.
                     type: boolean
                 type: object
             type: object

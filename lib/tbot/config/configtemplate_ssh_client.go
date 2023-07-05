@@ -109,19 +109,29 @@ func getClusterNames(client auth.ClientI) ([]string, error) {
 	return allClusterNames, nil
 }
 
-func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Identity, destination *DestinationConfig) error {
+func (c *TemplateSSHClient) Render(
+	ctx context.Context,
+	bot Bot,
+	_, unroutedIdentity *identity.Identity,
+	destination *DestinationConfig,
+) error {
 	dest, err := destination.GetDestination()
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	authClient := bot.Client()
+	authClient, err := bot.AuthenticatedUserClientFromIdentity(ctx, unroutedIdentity)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer authClient.Close()
+
 	ping, err := bot.AuthPing(ctx)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	proxyHost, _, err := utils.SplitHostPort(ping.ProxyPublicAddr)
+	proxyHost, proxyPort, err := utils.SplitHostPort(ping.ProxyPublicAddr)
 	if err != nil {
 		return trace.BadParameter("proxy %+v has no usable public address: %v", ping.ProxyPublicAddr, err)
 	}
@@ -192,6 +202,7 @@ func (c *TemplateSSHClient) Render(ctx context.Context, bot Bot, _ *identity.Ide
 		IdentityFilePath:    identityFilePath,
 		CertificateFilePath: certificateFilePath,
 		ProxyHost:           proxyHost,
+		ProxyPort:           proxyPort,
 		ExecutablePath:      executablePath,
 		DestinationDir:      destDir,
 	}); err != nil {

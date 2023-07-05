@@ -23,6 +23,8 @@ import styled from 'styled-components';
 import { FeatureBox } from 'teleport/components/Layout';
 import useTeleport from 'teleport/useTeleport';
 import cfg from 'teleport/config';
+import { ButtonLockedFeature } from 'teleport/components/ButtonLockedFeature';
+import { CtaEvent } from 'teleport/services/userEvent';
 
 export default function Container({
   children,
@@ -38,6 +40,7 @@ export default function Container({
       isEnterprise={cfg.isEnterprise}
       tunnelPublicAddress={cfg.tunnelPublicAddress}
       isCloud={cfg.isCloud}
+      showPremiumSupportCTA={ctx.lockedFeatures.premiumSupport}
       children={children}
     />
   );
@@ -51,6 +54,7 @@ export const Support = ({
   tunnelPublicAddress,
   isCloud,
   children,
+  showPremiumSupportCTA,
 }: Props) => {
   const docs = getDocUrls(authVersion, isEnterprise);
 
@@ -60,7 +64,7 @@ export const Support = ({
         <Flex justifyContent="space-between" flexWrap="wrap">
           <Box>
             <Header title="Support" icon={<Icons.LocalPlay />} />
-            {isEnterprise && (
+            {isEnterprise && !showPremiumSupportCTA && (
               <SupportLink
                 title="Create a Support Ticket"
                 url="https://support.goteleport.com"
@@ -78,6 +82,11 @@ export const Support = ({
               title="Send Product Feedback"
               url="mailto:support@goteleport.com"
             />
+            {isEnterprise && showPremiumSupportCTA && (
+              <ButtonLockedFeature event={CtaEvent.CTA_PREMIUM_SUPPORT}>
+                Unlock Premium Support w/Enterprise
+              </ButtonLockedFeature>
+            )}
           </Box>
           <Box>
             <Header title="Resources" icon={<Icons.ListCheck />} />
@@ -130,7 +139,7 @@ export const DataContainer: React.FC<{ title: string }> = ({
 }) => (
   <Box
     border="1px solid"
-    borderColor="primary.light"
+    borderColor="levels.surface"
     mt={4}
     borderRadius={3}
     px={5}
@@ -202,7 +211,7 @@ const StyledSupportLink = styled.a.attrs({
   transition: all 0.3s;
   ${props => props.theme.typography.body2}
   &:hover, &:focus {
-    background: ${props => props.theme.colors.primary.lighter};
+    background: ${props => props.theme.colors.levels.elevated};
   }
 `;
 
@@ -219,7 +228,7 @@ const Header = ({ title = '', icon = null }) => (
   <Flex
     alignItems="center"
     borderBottom="1px solid"
-    borderColor="primary.dark"
+    borderColor="levels.sunkenSecondary"
     mb={3}
     width={210}
     mt={4}
@@ -242,4 +251,5 @@ export type Props = {
   isCloud: boolean;
   tunnelPublicAddress?: string;
   children?: React.ReactNode;
+  showPremiumSupportCTA: boolean;
 };

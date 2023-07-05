@@ -53,7 +53,8 @@ behind-firewall clusters refer to our
 Yes. When running a Teleport agent, use the `--auth-server` flag to point to the
 Proxy Service address (this would be `public_addr` and `web_listen_addr` in your
 file configuration). For more information, see
-[Adding Nodes to the Cluster](./management/admin/adding-nodes.mdx).
+[Adding Nodes to the
+Cluster](./management/join-services-to-your-cluster/join-token.mdx).
 
 ## Can Nodes use a single port for reverse tunnels?
 
@@ -62,6 +63,12 @@ Yes, Teleport supports tunnel multiplexing on a single port. Set the
 setting in the `proxy_service` configuration. Teleport will automatically use
 multiplexing with that configuration.
 
+## Can I copy files from one Teleport node to another?
+
+Yes, Teleport supports [Headless WebAuthn authentication](./access-controls/guides/headless.mdx),
+which allows you to perform operations like `tsh ssh` or `tsh scp` from remote systems where you
+are not logged in to Teleport or may not have access to a browser.
+
 ## I'm getting `ssh: subsystem request failed` while I try to copy files, what to do?
 
 Make sure that all Teleport components are at least at version 10.3.0. Older versions
@@ -69,11 +76,12 @@ don't support the SFTP protocol, and it's enabled by default in `tsh` v11.0.0 an
 
 ## How is Open Source different from Enterprise?
 
-Teleport provides three editions:
+Teleport provides four editions:
 
-- Open Source
-- Enterprise
-- Cloud
+- Teleport Team
+- Teleport Enterprise
+- Teleport Enterprise Cloud
+- Teleport Community Edition
 
 Here is a detailed breakdown of the differences between Teleport's editions.
 
@@ -91,9 +99,9 @@ Here are the major versions of Teleport and their support windows:
 
 | Release | Release Date     | EOL          | Minimum `tsh` version|
 |---------|------------------|--------------|----------------------|
+| v13.0   | May 8, 2023      | February 2024| v12.x.x              |
 | v12.0   | Feb 6, 2023      | November 2023| v11.x.x              |
 | v11.0   | October 24, 2022 | July 2023    | v10.x.x              |
-| v10.0   | July 8, 2022     | April 2023   | v9.x.x               |
 
 See our [Upgrading](./management/operations/upgrading.mdx) guide for more
 information.
@@ -114,21 +122,50 @@ Please refer to our [Networking](./reference/networking.mdx) guide.
 
 Teleport offers this feature for the [Enterprise versions of Teleport](choose-an-edition/teleport-enterprise/introduction.mdx).
 
+## Why do I see an alert that some agents are out of date?
+
+Teleport monitors the inventory of all cluster components and compares their
+Teleport versions with the latest release on our GitHub page. If a component is
+not on the latest release, Teleport will create a cluster alert encouraging
+users to upgrade.
+
+This check is performed against all cluster components, including the Proxy
+Service and Auth Service, as well as agents running other Teleport Services.
+
+## Can I suppress warnings about available upgrades?
+
+Yes. The `tctl alerts ack` command can be used to acknowledge an alert and
+temporarily prevent it from being displayed to users. To acknowledge an alert,
+you need its ID. You can get a listing of all alerts and their IDs with the
+`tctl alerts list` command.
+
+For detailed information on this family of commands, see the
+[CLI Reference](./reference/cli.mdx#tctl-alerts-list).
+
 ## Does Teleport send any data back to the cloud?
 
-The open source and Enterprise editions of Teleport do not send any information
-to our company, and can be used on servers without internet access. 
+The open source edition of Teleport does not send any information to our
+company, and can be used on servers without internet access.
 
 The commercial editions of Teleport can optionally be configured to send
 anonymized information, depending on the license purchased. This information
 contains the following:
 
-- Anonymized user ID: SHA256 hash of a username with a randomly generated prefix.
-- Anonymized server ID: SHA256 hash of a server IP with a randomly generated prefix.
+- Teleport license identifier;
+- anonymized cluster name and Teleport auth server host ID;
+- for each Teleport user, the anonymized user name and a per-protocol count of
+  interactions - Teleport logins, SSH and Kubernetes exec sessions, Application
+  access web sessions and TCP connections, SSH port forwards, Kubernetes API
+  requests, SFTP actions.
 
-This allows Teleport Cloud and Teleport Enterprise to print a warning if users
-are exceeding the usage limits of their license. The reporting library code is
-[on GitHub](https://github.com/gravitational/reporting).
+The anonymization is done by passing names and IDs through HMAC-SHA-256, with a
+HMAC key that's randomly generated when the Teleport cluster is initialized for
+the first time and is never shared with us; this makes it infeasible for anyone
+without access to the cluster to deanonymize the data we store.
+
+The code that aggregates and anonymizes this data can be found [in our
+repository on
+GitHub](https://github.com/gravitational/teleport/tree/master/lib/usagereporter/teleport/aggregating).
 
 Reach out to `sales@goteleport.com` if you have questions about the commercial
 editions of Teleport.

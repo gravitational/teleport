@@ -67,6 +67,9 @@ const (
 	// X11File is used to communicate to the parent process that the child
 	// process has set up X11 forwarding.
 	X11File
+	// ErrorFile  is used to communicate any errors terminating the child process
+	// to the parent process
+	ErrorFile
 	// PTYFile is a PTY the parent process passes to the child process.
 	PTYFile
 	// TTYFile is a TTY the parent process passes to the child process.
@@ -74,8 +77,12 @@ const (
 
 	// FirstExtraFile is the first file descriptor that will be valid when
 	// extra files are passed to child processes without a terminal.
-	FirstExtraFile = X11File + 1
+	FirstExtraFile FileFD = ErrorFile + 1
 )
+
+func fdName(f FileFD) string {
+	return fmt.Sprintf("/proc/self/fd/%d", f)
+}
 
 // ExecCommand contains the payload to "teleport exec" which will be used to
 // construct and execute a shell.
@@ -190,29 +197,23 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	errorWriter := os.Stdout
 
 	// Parent sends the command payload in the third file descriptor.
-	cmdfd := os.NewFile(CommandFile, fmt.Sprintf("/proc/self/fd/%d", CommandFile))
+	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
-	contfd := os.NewFile(ContinueFile, fmt.Sprintf("/proc/self/fd/%d", ContinueFile))
+	contfd := os.NewFile(ContinueFile, fdName(ContinueFile))
 	if contfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 	}
-	termiantefd := os.NewFile(TerminateFile, fmt.Sprintf("/proc/self/fd/%d", TerminateFile))
+	termiantefd := os.NewFile(TerminateFile, fdName(TerminateFile))
 	if termiantefd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("terminate pipe not found")
 	}
 
 	// Read in the command payload.
-	var b bytes.Buffer
-	_, err = b.ReadFrom(cmdfd)
-	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
-	}
 	var c ExecCommand
-	err = json.Unmarshal(b.Bytes(), &c)
-	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
+		return io.Discard, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
 	auditdMsg := auditd.Message{
@@ -250,8 +251,8 @@ func RunCommand() (errw io.Writer, code int, err error) {
 	// PTY and TTY. Extract them and set the controlling TTY. Otherwise, connect
 	// std{in,out,err} directly.
 	if c.Terminal {
-		pty = os.NewFile(PTYFile, fmt.Sprintf("/proc/self/fd/%d", PTYFile))
-		tty = os.NewFile(TTYFile, fmt.Sprintf("/proc/self/fd/%d", TTYFile))
+		pty = os.NewFile(PTYFile, fdName(PTYFile))
+		tty = os.NewFile(TTYFile, fdName(TTYFile))
 		if pty == nil || tty == nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("pty and tty not found")
 		}
@@ -390,7 +391,7 @@ func RunCommand() (errw io.Writer, code int, err error) {
 		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=%s", x11.DisplayEnv, c.X11Config.XAuthEntry.Display.String()))
 
 		// Open x11rdy fd to signal parent process once X11 forwarding is set up.
-		x11rdyfd := os.NewFile(X11File, fmt.Sprintf("/proc/self/fd/%d", X11File))
+		x11rdyfd := os.NewFile(X11File, fdName(X11File))
 		if x11rdyfd == nil {
 			return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("continue pipe not found")
 		}
@@ -440,7 +441,7 @@ func waitForShell(termiantefd *os.File, cmd *exec.Cmd) error {
 		// Wait for the terminate file descriptor to be closed. The FD will be closed when Teleport
 		// parent process wants to terminate the remote command and all childs.
 		_, err := termiantefd.Read(buf)
-		if err == io.EOF {
+		if errors.Is(err, io.EOF) {
 			// Kill the shell process
 			err = trace.Errorf("shell process has been killed: %w", cmd.Process.Kill())
 		} else {
@@ -567,20 +568,24 @@ func RunForward() (errw io.Writer, code int, err error) {
 	errorWriter := os.Stderr
 
 	// Parent sends the command payload in the third file descriptor.
-	cmdfd := os.NewFile(CommandFile, fmt.Sprintf("/proc/self/fd/%d", CommandFile))
+	cmdfd := os.NewFile(CommandFile, fdName(CommandFile))
 	if cmdfd == nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("command pipe not found")
 	}
 
-	// Read in the command payload.
-	var b bytes.Buffer
-	_, err = b.ReadFrom(cmdfd)
-	if err != nil {
-		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
+	// Parent receives any errors on the sixth file descriptor.
+	errfd := os.NewFile(ErrorFile, fdName(ErrorFile))
+	if errfd == nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.BadParameter("error pipe not found")
 	}
+
+	defer func() {
+		writeChildError(errfd, err)
+	}()
+
+	// Read in the command payload.
 	var c ExecCommand
-	err = json.Unmarshal(b.Bytes(), &c)
-	if err != nil {
+	if err := json.NewDecoder(cmdfd).Decode(&c); err != nil {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
@@ -606,6 +611,10 @@ func RunForward() (errw io.Writer, code int, err error) {
 		defer pamContext.Close()
 	}
 
+	if _, err := user.Lookup(c.Login); err != nil {
+		return errorWriter, teleport.RemoteCommandFailure, trace.NotFound(err.Error())
+	}
+
 	// Connect to the target host.
 	conn, err := net.Dial("tcp", c.DestinationAddress)
 	if err != nil {
@@ -613,33 +622,12 @@ func RunForward() (errw io.Writer, code int, err error) {
 	}
 	defer conn.Close()
 
-	// Start copy routines that copy from channel to stdin pipe and from stdout
-	// pipe to channel.
-	errorCh := make(chan error, 2)
-	go func() {
-		defer conn.Close()
-		defer os.Stdout.Close()
-		defer os.Stdin.Close()
-
-		_, err := io.Copy(os.Stdout, conn)
-		errorCh <- err
-	}()
-	go func() {
-		defer conn.Close()
-		defer os.Stdout.Close()
-		defer os.Stdin.Close()
-
-		_, err := io.Copy(conn, os.Stdin)
-		errorCh <- err
-	}()
-
-	// Block until copy is complete in either direction. The other direction
-	// will get cleaned up automatically.
-	if err = <-errorCh; err != nil && err != io.EOF {
+	err = utils.ProxyConn(context.Background(), utils.CombineReadWriteCloser(os.Stdin, os.Stdout), conn)
+	if err != nil && !errors.Is(err, io.EOF) {
 		return errorWriter, teleport.RemoteCommandFailure, trace.Wrap(err)
 	}
 
-	return io.Discard, teleport.RemoteCommandSuccess, nil
+	return errorWriter, teleport.RemoteCommandSuccess, nil
 }
 
 // runCheckHomeDir check's if the active user's $HOME dir exists.
@@ -874,11 +862,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 		cmdmsg.ExtraFilesLen = len(extraFiles)
 	}
 
-	cmdbytes, err := json.Marshal(cmdmsg)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	go copyCommand(ctx, cmdbytes)
+	go copyCommand(ctx, cmdmsg)
 
 	// Find the Teleport executable and its directory on disk.
 	executable, err := os.Executable()
@@ -908,6 +892,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 			ctx.contr,
 			ctx.killShellr,
 			ctx.x11rdyw,
+			ctx.errw,
 		},
 	}
 	// Add extra files if applicable.
@@ -923,7 +908,7 @@ func ConfigureCommand(ctx *ServerContext, extraFiles ...*os.File) (*exec.Cmd, er
 
 // copyCommand will copy the provided command to the child process over the
 // pipe attached to the context.
-func copyCommand(ctx *ServerContext, cmdbytes []byte) {
+func copyCommand(ctx *ServerContext, cmdmsg *ExecCommand) {
 	defer func() {
 		err := ctx.cmdw.Close()
 		if err != nil {
@@ -936,8 +921,7 @@ func copyCommand(ctx *ServerContext, cmdbytes []byte) {
 
 	// Write command bytes to pipe. The child process will read the command
 	// to execute from this pipe.
-	_, err := io.Copy(ctx.cmdw, bytes.NewReader(cmdbytes))
-	if err != nil {
+	if err := json.NewEncoder(ctx.cmdw).Encode(cmdmsg); err != nil {
 		log.Errorf("Failed to copy command over pipe: %v.", err)
 		return
 	}

@@ -21,14 +21,14 @@ import useTeleport from 'teleport/useTeleport';
 import { useDiscover } from 'teleport/Discover/useDiscover';
 import { DiscoverEventStatus } from 'teleport/services/userEvent';
 import auth from 'teleport/services/auth/auth';
-import { getDatabaseProtocol } from 'teleport/Discover/Database/resources';
+import { getDatabaseProtocol } from 'teleport/Discover/SelectResource';
 
 import type {
   ConnectionDiagnostic,
   ConnectionDiagnosticRequest,
 } from 'teleport/services/agents';
 import type { MfaAuthnResponse } from 'teleport/services/mfa';
-import type { Database } from 'teleport/Discover/Database/resources';
+import type { ResourceSpec } from 'teleport/Discover/SelectResource';
 
 export function useConnectionDiagnostic() {
   const ctx = useTeleport();
@@ -36,7 +36,7 @@ export function useConnectionDiagnostic() {
   const { attempt, setAttempt, handleError } = useAttempt('');
   const [diagnosis, setDiagnosis] = useState<ConnectionDiagnostic>();
   const [ranDiagnosis, setRanDiagnosis] = useState(false);
-  const { emitErrorEvent, emitEvent, prevStep, nextStep, resourceState } =
+  const { emitErrorEvent, emitEvent, prevStep, nextStep, resourceSpec } =
     useDiscover();
 
   const access = ctx.storeUser.getConnectionDiagnosticAccess();
@@ -63,7 +63,7 @@ export function useConnectionDiagnostic() {
 
     try {
       if (!mfaAuthnResponse) {
-        const mfaReq = getMfaRequest(req, resourceState);
+        const mfaReq = getMfaRequest(req, resourceSpec);
         const sessionMfa = await auth.checkMfaRequired(mfaReq);
         if (sessionMfa.required) {
           setShowMfaDialog(true);
@@ -129,7 +129,10 @@ export function useConnectionDiagnostic() {
   };
 }
 
-function getMfaRequest(req: ConnectionDiagnosticRequest, resourceState: any) {
+function getMfaRequest(
+  req: ConnectionDiagnosticRequest,
+  resourceSpec: ResourceSpec
+) {
   switch (req.resourceKind) {
     case 'node':
       return {
@@ -140,7 +143,7 @@ function getMfaRequest(req: ConnectionDiagnosticRequest, resourceState: any) {
       };
 
     case 'db':
-      const state = resourceState as Database;
+      const state = resourceSpec.dbMeta;
       return {
         database: {
           service_name: req.resourceName,

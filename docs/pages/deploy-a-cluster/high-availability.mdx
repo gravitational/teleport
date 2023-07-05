@@ -1,6 +1,7 @@
 ---
 title: "Deploying a High Availability Teleport Cluster"
 description: "Deploying a High Availability Teleport Cluster"
+tocDepth: 3
 ---
 
 When deploying Teleport in production, you should design your deployment to
@@ -16,14 +17,17 @@ deployment.
 
 ## Overview
 
-A high-availability Teleport cluster revolves around a group of redundant
-`teleport` processes, each of which runs the Auth Service and Proxy Service,
-plus the infrastructure required to support them. 
+A high-availability Teleport cluster revolves around two pools of redundant
+`teleport` processes, one running the Auth Service and one running the Proxy
+Service, plus the infrastructure required to support each pool. 
 
-This includes:
-
-- **A Layer 4 load balancer** to direct traffic from users and services to an
-  available `teleport` process.
+Infrastructure components include:
+- A **public Layer 4 load balancer** to direct traffic from users and services
+  to an available Proxy Service instance.
+- A **private Layer 4 load balancer** to direct traffic from the Proxy Service
+  to the Auth Service's gRPC API, which is how Teleport manages the Auth
+  Service's backend state and provides credentials to users and services in your
+  cluster.
 - A **cluster state backend**. This is a key-value store for cluster state and
   audit events that all Auth Service instances can access. This requires
   permissions for Auth Service instances to manage records within the key-value
@@ -41,24 +45,84 @@ This includes:
   credential provisioner will need to manage DNS records to demonstrate control
   over your domain name.
 
-![Diagram of a high-availability Teleport
-architecture](../../img/deploy-a-cluster/teleport-ha-architecture.png)
+{/*
+The block of &nbsp is there to push the subgraph label out of the way of the
+diagram lines. This is a hacky solution to https://github.com/mermaid-js/mermaid/issues/1209
+*/}
 
-## Layer 4 load balancer
+```mermaid
+flowchart
+   subgraph public[Public Network]
+     Developers
+   end
 
-The load balancer forwards traffic from users and services to an available
-Teleport instance. This must not terminate TLS, and must transparently forward
-the TCP traffic it receives. In other words, this must be a Layer 4 load
-balancer, not a Layer 7 (e.g., HTTP) load balancer. 
+   subgraph private[Private Network]
+     server1[Teleport Service]
+     server2[Teleport Service]
+     server3[Teleport Service]
+   end
 
-We recommend configuring your load balancer to route traffic across multiple
+   Developers & server1 & server2 & server3 --> lb1[Load Balancer]
+   lb1 --> proxies
+
+   subgraph teleport[Private Network &nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp&nbsp]
+     subgraph proxies[Proxy Service Pool]
+       tp1[Teleport Proxy Service]
+       tp2[Teleport Proxy Service]
+     end
+
+     proxies --> lb2[Load Balancer]
+
+     subgraph auth[Auth Service Pool]
+       ta1[Teleport Auth Service]
+       ta2[Teleport Auth Service]
+    end
+
+    lb2-->auth
+
+    auth-->kv[Key/Value Store]
+    auth-->os[Object Store]
+   end
+
+classDef teleportColor fill:#844cff,color:#fff
+classDef nestedSub fill:#fff
+class proxies nestedSub
+class auth nestedSub
+class server1 teleportColor
+class server2 teleportColor
+class server3 teleportColor
+class tp1 teleportColor
+class tp2 teleportColor
+class ta1 teleportColor
+class ta2 teleportColor
+```
+
+## Layer 4 load balancers
+
+High-availability Teleport clusters require two load balancers:
+- **Proxy Service load balancer:** A load balancer to receive traffic from
+  outside the network where your Teleport cluster is running and forward it to
+  an available Proxy Service instance. This load balancer handles TCP traffic
+  from users and services in a variety of application-layer protocols.
+- **Auth Service load balancer:** A load balancer to forward traffic from a
+  Proxy Service instance to an available Auth Service instance. This handles TLS
+  traffic to the Auth Service's gRPC endpoint.
+
+Both load balancers must transparently forward the TCP traffic they receive,
+without terminating TLS. In other words, these must be Layer 4 load balancers,
+not Layer 7 (e.g., HTTP).
+
+We recommend configuring your load balancers to route traffic across multiple
 zones (if using a cloud provider) or data centers (if using an on-premise
 solution) to ensure availability. 
 
-### TLS Routing
+### Configuring the Proxy Service load balancer
 
-Your load balancer configuration depends on whether you will enable [TLS
-Routing](../management/operations/tls-routing.mdx) in your Teleport cluster.
+#### TLS Routing
+
+The way you configure the Proxy Service load balancer depends on whether you
+will enable [TLS Routing](../management/operations/tls-routing.mdx) in your
+Teleport cluster.
 
 With TLS Routing, the Teleport Proxy Service uses application-layer protocol
 negotiation (ALPN) to handle all communication with users and services via the
@@ -76,29 +140,30 @@ The approach we describe in this guide uses only a Layer 4 load balancer to
 minimize the infrastructure you will deploy, but users that require a separate
 load balancer for HTTPS traffic should disable TLS Routing.
 
-### Configuring the load balancer
+#### Open ports
 
-Configure the load balancer to forward traffic from the following ports on the
-load balancer to the corresponding port on an available Teleport instance. The
-configuration depends on whether you will enable TLS Routing:
+Configure the Proxy Service load balancer to forward traffic from the following
+ports on the load balancer to the corresponding port on an available Proxy
+Service instance. The configuration depends on whether you will enable TLS
+Routing:
 
 <Tabs>
 <TabItem label="TLS Routing">
 
-| Port | Description |
-| - | - |
-| `443` | ALPN port for TLS Routing. |
+| Load Balancer Port | Proxy Service Port | Description |
+| - | - | - |
+| `443` | `3080` | ALPN port for TLS Routing. |
 
 </TabItem>
 <TabItem label="Separate Ports">
 
 These ports are required:
 
-| Port | Description |
-| - | - |
-| `3023` | SSH port for clients connect to. |
-| `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
-| `443` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| Load Balancer Port | Proxy Service Port | Description |
+| - | - | - |
+| <nobr>`3023`</nobr> | <nobr>`3023`</nobr> | SSH port for clients connect to. |
+| `3024` | `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
+| `443` | `3080` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 
 You can leave these ports closed if you are not using their corresponding
 services:
@@ -108,9 +173,17 @@ services:
 | `3026` | HTTPS Kubernetes proxy |
 | `3036` | MySQL port |
 | `5432` | Postgres port |
+| `27017` | Mongo port |
 
 </TabItem>
 </Tabs>
+
+### Configuring the Auth Service load balancer
+
+The Auth Service load balancer must forward traffic to the Auth Service's gRPC
+port. In this guide, we are assuming that you have configured the Auth Service
+load balancer to forward traffic from port `3025` to port `3025` on an available
+Auth Service instance. 
 
 ## Cluster state backend
 
@@ -126,23 +199,27 @@ events:
 - Google Cloud Firestore
 - etcd (cluster state only)
 
-For Amazon DynamoDB and Google Cloud Firestore, your Teleport configuration (which
-we will describe in more detail in the [Configuration](#configuration) section)
-names a table or collection where Teleport stores cluster state and audit
-events. 
-
-The Teleport Auth Service manages the creation of any required DynamoDB tables
-or Firestore collections itself, and does not require them to exist in advance.
+For Amazon DynamoDB and Google Cloud Firestore, your Teleport configuration
+(which we will describe in more detail in the [Configuration](#configuration)
+section) names the two tables or collections where Teleport stores cluster state
+and audit events. 
 
 The Auth Service can also store cluster state in self-hosted
 [etcd](https://etcd.io/) deployments. In this case, Teleport uses namespaces
 within item keys to identify cluster state data.
 
+When you configure the Teleport Auth Service to access a table or collection,
+the Auth Service checks that the table or collection exists on startup. If it
+does not, the Auth Service attempts to create it.
+
 <Admonition title="Required permissions">
 
-In your cloud provider's RBAC solution (e.g., AWS or Google Cloud IAM), your
-Auth Service instances need permissions to read from and write to your chosen
-key/value store, as well as to create tables and collections (if your key/value
+Make sure you configure your cloud provider's RBAC solution (e.g., AWS or Google
+Cloud IAM) so that your Auth Service instances have permissions to read from and
+write to your chosen key/value store. 
+
+Unless you have a pre-existing table or collection to use, the Auth Service
+must also have permissions to create tables and collections (if your key/value
 store supports them).
 
 </Admonition>
@@ -158,19 +235,21 @@ storage services:
 
 In your Teleport configuration (described in the [Configuration](#configuration)
 section), you must name a bucket within Google Cloud Storage or an Amazon
-S3-compatible service to use for managing session recordings. The Teleport Auth
-Service creates this bucket, so to prevent unexpected behavior, you should not
-create it in advance. 
+S3-compatible service to use for managing session recordings. 
+
+The Auth Service will check that the bucket exists on startup. If it does not,
+the Auth Service attempts to create it.
 
 <Admonition title="Required permissions">
 
 In your cloud provider's RBAC solution, your Auth Service instances need
 permissions to get buckets as well as to create, get, list, and update objects.
-Since this setup lets Teleport create buckets for you, you should also assign
-Auth Service instances permissions to create buckets
 
 In Google Cloud Storage, Auth Service instances also need permissions to delete
 objects. 
+
+Unless you plan to configure the Auth Service to access a pre-existing bucket,
+you must also assign Auth Service instances permissions to create buckets.
 
 </Admonition>
 
@@ -256,23 +335,30 @@ records.
 
 ## Teleport instances
 
-Run the Teleport Auth Service and Proxy Service as a scalable group of compute
-resources, for example, a Kubernetes `Deployment` or AWS Auto Scaling group.
-This requires running the `teleport` binary on each Kubernetes pod or virtual
-machine or in your group. 
+Run the Teleport Auth Service and Proxy Service as two scalable groups of
+compute resources, for example, using Kubernetes Deployments or AWS Auto
+Scaling groups. This requires running the `teleport` binary on each Kubernetes
+pod or virtual machine in your group. 
+
+<Notice type="tip">
+
+If you plan to run Teleport on Kubernetes, the `teleport-cluster` Helm chart
+deploys the Auth Service and Proxy Service pools for you. To see how to use this
+Helm chart, read our [Helm Deployments](helm-deployments.mdx) documentation.
+
+</Notice>
 
 You should deploy your Teleport instances across multiple zones (if using a
 cloud provider) or data centers (if using an on-premise solution) to ensure
 availability.
 
-In the [Configuration](#configuration) section, we will show you how to
-configure each binary for high availability.
+### Proxy Service pool
 
-### Open ports
+#### Open ports
 
-Ensure that, on each Teleport instance, the following ports allow traffic from
-the load balancer. The Proxy Service uses these ports to communicate with
-Teleport users and services.
+Ensure that, on each Proxy Service instance, the following ports allow traffic
+from the Proxy Service load balancer. The Proxy Service uses these ports to
+communicate with Teleport users and services.
 
 As with your load balancer configuration, the ports you should open on your
 Teleport instances depend on whether you will enable TLS Routing: 
@@ -282,7 +368,7 @@ Teleport instances depend on whether you will enable TLS Routing:
 
 | Port | Description |
 | - | - |
-| `443` | ALPN port for TLS Routing. |
+| `3080` | ALPN port for TLS Routing. |
 
 </TabItem>
 <TabItem label="Separate Ports">
@@ -293,7 +379,7 @@ These ports are required:
 | - | - |
 | `3023` | SSH port for clients connect to. |
 | `3024` | SSH port used to create reverse SSH tunnels from behind-firewall environments. |
-| `443` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
+| `3080` | HTTPS connections to authenticate `tsh` users into the cluster. The same connection is used to serve a Web UI. |
 
 You can leave these ports closed if you are not using their corresponding
 services:
@@ -309,51 +395,19 @@ services:
 
 *This is the same table of ports you used to configure the load balancer.*
 
-### License file
+#### Configuration
 
-If you are deploying Teleport Enterprise, you need to download a license file
-and make it available to your Teleport Auth Service instances.
+Create a configuration file and provide it to each of your Proxy Service
+instances at `/etc/teleport.yaml`. We will explain the required configuration
+fields for a high-availability Teleport deployment below. These are the minimum
+requirements, and when planning your high-availability deployment, you will want
+to follow a more specific [deployment guide](introduction.mdx) for your
+environment. 
 
-To obtain your license file, visit the [Teleport customer
-dashboard](https://dashboard.gravitational.com/web/login) and log in. Click
-"DOWNLOAD LICENSE KEY". You will see your current Teleport Enterprise account
-permissions and the option to download your license file:
+#### `proxy_service` and `auth_service`
 
-![License File modal](../../img/enterprise/license.png)
-
-The license file must be available to each Teleport Auth Service instance at
-`/var/lib/teleport/license.pem`. 
-
-### Configuration
-
-Create a configuration file and provide it to each of your Teleport instances at
-`/etc/teleport.yaml`. We will explain the required configuration fields for a
-high-availability Teleport deployment below. These are the minimum requirements,
-and when planning your high-availability deployment, you will want to follow a
-more specific [deployment guide](introduction.mdx) for your environment. 
-
-#### `storage` 
-
-The first configuration section to write is the `storage` section, which
-configures the cluster state backend and session recording backend for the
-Teleport Auth Service:
-
-```yaml
-version: v3
-teleport:
-  storage:
-    # ...
-```
-
-Consult our [Backends Reference](../reference/backends.mdx) for the configuration
-fields you should set in the `storage` section.
-
-#### `auth_service` and `proxy_service` 
-
-The `auth_service` and `proxy_service` sections configure the Auth Service and
-Proxy Service, which we will run together on each Teleport instance. The
-configuration will depend on whether you are enabling TLS Routing in your
-cluster:
+The `proxy_service` section configures the Proxy Service. The configuration will
+depend on whether you are enabling TLS Routing in your cluster:
 
 <Tabs>
 <TabItem label="TLS Routing">
@@ -363,14 +417,8 @@ Teleport configuration:
 
 ```yaml
 version: v3
-teleport:
-  storage:
-  # ...
 auth_service:
-  enabled: true
-  cluster_name: "mycluster.example.com"
-  # Remove this if not using Teleport Enterprise
-  license_file: "/var/lib/license/license.pem"
+  enabled: false
 proxy_service:
   enabled: true
   public_addr: "mycluster.example.com:443"
@@ -390,15 +438,9 @@ Teleport configuration:
 
 ```yaml
 version: v3
-teleport:
-  storage:
-  # ...
 auth_service:
   proxy_listener_mode: separate
-  enabled: true
-  cluster_name: "mycluster.example.com"
-  # Remove this if not using Teleport Enterprise
-  license_file: "/var/lib/license/license.pem"
+  enabled: false
 proxy_service:
   enabled: true
   listen_addr: 0.0.0.0:3023
@@ -416,21 +458,17 @@ reverse tunnel port (`tunnel_listen_addr`) for the Proxy Service.
 </TabItem>
 </Tabs>
 
-The `auth_service` and `proxy_service` configurations above have the following
-required settings for a high-availability Teleport deployment:
+In the `proxy_service` section, we have enabled the Teleport Proxy Service
+(`enabled`) and instructed it to find its TLS credentials in the
+`/etc/teleport-tls` directory (`https_keypairs`).
 
-- In the `auth_service` section, we have enabled the Teleport Auth Service
-  (`enabled`) and instructed it to find an Enterprise license file at
-  `/var/lib/license/license.pem` (`license_file`). Remove the `license_file`
-  field if you are deploying the open source edition of Teleport. 
-- In the `proxy_service` section, we have enabled the Teleport Proxy Service
-  (`enabled`) and instructed it to find its TLS credentials in the
-  `/etc/teleport-tls` directory (`https_keypairs`).
+We have set `auth_service.enabled` to `false` to disable the Auth Service, which
+is enabled by default, on each Proxy Service instance.
 
 #### `ssh_service`
 
-You can disable the SSH Service on each Teleport instance by adding the
-following to each instance's configuration file: 
+The SSH Service is enabled by default. You can disable the SSH Service on each
+Teleport instance by adding the following to each instance's configuration file: 
 
 ```yaml
 version: v3
@@ -450,6 +488,96 @@ should not have direct access to the underlying node.
 
 If you are deploying Teleport on a cluster of virtual machines, remove this line
 to run the SSH Service and enable secure access to the host.
+
+### Auth Service pool
+
+#### Open ports
+
+Ensure that, on each Auth Service instance, the following ports are open: 
+
+| Port | Description |
+| - | - |
+| <nobr>`3025`</nobr> | gRPC port to open to Proxy Service instances.|
+
+#### License file
+
+If you are deploying Teleport Enterprise, you need to download a license file
+and make it available to your Teleport Auth Service instances.
+
+(!docs/pages/includes//enterprise/obtainlicense.mdx!)
+
+The license file must be available to each Teleport Auth Service instance at
+`/var/lib/teleport/license.pem`. 
+
+#### Configuration
+
+Create a configuration file and provide it to each of your Auth Service
+instances at `/etc/teleport.yaml`. We will explain the required configuration
+fields for a high-availability Teleport deployment below. These are the minimum
+requirements, and when planning your high-availability deployment, you will want
+to follow a more specific [deployment guide](introduction.mdx) for your
+environment. 
+
+#### `storage` 
+
+The first configuration section to write is the `storage` section, which
+configures the cluster state backend and session recording backend for the Auth
+Service:
+
+```yaml
+version: v3
+teleport:
+  storage:
+    # ...
+```
+
+Consult our [Backends Reference](../reference/backends.mdx) for the configuration
+fields you should set in the `storage` section.
+
+#### `auth_service` and `proxy_service`
+
+The `auth_service` section configures the Auth Service:
+
+```yaml
+version: v3
+teleport:
+  storage:
+  # ...
+auth_service:
+  enabled: true
+  cluster_name: "mycluster.example.com"
+  # Remove this if not using Teleport Enterprise
+  license_file: "/var/lib/teleport/license.pem"
+proxy_service:
+  enabled: false
+```
+
+In the `auth_service` section, we have enabled the Teleport Auth Service
+(`enabled`) and instructed it to find an Enterprise license file at
+`/var/lib/teleport/license.pem` (`license_file`). Remove the `license_file` field
+if you are deploying the open source edition of Teleport. 
+
+Since we are running Proxy Service instances in a dedicated pool, we have
+disabled the Proxy Service on our Auth Service instances by setting
+`proxy_service.enabled` to `false`.
+
+#### `ssh_service`
+
+As with the Proxy Service pool, you can disable the SSH Service on each Teleport
+instance by adding the following to each instance's configuration file: 
+
+```yaml
+version: v3
+teleport:
+  storage:
+  # ...
+auth_service:
+# ...
+proxy_service:
+# ...
+ssh_service:
+  enabled: false
+```
 
 ## Next steps
 

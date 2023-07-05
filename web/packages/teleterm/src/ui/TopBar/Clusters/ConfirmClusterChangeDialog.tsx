@@ -45,12 +45,12 @@ export default function ConfirmClusterChangeDialog({
         <Text typography="h5" bold style={{ whiteSpace: 'nowrap' }}>
           Change clusters?
         </Text>
-        <ButtonIcon onClick={onClose} color="text.secondary">
+        <ButtonIcon onClick={onClose} color="text.slightlyMuted">
           <Close fontSize={5} />
         </ButtonIcon>
       </DialogHeader>
       <DialogContent mb={4}>
-        <Text color="text.secondary" typography="body1">
+        <Text color="text.slightlyMuted" typography="body1">
           {changeSelectedClusterWarning}
         </Text>
       </DialogContent>

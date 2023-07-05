@@ -56,6 +56,9 @@ const (
 	// local/passwordless logins.
 	PasswordlessConnector = "passwordless"
 
+	// HeadlessConnector is the authentication connector for headless logins.
+	HeadlessConnector = "headless"
+
 	// Local means authentication will happen locally within the Teleport cluster.
 	Local = "local"
 
@@ -155,47 +158,36 @@ const (
 	// SSHRSAType is the string which specifies an "ssh-rsa" formatted keypair
 	SSHRSAType = "ssh-rsa"
 
-	// OktaAssignmentActionStatusPending is represents a pending status for an Okta action.
-	OktaAssignmentActionStatusPending = "pending"
+	// OktaAssignmentStatusPending is represents a pending status for an Okta assignment.
+	OktaAssignmentStatusPending = "pending"
 
-	// OktaAssignmentActionStatusProcessing is represents an Okta action which is currently being acted on.
-	OktaAssignmentActionStatusProcessing = "processing"
+	// OktaAssignmentStatusProcessing is represents an Okta assignment which is currently being acted on.
+	OktaAssignmentStatusProcessing = "processing"
 
-	// OktaAssignmentActionStatusSuccessful is represents a successfully applied Okta action.
-	OktaAssignmentActionStatusSuccessful = "successful"
+	// OktaAssignmentStatusSuccessful is represents a successfully applied Okta assignment.
+	OktaAssignmentStatusSuccessful = "successful"
 
-	// OktaAssignmentActionStatusFailed is represents an Okta action which failed to apply. It will be retried.
-	OktaAssignmentActionStatusFailed = "failed"
+	// OktaAssignmentStatusFailed is represents an Okta assignment which failed to apply. It will be retried.
+	OktaAssignmentStatusFailed = "failed"
 
-	// OktaAssignmentActionStatusCleanupPending is represents an Okta action which needs to be cleaned up.
-	OktaAssignmentActionStatusCleanupPending = "cleanup_pending"
+	// OktaAssignmentStatusPending is represents a unknown status for an Okta assignment.
+	OktaAssignmentStatusUnknown = "unknown"
 
-	// OktaAssignmentActionStatusCleanupProcessing is represents an Okta action which is currently being cleaned up.
-	OktaAssignmentActionStatusCleanupProcessing = "cleanup_processing"
+	// OktaAssignmentTargetApplication is an application target of an Okta assignment.
+	OktaAssignmentTargetApplication = "application"
 
-	// OktaAssignmentActionStatusCleanedUp is represents an Okta action which was cleaned up successfully.
-	OktaAssignmentActionStatusCleanedUp = "cleaned_up"
+	// OktaAssignmentActionTargetGroup is a group target of an Okta assignment.
+	OktaAssignmentTargetGroup = "group"
 
-	// OktaAssignmentActionStatusCleanupFailed is represents an Okta action which was not cleaned up successfully. It will not be retried.
-	OktaAssignmentActionStatusCleanupFailed = "cleanup_failed"
-
-	// OktaAssignmentActionStatusPending is represents a unknown status for an Okta action.
-	OktaAssignmentActionStatusUnknown = "unknown"
-
-	// OktaAssignmentActionTargetApplication is an application target of an Okta assignment action.
-	OktaAssignmentActionTargetApplication = "application"
-
-	// OktaAssignmentActionTargetGroup is a group target of an Okta assignment action.
-	OktaAssignmentActionTargetGroup = "group"
-
-	// OktaAssignmentActionTargetUnknown is an unknown target of an Okta assignment action.
-	OktaAssignmentActionTargetUnknown = "unknown"
+	// OktaAssignmentTargetUnknown is an unknown target of an Okta assignment.
+	OktaAssignmentTargetUnknown = "unknown"
 )
 
 // SystemConnectors lists the names of the system-reserved connectors.
 var SystemConnectors = []string{
 	LocalConnector,
 	PasswordlessConnector,
+	HeadlessConnector,
 }
 
 // SecondFactorType is the type of 2FA authentication.
@@ -385,8 +377,16 @@ const (
 	// allowed GCP service accounts.
 	TraitGCPServiceAccounts = "gcp_service_accounts"
 )
+const (
+	// ProxyHelloSignature is a string which Teleport proxy will send
+	// right after the initial SSH "handshake/version" message if it detects
+	// talking to a Teleport server.
+	//
+	// This is also leveraged by tsh to propagate its tracing span ID.
+	ProxyHelloSignature = "Teleport-Proxy"
+)
 
 const (
 	// TimeoutGetClusterAlerts is the timeout for grabbing cluster alerts from tctl and tsh
-	TimeoutGetClusterAlerts = time.Millisecond * 500
+	TimeoutGetClusterAlerts = time.Millisecond * 750
 )

@@ -82,7 +82,7 @@ const DarkInput = styled(Input)`
   background: inherit;
   border: 1px ${props => props.theme.colors.action.disabledBackground} solid;
   border-radius: 51px;
-  color: ${props => props.theme.colors.text.primary};
+  color: ${props => props.theme.colors.text.main};
   margin-bottom: 10px;
   font-size: 14px;
   height: 34px;
@@ -90,14 +90,14 @@ const DarkInput = styled(Input)`
 
   ::placeholder {
     opacity: 1;
-    color: ${props => props.theme.colors.text.secondary};
+    color: ${props => props.theme.colors.text.slightlyMuted};
   }
 
   &:hover {
-    border-color: ${props => props.theme.colors.text.secondary};
+    border-color: ${props => props.theme.colors.text.slightlyMuted};
   }
 
   &:focus {
-    border-color: ${props => props.theme.colors.secondary.main};
+    border-color: ${props => props.theme.colors.brand};
   }
 `;

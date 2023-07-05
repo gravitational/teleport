@@ -109,10 +109,7 @@ type ClusterAlertGetter interface {
 // ShowClusterAlerts shows cluster alerts with the given labels and severity.
 func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writer, labels map[string]string, minSeverity, maxSeverity types.AlertSeverity) error {
 	// get any "on login" alerts
-	alertCtx, cancelAlertCtx := context.WithTimeout(ctx, constants.TimeoutGetClusterAlerts)
-	defer cancelAlertCtx()
-
-	alerts, err := client.GetClusterAlerts(alertCtx, types.GetClusterAlertsRequest{
+	alerts, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 		Labels:   labels,
 		Severity: minSeverity,
 	})

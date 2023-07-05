@@ -58,7 +58,7 @@ const StyledSlider = styled.div`
   width: 32px;
   height: 12px;
   border-radius: 12px;
-  background: ${props => props.theme.colors.primary.light};
+  background: ${props => props.theme.colors.levels.surface};
   cursor: inherit;
   flex-shrink: 0;
 
@@ -70,7 +70,7 @@ const StyledSlider = styled.div`
     width: 16px;
     height: 16px;
     border-radius: 16px;
-    background: ${props => props.theme.colors.secondary.light};
+    background: ${props => props.theme.colors.brandAccent};
   }
 `;
 
@@ -80,7 +80,7 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })`
   cursor: inherit;
 
   &:checked + ${StyledSlider} {
-    background: ${props => props.theme.colors.secondary.main};
+    background: ${props => props.theme.colors.brand};
 
     &:before {
       transform: translate(16px, -50%);
@@ -88,7 +88,7 @@ const StyledInput = styled.input.attrs({ type: 'checkbox' })`
   }
 
   &:disabled + ${StyledSlider} {
-    background: ${props => props.theme.colors.primary.light};
+    background: ${props => props.theme.colors.levels.surface};
 
     &:before {
       background: ${props => props.theme.colors.grey[700]};

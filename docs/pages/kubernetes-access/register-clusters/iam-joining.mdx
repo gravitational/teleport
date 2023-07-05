@@ -14,6 +14,14 @@ Once the Kubernetes cluster is registered for the first time, the agent will sto
 its Teleport identity in a Kubernetes secret. The agent will use this identity
 to automatically join the cluster on subsequent restarts.
 
+<Notice type="warning" scope={["oss", "enterprise"]}>
+
+The IAM join method will not work if TLS is terminated at a load balancer in
+front of your Teleport Proxy Service unless the service using this method is
+connecting directly to the Auth Service.
+
+</Notice>
+
 ## Prerequisites
 
 (!docs/pages/includes/edition-prereqs-tabs.mdx!)
@@ -27,8 +35,7 @@ to automatically join the cluster on subsequent restarts.
 
 (!docs/pages/includes/helm.mdx!)
 
-(!docs/pages/includes/tctl.mdx!)
-
+- (!docs/pages/includes/tctl.mdx!)
 
 ## Step 1/3. Create a Kubernetes service account with an IAM identity
 

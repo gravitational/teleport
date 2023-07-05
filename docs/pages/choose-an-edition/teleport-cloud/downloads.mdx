@@ -19,7 +19,7 @@ Binaries include:
 |`teleport`| The Teleport binary that you can run within your private networks to enable access to resources in your infrastructure|
 |`tctl`| A client tool for managing Teleport resources|
 |`tsh`| A client tool for accessing resources within your cluster|
-|`tbot`| A client tool you will use to associate a bot user with a machine identity|
+|`tbot`| The agent for [Teleport's Machine ID](../../machine-id/introduction.mdx)|
 
 Here are the available archives:
 
@@ -41,7 +41,7 @@ Binaries include:
 |`teleport`| The Teleport binary that you can run within your private networks to enable access to resources in your infrastructure|
 |`tctl`| A client tool for managing Teleport resources|
 |`tsh`| A client tool for accessing resources within your cluster|
-|`tbot`| A client tool you will use to associate a bot user with a machine identity|
+|`tbot`| The agent for [Teleport's Machine ID](../../machine-id/introduction.mdx)|
 
 Here are the available archives:
 
@@ -60,7 +60,7 @@ instructions to add a package repository and install Teleport.
     <TabItem label="Debian/Ubuntu (DEB)">
         ```code
         # Download Teleport's PGP public key
-        $ sudo curl https://deb.releases.teleport.dev/teleport-pubkey.asc \
+        $ sudo curl https://apt.releases.teleport.dev/gpg \
           -o /usr/share/keyrings/teleport-archive-keyring.asc
         # Source variables about OS version
         $ source /etc/os-release

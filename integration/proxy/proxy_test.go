@@ -317,6 +317,9 @@ func TestALPNSNIProxyKube(t *testing.T) {
 				},
 			},
 		},
+		Options: types.RoleOptions{
+			PinSourceIP: true,
+		},
 	}
 	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
 	require.NoError(t, err)
@@ -335,6 +338,7 @@ func TestALPNSNIProxyKube(t *testing.T) {
 	k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
 		T:                   suite.root,
 		Username:            kubeRoleSpec.Allow.Logins[0],
+		PinnedIP:            "127.0.0.1",
 		KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 		KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
 		CustomTLSServerName: localK8SNI,
@@ -375,6 +379,9 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 				},
 			},
 		},
+		Options: types.RoleOptions{
+			PinSourceIP: true,
+		},
 	}
 	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
 	require.NoError(t, err)
@@ -402,6 +409,7 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
 		T:                   suite.root,
 		Username:            kubeRoleSpec.Allow.Logins[0],
+		PinnedIP:            "127.0.0.1",
 		KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
 		KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
 		CustomTLSServerName: localK8SNI,
@@ -413,6 +421,131 @@ func TestALPNSNIProxyKubeV2Leaf(t *testing.T) {
 	resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
 	require.NoError(t, err)
 	require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+}
+
+func TestKubeIPPinning(t *testing.T) {
+	lib.SetInsecureDevMode(true)
+	defer lib.SetInsecureDevMode(false)
+
+	const (
+		kubeCluster = "kube.teleport.cluster.local"
+		k8User      = "alice@example.com"
+		k8RoleName  = "kubemaster"
+	)
+
+	kubeAPIMockSvrRoot := startKubeAPIMock(t)
+	kubeAPIMockSvrLeaf := startKubeAPIMock(t)
+	kubeConfigPathRoot := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvrRoot.URL, kubeCluster))
+	kubeConfigPathLeaf := mustCreateKubeConfigFile(t, k8ClientConfig(kubeAPIMockSvrLeaf.URL, kubeCluster))
+
+	username := helpers.MustGetCurrentUser(t).Username
+	kubeRoleSpec := types.RoleSpecV6{
+		Allow: types.RoleConditions{
+			Logins:           []string{username, username + "2", username + "3"},
+			KubernetesLabels: types.Labels{types.Wildcard: []string{types.Wildcard}},
+			KubeGroups:       []string{kube.TestImpersonationGroup},
+			KubeUsers:        []string{k8User},
+			KubernetesResources: []types.KubernetesResource{
+				{
+					Kind: types.KindKubePod, Name: types.Wildcard, Namespace: types.Wildcard,
+				},
+			},
+		},
+		Options: types.RoleOptions{
+			PinSourceIP: true,
+		},
+	}
+	kubeRole, err := types.NewRole(k8RoleName, kubeRoleSpec)
+	require.NoError(t, err)
+
+	suite := newSuite(t,
+		withRootClusterConfig(rootClusterStandardConfig(t), func(config *service.Config) {
+			config.Proxy.Kube.Enabled = true
+			config.Version = defaults.TeleportConfigVersionV3
+
+			config.Kube.Enabled = true
+			config.Kube.KubeconfigPath = kubeConfigPathRoot
+			config.Kube.ListenAddr = utils.MustParseAddr(
+				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
+		}),
+		withLeafClusterConfig(leafClusterStandardConfig(t), func(config *service.Config) {
+			config.Version = defaults.TeleportConfigVersionV3
+			config.Proxy.Kube.Enabled = true
+
+			config.Kube.Enabled = true
+			config.Kube.KubeconfigPath = kubeConfigPathLeaf
+			config.Kube.ListenAddr = utils.MustParseAddr(
+				helpers.NewListener(t, service.ListenerKube, &config.FileDescriptors))
+		}),
+		withRootClusterRoles(kubeRole),
+		withLeafClusterRoles(kubeRole),
+		withRootAndLeafTrustedClusterReset(),
+		withTrustedCluster(),
+	)
+
+	testCases := []struct {
+		desc           string
+		pinnedIP       string
+		routeToCluster string
+		wantClientErr  string
+	}{
+		{
+			desc:           "root cluster missing pinned IP",
+			routeToCluster: suite.root.Secrets.SiteName,
+			wantClientErr:  "pinned IP is required for the user, but is not present on identity",
+		},
+		{
+			desc:           "root cluster wrong pinned IP",
+			pinnedIP:       "127.0.0.2",
+			routeToCluster: suite.root.Secrets.SiteName,
+			wantClientErr:  "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:           "root cluster pinned IP",
+			pinnedIP:       "127.0.0.1",
+			routeToCluster: suite.root.Secrets.SiteName,
+		},
+		{
+			desc:           "leaf cluster missing pinned IP",
+			routeToCluster: suite.leaf.Secrets.SiteName,
+			wantClientErr:  "pinned IP is required for the user, but is not present on identity",
+		},
+		{
+			desc:           "leaf cluster wrong pinned IP",
+			pinnedIP:       "127.0.0.2",
+			routeToCluster: suite.leaf.Secrets.SiteName,
+			wantClientErr:  "pinned IP doesn't match observed client IP",
+		},
+		{
+			desc:           "leaf cluster pinned IP",
+			pinnedIP:       "127.0.0.1",
+			routeToCluster: suite.leaf.Secrets.SiteName,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.desc, func(t *testing.T) {
+			k8Client, _, err := kube.ProxyClient(kube.ProxyConfig{
+				T:                   suite.root,
+				Username:            kubeRoleSpec.Allow.Logins[0],
+				PinnedIP:            tc.pinnedIP,
+				KubeUsers:           kubeRoleSpec.Allow.KubeGroups,
+				KubeGroups:          kubeRoleSpec.Allow.KubeUsers,
+				CustomTLSServerName: kubeCluster,
+				TargetAddress:       suite.root.Config.Proxy.WebAddr,
+				RouteToCluster:      tc.routeToCluster,
+			})
+			require.NoError(t, err)
+
+			resp, err := k8Client.CoreV1().Pods("default").List(context.Background(), metav1.ListOptions{})
+			if tc.wantClientErr != "" {
+				require.ErrorContains(t, err, tc.wantClientErr)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, 1, len(resp.Items), "pods item length mismatch")
+		})
+	}
 }
 
 // TestALPNSNIProxyDatabaseAccess test DB connection forwarded through local SNI ALPN proxy where
@@ -1226,11 +1359,18 @@ func TestALPNProxyHTTPProxyBasicAuthDial(t *testing.T) {
 	}()
 	require.ErrorIs(t, authorizer.WaitForRequest(timeout), trace.AccessDenied("bad credentials"))
 	require.Zero(t, ph.Count())
+	// stop the node so it doesn't keep trying to join the cluster with bad credentials.
+	require.NoError(t, rc.StopNodes())
+	require.Error(t, <-startErrC)
 
 	// set the auth credentials to match our environment
 	authorizer.SetCredentials(user, pass)
 
-	// with env set correctly and authorized, the node should register.
+	// with env set correctly and authorized, the node should be able to register.
+	go func() {
+		_, err := rc.StartNode(nodeCfg)
+		startErrC <- err
+	}()
 	require.NoError(t, <-startErrC)
 	require.NoError(t, helpers.WaitForNodeCount(context.Background(), rc, rc.Secrets.SiteName, 1))
 	require.Greater(t, ph.Count(), 0)

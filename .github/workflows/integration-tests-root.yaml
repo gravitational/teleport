@@ -8,18 +8,22 @@ on:
       - branch/*
   pull_request:
     paths:
+      - '.github/workflows/integration-tests-root.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
   merge_group:
     paths:
+      - '.github/workflows/integration-tests-root.yaml'
       - '**.go'
       - 'go.mod'
       - 'go.sum'
       - 'build.assets/Makefile'
       - 'build.assets/Dockerfile*'
+      - 'Makefile'
 
 jobs:
   test:
@@ -44,4 +48,4 @@ jobs:
       - name: Run tests
         timeout-minutes: 40
         run: |
-          make rdpclient integration-root
+          make integration-root RDPCLIENT_SKIP_BUILD=1

@@ -614,6 +614,11 @@
             "type": "string",
             "default": "public.ecr.aws/gravitational/teleport-ent"
         },
+        "imagePullSecrets": {
+            "$id": "#/properties/imagePullSecrets",
+            "type": "array",
+            "default": []
+        },
         "logLevel": {
             "$id": "#/properties/logLevel",
             "type": "string",

@@ -94,6 +94,10 @@ spec:
 {{- if $proxy.tolerations }}
       tolerations: {{- toYaml $proxy.tolerations | nindent 6 }}
 {{- end }}
+{{- if $proxy.imagePullSecrets }}
+      imagePullSecrets:
+  {{- toYaml $proxy.imagePullSecrets | nindent 6 }}
+{{- end }}
       initContainers:
         # wait-auth-update is responsible for holding off the proxy rollout until all auths are running the
         # next major version in case of major upgrade.
@@ -165,7 +169,7 @@ spec:
           containerPort: 3021
           protocol: TCP
         {{- end }}
-        {{- if eq $proxy.proxyListenerMode "separate" }}
+        {{- if ne $proxy.proxyListenerMode "multiplex" }}
         - name: sshproxy
           containerPort: 3023
           protocol: TCP

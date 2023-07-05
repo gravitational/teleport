@@ -197,7 +197,7 @@ exports[`confirm state 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Delete User?
         </div>
@@ -456,7 +456,7 @@ exports[`failed state 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Delete User?
         </div>
@@ -700,7 +700,7 @@ exports[`processing state 1`] = `
       >
         <div
           class="c5"
-          color="text.primary"
+          color="text.main"
         >
           Delete User?
         </div>

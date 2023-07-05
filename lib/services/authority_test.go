@@ -282,6 +282,96 @@ func TestCheckSAMLIDPCA(t *testing.T) {
 	}
 }
 
+func TestCheckOIDCIdP(t *testing.T) {
+	ta := testauthority.New()
+
+	pub, priv, err := ta.GenerateJWT()
+	require.NoError(t, err)
+
+	pub2, priv2, err := ta.GenerateJWT()
+	require.NoError(t, err)
+
+	tests := []struct {
+		name             string
+		keyset           types.CAKeySet
+		errAssertionFunc require.ErrorAssertionFunc
+	}{
+		{
+			name:             "no active keys",
+			keyset:           types.CAKeySet{},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "multiple active keys",
+			keyset: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{
+					{
+						PublicKey:  pub,
+						PrivateKey: priv,
+					},
+					{
+						PublicKey:  pub2,
+						PrivateKey: priv2,
+					},
+				},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "empty private key",
+			keyset: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{{
+					PublicKey:  pub,
+					PrivateKey: []byte{},
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+		{
+			name: "unparseable private key",
+			keyset: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{{
+					PublicKey:  pub,
+					PrivateKey: bytes.Repeat([]byte{49}, 1222),
+				}},
+			},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "unparseable public key",
+			keyset: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{{
+					PublicKey:  bytes.Repeat([]byte{49}, 1222),
+					PrivateKey: priv,
+				}},
+			},
+			errAssertionFunc: require.Error,
+		},
+		{
+			name: "valid key pair",
+			keyset: types.CAKeySet{
+				JWT: []*types.JWTKeyPair{{
+					PublicKey:  pub,
+					PrivateKey: priv,
+				}},
+			},
+			errAssertionFunc: require.NoError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			ca, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
+				Type:        types.OIDCIdPCA,
+				ClusterName: "cluster1",
+				ActiveKeys:  test.keyset,
+			})
+			require.NoError(t, err)
+			test.errAssertionFunc(t, ValidateCertAuthority(ca))
+		})
+	}
+}
+
 func BenchmarkCertAuthoritiesEquivalent(b *testing.B) {
 	ca1, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
 		Type:        types.HostCA,

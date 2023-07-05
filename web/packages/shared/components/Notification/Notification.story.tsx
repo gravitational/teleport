@@ -59,7 +59,7 @@ export const Notifications = () => {
             },
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.warning}
+          getColor={theme => theme.colors.warning.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -100,7 +100,7 @@ export const Notifications = () => {
             content: 'Multiline warning without title. ' + loremIpsum,
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.warning}
+          getColor={theme => theme.colors.warning.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -138,7 +138,7 @@ export const Notifications = () => {
             content: 'Warning without title',
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.warning}
+          getColor={theme => theme.colors.warning.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -189,7 +189,7 @@ export const Notifications = () => {
             },
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.warning}
+          getColor={theme => theme.colors.warning.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -238,7 +238,7 @@ export const Notifications = () => {
             },
           }}
           Icon={Warning}
-          getColor={theme => theme.colors.warning}
+          getColor={theme => theme.colors.warning.main}
           onRemove={() => {}}
           isAutoRemovable={false}
         />
@@ -309,7 +309,7 @@ export const AutoRemovable = () => {
           }}
           onRemove={() => setShowWarning(false)}
           Icon={Warning}
-          getColor={theme => theme.colors.warning}
+          getColor={theme => theme.colors.warning.main}
           isAutoRemovable={true}
           autoRemoveDurationMs={5000}
         />

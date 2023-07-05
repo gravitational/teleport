@@ -20,8 +20,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
 	"github.com/gravitational/trace"
+
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // RemoteCluster represents a remote cluster that has connected via reverse tunnel
@@ -116,7 +117,7 @@ func (c *RemoteClusterV3) SetLastHeartbeat(t time.Time) {
 
 // Clone performs a deep copy.
 func (c *RemoteClusterV3) Clone() RemoteCluster {
-	return proto.Clone(c).(*RemoteClusterV3)
+	return utils.CloneProtoMsg(c)
 }
 
 // GetConnectionStatus returns connection status

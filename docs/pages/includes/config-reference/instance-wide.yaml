@@ -40,9 +40,9 @@ teleport:
     join_params:
         # When `method` is set to "token", it is the equivalent to using `auth_token` above.
         # You should only use either auth_token or join_params.
-        method: "token"|"ec2"|"iam"
+        method: "token"|"ec2"|"iam"|"github"|"circleci"|"kubernetes"
 
-        # If method is "iam" or "ec2", token_name will be will be the name of
+        # If method is not "token", token_name will be will be the name of
         # the joining token resource, e.g., "ec2-token" or "iam-token" as created
         # in the Joining Nodes via EC2 or IAM guides.
 
@@ -66,13 +66,11 @@ teleport:
     # This value can be specified as FQDN e.g. host.example.com
     advertise_ip: 10.1.0.5
 
-
     # Teleport provides HTTP endpoints for monitoring purposes. They are
     # disabled by default but you can enable them using the diagnosis address.
     # See the Teleport metrics reference:
     # https://goteleport.com/docs/management/diagnostics/metrics/
     diag_addr: "127.0.0.1:3000"
-
 
     # Only use one of auth_server or proxy_server.
     #
@@ -119,4 +117,3 @@ teleport:
         format:
           output: text
           extra_fields: [level, timestamp, component, caller]
-

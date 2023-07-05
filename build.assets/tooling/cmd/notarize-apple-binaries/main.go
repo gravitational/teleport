@@ -20,18 +20,27 @@ import (
 	"debug/macho"
 	"fmt"
 
-	"github.com/gravitational/kingpin"
+	"github.com/alecthomas/kingpin/v2"
 	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 )
 
 const binaryArgName string = "binaries"
 
+// Default values for flags.
+// TODO(camh): Remove when all call sites pass the correct values.
+const (
+	DeveloperIdentity string = "0FFD3E3413AB4C599C53FBB1D8CA690915E33D83"
+	BundleID          string = "com.gravitational.teleport"
+)
+
 type Config struct {
 	LogLevel      string
 	LogJSON       bool
 	AppleUsername string
 	ApplePassword string
+	DeveloperID   string
+	BundleID      string
 	BinaryPaths   []string
 }
 
@@ -41,6 +50,8 @@ func main() {
 	kingpin.Flag("log-json", "Enable JSON logging").Default(fmt.Sprintf("%v", false)).BoolVar(&config.LogJSON)
 	kingpin.Flag("apple-username", "Apple Connect username used for notarization").Required().Envar("APPLE_USERNAME").StringVar(&config.AppleUsername)
 	kingpin.Flag("apple-password", "Apple Connect password used for notarization").Required().Envar("APPLE_PASSWORD").StringVar(&config.ApplePassword)
+	kingpin.Flag("developer-id", "Key ID for signing binaries").Default(DeveloperIdentity).StringVar(&config.DeveloperID)
+	kingpin.Flag("bundle-id", "Bundle ID of application").Default(BundleID).StringVar(&config.BundleID)
 	kingpin.Arg(binaryArgName, "Path to Apple binaries for signing and notarization").Required().Action(binaryArgValidatiorAction).ExistingFilesVar(&config.BinaryPaths)
 	kingpin.Parse()
 
@@ -113,7 +124,7 @@ func run(config *Config) error {
 	}
 	NewLoggerConfig(parsedLogLevel, config.LogJSON).setupLogger()
 
-	err = NewGonWrapper(config.AppleUsername, config.ApplePassword, config.BinaryPaths).SignAndNotarizeBinaries()
+	err = NewGonWrapper(config.AppleUsername, config.ApplePassword, config.DeveloperID, config.BundleID, config.BinaryPaths).SignAndNotarizeBinaries()
 	if err != nil {
 		return trace.Wrap(err, "failed to sign and notarize binaries")
 	}

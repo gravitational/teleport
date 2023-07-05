@@ -278,7 +278,7 @@ exports[`render device dashboard 1`] = `
 }
 
 .c6::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -798,7 +798,7 @@ exports[`render failed state for creating restricted privilege token 1`] = `
 }
 
 .c7::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 

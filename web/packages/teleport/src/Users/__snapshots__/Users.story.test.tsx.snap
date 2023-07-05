@@ -114,7 +114,7 @@ exports[`success state 1`] = `
   transition: color 0.3s;
   margin-left: 8px;
   margin-right: -8px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -367,7 +367,7 @@ exports[`success state 1`] = `
 }
 
 .c6::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -415,7 +415,7 @@ exports[`success state 1`] = `
         >
           <div
             class="c10"
-            color="primary.contrastText"
+            color="text.contrast"
             style="white-space: nowrap; text-transform: uppercase;"
           >
             Showing 
@@ -534,7 +534,7 @@ exports[`success state 1`] = `
               OPTIONS
               <span
                 class="c13 c20 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -572,7 +572,7 @@ exports[`success state 1`] = `
               OPTIONS
               <span
                 class="c13 c20 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -616,7 +616,7 @@ exports[`success state 1`] = `
               OPTIONS
               <span
                 class="c13 c20 icon icon-caret-down "
-                color="text.secondary"
+                color="text.slightlyMuted"
                 font-size="2"
               />
             </button>
@@ -665,7 +665,7 @@ exports[`success state 1`] = `
           <td
             style="text-transform: capitalize;"
           >
-            oidc
+            OIDC
           </td>
           <td
             align="right"
@@ -702,7 +702,7 @@ exports[`success state 1`] = `
           <td
             style="text-transform: capitalize;"
           >
-            saml
+            SAML
           </td>
           <td
             align="right"
@@ -739,7 +739,7 @@ exports[`success state 1`] = `
           <td
             style="text-transform: capitalize;"
           >
-            github
+            GitHub
           </td>
           <td
             align="right"

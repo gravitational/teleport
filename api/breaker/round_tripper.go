@@ -59,3 +59,8 @@ func (t *RoundTripper) RoundTrip(request *http.Request) (*http.Response, error) 
 
 	return v.(*http.Response), err
 }
+
+// Unwrap returns the inner round tripper.
+func (t *RoundTripper) Unwrap() http.RoundTripper {
+	return t.tripper
+}

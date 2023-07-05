@@ -380,7 +380,7 @@ exports[`failed 1`] = `
   transition: color 0.3s;
   margin-left: 8px;
   margin-right: -8px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -666,7 +666,7 @@ exports[`failed 1`] = `
 }
 
 .c9::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -816,7 +816,7 @@ exports[`failed 1`] = `
       >
         <div
           class="c20"
-          color="primary.contrastText"
+          color="text.contrast"
           style="text-transform: uppercase;"
         >
           Showing 
@@ -903,7 +903,7 @@ exports[`failed 1`] = `
             CONNECT
             <span
               class="c17 c25 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -945,7 +945,7 @@ exports[`failed 1`] = `
             CONNECT
             <span
               class="c17 c25 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -987,7 +987,7 @@ exports[`failed 1`] = `
             CONNECT
             <span
               class="c17 c25 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -1029,7 +1029,7 @@ exports[`failed 1`] = `
             CONNECT
             <span
               class="c17 c25 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -1071,7 +1071,7 @@ exports[`failed 1`] = `
             CONNECT
             <span
               class="c17 c25 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -1118,7 +1118,7 @@ exports[`failed 1`] = `
             CONNECT
             <span
               class="c17 c25 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -1165,7 +1165,7 @@ exports[`failed 1`] = `
             CONNECT
             <span
               class="c17 c25 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -1321,7 +1321,7 @@ exports[`loaded 1`] = `
   transition: color 0.3s;
   margin-left: 8px;
   margin-right: -8px;
-  color: rgba(255,255,255,0.56);
+  color: rgba(255,255,255,0.72);
   font-size: 14px;
 }
 
@@ -1473,7 +1473,7 @@ exports[`loaded 1`] = `
 
 .c6::placeholder {
   opacity: 1;
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -1665,7 +1665,7 @@ exports[`loaded 1`] = `
 }
 
 .c12::placeholder {
-  color: rgba(255,255,255,0.24);
+  color: rgba(255,255,255,0.54);
   font-size: 12px;
 }
 
@@ -1756,7 +1756,7 @@ exports[`loaded 1`] = `
         </div>
         <input
           class="c6"
-          color="text.primary"
+          color="text.main"
           placeholder="login@host:port"
         />
       </div>
@@ -1840,7 +1840,7 @@ exports[`loaded 1`] = `
       >
         <div
           class="c23"
-          color="primary.contrastText"
+          color="text.contrast"
           style="text-transform: uppercase;"
         >
           Showing 
@@ -1927,7 +1927,7 @@ exports[`loaded 1`] = `
             CONNECT
             <span
               class="c20 c28 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -1969,7 +1969,7 @@ exports[`loaded 1`] = `
             CONNECT
             <span
               class="c20 c28 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -2011,7 +2011,7 @@ exports[`loaded 1`] = `
             CONNECT
             <span
               class="c20 c28 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -2053,7 +2053,7 @@ exports[`loaded 1`] = `
             CONNECT
             <span
               class="c20 c28 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -2095,7 +2095,7 @@ exports[`loaded 1`] = `
             CONNECT
             <span
               class="c20 c28 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -2142,7 +2142,7 @@ exports[`loaded 1`] = `
             CONNECT
             <span
               class="c20 c28 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -2189,7 +2189,7 @@ exports[`loaded 1`] = `
             CONNECT
             <span
               class="c20 c28 icon icon-caret-down "
-              color="text.secondary"
+              color="text.slightlyMuted"
               font-size="2"
             />
           </button>
@@ -2323,7 +2323,7 @@ exports[`readonly empty state 1`] = `
     </div>
     <div
       class="c3"
-      color="text.primary"
+      color="text.main"
     >
       <div
         class="c4"

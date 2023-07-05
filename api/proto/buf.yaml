@@ -27,12 +27,17 @@ lint:
     - teleport/legacy/types/wrappers/wrappers.proto
   ignore_only:
     # Allow package/directory mismatch for legacy protos.
+    FIELD_LOWER_SNAKE_CASE:
+      - teleport/legacy/types/device.proto
+    # Allow package/directory mismatch for legacy protos.
     PACKAGE_DIRECTORY_MATCH:
       - teleport/legacy/client/proto/joinservice.proto
+      - teleport/legacy/types/device.proto
       - teleport/legacy/types/webauthn/webauthn.proto
     # Allow non-versioned packages for legacy protos.
     PACKAGE_VERSION_SUFFIX:
       - teleport/legacy/client/proto/joinservice.proto
+      - teleport/legacy/types/device.proto
       - teleport/legacy/types/webauthn/webauthn.proto
     # Allow only certain services to use streaming RPCs.
     #
@@ -50,4 +55,4 @@ lint:
       - teleport/proxy/v1/proxy_service.proto
 breaking:
   use:
-    - FILE
+    - WIRE_JSON

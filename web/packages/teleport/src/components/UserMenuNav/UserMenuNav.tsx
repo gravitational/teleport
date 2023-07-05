@@ -95,7 +95,7 @@ const Dropdown = styled.div<OpenProps>`
   display: flex;
   flex-direction: column;
   padding: 10px 15px;
-  background: #222c59;
+  background: ${({ theme }) => theme.colors.levels.surface};
   box-shadow: 0 2px 4px rgba(12, 12, 14, 0.9);
   border-radius: 5px;
   width: 265px;

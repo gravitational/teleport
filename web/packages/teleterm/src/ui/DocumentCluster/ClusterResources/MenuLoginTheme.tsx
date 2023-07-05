@@ -23,22 +23,18 @@ const menuLoginTheme = {
   ...theme,
   colors: {
     ...theme.colors,
-    subtle: theme.colors.primary.lighter,
-    light: theme.colors.primary.light,
-    primary: {
-      ...theme.colors.primary,
-      lighter: theme.colors.primary.lighter,
-    },
-    secondary: {
-      ...theme.colors.secondary,
-      dark: theme.colors.text.primary,
+    subtle: theme.colors.levels.elevated,
+    light: theme.colors.levels.surface,
+    levels: {
+      ...theme.colors.levels,
+      sunkenSecondary: theme.colors.text.main,
     },
     grey: {
       [50]: 'rgba(255,255,255,0.05)',
-      [900]: theme.colors.text.primary,
-      [100]: theme.colors.text.secondary,
+      [900]: theme.colors.text.main,
+      [100]: theme.colors.text.slightlyMuted,
     },
-    link: theme.colors.text.primary,
+    link: theme.colors.text.main,
   },
 };
 

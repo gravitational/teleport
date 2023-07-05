@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package resources
+package resources_test
 
 import (
 	"context"
@@ -27,6 +27,7 @@ import (
 
 	"github.com/gravitational/teleport/api/types"
 	resourcesv3 "github.com/gravitational/teleport/operator/apis/resources/v3"
+	"github.com/gravitational/teleport/operator/controllers/resources/testlib"
 )
 
 var oidcSpec = types.OIDCConnectorSpecV3{
@@ -45,72 +46,72 @@ type oidcTestingPrimitives struct {
 	setup *testSetup
 }
 
-func (g *oidcTestingPrimitives) init(setup *testSetup) {
+func (g *oidcTestingPrimitives) Init(setup *testSetup) {
 	g.setup = setup
 }
 
-func (g *oidcTestingPrimitives) setupTeleportFixtures(ctx context.Context) error {
+func (g *oidcTestingPrimitives) SetupTeleportFixtures(ctx context.Context) error {
 	return nil
 }
 
-func (g *oidcTestingPrimitives) createTeleportResource(ctx context.Context, name string) error {
+func (g *oidcTestingPrimitives) CreateTeleportResource(ctx context.Context, name string) error {
 	oidc, err := types.NewOIDCConnector(name, oidcSpec)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	oidc.SetOrigin(types.OriginKubernetes)
-	return trace.Wrap(g.setup.tClient.UpsertOIDCConnector(ctx, oidc))
+	return trace.Wrap(g.setup.TeleportClient.UpsertOIDCConnector(ctx, oidc))
 }
 
-func (g *oidcTestingPrimitives) getTeleportResource(ctx context.Context, name string) (types.OIDCConnector, error) {
-	return g.setup.tClient.GetOIDCConnector(ctx, name, true)
+func (g *oidcTestingPrimitives) GetTeleportResource(ctx context.Context, name string) (types.OIDCConnector, error) {
+	return g.setup.TeleportClient.GetOIDCConnector(ctx, name, true)
 }
 
-func (g *oidcTestingPrimitives) deleteTeleportResource(ctx context.Context, name string) error {
-	return trace.Wrap(g.setup.tClient.DeleteOIDCConnector(ctx, name))
+func (g *oidcTestingPrimitives) DeleteTeleportResource(ctx context.Context, name string) error {
+	return trace.Wrap(g.setup.TeleportClient.DeleteOIDCConnector(ctx, name))
 }
 
-func (g *oidcTestingPrimitives) createKubernetesResource(ctx context.Context, name string) error {
+func (g *oidcTestingPrimitives) CreateKubernetesResource(ctx context.Context, name string) error {
 	oidc := &resourcesv3.TeleportOIDCConnector{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: g.setup.namespace.Name,
+			Namespace: g.setup.Namespace.Name,
 		},
 		Spec: resourcesv3.TeleportOIDCConnectorSpec(oidcSpec),
 	}
-	return trace.Wrap(g.setup.k8sClient.Create(ctx, oidc))
+	return trace.Wrap(g.setup.K8sClient.Create(ctx, oidc))
 }
 
-func (g *oidcTestingPrimitives) deleteKubernetesResource(ctx context.Context, name string) error {
+func (g *oidcTestingPrimitives) DeleteKubernetesResource(ctx context.Context, name string) error {
 	oidc := &resourcesv3.TeleportOIDCConnector{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      name,
-			Namespace: g.setup.namespace.Name,
+			Namespace: g.setup.Namespace.Name,
 		},
 	}
-	return trace.Wrap(g.setup.k8sClient.Delete(ctx, oidc))
+	return trace.Wrap(g.setup.K8sClient.Delete(ctx, oidc))
 }
 
-func (g *oidcTestingPrimitives) getKubernetesResource(ctx context.Context, name string) (*resourcesv3.TeleportOIDCConnector, error) {
+func (g *oidcTestingPrimitives) GetKubernetesResource(ctx context.Context, name string) (*resourcesv3.TeleportOIDCConnector, error) {
 	oidc := &resourcesv3.TeleportOIDCConnector{}
 	obj := kclient.ObjectKey{
 		Name:      name,
-		Namespace: g.setup.namespace.Name,
+		Namespace: g.setup.Namespace.Name,
 	}
-	err := g.setup.k8sClient.Get(ctx, obj, oidc)
+	err := g.setup.K8sClient.Get(ctx, obj, oidc)
 	return oidc, trace.Wrap(err)
 }
 
-func (g *oidcTestingPrimitives) modifyKubernetesResource(ctx context.Context, name string) error {
-	oidc, err := g.getKubernetesResource(ctx, name)
+func (g *oidcTestingPrimitives) ModifyKubernetesResource(ctx context.Context, name string) error {
+	oidc, err := g.GetKubernetesResource(ctx, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	oidc.Spec.RedirectURLs = []string{"https://redirect1", "https://redirect2"}
-	return g.setup.k8sClient.Update(ctx, oidc)
+	return g.setup.K8sClient.Update(ctx, oidc)
 }
 
-func (g *oidcTestingPrimitives) compareTeleportAndKubernetesResource(tResource types.OIDCConnector, kubeResource *resourcesv3.TeleportOIDCConnector) (bool, string) {
+func (g *oidcTestingPrimitives) CompareTeleportAndKubernetesResource(tResource types.OIDCConnector, kubeResource *resourcesv3.TeleportOIDCConnector) (bool, string) {
 	teleportMap, _ := teleportResourceToMap(tResource)
 	kubernetesMap, _ := teleportResourceToMap(kubeResource.ToTeleport())
 
@@ -124,15 +125,15 @@ func (g *oidcTestingPrimitives) compareTeleportAndKubernetesResource(tResource t
 
 func TestOIDCConnectorCreation(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testResourceCreation[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
+	testlib.ResourceCreationTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
 }
 
 func TestOIDCConnectorDeletionDrift(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testResourceDeletionDrift[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
+	testlib.ResourceDeletionDriftTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
 }
 
 func TestOIDCConnectorUpdate(t *testing.T) {
 	test := &oidcTestingPrimitives{}
-	testResourceUpdate[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
+	testlib.ResourceUpdateTest[types.OIDCConnector, *resourcesv3.TeleportOIDCConnector](t, test)
 }
