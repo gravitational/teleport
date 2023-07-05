@@ -22,8 +22,8 @@ Related issue: [#25538](https://github.com/gravitational/teleport/issues/25538)
 Some users dynamically deploy apps into their Kubernetes clusters and expose those as Kubernetes services. When they actively
 create/update/remove apps, manually trying to mirror these changes to Teleport may be time-consuming and prone to
 errors, especially for organizations that have a large number of services running in their Kubernetes clusters.
-With the changes described in this RFD, Teleport will be able to discover Kubernetes service and automatically register them as
-Teleport apps and keep them in up to date state, greatly simplifying process and making user experience much better.
+Teleport will be able to discover Kubernetes service and automatically register them as
+Teleport apps and keep them in up to date state, simplifying process and making user experience much better.
 
 ## Scope
 
@@ -33,7 +33,7 @@ Teleport agents. Discovery service and app service should be running inside the 
 ## Details
 
 Kubernetes app discovery will build upon existing infrastructure for other discovery capabilities that are already there. We will add another
-type of matchers to the discovery service configuration - `kubernetes`. When discovery service sees this, it will periodically (once every 5 minutes)
+type of matchers to the discovery service configuration - `kubernetes`. If these matchers are present, every 5 minutes discovery service will 
 poll Kubernetes cluster, inside which it is running, for a list of services. Based on this list, it will form a list of Teleport apps resources
 and update it on the backend, constantly keeping the dynamic apps state up to date. Writing to the backend will be handled
 by already existing mechanism in our code - reconciler. Reconciler will compare given fresh list of resources and resources we currently have
@@ -42,11 +42,11 @@ the backend to change resources to the desired state.
 The Teleport app service that runs in the same Kubernetes cluster will then react to those changes, and will start/stop proxying
 apps that are selected by appropriate labels.
 
-Name of the created Teleport app will consist of Kubernetes service name, namespace and cluster name, like this:
+Name of the created Teleport app will consist of Kubernetes service name, namespace and cluster name:
 `$SERVICE_NAME-$CLUSTER_NAME-$NAMESPACE`. This is done to avoid naming collisions in discovered apps. Though app names
 will be long in that case, there's ongoing work to improve UX when working with long resources names in Teleport, see [RFD 129](https://github.com/gravitational/teleport/pull/27258).
 
-To allow for finer control over exposed service transformation into Teleport app Kubernetes annotations will be used.
+We will add capability to use optional annotations to better control transformation of Kubernetes services into Teleport apps.
 By default we will be exposing services as `tcp` apps, since it's the most general type, but annotation or exposed port's `appProtocol` field
 can be used to specify which protocol to use for the app's URI. 
 
@@ -91,7 +91,12 @@ discovery_service:
 `kubernetes_cluster` field in the config will be translated into `teleport.dev/kubernetes-cluster` label on the Teleport app resource, so
 later it's be easier to target it in the corresponding app service.
 
-Kubernetes annotation `teleport.dev/discovery-protocol` controls protocol for the access of the Teleport app we create. If annotation is missing
+#### Annotations
+
+Kubernetes annotations will allow users to fine tune transformation of services into Teleport apps. They will override default behaviour, 
+but they are not required for import of services - by default services without any annotations will also be imported.
+
+Annotation `teleport.dev/discovery-protocol` controls protocol for the access of the Teleport app we create. If annotation is missing
 `tcp` type will be used in the app's URI. Additionally, if kubernetes service port definition has `appProtocol` field, and it contains
 values `http`/`https` we will use it in the URI, but annotation supersedes hint from the `appProtocol`.
 
