@@ -98,8 +98,7 @@
           "entries": [
             {
               "title": "Getting Started",
-              "slug": "/choose-an-edition/teleport-enterprise/getting-started/",
-              "forScopes": ["enterprise"]
+              "slug": "/choose-an-edition/teleport-enterprise/getting-started/"
             },
             {
               "title": "HSM",
@@ -126,7 +125,8 @@
       "entries": [
         {
           "title": "Introduction",
-          "slug": "/deploy-a-cluster/introduction/"
+          "slug": "/deploy-a-cluster/introduction/",
+          "forScopes": ["oss", "enterprise"]
         },
         {
           "title": "High Availability Deployments",
@@ -259,12 +259,11 @@
         {
           "title": "Single Sign-On (SSO)",
           "slug": "/access-controls/sso/",
-          "forScopes": ["enterprise", "oss", "cloud"],
+          "forScopes": ["oss", "team", "enterprise", "cloud"],
           "entries": [
             {
               "title": "GitHub SSO",
-              "slug": "/access-controls/sso/github-sso/",
-              "forScopes": ["enterprise", "cloud", "oss"]
+              "slug": "/access-controls/sso/github-sso/"
             },
             {
               "title": "Azure Active Directory (AD)",
@@ -327,7 +326,8 @@
           "entries": [
             {
               "title": "Role Requests",
-              "slug": "/access-controls/access-requests/role-requests/"
+              "slug": "/access-controls/access-requests/role-requests/",
+              "forScopes": ["enterprise", "cloud"]
             },
             {
               "title": "Resource Requests",
@@ -337,7 +337,7 @@
             {
               "title": "Role Requests in OSS Teleport",
               "slug": "/access-controls/access-requests/oss-role-requests/",
-              "forScopes": ["oss", "enterprise", "cloud"]
+              "forScopes": ["oss"]
             }
           ]
         },
@@ -441,8 +441,7 @@
             },
             {
               "title": "Troubleshooting",
-              "slug": "/management/admin/troubleshooting/",
-              "forScopes": ["oss", "enterprise", "cloud"]
+              "slug": "/management/admin/troubleshooting/"
             },
             {
               "title": "Upgrading the Teleport Binary",
@@ -454,7 +453,8 @@
             },
             {
               "title": "Run Teleport with Self-Signed Certificates",
-              "slug": "/management/admin/self-signed-certs/"
+              "slug": "/management/admin/self-signed-certs/",
+              "forScopes": ["oss", "enterprise"]
             },
             {
               "title": "Uninstall Teleport",
@@ -477,8 +477,7 @@
             },
             {
               "title": "Backup and Restore",
-              "slug": "/management/operations/backup-restore/",
-              "forScopes": ["oss", "enterprise"]
+              "slug": "/management/operations/backup-restore/"
             },
             {
               "title": "Cert Authority Rotation",
@@ -509,10 +508,12 @@
         {
           "title": "Integrations",
           "slug": "/management/guides/",
+          "forScopes":["oss","enterprise","cloud","team"],
           "entries": [
             {
               "title": "Kubernetes Operator (Preview)",
-              "slug": "/management/guides/teleport-operator/"
+              "slug": "/management/guides/teleport-operator/",
+              "forScopes": ["enterprise","oss"]
             },
             {
               "title": "Terraform Provider",
@@ -573,18 +574,15 @@
           "entries": [
             {
               "title": "Exporting Audit Events to Fluentd",
-              "slug": "/management/export-audit-events/fluentd/",
-              "forScopes": ["enterprise", "cloud"]
+              "slug": "/management/export-audit-events/fluentd/"
             },
             {
               "title": "Monitoring Audit Events with the Elastic Stack",
-              "slug": "/management/export-audit-events/elastic-stack/",
-              "forScopes": ["enterprise", "cloud"]
+              "slug": "/management/export-audit-events/elastic-stack/"
             },
             {
               "title": "Monitoring Audit Events with Splunk",
-              "slug": "/management/export-audit-events/splunk/",
-              "forScopes": ["enterprise", "cloud"]
+              "slug": "/management/export-audit-events/splunk/"
             }
           ]
         }
@@ -1112,7 +1110,8 @@
         },
         {
           "title": "How to Build an Access Request Plugin",
-          "slug": "/api/access-plugin/"
+          "slug": "/api/access-plugin/",
+          "forScopes": ["enterprise", "cloud"]
         },
 	{
 	    "title": "Automatically Register Teleport Agents",
@@ -1189,7 +1188,11 @@
           "entries": [
             {
               "title": "teleport-cluster",
-              "slug": "/reference/helm-reference/teleport-cluster/"
+              "slug": "/reference/helm-reference/teleport-cluster/",
+              "forScopes": [
+              	  "oss",
+              	  "enterprise"
+	      ]
             },
             {
               "title": "teleport-kube-agent",

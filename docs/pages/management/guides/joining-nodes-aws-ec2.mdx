@@ -7,13 +7,14 @@ This guide will explain how to use the **EC2 join method** to configure Teleport
 Nodes and Proxy Service instances to join your Teleport cluster without sharing
 any secrets when they are running in AWS.
 
-<ScopedBlock scope="cloud">
+<Notice type="warning">
 
-The EC2 join method is not available in Teleport Cloud. Teleport Cloud customers
-can use the [IAM join method](./joining-nodes-aws-iam.mdx) or
-[secret tokens](../admin/adding-nodes.mdx).
+The EC2 join method is not available in Teleport Team and Enterprise Cloud.
+Cloud-hosted Teleport customers can use the [IAM join
+method](./joining-nodes-aws-iam.mdx) or [secret
+tokens](../admin/adding-nodes.mdx).
 
-</ScopedBlock>
+</Notice>
 
 The EC2 join method is available in self-hosted versions of Teleport 7.3+. It is
 available to any Teleport Node or Proxy running on an EC2 instance. Only one
@@ -22,6 +23,14 @@ Teleport Node or Proxy per EC2 instance may use the EC2 join method.
 IAM credentials with `ec2:DescribeInstances` permissions are required on
 your Teleport Auth Service. No IAM credentials are required on the Nodes or
 Proxy Service instances.
+
+<Notice type="warning">
+
+The EC2 join method is not available in Teleport Enterprise Cloud and Teleport
+Team. Teleport Enterprise Cloud and Team customers can use the [IAM join
+method](./joining-nodes-aws-iam.mdx) or [secret tokens](../admin/adding-nodes.mdx).
+
+</Notice>
 
 <Details
 opened

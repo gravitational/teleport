@@ -6,11 +6,11 @@ description: Install and configure an HA Teleport cluster using an AWS EKS clust
 In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and AWS products (DynamoDB and S3).
 
-<ScopedBlock scope="cloud">
+<Notice type="warning">
 
 (!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
 
-</ScopedBlock>
+</Notice>
 
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
@@ -347,7 +347,7 @@ $ kubectl -n teleport create secret generic license --from-file=license.pem
 Next, configure the `teleport-cluster` Helm chart to use the `aws` mode. Create
 a file called `aws-values.yaml` and write the values you've chosen above to it:
 
-<ScopedBlock scope={["oss", "cloud"]}>
+<ScopedBlock scope={["oss"]}>
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -678,4 +678,3 @@ Teleport cluster.
 See the [high availability section of our Helm chart reference](../../reference/helm-reference/teleport-cluster.mdx#highavailability) for more details on high availability.
 
 Read the [`cert-manager` documentation](https://cert-manager.io/docs/).
-

@@ -132,7 +132,7 @@ This command should result in three PEM-encoded files: `auth.crt`, `auth.key`,
 and `auth.cas` (certificate, private key, and CA certs, respectively).
 
 </TabItem>
-<TabItem label="Teleport Cloud" scope={["cloud"]}>
+<TabItem label="Cloud-Hosted" scope={["cloud","team"]}>
 ```code
 $ tctl auth sign --user=terraform --out=terraform-identity
 ```
@@ -148,7 +148,7 @@ Paste the following into a file called `main.tf` to define an example user and
 role using Terraform.
 
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 ```
 (!examples/resources/terraform/terraform-user-role-cloud.tf!)
 ```
@@ -165,7 +165,7 @@ role using Terraform.
 Check the contents of the `teleport-terraform` folder:
 
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
 ```code
 $ ls

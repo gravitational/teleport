@@ -242,7 +242,7 @@ scope={["enterprise"]}>either modify your Auth Service configuration file
 or </ScopedBlock>create a `cluster_auth_preference` resource.
 
 <Tabs>
-  <TabItem label="Static Config (Self-Hosted)" scope={["enterprise"]}>
+  <TabItem label="Static Config (Self-Hosted)" scope={["enterprise","oss"]}>
  Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
   ```yaml
   auth_service:
@@ -253,7 +253,7 @@ or </ScopedBlock>create a `cluster_auth_preference` resource.
 
   (!docs/pages/includes/sso/idp-initiated.mdx!)
   </TabItem>
-  <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
+  <TabItem scope={["cloud","team"]} label="Dynamic Resources (All Editions)">
   Create a file called `cap.yaml`:
   ```yaml
   kind: cluster_auth_preference

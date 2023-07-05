@@ -6,12 +6,6 @@ description: Install and configure an HA Teleport cluster using a Google Cloud G
 In this guide, we'll go through how to set up a High Availability Teleport cluster with multiple replicas in Kubernetes
 using Teleport Helm charts and Google Cloud Platform products (Firestore and Google Cloud Storage).
 
-<ScopedBlock scope="cloud">
-
-(!docs/pages/kubernetes-access/helm/includes/teleport-cluster-cloud-warning.mdx!)
-
-</ScopedBlock>
-
 (!docs/pages/includes/cloud/call-to-action.mdx!)
 
 ## Prerequisites
@@ -302,7 +296,7 @@ Next, configure the `teleport-cluster` Helm chart to use the `gcp` mode. Create 
 file called `gcp-values.yaml` file and write the values you've chosen above to
 it:
 
-<ScopedBlock scope={["oss", "cloud"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```yaml
 chartMode: gcp

@@ -3,20 +3,13 @@ title: Getting Started - Kubernetes with SSO
 description: Getting started with Teleport. Let's deploy Teleport in a Kubernetes with SSO and Audit logs
 ---
 
-<ScopedBlock title="Teleport Cloud customers" scope={["cloud"]}>
-This guide shows you how to deploy the Teleport Auth Service and Proxy Service on a Kubernetes cluster. These services are fully managed in Teleport Cloud.
-
-Instead, Teleport Cloud users should consult the following guide, which shows you how to connect a Teleport Kubernetes Service instance to an existing Teleport cluster:
-
-</ScopedBlock>
-
 Teleport can provide secure, unified access to your Kubernetes clusters. This guide will show you how to:
 
 <ScopedBlock scope={["enterprise"]}>
-- Deploy Teleport Enterprise in a Kubernetes cluster.
+- Deploy a self-hosted Teleport Enterprise cluster in a Kubernetes cluster.
 </ScopedBlock>
-<ScopedBlock scope={["oss","cloud"]}>
-- Deploy Teleport in a Kubernetes cluster.
+<ScopedBlock scope={["oss"]}>
+- Deploy a self-hosted Teleport cluster in a Kubernetes cluster.
 </ScopedBlock>
 - Set up Single Sign-On (SSO) for authentication to your Teleport cluster.
 
@@ -58,7 +51,7 @@ Let's start with a Teleport deployment using a persistent volume as a backend. M
 (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     ```code
     $ CLUSTER_NAME="tele.example.com"
     $ EMAIL="mail@example.com"
@@ -107,7 +100,7 @@ Teleport's Helm chart uses an [external load balancer](https://kubernetes.io/doc
 to create a public IP for Teleport.
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     ```code
     # Set kubectl context to the namespace to save some typing
     $ kubectl config set-context --current --namespace=teleport-cluster
@@ -207,7 +200,7 @@ Let's install `tsh` and `tctl` on Linux.
 For other install options, check out the [installation guide](../../installation.mdx)
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     ```code
     $ curl -L -O https://get.gravitational.com/teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
     $ tar -xzf teleport-v(=teleport.version=)-linux-amd64-bin.tar.gz
@@ -256,7 +249,7 @@ $ KUBECONFIG=${HOME?}/teleport.yaml kubectl get -n teleport-cluster pods
 In this step, we will set up the GitHub Single Sign-On connector for the OSS version of Teleport and Okta for the Enterprise version.
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     Save the file below as `github.yaml` and update the fields. You will need to set up the
     [GitHub OAuth 2.0 Connector](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/) app.
     Any member with the team `admin` in the organization `octocats` will be able to assume a builtin role `access`.
@@ -310,7 +303,7 @@ In this step, we will set up the GitHub Single Sign-On connector for the OSS ver
 To create a connector, we are going to run Teleport's admin tool `tctl` from the pod.
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     ```code
     $ kubectl config set-context --current --namespace=teleport-cluster
     $ POD=$(kubectl get po -l app=teleport-cluster -o jsonpath='{.items[0].metadata.name}')
@@ -335,7 +328,7 @@ Try `tsh login` with a GitHub user. This example uses a custom `KUBECONFIG` to p
 the default one in case there is a problem.
 
 <Tabs>
-  <TabItem label="Open Source">
+  <TabItem scope="oss" label="Open Source">
     ```code
     $ KUBECONFIG=${HOME?}/teleport.yaml tsh login --proxy=tele.example.com --auth=github
     ```

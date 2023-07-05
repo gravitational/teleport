@@ -80,12 +80,11 @@ Create the `cluster_auth_preference` resource via `tctl`:
 $ tctl create -f cap.yaml
 ```
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
 
 You can modify these settings using dynamic configuration resources.
 
-Log in to Teleport from your local machine so you can use the Enterprise
-edition of the `tctl` admin tool:
+Log in to Teleport from your local machine so you can use the `tctl` admin tool:
 
 ```code
 $ tsh login --proxy=myinstance.teleport.sh
@@ -126,7 +125,28 @@ $ tctl create -f cap.yaml
 ## Authentication connectors
 
 <Tabs>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope="team" label="Teleport Team">
+
+### GitHub
+
+This connector implements GitHub's OAuth 2.0 authentication flow. Please refer to GitHub's documentation on [Creating an OAuth App](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/)
+to learn how to create and register an OAuth app.
+
+Here is an example of this setting in a `cluster_auth_preference` resource:
+
+```yaml
+kind: cluster_auth_preference
+metadata:
+  name: cluster-auth-preference
+spec:
+  type: github
+version: v2
+```
+
+See [GitHub OAuth 2.0](../access-controls/sso/github-sso.mdx) for details on how to configure it.
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Enterprise Cloud">
 
 ### GitHub
 
