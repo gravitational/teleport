@@ -236,6 +236,7 @@ func (ns *NodeSession) createServerSession(ctx context.Context) (*tracessh.Sessi
 		}
 	}
 	// pass environment variables set by client
+	log.Tracef("Propagating all environment variables")
 	for key, val := range ns.env {
 		envs[key] = val
 	}
