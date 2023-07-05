@@ -1344,6 +1344,13 @@ func (s *Server) handleEnv(ctx context.Context, ch ssh.Channel, req *ssh.Request
 		return trace.Wrap(err, "failed to parse env request")
 	}
 
+	// As a forwarder we want to capture the environment variables set by the caller.
+	// Environment variables are used to pass existing session IDs (Assist) and
+	// other flags like enabling non-interactive session recording.
+	// We want to save all environment variables even if the ssh server rejects
+	// them, as we still need their information (e.g. the session ID).
+	scx.SetEnv(e.Name, e.Value)
+
 	err := scx.RemoteSession.Setenv(ctx, e.Name, e.Value)
 	if err != nil {
 		s.log.Debugf("Unable to set environment variable: %v: %v", e.Name, e.Value)
@@ -1364,6 +1371,15 @@ func (s *Server) handleEnvs(ctx context.Context, ch ssh.Channel, req *ssh.Reques
 	var envs map[string]string
 	if err := json.Unmarshal(raw.EnvsJSON, &envs); err != nil {
 		return trace.Wrap(err, "failed to unmarshal envs")
+	}
+
+	// As a forwarder we want to capture the environment variables set by the caller.
+	// Environment variables are used to pass existing session IDs (Assist) and
+	// other flags like enabling non-interactive session recording.
+	// We want to save all environment variables even if the ssh server rejects
+	// them, as we still need their information (e.g. the session ID).
+	for k, v := range envs {
+		scx.SetEnv(k, v)
 	}
 
 	if err := scx.RemoteSession.SetEnvs(ctx, envs); err != nil {
