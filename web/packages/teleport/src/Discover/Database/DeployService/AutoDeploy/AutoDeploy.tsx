@@ -20,7 +20,6 @@ import { Box, ButtonSecondary, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
@@ -281,15 +280,17 @@ const CreateAccessRole = ({
       <FieldInput
         mb={4}
         disabled={disabled}
-        rule={requiredField('Task Role ARN is required')}
+        rule={roleArnMatcher}
         label="Name a Task Role ARN"
         autoFocus
         value={taskRoleArn}
         placeholder="teleport"
-        width="400px"
+        width="440px"
         mr="3"
         onChange={e => setTaskRoleArn(e.target.value)}
-        toolTipContent="Lorem ipsume dolores"
+        toolTipContent={`Amazon Resource Names (ARNs) uniquely identifies AWS \
+        resources, in this case you will be naming an IAM role that this \
+        deployed service will be using`}
       />
       <Text mb={2}>
         Then open{' '}
@@ -395,3 +396,22 @@ const StyledBox = styled(Box)`
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
 `;
+
+// ROLE_ARN_REGEX uses the same regex matcher used in the backend:
+// https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
+//
+// Regex checks for alphanumerics and select few characters.
+export const ROLE_ARN_REGEX = /^[\w+=,.@-]+$/;
+const roleArnMatcher = value => () => {
+  const isValid = value.match(ROLE_ARN_REGEX);
+  if (!isValid) {
+    return {
+      valid: false,
+      message:
+        'name must be alphanumerics, including characters such as @ = , . + -',
+    };
+  }
+  return {
+    valid: true,
+  };
+};
