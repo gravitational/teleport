@@ -33,9 +33,9 @@ import (
 const _ = grpc.SupportPackageIsVersion7
 
 const (
-	TshdEventsService_Relogin_FullMethodName          = "/teleport.lib.teleterm.v1.TshdEventsService/Relogin"
-	TshdEventsService_SendNotification_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification"
-	TshdEventsService_PromptMFA_FullMethodName        = "/teleport.lib.teleterm.v1.TshdEventsService/PromptMFA"
+	TshdEventsService_Relogin_FullMethodName                = "/teleport.lib.teleterm.v1.TshdEventsService/Relogin"
+	TshdEventsService_SendNotification_FullMethodName       = "/teleport.lib.teleterm.v1.TshdEventsService/SendNotification"
+	TshdEventsService_HeadlessAuthentication_FullMethodName = "/teleport.lib.teleterm.v1.TshdEventsService/HeadlessAuthentication"
 )
 
 // TshdEventsServiceClient is the client API for TshdEventsService service.
@@ -49,8 +49,8 @@ type TshdEventsServiceClient interface {
 	// accepts a specific message rather than a generic string so that the Electron is in control as
 	// to what message is displayed and how exactly it looks.
 	SendNotification(ctx context.Context, in *SendNotificationRequest, opts ...grpc.CallOption) (*SendNotificationResponse, error)
-	// PromptMFA causes the Electron app to prompt for Webauthn.
-	PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error)
+	// HeadlessAuthentication sends a headless authentication to the Electron app to handle.
+	HeadlessAuthentication(ctx context.Context, in *HeadlessAuthenticationRequest, opts ...grpc.CallOption) (*HeadlessAuthenticationResponse, error)
 }
 
 type tshdEventsServiceClient struct {
@@ -79,9 +79,9 @@ func (c *tshdEventsServiceClient) SendNotification(ctx context.Context, in *Send
 	return out, nil
 }
 
-func (c *tshdEventsServiceClient) PromptMFA(ctx context.Context, in *PromptMFARequest, opts ...grpc.CallOption) (*PromptMFAResponse, error) {
-	out := new(PromptMFAResponse)
-	err := c.cc.Invoke(ctx, TshdEventsService_PromptMFA_FullMethodName, in, out, opts...)
+func (c *tshdEventsServiceClient) HeadlessAuthentication(ctx context.Context, in *HeadlessAuthenticationRequest, opts ...grpc.CallOption) (*HeadlessAuthenticationResponse, error) {
+	out := new(HeadlessAuthenticationResponse)
+	err := c.cc.Invoke(ctx, TshdEventsService_HeadlessAuthentication_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -99,8 +99,8 @@ type TshdEventsServiceServer interface {
 	// accepts a specific message rather than a generic string so that the Electron is in control as
 	// to what message is displayed and how exactly it looks.
 	SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error)
-	// PromptMFA causes the Electron app to prompt for Webauthn.
-	PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error)
+	// HeadlessAuthentication sends a headless authentication to the Electron app to handle.
+	HeadlessAuthentication(context.Context, *HeadlessAuthenticationRequest) (*HeadlessAuthenticationResponse, error)
 	mustEmbedUnimplementedTshdEventsServiceServer()
 }
 
@@ -114,8 +114,8 @@ func (UnimplementedTshdEventsServiceServer) Relogin(context.Context, *ReloginReq
 func (UnimplementedTshdEventsServiceServer) SendNotification(context.Context, *SendNotificationRequest) (*SendNotificationResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method SendNotification not implemented")
 }
-func (UnimplementedTshdEventsServiceServer) PromptMFA(context.Context, *PromptMFARequest) (*PromptMFAResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method PromptMFA not implemented")
+func (UnimplementedTshdEventsServiceServer) HeadlessAuthentication(context.Context, *HeadlessAuthenticationRequest) (*HeadlessAuthenticationResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method HeadlessAuthentication not implemented")
 }
 func (UnimplementedTshdEventsServiceServer) mustEmbedUnimplementedTshdEventsServiceServer() {}
 
@@ -166,20 +166,20 @@ func _TshdEventsService_SendNotification_Handler(srv interface{}, ctx context.Co
 	return interceptor(ctx, in, info, handler)
 }
 
-func _TshdEventsService_PromptMFA_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(PromptMFARequest)
+func _TshdEventsService_HeadlessAuthentication_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(HeadlessAuthenticationRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(TshdEventsServiceServer).PromptMFA(ctx, in)
+		return srv.(TshdEventsServiceServer).HeadlessAuthentication(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: TshdEventsService_PromptMFA_FullMethodName,
+		FullMethod: TshdEventsService_HeadlessAuthentication_FullMethodName,
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(TshdEventsServiceServer).PromptMFA(ctx, req.(*PromptMFARequest))
+		return srv.(TshdEventsServiceServer).HeadlessAuthentication(ctx, req.(*HeadlessAuthenticationRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
@@ -200,8 +200,8 @@ var TshdEventsService_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _TshdEventsService_SendNotification_Handler,
 		},
 		{
-			MethodName: "PromptMFA",
-			Handler:    _TshdEventsService_PromptMFA_Handler,
+			MethodName: "HeadlessAuthentication",
+			Handler:    _TshdEventsService_HeadlessAuthentication_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},

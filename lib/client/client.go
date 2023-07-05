@@ -1081,7 +1081,7 @@ func (proxy *ProxyClient) ListResources(ctx context.Context, namespace, resource
 	return resp.Resources, resp.NextKey, nil
 }
 
-func (proxy *ProxyClient) WatchHeadlessAuthentications(ctx context.Context) (types.Watcher, error) {
+func (proxy *ProxyClient) WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error) {
 	ctx, span := proxy.Tracer.Start(
 		ctx,
 		"proxyClient/WatchPendingHeadlessAuthentications",

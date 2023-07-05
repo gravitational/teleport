@@ -95,6 +95,17 @@ export class ModalsService extends ImmutableStore<State> {
     };
   }
 
+  openHeadlessDialog(options: {
+clusterUri?: RootClusterUri;
+    onSuccess?(clusterUri: RootClusterUri): void;
+    onCancel?(): void;
+  }) {
+    return this.openRegularDialog({
+      kind: 'documents-reopen',
+      ...options,
+    });
+  }
+
   // TODO(ravicious): Remove this method in favor of calling openRegularDialog directly.
   openClusterConnectDialog(options: {
     clusterUri?: RootClusterUri;

@@ -15,19 +15,19 @@
  */
 
 import { MainProcessClient } from 'teleterm/types';
-import { PromptWebauthnRequest } from 'teleterm/services/tshdEvents';
+import { HeadlessAuthenticationRequest } from 'teleterm/services/tshdEvents';
 import { ModalsService } from 'teleterm/ui/services/modals';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 
-export class PromptWebauthnService {
+export class HeadlessAuthenticationService {
   constructor(
     private mainProcessClient: MainProcessClient,
     private modalsService: ModalsService,
     // private clustersService: ClustersService
   ) {}
 
-  promptWebauthn(
-    // request: PromptWebauthnRequest,
+  headlessAuthentication(
+    // request: HeadlessAuthenticationRequest,
     onRequestCancelled: (callback: () => void) => void
   ): Promise<void> {
     this.mainProcessClient.forceFocusWindow();

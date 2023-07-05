@@ -233,27 +233,6 @@ func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gat
 	return nil
 }
 
-func (s *Service) onPromptMFA(ctx context.Context, cluster *clusters.Cluster) func(ctx context.Context, in *api.PromptMFARequest, opts ...grpc.CallOption) (*api.PromptMFAResponse, error) {
-	return func(ctx context.Context, in *api.PromptMFARequest, opts ...grpc.CallOption) (*api.PromptMFAResponse, error) {
-		resp, err := s.tshdEventsClient.PromptMFA(ctx, in, opts...)
-		if err != nil {
-			s.notifyAppAboutError(ctx, &api.SendNotificationRequest{
-				Subject: &api.SendNotificationRequest_CannotPromptMfa{
-					CannotPromptMfa: &api.CannotPromptMFA{
-						// TODO: what info should be included in notification?
-						TargetUri: cluster.URI.String(),
-						Error:     err.Error(),
-					},
-				},
-			})
-
-			return nil, trace.Wrap(err)
-		}
-
-		return resp, nil
-	}
-}
-
 func (s *Service) notifyAppAboutError(ctx context.Context, notification *api.SendNotificationRequest) {
 	tshdEventsCtx, cancelTshdEventsCtx := context.WithTimeout(ctx, tshdEventsTimeout)
 	defer cancelTshdEventsCtx()
@@ -605,55 +584,6 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 	}
 
 	return cluster.TransferFile(ctx, request, sendProgress)
-}
-
-func (s *Service) StartHeadlessHandler(uri string) error {
-	cluster, err := s.ResolveCluster(uri)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := s.startHeadlessHandler(cluster); err != nil {
-		return trace.Wrap(err)
-	}
-
-	return trace.Wrap(err)
-}
-
-func (s *Service) StartHeadlessHandlers() error {
-	clusters, err := s.cfg.Storage.ReadAll()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	for _, c := range clusters {
-		if c.Connected() {
-			if err := s.startHeadlessHandler(c); err != nil {
-				return trace.Wrap(err)
-			}
-		}
-	}
-
-	return nil
-}
-
-func (s *Service) startHeadlessHandler(cluster *clusters.Cluster) error {
-	ctx, cancel := context.WithCancel(s.closeContext)
-	if err := cluster.HandleHeadlessAuthentications(ctx, s.onPromptMFA(s.closeContext, cluster)); err != nil {
-		cancel()
-		return trace.Wrap(err)
-	}
-
-	s.headlessHandlerClosers[cluster.URI.String()] = cancel
-	return nil
-}
-
-func (s *Service) StopHeadlessHandler(ctx context.Context, uri string) error {
-	if closer, ok := s.headlessHandlerClosers[uri]; ok {
-		closer()
-		delete(s.headlessHandlerClosers, uri)
-	}
-	return nil
 }
 
 // Service is the daemon service

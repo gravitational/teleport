@@ -18,15 +18,12 @@ import (
 	"context"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/grpc"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
 )
 
-func (c *Cluster) HandleHeadlessAuthentications(ctx context.Context, promptMFA func(ctx context.Context, in *api.PromptMFARequest, opts ...grpc.CallOption) (*api.PromptMFAResponse, error)) error {
+func (c *Cluster) HandlePendingHeadlessAuthentications(ctx context.Context, handler func(ctx context.Context, ha *types.HeadlessAuthentication) error) error {
 	var proxyClient *client.ProxyClient
 
 	err := addMetadataToRetryableError(ctx, func() error {
@@ -39,9 +36,8 @@ func (c *Cluster) HandleHeadlessAuthentications(ctx context.Context, promptMFA f
 	}
 	defer proxyClient.Close()
 
-	watcher, err := proxyClient.WatchHeadlessAuthentications(ctx)
+	watcher, err := proxyClient.WatchPendingHeadlessAuthentications(ctx)
 	if err != nil {
-		proxyClient.Close()
 		return trace.Wrap(err)
 	}
 	defer watcher.Close()
@@ -55,42 +51,9 @@ func (c *Cluster) HandleHeadlessAuthentications(ctx context.Context, promptMFA f
 			if !ok {
 				return trace.BadParameter("unexpected resource type %T", event.Resource)
 			}
-
-			rootClient, err := proxyClient.ConnectToRootCluster(ctx)
-			if err != nil {
+			if err := handler(ctx, ha); err != nil {
 				return trace.Wrap(err)
 			}
-
-			if _, err := promptMFA(ctx, &api.PromptMFARequest{
-				Request: &api.PromptMFARequest_HeadlessRequest{
-					HeadlessRequest: &api.HeadlessRequest{
-						HeadlessAuthentication: &api.HeadlessAuthentication{
-							User:            ha.User,
-							ClientIpAddress: ha.ClientIpAddress,
-						},
-					},
-				},
-			}); err != nil {
-				c.Log.WithError(err).Error("promptMFA error.")
-			}
-
-			chall, err := rootClient.CreateAuthenticateChallenge(ctx, &proto.CreateAuthenticateChallengeRequest{
-				Request: &proto.CreateAuthenticateChallengeRequest_ContextUser{
-					ContextUser: &proto.ContextUser{},
-				},
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			resp, err := c.clusterClient.PromptMFAChallenge(ctx, tc.WebProxyAddr, chall, nil)
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			err = rootClient.UpdateHeadlessAuthenticationState(ctx, ha.GetName(), types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED, resp)
-			return trace.Wrap(err)
-
 		case <-watcher.Done():
 			return trace.Wrap(watcher.Error())
 		}

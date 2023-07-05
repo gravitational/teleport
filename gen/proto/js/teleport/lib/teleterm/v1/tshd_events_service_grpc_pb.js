@@ -19,26 +19,26 @@
 var grpc = require('@grpc/grpc-js');
 var teleport_lib_teleterm_v1_tshd_events_service_pb = require('../../../../teleport/lib/teleterm/v1/tshd_events_service_pb.js');
 
-function serialize_teleport_lib_teleterm_v1_PromptMFARequest(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_tshd_events_service_pb.PromptMFARequest)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.PromptMFARequest');
+function serialize_teleport_lib_teleterm_v1_HeadlessAuthenticationRequest(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_tshd_events_service_pb.HeadlessAuthenticationRequest)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.HeadlessAuthenticationRequest');
   }
   return Buffer.from(arg.serializeBinary());
 }
 
-function deserialize_teleport_lib_teleterm_v1_PromptMFARequest(buffer_arg) {
-  return teleport_lib_teleterm_v1_tshd_events_service_pb.PromptMFARequest.deserializeBinary(new Uint8Array(buffer_arg));
+function deserialize_teleport_lib_teleterm_v1_HeadlessAuthenticationRequest(buffer_arg) {
+  return teleport_lib_teleterm_v1_tshd_events_service_pb.HeadlessAuthenticationRequest.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
-function serialize_teleport_lib_teleterm_v1_PromptMFAResponse(arg) {
-  if (!(arg instanceof teleport_lib_teleterm_v1_tshd_events_service_pb.PromptMFAResponse)) {
-    throw new Error('Expected argument of type teleport.lib.teleterm.v1.PromptMFAResponse');
+function serialize_teleport_lib_teleterm_v1_HeadlessAuthenticationResponse(arg) {
+  if (!(arg instanceof teleport_lib_teleterm_v1_tshd_events_service_pb.HeadlessAuthenticationResponse)) {
+    throw new Error('Expected argument of type teleport.lib.teleterm.v1.HeadlessAuthenticationResponse');
   }
   return Buffer.from(arg.serializeBinary());
 }
 
-function deserialize_teleport_lib_teleterm_v1_PromptMFAResponse(buffer_arg) {
-  return teleport_lib_teleterm_v1_tshd_events_service_pb.PromptMFAResponse.deserializeBinary(new Uint8Array(buffer_arg));
+function deserialize_teleport_lib_teleterm_v1_HeadlessAuthenticationResponse(buffer_arg) {
+  return teleport_lib_teleterm_v1_tshd_events_service_pb.HeadlessAuthenticationResponse.deserializeBinary(new Uint8Array(buffer_arg));
 }
 
 function serialize_teleport_lib_teleterm_v1_ReloginRequest(arg) {
@@ -116,17 +116,17 @@ sendNotification: {
     responseSerialize: serialize_teleport_lib_teleterm_v1_SendNotificationResponse,
     responseDeserialize: deserialize_teleport_lib_teleterm_v1_SendNotificationResponse,
   },
-  // PromptMFA causes the Electron app to prompt for Webauthn.
-promptMFA: {
-    path: '/teleport.lib.teleterm.v1.TshdEventsService/PromptMFA',
+  // HeadlessAuthentication sends a headless authentication to the Electron app to handle.
+headlessAuthentication: {
+    path: '/teleport.lib.teleterm.v1.TshdEventsService/HeadlessAuthentication',
     requestStream: false,
     responseStream: false,
-    requestType: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptMFARequest,
-    responseType: teleport_lib_teleterm_v1_tshd_events_service_pb.PromptMFAResponse,
-    requestSerialize: serialize_teleport_lib_teleterm_v1_PromptMFARequest,
-    requestDeserialize: deserialize_teleport_lib_teleterm_v1_PromptMFARequest,
-    responseSerialize: serialize_teleport_lib_teleterm_v1_PromptMFAResponse,
-    responseDeserialize: deserialize_teleport_lib_teleterm_v1_PromptMFAResponse,
+    requestType: teleport_lib_teleterm_v1_tshd_events_service_pb.HeadlessAuthenticationRequest,
+    responseType: teleport_lib_teleterm_v1_tshd_events_service_pb.HeadlessAuthenticationResponse,
+    requestSerialize: serialize_teleport_lib_teleterm_v1_HeadlessAuthenticationRequest,
+    requestDeserialize: deserialize_teleport_lib_teleterm_v1_HeadlessAuthenticationRequest,
+    responseSerialize: serialize_teleport_lib_teleterm_v1_HeadlessAuthenticationResponse,
+    responseDeserialize: deserialize_teleport_lib_teleterm_v1_HeadlessAuthenticationResponse,
   },
 };
 

@@ -42,7 +42,6 @@ type TSHDEventsClient interface {
 	// SendNotification causes the Electron app to display a notification. Please refer to
 	// [api.TshdEventsServiceClient.SendNotification] for more details.
 	SendNotification(ctx context.Context, in *api.SendNotificationRequest, opts ...grpc.CallOption) (*api.SendNotificationResponse, error)
-	// PromptMFA makes the Electron app display a MFA prompt modal. Please refer to
-	// [api.TshdEventsServiceClient.PromptMFA] for more details.
-	PromptMFA(ctx context.Context, in *api.PromptMFARequest, opts ...grpc.CallOption) (*api.PromptMFAResponse, error)
+	// HeadlessAuthentication
+	HeadlessAuthentication(ctx context.Context, in *api.HeadlessAuthenticationRequest, opts ...grpc.CallOption) (*api.HeadlessAuthenticationResponse, error)
 }

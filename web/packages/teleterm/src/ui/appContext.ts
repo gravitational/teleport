@@ -22,7 +22,7 @@ import {
 import {
   ReloginRequest,
   SendNotificationRequest,
-  PromptWebauthnRequest,
+  HeadlessAuthenticationRequest,
 } from 'teleterm/services/tshdEvents';
 import { ClustersService } from 'teleterm/ui/services/clusters';
 import { ModalsService } from 'teleterm/ui/services/modals';
@@ -35,7 +35,7 @@ import { NotificationsService } from 'teleterm/ui/services/notifications';
 import { FileTransferService } from 'teleterm/ui/services/fileTransferClient';
 import { ReloginService } from 'teleterm/services/relogin';
 import { TshdNotificationsService } from 'teleterm/services/tshdNotifications';
-import { PromptWebauthnService } from 'teleterm/services/promptWebauthn';
+import { HeadlessAuthenticationService } from 'teleterm/services/headless';
 import { UsageService } from 'teleterm/ui/services/usage';
 import { ResourcesService } from 'teleterm/ui/services/resources';
 import { ConfigService } from 'teleterm/services/config';
@@ -72,7 +72,7 @@ export default class AppContext implements IAppContext {
   subscribeToTshdEvent: SubscribeToTshdEvent;
   reloginService: ReloginService;
   tshdNotificationsService: TshdNotificationsService;
-  promptWebauthnService: PromptWebauthnService;
+  headlessAuthenticationService: HeadlessAuthenticationService;
   usageService: UsageService;
   configService: ConfigService;
 
@@ -134,7 +134,7 @@ export default class AppContext implements IAppContext {
       this.notificationsService,
       this.clustersService
     );
-    this.promptWebauthnService = new PromptWebauthnService(
+    this.headlessAuthenticationService = new HeadlessAuthenticationService(
       mainProcessClient,
       this.modalsService,
     );
@@ -161,9 +161,9 @@ export default class AppContext implements IAppContext {
       );
     });
 
-    this.subscribeToTshdEvent('promptWebauthn', ({ onCancelled }) => {
-      return this.promptWebauthnService.promptWebauthn(
-        // request as PromptWebauthnRequest,
+    this.subscribeToTshdEvent('headlessAuthentication', ({ onCancelled }) => {
+      return this.headlessAuthenticationService.headlessAuthentication(
+        // request as HeadlessAuthentication,
         onCancelled
       );
     });

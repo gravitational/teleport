@@ -35,8 +35,8 @@ export interface SendNotificationRequest
   extends api.SendNotificationRequest.AsObject {
   cannotProxyGatewayConnection?: CannotProxyGatewayConnection;
 }
-export interface PromptWebauthnRequest
-  extends api.PromptWebauthnRequest.AsObject {
+export interface HeadlessAuthenticationRequest
+  extends api.HeadlessAuthenticationRequest.AsObject {
 }
 export interface CannotProxyGatewayConnection
   extends api.CannotProxyGatewayConnection.AsObject {
@@ -182,18 +182,18 @@ function createService(logger: Logger): {
         }
       );
     },
-    promptWebauthn: (call, callback) => {
+    headlessAuthentication: (call, callback) => {
       const request = call.request.toObject();
 
-      logger.info('Emitting promptWebauthn', request);
+      logger.info('Emitting headlessAuthentication', request);
 
       const onCancelled = (callback: () => void) => {
         call.on('cancelled', callback);
       };
 
-      emitter.emit('promptWebauthn', { request, onCancelled }).then(
+      emitter.emit('headlessAuthentication', { request, onCancelled }).then(
         () => {
-          callback(null, new api.PromptWebauthnResponse());
+          callback(null, new api.HeadlessAuthenticationResponse());
         },
         error => {
           callback(error);

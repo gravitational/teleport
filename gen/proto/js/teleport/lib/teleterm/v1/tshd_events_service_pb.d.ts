@@ -94,12 +94,6 @@ export class SendNotificationRequest extends jspb.Message {
     setCannotProxyGatewayConnection(value?: CannotProxyGatewayConnection): SendNotificationRequest;
 
 
-    hasCannotPromptMfa(): boolean;
-    clearCannotPromptMfa(): void;
-    getCannotPromptMfa(): CannotPromptMFA | undefined;
-    setCannotPromptMfa(value?: CannotPromptMFA): SendNotificationRequest;
-
-
     getSubjectCase(): SendNotificationRequest.SubjectCase;
 
     serializeBinary(): Uint8Array;
@@ -115,15 +109,12 @@ export class SendNotificationRequest extends jspb.Message {
 export namespace SendNotificationRequest {
     export type AsObject = {
         cannotProxyGatewayConnection?: CannotProxyGatewayConnection.AsObject,
-        cannotPromptMfa?: CannotPromptMFA.AsObject,
     }
 
     export enum SubjectCase {
         SUBJECT_NOT_SET = 0,
     
     CANNOT_PROXY_GATEWAY_CONNECTION = 1,
-
-    CANNOT_PROMPT_MFA = 2,
 
     }
 
@@ -158,31 +149,6 @@ export namespace CannotProxyGatewayConnection {
     }
 }
 
-export class CannotPromptMFA extends jspb.Message { 
-    getTargetUri(): string;
-    setTargetUri(value: string): CannotPromptMFA;
-
-    getError(): string;
-    setError(value: string): CannotPromptMFA;
-
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): CannotPromptMFA.AsObject;
-    static toObject(includeInstance: boolean, msg: CannotPromptMFA): CannotPromptMFA.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: CannotPromptMFA, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): CannotPromptMFA;
-    static deserializeBinaryFromReader(message: CannotPromptMFA, reader: jspb.BinaryReader): CannotPromptMFA;
-}
-
-export namespace CannotPromptMFA {
-    export type AsObject = {
-        targetUri: string,
-        error: string,
-    }
-}
-
 export class SendNotificationResponse extends jspb.Message { 
 
     serializeBinary(): Uint8Array;
@@ -200,69 +166,38 @@ export namespace SendNotificationResponse {
     }
 }
 
-export class PromptMFARequest extends jspb.Message { 
-    getRootClusterUri(): string;
-    setRootClusterUri(value: string): PromptMFARequest;
+export class HeadlessAuthenticationRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): HeadlessAuthenticationRequest;
 
-
-    hasHeadlessRequest(): boolean;
-    clearHeadlessRequest(): void;
-    getHeadlessRequest(): HeadlessRequest | undefined;
-    setHeadlessRequest(value?: HeadlessRequest): PromptMFARequest;
-
-
-    getRequestCase(): PromptMFARequest.RequestCase;
-
-    serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): PromptMFARequest.AsObject;
-    static toObject(includeInstance: boolean, msg: PromptMFARequest): PromptMFARequest.AsObject;
-    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
-    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: PromptMFARequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): PromptMFARequest;
-    static deserializeBinaryFromReader(message: PromptMFARequest, reader: jspb.BinaryReader): PromptMFARequest;
-}
-
-export namespace PromptMFARequest {
-    export type AsObject = {
-        rootClusterUri: string,
-        headlessRequest?: HeadlessRequest.AsObject,
-    }
-
-    export enum RequestCase {
-        REQUEST_NOT_SET = 0,
-    
-    HEADLESS_REQUEST = 2,
-
-    }
-
-}
-
-export class HeadlessRequest extends jspb.Message { 
 
     hasHeadlessAuthentication(): boolean;
     clearHeadlessAuthentication(): void;
     getHeadlessAuthentication(): HeadlessAuthentication | undefined;
-    setHeadlessAuthentication(value?: HeadlessAuthentication): HeadlessRequest;
+    setHeadlessAuthentication(value?: HeadlessAuthentication): HeadlessAuthenticationRequest;
 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): HeadlessRequest.AsObject;
-    static toObject(includeInstance: boolean, msg: HeadlessRequest): HeadlessRequest.AsObject;
+    toObject(includeInstance?: boolean): HeadlessAuthenticationRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: HeadlessAuthenticationRequest): HeadlessAuthenticationRequest.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: HeadlessRequest, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): HeadlessRequest;
-    static deserializeBinaryFromReader(message: HeadlessRequest, reader: jspb.BinaryReader): HeadlessRequest;
+    static serializeBinaryToWriter(message: HeadlessAuthenticationRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): HeadlessAuthenticationRequest;
+    static deserializeBinaryFromReader(message: HeadlessAuthenticationRequest, reader: jspb.BinaryReader): HeadlessAuthenticationRequest;
 }
 
-export namespace HeadlessRequest {
+export namespace HeadlessAuthenticationRequest {
     export type AsObject = {
+        clusterUri: string,
         headlessAuthentication?: HeadlessAuthentication.AsObject,
     }
 }
 
 export class HeadlessAuthentication extends jspb.Message { 
+    getName(): string;
+    setName(value: string): HeadlessAuthentication;
+
     getUser(): string;
     setUser(value: string): HeadlessAuthentication;
 
@@ -282,24 +217,25 @@ export class HeadlessAuthentication extends jspb.Message {
 
 export namespace HeadlessAuthentication {
     export type AsObject = {
+        name: string,
         user: string,
         clientIpAddress: string,
     }
 }
 
-export class PromptMFAResponse extends jspb.Message { 
+export class HeadlessAuthenticationResponse extends jspb.Message { 
 
     serializeBinary(): Uint8Array;
-    toObject(includeInstance?: boolean): PromptMFAResponse.AsObject;
-    static toObject(includeInstance: boolean, msg: PromptMFAResponse): PromptMFAResponse.AsObject;
+    toObject(includeInstance?: boolean): HeadlessAuthenticationResponse.AsObject;
+    static toObject(includeInstance: boolean, msg: HeadlessAuthenticationResponse): HeadlessAuthenticationResponse.AsObject;
     static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
     static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
-    static serializeBinaryToWriter(message: PromptMFAResponse, writer: jspb.BinaryWriter): void;
-    static deserializeBinary(bytes: Uint8Array): PromptMFAResponse;
-    static deserializeBinaryFromReader(message: PromptMFAResponse, reader: jspb.BinaryReader): PromptMFAResponse;
+    static serializeBinaryToWriter(message: HeadlessAuthenticationResponse, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): HeadlessAuthenticationResponse;
+    static deserializeBinaryFromReader(message: HeadlessAuthenticationResponse, reader: jspb.BinaryReader): HeadlessAuthenticationResponse;
 }
 
-export namespace PromptMFAResponse {
+export namespace HeadlessAuthenticationResponse {
     export type AsObject = {
     }
 }

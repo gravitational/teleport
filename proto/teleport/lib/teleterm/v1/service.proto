@@ -119,6 +119,8 @@ service TerminalService {
   rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
   // ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
   rpc ReportUsageEvent(ReportUsageEventRequest) returns (EmptyResponse);
+  // UpdateHeadlessAuthenticationState approves/denies a headless authentication request with MFA.
+  rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (EmptyResponse);
 }
 
 message EmptyResponse {}
@@ -419,3 +421,9 @@ message UpdateTshdEventsServerAddressRequest {
   string address = 1;
 }
 message UpdateTshdEventsServerAddressResponse {}
+
+message UpdateHeadlessAuthenticationStateRequest {
+  string cluster_uri = 1;
+  string name = 2;
+  string state = 3;
+}

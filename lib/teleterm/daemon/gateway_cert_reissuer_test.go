@@ -213,7 +213,7 @@ func (c *mockTSHDEventsClient) SendNotification(context.Context, *api.SendNotifi
 	return &api.SendNotificationResponse{}, nil
 }
 
-func (c *mockTSHDEventsClient) PromptMFA(context.Context, *api.PromptMFARequest, ...grpc.CallOption) (*api.PromptMFAResponse, error) {
-	c.callCounts["PromptMFA"]++
-	return &api.PromptMFAResponse{}, nil
+func (c *mockTSHDEventsClient) HeadlessAuthentication(context.Context, *api.HeadlessAuthenticationRequest, ...grpc.CallOption) (*api.HeadlessAuthenticationResponse, error) {
+	c.callCounts["HeadlessAuthentication"]++
+	return &api.HeadlessAuthenticationResponse{}, nil
 }

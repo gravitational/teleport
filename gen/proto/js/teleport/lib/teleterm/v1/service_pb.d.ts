@@ -1314,6 +1314,35 @@ export namespace UpdateTshdEventsServerAddressResponse {
     }
 }
 
+export class UpdateHeadlessAuthenticationStateRequest extends jspb.Message { 
+    getClusterUri(): string;
+    setClusterUri(value: string): UpdateHeadlessAuthenticationStateRequest;
+
+    getName(): string;
+    setName(value: string): UpdateHeadlessAuthenticationStateRequest;
+
+    getState(): string;
+    setState(value: string): UpdateHeadlessAuthenticationStateRequest;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UpdateHeadlessAuthenticationStateRequest.AsObject;
+    static toObject(includeInstance: boolean, msg: UpdateHeadlessAuthenticationStateRequest): UpdateHeadlessAuthenticationStateRequest.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UpdateHeadlessAuthenticationStateRequest, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UpdateHeadlessAuthenticationStateRequest;
+    static deserializeBinaryFromReader(message: UpdateHeadlessAuthenticationStateRequest, reader: jspb.BinaryReader): UpdateHeadlessAuthenticationStateRequest;
+}
+
+export namespace UpdateHeadlessAuthenticationStateRequest {
+    export type AsObject = {
+        clusterUri: string,
+        name: string,
+        state: string,
+    }
+}
+
 export enum PasswordlessPrompt {
     PASSWORDLESS_PROMPT_UNSPECIFIED = 0,
     PASSWORDLESS_PROMPT_PIN = 1,
