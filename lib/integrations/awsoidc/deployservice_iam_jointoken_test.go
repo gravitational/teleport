@@ -129,7 +129,7 @@ func TestUpsertIAMJoinToken(t *testing.T) {
 			iamRole:        "myrole",
 			deploymentMode: DatabaseServiceDeploymentMode,
 		}, m)
-		require.ErrorContains(t, err, `Token "t" already exists but has the wrong method "ec2". Please remove it before continuing.`)
+		require.ErrorContains(t, err, `Token "t" already exists but has the wrong join method "ec2". Please remove it before continuing.`)
 	})
 
 	t.Run("when deployment method is invalid, it returns an error", func(t *testing.T) {

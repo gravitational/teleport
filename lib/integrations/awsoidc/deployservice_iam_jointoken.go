@@ -35,8 +35,8 @@ const (
 	awsSTSShortName = "sts"
 )
 
-// GetUpsertToken defines the required methods to upsert the Provision Token used by the Deploy Service.
-type GetUpsertToken interface {
+// TokenService defines the required methods to upsert the Provision Token used by the Deploy Service.
+type TokenService interface {
 	// GetToken returns a provision token by name.
 	GetToken(ctx context.Context, name string) (types.ProvisionToken, error)
 
@@ -107,7 +107,7 @@ func (u *upsertIAMJoinTokenRequest) CheckAndSetDefaults() error {
 // upsertIAMJoinToken creates or updates a Provision Token with a rule that allows Teleport Services with given AWS Identities to join the cluster.
 // The allowed Identities are the ones provided in the request (Account, Region and AWSRole).
 // It gives access for those identities to join as system roles.
-func upsertIAMJoinToken(ctx context.Context, req upsertIAMJoinTokenRequest, clt GetUpsertToken) error {
+func upsertIAMJoinToken(ctx context.Context, req upsertIAMJoinTokenRequest, clt TokenService) error {
 	if err := req.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -119,16 +119,26 @@ func upsertIAMJoinToken(ctx context.Context, req upsertIAMJoinTokenRequest, clt 
 
 	token, err := clt.GetToken(ctx, req.tokenName)
 	switch {
-	case trace.IsNotFound(err):
-		token, err = newIAMJoinTokenWithRule(ctx, req, rule)
-		if err != nil {
-			return trace.Wrap(err)
-		}
-	case err != nil:
+	case err != nil && !trace.IsNotFound(err):
 		return trace.Wrap(err)
 
+	case trace.IsNotFound(err):
+		token = &types.ProvisionTokenV2{
+			Metadata: types.Metadata{
+				Name: req.tokenName,
+			},
+			Spec: types.ProvisionTokenSpecV2{
+				JoinMethod: types.JoinMethodIAM,
+			},
+		}
+		fallthrough
 	default:
-		token, err = updateTokenIAMJoin(ctx, req, rule, token)
+		existingToken, ok := token.(*types.ProvisionTokenV2)
+		if !ok {
+			return trace.BadParameter("expected token to be of type ProvisionTokenV2, got %T", token)
+		}
+
+		token, err = updateTokenIAMJoin(ctx, req, rule, existingToken)
 		if trace.IsAlreadyExists(err) {
 			// Early return when the required rule already exists.
 			return nil
@@ -144,56 +154,35 @@ func upsertIAMJoinToken(ctx context.Context, req upsertIAMJoinTokenRequest, clt 
 
 	return nil
 }
-
-func updateTokenIAMJoin(ctx context.Context, req upsertIAMJoinTokenRequest, rule *types.TokenRule, existingToken types.ProvisionToken) (types.ProvisionToken, error) {
+func updateTokenIAMJoin(ctx context.Context, req upsertIAMJoinTokenRequest, rule *types.TokenRule, existingToken *types.ProvisionTokenV2) (types.ProvisionToken, error) {
 	if existingToken.GetJoinMethod() != types.JoinMethodIAM {
-		return nil, trace.BadParameter("Token %q already exists but has the wrong method %q. "+
+		return nil, trace.BadParameter("Token %q already exists but has the wrong join method %q. "+
 			"Please remove it before continuing.",
 			req.tokenName, existingToken.GetJoinMethod(),
 		)
 	}
 
-	allRoles := append(existingToken.GetRoles(), types.RoleDatabase)
+	allRoles := existingToken.GetRoles()
+
+	switch req.deploymentMode {
+	case DatabaseServiceDeploymentMode:
+		allRoles = append(allRoles, types.RoleDatabase)
+
+	default:
+		return nil, trace.BadParameter("invalid deployment mode %q, supported modes: %v", req.deploymentMode, DeploymentModes)
+	}
+
 	uniqueRoles := utils.Deduplicate(allRoles)
 	existingToken.SetRoles(uniqueRoles)
 
 	for _, rule := range existingToken.GetAllowRules() {
-		if rule.AWSAccount == req.accountID &&
-			rule.AWSARN == req.awsARN {
+		if rule.AWSAccount == req.accountID && rule.AWSARN == req.awsARN {
 
-			return nil, trace.AlreadyExists("required rule already exists")
+			return nil, trace.AlreadyExists("rule already exists")
 		}
 	}
 
 	existingToken.SetAllowRules(append(existingToken.GetAllowRules(), rule))
 
 	return existingToken, nil
-}
-
-// newIAMJoinTokenWithRule creates a new ProvisionToken using the
-func newIAMJoinTokenWithRule(ctx context.Context, req upsertIAMJoinTokenRequest, rule *types.TokenRule) (types.ProvisionToken, error) {
-	var systemRoles types.SystemRoles
-
-	switch req.deploymentMode {
-	case DatabaseServiceDeploymentMode:
-		systemRoles = types.SystemRoles{types.RoleDatabase}
-	default:
-		return nil, trace.BadParameter("invalid deployment mode %q, supported modes: %v", req.deploymentMode, DeploymentModes)
-	}
-
-	token := &types.ProvisionTokenV2{
-		Metadata: types.Metadata{
-			Name: req.tokenName,
-		},
-		Spec: types.ProvisionTokenSpecV2{
-			JoinMethod: types.JoinMethodIAM,
-			Roles:      systemRoles,
-			Allow:      []*types.TokenRule{rule},
-		},
-	}
-	if err := token.CheckAndSetDefaults(); err != nil {
-		return nil, trace.Wrap(err)
-	}
-
-	return token, nil
 }
