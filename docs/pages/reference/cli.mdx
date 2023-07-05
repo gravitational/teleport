@@ -685,7 +685,7 @@ $ tsh proxy gcloud [<flags>]
 
 #### [Global Flags](#tsh-global-flags)
 
-These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+These flags are available for all commands `--login`, `--proxy`, `--user`, `--ttl`, `--identity`, `--cert-format`, `--insecure`, `--auth`, `--skip-version-check`, `--debug`, `--jumphost`.
 Run `tsh help <subcommand>` or see the [Global Flags Section](#tsh-global-flags)
 
 #### Examples
@@ -1403,7 +1403,7 @@ These flags are available for all commands `--debug, --config`. Run
 ```code
 # Adds teleport user "joe" with mappings to
 # OS users and {{ internal.logins }} to "joe" and "ubuntu"
-$ tctl users add joe --roles=access,requestor joe,ubuntu
+$ tctl users add joe --roles=access,requester joe,ubuntu
 # Adds Teleport user "joe" with mappings to the editor role
 $ tctl users add joe --roles=editor,reviewer
 ```
