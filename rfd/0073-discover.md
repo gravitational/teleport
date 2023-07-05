@@ -33,7 +33,7 @@ setting up auto-discovery remains cumbersome with multiple different
 `teleport configure` CLI commands to run, configuration files to update and so
 on.
 
-Improvements proposed in thie RFD aim to take advantage of the existing auto
+Improvements proposed in this RFD aim to take advantage of the existing auto
 discovery mechanisms Teleport has and provide a unified approach for users to
 connect their resources.
 
@@ -44,7 +44,13 @@ connect their resources.
 - Phase 1 will focus on the "Day 1" experience described below.
 - Phase 2 and beyond will focus on "Day 2" and further tweaks to "Day 1"
   experience.
+## Future work
 
+1. Auto-discovery and configuration support for Kubernetes Access (currently being researched)
+2. Auto-discovery and configuration support for Application Access
+3. Auto-discovery and configuration support for Desktop Access
+4. Extend support to GCP
+5. Extend support to Azure
 ## UX
 
 The Teleport Discover flow will aim to provide a guided experience for users
