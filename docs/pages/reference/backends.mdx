@@ -486,6 +486,10 @@ teleport:
     # By default, Teleport stores audit events with an AWS TTL of 1 year.
     # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
     audit_retention_period: 365d
+
+    # Enables On-Demand billing for the dynamodb table, if set to false, provisioned mode will be used.
+    # default: true
+    on_demand: true
 ```
 
 - Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
@@ -556,6 +560,9 @@ teleport:
     write_min_capacity: int
     write_max_capacity: int
     write_target_value: float
+    # Enables On-Demand billing
+    # default: true
+    on_demand: [true|false]
 ```
 
 To enable these options you will need to update the IAM Policy for Teleport.
@@ -584,6 +591,13 @@ To enable these options you will need to update the IAM Policy for Teleport.
     "Resource": "*"
 }
 ```
+
+<Admonition
+  type="warning"
+  title="on_demand with autoscaling"
+>
+  If `on_demand` is set to true, the settings for read/write capacity and auto scaling will be ignored.
+</Admonition>
 
 ### Configuring AWS FIPS endpoints
 
