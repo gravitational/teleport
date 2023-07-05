@@ -195,7 +195,7 @@ func (a *Server) generateCertsBot(
 	renewable := false
 	shouldDeleteToken := false
 	if joinMethod == types.JoinMethodToken {
-		// The token join method is special produces renewable certificates,
+		// The token join method is special and produces renewable certificates
 		// but the token is deleted after use.
 		shouldDeleteToken = true
 		renewable = true
