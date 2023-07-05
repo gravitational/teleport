@@ -45,5 +45,8 @@ export function makeDefaultUserPreferences(): UserPreferences {
       viewMode: ViewMode.Docked,
       preferredLogins: [],
     },
+    onboard: {
+      preferredResources: [],
+    },
   };
 }

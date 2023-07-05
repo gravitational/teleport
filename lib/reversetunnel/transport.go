@@ -76,7 +76,7 @@ type transport struct {
 	sconn sshutils.Conn
 
 	// reverseTunnelServer holds all reverse tunnel connections.
-	reverseTunnelServer Server
+	reverseTunnelServer reversetunnelclient.Server
 
 	// server is either an SSH or application server. It can handle a connection
 	// (perform handshake and handle request).
@@ -377,11 +377,11 @@ func (p *transport) getConn(addr string, r *sshutils.DialReq) (net.Conn, bool, e
 		// a direct dial, return right away.
 		switch r.ConnType {
 		case types.AppTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoApplicationTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoApplicationTunnel)
 		case types.OktaTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoOktaTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoOktaTunnel)
 		case types.DatabaseTunnel:
-			return nil, false, trace.ConnectionProblem(err, NoDatabaseTunnel)
+			return nil, false, trace.ConnectionProblem(err, reversetunnelclient.NoDatabaseTunnel)
 		}
 
 		errTun := err

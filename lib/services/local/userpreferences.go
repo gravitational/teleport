@@ -33,13 +33,17 @@ type UserPreferencesService struct {
 	backend.Backend
 }
 
-// DefaultUserPreferences is the default user preferences.
-var DefaultUserPreferences = &userpreferencesv1.UserPreferences{
-	Assist: &userpreferencesv1.AssistUserPreferences{
-		PreferredLogins: []string{},
-		ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
-	},
-	Theme: userpreferencesv1.Theme_THEME_LIGHT,
+func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
+	return &userpreferencesv1.UserPreferences{
+		Assist: &userpreferencesv1.AssistUserPreferences{
+			PreferredLogins: nil,
+			ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
+		},
+		Theme: userpreferencesv1.Theme_THEME_LIGHT,
+		Onboard: &userpreferencesv1.OnboardUserPreferences{
+			PreferredResources: nil,
+		},
+	}
 }
 
 // NewUserPreferencesService returns a new instance of the UserPreferencesService.
@@ -54,7 +58,7 @@ func (u *UserPreferencesService) GetUserPreferences(ctx context.Context, req *us
 	preferences, err := u.getUserPreferences(ctx, req.Username)
 	if err != nil {
 		if trace.IsNotFound(err) {
-			return &userpreferencesv1.GetUserPreferencesResponse{Preferences: DefaultUserPreferences}, nil
+			return &userpreferencesv1.GetUserPreferencesResponse{Preferences: DefaultUserPreferences()}, nil
 		}
 
 		return nil, trace.Wrap(err)
@@ -77,11 +81,10 @@ func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, req 
 		if !trace.IsNotFound(err) {
 			return trace.Wrap(err)
 		}
-
-		preferences = DefaultUserPreferences
+		preferences = DefaultUserPreferences()
 	}
 
-	preferences = mergePreferences(preferences, req.Preferences)
+	mergePreferences(preferences, req.Preferences)
 
 	item, err := createBackendItem(req.Username, preferences)
 	if err != nil {
@@ -139,28 +142,36 @@ func createBackendItem(username string, preferences *userpreferencesv1.UserPrefe
 	return item, nil
 }
 
-// mergePreferences merges the given preferences.
-func mergePreferences(a, b *userpreferencesv1.UserPreferences) *userpreferencesv1.UserPreferences {
-	if b.Theme != userpreferencesv1.Theme_THEME_UNSPECIFIED {
-		a.Theme = b.Theme
+// mergePreferences merges the values from src into dest.
+func mergePreferences(dest, src *userpreferencesv1.UserPreferences) {
+	if src.Theme != userpreferencesv1.Theme_THEME_UNSPECIFIED {
+		dest.Theme = src.Theme
 	}
 
-	if b.Assist != nil {
-		a.Assist = mergeAssistUserPreferences(a.Assist, b.Assist)
+	if src.Assist != nil {
+		mergeAssistUserPreferences(dest.Assist, src.Assist)
 	}
 
-	return a
+	if src.Onboard != nil {
+		mergeOnboardUserPreferences(dest.Onboard, src.Onboard)
+	}
+
 }
 
-// mergeAssistUserPreferences merges the given assist user preferences.
-func mergeAssistUserPreferences(a, b *userpreferencesv1.AssistUserPreferences) *userpreferencesv1.AssistUserPreferences {
-	if b.PreferredLogins != nil {
-		a.PreferredLogins = b.PreferredLogins
+// mergeAssistUserPreferences merges src preferences into the given dest assist user preferences.
+func mergeAssistUserPreferences(dest, src *userpreferencesv1.AssistUserPreferences) {
+	if src.PreferredLogins != nil {
+		dest.PreferredLogins = src.PreferredLogins
 	}
 
-	if b.ViewMode != userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_UNSPECIFIED {
-		a.ViewMode = b.ViewMode
+	if src.ViewMode != userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_UNSPECIFIED {
+		dest.ViewMode = src.ViewMode
 	}
+}
 
-	return a
+// mergeOnboardUserPreferences merges src preferences into the given dest onboard user preferences.
+func mergeOnboardUserPreferences(dest, src *userpreferencesv1.OnboardUserPreferences) {
+	if src.PreferredResources != nil {
+		dest.PreferredResources = src.PreferredResources
+	}
 }

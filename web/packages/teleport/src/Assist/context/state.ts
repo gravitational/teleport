@@ -24,6 +24,7 @@ import type {
 } from 'teleport/Assist/types';
 
 export interface AssistState {
+  sidebarVisible: boolean;
   conversations: {
     selectedId: string | null;
     error?: string;
@@ -61,6 +62,7 @@ export enum AssistStateActionType {
   DeleteConversation,
   UpdateConversationTitle,
   AddCommandResultSummary,
+  ToggleSidebar,
 }
 
 export interface ReplaceConversationsAction {
@@ -173,6 +175,11 @@ export interface AddCommandResultSummaryAction {
   executionId: string;
 }
 
+export interface ToggleSidebarAction {
+  type: AssistStateActionType.ToggleSidebar;
+  visible: boolean;
+}
+
 export type AssistContextAction =
   | SetConversationsLoadingAction
   | ReplaceConversationsAction
@@ -191,7 +198,8 @@ export type AssistContextAction =
   | PromptMfaAction
   | DeleteConversationAction
   | UpdateConversationTitleAction
-  | AddCommandResultSummaryAction;
+  | AddCommandResultSummaryAction
+  | ToggleSidebarAction;
 
 export function reducer(
   state: AssistState,
@@ -251,6 +259,9 @@ export function reducer(
 
     case AssistStateActionType.AddCommandResultSummary:
       return addCommandResultSummary(state, action);
+
+    case AssistStateActionType.ToggleSidebar:
+      return toggleSidebar(state, action);
 
     default:
       return state;
@@ -647,7 +658,7 @@ export function promptMfa(
 export function deleteConversation(
   state: AssistState,
   action: DeleteConversationAction
-) {
+): AssistState {
   const conversations = state.conversations.data;
 
   const newSelectedId =
@@ -670,7 +681,7 @@ export function deleteConversation(
 export function updateConversationTitle(
   state: AssistState,
   action: UpdateConversationTitleAction
-) {
+): AssistState {
   const conversations = state.conversations.data;
 
   return {
@@ -688,5 +699,15 @@ export function updateConversationTitle(
         return conversation;
       }),
     },
+  };
+}
+
+export function toggleSidebar(
+  state: AssistState,
+  action: ToggleSidebarAction
+): AssistState {
+  return {
+    ...state,
+    sidebarVisible: action.visible,
   };
 }
