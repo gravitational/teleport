@@ -158,13 +158,13 @@ require (
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 	golang.org/x/mod v0.10.0
 	golang.org/x/net v0.12.0
-	golang.org/x/oauth2 v0.8.0
-	golang.org/x/sync v0.2.0
+	golang.org/x/oauth2 v0.9.0
+	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.10.0
 	golang.org/x/term v0.10.0
 	golang.org/x/text v0.11.0
 	golang.org/x/time v0.3.0
-	google.golang.org/api v0.128.0
+	google.golang.org/api v0.130.0
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
 	google.golang.org/grpc v1.56.1
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
@@ -281,7 +281,7 @@ require (
 	github.com/google/gofuzz v1.2.0 // indirect
 	github.com/google/renameio/v2 v2.0.0 // indirect
 	github.com/google/s2a-go v0.1.4 // indirect
-	github.com/googleapis/enterprise-certificate-proxy v0.2.4 // indirect
+	github.com/googleapis/enterprise-certificate-proxy v0.2.5 // indirect
 	github.com/gorilla/handlers v1.5.1 // indirect
 	github.com/gorilla/mux v1.8.0 // indirect
 	github.com/gregjones/httpcache v0.0.0-20180305231024-9cad4c3443a7 // indirect
@@ -386,7 +386,7 @@ require (
 	gomodules.xyz/jsonpatch/v2 v2.3.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20230530153820-e85fd2cbaebc // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20230530153820-e85fd2cbaebc
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20230629202037-9506855d4529
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/mgo.v2 v2.0.0-20190816093944-a6b53ec6cb22 // indirect
 	k8s.io/component-helpers v0.27.3 // indirect
