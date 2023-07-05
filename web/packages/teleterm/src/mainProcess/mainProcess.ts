@@ -47,6 +47,7 @@ import { subscribeToTerminalContextMenuEvent } from './contextMenus/terminalCont
 import { subscribeToTabContextMenuEvent } from './contextMenus/tabContextMenu';
 import { resolveNetworkAddress } from './resolveNetworkAddress';
 import { WindowsManager } from './windowsManager';
+import { downloadAgent, FileDownloader } from './agentDownloader';
 
 type Options = {
   settings: RuntimeSettings;
@@ -290,6 +291,13 @@ export default class MainProcess {
       await shell.openPath(path);
       return path;
     });
+
+    ipcMain.handle('main-process-connect-my-computer-download-agent', () =>
+      downloadAgent(
+        new FileDownloader(this.windowsManager.getWindow()),
+        this.settings
+      )
+    );
 
     subscribeToTerminalContextMenuEvent();
     subscribeToTabContextMenuEvent();

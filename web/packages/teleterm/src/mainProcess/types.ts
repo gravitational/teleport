@@ -85,6 +85,7 @@ export type MainProcessClient = {
   ) => {
     cleanup: () => void;
   };
+  downloadAgent(): Promise<void>;
 };
 
 export type ChildProcessAddresses = {

@@ -14,10 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-import React, { useState } from 'react';
-import { Box, ButtonPrimary, Text } from 'design';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Box, ButtonPrimary, Flex, Text } from 'design';
+import { useAsync } from 'shared/hooks/useAsync';
+import { wait } from 'shared/utils/wait';
+import * as Alerts from 'design/Alert';
+import { CircleCheck, CircleCross, CirclePlay, Spinner } from 'design/Icon';
 
 import * as types from 'teleterm/ui/services/workspacesService';
+import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 
 interface DocumentConnectMyComputerSetupProps {
@@ -28,8 +33,9 @@ interface DocumentConnectMyComputerSetupProps {
 export function DocumentConnectMyComputerSetup(
   props: DocumentConnectMyComputerSetupProps
 ) {
-  const [step, setStep] =
-    useState<'information' | 'agent-setup'>('information');
+  const [step, setStep] = useState<'information' | 'agent-setup'>(
+    'information'
+  );
 
   return (
     <Document visible={props.visible}>
@@ -76,23 +82,112 @@ function Information(props: { onSetUpAgentClick(): void }) {
 }
 
 function AgentSetup() {
+  const ctx = useAppContext();
+
+  const [setUpRolesAttempt, runSetUpRolesAttempt] = useAsync(
+    useCallback(() => wait(1_000), [])
+  );
+  const [downloadAgentAttempt, runDownloadAgentAttempt] = useAsync(
+    ctx.mainProcessClient.downloadAgent
+  );
+  const [generateConfigFileAttempt, runGenerateConfigFileAttempt] = useAsync(
+    useCallback(() => wait(1_000), [])
+  );
+  const [joinClusterAttempt, runJoinClusterAttempt] = useAsync(
+    useCallback(() => wait(1_000), [])
+  );
+
   const steps = [
-    'Setting up roles',
-    'Downloading the agent',
-    'Generating the config file',
-    'Joining the cluster',
+    {
+      name: 'Setting up roles',
+      attempt: setUpRolesAttempt,
+    },
+    {
+      name: 'Downloading the agent',
+      attempt: downloadAgentAttempt,
+    },
+    {
+      name: 'Generating the config file',
+      attempt: generateConfigFileAttempt,
+    },
+    {
+      name: 'Joining the cluster',
+      attempt: joinClusterAttempt,
+    },
   ];
 
+  const runSteps = useCallback(async () => {
+    // uncomment when implemented
+    const actions = [
+      // runSetUpRolesAttempt,
+      runDownloadAgentAttempt,
+      // runGenerateConfigFileAttempt,
+      // runJoinClusterAttempt,
+    ];
+    for (const action of actions) {
+      const [, error] = await action();
+      if (error) {
+        break;
+      }
+    }
+  }, [
+    runSetUpRolesAttempt,
+    runDownloadAgentAttempt,
+    runGenerateConfigFileAttempt,
+    runJoinClusterAttempt,
+  ]);
+
+  useEffect(() => {
+    runSteps();
+  }, [runSteps]);
+
+  const hasSetupFailed = steps.some(s => s.attempt.status === 'error');
+
   return (
-    <ol
-      css={`
-        padding-left: 0;
-        list-style: inside decimal;
-      `}
-    >
-      {steps.map(step => (
-        <li key={step}>{step}</li>
-      ))}
-    </ol>
+    <>
+      <ol
+        css={`
+          padding-left: 0;
+          list-style: inside decimal;
+        `}
+      >
+        {steps.map(step => (
+          <Flex key={step.name} alignItems="baseline" gap={2}>
+            {step.attempt.status === '' && <CirclePlay />}
+            {step.attempt.status === 'processing' && (
+              <Spinner
+                css={`
+                  animation: spin 1s linear infinite;
+                  @keyframes spin {
+                    from {
+                      transform: rotate(0deg);
+                    }
+                    to {
+                      transform: rotate(360deg);
+                    }
+                  }
+                `}
+              />
+            )}
+            {step.attempt.status === 'success' && (
+              <CircleCheck color="success" />
+            )}
+            {step.attempt.status === 'error' && (
+              <CircleCross color="error.main" />
+            )}
+            <li>
+              {step.name}
+              {step.attempt.status === 'error' && (
+                <Alerts.Danger mb={0}>{step.attempt.statusText}</Alerts.Danger>
+              )}
+            </li>
+          </Flex>
+        ))}
+      </ol>
+
+      {hasSetupFailed && (
+        <ButtonPrimary onClick={runSteps}>Retry</ButtonPrimary>
+      )}
+    </>
   );
 }

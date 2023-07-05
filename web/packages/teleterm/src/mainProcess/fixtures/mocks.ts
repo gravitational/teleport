@@ -76,6 +76,10 @@ export class MockMainProcessClient implements MainProcessClient {
   subscribeToNativeThemeUpdate() {
     return { cleanup: () => undefined };
   }
+
+  downloadAgent() {
+    return Promise.resolve();
+  }
 }
 
 export const makeRuntimeSettings = (
