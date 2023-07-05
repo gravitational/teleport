@@ -17,7 +17,7 @@
 import { EmployeeOptions, TeamOptions, TitleOptions } from './constants';
 
 export type QuestionnaireProps = {
-  // full indicates if a full survey should be presented
+  // full indicates if a full survey should be presented,
   // false indicates that a partial survey is shown (some questions are skipped)
   full: boolean;
   username: string;

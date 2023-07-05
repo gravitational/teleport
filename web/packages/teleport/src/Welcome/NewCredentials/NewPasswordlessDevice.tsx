@@ -22,8 +22,7 @@ import Validation, { Validator } from 'shared/components/Validation';
 import { requiredField } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { UseTokenState } from 'teleport/Welcome/NewCredentials/types';
-
+import { UseTokenState } from './types';
 import { SliderProps } from './NewCredentials';
 
 export function NewPasswordlessDevice(props: UseTokenState & SliderProps) {

@@ -14,5 +14,5 @@
  * limitations under the License.
  */
 
-export { surveyService as surveyService } from './survey';
+export { surveyService } from './survey';
 export * from './types';
