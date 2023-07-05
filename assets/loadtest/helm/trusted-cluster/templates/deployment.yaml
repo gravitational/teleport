@@ -1,0 +1,62 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "trusted-cluster.fullname" . }}
+  labels:
+    {{- include "trusted-cluster.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "trusted-cluster.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "trusted-cluster.selectorLabels" . | nindent 8 }}
+    spec:
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "trusted-cluster.fullname" . }}
+      {{- if .Values.affinity }}
+      affinity: {{ toYaml .Values.affinity | nindent 8}}
+      {{- end }}
+      containers:
+      - name: {{ .Chart.Name }}
+        image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+        args:
+        - -d
+        - --insecure
+        - --diag-addr=0.0.0.0:3434
+        imagePullPolicy: {{ .Values.image.pullPolicy }}
+        resources:
+          {{- toYaml .Values.resources | nindent 12 }}
+        ports:
+        - containerPort: 3022
+          name: nodessh
+          protocol: TCP
+        - name: diag
+          containerPort: 3434
+          protocol: TCP
+        readinessProbe:
+          failureThreshold: 3
+          httpGet:
+            path: /healthz
+            port: 3434
+            scheme: HTTP
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          successThreshold: 1
+          timeoutSeconds: 2
+        livenessProbe:
+          failureThreshold: 3
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          successThreshold: 1
+          tcpSocket:
+            port: 3434
+          timeoutSeconds: 1
+        volumeMounts:
+        - name: config
+          mountPath: /etc/teleport/
+          readOnly: true

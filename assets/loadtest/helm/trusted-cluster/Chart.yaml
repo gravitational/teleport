@@ -1,0 +1,9 @@
+apiVersion: v2
+name: trusted-cluster
+description: Creates a deployment where each replica is a self-contained teleport cluster
+
+type: application
+
+version: 0.1.0
+
+appVersion: "13.0.0-alpha.1"

@@ -31,7 +31,7 @@ spec:
 EOF
 
 # install cert-manager in the kube cluster
-helm install cert-manager jetstack/cert-manager \
+helm upgrade --install cert-manager jetstack/cert-manager \
     --create-namespace \
     --namespace cert-manager \
     --set installCRDs=true \
@@ -44,4 +44,3 @@ kubectl label namespace teleport 'pod-security.kubernetes.io/enforce=baseline'
 
 # configure cert manager
 kubectl --namespace teleport create -f "$issuer_yaml"
-

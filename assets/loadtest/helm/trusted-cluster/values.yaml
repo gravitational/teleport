@@ -1,0 +1,18 @@
+replicaCount: 1
+
+image:
+  repository: public.ecr.aws/gravitational/teleport-distroless
+  pullPolicy: IfNotPresent
+  tag: ""
+
+nameOverride: ""
+fullnameOverride: ""
+
+resources: {}
+
+# join token with --type=trusted_cluster
+token: ""
+# proxy web address, e.g. my-cluster.my-route53.zone:443
+proxy: ""
+
+affinity: {}

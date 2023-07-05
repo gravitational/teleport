@@ -1,0 +1,34 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "trusted-cluster.fullname" . }}
+  labels:
+    {{- include "trusted-cluster.labels" . | nindent 4 }}
+data:
+  tc.yaml: |
+    kind: trusted_cluster
+    version: v2
+    metadata:
+      name: one
+    spec:
+      enabled: true
+      token: {{ required "'token' value is required" .Values.token | quote }}
+      tunnel_addr: {{ required "'proxy' value is required" .Values.proxy | quote }}
+      web_proxy_addr: {{ required "'proxy' value is required" .Values.proxy | quote }}
+      role_map:
+      - remote: '*'
+        local: ['access']
+  teleport.yaml: |-
+    auth_service:
+      enabled: true
+    proxy_service:
+      enabled: true
+    ssh_service:
+      enabled: true
+    teleport:
+      data_dir: /var/lib/teleport
+      log:
+        output: stderr
+        severity: DEBUG
+      storage:
+        type: dir
