@@ -5,7 +5,7 @@ go 1.20
 require (
 	cloud.google.com/go/compute/metadata v0.2.3
 	cloud.google.com/go/container v1.21.0
-	cloud.google.com/go/firestore v1.10.0
+	cloud.google.com/go/firestore v1.11.0
 	cloud.google.com/go/iam v1.1.0
 	cloud.google.com/go/kms v1.12.1
 	cloud.google.com/go/storage v1.30.1
@@ -201,7 +201,7 @@ require (
 require (
 	cloud.google.com/go v0.110.2 // indirect
 	cloud.google.com/go/compute v1.19.3 // indirect
-	cloud.google.com/go/longrunning v0.4.2 // indirect
+	cloud.google.com/go/longrunning v0.5.0 // indirect
 	cloud.google.com/go/pubsub v1.31.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/99designs/keyring v1.2.2 // indirect
