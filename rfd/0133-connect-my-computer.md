@@ -198,14 +198,15 @@ intent to start the agent and the main process handling everything else.
 ##### Storing the node agent
 
 The binary is stored in `~/Library/Caches/Teleport Connect` on macOS and `~/.cache/Teleport Connect`
-on Linux. It is extracted to a directory of the same name as the downloaded tar.gz archive, for
-example `teleport-v13.0.4-darwin-arm64-bin`. As the parent directory can be cleared by the OS or the
-user, before each launch Connect is going to check if the agent exists and download it automatically
-if not.
+on Linux. It is extracted to `teleport/teleport` in that directory. Since the agent version is bound
+to the Connect version, we can always store just a single version of the agent.
+
+As the parent directory can be cleared by the OS or the user, before each launch Connect is going to
+check if the agent exists and download it automatically if not.
 
 So far we’ve been storing all data in Electron’s `userData` which is `~/Library/Application Support`
 on macOS. [That directory is not suited for storing large files](https://www.electronjs.org/docs/latest/api/app#appgetpathname) as it might be backed up to
-cloud storage. 
+cloud storage.
 
 On top of that, the agent binary is something that can be easily recreated if needed by downloading
 it again. After reading Apple Developer docs ([Optimizing Your App’s Data for iCloud Backup](https://developer.apple.com/documentation/foundation/optimizing_your_app_s_data_for_icloud_backup/#3928528)
