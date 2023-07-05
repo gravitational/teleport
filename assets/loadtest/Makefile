@@ -65,7 +65,7 @@ create-tc-token:
 # deploys pods with self-contained teleport clusters that can later be connected to the main cluster with "make join-tc"
 .PHONY: deploy-tc
 deploy-tc:
-	. control-plane/vars.env && helm upgrade --install trusted-cluster -n tc --create-namespace ./helm/trusted-cluster --values ./helm/values/trusted-clusters.yaml --set proxy=${PROXY_SERVER} --set token=${TC_TOKEN} --set image.repository=$${TELEPORT_IMAGE} --set image.tag=$${TELEPORT_VERSION} --set replicaCount=${TC_REPLICAS}
+	. control-plane/vars.env && helm upgrade --install trusted-cluster -n tc --create-namespace ./helm/trusted-cluster --values ./helm/values/trusted-clusters.yaml --set proxy=${PROXY_SERVER} --set token=${TC_TOKEN} --set image.tag=$${TELEPORT_VERSION} --set replicaCount=${TC_REPLICAS}
 
 # makes each teleport cluster in the deployment join the root cluster
 .PHONY: join-tc
