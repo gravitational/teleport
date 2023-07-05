@@ -36,6 +36,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -3967,11 +3968,11 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 	if cfg.Proxy.ProxyGroupID != "" {
 		staticLabels[types.ProxyGroupIDLabel] = cfg.Proxy.ProxyGroupID
 	}
-	if cfg.Proxy.ProxyGroupGeneration != "" {
-		staticLabels[types.ProxyGroupGenerationLabel] = cfg.Proxy.ProxyGroupGeneration
+	if cfg.Proxy.ProxyGroupGeneration != 0 {
+		staticLabels[types.ProxyGroupGenerationLabel] = strconv.FormatUint(cfg.Proxy.ProxyGroupGeneration, 10)
 	}
 	if len(staticLabels) > 0 {
-		log.Infof("Enabling proxy group labels: group ID = %q, generation = %q.", cfg.Proxy.ProxyGroupID, cfg.Proxy.ProxyGroupGeneration)
+		log.Infof("Enabling proxy group labels: group ID = %q, generation = %v.", cfg.Proxy.ProxyGroupID, cfg.Proxy.ProxyGroupGeneration)
 	}
 
 	sshProxy, err := regular.New(

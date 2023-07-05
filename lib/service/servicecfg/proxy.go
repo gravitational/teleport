@@ -143,12 +143,14 @@ type ProxyConfig struct {
 	TrustXForwardedFor bool
 
 	// ProxyGroupID is the reverse tunnel group ID, advertised as a label and
-	// used by reverse tunnel agents in proxy peering mode.
+	// used by reverse tunnel agents in proxy peering mode. The empty group ID
+	// is a valid group ID.
 	ProxyGroupID string
 
 	// ProxyGroupGeneration is the reverse tunnel group generation, advertised
-	// as a label and used by reverse tunnel agents in proxy peering mode.
-	ProxyGroupGeneration string
+	// as a label and used by reverse tunnel agents in proxy peering mode. Zero
+	// is a valid generation.
+	ProxyGroupGeneration uint64
 }
 
 // WebPublicAddr returns the address for the web endpoint on this proxy that

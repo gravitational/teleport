@@ -76,7 +76,7 @@ type Tracker struct {
 type Proxy struct {
 	Name       string
 	Group      string
-	Generation int
+	Generation uint64
 
 	expiry        time.Time
 	deleteAttempt string
@@ -182,7 +182,7 @@ func (t *Tracker) canSpawn() bool {
 		return true
 	}
 
-	desiredGen := make(map[string]int, 8)
+	desiredGen := make(map[string]uint64, 8)
 	for _, v := range t.tracked {
 		if v.Generation > desiredGen[v.Group] {
 			desiredGen[v.Group] = v.Generation

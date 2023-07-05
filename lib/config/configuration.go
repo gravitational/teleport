@@ -32,6 +32,7 @@ import (
 	"reflect"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -2194,12 +2195,15 @@ func Configure(clf *CommandLineFlags, cfg *servicecfg.Config, legacyAppFlags boo
 	// set the default proxy listener addresses for config v1, if not already set
 	applyDefaultProxyListenerAddresses(cfg)
 
-	// not publicly documented or supported for now (thus the "TELEPORT_UNSTABLE_" prefix)
-	if proxyGroupID := os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID"); proxyGroupID != "" {
-		cfg.Proxy.ProxyGroupID = proxyGroupID
-	}
+	// not publicly documented or supported for now (thus the
+	// "TELEPORT_UNSTABLE_" prefix); the group with an empty ID is a valid
+	// group, and generation zero is a valid generation for any group
+	cfg.Proxy.ProxyGroupID = os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_ID")
 	if proxyGroupGeneration := os.Getenv("TELEPORT_UNSTABLE_PROXYGROUP_GEN"); proxyGroupGeneration != "" {
-		cfg.Proxy.ProxyGroupGeneration = proxyGroupGeneration
+		cfg.Proxy.ProxyGroupGeneration, err = strconv.ParseUint(proxyGroupGeneration, 10, 64)
+		if err != nil {
+			return trace.Wrap(err, "invalid proxygroup generation %q: %v", proxyGroupGeneration, err)
+		}
 	}
 
 	return nil
