@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { spawn } from 'child_process';
-
-import path from 'path';
+import { spawn } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
 
 import { app, globalShortcut, shell, nativeTheme } from 'electron';
 
@@ -43,6 +43,7 @@ if (app.requestSingleInstanceLock()) {
 }
 
 async function initializeApp(): Promise<void> {
+  updateSessionDataPath();
   let devRelaunchScheduled = false;
   const settings = getRuntimeSettings();
   const logger = initMainLogger(settings);
@@ -192,6 +193,29 @@ async function initializeApp(): Promise<void> {
       return { action: 'deny' };
     });
   });
+}
+
+/**
+ * There is an outstanding issue about Electron storing its caches in the wrong location https://github.com/electron/electron/issues/8124.
+ * Based on the Apple Developer docs and the discussion under that issue, changing the location of `sessionData`
+ * to `~/Library/Caches` on macOS and `XDG_CACHE_HOME` or `~/.cache`
+ * (https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) on Linux seems like a reasonable thing to do.
+ */
+function updateSessionDataPath() {
+  switch (process.platform) {
+    case 'linux': {
+      const xdgCacheHome = process.env.XDG_CACHE_HOME;
+      const cacheDirectory = xdgCacheHome || `${os.homedir()}/cache`;
+      app.setPath('sessionData', path.resolve(cacheDirectory, app.getName()));
+      break;
+    }
+    case 'darwin': {
+      app.setPath(
+        'sessionData',
+        path.resolve(os.homedir(), 'Library', 'Caches', app.getName())
+      );
+    }
+  }
 }
 
 function initMainLogger(settings: types.RuntimeSettings) {
