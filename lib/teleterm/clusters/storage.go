@@ -215,7 +215,6 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 			return nil, trace.Wrap(err)
 		}
 	}
-
 	if err == nil && cfg.Username != "" {
 		status, err = client.ReadProfileStatus(s.Dir, profileName)
 		if err != nil {
@@ -228,9 +227,6 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 				return nil, trace.Wrap(err)
 			}
 		}
-	}
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
 	}
 
 	return &Cluster{
