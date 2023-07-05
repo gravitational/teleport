@@ -45,7 +45,7 @@ type discoveryProxy struct {
 	} `json:"metadata"`
 
 	ProxyGroupID         string `json:"gid,omitempty"`
-	ProxyGroupGeneration int    `json:"ggen,omitempty"`
+	ProxyGroupGeneration uint64 `json:"ggen,omitempty"`
 }
 
 // SetProxies overwrites the proxy list in the discoveryRequest with data from
@@ -60,8 +60,9 @@ func (r *discoveryRequest) SetProxies(proxies []types.Server) {
 		d.ProxyGroupID, _ = proxy.GetLabel(types.ProxyGroupIDLabel)
 		proxyGroupGeneration, _ := proxy.GetLabel(types.ProxyGroupGenerationLabel)
 		var err error
-		d.ProxyGroupGeneration, err = strconv.Atoi(proxyGroupGeneration)
+		d.ProxyGroupGeneration, err = strconv.ParseUint(proxyGroupGeneration, 10, 64)
 		if err != nil {
+			// ParseUint can return the maximum uint64 on ErrRange
 			d.ProxyGroupGeneration = 0
 		}
 
