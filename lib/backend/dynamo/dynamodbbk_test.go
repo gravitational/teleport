@@ -88,9 +88,9 @@ func TestDynamoDB(t *testing.T) {
 type dynamoDBAPIMock struct {
 	dynamodbiface.DynamoDBAPI
 
-	expectedTableName   string
-	expectedBillingMode string
-	expectedPthroughput *dynamodb.ProvisionedThroughput
+	expectedTableName             string
+	expectedBillingMode           string
+	expectedProvisionedthroughput *dynamodb.ProvisionedThroughput
 }
 
 func (d *dynamoDBAPIMock) CreateTableWithContext(_ aws.Context, input *dynamodb.CreateTableInput, opts ...request.Option) (*dynamodb.CreateTableOutput, error) {
@@ -103,13 +103,13 @@ func (d *dynamoDBAPIMock) CreateTableWithContext(_ aws.Context, input *dynamodb.
 		return nil, trace.BadParameter("billing mode does not match")
 	}
 
-	if d.expectedPthroughput != nil {
+	if d.expectedProvisionedthroughput != nil {
 		if aws.StringValue(input.BillingMode) == dynamodb.BillingModePayPerRequest {
 			return nil, trace.BadParameter("pthroughput should be nil if on demand is true")
 		}
 
-		if aws.Int64Value(d.expectedPthroughput.ReadCapacityUnits) != aws.Int64Value(input.ProvisionedThroughput.ReadCapacityUnits) ||
-			aws.Int64Value(d.expectedPthroughput.WriteCapacityUnits) != aws.Int64Value(input.ProvisionedThroughput.WriteCapacityUnits) {
+		if aws.Int64Value(d.expectedProvisionedthroughput.ReadCapacityUnits) != aws.Int64Value(input.ProvisionedThroughput.ReadCapacityUnits) ||
+			aws.Int64Value(d.expectedProvisionedthroughput.WriteCapacityUnits) != aws.Int64Value(input.ProvisionedThroughput.WriteCapacityUnits) {
 
 			return nil, trace.BadParameter("pthroughput values were not equal")
 		}
@@ -126,41 +126,91 @@ func (d *dynamoDBAPIMock) WaitUntilTableExistsWithContext(_ aws.Context, input *
 }
 
 func TestCreateTable(t *testing.T) {
-	mock := dynamoDBAPIMock{
-		expectedBillingMode: dynamodb.BillingModePayPerRequest,
-		expectedTableName:   "table",
-	}
-	backend := &Backend{
-		Entry: log.NewEntry(log.New()),
-		Config: Config{
-			OnDemand: aws.Bool(true),
+	const tableName = "table"
+
+	errIsNil := func(err error) bool { return err == nil }
+
+	for _, tc := range []struct {
+		name                          string
+		errorIsFn                     func(error) bool
+		readCapacityUnits             int
+		writeCapacityUnits            int
+		expectedProvisionedThroughput *dynamodb.ProvisionedThroughput
+		expectedBillingMode           string
+		onDemand                      bool
+	}{
+		{
+			name:                "table creation succeeds",
+			errorIsFn:           errIsNil,
+			onDemand:            true,
+			expectedBillingMode: dynamodb.BillingModePayPerRequest,
 		},
-		svc: &mock,
+		{
+			name:                "read/write capacity units are ignored if on demand is on",
+			readCapacityUnits:   10,
+			writeCapacityUnits:  10,
+			errorIsFn:           errIsNil,
+			onDemand:            true,
+			expectedBillingMode: dynamodb.BillingModePayPerRequest,
+		},
+		{
+			name:               "bad parameter when provisioned throughput is set",
+			readCapacityUnits:  10,
+			writeCapacityUnits: 10,
+			errorIsFn:          trace.IsBadParameter,
+			expectedProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(10),
+				WriteCapacityUnits: aws.Int64(10),
+			},
+			onDemand:            true,
+			expectedBillingMode: dynamodb.BillingModePayPerRequest,
+		},
+		{
+			name:               "bad parameter when the incorrect billing mode is set",
+			readCapacityUnits:  10,
+			writeCapacityUnits: 10,
+			errorIsFn:          trace.IsBadParameter,
+			expectedProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(10),
+				WriteCapacityUnits: aws.Int64(10),
+			},
+			onDemand:            false,
+			expectedBillingMode: dynamodb.BillingModePayPerRequest,
+		},
+		{
+			name:               "create table suceeds",
+			readCapacityUnits:  10,
+			writeCapacityUnits: 10,
+			errorIsFn:          errIsNil,
+			expectedProvisionedThroughput: &dynamodb.ProvisionedThroughput{
+				ReadCapacityUnits:  aws.Int64(10),
+				WriteCapacityUnits: aws.Int64(10),
+			},
+			onDemand:            false,
+			expectedBillingMode: dynamodb.BillingModeProvisioned,
+		},
+	} {
+
+		ctx := context.Background()
+		t.Run(tc.name, func(t *testing.T) {
+			mock := dynamoDBAPIMock{
+				expectedBillingMode:           tc.expectedBillingMode,
+				expectedTableName:             tableName,
+				expectedProvisionedthroughput: tc.expectedProvisionedThroughput,
+			}
+			backend := &Backend{
+				Entry: log.NewEntry(log.New()),
+				Config: Config{
+					OnDemand:           &tc.onDemand,
+					ReadCapacityUnits:  int64(tc.readCapacityUnits),
+					WriteCapacityUnits: int64(tc.writeCapacityUnits),
+				},
+
+				svc: &mock,
+			}
+
+			err := backend.createTable(ctx, tableName, "_")
+			require.True(t, tc.errorIsFn(err), err)
+		})
 	}
-
-	// passes as all fields are correct
-	err := backend.createTable(context.Background(), "table", "hello")
-	require.NoError(t, err)
-
-	// pass as pthroughput should not get set even if the capacity
-	// units are set
-	backend.ReadCapacityUnits = 10
-	backend.WriteCapacityUnits = 10
-	err = backend.createTable(context.Background(), "table", "hello")
-	require.NoError(t, err)
-
-	backend.OnDemand = aws.Bool(false)
-	mock.expectedPthroughput = &dynamodb.ProvisionedThroughput{
-		ReadCapacityUnits:  aws.Int64(10),
-		WriteCapacityUnits: aws.Int64(10),
-	}
-
-	err = backend.createTable(context.Background(), "table", "hello")
-	require.True(t, trace.IsBadParameter(err))
-
-	mock.expectedBillingMode = dynamodb.BillingModeProvisioned
-
-	err = backend.createTable(context.Background(), "table", "hello")
-	require.NoError(t, err)
-
 }
