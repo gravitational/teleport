@@ -80,7 +80,7 @@ discovery_service:
   kubernetes:
     - types: ["app"] # in the future "db" will be possible
       namespaces: [ "toronto", "porto" ]
-      labels:
+      labels: # List of labels to select desired Kubernetes services
         env: staging
     - types: ["app"]
       namespaces: [ "seattle", "oakland" ]
