@@ -227,6 +227,9 @@ the discussion under that issue, changing the location of `sessionData` to `~/Li
 macOS and `~/.cache` on Linux seems like a reasonable thing to do. As we have not been using cookies
 or localStorage thus far it should be safe to do so with no risk of losing any user-generated state.
 
+On Linux, the exact path to the cache should be resolved by first looking up `$XDG_CACHE_HOME`. If
+the env var doesn't exist, we should default to `$HOME/.cache`.
+
 #### Generating the config file
 
 ##### Join token
