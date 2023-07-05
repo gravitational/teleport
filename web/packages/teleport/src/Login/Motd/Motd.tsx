@@ -12,20 +12,28 @@ limitations under the License.
 */
 
 import React from 'react';
+import styled from 'styled-components';
+
 import { Card, Box, Text, ButtonPrimary } from 'design';
 
 export function Motd({ message, onClick }: Props) {
   return (
-    <Card bg="levels.surface" my={6} mx="auto" width="464px">
+    <StyledCard bg="levels.surface" my={6} mx="auto">
       <Box p={6}>
-        <Text typography="h5" mb={3} textAlign="center">
+        <StyledText typography="h5" mb={3} textAlign="left">
           {message}
-        </Text>
-        <ButtonPrimary width="100%" mt={3} size="large" onClick={onClick}>
+        </StyledText>
+        <ButtonPrimary
+          width="100%"
+          mt={3}
+          size="large"
+          onClick={onClick}
+          align="center"
+        >
           Acknowledge
         </ButtonPrimary>
       </Box>
-    </Card>
+    </StyledCard>
   );
 }
 
@@ -33,3 +41,14 @@ type Props = {
   message: string;
   onClick(): void;
 };
+
+const StyledCard = styled(Card)`
+  overflow-y: auto;
+  max-width: 600px;
+  max-height: 500px;
+  opacity: 1;
+`;
+
+const StyledText = styled(Text)`
+  white-space: pre-wrap;
+`;
