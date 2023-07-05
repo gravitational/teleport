@@ -177,9 +177,6 @@ func NewAccessList(metadata *header.Metadata, spec *AccessListSpec) (*AccessList
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AccessList) CheckAndSetDefaults() error {
-	a.SetKind(KindAccessList)
-	a.SetVersion(V1)
-
 	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
 	}
@@ -239,6 +236,9 @@ func (a *AccessList) CheckAndSetDefaults() error {
 			return trace.BadParameter("member %s added by is missing", member.Name)
 		}
 	}
+
+	a.SetKind(KindAccessList)
+	a.SetVersion(V1)
 
 	return nil
 }
