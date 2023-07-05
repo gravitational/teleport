@@ -301,8 +301,14 @@ The user must be able to restart the setup process as each step can independentl
 should be prepared to run more than once.
 
 * Setting up the role
-    * Connect must skip calling `UpsertRole` if the role already exists. This is in order to avoid
-      overwriting any changes to the role that the user could have made manually.
+    * Connect must not overwrite the role if it already exists.
+       * This is in order to avoid overwriting any changes to the role that the user could have made
+         manually.
+    * Connect must add the current system username if the role already exists but the current system
+      username is not included in allowed logins.
+       * This is to accommodate the same cluster user using Connect My Computer on two different
+         devices using differenc system usernames. Since there's only one role per cluster user,
+         both usernames needs to be addded to the role.
     * Connect must skip calling `UpdateUser` if the user already has the role.
 * Downloading the agent
     * Connect must skip redownloading the binary if it exists in the sessionData directory.
@@ -440,13 +446,7 @@ Removing the agent performs the following actions:
     cluster cache. This should help prevent user confusion regarding the continued visibility of the
     CMC node, as they may not be fully aware of how the cluster cache works.
 
-5. Remove the CMC role.
-
-    The CMC role should be removed from the current user and then an attempt should be made to
-    remove the role itself. This can fail if the role has since been set for other users. If the
-    attempt fails, we should log the error and continue.
-
-6. Remove CMC-related app state.
+5. Remove CMC-related app state.
 
     If the user made a connection to the CMC node, in the top left in the connections list they are
     going to see a connection for that node. Since the node will no longer be accessible, it doesn’t
