@@ -20,7 +20,7 @@ Before you begin, verify that your environment meets the following prerequisites
    Run `yarn --version` to check whether `yarn` is installed. 
    If you need to install `yarn`, run the command `npm install --global yarn` to add it to your local system.
 
-## Set up your local environment
+## Step 1/5. Set up your local environment
 
 To set up a local environment for contributing to Teleport documentation:
 
@@ -58,7 +58,7 @@ To set up a local environment for contributing to Teleport documentation:
     $ yarn
     ```
 
-## Navigate to a specific version
+## Step 2/5. Navigate to a specific version
 
 Different versions of the documentation are organized into the `content` directory of the `gravitational/docs` repository. 
 Each subdirectory of the `content` directory includes a `git` submodule for a different branch of `gravitational/teleport`.
@@ -107,7 +107,7 @@ To navigate to a specific version of the documentation:
 
     You're now ready to make changes in your own branch using the code editor of your choice.
 
-## Test changes locally
+## Step 3/5. Test changes locally
 
 As you make changes to the content in your local branch, it's helpful to see how the changes will be rendered when the documentation is published.
 
@@ -143,7 +143,7 @@ To test changes in your local environment:
     For more information about using `yarn` commands to work with Teleport documentation, 
     see the [README](https://github.com/gravitational/docs).
 
-## Create a pull request
+## Step 4/5. Create a pull request
 
 If you're an internal contributor with permission to access the [Teleport repository](https://github.com/gravitational/teleport), you can commit changes and push branches directly to the repository.
 If you're an external contributor, you can commit changes to your private branch and push private branches to a fork of the [Teleport repository](https://github.com/gravitational/teleport).
@@ -211,7 +211,7 @@ To push changes as an external contributor:
 
 1. Wait for the minimum required approvals, then merge your pull request as soon as possible.
 
-## Backport changes to earlier versions
+## Step 5/5. Backport changes to earlier versions
 
 Because the docs site is versioned, we want to ensure that any changes you make to
 the most recent version of the documentation are reflected in all of the appropriate versions of
