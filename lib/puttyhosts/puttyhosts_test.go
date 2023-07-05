@@ -298,8 +298,8 @@ func TestNaivelyValidateHostname(t *testing.T) {
 		},
 	}
 
-	for i, tt := range tests {
-		t.Run(fmt.Sprintf("test case %d", i), func(t *testing.T) {
+	for _, tt := range tests {
+		t.Run(tt.hostname, func(t *testing.T) {
 			testResult := NaivelyValidateHostname(tt.hostname)
 			require.Equal(t, tt.shouldPass, testResult)
 		})

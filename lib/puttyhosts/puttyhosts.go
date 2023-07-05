@@ -147,7 +147,7 @@ var hostnameRegexp = regexp.MustCompile("^(([a-zA-Z0-9]|[a-zA-Z0-9][a-zA-Z0-9-]*
 // NaivelyValidateHostname checks the provided hostname against a naive regex to ensure it doesn't contain obviously
 // illegal characters. It's not guaranteed to be perfect, just a simple sanity check. It returns true when the hostname validates.
 func NaivelyValidateHostname(hostname string) bool {
-	return hostnameRegexp.Match([]byte(hostname))
+	return hostnameRegexp.MatchString(hostname)
 }
 
 // FormatLocalCommandString replaces placeholders in a constant with actual values
@@ -159,7 +159,8 @@ func FormatLocalCommandString(tshPath string, cluster string) (string, error) {
 	localCommandTemplate := template.Must(template.New("puttyProxyTelnetCommand").Parse(templateString))
 	var builder strings.Builder
 	err := localCommandTemplate.Execute(&builder, PuttyProxyTelnetCommandArgs{
-		escapedTSHPath,
+		TSHPath: escapedTSHPath,
+		Cluster: cluster,
 		cluster,
 	})
 	if err != nil {
