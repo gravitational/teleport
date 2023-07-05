@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -315,6 +316,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 				Context:         ctx,
 				TracingProvider: tracing.NoopProvider(),
 				HomePath:        tmpHomePath,
+				tracer:          tracing.NoopTracer(teleport.ComponentTSH),
 			}
 			tc, err := makeClient(cf)
 			require.NoError(t, err)
