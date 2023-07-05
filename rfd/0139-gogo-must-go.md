@@ -160,7 +160,7 @@ We will need to migrate to using `timestamppb` directly instead of relying on go
 
 ### Proposed solution
 
-#### Create internal objects
+#### Create internal objects for existing objects
 
 Currently, in `api/types` we define a large number of interfaces that are subsequently used to wrap
 our protobuf created messages in a nicer, more user friendly way, abstracting away much of the protobuf
@@ -175,7 +175,7 @@ That is, the objects that are in Teleport today should unmarshal properly into o
 All objects should remain in `api/types` as they do today. (Open question: should this be the case? Should
 we relocate objects?)
 
-#### Packaging
+##### Packaging
 
 The following packages should be used for this approach:
 
@@ -275,6 +275,40 @@ Once these steps are accomplished for all objects, we can then start removing `g
 extensions from `types.proto`. As they'll no longer have an impact on Teleport's business
 logic, the impact should be contained to modifying conversion functions. To handle the new
 output of the generated objects.
+
+#### New objects
+
+New objects can use the internal object approach above, or alternatively can rely on `protojson`'s
+encoding of the protobuf resources. When using `protojson`, we should make sure to use the `UseProtoNames`
+marshaling option to ensure that the marshaled resource is using snake case. If a developer
+needs to deviate the internal representation of the resource, we should migrate the object
+to the above approach.
+
+#### `protojson` vs. internal objects
+
+There are upsides and downsides to both approaches, but it should be noted that both are considered
+supported ways of representing storage.
+
+**Upsides of using `protojson` representation**
+
+- `protojson` is the canonical JSON representation of an proto message.
+- Avoids the need to create a nearly identical object per message along with conversion functions.
+
+**Downsides of using `protojson` representation**
+
+- Antipattern to couple API representation to storage.
+
+**Upsides of internal object representation**
+
+- Decouples the API representation of a resource from its storage.
+- Allows for removing protobuf specific fields and objects from business logic.
+- Allows for customizing marshaling/unmarshaling when needed.
+
+**Downsides of internal object representation**
+
+- Will require replicating a protobuf message that will likely be 1:1 with `protojson` for the
+  most part.
+- Risk forgetting to add fields from conversion methods.
 
 ### UX
 
