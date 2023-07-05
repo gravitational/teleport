@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/websocket"
@@ -44,16 +45,25 @@ import (
 func Test_runAssistant(t *testing.T) {
 	t.Parallel()
 
-	readMessage := func(t *testing.T, ws *websocket.Conn) string {
-		var msg assistantMessage
-		_, payload, err := ws.ReadMessage()
-		require.NoError(t, err)
+	readStreamResponse := func(t *testing.T, ws *websocket.Conn) string {
+		var sb strings.Builder
+		for {
+			var msg assistantMessage
+			_, payload, err := ws.ReadMessage()
+			require.NoError(t, err)
 
-		err = json.Unmarshal(payload, &msg)
-		require.NoError(t, err)
+			err = json.Unmarshal(payload, &msg)
+			require.NoError(t, err)
 
-		require.Equal(t, assist.MessageKindAssistantMessage, msg.Type)
-		return msg.Payload
+			if msg.Type == assist.MessageKindAssistantPartialFinalize {
+				break
+			}
+
+			require.Equal(t, assist.MessageKindAssistantPartialMessage, msg.Type)
+			sb.WriteString(msg.Payload)
+		}
+
+		return sb.String()
 	}
 
 	readRateLimitedMessage := func(t *testing.T, ws *websocket.Conn) {
@@ -85,13 +95,12 @@ func Test_runAssistant(t *testing.T) {
 				require.NoError(t, err)
 
 				const expectedMsg = "Which node do you want to use?"
-				require.Contains(t, expectedMsg, readMessage(t, ws))
+				require.Contains(t, readStreamResponse(t, ws), expectedMsg)
 			},
 		},
 		{
 			name: "rate limited",
 			responses: []string{
-				generateTextResponse(),
 				generateTextResponse(),
 			},
 			cfg: webSuiteConfig{
@@ -114,7 +123,7 @@ func Test_runAssistant(t *testing.T) {
 				require.NoError(t, err)
 
 				const expectedMsg = "Which node do you want to use?"
-				require.Contains(t, expectedMsg, readMessage(t, ws))
+				require.Contains(t, readStreamResponse(t, ws), expectedMsg)
 
 				err = ws.WriteMessage(websocket.TextMessage, []byte(`{"payload": "all nodes, please"}`))
 				require.NoError(t, err)
@@ -246,7 +255,7 @@ func Test_runAssistError(t *testing.T) {
 	readHelloMsg(ws)
 	readErrorMsg(ws)
 
-	// Check for close message
+	// Check for the close message
 	_, _, err = ws.ReadMessage()
 	closeErr, ok := err.(*websocket.CloseError)
 	require.True(t, ok, "Expected close error")
@@ -308,12 +317,43 @@ func (s *WebSuite) makeAssistant(t *testing.T, pack *authPack, conversationID st
 	return ws, nil
 }
 
+func Test_generateAssistantTitle(t *testing.T) {
+	// Test setup
+	t.Parallel()
+	ctx := context.Background()
+
+	responses := []string{"This is the message summary.", "troubleshooting"}
+	server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
+	t.Cleanup(server.Close)
+
+	openaiCfg := openai.DefaultConfig("test-token")
+	openaiCfg.BaseURL = server.URL
+	s := newWebSuiteWithConfig(t, webSuiteConfig{
+		ClusterFeatures: &authproto.Features{
+			Cloud: true,
+		},
+		OpenAIConfig: &openaiCfg,
+	})
+
+	pack := s.authPack(t, "foo")
+
+	// Real test: we craft a request asking for a summary
+	endpoint := pack.clt.Endpoint("webapi", "assistant", "title", "summary")
+	req := generateAssistantTitleRequest{Message: "This is a test user message asking Teleport assist to do something."}
+
+	// Executing the request and validating the output is as expected
+	resp, err := pack.clt.PostJSON(ctx, endpoint, &req)
+	require.NoError(t, err)
+
+	var info conversationInfo
+	body, err := io.ReadAll(resp.Reader())
+	require.NoError(t, err)
+	err = json.Unmarshal(body, &info)
+	require.NoError(t, err)
+	require.NotEmpty(t, info.Title)
+}
+
 // generateTextResponse generates a response for a text completion
 func generateTextResponse() string {
-	return "```" + `json
-	{
-	    "action": "Final Answer",
-	    "action_input": "Which node do you want to use?"
-	}
-	` + "```"
+	return "<FINAL RESPONSE>\nWhich node do you want to use?"
 }

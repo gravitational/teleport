@@ -17,9 +17,12 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/types/wrappers"
 )
@@ -161,7 +164,6 @@ func TestRole_GetKubeResources(t *testing.T) {
 		want                []KubernetesResource
 		assertErrorCreation require.ErrorAssertionFunc
 	}{
-		// TODO(tigrato): add more tests once we support other kubernetes resources.
 		{
 			name: "v7 with error",
 			args: args{
@@ -235,13 +237,14 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			want: append([]KubernetesResource{
 				{
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
 				},
 			},
+				appendV7KubeResources()...),
 		},
 		{
 			name: "v6 to v7 with wildcard",
@@ -279,13 +282,14 @@ func TestRole_GetKubeResources(t *testing.T) {
 				},
 			},
 			assertErrorCreation: require.NoError,
-			want: []KubernetesResource{
+			want: append([]KubernetesResource{
 				{
 					Kind:      KindKubePod,
 					Namespace: "test",
 					Name:      "test",
 				},
 			},
+				appendV7KubeResources()...),
 		},
 		{
 			name: "v5 to v7: populate with defaults.",
@@ -336,5 +340,89 @@ func TestRole_GetKubeResources(t *testing.T) {
 			got = r.GetKubeResources(Deny)
 			require.Empty(t, got)
 		})
+	}
+}
+
+func appendV7KubeResources() []KubernetesResource {
+	resources := []KubernetesResource{}
+	// append other kubernetes resources
+	for _, resource := range KubernetesResourcesKinds {
+		if resource == KindKubePod {
+			continue
+		}
+		resources = append(resources, KubernetesResource{
+			Kind:      resource,
+			Namespace: Wildcard,
+			Name:      Wildcard,
+		},
+		)
+	}
+	return resources
+}
+
+func TestMarshallCreateHostUserModeJSON(t *testing.T) {
+	for _, tc := range []struct {
+		input    CreateHostUserMode
+		expected string
+	}{
+		{input: CreateHostUserMode_HOST_USER_MODE_OFF, expected: "off"},
+		{input: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, expected: ""},
+		{input: CreateHostUserMode_HOST_USER_MODE_DROP, expected: "drop"},
+		{input: CreateHostUserMode_HOST_USER_MODE_KEEP, expected: "keep"},
+	} {
+		got, err := json.Marshal(&tc.input)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%q", tc.expected), string(got))
+	}
+}
+
+func TestMarshallCreateHostUserModeYAML(t *testing.T) {
+	for _, tc := range []struct {
+		input    CreateHostUserMode
+		expected string
+	}{
+		{input: CreateHostUserMode_HOST_USER_MODE_OFF, expected: "\"off\""},
+		{input: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, expected: "\"\""},
+		{input: CreateHostUserMode_HOST_USER_MODE_DROP, expected: "drop"},
+		{input: CreateHostUserMode_HOST_USER_MODE_KEEP, expected: "keep"},
+	} {
+		got, err := yaml.Marshal(&tc.input)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%s\n", tc.expected), string(got))
+	}
+}
+
+func TestUnmarshallCreateHostUserModeJSON(t *testing.T) {
+	for _, tc := range []struct {
+		expected CreateHostUserMode
+		input    string
+	}{
+		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "off"},
+		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: ""},
+		{expected: CreateHostUserMode_HOST_USER_MODE_DROP, input: "drop"},
+		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "keep"},
+	} {
+		var got CreateHostUserMode
+		err := json.Unmarshal([]byte(fmt.Sprintf("%q", tc.input)), &got)
+		require.NoError(t, err)
+		require.Equal(t, tc.expected, got)
+	}
+}
+
+func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
+	for _, tc := range []struct {
+		expected CreateHostUserMode
+		input    string
+	}{
+		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "\"off\""},
+		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "off"},
+		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: "\"\""},
+		{expected: CreateHostUserMode_HOST_USER_MODE_DROP, input: "drop"},
+		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "keep"},
+	} {
+		var got CreateHostUserMode
+		err := yaml.Unmarshal([]byte(tc.input), &got)
+		require.NoError(t, err)
+		require.Equal(t, tc.expected, got)
 	}
 }

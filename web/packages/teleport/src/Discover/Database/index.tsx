@@ -26,7 +26,7 @@ import {
 
 import { CreateDatabase } from 'teleport/Discover/Database/CreateDatabase';
 import { SetupAccess } from 'teleport/Discover/Database/SetupAccess';
-import { DownloadScript } from 'teleport/Discover/Database/DownloadScript';
+import { ManualDeploy } from 'teleport/Discover/Database/DeployService/ManualDeploy';
 import { MutualTls } from 'teleport/Discover/Database/MutualTls';
 import { TestConnection } from 'teleport/Discover/Database/TestConnection';
 import { DiscoverEvent } from 'teleport/services/userEvent';
@@ -68,7 +68,7 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
             },
             {
               title: 'Deploy Database Service',
-              component: DownloadScript,
+              component: ManualDeploy,
               eventName: DiscoverEvent.DeployService,
             },
             {
@@ -89,7 +89,7 @@ export const DatabaseResource: ResourceViewConfig<ResourceSpec> = {
             },
             {
               title: 'Deploy Database Service',
-              component: DownloadScript,
+              component: ManualDeploy,
               eventName: DiscoverEvent.DeployService,
             },
             {

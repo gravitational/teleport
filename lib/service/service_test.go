@@ -56,7 +56,6 @@ import (
 	"github.com/gravitational/teleport/lib/events/athena"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -617,7 +616,7 @@ type mockAccessPoint struct {
 }
 
 type mockReverseTunnelServer struct {
-	reversetunnel.Server
+	reversetunnelclient.Server
 }
 
 func TestSetupProxyTLSConfig(t *testing.T) {

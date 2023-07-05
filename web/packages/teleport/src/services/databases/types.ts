@@ -18,10 +18,10 @@ import { DbProtocol } from 'shared/services/databases';
 
 import { AgentLabel } from 'teleport/services/agents';
 
-import { RdsEngine } from '../integrations';
+import { AwsRdsDatabase, RdsEngine } from '../integrations';
 
 export type Aws = {
-  rds?: { resourceId: string };
+  rds: Pick<AwsRdsDatabase, 'resourceId' | 'region' | 'subnets'>;
 };
 
 export interface Database {
@@ -54,12 +54,7 @@ export type CreateDatabaseRequest = {
   protocol: DbProtocol | RdsEngine;
   uri: string;
   labels?: AgentLabel[];
-  awsRds?: AwsRds;
-};
-
-export type AwsRds = {
-  accountId: string;
-  resourceId: string;
+  awsRds?: AwsRdsDatabase;
 };
 
 export type DatabaseIamPolicyResponse = {

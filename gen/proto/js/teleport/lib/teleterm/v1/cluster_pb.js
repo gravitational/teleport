@@ -972,7 +972,6 @@ proto.teleport.lib.teleterm.v1.ACL.prototype.toObject = function(opt_includeInst
  */
 proto.teleport.lib.teleterm.v1.ACL.toObject = function(includeInstance, msg) {
   var f, obj = {
-    sessions: (f = msg.getSessions()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f),
     authConnectors: (f = msg.getAuthConnectors()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f),
     roles: (f = msg.getRoles()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f),
     users: (f = msg.getUsers()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f),
@@ -983,7 +982,9 @@ proto.teleport.lib.teleterm.v1.ACL.toObject = function(includeInstance, msg) {
     apps: (f = msg.getApps()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f),
     dbs: (f = msg.getDbs()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f),
     kubeservers: (f = msg.getKubeservers()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f),
-    accessRequests: (f = msg.getAccessRequests()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f)
+    accessRequests: (f = msg.getAccessRequests()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f),
+    recordedSessions: (f = msg.getRecordedSessions()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f),
+    activeSessions: (f = msg.getActiveSessions()) && proto.teleport.lib.teleterm.v1.ResourceAccess.toObject(includeInstance, f)
   };
 
   if (includeInstance) {
@@ -1020,11 +1021,6 @@ proto.teleport.lib.teleterm.v1.ACL.deserializeBinaryFromReader = function(msg, r
     }
     var field = reader.getFieldNumber();
     switch (field) {
-    case 1:
-      var value = new proto.teleport.lib.teleterm.v1.ResourceAccess;
-      reader.readMessage(value,proto.teleport.lib.teleterm.v1.ResourceAccess.deserializeBinaryFromReader);
-      msg.setSessions(value);
-      break;
     case 2:
       var value = new proto.teleport.lib.teleterm.v1.ResourceAccess;
       reader.readMessage(value,proto.teleport.lib.teleterm.v1.ResourceAccess.deserializeBinaryFromReader);
@@ -1080,6 +1076,16 @@ proto.teleport.lib.teleterm.v1.ACL.deserializeBinaryFromReader = function(msg, r
       reader.readMessage(value,proto.teleport.lib.teleterm.v1.ResourceAccess.deserializeBinaryFromReader);
       msg.setAccessRequests(value);
       break;
+    case 13:
+      var value = new proto.teleport.lib.teleterm.v1.ResourceAccess;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.ResourceAccess.deserializeBinaryFromReader);
+      msg.setRecordedSessions(value);
+      break;
+    case 14:
+      var value = new proto.teleport.lib.teleterm.v1.ResourceAccess;
+      reader.readMessage(value,proto.teleport.lib.teleterm.v1.ResourceAccess.deserializeBinaryFromReader);
+      msg.setActiveSessions(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -1109,14 +1115,6 @@ proto.teleport.lib.teleterm.v1.ACL.prototype.serializeBinary = function() {
  */
 proto.teleport.lib.teleterm.v1.ACL.serializeBinaryToWriter = function(message, writer) {
   var f = undefined;
-  f = message.getSessions();
-  if (f != null) {
-    writer.writeMessage(
-      1,
-      f,
-      proto.teleport.lib.teleterm.v1.ResourceAccess.serializeBinaryToWriter
-    );
-  }
   f = message.getAuthConnectors();
   if (f != null) {
     writer.writeMessage(
@@ -1205,43 +1203,22 @@ proto.teleport.lib.teleterm.v1.ACL.serializeBinaryToWriter = function(message, w
       proto.teleport.lib.teleterm.v1.ResourceAccess.serializeBinaryToWriter
     );
   }
-};
-
-
-/**
- * optional ResourceAccess sessions = 1;
- * @return {?proto.teleport.lib.teleterm.v1.ResourceAccess}
- */
-proto.teleport.lib.teleterm.v1.ACL.prototype.getSessions = function() {
-  return /** @type{?proto.teleport.lib.teleterm.v1.ResourceAccess} */ (
-    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.ResourceAccess, 1));
-};
-
-
-/**
- * @param {?proto.teleport.lib.teleterm.v1.ResourceAccess|undefined} value
- * @return {!proto.teleport.lib.teleterm.v1.ACL} returns this
-*/
-proto.teleport.lib.teleterm.v1.ACL.prototype.setSessions = function(value) {
-  return jspb.Message.setWrapperField(this, 1, value);
-};
-
-
-/**
- * Clears the message field making it undefined.
- * @return {!proto.teleport.lib.teleterm.v1.ACL} returns this
- */
-proto.teleport.lib.teleterm.v1.ACL.prototype.clearSessions = function() {
-  return this.setSessions(undefined);
-};
-
-
-/**
- * Returns whether this field is set.
- * @return {boolean}
- */
-proto.teleport.lib.teleterm.v1.ACL.prototype.hasSessions = function() {
-  return jspb.Message.getField(this, 1) != null;
+  f = message.getRecordedSessions();
+  if (f != null) {
+    writer.writeMessage(
+      13,
+      f,
+      proto.teleport.lib.teleterm.v1.ResourceAccess.serializeBinaryToWriter
+    );
+  }
+  f = message.getActiveSessions();
+  if (f != null) {
+    writer.writeMessage(
+      14,
+      f,
+      proto.teleport.lib.teleterm.v1.ResourceAccess.serializeBinaryToWriter
+    );
+  }
 };
 
 
@@ -1652,6 +1629,80 @@ proto.teleport.lib.teleterm.v1.ACL.prototype.hasAccessRequests = function() {
 };
 
 
+/**
+ * optional ResourceAccess recorded_sessions = 13;
+ * @return {?proto.teleport.lib.teleterm.v1.ResourceAccess}
+ */
+proto.teleport.lib.teleterm.v1.ACL.prototype.getRecordedSessions = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.ResourceAccess} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.ResourceAccess, 13));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.ResourceAccess|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.ACL} returns this
+*/
+proto.teleport.lib.teleterm.v1.ACL.prototype.setRecordedSessions = function(value) {
+  return jspb.Message.setWrapperField(this, 13, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.ACL} returns this
+ */
+proto.teleport.lib.teleterm.v1.ACL.prototype.clearRecordedSessions = function() {
+  return this.setRecordedSessions(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.ACL.prototype.hasRecordedSessions = function() {
+  return jspb.Message.getField(this, 13) != null;
+};
+
+
+/**
+ * optional ResourceAccess active_sessions = 14;
+ * @return {?proto.teleport.lib.teleterm.v1.ResourceAccess}
+ */
+proto.teleport.lib.teleterm.v1.ACL.prototype.getActiveSessions = function() {
+  return /** @type{?proto.teleport.lib.teleterm.v1.ResourceAccess} */ (
+    jspb.Message.getWrapperField(this, proto.teleport.lib.teleterm.v1.ResourceAccess, 14));
+};
+
+
+/**
+ * @param {?proto.teleport.lib.teleterm.v1.ResourceAccess|undefined} value
+ * @return {!proto.teleport.lib.teleterm.v1.ACL} returns this
+*/
+proto.teleport.lib.teleterm.v1.ACL.prototype.setActiveSessions = function(value) {
+  return jspb.Message.setWrapperField(this, 14, value);
+};
+
+
+/**
+ * Clears the message field making it undefined.
+ * @return {!proto.teleport.lib.teleterm.v1.ACL} returns this
+ */
+proto.teleport.lib.teleterm.v1.ACL.prototype.clearActiveSessions = function() {
+  return this.setActiveSessions(undefined);
+};
+
+
+/**
+ * Returns whether this field is set.
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.ACL.prototype.hasActiveSessions = function() {
+  return jspb.Message.getField(this, 14) != null;
+};
+
+
 
 
 
@@ -1688,7 +1739,8 @@ proto.teleport.lib.teleterm.v1.ResourceAccess.toObject = function(includeInstanc
     read: jspb.Message.getBooleanFieldWithDefault(msg, 2, false),
     edit: jspb.Message.getBooleanFieldWithDefault(msg, 3, false),
     create: jspb.Message.getBooleanFieldWithDefault(msg, 4, false),
-    pb_delete: jspb.Message.getBooleanFieldWithDefault(msg, 5, false)
+    pb_delete: jspb.Message.getBooleanFieldWithDefault(msg, 5, false),
+    use: jspb.Message.getBooleanFieldWithDefault(msg, 6, false)
   };
 
   if (includeInstance) {
@@ -1744,6 +1796,10 @@ proto.teleport.lib.teleterm.v1.ResourceAccess.deserializeBinaryFromReader = func
     case 5:
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setDelete(value);
+      break;
+    case 6:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setUse(value);
       break;
     default:
       reader.skipField();
@@ -1806,6 +1862,13 @@ proto.teleport.lib.teleterm.v1.ResourceAccess.serializeBinaryToWriter = function
   if (f) {
     writer.writeBool(
       5,
+      f
+    );
+  }
+  f = message.getUse();
+  if (f) {
+    writer.writeBool(
+      6,
       f
     );
   }
@@ -1902,6 +1965,24 @@ proto.teleport.lib.teleterm.v1.ResourceAccess.prototype.setDelete = function(val
 };
 
 
+/**
+ * optional bool use = 6;
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.ResourceAccess.prototype.getUse = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 6, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.teleport.lib.teleterm.v1.ResourceAccess} returns this
+ */
+proto.teleport.lib.teleterm.v1.ResourceAccess.prototype.setUse = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 6, value);
+};
+
+
 
 
 
@@ -1934,7 +2015,8 @@ proto.teleport.lib.teleterm.v1.Features.prototype.toObject = function(opt_includ
  */
 proto.teleport.lib.teleterm.v1.Features.toObject = function(includeInstance, msg) {
   var f, obj = {
-    advancedAccessWorkflows: jspb.Message.getBooleanFieldWithDefault(msg, 1, false)
+    advancedAccessWorkflows: jspb.Message.getBooleanFieldWithDefault(msg, 1, false),
+    isUsageBasedBilling: jspb.Message.getBooleanFieldWithDefault(msg, 2, false)
   };
 
   if (includeInstance) {
@@ -1975,6 +2057,10 @@ proto.teleport.lib.teleterm.v1.Features.deserializeBinaryFromReader = function(m
       var value = /** @type {boolean} */ (reader.readBool());
       msg.setAdvancedAccessWorkflows(value);
       break;
+    case 2:
+      var value = /** @type {boolean} */ (reader.readBool());
+      msg.setIsUsageBasedBilling(value);
+      break;
     default:
       reader.skipField();
       break;
@@ -2011,6 +2097,13 @@ proto.teleport.lib.teleterm.v1.Features.serializeBinaryToWriter = function(messa
       f
     );
   }
+  f = message.getIsUsageBasedBilling();
+  if (f) {
+    writer.writeBool(
+      2,
+      f
+    );
+  }
 };
 
 
@@ -2029,6 +2122,24 @@ proto.teleport.lib.teleterm.v1.Features.prototype.getAdvancedAccessWorkflows = f
  */
 proto.teleport.lib.teleterm.v1.Features.prototype.setAdvancedAccessWorkflows = function(value) {
   return jspb.Message.setProto3BooleanField(this, 1, value);
+};
+
+
+/**
+ * optional bool is_usage_based_billing = 2;
+ * @return {boolean}
+ */
+proto.teleport.lib.teleterm.v1.Features.prototype.getIsUsageBasedBilling = function() {
+  return /** @type {boolean} */ (jspb.Message.getBooleanFieldWithDefault(this, 2, false));
+};
+
+
+/**
+ * @param {boolean} value
+ * @return {!proto.teleport.lib.teleterm.v1.Features} returns this
+ */
+proto.teleport.lib.teleterm.v1.Features.prototype.setIsUsageBasedBilling = function(value) {
+  return jspb.Message.setProto3BooleanField(this, 2, value);
 };
 
 

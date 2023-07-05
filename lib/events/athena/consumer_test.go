@@ -21,6 +21,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io"
 	"math/big"
 	"os"
 	"path/filepath"
@@ -33,14 +34,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	sqsTypes "github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/segmentio/parquet-go"
 	"github.com/stretchr/testify/require"
-	"github.com/xitongsys/parquet-go-source/local"
-	"github.com/xitongsys/parquet-go/source"
 
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/backend/memory"
@@ -338,8 +337,9 @@ func TestSQSMessagesCollectorErrorsOnReceive(t *testing.T) {
 
 	gotNoOfCalls := mockReceiver.getNoOfCalls()
 	// We can't be sure that there will be equaly noOfCalls as expected,
-	// because they are process in async way, that's why margin in EquateApprox is used.
-	require.Empty(t, cmp.Diff(float32(gotNoOfCalls), float32(expectedNoOfCalls), cmpopts.EquateApprox(0, 4)))
+	// because they are process in async way, but anything within range x>= 0 && x< 1.5*expected is valid.
+	require.LessOrEqual(t, float64(gotNoOfCalls), 1.5*float64(expectedNoOfCalls), "receiveMessage got too many calls")
+	require.Greater(t, gotNoOfCalls, 0, "receiveMessage was not called at all")
 }
 
 type mockReceiver struct {
@@ -600,12 +600,12 @@ func TestConsumerWriteToS3(t *testing.T) {
 	defer cancel()
 
 	tmp := t.TempDir()
-	localWriter := func(ctx context.Context, date string) (source.ParquetFile, error) {
+	localWriter := func(ctx context.Context, date string) (io.WriteCloser, error) {
 		err := os.MkdirAll(filepath.Join(tmp, date), 0o777)
 		if err != nil {
 			return nil, err
 		}
-		localW, err := local.NewLocalFileWriter(filepath.Join(tmp, date, "test.parquet"))
+		localW, err := os.Create(filepath.Join(tmp, date, "test.parquet"))
 		return localW, err
 	}
 
@@ -617,11 +617,15 @@ func TestConsumerWriteToS3(t *testing.T) {
 		return &apievents.AppCreate{Metadata: apievents.Metadata{Type: events.AppCreateEvent, Time: t}, AppMetadata: apievents.AppMetadata{AppName: name}}
 	}
 
+	eventR1 := makeAppCreateEventWithTime(april1st2023Afternoon, "app-1")
+	eventR2 := makeAppCreateEventWithTime(april1st2023Afternoon.Add(10*time.Second), "app-2")
+	// r3 date is next date, so it should be written as separate file.
+	eventR3 := makeAppCreateEventWithTime(april1st2023Afternoon.Add(18*time.Hour), "app3")
+
 	events := []eventAndAckID{
-		{receiptHandle: "r1", event: makeAppCreateEventWithTime(april1st2023Afternoon, "app-1")},
-		{receiptHandle: "r2", event: makeAppCreateEventWithTime(april1st2023Afternoon.Add(10*time.Second), "app-2")},
-		// r3 date is next date, so it should be written as separate file.
-		{receiptHandle: "r3", event: makeAppCreateEventWithTime(april1st2023Afternoon.Add(18*time.Hour), "app3")},
+		{receiptHandle: "r1", event: eventR1},
+		{receiptHandle: "r2", event: eventR2},
+		{receiptHandle: "r3", event: eventR3},
 	}
 
 	eventsC := make(chan eventAndAckID, 100)
@@ -638,26 +642,52 @@ func TestConsumerWriteToS3(t *testing.T) {
 	// Make sure that all events are marked to delete.
 	require.Equal(t, []string{"r1", "r2", "r3"}, gotHandlesToDelete)
 
-	// vefiry that both files for 2023-04-01 and 2023-04-02 were written and
-	// if they are equal to test data.
+	// verify that both files for 2023-04-01 and 2023-04-02 were written and
+	// if they contain audit events.
 	type wantGot struct {
-		wantFilepath string
-		gotFile      string
+		name       string
+		wantEvents []apievents.AuditEvent
+		gotFile    string
 	}
 	toCheck := []wantGot{
-		{wantFilepath: filepath.Join("testdata/events_2023-04-01.parquet"), gotFile: filepath.Join(tmp, "2023-04-01", "test.parquet")},
-		{wantFilepath: filepath.Join("testdata/events_2023-04-02.parquet"), gotFile: filepath.Join(tmp, "2023-04-02", "test.parquet")},
+		{
+			name:       "2023-04-01 should contain 2 events",
+			wantEvents: []apievents.AuditEvent{eventR1, eventR2},
+			gotFile:    filepath.Join(tmp, "2023-04-01", "test.parquet"),
+		},
+		{
+			name:       "2023-04-02 should contain 1 events",
+			wantEvents: []apievents.AuditEvent{eventR3},
+			gotFile:    filepath.Join(tmp, "2023-04-02", "test.parquet"),
+		},
 	}
 
 	for _, v := range toCheck {
-		t.Run("Checking "+filepath.Base(v.wantFilepath), func(t *testing.T) {
-			got, err := os.ReadFile(v.gotFile)
+		t.Run("Checking "+v.name, func(t *testing.T) {
+			rows, err := parquet.ReadFile[eventParquet](v.gotFile)
 			require.NoError(t, err)
-			want, err := os.ReadFile(v.wantFilepath)
+			gotEvents, err := parquetRowsToAuditEvents(rows)
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(got, want))
+
+			require.Empty(t, cmp.Diff(gotEvents, v.wantEvents))
 		})
 	}
+}
+
+func parquetRowsToAuditEvents(in []eventParquet) ([]apievents.AuditEvent, error) {
+	out := make([]apievents.AuditEvent, 0, len(in))
+	for _, p := range in {
+		var fields events.EventFields
+		if err := utils.FastUnmarshal([]byte(p.EventData), &fields); err != nil {
+			return nil, trace.Wrap(err, "failed to unmarshal event, %s", p.EventData)
+		}
+		event, err := events.FromEventFields(fields)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out = append(out, event)
+	}
+	return out, nil
 }
 
 func TestDeleteMessagesFromQueue(t *testing.T) {
@@ -843,6 +873,47 @@ func TestCollectedEventsMetadataMerge(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			tt.a.Merge(tt.b)
 			require.Empty(t, cmp.Diff(tt.a, tt.expected))
+		})
+	}
+}
+
+func Test_getMessageSentTimestamp(t *testing.T) {
+	tests := []struct {
+		name    string
+		msg     sqsTypes.Message
+		want    time.Time
+		wantErr string
+	}{
+		{
+			name: "valid value sentTimestamp",
+			msg:  sqsTypes.Message{Attributes: map[string]string{"SentTimestamp": "1687183084420"}},
+			want: time.Date(2023, time.June, 19, 13, 58, 4, 420000000, time.UTC),
+		},
+		{
+			name: "empty map",
+			msg:  sqsTypes.Message{},
+			want: time.Time{},
+		},
+		{
+			name: "missing attribute",
+			msg:  sqsTypes.Message{Attributes: map[string]string{"abc": "def"}},
+			want: time.Time{},
+		},
+		{
+			name:    "wrong format of sentTimestamp",
+			msg:     sqsTypes.Message{Attributes: map[string]string{"SentTimestamp": "def"}},
+			wantErr: "invalid syntax",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := getMessageSentTimestamp(tt.msg)
+			if tt.wantErr == "" {
+				require.NoError(t, err, "getMessageSentTimestamp return unexpected err")
+				require.Equal(t, tt.want, got)
+			} else {
+				require.ErrorContains(t, err, tt.wantErr)
+			}
 		})
 	}
 }

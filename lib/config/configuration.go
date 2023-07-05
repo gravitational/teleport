@@ -193,6 +193,25 @@ type CommandLineFlags struct {
 	AdditionalPrincipals string
 	// Directory to store
 	DataDir string
+
+	// IntegrationConfDeployServiceIAMArguments contains the arguments of
+	// `teleport integration configure deployservice-iam` command
+	IntegrationConfDeployServiceIAMArguments IntegrationConfDeployServiceIAM
+}
+
+// IntegrationConfDeployServiceIAM contains the arguments of
+// `teleport integration configure deployservice-iam` command
+type IntegrationConfDeployServiceIAM struct {
+	// Cluster is the teleport cluster name.
+	Cluster string
+	// Name is the integration name.
+	Name string
+	// Region is the AWS Region used to set up the client.
+	Region string
+	// Role is the AWS Role associated with the Integration
+	Role string
+	// TaskRole is the AWS Role to be used by the deployed service.
+	TaskRole string
 }
 
 // ReadConfigFile reads /etc/teleport.yaml (or whatever is passed via --config flag)
@@ -1100,7 +1119,7 @@ func applyProxyConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		return trace.Wrap(err)
 	}
 	cfg.Proxy.ACME = *acme
-
+	cfg.Proxy.TrustXForwardedFor = fc.Proxy.TrustXForwardedFor.Value()
 	return nil
 }
 
@@ -1326,6 +1345,10 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
+					ExternalID:    matcher.AWS.ExternalID,
+				},
 			})
 	}
 
@@ -1362,6 +1385,10 @@ func applyDatabasesConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 		cfg.Databases.ResourceMatchers = append(cfg.Databases.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
+					ExternalID:    matcher.AWS.ExternalID,
+				},
 			})
 	}
 	for _, matcher := range fc.Databases.AWSMatchers {
@@ -1522,6 +1549,9 @@ func applyAppsConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 
 	// Configure resource watcher selectors if present.
 	for _, matcher := range fc.Apps.ResourceMatchers {
+		if matcher.AWS.AssumeRoleARN != "" {
+			return trace.NotImplemented("assume_role_arn is not supported for app resource matchers")
+		}
 		cfg.Apps.ResourceMatchers = append(cfg.Apps.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,

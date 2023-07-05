@@ -41,6 +41,12 @@ type Message struct {
 	Content string
 }
 
+// StreamingMessage represents a new message that is being streamed from the LLM.
+type StreamingMessage struct {
+	*TokensUsed
+	Parts <-chan string
+}
+
 // Label represents a label returned by OpenAI's completion API.
 type Label struct {
 	Key   string `json:"key"`
@@ -67,7 +73,7 @@ type TokensUsed struct {
 }
 
 // UsedTokens returns the number of tokens used during a single invocation of the agent.
-// This method creates a convinient way to get TokensUsed from embedded structs.
+// This method creates a convenient way to get TokensUsed from embedded structs.
 func (t *TokensUsed) UsedTokens() *TokensUsed {
 	return t
 }
@@ -100,4 +106,9 @@ func (t *TokensUsed) AddTokens(prompt []openai.ChatCompletionMessage, completion
 
 	t.Completion = t.Completion + perRequest + len(completionTokens)
 	return err
+}
+
+// SetUsed sets the TokensUsed instance to the given data.
+func (t *TokensUsed) SetUsed(data *TokensUsed) {
+	*t = *data
 }

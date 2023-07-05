@@ -50,3 +50,23 @@ func TestDestinationDirectory_Lock(t *testing.T) {
 	// Release the lock
 	require.NoError(t, unlock())
 }
+
+func TestDestinationDirectory_YAML(t *testing.T) {
+	tests := []testYAMLCase[DestinationDirectory]{
+		{
+			name: "full",
+			in: DestinationDirectory{
+				Path:     "/my/path",
+				ACLs:     botfs.ACLRequired,
+				Symlinks: botfs.SymlinksSecure,
+			},
+		},
+		{
+			name: "minimal",
+			in: DestinationDirectory{
+				Path: "/my/path",
+			},
+		},
+	}
+	testYAML(t, tests)
+}
