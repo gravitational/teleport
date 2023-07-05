@@ -125,14 +125,22 @@ const storage = {
       return userPreferences.theme;
     }
 
-    const theme = window.localStorage.getItem(
-      KeysEnum.THEME
-    ) as DeprecatedThemeOption;
+    const theme = this.getDeprecatedThemePreference();
     if (theme) {
       return theme === 'light' ? ThemePreference.Light : ThemePreference.Dark;
     }
 
     return ThemePreference.Light;
+  },
+
+  // TODO(ryan): remove in v15
+  getDeprecatedThemePreference(): DeprecatedThemeOption {
+    return window.localStorage.getItem(KeysEnum.THEME) as DeprecatedThemeOption;
+  },
+
+  // TODO(ryan): remove in v15
+  clearDeprecatedThemePreference() {
+    window.localStorage.removeItem(KeysEnum.THEME);
   },
 
   broadcast(messageType, messageBody) {
