@@ -19,13 +19,13 @@ package auth
 import (
 	"context"
 	"fmt"
-	"golang.org/x/exp/slices"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
