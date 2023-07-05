@@ -6,7 +6,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   margin-bottom: 16px;
 }
 
-.c14 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 8px;
   margin-top: 16px;
@@ -31,7 +31,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   margin: 0px;
 }
 
-.c13 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -55,7 +55,7 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   text-transform: none;
 }
 
-.c10 {
+.c12 {
   display: block;
   outline: none;
   margin-top: 16px;
@@ -142,12 +142,12 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
   background-color: rgba(255,255,255,0.13);
 }
 
-.c11 {
+.c13 {
   display: inline-block;
   height: 100%;
 }
 
-.c12 {
+.c14 {
   box-sizing: border-box;
   margin-bottom: 8px;
   position: relative;
@@ -156,7 +156,6 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
 <div>
   <div
     class="c0"
-    style=""
   >
     <div
       class="c1"
@@ -193,30 +192,11 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
         >
           <a
             class="c9"
-            data-testid="tile-slack"
-            href="/web/integrations/new/slack"
-          >
-            <img
-              class="c10 c11"
-              src="file_stub"
-            />
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-              >
-                Slack
-              </div>
-            </div>
-          </a>
-          <a
-            class="c9"
             data-testid="tile-aws-oidc"
             href="/web/integrations/new/aws-oidc"
           >
             <div
-              class="c14"
+              class="c10"
             >
               <svg
                 data-testid="svg"
@@ -244,11 +224,30 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
               </svg>
             </div>
             <div
-              class="c13"
+              class="c11"
             >
               Amazon Web Services
               <br />
               OIDC
+            </div>
+          </a>
+          <a
+            class="c9"
+            data-testid="tile-slack"
+            href="/web/integrations/new/slack"
+          >
+            <img
+              class="c12 c13"
+              src="file_stub"
+            />
+            <div
+              class="c14"
+            >
+              <div
+                class="c11"
+              >
+                Slack
+              </div>
             </div>
           </a>
         </div>
@@ -288,14 +287,14 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c12 c13"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c14"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Email
               </div>
@@ -309,14 +308,14 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c12 c13"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c14"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Jira
               </div>
@@ -330,14 +329,14 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c12 c13"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c14"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Discord
               </div>
@@ -351,14 +350,14 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c12 c13"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c14"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Mattermost
               </div>
@@ -372,14 +371,14 @@ exports[`test PluginPick.tsx full access and slack available to enroll 1`] = `
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c12 c13"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c14"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Microsoft Teams
               </div>
@@ -398,7 +397,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   margin-bottom: 16px;
 }
 
-.c15 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 8px;
   margin-top: 16px;
@@ -423,7 +422,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   margin: 0px;
 }
 
-.c13 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -447,7 +446,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   text-transform: none;
 }
 
-.c10 {
+.c14 {
   display: block;
   outline: none;
   margin-top: 16px;
@@ -513,7 +512,7 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   padding-bottom: 24px;
 }
 
-.c16 {
+.c12 {
   box-sizing: border-box;
   border-top-right-radius: 4px;
   border-bottom-left-radius: 4px;
@@ -539,14 +538,14 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   background-color: rgba(255,255,255,0.07);
   text-align: center;
   cursor: pointer;
-  opacity: 1;
+  opacity: 0.45;
 }
 
 .c9:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c14 {
+.c13 {
   box-sizing: border-box;
   display: flex;
   color: inherit;
@@ -560,19 +559,19 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
   background-color: rgba(255,255,255,0.07);
   text-align: center;
   cursor: pointer;
-  opacity: 0.45;
+  opacity: 1;
 }
 
-.c14:hover {
+.c13:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c11 {
+.c15 {
   display: inline-block;
   height: 100%;
 }
 
-.c12 {
+.c16 {
   box-sizing: border-box;
   margin-bottom: 8px;
   position: relative;
@@ -615,32 +614,13 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
         <div
           class="c8"
         >
-          <a
-            class="c9"
-            data-testid="tile-slack"
-            href="/web/integrations/new/slack"
-          >
-            <img
-              class="c10 c11"
-              src="file_stub"
-            />
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-              >
-                Slack
-              </div>
-            </div>
-          </a>
           <div
-            class="c14"
+            class="c9"
             data-testid="tile-aws-oidc"
             disabled=""
           >
             <div
-              class="c15"
+              class="c10"
             >
               <svg
                 data-testid="svg"
@@ -668,19 +648,38 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
               </svg>
             </div>
             <div
-              class="c13"
+              class="c11"
             >
               Amazon Web Services
               <br />
               OIDC
             </div>
             <div
-              class="c16"
+              class="c12"
               data-testid="tooltip"
             >
               Lacking Permissions
             </div>
           </div>
+          <a
+            class="c13"
+            data-testid="tile-slack"
+            href="/web/integrations/new/slack"
+          >
+            <img
+              class="c14 c15"
+              src="file_stub"
+            />
+            <div
+              class="c16"
+            >
+              <div
+                class="c11"
+              >
+                Slack
+              </div>
+            </div>
+          </a>
         </div>
       </div>
       <div
@@ -711,105 +710,105 @@ exports[`test PluginPick.tsx no integration access disables integration tiles 1`
           class="c8"
         >
           <a
-            class="c18 c9"
+            class="c18 c13"
             data-testid="tile-email"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c14 c15"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c16"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Email
               </div>
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c18 c13"
             data-testid="tile-jira"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/jira"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c14 c15"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c16"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Jira
               </div>
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c18 c13"
             data-testid="tile-discord"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/discord"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c14 c15"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c16"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Discord
               </div>
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c18 c13"
             data-testid="tile-mattermost"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c14 c15"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c16"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Mattermost
               </div>
             </div>
           </a>
           <a
-            class="c18 c9"
+            class="c18 c13"
             data-testid="tile-msteams"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c14 c15"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c16"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Microsoft Teams
               </div>
@@ -828,7 +827,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   margin-bottom: 16px;
 }
 
-.c16 {
+.c10 {
   box-sizing: border-box;
   margin-bottom: 8px;
   margin-top: 16px;
@@ -853,7 +852,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   margin: 0px;
 }
 
-.c13 {
+.c11 {
   overflow: hidden;
   text-overflow: ellipsis;
   margin: 0px;
@@ -877,7 +876,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   text-transform: none;
 }
 
-.c10 {
+.c13 {
   display: block;
   outline: none;
   margin-top: 16px;
@@ -943,7 +942,7 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   padding-bottom: 24px;
 }
 
-.c14 {
+.c16 {
   box-sizing: border-box;
   border-top-right-radius: 4px;
   border-bottom-left-radius: 4px;
@@ -969,14 +968,14 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   background-color: rgba(255,255,255,0.07);
   text-align: center;
   cursor: pointer;
-  opacity: 0.45;
+  opacity: 1;
 }
 
 .c9:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c15 {
+.c12 {
   box-sizing: border-box;
   display: flex;
   color: inherit;
@@ -990,19 +989,19 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
   background-color: rgba(255,255,255,0.07);
   text-align: center;
   cursor: pointer;
-  opacity: 1;
+  opacity: 0.45;
 }
 
-.c15:hover {
+.c12:hover {
   background-color: rgba(255,255,255,0.13);
 }
 
-.c11 {
+.c14 {
   display: inline-block;
   height: 100%;
 }
 
-.c12 {
+.c15 {
   box-sizing: border-box;
   margin-bottom: 8px;
   position: relative;
@@ -1047,141 +1046,11 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
         >
           <a
             class="c9"
-            data-testid="tile-slack"
-            disabled=""
-            href="/web/integrations/new/slack"
-          >
-            <img
-              class="c10 c11"
-              src="file_stub"
-            />
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-              >
-                Slack
-              </div>
-            </div>
-            <div
-              class="c14"
-              data-testid="tooltip"
-            >
-              Lacking Permissions
-            </div>
-          </a>
-          <a
-            class="c9"
-            data-testid="tile-okta"
-            disabled=""
-            href="/web/integrations/new/okta"
-          >
-            <img
-              class="c10 c11"
-              src="file_stub"
-            />
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-              >
-                Okta
-              </div>
-            </div>
-            <div
-              class="c14"
-              data-testid="tooltip"
-            >
-              Lacking Permissions
-            </div>
-          </a>
-          <a
-            class="c9"
-            data-testid="tile-opsgenie"
-            disabled=""
-            href="/web/integrations/new/opsgenie"
-          >
-            <img
-              class="c10 c11"
-              src="file_stub"
-            />
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-              >
-                Opsgenie
-              </div>
-            </div>
-            <div
-              class="c14"
-              data-testid="tooltip"
-            >
-              Lacking Permissions
-            </div>
-          </a>
-          <a
-            class="c9"
-            data-testid="tile-jamf"
-            disabled=""
-            href="/web/integrations/new/jamf"
-          >
-            <img
-              class="c10 c11"
-              src="file_stub"
-            />
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-              >
-                Jamf
-              </div>
-            </div>
-            <div
-              class="c14"
-              data-testid="tooltip"
-            >
-              Lacking Permissions
-            </div>
-          </a>
-          <a
-            class="c9"
-            data-testid="tile-pagerduty"
-            disabled=""
-            href="/web/integrations/new/pagerduty"
-          >
-            <img
-              class="c10 c11"
-              src="file_stub"
-            />
-            <div
-              class="c12"
-            >
-              <div
-                class="c13"
-              >
-                PagerDuty
-              </div>
-            </div>
-            <div
-              class="c14"
-              data-testid="tooltip"
-            >
-              Lacking Permissions
-            </div>
-          </a>
-          <a
-            class="c15"
             data-testid="tile-aws-oidc"
             href="/web/integrations/new/aws-oidc"
           >
             <div
-              class="c16"
+              class="c10"
             >
               <svg
                 data-testid="svg"
@@ -1209,13 +1078,138 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
               </svg>
             </div>
             <div
-              class="c13"
+              class="c11"
             >
               Amazon Web Services
               <br />
               OIDC
             </div>
           </a>
+          <div
+            class="c12"
+            data-testid="tile-slack"
+            disabled=""
+          >
+            <img
+              class="c13 c14"
+              src="file_stub"
+            />
+            <div
+              class="c15"
+            >
+              <div
+                class="c11"
+              >
+                Slack
+              </div>
+            </div>
+            <div
+              class="c16"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </div>
+          <div
+            class="c12"
+            data-testid="tile-okta"
+            disabled=""
+          >
+            <img
+              class="c13 c14"
+              src="file_stub"
+            />
+            <div
+              class="c15"
+            >
+              <div
+                class="c11"
+              >
+                Okta
+              </div>
+            </div>
+            <div
+              class="c16"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </div>
+          <div
+            class="c12"
+            data-testid="tile-opsgenie"
+            disabled=""
+          >
+            <img
+              class="c13 c14"
+              src="file_stub"
+            />
+            <div
+              class="c15"
+            >
+              <div
+                class="c11"
+              >
+                Opsgenie
+              </div>
+            </div>
+            <div
+              class="c16"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </div>
+          <div
+            class="c12"
+            data-testid="tile-jamf"
+            disabled=""
+          >
+            <img
+              class="c13 c14"
+              src="file_stub"
+            />
+            <div
+              class="c15"
+            >
+              <div
+                class="c11"
+              >
+                Jamf
+              </div>
+            </div>
+            <div
+              class="c16"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </div>
+          <div
+            class="c12"
+            data-testid="tile-pagerduty"
+            disabled=""
+          >
+            <img
+              class="c13 c14"
+              src="file_stub"
+            />
+            <div
+              class="c15"
+            >
+              <div
+                class="c11"
+              >
+                PagerDuty
+              </div>
+            </div>
+            <div
+              class="c16"
+              data-testid="tooltip"
+            >
+              Lacking Permissions
+            </div>
+          </div>
         </div>
       </div>
       <div
@@ -1246,105 +1240,105 @@ exports[`test PluginPick.tsx no plugin access disables plugin tiles 1`] = `
           class="c8"
         >
           <a
-            class="c18 c15"
+            class="c18 c9"
             data-testid="tile-email"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/email"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c13 c14"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c15"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Email
               </div>
             </div>
           </a>
           <a
-            class="c18 c15"
+            class="c18 c9"
             data-testid="tile-jira"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/jira"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c13 c14"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c15"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Jira
               </div>
             </div>
           </a>
           <a
-            class="c18 c15"
+            class="c18 c9"
             data-testid="tile-discord"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/discord"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c13 c14"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c15"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Discord
               </div>
             </div>
           </a>
           <a
-            class="c18 c15"
+            class="c18 c9"
             data-testid="tile-mattermost"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/mattermost"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c13 c14"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c15"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Mattermost
               </div>
             </div>
           </a>
           <a
-            class="c18 c15"
+            class="c18 c9"
             data-testid="tile-msteams"
             href="https://github.com/gravitational/teleport-plugins/tree/master/access/msteams"
             rel="noreferrer"
             target="_blank"
           >
             <img
-              class="c10 c11"
+              class="c13 c14"
               src="file_stub"
             />
             <div
-              class="c12"
+              class="c15"
             >
               <div
-                class="c13"
+                class="c11"
               >
                 Microsoft Teams
               </div>

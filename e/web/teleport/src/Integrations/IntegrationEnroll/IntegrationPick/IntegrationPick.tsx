@@ -38,8 +38,8 @@ import {
   userEventService,
 } from 'teleport/services/userEvent';
 import { PluginKind } from 'teleport/services/integrations';
+import cfg from 'teleport/config';
 
-import cfg from 'e-teleport/config';
 import useTeleport from 'e-teleport/useTeleportE';
 
 import {
@@ -69,9 +69,20 @@ export function IntegrationPick() {
   const hasPluginAccess = ctx.storeUser.getPluginsAccess().create;
   const hasIntegrationAccess = ctx.storeUser.getIntegrationsAccess().create;
 
-  const { attempt, run } = useAttempt(hasPluginAccess ? 'processing' : '');
+  const { attempt, run } = useAttempt(
+    hasPluginAccess && cfg.isCloud ? 'processing' : ''
+  );
   const [plugins, setPlugins] = useState<Plugins>({
-    available: defaultPlugins.filter(isHostedPlugin),
+    // available describes plugins that teleport helps onboard and is
+    // only supported in cloud (for the moment).
+    //
+    // So for enterprise, we will not render any tiles.
+    //
+    // For cloud, even if the user has no plugin access, we will still
+    // render the available tiles but it will disabled.
+    available: cfg.isCloud ? defaultPlugins.filter(isHostedPlugin) : [],
+    // selfHosted tiles will be rendered to
+    // both enterprise and cloud teleport.
     selfHosted: defaultPlugins.filter(isSelfHostedPlugin),
     enrolled: [],
   });
@@ -94,7 +105,7 @@ export function IntegrationPick() {
       });
     }
 
-    if (hasPluginAccess) {
+    if (hasPluginAccess && cfg.isCloud) {
       run(() => fetchAndMakePlugins());
     }
 
@@ -118,6 +129,7 @@ export function IntegrationPick() {
         <Flex flexDirection="column">
           <NoCodeIntegrationDescription />
           <Flex mb={2} gap={3}>
+            <IntegrationTiles hasAccess={hasIntegrationAccess} />
             {plugins.available.map(p => (
               <PluginTile
                 pluginAlreadyEnrolled={plugins.enrolled.includes(p.type)}
@@ -126,7 +138,6 @@ export function IntegrationPick() {
                 hasAccess={hasPluginAccess}
               />
             ))}
-            <IntegrationTiles hasAccess={hasIntegrationAccess} />
           </Flex>
         </Flex>
 
@@ -178,15 +189,16 @@ function PluginTile({
   type: HostedPlugin | SelfHostedPlugin;
   hasAccess: boolean;
 }) {
-  const isClickable = !pluginAlreadyEnrolled && plugin.hosted;
+  const isClickable = hasAccess && !pluginAlreadyEnrolled && plugin.hosted;
+
   let tileProps;
 
   if (isClickable) {
     tileProps = {
       as: InternalLink,
-      to: cfg.oss.getIntegrationEnrollRoute(plugin.type),
+      to: cfg.getIntegrationEnrollRoute(plugin.type),
     };
-  } else {
+  } else if (!plugin.hosted) {
     tileProps = {
       as: ExternalLink,
       href: plugin.url,
@@ -203,11 +215,11 @@ function PluginTile({
     };
   }
 
-  const noAccess = !hasAccess && plugin.hosted;
+  const hostedButNoAccess = !hasAccess && plugin.hosted;
 
   return (
     <IntegrationTile
-      disabled={noAccess}
+      disabled={hostedButNoAccess}
       data-testid={`tile-${plugin.type}`}
       $exists={pluginAlreadyEnrolled}
       {...tileProps}
@@ -235,9 +247,27 @@ function PluginTile({
           )}
         </Text>
       </Box>
-      {noAccess && (
+      {hostedButNoAccess && (
         <ToolTipNoPermBadge
-          children={`You do not have access to create plugins`}
+          children={
+            <Box>
+              <Text>
+                You are not able to add this plugin. There are two possible
+                reasons for this:
+              </Text>
+              <ul style={{ paddingLeft: 16, marginBottom: 2, marginTop: 2 }}>
+                <li>
+                  Your cluster is not configured to support this plugin or
+                  hosted plugins is not enabled.
+                </li>
+                <li>
+                  You don’t have sufficient permissions to create a plugin.
+                  Reach out to your Teleport administrator to request additional
+                  permissions.
+                </li>
+              </ul>
+            </Box>
+          }
         />
       )}
     </IntegrationTile>

@@ -5,16 +5,18 @@ import { ContextProvider } from 'teleport';
 import { IntegrationStatusCode, Plugin } from 'teleport/services/integrations';
 import { userEventService } from 'teleport/services/userEvent';
 import { allAccessAcl, noAccess } from 'teleport/mocks/contexts';
+import cfg from 'teleport/config';
 
 import { createTeleportContextE } from 'e-teleport/mocks/contexts';
-import cfg from 'e-teleport/config';
 import TeleportEContext from 'e-teleport/teleportContextE';
 import { pluginsService } from 'e-teleport/services/plugins';
 
 import { IntegrationEnroll } from '../IntegrationEnroll';
 
 describe('test PluginPick.tsx', () => {
+  const originalCloudFlag = cfg.isCloud; // should be false
   beforeEach(() => {
+    cfg.isCloud = true;
     jest
       .spyOn(pluginsService, 'fetchAvailableTypes')
       .mockResolvedValue(['slack']);
@@ -25,7 +27,18 @@ describe('test PluginPick.tsx', () => {
   });
 
   afterEach(() => {
+    cfg.isCloud = originalCloudFlag;
     jest.clearAllMocks();
+  });
+
+  test('full access and non-cloud, does not render slack', async () => {
+    cfg.isCloud = false;
+    const ctx = createTeleportContextE();
+    renderIntegrationPicker(ctx);
+
+    await screen.findByText(/no-code integrations/i);
+    expect(screen.queryByText(/slack/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/oidc/i)).toBeInTheDocument();
   });
 
   test('full access and slack available to enroll', async () => {
@@ -34,6 +47,7 @@ describe('test PluginPick.tsx', () => {
 
     await screen.findByText(/no-code integrations/i);
     expect(screen.queryByTestId('plugin-checkmark')).not.toBeInTheDocument();
+    expect(screen.getByTestId('tile-slack')).toHaveAttribute('href');
 
     // snapshot that all tiles are rendered.
     expect(container).toMatchSnapshot();
@@ -68,6 +82,7 @@ describe('test PluginPick.tsx', () => {
 
     // eslint-disable-next-line jest-dom/prefer-enabled-disabled
     expect(screen.getByTestId('tile-slack')).toHaveAttribute('disabled');
+    expect(screen.getByTestId('tile-slack')).not.toHaveAttribute('href');
 
     // test an integration tile is not disabled by clicking on it to render guide
     await userEvent.click(screen.getByTestId('tile-aws-oidc'));
@@ -87,6 +102,7 @@ describe('test PluginPick.tsx', () => {
 
     // eslint-disable-next-line jest-dom/prefer-enabled-disabled
     expect(screen.getByTestId('tile-aws-oidc')).toHaveAttribute('disabled');
+    expect(screen.getByTestId('tile-aws-oidc')).not.toHaveAttribute('href');
 
     // test a plugin tile is not disabled by clicking on it to render guide
     await userEvent.click(screen.getByTestId('tile-slack'));
@@ -99,7 +115,7 @@ describe('test PluginPick.tsx', () => {
 function renderIntegrationPicker(ctx: TeleportEContext) {
   return render(
     <MemoryRouter
-      initialEntries={[{ pathname: cfg.oss.getIntegrationEnrollRoute() }]}
+      initialEntries={[{ pathname: cfg.getIntegrationEnrollRoute() }]}
     >
       <Suspense fallback={null}>
         <ContextProvider ctx={ctx}>
