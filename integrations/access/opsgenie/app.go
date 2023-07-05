@@ -366,7 +366,7 @@ func (a *App) createAlert(ctx context.Context, serviceID, reqID string, reqData 
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	ctx, log := logger.WithField(ctx, "pd_alert_id", data.AlertID)
+	ctx, log := logger.WithField(ctx, "opsgenie_alert_id", data.AlertID)
 	log.Info("Successfully created Opsgenie alert")
 
 	// Save opsgenie alert info in plugin data.
@@ -414,7 +414,7 @@ func (a *App) postReviewNotes(ctx context.Context, reqID string, reqReviews []ty
 		logger.Get(ctx).Debug("Failed to post the note: plugin data is missing")
 		return nil
 	}
-	ctx, _ = logger.WithField(ctx, "pd_alert_id", data.AlertID)
+	ctx, _ = logger.WithField(ctx, "opsgneie_alert_id", data.AlertID)
 
 	slice := reqReviews[oldCount:]
 	if len(slice) == 0 {
@@ -512,7 +512,7 @@ func (a *App) resolveAlert(ctx context.Context, reqID string, resolution Resolut
 		return nil
 	}
 
-	ctx, log := logger.WithField(ctx, "pd_alert_id", alertID)
+	ctx, log := logger.WithField(ctx, "opsgenie_alert_id", alertID)
 	if err := a.opsgenie.ResolveAlert(ctx, alertID, resolution); err != nil {
 		return trace.Wrap(err)
 	}
