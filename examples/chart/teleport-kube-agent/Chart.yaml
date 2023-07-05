@@ -1,4 +1,4 @@
-.version: &version "14.0.0-dev.marco.4"
+.version: &version "14.0.0-dev.marco.5"
 
 name: teleport-kube-agent
 apiVersion: v2
