@@ -1,0 +1,18 @@
+### tsh config
+
+Generates OpenSSH configuration to use currently logged in teleport
+as a bastion host.
+
+```code
+$ tsh config
+```
+
+#### Examples
+
+```code
+# Print OpenSSH config file to console
+$ tsh config
+
+# Append Teleport configuration to ssh config
+$ tsh config >> ~/.ssh/config
+```

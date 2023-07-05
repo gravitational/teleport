@@ -667,6 +667,7 @@
     "servicecfg",
     "serviceid",
     "session",
+    "setstat",
     "setspn",
     "sharded",
     "signup",

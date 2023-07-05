@@ -1,0 +1,61 @@
+### tsh proxy ssh
+
+Start a local TLS proxy for `ssh` connections when using Teleport in TLS Routing mode.
+This is typically used as part of the SSH client configuration to use `ssh` as a client
+through Teleport.  See the [OpenSSH Guide](../../../server-access/guides/openssh.mdx) guide
+on configuring OpenSSH servers and clients.  The `tsh config` output will include `tsh proxy ssh`
+within a `ProxyCommand` directive.
+
+```code
+$ tsh proxy ssh [<flags>] <[user@]host>
+```
+
+#### Arguments
+- `<[user@]host>` Remote hostname and the login to use
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cluster` | none | Teleport Cluster | The name of the Teleport cluster to connect to.|
+
+#### [Global Flags](../../../reference/cli.mdx#tsh-global-flags)
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags Section](../../../reference/cli.mdx#tsh-global-flags)
+
+#### Examples
+
+Run the following command to generate an OpenSSH client configuration:
+
+```code
+$ tsh config
+```
+
+This command produces the following configuration:
+
+```
+# Common flags for all example.com hosts
+Host *.example.com example.com
+    UserKnownHostsFile "/Users/jeff/.tsh/known_hosts"
+    IdentityFile "/Users/jeff/.tsh/keys/enterprise.teleportdemo.com/jeff"
+    CertificateFile "/Users/jeff/.tsh/keys/example.com/jeff-ssh/example.com-cert.pub"
+    PubkeyAcceptedKeyTypes +ssh-rsa-cert-v01@openssh.com
+    HostKeyAlgorithms ssh-rsa-cert-v01@openssh.com
+
+# Flags for all example.com hosts except the proxy
+Host *.example.com !example.com
+    Port 3022
+    ProxyCommand "/usr/local/bin/tsh" proxy ssh --cluster=example.com --proxy=example.com %r@%h:%p
+```
+
+This output should be placed into the default SSH Config for environment, `~/.ssh/config` for Mac/Linux or
+`.ssh\config` in the Windows User home directory. You can use this as a standalone SSH config file too.
+
+When you run an `ssh` command against a host with a subdomain of your Proxy
+Service's domain, this SSH configuration will use the `ProxyCommand` to run `tsh
+proxy ssh`:
+
+```code
+$ ssh myuser@node1.example.com
+```

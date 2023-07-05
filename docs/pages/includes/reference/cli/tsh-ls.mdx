@@ -1,0 +1,56 @@
+### tsh ls
+
+List cluster nodes:
+
+```code
+$ tsh ls [<flags>] [<label>]
+```
+
+<Details title="Not seeing Nodes?">
+
+(!docs/pages/includes/node-logins.mdx!)
+
+</Details>
+
+#### Arguments
+
+- `<labels>` - comma-separated list of `key=value` labels to filter nodes by,
+  e.g., `env=dev,host=foo`.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-v, --verbose` | none | none | also print Node ID |
+
+#### Global flags
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](../../../reference/cli.mdx#tsh-global-flags).
+
+#### Examples
+
+```code
+$ tsh ls
+
+# Node Name Address            Labels
+# --------- ------------------ ------
+# grav-00   10.164.0.0:3022    os:linux
+# grav-01   10.156.0.2:3022    os:linux
+# grav-02   10.156.0.7:3022    os:osx
+
+$ tsh ls -v
+
+# Node Name Node ID                              Address            Labels
+# --------- ------------------------------------ ------------------ ------
+# grav-00   52e3e46a-372f-494b-bdd9-a1d25b9d6dec 10.164.0.0:3022    os:linux
+# grav-01   73d86fc7-7c4b-42e3-9a5f-c46e177a29e8 10.156.0.2:3022    os:linux
+# grav-02  24503590-e8ae-4a0a-ad7a-dd1865c04e30 10.156.0.7:3022     os:osx
+
+# Only show nodes with os label set to 'osx':
+$ tsh ls os=osx
+
+# Node Name Address            Labels
+# --------- ------------------ ------
+# grav-02   10.156.0.7:3022    os:osx
+```

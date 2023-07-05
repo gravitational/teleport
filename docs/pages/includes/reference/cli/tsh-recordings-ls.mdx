@@ -1,0 +1,70 @@
+### tsh recordings ls
+
+List recorded sessions.
+
+```code
+$ tsh recordings ls [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--from-utc` | 24 hours ago | date | Start of time range in which recordings are listed. Format 2006-01-02. Defaults to 24 hours ago. |
+| `--to-utc` | current | date | Start of time range in which recordings are listed. Format 2006-01-02. Defaults to 24 hours ago. |
+| `--limit` | 50 | number | Maximum number of recordings to show. |
+| `--last` | none | duration | Duration into the past from which session recordings should be listed. Format 5h30m40s |
+
+#### Global flags
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags section](../../../reference/cli.mdx#tsh-global-flags).
+
+#### Examples
+
+```code
+# get the recorded sessions from the last 24 hours
+$ tsh --proxy proxy.example.com recordings ls
+ID                                   Type Participants Hostname Timestamp
+------------------------------------ ---- ------------ -------- -------------------
+b0a04442-70dc-4be8-9308-7b7901d2d600 ssh  jeff         dev       Nov 26 16:36:16 UTC
+c0a02222-70dc-4be8-9308-7b7901d2d600 kube alice                  Nov 26 20:36:16 UTC
+d0a04442-70dc-4be8-9308-7b7901d2d600 ssh  navin        test      Nov 26 16:36:16 UTC
+
+# The session can be played with tsh play
+$ tsh play c0a02222-70dc-4be8-9308-7b7901d2d60
+
+# List recorded sessions that occurred between Nov 1, 2022 to Nov 3, 2022
+$ tsh recordings ls --from-utc=2022-11-01 --to-utc=2022-11-3
+
+# Retrieve recorded sessions in the last 6 hours
+$ tsh recordings ls --last=6h0m0s
+```
+
+<Admonition
+  title="Recorded Sessions Availability"
+  scope={["oss", "enterprise"]} type="tip" scopeOnly
+>
+
+Recorded sessions are linked from the audit events to session recordings files
+in their [storage backend](../../../reference/backends.mdx).
+The following error can occur if a session recording file is not available or
+when employing multiple auth servers with directory storage backend for recorded
+sessions. When using a directory storage backend for audit logs and recorded sessions,
+only the auth server with that recorded session can retrieve it.
+
+```code
+$ tsh play c8e1b2c5-322a-4095-89e3-391edfd2da9b
+ERROR: Recording for session c8e1b2c5-322a-4095-89e3-391edfd2da9b not found.
+```
+
+Using a Security Information and Event Management (SIEM) service that combines
+the audit logs will help consolidate the list of available recordings.
+
+Downloaded recorded session are directly playable as a file.
+
+```code
+$ tsh play c8e1b2c5-322a-4095-89e3-391edfd2da9b.tar
+```
+
+</Admonition>

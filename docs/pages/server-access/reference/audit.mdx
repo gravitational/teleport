@@ -1,0 +1,277 @@
+---
+title: Server Access Audit Events Reference
+description: Audit events reference for Teleport server access.
+---
+
+## session.start (T2000I)
+
+Emitted when a client successfully connects to a server.
+
+Successful connection event:
+
+```json
+{
+  "addr.remote": "1.2.3.4:63474",
+  "cluster_name": "teleport.example.com",
+  "code": "T2000I",
+  "ei": 0,
+  "event": "session.start",
+  "initial_command": [
+    ""
+  ],
+  "login": "jeff",
+  "namespace": "default",
+  "proto": "ssh",
+  "server_hostname": "example",
+  "server_id": "476db29b-d6d2-41c4-939d-fa3c508c9104",
+  "server_labels": {
+    "env": "dev"
+    "hostname": "example"
+  },
+  "session_recording": "node",
+  "sid": "cba246ba-41c9-4ec5-b59f-e59922cd8528",
+  "size": "80:25",
+  "time": "2023-05-27T21:39:39.504Z",
+  "uid": "a63fe3f3-8dc9-46c1-a52a-914be1acb30c",
+  "user": "jeff"
+}
+```
+
+## Access Denied (T3007W)
+Access denied when attempting to connect to a server.
+
+```json
+{
+  "addr.local": "172.31.88.118:33790",
+  "addr.remote": "1.2.3.4:63474",
+  "cluster_name": "teleport.example.com",
+  "code": "T3007W",
+  "ei": 0,
+  "error": "ssh: principal \"root\" not in the set of valid principals for given certificate: [\"jeff\" \"-teleport-internal-join\"]",
+  "event": "auth",
+  "login": "root",
+  "success": false,
+  "time": "2023-05-27T21:41:37.898Z",
+  "uid": "9ee8d63b-a90e-445a-95d9-3f0c895dbfe2",
+  "user": "jeff"
+}
+```
+
+## session.end (TDP01I)
+
+Emitted when a client disconnects from the server.
+
+```json
+{
+  "addr.remote": "1.2.3.4:63474",
+  "cluster_name": "teleport.example.com",
+  "code": "T2004I",
+  "ei": 22,
+  "enhanced_recording": false,
+  "event": "session.end",
+  "interactive": true,
+  "login": "jeff",
+  "namespace": "default",
+  "participants": [
+    "jeff"
+  ],
+  "proto": "ssh",
+  "server_hostname": "example",
+  "server_id": "476db29b-d6d2-41c4-939d-fa3c508c9104",
+  "server_labels": {
+    "env": "dev",
+    "hostname": "example",
+  },
+  "session_recording": "node",
+  "session_start": "2023-05-27T21:39:39.467392702Z",
+  "session_stop": "2023-05-27T21:39:50.210243792Z",
+  "sid": "cba246ba-41c9-4ec5-b59f-e59922cd8528",
+  "time": "2023-05-27T21:39:50.21Z",
+  "uid": "d5a2eb0d-09f1-4903-bd13-112a759c1341",
+  "user": "jeff"
+}
+```
+
+## non-interactive session (T3002I)
+
+Emitted when a client executes a command on a server.
+
+```json
+{
+  "addr.local": "172.31.88.118:44688",
+  "addr.remote": "24.251.249.7:55934",
+  "cluster_name": "teleport.example.com",
+  "code": "T3002I",
+  "command": "hostname",
+  "ei": 1,
+  "event": "exec",
+  "exitCode": "0",
+  "login": "ubuntu",
+  "namespace": "default",
+  "server_hostname": "example",
+  "server_id": "476db29b-d6d2-41c4-939d-fa3c508c9104",
+  "sid": "fcb6a731-4123-4109-a4dc-042b9b1b3aae",
+  "time": "2023-07-04T23:32:06.838Z",
+  "uid": "70dbf7aa-b496-4438-ab12-622751eab872",
+  "user": "jeff"
+}
+```
+
+
+## session data (T2006I)
+
+Emitted when a session is updated.
+
+```json
+{
+  "addr.remote": "24.251.249.7:55934",
+  "cluster_name": "teleport.example.com",
+  "code": "T2006I",
+  "ei": 2147483646,
+  "event": "session.data",
+  "login": "ubuntu",
+  "namespace": "default",
+  "rx": 4734,
+  "server_id": "476db29b-d6d2-41c4-939d-fa3c508c9104",
+  "sid": "fcb6a731-4123-4109-a4dc-042b9b1b3aae",
+  "time": "2023-07-04T23:32:06.845Z",
+  "tx": 5624,
+  "uid": "1b19a414-2548-42ab-9265-44ebc73a0393",
+  "user": "jeff"
+}
+```
+
+## enhanced recording command (T4000I)
+
+Emitted when a command occurs.
+
+```json
+{
+  "argv": null,
+  "cgroup_id": 1342573,
+  "cluster_name": "tele1c",
+  "code": "T4000I",
+  "ei": 22,
+  "event": "session.command",
+  "login": "ubuntu",
+  "namespace": "default",
+  "path": "/usr/bin/nc",
+  "pid": 2418780,
+  "ppid": 2418741,
+  "program": "nc",
+  "return_code": 0,
+  "server_hostname": "example",
+  "server_id": "476db29b-d6d2-41c4-939d-fa3c508c9104",
+  "sid": "4f8589b1-be0e-41f1-a9d7-52b1aa15aa67",
+  "time": "2023-07-04T23:47:11.979Z",
+  "uid": "329403f0-058c-48b3-8e9b-f5fd6f446652",
+  "user": "steven"
+}
+```
+
+## enhanced recording network (T4002I)
+
+Emitted when a network connection occurs.
+
+```json
+{
+  "action": 0,
+  "cgroup_id": 1342573,
+  "cluster_name": "teleport.example.com",
+  "code": "T4002I",
+  "dst_addr": "142.251.16.99",
+  "dst_port": 443,
+  "ei": 56,
+  "event": "session.network",
+  "login": "ubuntu",
+  "namespace": "default",
+  "operation": 0,
+  "pid": 2419266,
+  "program": "curl",
+  "server_hostname": "example",
+  "server_id": "476db29b-d6d2-41c4-939d-fa3c508c9104",
+  "sid": "4f8589b1-be0e-41f1-a9d7-52b1aa15aa67",
+  "src_addr": "172.31.88.118",
+  "time": "2023-07-04T23:48:38.947Z",
+  "uid": "5d3e1647-1ec2-4c04-ad71-d31cd7bd86aa",
+  "user": "jeff",
+  "version": 4
+}
+```
+
+## sftp open (TS001I)
+
+Emitted when a SFTP event occurs including upload and download.
+
+```json
+{
+  "action": 1,
+  "addr.local": "172.31.88.118:44688",
+  "addr.remote": "127.0.0.1:59188",
+  "cluster_name": "teleport.example.com",
+  "code": "TS001I",
+  "ei": 0,
+  "event": "sftp",
+  "flags": 26,
+  "login": "ubuntu",
+  "namespace": "default",
+  "path": "/home/ubuntu/myfile.txt",
+  "server_hostname": "example",
+  "server_id": "476db29b-d6d2-41c4-939d-fa3c508c9104",
+  "sid": "",
+  "time": "2023-07-04T23:40:42.165660054Z",
+  "uid": "c7bf0027-d766-45df-9e71-6a477a3e8f5f",
+  "user": "jeff",
+  "working_directory": "/home/ubuntu"
+}
+```
+
+## sftp setstat (TS007I)
+
+Emitted when a file is set with particular attributes as part of a SFTP event.
+
+```json
+{
+  "action": 7,
+  "addr.local": "172.31.88.118:44688",
+  "addr.remote": "127.0.0.1:59188",
+  "attributes": {
+    "file_size": null,
+    "gid": null,
+    "permissions": 420,
+    "uid": null
+  },
+  "cluster_name": "teleport.example.com",
+  "code": "TS007I",
+  "ei": 0,
+  "event": "sftp",
+  "flags": 4,
+  "login": "ubuntu",
+  "namespace": "default",
+  "path": "/home/ubuntu/myfile.txt",
+  "server_hostname": "example",
+  "server_id": "476db29b-d6d2-41c4-939d-fa3c508c9104",
+  "sid": "",
+  "time": "2023-07-04T23:40:42.169496454Z",
+  "uid": "a7f52764-52e4-4e73-8ba6-2f2fd167c378",
+  "user": "jeff",
+  "working_directory": "/home/ubuntu"
+}
+```
+
+## session uploaded (T2005I)
+
+Emitted when a session is uploaded.
+
+```json
+{
+  "cluster_name": "teleport.example.com",
+  "code": "T2005I",
+  "ei": 2147483647,
+  "event": "session.upload",
+  "sid": "9f62f3b9-cb9f-4d94-b0d0-8b283da112be",
+  "time": "2023-07-02T18:39:40.855Z",
+  "uid": "5462308b-372f-4b90-bb23-6c8967e794f9",
+  "url": "s3://example/sessions/9f62f3b9-cb9f-4d94-b0d0-8b283da112be"
+}
+```

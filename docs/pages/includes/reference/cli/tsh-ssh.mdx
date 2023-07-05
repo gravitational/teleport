@@ -1,0 +1,51 @@
+### tsh ssh
+
+Run shell or execute a command on a remote SSH node:
+
+```code
+$ tsh ssh [<flags>] <[user@]host> [<command>...]
+```
+
+#### Arguments
+
+`<[user@]host> [<command>...]`
+
+- `user` The login identity to use on the remote host. If `[user]` is not specified the user defaults to `$USER` or can be set with `--user`. If the flag `--user` and positional argument `[user]` are specified the arg `[user]` takes precedence.
+- `host` The `nodename` of a cluster Node or a label specification like `env=aws` to run on all matching hosts.
+- `command` The command to execute on a remote host.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `-p, --port` | none | port | SSH port on a remote host |
+| `-A, --forward-agent` | none | none | Forward agent to target node like `ssh -A` |
+| `-L, --forward` | none | none | Forward localhost connections to remote server |
+| `-D, --dynamic-forward` | none | none | Forward localhost connections to remote server using SOCKS5 |
+| `-N, -no-remote-exec` | none | none | Don't execute remote command, useful for port forwarding |
+| `--local` | none | | Execute command on localhost after connecting to SSH node |
+| `-t, --tty` | `file` | | Allocate TTY |
+| `--cluster` | none | | Specify the cluster to connect |
+| `-o, --option` | `local` | | OpenSSH options in the format used in the configuration file |
+| `--enable-escape-sequences` | | | Enable support for SSH escape sequences. Type `~?` during an SSH session to list supported sequences. |
+| `--no-use-local-ssh-agent` | | | Do not load generated SSH certificates into the local ssh-agent (specified via `$SSH_AUTH_SOCK`). Useful when using `gpg-agent` or Yubikeys. You can also set the `TELEPORT_USE_LOCAL_SSH_AGENT` environment variable to `false` (default `true`) |
+| `-X, --x11-untrusted` | none | none | Requests untrusted (secure) X11 forwarding for this session. |
+| `-Y, --x11-trusted` | none | none | Requests trusted (insecure) X11 forwarding for this session. This can make your local machine vulnerable to attacks, use with caution. |
+| `--x11-untrusted-timeout` | 10m | duration | Sets a timeout for untrusted X11 forwarding, after which the client will reject any forwarding requests from the server. |
+
+#### Global flags
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost`.
+Run `tsh help <subcommand>` or see the [Global Flags section](../../../reference/cli.mdx#tsh-global-flags).
+
+#### Examples
+
+```code
+# Log in to node `grav-00` as OS User `root` with Teleport User `teleport`
+$ tsh ssh --proxy proxy.example.com --user teleport -d root@grav-00
+# `tsh ssh` takes the same arguments as OpenSSH client:
+$ tsh ssh -o ForwardAgent=yes root@grav-00
+$ tsh ssh -o AddKeysToAgent=yes root@grav-00
+# Run `hostname` on all nodes with the `env: aws` label
+$ tsh ssh root@env=aws hostname
+```

@@ -892,7 +892,29 @@
         {
           "title": "Access Controls",
           "slug": "/server-access/rbac/"
-        }
+        },
+        { 
+          "title": "Reference",
+          "slug": "/server-access/reference/",
+          "entries": [
+            {
+              "title": "Configuration",
+              "slug": "/server-access/reference/configuration/"
+            },
+            {
+              "title": "Audit Events",
+              "slug": "/server-access/reference/audit/"
+            },
+            {
+              "title": "Session Recording",
+              "slug": "/server-access/reference/sessions/"
+            },
+            {
+              "title": "CLI",
+              "slug": "/server-access/reference/cli/"
+            }
+          ]
+        } 
       ]
     },
     {

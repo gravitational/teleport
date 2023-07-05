@@ -1,0 +1,38 @@
+### tsh play
+
+Plays back a prior session:
+
+```code
+$ tsh play [<flags>] <session-id>
+```
+
+#### Arguments
+
+`<session-id>`
+
+- `session-id` The UUID of a past Teleport Session obtained by `teleport status` within
+  the session or from the Web UI.
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--cluster` | none | a cluster_name | Specify the cluster to connect |
+| `--format`  | `pty`  | json, pty | Format for playback |
+
+#### Global flags
+
+These flags are available for all commands `--login, --proxy, --user, --ttl, --identity, --cert-format, --insecure, --auth, --skip-version-check, --debug, --jumphost, --format`.
+Run `tsh help <subcommand>` or see the [Global Flags section](../../../reference/cli.mdx#tsh-global-flags).
+
+#### Examples
+
+```code
+$ tsh --proxy proxy.example.com play <session-id>
+
+# Playing back a session using pty format using a downloaded session recording.
+$ tsh play --format=pty 1fe153d1-ce8b-4ef4-9908-6539457ba4ad.tar
+
+# Playing back a session in json format using jq to filter on events
+$ tsh play --format=json ~/play/0c0b81ed-91a9-4a2a-8d7c-7495891a6ca0.tar | jq '.event
+```

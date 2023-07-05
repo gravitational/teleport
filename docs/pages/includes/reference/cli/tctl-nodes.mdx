@@ -1,0 +1,50 @@
+### tctl nodes add
+
+Generate a node invitation token:
+
+```code
+$ tctl nodes add [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--roles` | `node` | `proxy, auth, node, db, app` or `windowsdesktop` | Comma-separated list of roles for the new node to assume |
+| `--ttl` | 30m | relative duration like 5s, 2m, or 3h | Time to live for a generated token |
+| `--token` | none | **string** token value | A custom token to use, auto-generated if not provided. Should match token set with `teleport start --token` |
+
+#### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](../../../reference/cli.mdx#tctl-global-flags).
+
+#### Examples
+
+```code
+# Generates a token that can be used by a node to join the cluster, default ttl is 30 minutes
+$ tctl nodes add
+# Generates a token that can be used to add an SSH node to the cluster.
+# The node will run both the proxy service and the node (ssh) service.
+# This token can be used within an hour.
+$ tctl nodes add --roles=node,proxy --ttl=1h
+```
+
+### tctl nodes ls
+
+List all active SSH nodes within the cluster:
+
+```code
+$ tctl nodes ls [<flags>]
+```
+
+#### Flags
+
+| Name | Default Value(s) | Allowed Value(s) | Description |
+| - | - | - | - |
+| `--namespace` | none | **string** namespace | Namespace of the nodes |
+
+#### Global flags
+
+These flags are available for all commands `--debug, --config`. Run
+`tctl help <subcommand>` or see the [Global Flags section](../../../reference/cli.mdx#tctl-global-flags).

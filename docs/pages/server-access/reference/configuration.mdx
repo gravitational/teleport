@@ -1,0 +1,39 @@
+---
+title: Server Access Configuration Reference
+description: Configuration reference for Teleport server access.
+---
+
+`teleport.yaml` fields related to server access:
+
+```yaml
+# Main service responsible for server access.
+#
+(!docs/pages/includes/config-reference/ssh-service.yaml!)
+```
+
+## Deployment
+
+The Server Service can be deployed in two modes.
+
+### Direct mode
+
+<Admonition type="note">
+Direct mode is only available for self-hosted Teleport clusters.
+</Admonition>
+
+In *direct* mode, Server Services registers directly with the Teleport
+Auth Server, and listens for ssh connections from the Teleport Proxy. To
+enable direct mode, set `ssh_service.listen_addr` in
+`teleport.yaml`, and ensure that `teleport.auth_server` points directly at the
+Auth Server. Direct mode requires network connectivity from the Teleport Proxy
+to Server Service, and from Server Service to the Auth Server.
+
+### IoT mode (reverse tunnel)
+
+In *IoT mode*, Server Service only needs to be able to make an outbound
+connection to a Teleport Proxy. The Server Service establishes a
+reverse tunnel to the proxy, and both registration with the Auth Server and
+ssh sessions are performed over this tunnel. To enable this mode, ensure
+that `ssh_service.listen_addr` is *unset*, and point
+`teleport.proxy_server` at a Teleport Proxy.
+
