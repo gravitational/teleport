@@ -13,29 +13,18 @@ the stability of Teleport from a security perspective.
 
 ## Can Teleport be deployed in agentless mode?
 
-Yes.
+Yes. All Teleport services support agentless mode, where the service proxies
+traffic to an upstream infrastructure resource not available on `localhost`.
 
 With Teleport in agentless mode, you can easily control access to SSH servers,
-Kubernetes clusters, desktops, databases, and internal applications without running any
-additional software on your servers. Agentless mode supports session recordings
-and audit logs for deep understanding into user behavior.
+Kubernetes clusters, desktops, databases, and internal applications without
+running any additional software on your servers. Agentless mode supports session
+recordings and audit logs for deep understanding into user behavior.
 
-For capabilities such as kernel-level logging and user provisioning,
-we recommend Teleport as a drop in replacement for OpenSSH. Since Teleport
-replaces the OpenSSH agent while preserving OpenSSH's functionality, you get
-more functionality without a net addition of an agent on your system.
-
-Here are details about running each of Teleport's resource services in agentless
-mode. All resource services except for the Node/SSH Service act as proxies for
-client traffic:
-
-|Service|Supports agent mode|Supports agentless mode|Notes|
-|---|---|---|---|
-|[Application Service](./application-access/introduction.mdx)|&#10004;|&#10004;|Proxies HTTP requests to a user-configured list of applications, which can run on the same host as the `teleport` daemon or at a remote endpoint.|
-|[Database Service](./database-access/introduction.mdx)|&#10004;|&#10004;|Proxies database-specific protocol traffic to a user-configured list of databases, which can run on the same host as the `teleport` daemon or at a remote endpoint.|
-|[Kubernetes Service](./kubernetes-access/introduction.mdx)|&#10006;|&#10004;|Proxies client traffic to the API server of a registered Kubernetes cluster.|
-|[Node/SSH Service](./server-access/introduction.mdx)|&#10004;|&#10004;|You can configure OpenSSH clients and servers to trust Teleport's CA. See our [OpenSSH guide](./server-access/guides/openssh.mdx).<br/><br/>For full functionality, you can run the Node Service, which implements SSH, on each server in your infrastructure.|
-|[Windows Desktop Service](./desktop-access/introduction.mdx)|&#10006;|&#10004;|Proxies RDP traffic from client browsers to remote Windows servers.|
+For capabilities such as kernel-level logging and user provisioning, we
+recommend Teleport as a drop in replacement for OpenSSH. Since Teleport replaces
+the OpenSSH agent while preserving OpenSSH's functionality, you get more
+functionality without a net addition of an agent on your system.
 
 ## Can I use OpenSSH with a Teleport cluster?
 
