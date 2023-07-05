@@ -34,11 +34,13 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api"
 	"github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/accesslist"
 	"github.com/gravitational/teleport/api/client/okta"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
@@ -335,6 +337,14 @@ func (a *ServerWithRoles) SAMLIdPClient() samlidppb.SAMLIdPServiceClient {
 	return samlidppb.NewSAMLIdPServiceClient(
 		utils.NewGRPCDummyClientConnection("SAMLIdPClient() should not be called on ServerWithRoles"),
 	)
+}
+
+// AccessListClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) AccessListClient() services.AccessLists {
+	return accesslist.NewClient(accesslistv1.NewAccessListServiceClient(
+		utils.NewGRPCDummyClientConnection("AccessListClient() should not be called on ServerWithRoles")))
 }
 
 // integrationsService returns an Integrations Service.

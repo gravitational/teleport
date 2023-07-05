@@ -475,6 +475,10 @@ func (c *Client) OktaClient() services.Okta {
 	return c.APIClient.OktaClient()
 }
 
+func (c *Client) AccessListClient() services.AccessLists {
+	return c.APIClient.AccessListClient()
+}
+
 // WebService implements features used by Web UI clients
 type WebService interface {
 	// GetWebSessionInfo checks if a web session is valid, returns session id in case if
@@ -857,6 +861,12 @@ type ClientI interface {
 	// still get an Okta client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	OktaClient() services.Okta
+
+	// AccessListClient returns an access list client.
+	// Clients connecting to  older Teleport versions, still get an access list client
+	// when calling this method, but all RPCs will return "not implemented" errors
+	// (as per the default gRPC behavior).
+	AccessListClient() services.AccessLists
 
 	// CloneHTTPClient creates a new HTTP client with the same configuration.
 	CloneHTTPClient(params ...roundtrip.ClientParam) (*HTTPClient, error)
