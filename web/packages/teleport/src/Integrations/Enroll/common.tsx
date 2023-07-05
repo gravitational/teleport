@@ -19,11 +19,16 @@ import {Box, Flex, Link as ExternalLink, Text} from 'design';
 import styled from 'styled-components';
 import {
   AnsibleIcon,
-  AWSIcon, CircleCIIcon,
-  GitHubIcon, GitLabIcon, JenkinsIcon,
-  ServerIcon,
+  CircleCIIcon,
+  GitHubIcon,
+  GitLabIcon,
+  JenkinsIcon,
   ServersIcon
 } from "design/SVGIcon";
+import {
+  IntegrationEnrollEvent, IntegrationEnrollKind,
+  userEventService
+} from "teleport/services/userEvent";
 
 export const IntegrationTile = styled(Flex)`
   color: inherit;
@@ -70,41 +75,44 @@ export const MachineIDIntegrationSection = () => {
     title: string
     link: string
     icon: JSX.Element
+    kind: IntegrationEnrollKind
   }
   const tiles: tile[] = [
-    // TODO: Emit an event or pass these through a /r/ url to redirect to a
-    // URL with tracking.
-    // Can we emit events in OSS and have them go nowhere?? Is it best to use
-    // a /r/ url and have support on both Enterprise and OSS.
     {
       title: 'GitHub Actions',
       link: 'https://goteleport.com/docs/machine-id/guides/github-actions/',
       icon: <GitHubIcon size={80}/>,
+      kind: IntegrationEnrollKind.MachineIDGitHubActions,
     },
     {
       title: 'CircleCI',
       link: 'https://goteleport.com/docs/machine-id/guides/circleci/',
       icon: <CircleCIIcon size={80}/>,
+      kind: IntegrationEnrollKind.MachineIDCircleCI,
     },
     {
       title: 'GitLab CI',
       link: 'https://goteleport.com/docs/machine-id/guides/gitlab/',
       icon: <GitLabIcon size={80}/>,
+      kind: IntegrationEnrollKind.MachineIDGitLab,
     },
     {
       title: 'Jenkins',
       link: 'https://goteleport.com/docs/machine-id/guides/jenkins/',
       icon: <JenkinsIcon size={80}/>,
+      kind: IntegrationEnrollKind.MachineIDJenkins,
     },
     {
       title: 'Ansible',
       link: 'https://goteleport.com/docs/machine-id/guides/ansible/',
       icon: <AnsibleIcon size={80}/>,
+      kind: IntegrationEnrollKind.MachineIDAnsible,
     },
     {
       title: 'Generic',
       link: 'https://goteleport.com/docs/machine-id/getting-started/',
       icon: <ServersIcon size={80}/>,
+      kind: IntegrationEnrollKind.MachineID,
     }
   ]
 
@@ -113,6 +121,15 @@ export const MachineIDIntegrationSection = () => {
       as: ExternalLink,
       href: t.link,
       target: '_blank',
+      onClick: () => {
+        userEventService.captureIntegrationEnrollEvent({
+          event: IntegrationEnrollEvent.Started,
+          eventData: {
+            id: crypto.randomUUID(),
+            kind: t.kind,
+          },
+        });
+      },
     }
   }
 
