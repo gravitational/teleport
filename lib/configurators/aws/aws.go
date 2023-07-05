@@ -49,8 +49,8 @@ import (
 )
 
 const (
-	// DatabasePolicyName is the policy name for database access.
-	DatabasePolicyName = "DatabaseAccess"
+	// DatabaseAccessPolicyName is the policy name for database access.
+	DatabaseAccessPolicyName = "DatabaseAccess"
 	// databasePolicyDescription description used on the policy created.
 	databasePolicyDescription = "Used by Teleport database agents for discovering AWS-hosted databases."
 	// discoveryServicePolicyDescription description used on the policy created.
