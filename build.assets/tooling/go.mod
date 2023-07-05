@@ -15,7 +15,7 @@ require (
 	github.com/stretchr/testify v1.8.4
 	github.com/waigani/diffparser v0.0.0-20190828052634-7391f219313d
 	golang.org/x/exp v0.0.0-20230626212559-97b1e661b5df
-	golang.org/x/mod v0.11.0
+	golang.org/x/mod v0.12.0
 	golang.org/x/oauth2 v0.9.0
 	howett.net/plist v1.0.0
 )
