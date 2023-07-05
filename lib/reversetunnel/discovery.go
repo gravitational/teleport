@@ -70,8 +70,8 @@ func (r *discoveryRequest) SetProxies(proxies []types.Server) {
 	}
 }
 
-// ProxyNames returns the names of all proxies carried in the request
-func (r discoveryRequest) ProxyNames() []string {
+// ProxyNames returns the names of all proxies carried in the request.
+func (r *discoveryRequest) ProxyNames() []string {
 	names := make([]string, 0, len(r.Proxies))
 	for _, p := range r.Proxies {
 		names = append(names, p.Metadata.Name)
@@ -80,7 +80,9 @@ func (r discoveryRequest) ProxyNames() []string {
 	return names
 }
 
-func (r discoveryRequest) TrackProxies() []track.Proxy {
+// TrackProxies copies the list of proxies received in the request as a slice of
+// [track.Proxy].
+func (r *discoveryRequest) TrackProxies() []track.Proxy {
 	tp := make([]track.Proxy, 0, len(r.Proxies))
 	for _, p := range r.Proxies {
 		tp = append(tp, track.Proxy{
@@ -92,7 +94,7 @@ func (r discoveryRequest) TrackProxies() []track.Proxy {
 	return tp
 }
 
-func (r discoveryRequest) String() string {
+func (r *discoveryRequest) String() string {
 	var b strings.Builder
 	b.WriteRune('[')
 	for i, p := range r.Proxies {
