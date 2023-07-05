@@ -15,7 +15,7 @@
  */
 
 import React, { Suspense, useState, useEffect } from 'react';
-import { Box, ButtonSecondary, Label as Pill, Text } from 'design';
+import { Box, ButtonSecondary, Text } from 'design';
 import * as Icons from 'design/Icon';
 import Validation, { Validator } from 'shared/components/Validation';
 
@@ -38,25 +38,28 @@ import {
 } from 'teleport/Discover/Shared/HintBox';
 
 import { CommandBox } from 'teleport/Discover/Shared/CommandBox';
+import { DbMeta, useDiscover } from 'teleport/Discover/useDiscover';
+import { DatabaseLocation } from 'teleport/Discover/SelectResource';
+import { DiscoverEventStatus } from 'teleport/services/userEvent';
 
 import {
   ActionButtons,
+  AlternateInstructionButton,
   DiscoverLabel,
   Header,
   HeaderSubtitle,
-  LabelsCreater,
   Mark,
   ResourceKind,
   TextIcon,
   useShowHint,
-} from '../../Shared';
-import { matchLabels } from '../util';
+} from '../../../Shared';
+import { Labels, hasMatchingLabels } from '../../common';
+import { DeployServiceProp } from '../DeployService';
 
-import type { AgentStepProps } from '../../types';
-
-export default function Container(props: AgentStepProps) {
-  const hasDbLabels = props.agentMeta?.agentMatcherLabels?.length;
-  const dbLabels = hasDbLabels ? props.agentMeta.agentMatcherLabels : [];
+export default function Container({ toggleDeployMethod }: DeployServiceProp) {
+  const { agentMeta } = useDiscover();
+  const hasDbLabels = agentMeta?.agentMatcherLabels?.length;
+  const dbLabels = hasDbLabels ? agentMeta.agentMatcherLabels : [];
   const [labels, setLabels] = useState<DiscoverLabel[]>(
     // TODO(lisa): we will always be defaulting to asterisks, so
     // instead of defining the default here, define it inside
@@ -69,6 +72,8 @@ export default function Container(props: AgentStepProps) {
 
   const labelProps = { labels, setLabels, dbLabels };
 
+  const heading = <Heading toggleDeployMethod={toggleDeployMethod} />;
+
   return (
     <Validation>
       {({ validator }) => (
@@ -76,7 +81,7 @@ export default function Container(props: AgentStepProps) {
           onRetry={() => clearCachedJoinTokenResult(ResourceKind.Database)}
           fallbackFn={fbProps => (
             <Box>
-              <Heading />
+              {heading}
               <Labels {...labelProps} />
               <Box>
                 <TextIcon mt={3}>
@@ -91,20 +96,24 @@ export default function Container(props: AgentStepProps) {
           <Suspense
             fallback={
               <Box>
-                <Heading />
+                {heading}
                 <Labels {...labelProps} disableBtns={true} />
                 <ActionButtons onProceed={() => null} disableProceed={true} />
               </Box>
             }
           >
             {!showScript && (
-              <LoadedView {...labelProps} setShowScript={setShowScript} />
+              <LoadedView
+                {...labelProps}
+                setShowScript={setShowScript}
+                toggleDeployMethod={toggleDeployMethod}
+              />
             )}
             {showScript && (
-              <DownloadScript
-                {...props}
+              <ManualDeploy
                 {...labelProps}
                 validator={validator}
+                toggleDeployMethod={toggleDeployMethod}
               />
             )}
           </Suspense>
@@ -114,14 +123,15 @@ export default function Container(props: AgentStepProps) {
   );
 }
 
-export function DownloadScript(
-  props: AgentStepProps & {
-    labels: AgentLabel[];
-    setLabels(l: AgentLabel[]): void;
-    dbLabels: AgentLabel[];
-    validator: Validator;
-  }
-) {
+export function ManualDeploy(props: {
+  labels: AgentLabel[];
+  setLabels(l: AgentLabel[]): void;
+  dbLabels: AgentLabel[];
+  validator: Validator;
+  toggleDeployMethod(): void;
+}) {
+  const { agentMeta, updateAgentMeta, nextStep, emitEvent } = useDiscover();
+
   // Fetches join token.
   const { joinToken } = useJoinTokenSuspender(
     ResourceKind.Database,
@@ -129,19 +139,24 @@ export function DownloadScript(
   );
 
   // Starts resource querying interval.
-  const { active, result } = usePingTeleport<Database>(
-    props.agentMeta.resourceName
-  );
+  const { active, result } = usePingTeleport<Database>(agentMeta.resourceName);
 
   const showHint = useShowHint(active);
 
   function handleNextStep() {
-    props.updateAgentMeta({
-      ...props.agentMeta,
+    updateAgentMeta({
+      ...agentMeta,
       resourceName: result.name,
       db: result,
+      serviceDeployedMethod: 'manual',
     });
-    props.nextStep();
+    nextStep();
+
+    emitEvent(
+      { stepStatus: DiscoverEventStatus.Success }
+      // TODO(lisa) uncomment after backend handles this field
+      // { deployMethod: 'manual' }
+    );
   }
 
   let hint;
@@ -193,12 +208,13 @@ export function DownloadScript(
 
   return (
     <Box>
-      <Heading />
+      <Heading toggleDeployMethod={props.toggleDeployMethod} />
       <Labels
         labels={props.labels}
         setLabels={props.setLabels}
         disableBtns={true}
         dbLabels={props.dbLabels}
+        region={(agentMeta as DbMeta).selectedAwsRdsDb?.region}
       />
       <Box mt={6}>
         <CommandBox>
@@ -216,87 +232,26 @@ export function DownloadScript(
   );
 }
 
-const Heading = () => {
+const Heading = ({ toggleDeployMethod }: { toggleDeployMethod(): void }) => {
+  const { resourceSpec } = useDiscover();
+  const isAwsRds = resourceSpec.dbMeta?.location === DatabaseLocation.Aws;
+  const canChangeDeployMethod = isAwsRds && toggleDeployMethod;
+
   return (
     <>
-      <Header>Deploy a Database Service</Header>
+      <Header>Manually Deploy a Database Service</Header>
       <HeaderSubtitle>
         On the host where you will run the Teleport Database Service, execute
         the generated command that will install and start Teleport with the
         appropriate configuration.
+        {canChangeDeployMethod && (
+          <>
+            <br /> Want us to deploy the database service for you?{' '}
+            <AlternateInstructionButton onClick={toggleDeployMethod} />
+          </>
+        )}
       </HeaderSubtitle>
     </>
-  );
-};
-
-export const Labels = ({
-  labels,
-  setLabels,
-  disableBtns = false,
-  dbLabels,
-  showLabelMatchErr = false,
-}: {
-  labels: AgentLabel[];
-  setLabels(l: AgentLabel[]): void;
-  disableBtns?: boolean;
-  dbLabels: AgentLabel[];
-  showLabelMatchErr?: boolean;
-}) => {
-  const hasDbLabels = dbLabels.length > 0;
-  return (
-    <Box mb={2}>
-      <Text bold>Optionally Define Matcher Labels</Text>
-      <Text typography="subtitle1" mb={2}>
-        {!hasDbLabels && (
-          <>
-            Since no labels were defined for the registered database from the
-            previous step, the matcher labels are defaulted to wildcards which
-            will allow this database service to match any database.
-          </>
-        )}
-        {hasDbLabels && (
-          <>
-            Default wildcards label allows this database service to match any
-            database.
-            <br />
-            You can define your own labels that this database service will use
-            to identify your registered database. The labels you define must
-            match the labels that were defined for the registered database (from
-            previous step):
-          </>
-        )}
-      </Text>
-      {hasDbLabels && (
-        <Box mb={3}>
-          {dbLabels.map((label, index) => {
-            const labelText = `${label.name}: ${label.value}`;
-            return (
-              <Pill
-                key={`${label.name}${label.value}${index}`}
-                mr="1"
-                kind="secondary"
-              >
-                {labelText}
-              </Pill>
-            );
-          })}
-        </Box>
-      )}
-      <LabelsCreater
-        labels={labels}
-        setLabels={setLabels}
-        disableBtns={disableBtns || dbLabels.length === 0}
-      />
-      <Box mt={1} mb={3}>
-        {showLabelMatchErr && (
-          <TextIcon>
-            <Icons.Warning ml={1} color="error.main" />
-            The matcher labels must be able to match with the labels defined for
-            the registered database. Use wildcards to match with any labels.
-          </TextIcon>
-        )}
-      </Box>
-    </Box>
   );
 };
 
@@ -304,35 +259,13 @@ function createBashCommand(tokenId: string) {
   return `sudo bash -c "$(curl -fsSL ${cfg.getDbScriptUrl(tokenId)})"`;
 }
 
-// hasMatchingLabels will go through each 'agentLabels' and find matches from
-// 'dbLabels'. The 'agentLabels' must have same amount of matching labels
-// with 'dbLabels' either with asteriks (match all) or by exact match.
-//
-// `agentLabels` have OR comparison eg:
-//  - If agent labels was defined like this [`fruit: apple`, `fruit: banana`]
-//    it's translated as `fruit: [apple OR banana]`.
-//
-// asterisks can be used for keys, values, or both key and value eg:
-//  - `fruit: *` match by key `fruit` with any value
-//  - `*: apple` match by value `apple` with any key
-//  - `*: *` match by any key and any value
-export function hasMatchingLabels(
-  dbLabels: AgentLabel[],
-  agentLabels: AgentLabel[]
-) {
-  // Convert agentLabels into a map of key of value arrays.
-  const matcherLabels: Record<string, string[]> = {};
-  agentLabels.forEach(l => {
-    if (!matcherLabels[l.name]) {
-      matcherLabels[l.name] = [];
-    }
-    matcherLabels[l.name] = [...matcherLabels[l.name], l.value];
-  });
-
-  return matchLabels(dbLabels, matcherLabels);
-}
-
-function LoadedView({ labels, setLabels, dbLabels, setShowScript }) {
+function LoadedView({
+  labels,
+  setLabels,
+  dbLabels,
+  setShowScript,
+  toggleDeployMethod,
+}) {
   const [showLabelMatchErr, setShowLabelMatchErr] = useState(true);
 
   useEffect(() => {
@@ -354,7 +287,7 @@ function LoadedView({ labels, setLabels, dbLabels, setShowScript }) {
 
   return (
     <Box>
-      <Heading />
+      <Heading toggleDeployMethod={toggleDeployMethod} />
       <Labels
         labels={labels}
         setLabels={setLabels}

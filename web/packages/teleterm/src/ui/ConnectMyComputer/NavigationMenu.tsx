@@ -14,46 +14,69 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Popover from 'design/Popover';
 import styled from 'styled-components';
 import { Box } from 'design';
 
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import { ListItem } from 'teleterm/ui/components/ListItem';
+import { ClusterUri } from 'teleterm/ui/uri';
 
-import { ConnectMyComputerIcon } from './ConnectMyComputerIcon';
+import { NavigationMenuIcon } from './NavigationMenuIcon';
+import { canUseConnectMyComputer } from './permissions';
 
-export function ConnectMyComputer() {
+interface NavigationMenuProps {
+  clusterUri: ClusterUri;
+}
+
+export function NavigationMenu(props: NavigationMenuProps) {
   const iconRef = useRef();
   const [isPopoverOpened, setIsPopoverOpened] = useState(false);
   const appCtx = useAppContext();
+  // DocumentCluster renders this component only if the cluster exists.
+  const cluster = appCtx.clustersService.findCluster(props.clusterUri);
 
-  const togglePopover = useCallback(() => {
+  if (cluster.leaf) {
+    return null;
+  }
+
+  const rootCluster = cluster;
+
+  function togglePopover() {
     setIsPopoverOpened(wasOpened => !wasOpened);
-  }, []);
+  }
 
   function openSetupDocument(): void {
     const documentService =
-      appCtx.workspacesService.getActiveWorkspaceDocumentService();
-    const rootClusterUri = appCtx.workspacesService.getRootClusterUri();
+      appCtx.workspacesService.getWorkspaceDocumentService(rootCluster.uri);
     const document = documentService.createConnectMyComputerSetupDocument({
-      rootClusterUri,
+      rootClusterUri: rootCluster.uri,
     });
     documentService.add(document);
     documentService.open(document.uri);
     setIsPopoverOpened(false);
   }
 
+  if (
+    !canUseConnectMyComputer(
+      rootCluster,
+      appCtx.configService,
+      appCtx.mainProcessClient.getRuntimeSettings()
+    )
+  ) {
+    return null;
+  }
+
   return (
     <>
-      <ConnectMyComputerIcon onClick={togglePopover} ref={iconRef} />
+      <NavigationMenuIcon onClick={togglePopover} ref={iconRef} />
       <Popover
         open={isPopoverOpened}
         anchorEl={iconRef.current}
         anchorOrigin={{
           vertical: 'bottom',
-          horizontal: 'left',
+          horizontal: 'right',
         }}
         onClose={() => setIsPopoverOpened(false)}
       >

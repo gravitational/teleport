@@ -19,13 +19,13 @@ import styled from 'styled-components';
 import { Wand } from 'design/Icon';
 import { Button } from 'design';
 
-interface ConnectMyComputerIconProps {
+interface NavigationMenuIconProps {
   onClick(): void;
 }
 
-export const ConnectMyComputerIcon = forwardRef<
+export const NavigationMenuIcon = forwardRef<
   HTMLDivElement,
-  ConnectMyComputerIconProps
+  NavigationMenuIconProps
 >((props, ref) => {
   return (
     <StyledButton
@@ -33,7 +33,6 @@ export const ConnectMyComputerIcon = forwardRef<
       onClick={props.onClick}
       kind="secondary"
       size="small"
-      m="auto"
       title="Open Connect My Computer"
     >
       <Wand fontSize={16} />

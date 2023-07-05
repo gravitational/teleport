@@ -229,7 +229,7 @@ func (e *EmbeddingProcessor) Run(ctx context.Context, initialDelay, period time.
 }
 
 func (e *EmbeddingProcessor) process(ctx context.Context) {
-	batch := NewBatchReducer[*nodeStringPair, []*Embedding](e.mapProcessFn,
+	batch := NewBatchReducer(e.mapProcessFn,
 		maxEmbeddingAPISize, // Max batch size allowed by OpenAI API,
 	)
 

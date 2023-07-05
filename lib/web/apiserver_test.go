@@ -1876,7 +1876,7 @@ func TestTerminalNameResolution(t *testing.T) {
 	}
 }
 
-func TestTerminalRequireSessionMfa(t *testing.T) {
+func TestTerminalRequireSessionMFA(t *testing.T) {
 	ctx := context.Background()
 	env := newWebPack(t, 1)
 	proxy := env.proxies[0]
@@ -7460,10 +7460,18 @@ func newWebPack(t *testing.T, numProxies int, opts ...proxyOption) *webPack {
 			ClusterName: "localhost",
 			Dir:         t.TempDir(),
 			Clock:       clock,
+			AuditLog:    events.NewDiscardAuditLog(),
 		},
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() { require.NoError(t, server.Shutdown(ctx)) })
+
+	// use a sync recording mode because the disk-based uploader
+	// that runs in the background introduces races with test cleanup
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordAtNodeSync)
+	err = server.AuthServer.AuthServer.SetSessionRecordingConfig(context.Background(), recConfig)
+	require.NoError(t, err)
 
 	// Register the auth server, since test auth server doesn't start its own
 	// heartbeat.
