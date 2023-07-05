@@ -11,7 +11,7 @@
 #   Stable releases:   "1.0.0"
 #   Pre-releases:      "1.0.0-alpha.1", "1.0.0-beta.2", "1.0.0-rc.3"
 #   Master/dev branch: "1.0.0-dev"
-VERSION=14.0.0-dev.marco.5
+VERSION=14.0.0-dev.marco.6
 
 DOCKER_IMAGE ?= teleport
 
@@ -559,6 +559,7 @@ release-windows: release-windows-unsigned
 
 	@echo "---> Signing Windows binary."
 	@osslsigncode sign \
+		-legacy \
 		-pkcs12 "windows-signing-cert.pfx" \
 		-n "Teleport" \
 		-i https://goteleport.com \
