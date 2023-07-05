@@ -13,7 +13,7 @@ require (
 	github.com/sigstore/sigstore v1.7.1
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/exp v0.0.0-20230321023759-10a507213a29
-	golang.org/x/mod v0.11.0
+	golang.org/x/mod v0.12.0
 	k8s.io/api v0.27.3
 	k8s.io/apimachinery v0.27.3
 	sigs.k8s.io/controller-runtime v0.15.0
