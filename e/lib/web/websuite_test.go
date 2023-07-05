@@ -34,7 +34,7 @@ import (
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/plugin"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -62,12 +62,12 @@ func (*stubProxySettings) GetProxySettings(ctx context.Context) (*webclient.Prox
 	return &webclient.ProxySettings{}, nil
 }
 
-// stubTunnel stubs out the reversetunnel.Server for the web.Handler. None of
-// tests here require the reversetunnel server so we use a stubbed implementation.
+// stubTunnel stubs out the reversetunnelclient.Server for the web.Handler. None of
+// tests here require the reversetunnelclient server so we use a stubbed implementation.
 type stubTunnel struct{}
 
-func (*stubTunnel) GetSites() ([]reversetunnel.RemoteSite, error)      { return nil, nil }
-func (*stubTunnel) GetSite(n string) (reversetunnel.RemoteSite, error) { return nil, nil }
+func (*stubTunnel) GetSites() ([]reversetunnelclient.RemoteSite, error)      { return nil, nil }
+func (*stubTunnel) GetSite(n string) (reversetunnelclient.RemoteSite, error) { return nil, nil }
 
 func newWebSuite(t *testing.T) *webSuite {
 	u, err := user.Current()
