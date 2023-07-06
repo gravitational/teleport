@@ -101,7 +101,7 @@ Loop:
 		select {
 		case <-ticker.C:
 			if p, ok := s.GetRandProxy(); ok {
-				tracker.TrackExpected("", Proxy{Name: p.principals[0]})
+				tracker.TrackExpected(Proxy{Name: p.principals[0]})
 			}
 		case <-timeout:
 			break Loop
@@ -262,7 +262,7 @@ func TestUUIDHandling(t *testing.T) {
 	require.True(t, lease.Claim("my-proxy.test-cluster"))
 	require.Equal(t, "my-proxy", lease.claimName)
 
-	tracker.TrackExpected("", Proxy{Name: "my-proxy"})
+	tracker.TrackExpected(Proxy{Name: "my-proxy"})
 
 	select {
 	case <-tracker.Acquire():
@@ -278,7 +278,7 @@ func TestIsClaimed(t *testing.T) {
 	tracker, err := New(ctx, Config{ClusterName: "test-cluster"})
 	require.NoError(t, err)
 
-	tracker.TrackExpected("", Proxy{Name: "proxy1"}, Proxy{Name: "proxy2"})
+	tracker.TrackExpected(Proxy{Name: "proxy1"}, Proxy{Name: "proxy2"})
 	require.False(t, tracker.IsClaimed("proxy1.test-cluster"))
 
 	lease := <-tracker.Acquire()
@@ -312,7 +312,7 @@ func TestProxyGroups(t *testing.T) {
 
 	tracker.SetConnectionCount(2)
 
-	tracker.TrackExpected("",
+	tracker.TrackExpected(
 		Proxy{Name: "xa", Group: "x", Generation: 1},
 		Proxy{Name: "xb", Group: "x", Generation: 1},
 		Proxy{Name: "yc", Group: "y", Generation: 1},
@@ -335,7 +335,7 @@ func TestProxyGroups(t *testing.T) {
 
 	noAcquire()
 
-	tracker.TrackExpected("",
+	tracker.TrackExpected(
 		Proxy{Name: "xe", Group: "x", Generation: 2},
 		Proxy{Name: "xf", Group: "x", Generation: 2},
 	)
@@ -365,22 +365,5 @@ func TestProxyGroups(t *testing.T) {
 
 	// whereas releasing a proxy from a current generation does
 	yc.Release()
-	<-tracker.Acquire()
-
-	// if the new generation of proxies disappears, the old generation becomes
-	// desired again
-	tracker.TrackExpected("a",
-		Proxy{Name: "xa", Group: "x", Generation: 1},
-		Proxy{Name: "xb", Group: "x", Generation: 1},
-		Proxy{Name: "yc", Group: "y", Generation: 1},
-		Proxy{Name: "yd", Group: "y", Generation: 1},
-	)
-	tracker.TrackExpected("b",
-		Proxy{Name: "xa", Group: "x", Generation: 1},
-		Proxy{Name: "xb", Group: "x", Generation: 1},
-		Proxy{Name: "yc", Group: "y", Generation: 1},
-		Proxy{Name: "yd", Group: "y", Generation: 1},
-	)
-
 	<-tracker.Acquire()
 }
