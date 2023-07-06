@@ -5306,7 +5306,8 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 		for _, element := range cfg.Proxy.PublicAddrs {
 			proxyHost, _, err := net.SplitHostPort(element.String())
 			if err != nil {
-				return trace.Wrap(err)
+        // ignore error since this is a nice to have
+        continue
 			}
 
 			if net.ParseIP(proxyHost) == nil {
