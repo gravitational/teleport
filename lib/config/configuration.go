@@ -1766,7 +1766,7 @@ func applyWindowsDesktopConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	var hlrs []servicecfg.HostLabelRule
-	{
+	for _, rule := range fc.WindowsDesktop.HostLabels {
 		r, err := regexp.Compile(rule.Match)
 		if err != nil {
 			return trace.BadParameter("WindowsDesktopService specifies invalid regexp %q", rule.Match)
