@@ -116,7 +116,7 @@ The table below documents the behavior of each option if multiple roles are assi
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. **Note:** IP pinning is currently in Preview mode | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
-| `create_host_user_mode` | Available in Teleport 13.2+ (ealier versions use the deprecated `create_host_user` boolean option, equavalent to `drop`) . Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `drop`, `keep`), it will evaluate to the option specified by all of the roles. If some roles specify both `drop` or `keep` it will evaluate to `keep`|
+| `create_host_user_mode` | Available in Teleport 13.2+ (earlier versions use the deprecated `create_host_user` boolean option, equivalent to `drop`) . Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `drop`, `keep`), it will evaluate to the option specified by all of the roles. If some roles specify both `drop` or `keep` it will evaluate to `keep`|
 
 ## Preset roles
 
