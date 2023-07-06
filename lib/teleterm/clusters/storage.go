@@ -209,9 +209,12 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 	// load profile status if key exists
 	_, err = clusterClient.LocalAgent().GetKey(clusterNameForKey)
 	if err != nil {
-		s.Log.WithError(err).Infof("Unable to load the keys for cluster %v.", clusterNameForKey)
+		if trace.IsNotFound(err) {
+			s.Log.Infof("No keys found for cluster %v.", clusterNameForKey)
+		} else {
+			return nil, trace.Wrap(err)
+		}
 	}
-
 	if err == nil && cfg.Username != "" {
 		status, err = client.ReadProfileStatus(s.Dir, profileName)
 		if err != nil {
@@ -224,9 +227,6 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 				return nil, trace.Wrap(err)
 			}
 		}
-	}
-	if err != nil && !trace.IsNotFound(err) {
-		return nil, trace.Wrap(err)
 	}
 
 	return &Cluster{
