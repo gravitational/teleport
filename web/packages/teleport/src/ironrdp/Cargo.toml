@@ -12,9 +12,9 @@ crate-type = ["cdylib"]
 bytes = "1.4.0"
 byteorder = "1.4.3"
 getrandom = { version = "0.2", features = ["js"] }
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
-ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP/", rev = "b19e71b82d53521e5adf9c5c083580a71c182a6d" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP/", rev = "b19e71b82d53521e5adf9c5c083580a71c182a6d" }
+ironrdp-graphics = { git = "https://github.com/Devolutions/IronRDP/", rev = "b19e71b82d53521e5adf9c5c083580a71c182a6d" }
 js-sys = "0.3.61"
 log = "0.4.17"
 console_log = "0.2.2"

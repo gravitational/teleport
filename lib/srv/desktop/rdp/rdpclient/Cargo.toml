@@ -26,18 +26,18 @@ utf16string = "0.2.0"
 png = "0.17.9"
 
 bytes = "1"
-futures-util = "0.3"
-tokio = { version = "1", features = ["full"]}
-tokio-util = { version = "0.7.4", features = ["compat"] }
-tokio-rustls =  { version = "0.23", features = ["dangerous_configuration"] }
 x509-parser = "0.14"
 sspi = { version = "0.8.1", features = ["network_client"] }
+native-tls = "0.2.11"
+x509-cert = "0.2.3"
 
-ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
-ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
-ironrdp-session = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
-ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
-ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP/", rev = "4844e77b7f65024d85ba74b1824013eda6eb32b2" }
+ironrdp-connector = { git = "https://github.com/Devolutions/IronRDP/", rev = "b19e71b82d53521e5adf9c5c083580a71c182a6d" }
+ironrdp-tls = { git = "https://github.com/Devolutions/IronRDP/", rev = "b19e71b82d53521e5adf9c5c083580a71c182a6d" }
+ironrdp-session = { git = "https://github.com/Devolutions/IronRDP/", rev = "b19e71b82d53521e5adf9c5c083580a71c182a6d" }
+ironrdp-pdu = { git = "https://github.com/Devolutions/IronRDP/", rev = "b19e71b82d53521e5adf9c5c083580a71c182a6d" }
+ironrdp-blocking = { git = "https://github.com/Devolutions/IronRDP/", rev = "b19e71b82d53521e5adf9c5c083580a71c182a6d" }
+
+ironrdp-tokio = { git = "https://github.com/Devolutions/IronRDP/", rev = "b19e71b82d53521e5adf9c5c083580a71c182a6d" }
 
 [build-dependencies]
 cbindgen = "0.24.5"
