@@ -842,7 +842,7 @@
               "slug": "/server-access/guides/ssh-pam/"
             },
             {
-              "title": "OpenSSH Guide",
+              "title": "Agentless OpenSSH Integration",
               "slug": "/server-access/guides/openssh/"
             },
             {
