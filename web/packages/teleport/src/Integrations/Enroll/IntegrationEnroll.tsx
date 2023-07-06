@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import { Box, Flex } from 'design';
+import { Flex } from 'design';
 
 import {
   FeatureBox,

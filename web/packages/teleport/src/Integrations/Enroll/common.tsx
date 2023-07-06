@@ -17,6 +17,7 @@
 import React from 'react';
 import { Box, Flex, Link as ExternalLink, Text } from 'design';
 import styled from 'styled-components';
+
 import {
   AnsibleIcon,
   CircleCIIcon,
@@ -25,6 +26,7 @@ import {
   JenkinsIcon,
   ServersIcon,
 } from 'design/SVGIcon';
+
 import {
   IntegrationEnrollEvent,
   IntegrationEnrollKind,
@@ -148,14 +150,12 @@ export const MachineIDIntegrationSection = () => {
       <Flex mb={2} gap={3}>
         {tiles.map((t: tile) => {
           return (
-            <>
-              <IntegrationTile {...propsForTile(t)}>
-                <Box mt={3} mb={2}>
-                  {t.icon}
-                </Box>
-                <Text>{t.title}</Text>
-              </IntegrationTile>
-            </>
+            <IntegrationTile {...propsForTile(t)}>
+              <Box mt={3} mb={2}>
+                {t.icon}
+              </Box>
+              <Text>{t.title}</Text>
+            </IntegrationTile>
           );
         })}
       </Flex>
