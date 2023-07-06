@@ -5299,7 +5299,20 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 	}
 	cfg.Log.Warningf("Generating self-signed key and cert to %v %v.", keyPath, certPath)
 
-	creds, err := cert.GenerateSelfSignedCert([]string{cfg.Hostname, "localhost"})
+	var hosts = []string{cfg.Hostname, "localhost"}
+
+	// add web public address hosts to self-signed cert
+	if len(cfg.Proxy.PublicAddrs) > 0 {
+		for _, element := range cfg.Proxy.PublicAddrs {
+			proxyHost, _, err := net.SplitHostPort(element.String())
+			if err != nil {
+				return trace.Wrap(err)
+			}
+			hosts = append(hosts, proxyHost)
+		}
+	}
+
+	creds, err := cert.GenerateSelfSignedCert(hosts)
 	if err != nil {
 		return trace.Wrap(err)
 	}
