@@ -60,7 +60,7 @@ export function instantiateTelemetry() {
     new BatchSpanProcessor(
       new OTLPTraceExporter({
         timeoutMillis: 15000,
-        url: `${window.location.origin}/v1/webapi/traces`,
+        url: `${window.location.origin}/webapi/traces`,
         concurrencyLimit: 10, // an optional limit on pending requests
       })
     )

@@ -115,7 +115,7 @@ users within your SSO solution to Teleport roles.
       # This name will be shown on UI login screen
       display: GitHub
       # Change tele.example.com to your domain name
-      redirect_url: https://tele.example.com:443/v1/webapi/github/callback
+      redirect_url: https://tele.example.com:443/webapi/github/callback
       # Map github teams to teleport roles
       teams_to_roles:
         - organization: octocats # GitHub organization name
@@ -153,7 +153,7 @@ users within your SSO solution to Teleport roles.
   metadata:
     name: okta
   spec:
-    acs: https://tele.example.com/v1/webapi/saml/acs
+    acs: https://tele.example.com/webapi/saml/acs
     attributes_to_roles:
     - {name: "groups", value: "okta-admin", roles: ["access"]}
     entity_descriptor: |

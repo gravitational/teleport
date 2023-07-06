@@ -3,14 +3,14 @@ metadata:
   name: google
 spec:
   claims_to_roles:
-  - claim: groups
-    roles:
-    - auditor
-    value: auditor@google-workspace-group-email.com
-  - claim: groups
-    roles:
-    - access
-    value: teleport-developers@example.com
+    - claim: groups
+      roles:
+        - auditor
+      value: auditor@google-workspace-group-email.com
+    - claim: groups
+      roles:
+        - access
+      value: teleport-developers@example.com
   client_id: <GOOGLE-WORKSPACE-CLIENT-ID>.apps.googleusercontent.com
   client_secret: <OAUTH-CLIENT-SECRET>
   display: Google
@@ -29,8 +29,8 @@ spec:
      "client_x509_cert_url": "https://www.googleapis.com/robot/v1/metadata/x509/teleport-service-account%40access-304316.iam.gserviceaccount.com"
     }
   issuer_url: https://accounts.google.com
-  redirect_url: https://<SELF-HOSTED-CLUSTER-URL|TENANT-ID.teleport.sh>/v1/webapi/oidc/callback
+  redirect_url: https://<SELF-HOSTED-CLUSTER-URL|TENANT-ID.teleport.sh>/webapi/oidc/callback
   scope:
-  - openid
-  - email
+    - openid
+    - email
 version: v3

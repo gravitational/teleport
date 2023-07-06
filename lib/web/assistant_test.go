@@ -283,7 +283,7 @@ func (s *WebSuite) makeAssistant(t *testing.T, pack *authPack, conversationID st
 	u := url.URL{
 		Host:   s.url().Host,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/sites/%s/assistant", currentSiteShortcut),
+		Path:   fmt.Sprintf("/webapi/sites/%s/assistant", currentSiteShortcut),
 	}
 
 	q := u.Query()

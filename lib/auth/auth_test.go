@@ -994,7 +994,7 @@ func TestOIDCConnectorCRUDEventsEmitted(t *testing.T) {
 				Roles: []string{"dummy"},
 			},
 		},
-		RedirectURLs: []string{"https://proxy.example.com/v1/webapi/oidc/callback"},
+		RedirectURLs: []string{"https://proxy.example.com/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
 	err = s.a.UpsertOIDCConnector(ctx, oidc)

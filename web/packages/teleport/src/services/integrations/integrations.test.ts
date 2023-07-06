@@ -173,7 +173,7 @@ describe('fetchAwsDatabases() request body formatting', () => {
       });
 
       expect(api.post).toHaveBeenCalledWith(
-        `/v1/webapi/sites/localhost/integrations/aws-oidc/${protocol}/databases`,
+        `/webapi/sites/localhost/integrations/aws-oidc/${protocol}/databases`,
         {
           rdsType: expectedRdsType,
           engines: expectedEngines,

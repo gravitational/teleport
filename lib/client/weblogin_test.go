@@ -36,7 +36,7 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 )
 
-// TestHostCredentialsHttpFallback tests that HostCredentials requests (/v1/webapi/host/credentials/)
+// TestHostCredentialsHttpFallback tests that HostCredentials requests (/webapi/host/credentials/)
 // fall back to HTTP only if the address is a loopback and the insecure mode was set.
 func TestHostCredentialsHttpFallback(t *testing.T) {
 	testCases := []struct {
@@ -69,7 +69,7 @@ func TestHostCredentialsHttpFallback(t *testing.T) {
 		// Start an http server (not https) so that the request only succeeds
 		// if the fallback occurs.
 		var handler http.HandlerFunc = func(w http.ResponseWriter, r *http.Request) {
-			if r.RequestURI != "/v1/webapi/host/credentials" {
+			if r.RequestURI != "/webapi/host/credentials" {
 				w.WriteHeader(http.StatusNotFound)
 				return
 			}

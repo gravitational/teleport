@@ -76,8 +76,8 @@ Provide the following values to their respective fields:
 
 #### General
 
-- Single sign on URL: `https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`
-- Audience URI (SP Entity ID): <nobr>`https://<cluster-url>:<port>/v1/webapi/saml/acs/okta`</nobr>
+- Single sign on URL: `https://<cluster-url>:<port>/webapi/saml/acs/okta`
+- Audience URI (SP Entity ID): <nobr>`https://<cluster-url>:<port>/webapi/saml/acs/okta`</nobr>
 - Name ID format `EmailAddress`
 - Application username `Okta username`
 
@@ -164,7 +164,7 @@ kind: saml
 metadata:
   name: okta
 spec:
-  acs: https://teleport.example.com:443/v1/webapi/saml/acs/okta
+  acs: https://teleport.example.com:443/webapi/saml/acs/okta
   attributes_to_roles:
   - name: groups
     roles:
@@ -174,13 +174,13 @@ spec:
     roles:
     - access
     value: okta-dev
-  audience: https://teleport.example.com:443/v1/webapi/saml/acs/okta
+  audience: https://teleport.example.com:443/webapi/saml/acs/okta
   cert: ""
   display: "Okta"
   entity_descriptor: ""
   entity_descriptor_url: https://example.okta.com/app/000000/sso/saml/metadata
   issuer: ""
-  service_provider_issuer: https://teleport.example.com:443/v1/webapi/saml/acs/okta
+  service_provider_issuer: https://teleport.example.com:443/webapi/saml/acs/okta
   sso: ""
 version: v2
 ```

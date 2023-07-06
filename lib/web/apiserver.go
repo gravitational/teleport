@@ -306,7 +306,6 @@ func (h *APIHandler) Close() error {
 
 // NewHandler returns a new instance of web proxy handler
 func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
-	const apiPrefix = "/" + teleport.WebAPIVersion
 	cfg.ProxyClient = auth.WithGithubConnectorConversions(cfg.ProxyClient)
 	h := &Handler{
 		cfg:                  cfg,
@@ -428,12 +427,6 @@ func NewHandler(cfg Config, opts ...HandlerOption) (*APIHandler, error) {
 	routingHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// ensure security headers are set for all responses
 		httplib.SetDefaultSecurityHeaders(w.Header())
-
-		// request is going to the API?
-		if strings.HasPrefix(r.URL.Path, apiPrefix) {
-			http.StripPrefix(apiPrefix, h).ServeHTTP(w, r)
-			return
-		}
 
 		// request is going to the web UI
 		if cfg.StaticFS == nil {
@@ -1901,7 +1894,7 @@ func newSessionResponse(sctx *SessionContext) (*CreateSessionResponse, error) {
 
 // createWebSession creates a new web session based on user, pass and 2nd factor token
 //
-// POST /v1/webapi/sessions/web
+// POST /webapi/sessions/web
 //
 // {"user": "alex", "pass": "abc123", "second_factor_token": "token", "second_factor_type": "totp"}
 //
@@ -1990,7 +1983,7 @@ func clientMetaFromReq(r *http.Request) *auth.ForwardedClientMetadata {
 
 // deleteWebSession is called to sign out user
 //
-// DELETE /v1/webapi/sessions/:sid
+// DELETE /webapi/sessions/:sid
 //
 // Response:
 //
@@ -2370,7 +2363,7 @@ func (h *Handler) mfaLoginFinishSession(w http.ResponseWriter, r *http.Request, 
 
 // getClusters returns a list of cluster and its data.
 //
-// GET /v1/webapi/sites
+// GET /webapi/sites
 //
 // Successful response:
 //
@@ -2412,7 +2405,7 @@ type getSiteNamespacesResponse struct {
 
 // getSiteNamespaces returns a list of namespaces for a given site
 //
-// GET /v1/webapi/sites/:site/namespaces
+// GET /webapi/sites/:site/namespaces
 //
 // Successful response:
 //
@@ -2614,7 +2607,7 @@ func (f SessionControllerFunc) AcquireSessionContext(ctx context.Context, sctx *
 
 // siteNodeConnect connect to the site node
 //
-// GET /v1/webapi/sites/:site/namespaces/:namespace/connect?access_token=bearer_token&params=<urlencoded json-structure>
+// GET /webapi/sites/:site/namespaces/:namespace/connect?access_token=bearer_token&params=<urlencoded json-structure>
 //
 // Due to the nature of websocket we can't POST parameters as is, so we have
 // to add query parameters. The params query parameter is a URL-encoded JSON structure:
@@ -2989,7 +2982,7 @@ func trackerToLegacySession(tracker types.SessionTracker, clusterName string) se
 
 // clusterActiveAndPendingSessionsGet gets the list of active and pending sessions for a site.
 //
-// GET /v1/webapi/sites/:site/sessions
+// GET /webapi/sites/:site/sessions
 func (h *Handler) clusterActiveAndPendingSessionsGet(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnelclient.RemoteSite) (interface{}, error) {
 	clt, err := sctx.GetUserClient(r.Context(), site)
 	if err != nil {
@@ -3042,7 +3035,7 @@ func toFieldsSlice(rawEvents []apievents.AuditEvent) ([]events.EventFields, erro
 
 // clusterSearchEvents returns all audit log events matching the provided criteria
 //
-// GET /v1/webapi/sites/:site/events/search
+// GET /webapi/sites/:site/events/search
 //
 // Query parameters:
 //
@@ -3079,7 +3072,7 @@ func (h *Handler) clusterSearchEvents(w http.ResponseWriter, r *http.Request, p 
 
 // clusterSearchSessionEvents returns session events matching the criteria.
 //
-// GET /v1/webapi/sites/:site/sessions/search
+// GET /webapi/sites/:site/sessions/search
 //
 // Query parameters:
 //
@@ -3213,7 +3206,7 @@ func queryOrder(query url.Values, name string, def types.EventOrder) (types.Even
 
 // siteSessionStreamGet returns a byte array from a session's stream
 //
-// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream?query
+// GET /webapi/sites/:site/namespaces/:namespace/sessions/:sid/stream?query
 //
 // Query parameters:
 //
@@ -3299,7 +3292,7 @@ type eventsListGetResponse struct {
 
 // siteSessionEventsGet gets the site session by id
 //
-// GET /v1/webapi/sites/:site/namespaces/:namespace/sessions/:sid/events?after=N
+// GET /webapi/sites/:site/namespaces/:namespace/sessions/:sid/events?after=N
 //
 // Query:
 //
@@ -3356,7 +3349,7 @@ func (h *Handler) hostCredentials(w http.ResponseWriter, r *http.Request, p http
 // createSSHCert is a web call that generates new SSH certificate based
 // on user's name, password, 2nd factor token and public key user wishes to sign
 //
-// POST /v1/webapi/ssh/certs
+// POST /webapi/ssh/certs
 //
 // { "user": "bob", "password": "pass", "otp_token": "tok", "pub_key": "key to sign", "ttl": 1000000000 }
 //

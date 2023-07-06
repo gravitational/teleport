@@ -639,7 +639,7 @@ func (a *Server) sendValidateRequestToProxy(host string, validateRequest *Valida
 		opts = append(opts, roundtrip.HTTPClient(insecureWebClient))
 	}
 
-	clt, err := roundtrip.NewClient(proxyAddr.String(), teleport.WebAPIVersion, opts...)
+	clt, err := roundtrip.NewClient(proxyAddr.String(), "", opts...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

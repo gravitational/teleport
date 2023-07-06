@@ -36,7 +36,7 @@ to each of these groups.
 
    Settings:
 
-   - Redirect URL: `https://<proxy url>/v1/webapi/oidc/callback`.
+   - Redirect URL: `https://<proxy url>/webapi/oidc/callback`.
    - Check `Confidential`, `openid`, `profile`, and `email`.
 
    ![Create App](../../../img/sso/gitlab/gitlab-oidc-0.png)
@@ -110,7 +110,7 @@ spec:
   display: Gitlab
   issuer_url: https://gitlab.com
   prompt: none
-  redirect_url: https://teleport.example.com:443/v1/webapi/oidc/callback
+  redirect_url: https://teleport.example.com:443/webapi/oidc/callback
 version: v3
 
 ```

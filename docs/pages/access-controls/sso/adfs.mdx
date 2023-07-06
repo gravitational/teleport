@@ -61,10 +61,10 @@ help guide you through the Wizard.
 - Set the display name to something along the lines of `Teleport`.
 - Skip the token encryption certificate.
 - Select *"Enable support for SAML 2.0 Web SSO protocol"* and set the URL to
-  `https://teleport.example.com/v1/webapi/saml/acs`, replacing the domain name
+  `https://teleport.example.com/webapi/saml/acs`, replacing the domain name
   with your Teleport proxy URL.
 - Set the relying party trust identifier to
-  `https://teleport.example.com/v1/webapi/saml/acs` as well.
+  `https://teleport.example.com/webapi/saml/acs` as well.
 - For access control policy select *"Permit everyone"*.
 
 Once the Relying Party Trust has been created, update the Claim Issuance Policy
@@ -139,7 +139,7 @@ important.
 Create a SAML connector resource using `tctl`:
 
 ```code
-$ tctl sso configure saml --acs https://teleport.example.com/v1/webapi/saml/acs \
+$ tctl sso configure saml --acs https://teleport.example.com/webapi/saml/acs \
   --preset adfs \
   --entity-descriptor https://adfs.example.com/FederationMetadata/2007-06/FederationMetadata.xml \
   --attributes-to-roles http://schemas.xmlsoap.org/claims/Group,teleadmins,editor \

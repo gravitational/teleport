@@ -2240,7 +2240,7 @@ Generate a GitHub auth connector. Two role mappings are defined:
 ```code
 $ tctl sso configure gh -r octocats,admin,access,editor,auditor -r octocats,dev,access --secret GH_SECRET --id CLIENT_ID
 INFO [CLIENT]    RedirectURL empty, resolving automatically.
-INFO [CLIENT]    RedirectURL set to "https://teleport.example.com:3080/v1/webapi/github/callback"
+INFO [CLIENT]    RedirectURL set to "https://teleport.example.com:3080/webapi/github/callback"
 kind: github
 metadata:
   name: github
@@ -2248,7 +2248,7 @@ spec:
   client_id: CLIENT_ID
   client_secret: GH_SECRET
   display: ""
-  redirect_url: https://teleport.example.com:3080/v1/webapi/github/callback
+  redirect_url: https://teleport.example.com:3080/webapi/github/callback
   teams_to_logins:
   - logins:
     - access

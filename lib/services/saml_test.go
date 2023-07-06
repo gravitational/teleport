@@ -45,8 +45,8 @@ func TestParseFromMetadata(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, oc.GetIssuer(), "http://www.okta.com/exkafftca6RqPVgyZ0h7")
 	require.Equal(t, oc.GetSSO(), "https://dev-813354.oktapreview.com/app/gravitationaldev813354_teleportsaml_1/exkafftca6RqPVgyZ0h7/sso/saml")
-	require.Equal(t, oc.GetAssertionConsumerService(), "https://localhost:3080/v1/webapi/saml/acs")
-	require.Equal(t, oc.GetAudience(), "https://localhost:3080/v1/webapi/saml/acs")
+	require.Equal(t, oc.GetAssertionConsumerService(), "https://localhost:3080/webapi/saml/acs")
+	require.Equal(t, oc.GetAudience(), "https://localhost:3080/webapi/saml/acs")
 	require.NotNil(t, oc.GetSigningKeyPair())
 	require.Empty(t, cmp.Diff(oc.GetAttributes(), []string{"groups"}))
 }

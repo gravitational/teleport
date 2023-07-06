@@ -70,7 +70,7 @@ Examples:
   The values for --secret and --id are provided by GitHub.
 
   > tctl sso configure gh ... | tctl sso test
-  
+
   Generate the configuration and immediately test it using "tctl sso test" command.`)
 
 	preset := &AuthKindCommand{
@@ -91,7 +91,7 @@ func ghRunFunc(ctx context.Context, cmd *SSOConfigureCommand, spec *types.Github
 	}
 
 	if spec.RedirectURL == "" {
-		spec.RedirectURL = ResolveCallbackURL(cmd.Logger, clt, "RedirectURL", "https://%v/v1/webapi/github/callback")
+		spec.RedirectURL = ResolveCallbackURL(cmd.Logger, clt, "RedirectURL", "https://%v/webapi/github/callback")
 	}
 
 	connector, err := types.NewGithubConnector(flags.connectorName, *spec)

@@ -3,12 +3,12 @@ version: v2
 metadata:
   name: OneLogin
 spec:
-  acs: https://<cluster-url>/v1/webapi/saml/acs
+  acs: https://<cluster-url>/webapi/saml/acs
   # Controls whether IdP-initiated SSO is allowed. If false, all such requests will be rejected with an error.
   allow_idp_initiated: false
   attributes_to_roles:
-    - {name: "groups", value: "admin", roles: ["editor"]}
-    - {name: "groups", value: "dev", roles: ["access"]}
+    - { name: 'groups', value: 'admin', roles: ['editor'] }
+    - { name: 'groups', value: 'dev', roles: ['access'] }
   display: OneLogin
   entity_descriptor: |
     # Paste in downloaded content from OneLogin Dashboard.

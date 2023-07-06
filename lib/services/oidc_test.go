@@ -37,7 +37,7 @@ func TestOIDCRoleMapping(t *testing.T) {
 		Display:       "sign in with example.com",
 		Scope:         []string{"foo", "bar"},
 		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"user"}}},
-		RedirectURLs:  []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+		RedirectURLs:  []string{"https://localhost:3080/webapi/oidc/callback"},
 	})
 	require.NoError(t, err)
 
@@ -85,7 +85,7 @@ func TestOIDCUnmarshal(t *testing.T) {
 							"roles": ["dictator"]
 						}
 					],
-					"redirect_url": "https://localhost:3080/v1/webapi/oidc/callback"
+					"redirect_url": "https://localhost:3080/webapi/oidc/callback"
 				}
 			}`,
 			expectSpec: types.OIDCConnectorSpecV3{
@@ -95,7 +95,7 @@ func TestOIDCUnmarshal(t *testing.T) {
 				Scope:         []string{"roles"},
 				Prompt:        "consent login",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-				RedirectURLs:  []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+				RedirectURLs:  []string{"https://localhost:3080/webapi/oidc/callback"},
 			},
 		}, {
 			desc: "multiple redirect urls",
@@ -115,9 +115,9 @@ func TestOIDCUnmarshal(t *testing.T) {
 						}
 					],
 					"redirect_url": [
-						"https://localhost:3080/v1/webapi/oidc/callback",
-						"https://proxy.example.com/v1/webapi/oidc/callback",
-						"https://other.proxy.example.com/v1/webapi/oidc/callback"
+						"https://localhost:3080/webapi/oidc/callback",
+						"https://proxy.example.com/webapi/oidc/callback",
+						"https://other.proxy.example.com/webapi/oidc/callback"
 					]
 				}
 			}`,
@@ -125,9 +125,9 @@ func TestOIDCUnmarshal(t *testing.T) {
 				ClientID:      "id-from-google.apps.googleusercontent.com",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
 				RedirectURLs: []string{
-					"https://localhost:3080/v1/webapi/oidc/callback",
-					"https://proxy.example.com/v1/webapi/oidc/callback",
-					"https://other.proxy.example.com/v1/webapi/oidc/callback",
+					"https://localhost:3080/webapi/oidc/callback",
+					"https://proxy.example.com/webapi/oidc/callback",
+					"https://other.proxy.example.com/webapi/oidc/callback",
 				},
 			},
 		},
@@ -158,7 +158,7 @@ func TestOIDCCheckAndSetDefaults(t *testing.T) {
 			spec: types.OIDCConnectorSpecV3{
 				ClientID:      "id-from-google.apps.googleusercontent.com",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
-				RedirectURLs:  []string{"https://localhost:3080/v1/webapi/oidc/callback"},
+				RedirectURLs:  []string{"https://localhost:3080/webapi/oidc/callback"},
 			},
 			expect: func(t *testing.T, c types.OIDCConnector, err error) {
 				require.NoError(t, err)
@@ -166,7 +166,7 @@ func TestOIDCCheckAndSetDefaults(t *testing.T) {
 				require.Equal(t, types.KindOIDCConnector, c.GetKind())
 				require.Equal(t, "google", c.GetName())
 				require.Equal(t, "id-from-google.apps.googleusercontent.com", c.GetClientID())
-				require.Equal(t, []string{"https://localhost:3080/v1/webapi/oidc/callback"}, c.GetRedirectURLs())
+				require.Equal(t, []string{"https://localhost:3080/webapi/oidc/callback"}, c.GetRedirectURLs())
 				require.Equal(t, constants.OIDCPromptSelectAccount, c.GetPrompt())
 			},
 		}, {
@@ -175,9 +175,9 @@ func TestOIDCCheckAndSetDefaults(t *testing.T) {
 				ClientID:      "id-from-google.apps.googleusercontent.com",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
 				RedirectURLs: []string{
-					"https://localhost:3080/v1/webapi/oidc/callback",
-					"https://proxy.example.com/v1/webapi/oidc/callback",
-					"https://other.proxy.example.com/v1/webapi/oidc/callback",
+					"https://localhost:3080/webapi/oidc/callback",
+					"https://proxy.example.com/webapi/oidc/callback",
+					"https://other.proxy.example.com/webapi/oidc/callback",
 				},
 				Prompt: "none",
 			},
@@ -191,9 +191,9 @@ func TestOIDCCheckAndSetDefaults(t *testing.T) {
 				ClientID:      "id-from-google.apps.googleusercontent.com",
 				ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user"}},
 				RedirectURLs: []string{
-					"https://localhost:3080/v1/webapi/oidc/callback",
-					"https://proxy.example.com/v1/webapi/oidc/callback",
-					"https://other.proxy.example.com/v1/webapi/oidc/callback",
+					"https://localhost:3080/webapi/oidc/callback",
+					"https://proxy.example.com/webapi/oidc/callback",
+					"https://other.proxy.example.com/webapi/oidc/callback",
 				},
 				Prompt: "none",
 			},
@@ -215,28 +215,28 @@ func TestOIDCGetRedirectURL(t *testing.T) {
 		ClientID:      "id-from-google.apps.googleusercontent.com",
 		ClaimsToRoles: []types.ClaimMapping{{Claim: "roles", Value: "teleport-user", Roles: []string{"dictator"}}},
 		RedirectURLs: []string{
-			"https://proxy.example.com/v1/webapi/oidc/callback",
-			"https://other.example.com/v1/webapi/oidc/callback",
-			"https://other.example.com:443/v1/webapi/oidc/callback",
-			"https://other.example.com:3080/v1/webapi/oidc/callback",
-			"https://eu.proxy.example.com/v1/webapi/oidc/callback",
-			"https://us.proxy.example.com:443/v1/webapi/oidc/callback",
+			"https://proxy.example.com/webapi/oidc/callback",
+			"https://other.example.com/webapi/oidc/callback",
+			"https://other.example.com:443/webapi/oidc/callback",
+			"https://other.example.com:3080/webapi/oidc/callback",
+			"https://eu.proxy.example.com/webapi/oidc/callback",
+			"https://us.proxy.example.com:443/webapi/oidc/callback",
 		},
 	})
 	require.NoError(t, err)
 
 	expectedMapping := map[string]string{
-		"proxy.example.com":         "https://proxy.example.com/v1/webapi/oidc/callback",
-		"proxy.example.com:443":     "https://proxy.example.com/v1/webapi/oidc/callback",
-		"other.example.com":         "https://other.example.com/v1/webapi/oidc/callback",
-		"other.example.com:80":      "https://other.example.com/v1/webapi/oidc/callback",
-		"other.example.com:443":     "https://other.example.com:443/v1/webapi/oidc/callback",
-		"other.example.com:3080":    "https://other.example.com:3080/v1/webapi/oidc/callback",
-		"eu.proxy.example.com":      "https://eu.proxy.example.com/v1/webapi/oidc/callback",
-		"eu.proxy.example.com:443":  "https://eu.proxy.example.com/v1/webapi/oidc/callback",
-		"eu.proxy.example.com:3080": "https://eu.proxy.example.com/v1/webapi/oidc/callback",
-		"us.proxy.example.com":      "https://us.proxy.example.com:443/v1/webapi/oidc/callback",
-		"notfound.example.com":      "https://proxy.example.com/v1/webapi/oidc/callback",
+		"proxy.example.com":         "https://proxy.example.com/webapi/oidc/callback",
+		"proxy.example.com:443":     "https://proxy.example.com/webapi/oidc/callback",
+		"other.example.com":         "https://other.example.com/webapi/oidc/callback",
+		"other.example.com:80":      "https://other.example.com/webapi/oidc/callback",
+		"other.example.com:443":     "https://other.example.com:443/webapi/oidc/callback",
+		"other.example.com:3080":    "https://other.example.com:3080/webapi/oidc/callback",
+		"eu.proxy.example.com":      "https://eu.proxy.example.com/webapi/oidc/callback",
+		"eu.proxy.example.com:443":  "https://eu.proxy.example.com/webapi/oidc/callback",
+		"eu.proxy.example.com:3080": "https://eu.proxy.example.com/webapi/oidc/callback",
+		"us.proxy.example.com":      "https://us.proxy.example.com:443/webapi/oidc/callback",
+		"notfound.example.com":      "https://proxy.example.com/webapi/oidc/callback",
 	}
 
 	for proxyAddr, redirectURL := range expectedMapping {

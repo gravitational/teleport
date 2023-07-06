@@ -32,7 +32,7 @@ import { JoinToken } from 'teleport/services/joinToken';
 const lines = (joinToken: JoinToken) => [
   {
     text: generateCommand(
-      'https://teleport.example.com/v1/webapi/scripts/desktop-access/configure/<YOUR_TOKEN>/configure-ad.ps1'
+      'https://teleport.example.com/webapi/scripts/desktop-access/configure/<YOUR_TOKEN>/configure-ad.ps1'
     ),
     isCommand: true,
   },

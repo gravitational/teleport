@@ -135,7 +135,7 @@ type CreateAppSessionResponse struct {
 // getAppFQDN resolves the input params to a known application and returns
 // its valid FQDN.
 //
-// GET /v1/webapi/apps/:fqdnHint/:clusterName/:publicAddr
+// GET /webapi/apps/:fqdnHint/:clusterName/:publicAddr
 func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	req := GetAppFQDNRequest{
 		FQDNHint:    p.ByName("fqdnHint"),
@@ -169,7 +169,7 @@ func (h *Handler) getAppFQDN(w http.ResponseWriter, r *http.Request, p httproute
 
 // createAppSession creates a new application session.
 //
-// POST /v1/webapi/sessions/app
+// POST /webapi/sessions/app
 func (h *Handler) createAppSession(w http.ResponseWriter, r *http.Request, p httprouter.Params, ctx *SessionContext) (interface{}, error) {
 	var req resolveAppParams
 	if err := httplib.ReadJSON(r, &req); err != nil {

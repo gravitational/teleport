@@ -208,7 +208,7 @@ func (p *Pack) initWebSession(t *testing.T) {
 	u := url.URL{
 		Scheme: "https",
 		Host:   p.rootCluster.Web,
-		Path:   "/v1/webapi/sessions/web",
+		Path:   "/webapi/sessions/web",
 	}
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
 	require.NoError(t, err)
@@ -339,7 +339,7 @@ func (p *Pack) makeWebapiRequest(method, endpoint string, payload []byte) (int, 
 	u := url.URL{
 		Scheme: "https",
 		Host:   p.rootCluster.Web,
-		Path:   fmt.Sprintf("/v1/webapi/%s", endpoint),
+		Path:   fmt.Sprintf("/webapi/%s", endpoint),
 	}
 
 	req, err := http.NewRequest(method, u.String(), bytes.NewBuffer(payload))

@@ -28,7 +28,7 @@ Create and register a GitHub OAuth App. When you do so, ensure that your OAuth
 App's "Authentication callback URL" is the following:
 
 ```
-https://PROXY_ADDRESS/v1/webapi/github/
+https://PROXY_ADDRESS/webapi/github/
 ```
 
 `PROXY_ADDRESS` must be <ScopedBlock scope={["oss", "enterprise"]}>the public
@@ -79,7 +79,7 @@ spec:
   client_secret: <client-secret>
   display: GitHub
   endpoint_url: ""
-  redirect_url: https://<proxy-address>/v1/webapi/github/callback
+  redirect_url: https://<proxy-address>/webapi/github/callback
   teams_to_logins: null
   teams_to_roles:
     - organization: ORG-NAME
@@ -102,7 +102,7 @@ spec:
   client_secret: <client-secret>
   display: GitHub
   endpoint_url: ""
-  redirect_url: https://<proxy-address>/v1/webapi/github/callback
+  redirect_url: https://<proxy-address>/webapi/github/callback
   teams_to_logins: null
   teams_to_roles:
     - organization: ORG-NAME

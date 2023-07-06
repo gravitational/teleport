@@ -268,7 +268,7 @@ func (h *Handler) getDesktopHandle(w http.ResponseWriter, r *http.Request, p htt
 
 // desktopIsActive checks if a desktop has an active session and returns a desktopIsActive.
 //
-// GET /v1/webapi/sites/:site/desktops/:desktopName/active
+// GET /webapi/sites/:site/desktops/:desktopName/active
 //
 // Response body:
 //

@@ -9,7 +9,7 @@ spec:
   client_secret: <client-secret>
   # GitHub will make a callback to this URL after successful authentication
   # cluster-url is the address the cluster UI is reachable at
-  redirect_url: "https://<cluster-url>/v1/webapi/github/callback"
+  redirect_url: 'https://<cluster-url>/webapi/github/callback'
   # connector display name that will be appended to the title of "Login with"
   # button on the cluster login screen so it will say "Login with GitHub"
   display: GitHub
@@ -18,4 +18,4 @@ spec:
     - organization: <github-org>
       team: <github-team>
       roles:
-        - "access"
+        - 'access'

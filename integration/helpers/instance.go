@@ -1453,7 +1453,7 @@ func CreateWebSession(proxyHost, user, password string) (*web.CreateSessionRespo
 	u := url.URL{
 		Scheme: "https",
 		Host:   proxyHost,
-		Path:   "/v1/webapi/sessions/web",
+		Path:   "/webapi/sessions/web",
 	}
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
 	if err != nil {
@@ -1508,7 +1508,7 @@ func (w *WebClient) SSH(termReq web.TerminalRequest) (*web.TerminalStream, error
 	u := url.URL{
 		Host:   w.i.Web,
 		Scheme: client.WSS,
-		Path:   fmt.Sprintf("/v1/webapi/sites/%v/connect", w.tc.SiteName),
+		Path:   fmt.Sprintf("/webapi/sites/%v/connect", w.tc.SiteName),
 	}
 	data, err := json.Marshal(termReq)
 	if err != nil {

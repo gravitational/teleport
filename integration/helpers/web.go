@@ -56,7 +56,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 	u := url.URL{
 		Scheme: "https",
 		Host:   host,
-		Path:   "/v1/webapi/sessions/web",
+		Path:   "/webapi/sessions/web",
 	}
 	req, err := http.NewRequest(http.MethodPost, u.String(), bytes.NewBuffer(csReq))
 	require.NoError(t, err)
@@ -113,10 +113,10 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 }
 
 // DoRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
-// The endpoint must not contain the host neither the base path ('/v1/webapi/').
+// The endpoint must not contain the host neither the base path ('/webapi/').
 // Status Code and Body are returned.
 func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload any) (int, []byte) {
-	endpoint = fmt.Sprintf("https://%s/v1/webapi/%s", w.host, endpoint)
+	endpoint = fmt.Sprintf("https://%s/webapi/%s", w.host, endpoint)
 	endpoint = strings.ReplaceAll(endpoint, "$site", w.clusterName)
 	u, err := url.Parse(endpoint)
 	require.NoError(t, err)

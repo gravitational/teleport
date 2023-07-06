@@ -37,7 +37,7 @@ func TestUnmarshal(t *testing.T) {
   "client_id": "aaa",
   "client_secret": "bbb",
   "display": "GitHub",
-  "redirect_url": "https://localhost:3080/v1/webapi/github/callback",
+  "redirect_url": "https://localhost:3080/webapi/github/callback",
   "teams_to_logins": [{
     "organization": "gravitational",
     "team": "admins",
@@ -49,7 +49,7 @@ func TestUnmarshal(t *testing.T) {
 	expected, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 		ClientID:     "aaa",
 		ClientSecret: "bbb",
-		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		RedirectURL:  "https://localhost:3080/webapi/github/callback",
 		Display:      "GitHub",
 		TeamsToLogins: []types.TeamMapping{
 			{
@@ -69,7 +69,7 @@ func TestMapClaims(t *testing.T) {
 	connector, err := types.NewGithubConnector("github", types.GithubConnectorSpecV3{
 		ClientID:     "aaa",
 		ClientSecret: "bbb",
-		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		RedirectURL:  "https://localhost:3080/webapi/github/callback",
 		Display:      "GitHub",
 		TeamsToLogins: []types.TeamMapping{
 			{

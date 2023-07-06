@@ -880,7 +880,7 @@ func (s *ServicesTestSuite) GithubConnectorCRUD(t *testing.T) {
 		Spec: types.GithubConnectorSpecV3{
 			ClientID:     "aaa",
 			ClientSecret: "bbb",
-			RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+			RedirectURL:  "https://localhost:3080/webapi/github/callback",
 			Display:      "GitHub",
 			TeamsToLogins: []types.TeamMapping{
 				{

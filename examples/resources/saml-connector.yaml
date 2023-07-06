@@ -14,18 +14,17 @@ spec:
   # SAML provider will make a callback to this URL after successful authentication
   # cluster-url is the address the cluster UI is reachable at.
   # The last segment of the URL must be identical to the connector metadata name.
-  acs: https://<cluster-url>/v1/webapi/saml/acs/new_saml_connector
+  acs: https://<cluster-url>/webapi/saml/acs/new_saml_connector
   # Controls whether IdP-initiated SSO is allowed. If false, all such requests will be rejected with an error.
   allow_idp_initiated: false
   attributes_to_roles:
-  - name: groups
-    value: okta-admin
-    roles:
-    - editor
-  - name: groups
-    value: okta-dev
-    roles:
-    - access
+    - name: groups
+      value: okta-admin
+      roles:
+        - editor
+    - name: groups
+      value: okta-dev
+      roles:
+        - access
   # Provides a path to the IdP metadata.
   entity_descriptor_url: https://example.okta.com/app/your-app-id/sso/saml/metadata
-  

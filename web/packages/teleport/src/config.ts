@@ -125,125 +125,125 @@ const cfg = {
     newLock: '/web/locks/new',
 
     // whitelist sso handlers
-    oidcHandler: '/v1/webapi/oidc/*',
-    samlHandler: '/v1/webapi/saml/*',
-    githubHandler: '/v1/webapi/github/*',
+    oidcHandler: '/webapi/oidc/*',
+    samlHandler: '/webapi/saml/*',
+    githubHandler: '/webapi/github/*',
   },
 
   api: {
-    appSession: '/v1/webapi/sessions/app',
-    appFqdnPath: '/v1/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
+    appSession: '/webapi/sessions/app',
+    appFqdnPath: '/webapi/apps/:fqdn/:clusterId?/:publicAddr?',
     applicationsPath:
-      '/v1/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
-    clustersPath: '/v1/webapi/sites',
-    clusterAlertsPath: '/v1/webapi/sites/:clusterId/alerts',
-    clusterEventsPath: `/v1/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
-    clusterEventsRecordingsPath: `/v1/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
+      '/webapi/sites/:clusterId/apps?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+    clustersPath: '/webapi/sites',
+    clusterAlertsPath: '/webapi/sites/:clusterId/alerts',
+    clusterEventsPath: `/webapi/sites/:clusterId/events/search?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?&include=:include?`,
+    clusterEventsRecordingsPath: `/webapi/sites/:clusterId/events/search/sessions?from=:start?&to=:end?&limit=:limit?&startKey=:startKey?`,
 
-    connectionDiagnostic: `/v1/webapi/sites/:clusterId/diagnostics/connections`,
-    checkAccessToRegisteredResource: `/v1/webapi/sites/:clusterId/resources/check`,
+    connectionDiagnostic: `/webapi/sites/:clusterId/diagnostics/connections`,
+    checkAccessToRegisteredResource: `/webapi/sites/:clusterId/resources/check`,
 
-    scp: '/v1/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
-    webRenewTokenPath: '/v1/webapi/sessions/web/renew',
-    resetPasswordTokenPath: '/v1/webapi/users/password/token',
-    webSessionPath: '/v1/webapi/sessions/web',
-    userContextPath: '/v1/webapi/sites/:clusterId/context',
-    userStatusPath: '/v1/webapi/user/status',
-    passwordTokenPath: '/v1/webapi/users/password/token/:tokenId?',
-    changeUserPasswordPath: '/v1/webapi/users/password',
+    scp: '/webapi/sites/:clusterId/nodes/:serverId/:login/scp?location=:location&filename=:filename&moderatedSessionId=:moderatedSessionId?&fileTransferRequestId=:fileTransferRequestId?',
+    webRenewTokenPath: '/webapi/sessions/web/renew',
+    resetPasswordTokenPath: '/webapi/users/password/token',
+    webSessionPath: '/webapi/sessions/web',
+    userContextPath: '/webapi/sites/:clusterId/context',
+    userStatusPath: '/webapi/user/status',
+    passwordTokenPath: '/webapi/users/password/token/:tokenId?',
+    changeUserPasswordPath: '/webapi/users/password',
     nodesPath:
-      '/v1/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+      '/webapi/sites/:clusterId/nodes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
-    databaseServicesPath: `/v1/webapi/sites/:clusterId/databaseservices`,
-    databaseIamPolicyPath: `/v1/webapi/sites/:clusterId/databases/:database/iam/policy`,
-    databasePath: `/v1/webapi/sites/:clusterId/databases/:database`,
-    databasesPath: `/v1/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
+    databaseServicesPath: `/webapi/sites/:clusterId/databaseservices`,
+    databaseIamPolicyPath: `/webapi/sites/:clusterId/databases/:database/iam/policy`,
+    databasePath: `/webapi/sites/:clusterId/databases/:database`,
+    databasesPath: `/webapi/sites/:clusterId/databases?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
 
-    desktopsPath: `/v1/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
-    desktopServicesPath: `/v1/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
-    desktopPath: `/v1/webapi/sites/:clusterId/desktops/:desktopName`,
+    desktopsPath: `/webapi/sites/:clusterId/desktops?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
+    desktopServicesPath: `/webapi/sites/:clusterId/desktopservices?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?`,
+    desktopPath: `/webapi/sites/:clusterId/desktops/:desktopName`,
     desktopWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username&width=:width&height=:height',
+      'wss://:fqdn/webapi/sites/:clusterId/desktops/:desktopName/connect?access_token=:token&username=:username&width=:width&height=:height',
     desktopPlaybackWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
-    desktopIsActive: '/v1/webapi/sites/:clusterId/desktops/:desktopName/active',
+      'wss://:fqdn/webapi/sites/:clusterId/desktopplayback/:sid?access_token=:token',
+    desktopIsActive: '/webapi/sites/:clusterId/desktops/:desktopName/active',
     ttyWsAddr:
-      'wss://:fqdn/v1/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
-    activeAndPendingSessionsPath: '/v1/webapi/sites/:clusterId/sessions',
-    sshPlaybackPrefix: '/v1/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
+      'wss://:fqdn/webapi/sites/:clusterId/connect?access_token=:token&params=:params&traceparent=:traceparent',
+    activeAndPendingSessionsPath: '/webapi/sites/:clusterId/sessions',
+    sshPlaybackPrefix: '/webapi/sites/:clusterId/sessions/:sid', // prefix because this is eventually concatenated with "/stream" or "/events"
     kubernetesPath:
-      '/v1/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+      '/webapi/sites/:clusterId/kubernetes?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
-    usersPath: '/v1/webapi/users',
-    userWithUsernamePath: '/v1/webapi/users/:username',
-    createPrivilegeTokenPath: '/v1/webapi/users/privilege/token',
+    usersPath: '/webapi/users',
+    userWithUsernamePath: '/webapi/users/:username',
+    createPrivilegeTokenPath: '/webapi/users/privilege/token',
 
-    rolesPath: '/v1/webapi/roles/:name?',
-    githubConnectorsPath: '/v1/webapi/github/:name?',
-    trustedClustersPath: '/v1/webapi/trustedcluster/:name?',
+    rolesPath: '/webapi/roles/:name?',
+    githubConnectorsPath: '/webapi/github/:name?',
+    trustedClustersPath: '/webapi/trustedcluster/:name?',
 
-    joinTokenPath: '/v1/webapi/token',
+    joinTokenPath: '/webapi/token',
     dbScriptPath: '/scripts/:token/install-database.sh',
     nodeScriptPath: '/scripts/:token/install-node.sh',
     appNodeScriptPath: '/scripts/:token/install-app.sh?name=:name&uri=:uri',
 
-    mfaRequired: '/v1/webapi/sites/:clusterId/mfa/required',
-    mfaLoginBegin: '/v1/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
-    mfaLoginFinish: '/v1/webapi/mfa/login/finishsession', // creates a web session
-    mfaChangePasswordBegin: '/v1/webapi/mfa/authenticatechallenge/password',
+    mfaRequired: '/webapi/sites/:clusterId/mfa/required',
+    mfaLoginBegin: '/webapi/mfa/login/begin', // creates authnenticate challenge with user and password
+    mfaLoginFinish: '/webapi/mfa/login/finishsession', // creates a web session
+    mfaChangePasswordBegin: '/webapi/mfa/authenticatechallenge/password',
 
-    headlessSsoPath: `/v1/webapi/headless/:requestId`,
+    headlessSsoPath: `/webapi/headless/:requestId`,
 
     mfaCreateRegistrationChallengePath:
-      '/v1/webapi/mfa/token/:tokenId/registerchallenge',
+      '/webapi/mfa/token/:tokenId/registerchallenge',
 
     mfaRegisterChallengeWithTokenPath:
-      '/v1/webapi/mfa/token/:tokenId/registerchallenge',
-    mfaAuthnChallengePath: '/v1/webapi/mfa/authenticatechallenge',
+      '/webapi/mfa/token/:tokenId/registerchallenge',
+    mfaAuthnChallengePath: '/webapi/mfa/authenticatechallenge',
     mfaAuthnChallengeWithTokenPath:
-      '/v1/webapi/mfa/token/:tokenId/authenticatechallenge',
-    mfaDevicesWithTokenPath: '/v1/webapi/mfa/token/:tokenId/devices',
-    mfaDevicesPath: '/v1/webapi/mfa/devices',
-    mfaDevicePath: '/v1/webapi/mfa/token/:tokenId/devices/:deviceName',
+      '/webapi/mfa/token/:tokenId/authenticatechallenge',
+    mfaDevicesWithTokenPath: '/webapi/mfa/token/:tokenId/devices',
+    mfaDevicesPath: '/webapi/mfa/devices',
+    mfaDevicePath: '/webapi/mfa/token/:tokenId/devices/:deviceName',
 
-    locksPath: '/v1/webapi/sites/:clusterId/locks',
-    locksPathWithUuid: '/v1/webapi/sites/:clusterId/locks/:uuid',
+    locksPath: '/webapi/sites/:clusterId/locks',
+    locksPathWithUuid: '/webapi/sites/:clusterId/locks/:uuid',
 
-    dbSign: 'v1/webapi/sites/:clusterId/sign/db',
+    dbSign: 'webapi/sites/:clusterId/sign/db',
 
-    installADDSPath: '/v1/webapi/scripts/desktop-access/install-ad-ds.ps1',
-    installADCSPath: '/v1/webapi/scripts/desktop-access/install-ad-cs.ps1',
+    installADDSPath: '/webapi/scripts/desktop-access/install-ad-ds.ps1',
+    installADCSPath: '/webapi/scripts/desktop-access/install-ad-cs.ps1',
     configureADPath:
-      '/v1/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1',
+      '/webapi/scripts/desktop-access/configure/:token/configure-ad.ps1',
 
-    captureUserEventPath: '/v1/webapi/capture',
-    capturePreUserEventPath: '/v1/webapi/precapture',
+    captureUserEventPath: '/webapi/capture',
+    capturePreUserEventPath: '/webapi/precapture',
 
-    webapiPingPath: '/v1/webapi/ping',
+    webapiPingPath: '/webapi/ping',
 
-    headlessLogin: '/v1/webapi/headless/:headless_authentication_id',
+    headlessLogin: '/webapi/headless/:headless_authentication_id',
 
-    integrationsPath: '/v1/webapi/sites/:clusterId/integrations/:name?',
-    thumbprintPath: '/v1/webapi/thumbprint',
+    integrationsPath: '/webapi/sites/:clusterId/integrations/:name?',
+    thumbprintPath: '/webapi/thumbprint',
     awsRdsDbListPath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
+      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
     awsDeployTeleportServicePath:
-      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
+      '/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
 
     userGroupsListPath:
-      '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
+      '/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
 
-    assistConversationsPath: '/v1/webapi/assistant/conversations',
+    assistConversationsPath: '/webapi/assistant/conversations',
     assistSetConversationTitlePath:
-      '/v1/webapi/assistant/conversations/:conversationId/title',
-    assistGenerateSummaryPath: '/v1/webapi/assistant/title/summary',
+      '/webapi/assistant/conversations/:conversationId/title',
+    assistGenerateSummaryPath: '/webapi/assistant/title/summary',
     assistConversationWebSocketPath:
-      'wss://:hostname/v1/webapi/sites/:clusterId/assistant',
+      'wss://:hostname/webapi/sites/:clusterId/assistant',
     assistConversationHistoryPath:
-      '/v1/webapi/assistant/conversations/:conversationId',
+      '/webapi/assistant/conversations/:conversationId',
     assistExecuteCommandWebSocketPath:
-      'wss://:hostname/v1/webapi/command/:clusterId/execute',
-    userPreferencesPath: '/v1/webapi/user/preferences',
+      'wss://:hostname/webapi/command/:clusterId/execute',
+    userPreferencesPath: '/webapi/user/preferences',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {

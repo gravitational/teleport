@@ -74,5 +74,5 @@ func (ai *AzureInstaller) Run(ctx context.Context, req AzureRunRequest) error {
 }
 
 func getInstallerScript(installerName, publicProxyAddr string) string {
-	return fmt.Sprintf("curl -s -L https://%s/v1/webapi/scripts/installer/%v | bash -s $@", publicProxyAddr, installerName)
+	return fmt.Sprintf("curl -s -L https://%s/webapi/scripts/installer/%v | bash -s $@", publicProxyAddr, installerName)
 }

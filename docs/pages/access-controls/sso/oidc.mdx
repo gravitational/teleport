@@ -49,7 +49,7 @@ authentication is complete. The redirect URL must be selected by a Teleport
 administrator in advance.
 
 If the Teleport web proxy is running on `proxy.example.com` host, the redirect URL
-should be `https://proxy.example.com:3080/v1/webapi/oidc/callback`
+should be `https://proxy.example.com:3080/webapi/oidc/callback`
 
 ## OIDC connector configuration
 
@@ -167,7 +167,7 @@ spec:
   issuer_url: "https://oidc.example.com"
   client_id: "xxxxxxxxxxxxxxxxxxxxxxx.example.com"
   client_secret: "zzzzzzzzzzzzzzzzzzzzzzzz"
-  redirect_url: "https://<cluster-url>:3080/v1/webapi/oidc/callback"
+  redirect_url: "https://<cluster-url>:3080/webapi/oidc/callback"
   display: "Login with Example"
   acr_values: "foo/bar"
   provider: netiq
@@ -188,7 +188,7 @@ The redirect URL must be accessible by all user, optional redirect timeout.
 ```yaml
 # Extra parts of OIDC yaml have been removed.
 spec:
-  redirect_url: https://<cluster-url>.example.com:3080/v1/webapi/oidc/callback
+  redirect_url: https://<cluster-url>.example.com:3080/webapi/oidc/callback
   # Optional Redirect Timeout.
   # redirect_timeout: 90s
 ```

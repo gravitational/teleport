@@ -433,7 +433,7 @@ spec:
   client_id: <client-id>
   client_secret: <client-secret>
   display: Github
-  redirect_url: https://<cluster-url>/v1/webapi/github/callback
+  redirect_url: https://<cluster-url>/webapi/github/callback
   teams_to_logins:
   - logins:
     - admins

@@ -28,20 +28,20 @@ spec:
   #entity_descriptor_url: "https://example.com"
 
   # issuer typically comes from the "entity_descriptor" but can be overridden here
-  issuer: "foo"
+  issuer: 'foo'
   # sso typically comes from the "entity_descriptor" but can be overridden here
-  sso: "bar"
+  sso: 'bar'
   # cert typically comes from the "entity_descriptor" but can be overridden here
   cert: |
     -----BEGIN RSA PRIVATE KEY-----
     ...
     -----END RSA PRIVATE KEY-----
 
-  acs: "https://<cluster-url>.example.com:3080/v1/webapi/saml/acs"
+  acs: 'https://<cluster-url>.example.com:3080/webapi/saml/acs'
   # if "service_provider_issuer" is not set, comes from "acs"
-  service_provider_issuer: "https://<cluster-url>.example.com:3080/v1/webapi/saml/acs"
+  service_provider_issuer: 'https://<cluster-url>.example.com:3080/webapi/saml/acs'
   # if "audience" is not set, comes from "acs"
-  audience: "https://<cluster-url>.example.com:3080/v1/webapi/saml/acs"
+  audience: 'https://<cluster-url>.example.com:3080/webapi/saml/acs'
 
   # if "signing_key_pair" is not set, teleport will generate a self signed
   # signing key pair
@@ -50,15 +50,14 @@ spec:
       -----BEGIN RSA PRIVATE KEY-----
       ...
       -----END RSA PRIVATE KEY-----
-    cert:
-      -----BEGIN RSA PRIVATE KEY-----
+    cert: -----BEGIN RSA PRIVATE KEY-----
       ...
       -----END RSA PRIVATE KEY-----
 
   attributes_to_roles:
-    - name: "http://schemas.xmlsoap.org/claims/Group"
-      value: "Administrators"
-      roles: ["editor"]
-    - name: "http://schemas.xmlsoap.org/claims/Group"
-      value: "Users"
-      roles: ["access"]
+    - name: 'http://schemas.xmlsoap.org/claims/Group'
+      value: 'Administrators'
+      roles: ['editor']
+    - name: 'http://schemas.xmlsoap.org/claims/Group'
+      value: 'Users'
+      roles: ['access']

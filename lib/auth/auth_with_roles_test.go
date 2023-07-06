@@ -436,7 +436,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	conn, err := types.NewGithubConnector("example", types.GithubConnectorSpecV3{
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
-		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		RedirectURL:  "https://localhost:3080/webapi/github/callback",
 		Display:      "sign in with github",
 		TeamsToLogins: []types.TeamMapping{
 			{
@@ -455,7 +455,7 @@ func TestGithubAuthRequest(t *testing.T) {
 	reqTest := types.GithubAuthRequest{ConnectorID: conn.GetName(), Type: constants.Github, SSOTestFlow: true, ConnectorSpec: &types.GithubConnectorSpecV3{
 		ClientID:     "example-client-id",
 		ClientSecret: "example-client-secret",
-		RedirectURL:  "https://localhost:3080/v1/webapi/github/callback",
+		RedirectURL:  "https://localhost:3080/webapi/github/callback",
 		Display:      "sign in with github",
 		TeamsToLogins: []types.TeamMapping{
 			{
