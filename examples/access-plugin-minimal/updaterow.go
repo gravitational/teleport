@@ -49,14 +49,11 @@ func (g *googleSheetsClient) updateRow(ar types.AccessRequest, rowNum int64) err
 	}
 
 	if resp.HTTPStatusCode == 201 || resp.HTTPStatusCode == 200 {
-		fmt.Println("Successfully updated a row")
-	} else {
-		fmt.Printf(
-			"Unexpected response code updating a row: %v\n",
-			resp.HTTPStatusCode,
-		)
+		return nil
 	}
-
-	return nil
-
+	return trace.Wrap(
+		fmt.Errorf(
+			"Unexpected response code updating a row: %v\n",
+			resp.HTTPStatusCode),
+	)
 }

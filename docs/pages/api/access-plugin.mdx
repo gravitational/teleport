@@ -202,7 +202,6 @@ library:
 |`context`|Includes the `context.Context` type. `context.Context` is an abstraction for controlling long-running routines, such as connections to external services, that might fail or time out. Programs can cancel contexts or assign them timeouts and metadata. |
 |`errors`|Working with errors.|
 |`fmt`|Formatting data for printing, strings, or errors.|
-|`time`|Dealing with time. We will use this to define a timeout for connecting to the Auth Service.|
 |`strings`|Manipulating strings.|
 
 The plugin imports the following third-party code:
@@ -216,12 +215,12 @@ The plugin imports the following third-party code:
 |`google.golang.org/api/sheets/v4`|The Google Sheets API client library, aliased as `sheets` in our program.|
 |`google.golang.org/grpc`|The gRPC client and server library.|
 
-### Initial declarations
+### Configuration
 
-First, we make some globally scoped declarations:
+First, we declare two constants that you need to configure for your environment:
 
 ```go
-(!examples/access-plugin-minimal/types.go!)
+(!examples/access-plugin-minimal/config.go!)
 ```
 
 `proxyAddr` indicates the hostname and port of your Teleport Proxy Service or
@@ -236,10 +235,14 @@ the URL path segment called `SPREADSHEET_ID` below:
 https://docs.google.com/spreadsheets/d/SPREADHSEET_ID/edit#gid=0
 ```
 
-Access Requests have one of four states: approved, denied, pending, and none.
-Later in the program, we will need a way to map these states to strings that we
-can write to our Google Sheets spreadsheet. We obtain the request states from
-Teleport's `types` library and map them to strings in the `requestStates` map.
+### The `AccessRequestPlugin` type
+
+The `plugin.go` file declares types that we will use to organize our Access
+Request plugin code:
+
+```go
+(!examples/access-plugin-minimal/plugin.go!)
+```
 
 The `AccessRequestPlugin` type represents a generic Access Request plugin, and
 you can use this type to build your own plugin. It contains a Teleport API
@@ -272,6 +275,10 @@ library uses to represent the fields within an Access Request.
 The Google Sheets client library defines a `sheets.RowData` type that we
 include in requests to update a spreadsheet. This function converts a
 `types.AccessRequest` into a `*sheets.RowData` (another pointer). 
+
+Access Requests have one of four states: approved, denied, pending, and none.
+We obtain the request states from Teleport's `types` library and map them to
+strings in the `requestStates` map.
 
 When extracting the data, we use the `types.AccessRequest.GetName()` method to
 retrieve the ID of the Access Request as a string we can include in the

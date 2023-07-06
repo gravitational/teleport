@@ -16,7 +16,6 @@ package main
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/gravitational/trace"
 
@@ -44,7 +43,6 @@ func (g *googleSheetsClient) updateSpreadsheet(ar types.AccessRequest) error {
 				if err := g.updateRow(ar, int64(i)); err != nil {
 					return trace.Wrap(err)
 				}
-				fmt.Println("Updated a spreadsheet row.")
 			}
 		}
 	}
