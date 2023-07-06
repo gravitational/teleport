@@ -54,11 +54,13 @@ Before you get started you’ll need:
 
    ![Edit Basic SAML Configuration](../../../img/azuread/azuread-6-editbasicsaml.png)
 
-7. For **Entity ID** and **Reply URL**, enter the same proxy URL.
+7. For **Entity ID** and **Reply URL**, enter the following, assigning <Var
+   name="mytenant.teleport.sh:443" /> to the host and HTTPS port of your
+   Teleport Proxy Service (or Teleport Team/Enterprise Cloud tenant):
 
-   For self-hosted deployments, the URL will be similar to `https://teleport.example.com:3080/v1/webapi/saml/acs/connectorName`.
-
-   For Teleport Cloud users, the URL will be similar to `https://mytenant.teleport.sh`.
+   ```var
+   https://<Var name="mytenant.teleport.sh:443" />/v1/webapi/saml/acs/azure-saml
+   ```
 
    ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-7-entityandreplyurl.png)
 
@@ -189,17 +191,16 @@ automatically in a browser.
   can be passed via `tsh login --auth=connector_name`
 </Admonition>
 
-## Token encryption
+## Token encryption (Optional)
 
-Azure AD's SAML token encryption encrypts the SAML assertions sent to Teleport during SSO redirect.
+Azure AD's SAML token encryption encrypts the SAML assertions sent to Teleport
+during SSO redirect. 
 
-<Admonition
-  type="tip"
-  title="Tip"
->
-  This is Azure Active Directory Premium feature and requires a separate license.
-  You can read more about it [here](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption).
-</Admonition>
+Token encryption is an Azure Active Directory premium feature and requires a
+separate license. Since traffic between Azure AD and the Teleport Proxy Service
+already uses HTTPS, token encryption is optional. To determine whether you
+should enable token encryption, read the Azure AD
+[documentation](https://docs.microsoft.com/en-us/azure/active-directory/manage-apps/howto-saml-token-encryption).
 
 ### Set up Teleport token encryption
 
