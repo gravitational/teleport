@@ -21,10 +21,9 @@ import (
 	"os"
 	"strconv"
 
-	"golang.org/x/sys/windows/registry"
-
 	"github.com/gravitational/trace"
 	log "github.com/sirupsen/logrus"
+	"golang.org/x/sys/windows/registry"
 )
 
 // GetOrCreateRegistryKey loads or creates a registry key handle.
