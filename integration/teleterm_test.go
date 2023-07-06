@@ -18,10 +18,15 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials/insecure"
 
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -68,6 +73,12 @@ func TestTeleterm(t *testing.T) {
 		t.Parallel()
 
 		testGetClusterReturnsPropertiesFromAuthServer(t, pack)
+	})
+
+	t.Run("Test headless watcher", func(t *testing.T) {
+		t.Parallel()
+
+		testHeadlessWatcher(t, pack, creds)
 	})
 }
 
@@ -218,6 +229,80 @@ func testGetClusterReturnsPropertiesFromAuthServer(t *testing.T, pack *dbhelpers
 	require.ElementsMatch(t, []string{suggestedReviewer}, response.LoggedInUser.SuggestedReviewers)
 }
 
+func testHeadlessWatcher(t *testing.T, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) {
+	ctx := context.Background()
+
+	tc := mustLogin(t, pack.Root.User.GetName(), pack, creds)
+
+	storage, err := clusters.NewStorage(clusters.Config{
+		Dir:                tc.KeysDir,
+		InsecureSkipVerify: tc.InsecureSkipVerify,
+	})
+	require.NoError(t, err)
+
+	cluster, err := storage.Add(ctx, tc.WebProxyAddr)
+	require.NoError(t, err)
+
+	daemonService, err := daemon.New(daemon.Config{
+		Storage: storage,
+		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
+			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
+		},
+	})
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		daemonService.Stop()
+	})
+
+	// Start the tshd event service and connect the daemon to it. This should also
+	// start a headless watcher for the connected cluster.
+
+	tshdEventsService, addr := newMockTSHDEventsServiceServer(t)
+	err = daemonService.UpdateAndDialTshdEventsServerAddress(addr)
+	require.NoError(t, err)
+
+	// Ensure the watcher catches events and sends them to the Electron App.
+
+	expires := pack.Root.Cluster.Config.Clock.Now().Add(time.Minute)
+	ha, err := types.NewHeadlessAuthentication(pack.Root.User.GetName(), "uuid", expires)
+	require.NoError(t, err)
+	ha.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
+
+	upsertAndWaitForEvent := func() bool {
+		tshdEventsService.setCallCount("SendPendingHeadlessAuthentication", 0)
+
+		err = pack.Root.Cluster.Process.GetAuthServer().UpsertHeadlessAuthentication(ctx, ha)
+		require.NoError(t, err)
+
+		// Wait for the watcher to relay the SendPendingHeadlessAuthentication message.
+		for i := 0; i < 5; i++ {
+			time.Sleep(20 * time.Millisecond)
+			if tshdEventsService.readCallCount("SendPendingHeadlessAuthentication") == 1 {
+				return true
+			}
+		}
+
+		return false
+	}
+
+	// The watcher takes some amount of time to set up, so if we immediately upsert a headless
+	// authentication, it may not be caught by the watcher.
+	require.Eventually(t, upsertAndWaitForEvent, time.Second, 100*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
+
+	// Stop and restart the watcher twice to simulate logout + login + relogin. Ensure the watcher catches events.
+
+	err = daemonService.StopHeadlessWatcher(cluster.URI.String())
+	require.NoError(t, err)
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String())
+	require.NoError(t, err)
+	err = daemonService.StartHeadlessWatcher(cluster.URI.String())
+	require.NoError(t, err)
+
+	// Ensure the watcher catches events and sends them to the Electron App.
+
+	require.Eventually(t, upsertAndWaitForEvent, time.Second, 50*time.Millisecond, "Expected tshdEventService to receive a SendPendingHeadlessAuthentication message")
+}
+
 func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, creds *helpers.UserCreds) *client.TeleportClient {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   userName,
@@ -227,4 +312,51 @@ func mustLogin(t *testing.T, userName string, pack *dbhelpers.DatabasePack, cred
 	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
 	tc.SaveProfile(false /* makeCurrent */)
 	return tc
+}
+
+type mockTSHDEventsService struct {
+	*api.UnimplementedTshdEventsServiceServer
+	callCounts   map[string]int
+	callCountsMu sync.Mutex
+}
+
+func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
+	tshdEventsService := &mockTSHDEventsService{
+		callCounts: make(map[string]int),
+	}
+
+	ls, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
+
+	grpcServer := grpc.NewServer()
+	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
+
+	go func() {
+		err := grpcServer.Serve(ls)
+		assert.NoError(t, err)
+	}()
+
+	return tshdEventsService, ls.Addr().String()
+}
+
+func (c *mockTSHDEventsService) SendPendingHeadlessAuthentication(context.Context, *api.SendPendingHeadlessAuthenticationRequest) (*api.SendPendingHeadlessAuthenticationResponse, error) {
+	c.callCountsMu.Lock()
+	defer c.callCountsMu.Unlock()
+
+	c.callCounts["SendPendingHeadlessAuthentication"]++
+	return &api.SendPendingHeadlessAuthenticationResponse{}, nil
+}
+
+func (c *mockTSHDEventsService) readCallCount(name string) int {
+	c.callCountsMu.Lock()
+	defer c.callCountsMu.Unlock()
+
+	return c.callCounts[name]
+}
+
+func (c *mockTSHDEventsService) setCallCount(name string, val int) {
+	c.callCountsMu.Lock()
+	defer c.callCountsMu.Unlock()
+
+	c.callCounts[name] = val
 }
