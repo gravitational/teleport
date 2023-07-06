@@ -72,7 +72,7 @@ const Provider = props => {
       selectedAwsRdsDb: { region: 'us-east-1' } as any,
       integration: {
         kind: 'aws-oidc',
-        name: 'aws-oidc-integration',
+        name: 'integration/aws-oidc',
         resourceType: 'integration',
         spec: {
           roleArn: 'arn-123',

@@ -82,7 +82,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     }
   }, [labels]);
 
-  function handleDeploy(validator: Validator) {
+  function handleDeploy(validator) {
     if (!validator.validate()) {
       return;
     }
@@ -165,6 +165,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               setTaskRoleArn={setTaskRoleArn}
               disabled={isProcessing}
               dbMeta={dbMeta}
+              validator={validator}
             />
 
             {/* step two */}
@@ -236,10 +237,10 @@ const Heading = ({
       <HeaderSubtitle>
         Teleport needs a database service to be able to connect to your
         database. Teleport can configure the permissions required to spin up an
-        ECS Fargate container (0.xxx vCPU, 1GB memory) in your Amazon account
-        with the ability to access databases in this region (
-        <Mark>{region}</Mark>). You will only need to do this once for all
-        databases per geographical region. <br />
+        ECS Fargate container (2vCPU, 4GB memory) in your Amazon account with
+        the ability to access databases in this region (<Mark>{region}</Mark>).
+        You will only need to do this once for all databases per geographical
+        region. <br />
         <br />
         Want to deploy a database service manually from one of your existing
         servers?{' '}
@@ -257,26 +258,42 @@ const CreateAccessRole = ({
   setTaskRoleArn,
   disabled,
   dbMeta,
+  validator,
 }: {
   taskRoleArn: string;
   setTaskRoleArn(r: string): void;
   disabled: boolean;
   dbMeta: DbMeta;
+  validator: Validator;
 }) => {
+  const [scriptUrl, setScriptUrl] = useState('');
   const { integration, selectedAwsRdsDb } = dbMeta;
-  const scriptUrl = cfg.getDeployServiceIamConfigureScriptUrl({
-    integrationName: integration.name,
-    region: selectedAwsRdsDb.region,
-    // arn's are formatted as `don-care-about-this-part/role-arn`.
-    // We are splitting by slash and getting the last element.
-    awsOidcRoleArn: integration.spec.roleArn.split('/').pop(),
-    taskRoleArn,
-  });
+
+  function generateAutoConfigScript() {
+    if (!validator.validate()) {
+      return;
+    }
+
+    const newScriptUrl = cfg.getDeployServiceIamConfigureScriptUrl({
+      integrationName: integration.name,
+      region: selectedAwsRdsDb.region,
+      // arn's are formatted as `don-care-about-this-part/role-arn`.
+      // We are splitting by slash and getting the last element.
+      awsOidcRoleArn: integration.spec.roleArn.split('/').pop(),
+      taskRoleArn,
+    });
+
+    setScriptUrl(newScriptUrl);
+  }
 
   return (
     <StyledBox mb={5}>
       <Text bold>Step 1</Text>
-      <Text mb={2}>Create an Access Role for the Database Service</Text>
+      <Text mb={2}>
+        Name a Task Role ARN for this Database Service and generate a configure
+        command. This command will configure the required permissions in your
+        AWS account.
+      </Text>
       <FieldInput
         mb={4}
         disabled={disabled}
@@ -284,7 +301,7 @@ const CreateAccessRole = ({
         label="Name a Task Role ARN"
         autoFocus
         value={taskRoleArn}
-        placeholder="teleport"
+        placeholder="TeleportDatabaseAccess"
         width="440px"
         mr="3"
         onChange={e => setTaskRoleArn(e.target.value)}
@@ -292,26 +309,32 @@ const CreateAccessRole = ({
         resources, in this case you will be naming an IAM role that this \
         deployed service will be using`}
       />
-      <Text mb={2}>
-        Then open{' '}
-        <Link
-          href="https://console.aws.amazon.com/cloudshell/home"
-          target="_blank"
-        >
-          Amazon CloudShell
-        </Link>{' '}
-        and copy/paste the following command to create an access role for your
-        database service:
-      </Text>
-      <Box mb={2}>
-        <TextSelectCopyMulti
-          lines={[
-            {
-              text: `sudo bash -c "$(curl '${scriptUrl}')"`,
-            },
-          ]}
-        />
-      </Box>
+      <ButtonSecondary mb={3} onClick={generateAutoConfigScript}>
+        {scriptUrl ? 'Regenerate Command' : 'Generate Command'}
+      </ButtonSecondary>
+      {scriptUrl && (
+        <>
+          <Text mb={2}>
+            Open{' '}
+            <Link
+              href="https://console.aws.amazon.com/cloudshell/home"
+              target="_blank"
+            >
+              Amazon CloudShell
+            </Link>{' '}
+            and copy/paste the following command:
+          </Text>
+          <Box mb={2}>
+            <TextSelectCopyMulti
+              lines={[
+                {
+                  text: `sudo bash -c "$(curl '${scriptUrl}')"`,
+                },
+              ]}
+            />
+          </Box>
+        </>
+      )}
     </StyledBox>
   );
 };
@@ -407,8 +430,7 @@ const roleArnMatcher = value => () => {
   if (!isValid) {
     return {
       valid: false,
-      message:
-        'name must be alphanumerics, including characters such as @ = , . + -',
+      message: 'name can only contain characters @ = , . + - and alphanumerics',
     };
   }
   return {
