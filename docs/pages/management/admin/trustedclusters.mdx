@@ -45,24 +45,25 @@ This guide will explain how to:
 <TabItem scope={["oss"]} label="Open Source">
 
 - Two running Teleport clusters. For details on how to set up your clusters, see
-  one of our [Getting Started](/docs/getting-started) guides.
+  our [Getting Started](../../get-started.mdx) guide.
 
 - (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
 
-  See [Installation](/docs/installation.mdx) for details.
+  See [Installation](../../installation.mdx) for details.
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a
-  Teleport Node in your cluster.
+  See [Joining Services to your Cluster](../join-services-to-your-cluster.mdx) for how to launch a
+  Teleport agent in your cluster.
 
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 
 - Two running Teleport clusters. For details on how to set up your clusters, see
-  our Enterprise [Getting Started](/docs/enterprise/getting-started) guide.
+  our Enterprise [Getting
+  Started](../../choose-an-edition/teleport-enterprise/introduction.mdx) guide.
 
 - (!docs/pages/includes/enterprise/tctl-tsh-prerequisite.mdx!)
 
@@ -80,8 +81,8 @@ This guide will explain how to:
   [sign up page](https://goteleport.com/signup/) to begin your free trial.
 
 - A second Teleport cluster, which will act as the leaf cluster. For details on
-how to set up this cluster, see one of our
-[Getting Started](/docs/getting-started) guides.
+how to set up this cluster, see our
+[Getting Started](../../get-started.mdx) guide.
 
   As an alternative, you can set up a second Teleport Cloud account.
 
@@ -757,7 +758,7 @@ certificate authority. A certificate contains four important pieces of data:
 - Metadata (certificate extensions): additional data protected by the signature
   above. Teleport uses the metadata to store the list of user roles and SSH
   options like "permit-agent-forwarding".
-- The expiration date.
+- The expiration date, or time-to-live (**TTL**).
 
 When a user from the root cluster attempts to access a Node in the leaf cluster,
 the leaf cluster's Auth Service authenticates the user's certificate and reads
@@ -768,7 +769,7 @@ these pieces of data from it. It then performs the following actions:
   cluster with one of the remote user's roles.
 - Checks if the local role allows the requested identity (Unix login) to have
   access.
-- Checks that the certificate has not expired.
+- Checks that the certificate has not expired. The TTL is set by the root cluster.
 
 </Details>
 
@@ -792,10 +793,12 @@ these pieces of data from it. It then performs the following actions:
   type="tip"
   title="Note"
 >
+Trusted Clusters work only in one direction. In the example above, users from
+the leaf cluster cannot see or connect to Nodes in the root cluster.
 
-  Trusted Clusters work only in one direction. In the example above, users from
-  the leaf cluster cannot see or connect to Nodes in the root cluster.
-
+The Teleport root cluster's Web UI will not populate available OS users for
+leaf cluster Nodes. When using the web UI, type in the host user when creating
+SSH sessions.
 </Admonition>
 
 ## Step 5/5. Remove trust between your clusters

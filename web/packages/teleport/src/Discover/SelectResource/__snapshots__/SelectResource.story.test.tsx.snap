@@ -2533,7 +2533,7 @@ exports[`render with no access 1`] = `
 
 .c8 {
   position: absolute;
-  background: red;
+  background: #ff1744;
   padding: 0px 6px;
   border-top-right-radius: 8px;
   border-bottom-left-radius: 8px;
@@ -4385,7 +4385,7 @@ exports[`render with partial access 1`] = `
 
 .c18 {
   position: absolute;
-  background: red;
+  background: #ff1744;
   padding: 0px 6px;
   border-top-right-radius: 8px;
   border-bottom-left-radius: 8px;

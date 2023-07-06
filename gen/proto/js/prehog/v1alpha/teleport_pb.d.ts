@@ -321,6 +321,27 @@ export namespace UIOnboardRegisterChallengeSubmitEvent {
     }
 }
 
+export class UIOnboardQuestionnaireSubmitEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): UIOnboardQuestionnaireSubmitEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): UIOnboardQuestionnaireSubmitEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: UIOnboardQuestionnaireSubmitEvent): UIOnboardQuestionnaireSubmitEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: UIOnboardQuestionnaireSubmitEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): UIOnboardQuestionnaireSubmitEvent;
+    static deserializeBinaryFromReader(message: UIOnboardQuestionnaireSubmitEvent, reader: jspb.BinaryReader): UIOnboardQuestionnaireSubmitEvent;
+}
+
+export namespace UIOnboardQuestionnaireSubmitEvent {
+    export type AsObject = {
+        userName: string,
+    }
+}
+
 export class UIRecoveryCodesContinueClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UIRecoveryCodesContinueClickEvent;
@@ -1017,6 +1038,76 @@ export namespace RoleCreateEvent {
     }
 }
 
+export class BotCreateEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): BotCreateEvent;
+
+    getBotUserName(): string;
+    setBotUserName(value: string): BotCreateEvent;
+
+    getRoleName(): string;
+    setRoleName(value: string): BotCreateEvent;
+
+    getRoleCount(): number;
+    setRoleCount(value: number): BotCreateEvent;
+
+    getJoinMethod(): string;
+    setJoinMethod(value: string): BotCreateEvent;
+
+    getBotName(): string;
+    setBotName(value: string): BotCreateEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): BotCreateEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: BotCreateEvent): BotCreateEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: BotCreateEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): BotCreateEvent;
+    static deserializeBinaryFromReader(message: BotCreateEvent, reader: jspb.BinaryReader): BotCreateEvent;
+}
+
+export namespace BotCreateEvent {
+    export type AsObject = {
+        userName: string,
+        botUserName: string,
+        roleName: string,
+        roleCount: number,
+        joinMethod: string,
+        botName: string,
+    }
+}
+
+export class BotJoinEvent extends jspb.Message { 
+    getBotName(): string;
+    setBotName(value: string): BotJoinEvent;
+
+    getJoinMethod(): string;
+    setJoinMethod(value: string): BotJoinEvent;
+
+    getJoinTokenName(): string;
+    setJoinTokenName(value: string): BotJoinEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): BotJoinEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: BotJoinEvent): BotJoinEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: BotJoinEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): BotJoinEvent;
+    static deserializeBinaryFromReader(message: BotJoinEvent, reader: jspb.BinaryReader): BotJoinEvent;
+}
+
+export namespace BotJoinEvent {
+    export type AsObject = {
+        botName: string,
+        joinMethod: string,
+        joinTokenName: string,
+    }
+}
+
 export class UICreateNewRoleClickEvent extends jspb.Message { 
     getUserName(): string;
     setUserName(value: string): UICreateNewRoleClickEvent;
@@ -1351,6 +1442,31 @@ export namespace UIIntegrationEnrollCompleteEvent {
     }
 }
 
+export class EditorChangeEvent extends jspb.Message { 
+    getUserName(): string;
+    setUserName(value: string): EditorChangeEvent;
+
+    getStatus(): EditorChangeStatus;
+    setStatus(value: EditorChangeStatus): EditorChangeEvent;
+
+
+    serializeBinary(): Uint8Array;
+    toObject(includeInstance?: boolean): EditorChangeEvent.AsObject;
+    static toObject(includeInstance: boolean, msg: EditorChangeEvent): EditorChangeEvent.AsObject;
+    static extensions: {[key: number]: jspb.ExtensionFieldInfo<jspb.Message>};
+    static extensionsBinary: {[key: number]: jspb.ExtensionFieldBinaryInfo<jspb.Message>};
+    static serializeBinaryToWriter(message: EditorChangeEvent, writer: jspb.BinaryWriter): void;
+    static deserializeBinary(bytes: Uint8Array): EditorChangeEvent;
+    static deserializeBinaryFromReader(message: EditorChangeEvent, reader: jspb.BinaryReader): EditorChangeEvent;
+}
+
+export namespace EditorChangeEvent {
+    export type AsObject = {
+        userName: string,
+        status: EditorChangeStatus,
+    }
+}
+
 export class SubmitEventRequest extends jspb.Message { 
     getClusterName(): string;
     setClusterName(value: string): SubmitEventRequest;
@@ -1614,6 +1730,30 @@ export class SubmitEventRequest extends jspb.Message {
     setUiIntegrationEnrollCompleteEvent(value?: UIIntegrationEnrollCompleteEvent): SubmitEventRequest;
 
 
+    hasEditorChangeEvent(): boolean;
+    clearEditorChangeEvent(): void;
+    getEditorChangeEvent(): EditorChangeEvent | undefined;
+    setEditorChangeEvent(value?: EditorChangeEvent): SubmitEventRequest;
+
+
+    hasBotCreate(): boolean;
+    clearBotCreate(): void;
+    getBotCreate(): BotCreateEvent | undefined;
+    setBotCreate(value?: BotCreateEvent): SubmitEventRequest;
+
+
+    hasUiOnboardQuestionnaireSubmit(): boolean;
+    clearUiOnboardQuestionnaireSubmit(): void;
+    getUiOnboardQuestionnaireSubmit(): UIOnboardQuestionnaireSubmitEvent | undefined;
+    setUiOnboardQuestionnaireSubmit(value?: UIOnboardQuestionnaireSubmitEvent): SubmitEventRequest;
+
+
+    hasBotJoin(): boolean;
+    clearBotJoin(): void;
+    getBotJoin(): BotJoinEvent | undefined;
+    setBotJoin(value?: BotJoinEvent): SubmitEventRequest;
+
+
     getEventCase(): SubmitEventRequest.EventCase;
 
     serializeBinary(): Uint8Array;
@@ -1672,6 +1812,10 @@ export namespace SubmitEventRequest {
         assistCompletion?: AssistCompletionEvent.AsObject,
         uiIntegrationEnrollStartEvent?: UIIntegrationEnrollStartEvent.AsObject,
         uiIntegrationEnrollCompleteEvent?: UIIntegrationEnrollCompleteEvent.AsObject,
+        editorChangeEvent?: EditorChangeEvent.AsObject,
+        botCreate?: BotCreateEvent.AsObject,
+        uiOnboardQuestionnaireSubmit?: UIOnboardQuestionnaireSubmitEvent.AsObject,
+        botJoin?: BotJoinEvent.AsObject,
     }
 
     export enum EventCase {
@@ -1760,6 +1904,14 @@ export namespace SubmitEventRequest {
     UI_INTEGRATION_ENROLL_START_EVENT = 44,
 
     UI_INTEGRATION_ENROLL_COMPLETE_EVENT = 45,
+
+    EDITOR_CHANGE_EVENT = 46,
+
+    BOT_CREATE = 47,
+
+    UI_ONBOARD_QUESTIONNAIRE_SUBMIT = 48,
+
+    BOT_JOIN = 49,
 
     }
 
@@ -1938,4 +2090,10 @@ export enum IntegrationEnrollKind {
     INTEGRATION_ENROLL_KIND_OPSGENIE = 9,
     INTEGRATION_ENROLL_KIND_OKTA = 10,
     INTEGRATION_ENROLL_KIND_JAMF = 11,
+}
+
+export enum EditorChangeStatus {
+    EDITOR_CHANGE_STATUS_UNSPECIFIED = 0,
+    EDITOR_CHANGE_STATUS_ROLE_GRANTED = 1,
+    EDITOR_CHANGE_STATUS_ROLE_REMOVED = 2,
 }

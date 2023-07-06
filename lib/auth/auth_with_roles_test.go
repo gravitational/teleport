@@ -29,6 +29,7 @@ import (
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
+	"github.com/jonboulle/clockwork"
 	"github.com/pquerna/otp/totp"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -182,6 +183,11 @@ func TestLocalUserCanReissueCerts(t *testing.T) {
 		t.Run(test.desc, func(t *testing.T) {
 			user, _, err := CreateUserAndRole(srv.Auth(), test.desc, []string{"role"})
 			require.NoError(t, err)
+			ctx := context.Background()
+			authPref, err := srv.Auth().GetAuthPreference(ctx)
+			require.NoError(t, err)
+			authPref.SetDefaultSessionTTL(types.Duration(test.expiresIn))
+			srv.Auth().SetAuthPreference(ctx, authPref)
 
 			var id TestIdentity
 			if test.renewable {
@@ -4553,8 +4559,11 @@ func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, clien
 
 // getTestHeadlessAuthenticationID returns the headless authentication resource
 // used across headless authentication tests.
-func getTestHeadlessAuthn(t *testing.T, user string) *types.HeadlessAuthentication {
-	headlessID := services.NewHeadlessAuthenticationID([]byte(sshPubKey))
+func newTestHeadlessAuthn(t *testing.T, user string, clock clockwork.Clock) *types.HeadlessAuthentication {
+	_, sshPubKey, err := native.GenerateKeyPair()
+	require.NoError(t, err)
+
+	headlessID := services.NewHeadlessAuthenticationID(sshPubKey)
 	headlessAuthn := &types.HeadlessAuthentication{
 		ResourceHeader: types.ResourceHeader{
 			Metadata: types.Metadata{
@@ -4562,12 +4571,12 @@ func getTestHeadlessAuthn(t *testing.T, user string) *types.HeadlessAuthenticati
 			},
 		},
 		User:            user,
-		PublicKey:       []byte(sshPubKey),
+		PublicKey:       sshPubKey,
 		ClientIpAddress: "0.0.0.0",
 	}
-	headlessAuthn.SetExpiry(time.Now().Add(time.Minute))
+	headlessAuthn.SetExpiry(clock.Now().Add(time.Minute))
 
-	err := headlessAuthn.CheckAndSetDefaults()
+	err = headlessAuthn.CheckAndSetDefaults()
 	require.NoError(t, err)
 
 	return headlessAuthn
@@ -4577,6 +4586,22 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 	ctx := context.Background()
 	username := "teleport-user"
 	otherUsername := "other-user"
+
+	srv := newTestTLSServer(t)
+	_, _, err := CreateUserAndRole(srv.Auth(), username, nil)
+	require.NoError(t, err)
+	_, _, err = CreateUserAndRole(srv.Auth(), otherUsername, nil)
+	require.NoError(t, err)
+
+	assertTimeout := func(t require.TestingT, err error, i ...interface{}) {
+		require.Error(t, err)
+		require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
+	}
+
+	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
+	}
 
 	for _, tc := range []struct {
 		name                  string
@@ -4590,46 +4615,28 @@ func TestGetHeadlessAuthentication(t *testing.T) {
 			identity:    TestUser(username),
 			assertError: require.NoError,
 		}, {
-			name:       "NOK not found",
-			headlessID: uuid.NewString(),
-			identity:   TestUser(username),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
-			},
+			name:        "NOK not found",
+			headlessID:  uuid.NewString(),
+			identity:    TestUser(username),
+			assertError: assertTimeout,
 		}, {
-			name:     "NOK different user",
-			identity: TestUser(otherUsername),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
-			},
+			name:        "NOK different user",
+			identity:    TestUser(otherUsername),
+			assertError: assertTimeout,
 		}, {
-			name:     "NOK admin",
-			identity: TestAdmin(),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
-			},
+			name:        "NOK admin",
+			identity:    TestAdmin(),
+			assertError: assertAccessDenied,
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
-			srv := newTestTLSServer(t)
-			_, _, err := CreateUserAndRole(srv.Auth(), username, nil)
-			require.NoError(t, err)
-			_, _, err = CreateUserAndRole(srv.Auth(), otherUsername, nil)
-			require.NoError(t, err)
-
 			// create headless authn
-			headlessAuthn := getTestHeadlessAuthn(t, username)
-			stub, err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, headlessAuthn.GetName())
+			headlessAuthn := newTestHeadlessAuthn(t, username, srv.Auth().clock)
+			err := srv.Auth().UpsertHeadlessAuthentication(ctx, headlessAuthn)
 			require.NoError(t, err)
-			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
-			require.NoError(t, err)
-
 			client, err := srv.NewClient(tc.identity)
 			require.NoError(t, err)
 
@@ -4654,6 +4661,22 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 	ctx := context.Background()
 	otherUsername := "other-user"
 
+	srv := newTestTLSServer(t)
+	mfa := configureForMFA(t, srv)
+
+	_, _, err := CreateUserAndRole(srv.Auth(), otherUsername, nil)
+	require.NoError(t, err)
+
+	assertNotFound := func(t require.TestingT, err error, i ...interface{}) {
+		require.Error(t, err)
+		require.True(t, trace.IsNotFound(err), "expected not found error but got: %v", err)
+	}
+
+	assertAccessDenied := func(t require.TestingT, err error, i ...interface{}) {
+		require.Error(t, err)
+		require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
+	}
+
 	for _, tc := range []struct {
 		name string
 		// defaults to the mfa identity tied to the headless authentication created
@@ -4674,70 +4697,45 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			withMFA:     true,
 			assertError: require.NoError,
 		}, {
-			name:    "NOK same user approved without mfa",
-			state:   types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
-			withMFA: false,
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.True(t, trace.IsAccessDenied(err), "expected access denied error but got: %v", err)
-			},
+			name:        "NOK same user approved without mfa",
+			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
+			withMFA:     false,
+			assertError: assertAccessDenied,
 		}, {
-			name:       "NOK not found",
-			headlessID: uuid.NewString(),
-			state:      types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
-			},
+			name:        "NOK not found",
+			headlessID:  uuid.NewString(),
+			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
+			assertError: assertNotFound,
 		}, {
-			name:     "NOK different user denied",
-			state:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
-			identity: TestUser(otherUsername),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
-			},
+			name:        "NOK different user not found",
+			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
+			identity:    TestUser(otherUsername),
+			assertError: assertNotFound,
 		}, {
-			name:     "NOK different user approved",
-			state:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
-			identity: TestUser(otherUsername),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
-			},
+			name:        "NOK different user approved",
+			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
+			identity:    TestUser(otherUsername),
+			assertError: assertNotFound,
 		}, {
-			name:     "NOK admin denied",
-			state:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
-			identity: TestAdmin(),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
-			},
+			name:        "NOK admin denied",
+			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
+			identity:    TestAdmin(),
+			assertError: assertAccessDenied,
 		}, {
-			name:     "NOK admin approved",
-			state:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
-			identity: TestAdmin(),
-			assertError: func(t require.TestingT, err error, i ...interface{}) {
-				require.Error(t, err)
-				require.ErrorContains(t, err, context.DeadlineExceeded.Error(), "expected context deadline error but got: %v", err)
-			},
+			name:        "NOK admin approved",
+			state:       types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
+			identity:    TestAdmin(),
+			assertError: assertAccessDenied,
 		},
 	} {
+		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			tc := tc
 			t.Parallel()
 
-			srv := newTestTLSServer(t)
-			mfa := configureForMFA(t, srv)
-
-			_, _, err := CreateUserAndRole(srv.Auth(), otherUsername, nil)
-			require.NoError(t, err)
-
 			// create headless authn
-			headlessAuthn := getTestHeadlessAuthn(t, mfa.User)
-			stub, err := srv.Auth().CreateHeadlessAuthenticationStub(ctx, headlessAuthn.GetName())
-			require.NoError(t, err)
-			_, err = srv.Auth().CompareAndSwapHeadlessAuthentication(ctx, stub, headlessAuthn)
+			headlessAuthn := newTestHeadlessAuthn(t, mfa.User, srv.Auth().clock)
+			headlessAuthn.State = types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING
+			err := srv.Auth().UpsertHeadlessAuthentication(ctx, headlessAuthn)
 			require.NoError(t, err)
 
 			// default to mfa user
@@ -4748,6 +4746,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 			client, err := srv.NewClient(tc.identity)
 			require.NoError(t, err)
 
+			// default to failed mfa challenge response
 			resp := &proto.MFAAuthenticateResponse{
 				Response: &proto.MFAAuthenticateResponse_Webauthn{
 					Webauthn: &webauthn.CredentialAssertionResponse{
@@ -4755,6 +4754,7 @@ func TestUpdateHeadlessAuthenticationState(t *testing.T) {
 					},
 				},
 			}
+
 			if tc.withMFA {
 				client, err := srv.NewClient(TestUser(mfa.User))
 				require.NoError(t, err)

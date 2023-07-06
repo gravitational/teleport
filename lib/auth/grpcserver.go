@@ -3803,6 +3803,9 @@ func (g *GRPCServer) CreateDatabase(ctx context.Context, database *types.Databas
 	if database.Origin() == "" {
 		database.SetOrigin(types.OriginDynamic)
 	}
+	if err := services.ValidateDatabase(database); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CreateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3817,6 +3820,9 @@ func (g *GRPCServer) UpdateDatabase(ctx context.Context, database *types.Databas
 	}
 	if database.Origin() == "" {
 		database.SetOrigin(types.OriginDynamic)
+	}
+	if err := services.ValidateDatabase(database); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpdateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
@@ -5026,14 +5032,36 @@ func (g *GRPCServer) UpdateHeadlessAuthenticationState(ctx context.Context, req 
 	return &emptypb.Empty{}, trace.Wrap(err)
 }
 
-// GetHeadlessAuthentication retrieves a headless authentication by id.
+// GetHeadlessAuthentication retrieves a headless authentication.
 func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.GetHeadlessAuthenticationRequest) (*types.HeadlessAuthentication, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authReq, err := auth.GetHeadlessAuthentication(ctx, req.Id)
+	// First, try to retrieve the headless authentication directly if it already exists.
+	if ha, err := auth.GetHeadlessAuthentication(ctx, req.Id); err == nil {
+		return ha, nil
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the headless authentication doesn't exist yet, the headless login process may be waiting
+	// for the user to create a stub to authorize the insert.
+	if err := auth.CreateHeadlessAuthenticationStub(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Force a short request timeout to prevent GetHeadlessAuthenticationFromWatcher
+	// from waiting indefinitely for a nonexistent headless authentication. This is
+	// useful for cases when the headless link/command is copied incorrectly or is
+	// run with the wrong user.
+	timeout := 5 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Wait for the login process to insert the actual headless authentication details.
+	authReq, err := auth.GetHeadlessAuthenticationFromWatcher(ctx, req.Id)
 	return authReq, trace.Wrap(err)
 }
 
