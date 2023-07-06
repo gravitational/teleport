@@ -119,9 +119,12 @@ async function isAgentAlreadyDownloaded(
 ): Promise<boolean> {
   const asyncExec = promisify(exec);
   try {
-    const agentVersion = await asyncExec(`${agentBinaryPath} version --raw`, {
-      timeout: 10_000, // 10 seconds
-    });
+    const agentVersion = await asyncExec(
+      `${agentBinaryPath.replace(/ /g, '\\ ')} version --raw`,
+      {
+        timeout: 10_000, // 10 seconds
+      }
+    );
     return agentVersion.stdout.trim() === neededVersion;
   } catch (e) {
     logger.error(e);

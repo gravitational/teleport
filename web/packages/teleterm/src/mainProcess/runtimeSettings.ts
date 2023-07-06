@@ -94,9 +94,7 @@ function getRuntimeSettings(): RuntimeSettings {
     sessionDataDir,
     tempDataDir,
     binDir,
-    agentBinaryPath: path
-      .resolve(sessionDataDir, 'teleport', 'teleport')
-      .replace(/ /g, '\\ '),
+    agentBinaryPath: path.resolve(sessionDataDir, 'teleport', 'teleport'),
     certsDir: getCertsDir(),
     defaultShell: getDefaultShell(),
     kubeConfigsDir: getKubeConfigsDir(),
