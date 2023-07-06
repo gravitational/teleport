@@ -129,6 +129,8 @@ func FromEventFields(fields EventFields) (events.AuditEvent, error) {
 		e = &events.TrustedClusterDelete{}
 	case TrustedClusterTokenCreateEvent:
 		e = &events.TrustedClusterTokenCreate{}
+	case ProvisionTokenCreateEvent:
+		e = &events.ProvisionTokenCreate{}
 	case GithubConnectorCreatedEvent:
 		e = &events.GithubConnectorCreate{}
 	case GithubConnectorDeletedEvent:

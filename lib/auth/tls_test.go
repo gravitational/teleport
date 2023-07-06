@@ -46,6 +46,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
+	eventtypes "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/types/wrappers"
 	apiutils "github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/sshutils"
@@ -3888,7 +3889,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 
 		requireTokenCreated bool
 		requireError        require.ErrorAssertionFunc
-		requireEventEmitted bool
+		auditEvents         []eventtypes.AuditEvent
 	}{
 		{
 			name:     "success",
@@ -3896,12 +3897,56 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 			token: mustNewToken(
 				t,
 				"success",
-				types.SystemRoles{types.RoleNode, types.RoleTrustedCluster},
+				types.SystemRoles{types.RoleNode, types.RoleKube},
 				time.Time{},
 			),
 			requireError:        require.NoError,
 			requireTokenCreated: true,
-			requireEventEmitted: true,
+			auditEvents: []eventtypes.AuditEvent{
+				&eventtypes.ProvisionTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-creator",
+					},
+					Roles: []types.SystemRole{types.RoleNode, types.RoleKube},
+				},
+			},
+		},
+		{
+			name:     "success (trusted cluster)",
+			identity: TestUser(privilegedUser.GetName()),
+			token: mustNewToken(
+				t,
+				"success-trusted-cluster",
+				types.SystemRoles{types.RoleTrustedCluster},
+				time.Time{},
+			),
+			requireError:        require.NoError,
+			requireTokenCreated: true,
+			auditEvents: []eventtypes.AuditEvent{
+				&eventtypes.ProvisionTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.ProvisionTokenCreateEvent,
+						Code: events.ProvisionTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-creator",
+					},
+					Roles: []types.SystemRole{types.RoleTrustedCluster},
+				},
+				&eventtypes.TrustedClusterTokenCreate{
+					Metadata: eventtypes.Metadata{
+						Type: events.TrustedClusterTokenCreateEvent,
+						Code: events.TrustedClusterTokenCreateCode,
+					},
+					UserMetadata: eventtypes.UserMetadata{
+						User: "token-creator",
+					},
+				},
+			},
 		},
 		{
 			name:     "access denied",
@@ -3940,15 +3985,19 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 			err = client.CreateToken(ctx, tt.token)
 			tt.requireError(t, err)
 
-			if tt.requireEventEmitted {
-				lastEvent := mockEmitter.LastEvent()
-				require.NotNil(t, lastEvent)
-				require.Equal(
-					t,
-					events.TrustedClusterTokenCreateEvent,
-					lastEvent.GetType(),
-				)
+			// Expect last emitted audit events to match the expected ones.
+			emittedEvents := mockEmitter.Events()
+			emittedEventsSliceStart := len(emittedEvents) - len(tt.auditEvents)
+			if emittedEventsSliceStart < 0 {
+				emittedEventsSliceStart = 0
 			}
+			require.Empty(t, cmp.Diff(
+				tt.auditEvents,
+				emittedEvents[emittedEventsSliceStart:],
+				cmpopts.IgnoreFields(eventtypes.Metadata{}, "Time"),
+				cmpopts.IgnoreFields(eventtypes.ResourceMetadata{}, "Expires"),
+				cmpopts.EquateEmpty(),
+			))
 			if tt.requireTokenCreated {
 				token, err := ac.server.Auth().GetToken(ctx, tt.token.GetName())
 				require.NoError(t, err)
