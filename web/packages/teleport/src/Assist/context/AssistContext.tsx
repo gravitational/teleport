@@ -33,9 +33,10 @@ import { getAccessToken, getHostName } from 'teleport/services/api';
 
 import {
   ExecutionEnvelopeType,
+  ExecutionTeleportErrorType,
   RawPayload,
   ServerMessageType,
-  SessionData,
+  SessionEndData,
 } from 'teleport/Assist/types';
 
 import { MessageTypeEnum, Protobuf } from 'teleport/lib/term/protobuf';
@@ -430,11 +431,8 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
     );
 
     const proto = new Protobuf();
-
     executeCommandWebSocket.current = new WebSocket(url);
     executeCommandWebSocket.current.binaryType = 'arraybuffer';
-
-    let sessionsEnded = 0;
 
     executeCommandWebSocket.current.onmessage = event => {
       const uintArray = new Uint8Array(event.data);
@@ -446,22 +444,36 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           const data = JSON.parse(msg.payload) as RawPayload;
           const payload = atob(data.payload);
 
-          if (data.type === ExecutionEnvelopeType) {
-            dispatch({
-              type: AssistStateActionType.AddCommandResultSummary,
-              conversationId: state.conversations.selectedId,
-              summary: payload,
-              executionId: execParams.execution_id,
-              command: execParams.command,
-            });
-          } else {
-            dispatch({
-              type: AssistStateActionType.UpdateCommandResult,
-              conversationId: state.conversations.selectedId,
-              commandResultId: nodeIdToResultId.get(data.node_id),
-              output: payload,
-            });
+          switch (data.type) {
+            case ExecutionTeleportErrorType:
+              dispatch({
+                type: AssistStateActionType.FinishCommandResult,
+                conversationId: state.conversations.selectedId,
+                commandResultId: nodeIdToResultId.get(data.node_id),
+              });
+
+              nodeIdToResultId.delete(data.node_id);
+              break;
+
+            case ExecutionEnvelopeType:
+              dispatch({
+                type: AssistStateActionType.AddCommandResultSummary,
+                conversationId: state.conversations.selectedId,
+                summary: payload,
+                executionId: execParams.execution_id,
+                command: execParams.command,
+              });
+              break;
+
+            default:
+              dispatch({
+                type: AssistStateActionType.UpdateCommandResult,
+                conversationId: state.conversations.selectedId,
+                commandResultId: nodeIdToResultId.get(data.node_id),
+                output: payload,
+              });
           }
+
           break;
         }
 
@@ -484,23 +496,15 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           break;
 
         case MessageTypeEnum.SESSION_END: {
-          const data = JSON.parse(msg.payload) as SessionData;
+          const data = JSON.parse(msg.payload) as SessionEndData;
 
           dispatch({
             type: AssistStateActionType.FinishCommandResult,
             conversationId: state.conversations.selectedId,
-            commandResultId: nodeIdToResultId.get(data.session.server_id),
+            commandResultId: nodeIdToResultId.get(data.server_id),
           });
 
-          sessionsEnded += 1;
-
-          if (sessionsEnded === nodeIdToResultId.size) {
-            const message = proto.encodeCloseMessage();
-            const bytearray = new Uint8Array(message);
-
-            executeCommandWebSocket.current.send(bytearray.buffer);
-            nodeIdToResultId.clear();
-          }
+          nodeIdToResultId.delete(data.server_id);
 
           break;
         }
