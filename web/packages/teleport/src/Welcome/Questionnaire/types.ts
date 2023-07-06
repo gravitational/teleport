@@ -14,8 +14,6 @@
  * limitations under the License.
  */
 
-import { EmployeeOptions, TeamOptions, TitleOptions } from './constants';
-
 export type QuestionnaireProps = {
   // full indicates if a full survey should be presented,
   // false indicates that a partial survey is shown (some questions are skipped)
@@ -31,24 +29,50 @@ export type QuestionProps = {
 
 export type CompanyProps = QuestionProps & {
   companyName: string;
-  numberOfEmployees: EmployeeOptionsStrings;
+  numberOfEmployees: EmployeeOption;
 };
 
 export type RoleProps = QuestionProps & {
-  role: TitleOptionsStrings;
-  team: TeamOptionsStrings;
+  role: TitleOption;
+  team: TeamOption;
   teamName: string;
 };
 
 export type ResourceType = {
-  label: Resource;
+  label: ResourceOption;
   image: string;
 };
 
 export type ResourcesProps = QuestionProps & {
-  resources: ResourceType[];
-  checked: Resource[];
+  checked: ResourceOption[];
 };
+
+export enum EmployeeOption {
+  '0-19',
+  '20-199',
+  '200-499',
+  '500-999',
+  '1000-4999',
+  '5000+',
+}
+
+export enum TeamOption {
+  SOFTWARE_ENGINEERING = 'Software Engineering',
+  DEVOPS_ENGINEERING = 'DevOps Engineering',
+  IT = 'IT',
+  SUPPORT = 'Support',
+  FINANCE = 'Finance',
+  LEGAL = 'Legal',
+  OTHER = 'Other (free-form field)',
+}
+
+export enum TitleOption {
+  INDIVIDUAL_CONTRIBUTOR = 'Individual contributor',
+  MANAGER = 'Manager',
+  DIRECTOR = 'Director',
+  VP = 'VP',
+  C_SUITE_OWNER = 'C-Suite/Owner',
+}
 
 export enum ProtoResource {
   RESOURCE_UNSPECIFIED = 0,
@@ -59,7 +83,7 @@ export enum ProtoResource {
   RESOURCE_WEB_APPLICATIONS = 5,
 }
 
-export enum Resource {
+export enum ResourceOption {
   RESOURCE_WINDOWS_DESKTOPS = 'Windows Desktops',
   RESOURCE_SERVER_SSH = 'Server/SSH',
   RESOURCE_DATABASES = 'Databases',
@@ -69,13 +93,9 @@ export enum Resource {
 
 export type QuestionnaireFormFields = {
   companyName: string;
-  employeeCount: EmployeeOptionsStrings;
-  role: TitleOptionsStrings;
-  team: TeamOptionsStrings;
-  resources: Resource[];
-  teamName?: string; // only set if "Other" is selected from team options
+  employeeCount: EmployeeOption;
+  role: TitleOption;
+  team: TeamOption;
+  resources: ResourceOption[];
+  teamName: string;
 };
-
-export type EmployeeOptionsStrings = keyof typeof EmployeeOptions;
-export type TeamOptionsStrings = keyof typeof TeamOptions;
-export type TitleOptionsStrings = keyof typeof TitleOptions;

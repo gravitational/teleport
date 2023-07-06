@@ -20,13 +20,13 @@ import React from 'react';
 
 import Validation from 'shared/components/Validation';
 
-import { RoleProps } from './types';
+import { RoleProps, TeamOption } from './types';
 import { Role } from './Role';
 
 const makeProps = (): RoleProps => {
   return {
-    role: 'C-Suite/Owner',
-    team: 'DevOps Engineering',
+    role: undefined,
+    team: undefined,
     teamName: '',
     updateFields: () => {},
   };
@@ -34,7 +34,6 @@ const makeProps = (): RoleProps => {
 
 test('hides custom team input for explicit fields', () => {
   const props = makeProps();
-  props.team = 'DevOps Engineering';
   render(
     <Validation>
       <Role {...props} />
@@ -46,7 +45,7 @@ test('hides custom team input for explicit fields', () => {
 
 test('shows custom team input', () => {
   const props = makeProps();
-  props.team = 'Other (free-form field)';
+  props.team = 'OTHER' as TeamOption;
   render(
     <Validation>
       <Role {...props} />

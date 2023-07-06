@@ -27,11 +27,12 @@ import {
   ProtoResource,
   QuestionnaireFormFields,
   QuestionnaireProps,
+  ResourceOption,
 } from './types';
 import { Company } from './Company';
 import { Role } from './Role';
 import { Resources } from './Resources';
-import { resourceMapping, supportedResources } from './constants';
+import { resourceMapping } from './constants';
 
 export const Questionnaire = ({
   full,
@@ -44,6 +45,7 @@ export const Questionnaire = ({
     companyName: '',
     employeeCount: undefined,
     team: undefined,
+    teamName: '',
     role: undefined,
     resources: [],
   });
@@ -66,7 +68,7 @@ export const Questionnaire = ({
 
     // maps the string enum used for UI display & Sales Center object with proto int
     const protoResources: ProtoResource[] = formFields.resources.map(
-      r => resourceMapping[r]
+      r => resourceMapping[ResourceOption[r]]
     );
 
     void updatePreferences({
@@ -77,7 +79,7 @@ export const Questionnaire = ({
 
     const request: SurveyRequest = {
       companyName: formFields.companyName,
-      employeeCount: formFields.employeeCount,
+      employeeCount: String(formFields.employeeCount),
       resources: formFields.resources,
       role: formFields.role,
       team: formFields.team,
@@ -122,7 +124,6 @@ export const Questionnaire = ({
               updateFields={updateForm}
             />
             <Resources
-              resources={supportedResources}
               checked={formFields.resources}
               updateFields={updateForm}
             />

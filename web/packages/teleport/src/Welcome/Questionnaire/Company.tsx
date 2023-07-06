@@ -21,7 +21,7 @@ import FieldSelect from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
 
 import { EmployeeSelectOptions } from './constants';
-import { CompanyProps, EmployeeOptionsStrings } from './types';
+import { CompanyProps, EmployeeOption } from './types';
 
 export const Company = ({
   updateFields,
@@ -44,7 +44,7 @@ export const Company = ({
       label="Number of Employees"
       rule={requiredField('Number of Employees is required')}
       placeholder="Select Team Size"
-      onChange={(e: Option<EmployeeOptionsStrings, string>) =>
+      onChange={(e: Option<EmployeeOption>) =>
         updateFields({ employeeCount: e.value })
       }
       value={
