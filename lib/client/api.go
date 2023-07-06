@@ -3393,6 +3393,10 @@ func (tc *TeleportClient) AttemptDeviceLogin(ctx context.Context, key *Key, root
 		Bytes: newCerts.X509Der,
 	})
 
+	if err := tc.localAgent.AddKey(&cp); err != nil {
+		return trace.Wrap(err)
+	}
+
 	// Get the list of host certificates that this cluster knows about.
 	hostCerts, err := rootAuthClient.GetCertAuthorities(ctx, types.HostCA, false)
 	if err != nil {
