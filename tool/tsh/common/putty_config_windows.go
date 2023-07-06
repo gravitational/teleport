@@ -21,11 +21,12 @@ import (
 	"net"
 	"syscall"
 
+	"github.com/gravitational/trace"
+
 	"github.com/gravitational/teleport/api/profile"
 	"github.com/gravitational/teleport/api/utils/keypaths"
 	"github.com/gravitational/teleport/lib/puttyhosts"
 	"github.com/gravitational/teleport/lib/utils/registry"
-	"github.com/gravitational/trace"
 )
 
 // the key should not include HKEY_CURRENT_USER
