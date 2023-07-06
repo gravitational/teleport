@@ -23,55 +23,9 @@ import (
 
 	"github.com/gravitational/trace"
 
-	accesslistpb "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/header"
-	"github.com/gravitational/teleport/api/types/traits"
 	"github.com/gravitational/teleport/api/utils"
 )
-
-// FromAccessListV1 converts a v1 access list into an internal access list object.
-func FromAccessListV1(msg *accesslistpb.AccessList) (*AccessList, error) {
-	owners := make([]AccessListOwner, len(msg.Spec.Owners))
-	for i, owner := range msg.Spec.Owners {
-		owners[i] = AccessListOwner{
-			Name:        owner.Name,
-			Description: owner.Description,
-		}
-	}
-
-	members := make([]AccessListMember, len(msg.Spec.Members))
-	for i, member := range msg.Spec.Members {
-		members[i] = AccessListMember{
-			Name:    member.Name,
-			Joined:  member.Joined.AsTime(),
-			Expires: member.Expires.AsTime(),
-			Reason:  member.Reason,
-			AddedBy: member.AddedBy,
-		}
-	}
-
-	accessList, err := NewAccessList(header.FromMetadataV1(msg.Header.Metadata), AccessListSpec{
-		Owners: owners,
-		Audit: AccessListAudit{
-			Frequency: msg.Spec.Audit.Frequency.AsDuration(),
-		},
-		MembershipRequires: AccessListRequires{
-			Roles:  msg.Spec.MembershipRequires.Roles,
-			Traits: traits.FromV1(msg.Spec.MembershipRequires.Traits),
-		},
-		OwnershipRequires: AccessListRequires{
-			Roles:  msg.Spec.OwnershipRequires.Roles,
-			Traits: traits.FromV1(msg.Spec.OwnershipRequires.Traits),
-		},
-		Grants: AccessListGrants{
-			Roles:  msg.Spec.Grants.Roles,
-			Traits: traits.FromV1(msg.Spec.Grants.Traits),
-		},
-		Members: members,
-	})
-
-	return accessList, trace.Wrap(err)
-}
 
 // AccessList describes the basic building block of access grants, which are
 // similar to access requests but for longer lived permissions that need to be

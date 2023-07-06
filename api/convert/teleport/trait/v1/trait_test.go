@@ -14,17 +14,23 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package traits
+package traitv1
 
 import (
-	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/trait/v1"
+	"testing"
+
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/require"
 )
 
-// FromV1 converts an array of traits into a map of string to string array.
-func FromV1(traits []*traitv1.Trait) map[string][]string {
-	traitMap := map[string][]string{}
-	for _, trait := range traits {
-		traitMap[trait.Key] = trait.Values
+func TestRoundtrip(t *testing.T) {
+	traits := map[string][]string{
+		"trait1": {"value1", "value2"},
+		"trait2": {"value3", "value4"},
+		"trait3": {"value5", "value6"},
 	}
-	return traitMap
+
+	converted := FromV1(ToV1(traits))
+
+	require.Empty(t, cmp.Diff(traits, converted))
 }

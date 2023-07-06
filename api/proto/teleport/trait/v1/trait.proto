@@ -16,7 +16,7 @@ syntax = "proto3";
 
 package teleport.trait.v1;
 
-option go_package = "github.com/gravitational/teleport/api/gen/proto/go/trait/v1;trait";
+option go_package = "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1;traitv1";
 
 // Trait is a trait that can be use in various resources.
 message Trait {
