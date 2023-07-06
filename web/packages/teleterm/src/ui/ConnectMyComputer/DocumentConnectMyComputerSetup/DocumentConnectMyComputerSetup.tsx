@@ -33,9 +33,8 @@ interface DocumentConnectMyComputerSetupProps {
 export function DocumentConnectMyComputerSetup(
   props: DocumentConnectMyComputerSetupProps
 ) {
-  const [step, setStep] = useState<'information' | 'agent-setup'>(
-    'information'
-  );
+  const [step, setStep] =
+    useState<'information' | 'agent-setup'>('information');
 
   return (
     <Document visible={props.visible}>
