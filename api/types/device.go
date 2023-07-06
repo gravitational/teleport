@@ -156,6 +156,9 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 			ReportedAssetTag:        d.ReportedAssetTag,
 			SystemSerialNumber:      d.SystemSerialNumber,
 			BaseBoardSerialNumber:   d.BaseBoardSerialNumber,
+			TpmPlatformAttestation: tpmPlatformAttestationFromResource(
+				d.TpmPlatformAttestation,
+			),
 		}
 	}
 
@@ -180,6 +183,7 @@ func DeviceFromResource(res *DeviceV1) (*devicepb.Device, error) {
 			OsBuild:           p.OsBuild,
 			OsUsernames:       p.OsUsernames,
 			JamfBinaryVersion: p.JamfBinaryVersion,
+			ExternalId:        p.ExternalId,
 		}
 	}
 
@@ -242,6 +246,9 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			ReportedAssetTag:        d.ReportedAssetTag,
 			SystemSerialNumber:      d.SystemSerialNumber,
 			BaseBoardSerialNumber:   d.BaseBoardSerialNumber,
+			TpmPlatformAttestation: tpmPlatformAttestationToResource(
+				d.TpmPlatformAttestation,
+			),
 		}
 	}
 
@@ -262,6 +269,7 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 			OsBuild:           p.OsBuild,
 			OsUsernames:       p.OsUsernames,
 			JamfBinaryVersion: p.JamfBinaryVersion,
+			ExternalId:        p.ExternalId,
 		}
 	}
 
@@ -287,6 +295,80 @@ func DeviceToResource(dev *devicepb.Device) *DeviceV1 {
 	}
 	_ = res.CheckAndSetDefaults() // assign default fields
 	return res
+}
+
+func tpmPlatformAttestationToResource(pa *devicepb.TPMPlatformAttestation) *TPMPlatformAttestation {
+	if pa == nil {
+		return nil
+	}
+
+	var outPlatParams *TPMPlatformParameters
+	if pa.PlatformParameters != nil {
+		var quotes []*TPMQuote
+		for _, q := range pa.PlatformParameters.Quotes {
+			quotes = append(quotes, &TPMQuote{
+				Quote:     q.Quote,
+				Signature: q.Signature,
+			})
+		}
+
+		var pcrs []*TPMPCR
+		for _, pcr := range pa.PlatformParameters.Pcrs {
+			pcrs = append(pcrs, &TPMPCR{
+				Index:     pcr.Index,
+				Digest:    pcr.Digest,
+				DigestAlg: pcr.DigestAlg,
+			})
+		}
+
+		outPlatParams = &TPMPlatformParameters{
+			Quotes:   quotes,
+			Pcrs:     pcrs,
+			EventLog: pa.PlatformParameters.EventLog,
+		}
+	}
+
+	return &TPMPlatformAttestation{
+		Nonce:              pa.Nonce,
+		PlatformParameters: outPlatParams,
+	}
+}
+
+func tpmPlatformAttestationFromResource(pa *TPMPlatformAttestation) *devicepb.TPMPlatformAttestation {
+	if pa == nil {
+		return nil
+	}
+
+	var outPlatParams *devicepb.TPMPlatformParameters
+	if pa.PlatformParameters != nil {
+		var quotes []*devicepb.TPMQuote
+		for _, q := range pa.PlatformParameters.Quotes {
+			quotes = append(quotes, &devicepb.TPMQuote{
+				Quote:     q.Quote,
+				Signature: q.Signature,
+			})
+		}
+
+		var pcrs []*devicepb.TPMPCR
+		for _, pcr := range pa.PlatformParameters.Pcrs {
+			pcrs = append(pcrs, &devicepb.TPMPCR{
+				Index:     pcr.Index,
+				Digest:    pcr.Digest,
+				DigestAlg: pcr.DigestAlg,
+			})
+		}
+
+		outPlatParams = &devicepb.TPMPlatformParameters{
+			Quotes:   quotes,
+			EventLog: pa.PlatformParameters.EventLog,
+			Pcrs:     pcrs,
+		}
+	}
+
+	return &devicepb.TPMPlatformAttestation{
+		Nonce:              pa.Nonce,
+		PlatformParameters: outPlatParams,
+	}
 }
 
 // ResourceOSTypeToString converts OSType to a string representation suitable
@@ -361,7 +443,8 @@ func ResourceDeviceAttestationTypeToString(
 ) string {
 	switch attestationType {
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_UNSPECIFIED:
-		return "unspecified"
+		// Default to empty, so it doesn't show in non-TPM devices.
+		return ""
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKPUB:
 		return "tpm_ekpub"
 	case devicepb.DeviceAttestationType_DEVICE_ATTESTATION_TYPE_TPM_EKCERT:

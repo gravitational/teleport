@@ -15,15 +15,20 @@ package web
 
 import (
 	"context"
+	"fmt"
 	"net/http"
+	"strings"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/aws"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/web/scripts/oneoff"
 	"github.com/gravitational/teleport/lib/web/ui"
 )
 
@@ -104,8 +109,119 @@ func (h *Handler) awsOIDCClientRequest(ctx context.Context, region string, p htt
 	}
 
 	return &awsoidc.AWSClientRequest{
-		Token:   token,
-		RoleARN: awsoidcSpec.RoleARN,
-		Region:  region,
+		IntegrationName: integrationName,
+		Token:           token,
+		RoleARN:         awsoidcSpec.RoleARN,
+		Region:          region,
 	}, nil
+}
+
+// awsOIDCDeployService deploys a Discovery Service and a Database Service in Amazon ECS.
+func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p httprouter.Params, sctx *SessionContext, site reversetunnel.RemoteSite) (interface{}, error) {
+	ctx := r.Context()
+
+	var req ui.AWSOIDCDeployServiceRequest
+	if err := httplib.ReadJSON(r, &req); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	awsClientReq, err := h.awsOIDCClientRequest(ctx, req.Region, p, sctx, site)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	deployDBServiceClient, err := awsoidc.NewDeployServiceClient(ctx, awsClientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	databaseAgentMatcherLabels := make(types.Labels, len(req.DatabaseAgentMatcherLabels))
+	for _, label := range req.DatabaseAgentMatcherLabels {
+		databaseAgentMatcherLabels[label.Name] = utils.Strings{label.Value}
+	}
+
+	deployServiceResp, err := awsoidc.DeployService(ctx, deployDBServiceClient, awsoidc.DeployServiceRequest{
+		Region:                        req.Region,
+		SubnetIDs:                     req.SubnetIDs,
+		ClusterName:                   req.ClusterName,
+		ServiceName:                   req.ServiceName,
+		TaskName:                      req.TaskName,
+		TaskRoleARN:                   req.TaskRoleARN,
+		ProxyServerHostPort:           h.PublicProxyAddr(),
+		TeleportClusterName:           h.auth.clusterName,
+		DeploymentMode:                req.DeploymentMode,
+		IntegrationName:               awsClientReq.IntegrationName,
+		DatabaseResourceMatcherLabels: databaseAgentMatcherLabels,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return ui.AWSOIDCDeployServiceResponse{
+		ClusterARN:          deployServiceResp.ClusterARN,
+		ServiceARN:          deployServiceResp.ServiceARN,
+		TaskDefinitionARN:   deployServiceResp.TaskDefinitionARN,
+		ServiceDashboardURL: deployServiceResp.ServiceDashboardURL,
+	}, nil
+}
+
+// awsOIDCConfigureDeployServiceIAM returns a script that configures the required IAM permissions to enable the usage of DeployService action.
+func (h *Handler) awsOIDCConfigureDeployServiceIAM(w http.ResponseWriter, r *http.Request, p httprouter.Params) (any, error) {
+	ctx := r.Context()
+
+	queryParams := r.URL.Query()
+
+	clusterName, err := h.GetProxyClient().GetDomainName(ctx)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	integrationName := queryParams.Get("integrationName")
+	if len(integrationName) == 0 {
+		return nil, trace.BadParameter("missing integrationName param")
+	}
+
+	// Ensure the IntegrationName is valid.
+	_, err = h.GetProxyClient().GetIntegration(ctx, integrationName)
+	// NotFound error is ignored to prevent disclosure of whether the integration exists in a public/no-auth endpoint.
+	if err != nil && !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	awsRegion := queryParams.Get("awsRegion")
+	if err := aws.IsValidRegion(awsRegion); err != nil {
+		return nil, trace.BadParameter("invalid awsRegion")
+	}
+
+	role := queryParams.Get("role")
+	if err := aws.IsValidIAMRoleName(role); err != nil {
+		return nil, trace.BadParameter("invalid role")
+	}
+
+	taskRole := queryParams.Get("taskRole")
+	if err := aws.IsValidIAMRoleName(taskRole); err != nil {
+		return nil, trace.BadParameter("invalid taskRole")
+	}
+
+	// The script must execute the following command:
+	// teleport integration configure deployservice-iam
+	argsList := []string{
+		"integration", "configure", "deployservice-iam",
+		fmt.Sprintf(`--cluster="%s"`, clusterName),
+		fmt.Sprintf(`--name="%s"`, integrationName),
+		fmt.Sprintf(`--aws-region="%s"`, awsRegion),
+		fmt.Sprintf(`--role="%s"`, role),
+		fmt.Sprintf(`--task-role="%s"`, taskRole),
+	}
+	script, err := oneoff.BuildScript(oneoff.OneOffScriptParams{
+		TeleportArgs: strings.Join(argsList, " "),
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	httplib.SetScriptHeaders(w.Header())
+	fmt.Fprint(w, script)
+
+	return nil, trace.Wrap(err)
 }

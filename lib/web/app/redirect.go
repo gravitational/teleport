@@ -20,7 +20,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"strings"
 
 	"github.com/gravitational/trace"
 
@@ -51,13 +50,7 @@ func SetRedirectPageHeaders(h http.Header, nonce string) {
 		// Should match the <script> tab nonce (random value).
 		scriptSrc = fmt.Sprintf("nonce-%v", nonce)
 	}
-	var csp = strings.Join([]string{
-		httplib.GetDefaultContentSecurityPolicy(),
-		fmt.Sprintf("script-src '%v'", scriptSrc),
-		"style-src 'self'",
-		"img-src 'self'",
-	}, ";")
-	h.Set("Content-Security-Policy", csp)
+	httplib.SetRedirectPageContentSecurityPolicy(h, scriptSrc)
 }
 
 // MetaRedirect issues a "meta refresh" redirect.

@@ -45,6 +45,7 @@ export type LockResourceKind =
   | 'role'
   | 'login'
   | 'node'
+  | 'server_id'
   | 'mfa_device'
   | 'windows_desktop'
   | 'access_request'
@@ -69,6 +70,7 @@ export function getEmptyResourceMap(): LockResourceMap {
     login: {},
     access_request: {},
     device: {},
+    server_id: {},
   };
 }
 
@@ -116,7 +118,7 @@ export const baseResourceKindOpts: LockResourceOption[] = [
     listKind: 'logins',
   },
   {
-    value: 'node',
+    value: 'server_id',
     label: 'Servers',
     listKind: 'server-side',
   },

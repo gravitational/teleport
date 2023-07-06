@@ -436,3 +436,40 @@ func TestIsUserARN(t *testing.T) {
 		})
 	}
 }
+
+func TestResourceARN(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		resourceType string
+		partition    string
+		accountID    string
+		resourceName string
+		expected     string
+	}{
+		{
+			name:         "role",
+			resourceType: "role",
+			partition:    "aws",
+			accountID:    "123456789012",
+			resourceName: "MyRole",
+			expected:     "arn:aws:iam::123456789012:role/MyRole",
+		},
+		{
+			name:         "policy",
+			resourceType: "policy",
+			partition:    "aws",
+			accountID:    "123456789012",
+			resourceName: "MyPolicy",
+			expected:     "arn:aws:iam::123456789012:policy/MyPolicy",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			switch tt.resourceType {
+			case "role":
+				require.Equal(t, tt.expected, RoleARN(tt.partition, tt.accountID, tt.resourceName))
+			case "policy":
+				require.Equal(t, tt.expected, PolicyARN(tt.partition, tt.accountID, tt.resourceName))
+			}
+		})
+	}
+}

@@ -23,6 +23,9 @@ import {
   DiscoverEvent,
   DiscoverEventResource,
   userEventService,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeploy,
+  DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
@@ -33,6 +36,7 @@ import {
   View,
 } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
+import { EViewConfigs } from './types';
 
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
@@ -46,6 +50,7 @@ export interface DiscoverContextState<T = any> {
   nextStep: (count?: number) => void;
   prevStep: () => void;
   onSelectResource: (resource: ResourceSpec) => void;
+  exitFlow: () => void;
   resourceSpec: ResourceSpec;
   viewConfig: ResourceViewConfig<T>;
   indexedViews: View[];
@@ -68,11 +73,14 @@ type CustomEventInput = {
   eventResourceName?: DiscoverEventResource;
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
+  serviceDeploy?: DiscoverServiceDeploy;
 };
 
 type DiscoverProviderProps = {
   // mockCtx used for testing purposes.
   mockCtx?: DiscoverContextState;
+  // Extra view configs that are passed in. This is used to add view configs from Enterprise.
+  eViewConfigs?: EViewConfigs;
 };
 
 // DiscoverUrlLocationState define fields to preserve state between
@@ -94,9 +102,11 @@ export type DiscoverUrlLocationState = {
 
 const discoverContext = React.createContext<DiscoverContextState>(null);
 
-export function DiscoverProvider(
-  props: React.PropsWithChildren<DiscoverProviderProps>
-) {
+export function DiscoverProvider({
+  mockCtx,
+  children,
+  eViewConfigs = [],
+}: React.PropsWithChildren<DiscoverProviderProps>) {
   const history = useHistory();
   const location = useLocation<DiscoverUrlLocationState>();
 
@@ -114,13 +124,28 @@ export function DiscoverProvider(
     (status: DiscoverEventStepStatus, custom?: CustomEventInput) => {
       const { id, currEventName } = eventState;
 
+      const event = custom?.eventName || currEventName;
+
+      let serviceDeploy: DiscoverServiceDeploy;
+      if (event === DiscoverEvent.DeployService) {
+        if (custom?.serviceDeploy) {
+          serviceDeploy = custom.serviceDeploy;
+        } else {
+          serviceDeploy = {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          };
+        }
+      }
+
       userEventService.captureDiscoverEvent({
-        event: custom?.eventName || currEventName,
+        event,
         eventData: {
           id: id || custom.id,
           resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
+          serviceDeploy,
           ...status,
         },
       });
@@ -225,7 +250,7 @@ export function DiscoverProvider(
     // We still want to emit an event if user clicked on an
     // unguided link to gather data on which unguided resource
     // is most popular.
-    if (resource.unguidedLink) {
+    if (resource.unguidedLink || resource.isDialog) {
       emitEvent(
         { stepStatus: DiscoverEventStatus.Success },
         {
@@ -258,7 +283,9 @@ export function DiscoverProvider(
     targetViewIndex = 0
   ) {
     // Process each view and assign each with an index number.
-    const currCfg = viewConfigs.find(r => r.kind === resource.kind);
+    const currCfg = [...viewConfigs, ...eViewConfigs].find(
+      r => r.kind === resource.kind
+    );
     let indexedViews = [];
     if (typeof currCfg.views === 'function') {
       indexedViews = addIndexToViews(currCfg.views(resource));
@@ -351,10 +378,7 @@ export function DiscoverProvider(
     if (currentStep === 0) {
       // Emit abort since we are starting over with resource selection.
       emitEvent({ stepStatus: DiscoverEventStatus.Aborted });
-      initEventState();
-      setViewConfig(null);
-      setResourceSpec(null);
-      setIndexedViews([]);
+      exitFlow();
       return;
     }
 
@@ -363,6 +387,13 @@ export function DiscoverProvider(
     if (nextView) {
       setCurrentStep(updatedCurrentStep);
     }
+  }
+
+  function exitFlow() {
+    initEventState();
+    setViewConfig(null);
+    setResourceSpec(null);
+    setIndexedViews([]);
   }
 
   function updateAgentMeta(meta: AgentMeta) {
@@ -375,7 +406,14 @@ export function DiscoverProvider(
         stepStatus: DiscoverEventStatus.Error,
         stepStatusError: errorStr,
       },
-      { autoDiscoverResourcesCount: 0, selectedResourcesCount: 0 }
+      {
+        autoDiscoverResourcesCount: 0,
+        selectedResourcesCount: 0,
+        serviceDeploy: {
+          method: DiscoverServiceDeployMethod.Unspecified,
+          type: DiscoverServiceDeployType.Unspecified,
+        },
+      }
     );
   }
 
@@ -385,6 +423,7 @@ export function DiscoverProvider(
     nextStep,
     prevStep,
     onSelectResource,
+    exitFlow,
     resourceSpec,
     viewConfig,
     setResourceSpec,
@@ -396,8 +435,8 @@ export function DiscoverProvider(
   };
 
   return (
-    <discoverContext.Provider value={props.mockCtx || value}>
-      {props.children}
+    <discoverContext.Provider value={mockCtx || value}>
+      {children}
     </discoverContext.Provider>
   );
 }

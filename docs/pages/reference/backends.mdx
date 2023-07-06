@@ -225,12 +225,33 @@ Service reads these parameters to configure its interactions with S3:
 `s3://bucket/path?region=us-east-1&endpoint=mys3.example.com&insecure=false&disablesse=false&acl=private&use_fips_endpoint=true`
 
 - `region=us-east-1` - set the Amazon region to use.
+
 - `endpoint=mys3.example.com` - connect to a custom S3 endpoint. Optional.
-- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled. Default value is `false`.
-- `disablesse=true` - set to `true` or `false`. If `true`, S3 server-side encryption will be disabled. If `false`, aws:kms (Key Management Service) will be used for server-side encryption. Other SSE types are not supported at this time. Setting `insecure=true` implicitly sets `disablesse=true`.
-- `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID all objects uploaded to S3 will be encrypted with this key. Details can be found below.
-- `acl=private` - set the [canned ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl) to use. Must be one of the predefined ACL values.
-- `use_fips_endpoint=true` -  [Configure S3 FIPS endpoints](#configuring-aws-fips-endpoints)
+
+- `insecure=true` - set to `true` or `false`. If `true`, TLS will be disabled.
+  Default value is `false`.
+
+- `disablesse=true` - set to `true` or `false`. The Auth Service checks this
+  value before uploading an object to an S3 bucket. 
+
+  If this is `false`, the Auth Service will set the server-side encryption
+  configuration of the upload to use AWS Key Management Service and, if
+  `sse_kms_key` is set, configure the upload to use this key.
+
+  If this value is `true`, the Auth Service will not set an explicit server-side
+  encryption configuration for the object upload, meaning that the upload will
+  use the bucket-level server-side encryption configuration.
+
+- `sse_kms_key=kms_key_id` - If set to a valid AWS KMS CMK key ID, all objects
+  uploaded to S3 will be encrypted with this key (as long as `disablesse` is
+  `false`). Details can be found below.
+
+- `acl=private` - set the [canned
+  ACL](https://docs.aws.amazon.com/AmazonS3/latest/userguide/acl-overview.html#canned-acl)
+  to use. Must be one of the predefined ACL values.
+
+- `use_fips_endpoint=true` -  [Configure S3 FIPS
+  endpoints](#configuring-aws-fips-endpoints)
 
 ### S3 IAM policy
 
@@ -487,11 +508,13 @@ The optional `GET` parameters shown below control how Teleport interacts with a 
 
 ### DynamoDB autoscaling
 
-When setting up DynamoDB it's important to set up backups. Autoscaling is optional with Teleport,
-and it is advised to collect some production usage data before enabling autoscaling.
+When setting up DynamoDB it's important to set up backups. Autoscaling is
+optional with Teleport, and it is advised to collect some production usage data
+before enabling autoscaling.
 
-Autoscaling and backup can be configured on DynamoDB directly. We also make setup simpler by allowing AWS DynamoDB
-settings to be set automatically during Teleport startup. The configuration is described below.
+Autoscaling and backup can be configured on DynamoDB directly. We also make
+setup simpler by allowing AWS DynamoDB settings to be set automatically during
+Teleport startup. The configuration is described below.
 
 **DynamoDB Continuous Backups**
 
@@ -500,6 +523,16 @@ settings to be set automatically during Teleport startup. The configuration is d
 **DynamoDB Autoscaling Options**
 
 - [AWS Docs - Managing Throughput Capacity Automatically with DynamoDB Auto Scaling](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/AutoScaling.html)
+
+<Notice type="danger">
+
+AWS can throttle DynamoDB if more than two processes are reading from the same
+stream's shard simultaneously, so you must not deploy more than two Auth Service
+instances that read from a DynamoDB backend. For details on DynamoDB Streams,
+read the [AWS
+documentation](https://docs.aws.amazon.com/amazondynamodb/latest/developerguide/Streams.html).
+
+</Notice>
 
 ```yaml
 # ...

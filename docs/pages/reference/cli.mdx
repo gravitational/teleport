@@ -1010,7 +1010,7 @@ Run `tsh help <subcommand>` or see the [Global Flags section](#tsh-global-flags)
 *The proxy endpoint can take a https and ssh port in this format `host:https_port[,ssh_proxy_port]`*
 
 ```code
-# Try Toboth ports 443 and 3080 for https
+# Try both ports 443 and 3080 for https
 $ tsh --proxy=proxy.example.com login
 
 # Use ports 8080 and 8023 for https and SSH proxy:
@@ -1672,9 +1672,9 @@ These flags are available for all commands `--debug, --config`. Run
 ```code
 # Adds teleport user "joe" with mappings to
 # OS users and {{ internal.logins }} to "joe" and "ubuntu"
-$ tctl users add joe --roles=access joe,ubuntu
+$ tctl users add joe --roles=access,requester joe,ubuntu
 # Adds Teleport user "joe" with mappings to the editor role
-$ tctl users add joe --roles=editor
+$ tctl users add joe --roles=editor,reviewer
 ```
 
 ### tctl users update
@@ -1897,10 +1897,11 @@ $ tctl tokens add --type=TYPE [<flags>]
 
 | Name | Default Value(s) | Allowed Value(s) | Description |
 | - | - | - | - |
+| <nobr>`--format`</nobr> | none | `text`, `json`, `yaml` | Output format |
+| `--labels` | none | `text` | Sets token labels |
+| `--ttl` | 1h | Duration like 5s, 2m, or 3h | Sets how long the token is valid for. |
 | `--type` | none | `proxy`, `auth`, `trusted_cluster`, `node`,  `db`, `kube`, `app`, `windowsdesktop` | Type of token to add |
 | `--value` | none | **string** token value | Value of token to add |
-| `--ttl` | 1h | relative duration like 5s, 2m, or 3h | Set expiration time for token |
-| `--format` | none | `text`, `json`, `yaml` | Output format |
 
 #### Global flags
 
@@ -1913,7 +1914,7 @@ These flags are available for all commands `--debug, --config` . Run
 # Generate an invite token for a trusted_cluster
 $ tctl tokens add --type=trusted_cluster --ttl=5m
 # Generate an invite token for a trusted_cluster with labels
-$ tctl tokens add --type=trusted_cluster --labels=env=prod
+$ tctl tokens add --type=trusted_cluster --labels=env=prod,region=us-west
 # Generate an invite token for a node
 # This is equivalent to `tctl nodes add`
 $ tctl tokens add --type=node

@@ -20,7 +20,6 @@ export { Header, HeaderSubtitle, HeaderWithBackBtn } from './Header';
 export { Finished } from './Finished';
 export { Mark } from './Mark';
 export { PermissionsErrorMessage } from '../SelectResource/PermissionsErrorMessage';
-export { ReadOnlyYamlEditor } from './YAML';
 export { ResourceKind } from './ResourceKind';
 export { Step, StepContainer } from './Step';
 export { TextBox, TextIcon } from './Text';
@@ -30,5 +29,6 @@ export {
   useConnectionDiagnostic,
 } from './ConnectionDiagnostic';
 export { useShowHint } from './useShowHint';
+export { StepBox } from './StepBox';
 
 export type { DiscoverLabel } from './LabelsCreater';

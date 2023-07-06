@@ -15,31 +15,27 @@ limitations under the License.
 */
 
 import { fonts } from 'design/theme/fonts';
-import typography, { fontSizes, fontWeights } from 'design/theme/typography';
-import { sharedStyles } from 'design/theme/sharedStyles';
-import { darkTheme } from 'design/theme';
+import {
+  darkTheme as designDarkTheme,
+  lightTheme as designLightTheme,
+} from 'design/theme';
 
 const sansSerif = 'system-ui';
 
-const theme = {
-  name: 'dark',
-  colors: darkTheme.colors,
-  typography,
+export const darkTheme = {
+  ...designDarkTheme,
   font: sansSerif,
   fonts: {
     sansSerif,
     mono: fonts.mono,
   },
-  fontWeights,
-  fontSizes,
-  space: darkTheme.space,
-  borders: darkTheme.borders,
-  radii: [0, 2, 4, 8, 16, 9999, '100%'],
-  regular: fontWeights.regular,
-  bold: fontWeights.bold,
-  ...sharedStyles,
-  // disabled media queries for styled-system
-  breakpoints: [],
 };
 
-export default theme;
+export const lightTheme = {
+  ...designLightTheme,
+  font: sansSerif,
+  fonts: {
+    sansSerif,
+    mono: fonts.mono,
+  },
+};

@@ -21,11 +21,14 @@ package web
 import (
 	"context"
 	"net/http"
+	"sort"
 
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
 	"github.com/gravitational/teleport/api/client"
+	apiclient "github.com/gravitational/teleport/api/client"
+	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -62,9 +65,39 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 		return nil, trace.Wrap(err)
 	}
 
+	userGroups, err := apiclient.GetAllResources[types.UserGroup](r.Context(), clt, &proto.ListResourcesRequest{
+		ResourceType:     types.KindUserGroup,
+		Namespace:        apidefaults.Namespace,
+		UseSearchAsRoles: true,
+	})
+	if err != nil {
+		h.log.Debugf("Unable to fetch user groups while listing applications, unable to display associated user groups: %v", err)
+	}
+
+	userGroupLookup := make(map[string]types.UserGroup, len(userGroups))
+	for _, userGroup := range userGroups {
+		userGroupLookup[userGroup.GetName()] = userGroup
+	}
+
 	var apps types.Apps
+	appsToUserGroups := map[string]types.UserGroups{}
 	for _, server := range page.Resources {
 		apps = append(apps, server.GetApp())
+
+		app := server.GetApp()
+
+		ugs := make(types.UserGroups, len(app.GetUserGroups()))
+		for i, userGroupName := range app.GetUserGroups() {
+			userGroup := userGroupLookup[userGroupName]
+			if userGroup == nil {
+				h.log.Debugf("Unable to find user group %s when creating user groups, skipping", userGroupName)
+				continue
+			}
+
+			ugs[i] = userGroup
+		}
+		sort.Sort(ugs)
+		appsToUserGroups[app.GetName()] = ugs
 	}
 
 	return listResourcesGetResponse{
@@ -74,6 +107,7 @@ func (h *Handler) clusterAppsGet(w http.ResponseWriter, r *http.Request, p httpr
 			AppClusterName:    site.GetName(),
 			Identity:          identity,
 			Apps:              apps,
+			AppsToUserGroups:  appsToUserGroups,
 		}),
 		StartKey:   page.NextKey,
 		TotalCount: page.Total,

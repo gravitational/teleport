@@ -648,7 +648,7 @@ func (c *kubeCredentialsCommand) run(cf *CLIConf) error {
 		return trace.Wrap(c.issueCert(cf))
 	}
 
-	if err := c.checkLocalProxyRequirement(profile.TLSRoutingConnUpgradeRequired); err != nil {
+	if err := c.checkLocalProxyRequirement(profile); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -684,7 +684,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
-	if err := c.checkLocalProxyRequirement(tc.TLSRoutingConnUpgradeRequired); err != nil {
+	if err := c.checkLocalProxyRequirement(tc.Profile()); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -729,7 +729,7 @@ func (c *kubeCredentialsCommand) issueCert(cf *CLIConf) error {
 	err = client.RetryWithRelogin(ctx, tc, func() error {
 		// The requirement may change after a new login so check again just in
 		// case.
-		if err := c.checkLocalProxyRequirement(tc.TLSRoutingConnUpgradeRequired); err != nil {
+		if err := c.checkLocalProxyRequirement(tc.Profile()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -773,8 +773,8 @@ func isNetworkError(err error) bool {
 	return errors.As(err, &opErr) || trace.IsConnectionProblem(err)
 }
 
-func (c *kubeCredentialsCommand) checkLocalProxyRequirement(connUpgradeRequired bool) error {
-	if connUpgradeRequired {
+func (c *kubeCredentialsCommand) checkLocalProxyRequirement(profile *profile.Profile) error {
+	if profile.RequireKubeLocalProxy() {
 		return trace.BadParameter("Cannot connect Kubernetes clients to Teleport Proxy directly. Please use `tsh proxy kube` or `tsh kubectl` instead.")
 	}
 	return nil
@@ -1183,7 +1183,7 @@ func (c *kubeLoginCommand) run(cf *CLIConf) error {
 }
 
 func (c *kubeLoginCommand) printUserMessage(cf *CLIConf, tc *client.TeleportClient) {
-	if c.localProxyRequired(tc) {
+	if tc.Profile().RequireKubeLocalProxy() {
 		c.printLocalProxyUserMessage(cf)
 		return
 	}
@@ -1211,10 +1211,6 @@ Use the kubeconfig provided by the local proxy, and try 'kubectl version' to tes
 Use the kubeconfig provided by the local proxy, select a context, and try 'kubectl version' to test the connection.
 `)
 	}
-}
-
-func (c *kubeLoginCommand) localProxyRequired(tc *client.TeleportClient) bool {
-	return tc.TLSRoutingConnUpgradeRequired
 }
 
 func fetchKubeClusters(ctx context.Context, tc *client.TeleportClient) (teleportCluster string, kubeClusters []types.KubeCluster, err error) {

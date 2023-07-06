@@ -1,13 +1,16 @@
+{{- if .Values.serviceAccount.create }}
 apiVersion: v1
 kind: ServiceAccount
 metadata:
-  name: {{ .Release.Name }}-delete-hook
+  name: {{ template "teleport-kube-agent.deleteHookServiceAccountName" . }}
   namespace: {{ .Release.Namespace }}
   annotations:
     "helm.sh/hook": post-delete
     "helm.sh/hook-weight": "-4"
     "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
 ---
+{{- end }}
+{{- if .Values.rbac.create }}
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
 metadata:
@@ -40,6 +43,7 @@ subjects:
   name: {{ .Release.Name }}-delete-hook
   namespace: {{ .Release.Namespace }}
 ---
+{{- end }}
 apiVersion: batch/v1
 kind: Job
 metadata:
@@ -61,7 +65,7 @@ spec:
 {{- if .Values.priorityClassName }}
       priorityClassName: {{ .Values.priorityClassName }}
 {{- end }}
-      serviceAccountName: {{ .Release.Name }}-delete-hook
+      serviceAccountName: {{ template "teleport-kube-agent.deleteHookServiceAccountName" . }}
       restartPolicy: OnFailure
 {{- if .Values.tolerations }}
       tolerations:

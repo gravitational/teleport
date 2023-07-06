@@ -258,7 +258,7 @@ func dialSSHProxy(ctx context.Context, tc *libclient.TeleportClient, sp sshProxy
 				InsecureSkipVerify: tc.InsecureSkipVerify,
 				ServerName:         sp.proxyHost,
 			},
-			ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequiredForWebProxy(remoteProxyAddr),
+			ALPNConnUpgradeRequired: tc.IsALPNConnUpgradeRequiredForWebProxy(ctx, remoteProxyAddr),
 		})
 
 	default:

@@ -72,7 +72,7 @@ func (s *sessionTracker) UpdatePresence(ctx context.Context, sessionID, user str
 			return trace.Wrap(err)
 		}
 
-		err = session.UpdatePresence(user)
+		err = session.UpdatePresence(user, s.bk.Clock().Now().UTC())
 		if err != nil {
 			return trace.Wrap(err)
 		}
