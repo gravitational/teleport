@@ -231,7 +231,11 @@ func makeKubeLocalProxy(cf *CLIConf, tc *client.TeleportClient, clusters kubecon
 	}
 	kubeProxy.localProxy = localProxy
 
-	kubeProxy.forwardProxy, err = alpnproxy.NewKubeForwardProxy(cf.Context, port, localProxy.GetAddr())
+	kubeProxy.forwardProxy, err = alpnproxy.NewKubeForwardProxy(alpnproxy.KubeForwardProxyConfig{
+		CloseContext: cf.Context,
+		ListenPort:   port,
+		ForwardAddr:  localProxy.GetAddr(),
+	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

@@ -125,7 +125,11 @@ func (g *Gateway) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, erro
 
 func (g *Gateway) makeForwardProxyForKube(listener net.Listener) (err error) {
 	// Use provided listener with user configured port for the forward proxy.
-	g.forwardProxy, err = alpnproxy.NewKubeForwardProxyWithListener(g.closeContext, listener, g.localProxy.GetAddr())
+	g.forwardProxy, err = alpnproxy.NewKubeForwardProxy(alpnproxy.KubeForwardProxyConfig{
+		CloseContext: g.closeContext,
+		Listener:     listener,
+		ForwardAddr:  g.localProxy.GetAddr(),
+	})
 	return trace.Wrap(err)
 }
 
