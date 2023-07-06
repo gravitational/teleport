@@ -16,26 +16,12 @@ package main
 
 import (
 	"context"
-	"time"
 
 	sheets "google.golang.org/api/sheets/v4"
 
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/types"
 )
-
-const (
-	proxyAddr     string = ""
-	initTimeout          = time.Duration(30) * time.Second
-	spreadSheetID string = ""
-)
-
-var requestStates = map[types.RequestState]string{
-	types.RequestState_APPROVED: "APPROVED",
-	types.RequestState_DENIED:   "DENIED",
-	types.RequestState_PENDING:  "PENDING",
-	types.RequestState_NONE:     "NONE",
-}
 
 type AccessRequestPlugin struct {
 	TeleportClient *client.Client

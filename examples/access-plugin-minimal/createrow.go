@@ -46,14 +46,11 @@ func (g *googleSheetsClient) createRow(ar types.AccessRequest) error {
 	}
 
 	if resp.HTTPStatusCode == 201 || resp.HTTPStatusCode == 200 {
-		fmt.Println("Successfully created a row")
-	} else {
-		fmt.Printf(
-			"Unexpected response code creating a row: %v\n",
-			resp.HTTPStatusCode,
-		)
+		return nil
 	}
 
-	return nil
-
+	return trace.Wrap(
+		fmt.Errorf("Unexpected response code creating a row: %v\n",
+			resp.HTTPStatusCode),
+	)
 }
