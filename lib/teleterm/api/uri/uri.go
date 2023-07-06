@@ -200,7 +200,7 @@ func (r ResourceURI) IsDB() bool {
 	return r.GetDbName() != ""
 }
 
-// IsDB returns true if URI is a kube resource.
+// IsKube returns true if URI is a kube resource.
 func (r ResourceURI) IsKube() bool {
 	return r.GetKubeName() != ""
 }

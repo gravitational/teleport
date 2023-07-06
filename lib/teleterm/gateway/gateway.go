@@ -121,7 +121,7 @@ func (g *Gateway) Close() error {
 		errs = append(errs, g.forwardProxy.Close())
 	}
 
-	for _, cleanup := range g.cleanupFuncs {
+	for _, cleanup := range g.onCloseFuncs {
 		errs = append(errs, cleanup())
 	}
 	return trace.NewAggregate(errs...)
@@ -238,7 +238,7 @@ func (g *Gateway) CLICommand() (*api.GatewayCLICommand, error) {
 // In the future, we're probably going to make this method accept the cert as an arg rather than
 // reading from disk.
 func (g *Gateway) ReloadCert() error {
-	if g.onNewCert == nil {
+	if len(g.onNewCertFuncs) == 0 {
 		return nil
 	}
 	g.cfg.Log.Debug("Reloading cert")
@@ -248,7 +248,12 @@ func (g *Gateway) ReloadCert() error {
 		return trace.Wrap(err)
 	}
 
-	return trace.Wrap(g.onNewCert(tlsCert))
+	var errs []error
+	for _, onNewCert := range g.onNewCertFuncs {
+		errs = append(errs, onNewCert(tlsCert))
+	}
+
+	return trace.NewAggregate(errs...)
 }
 
 func (g *Gateway) onExpiredCert(ctx context.Context) error {
@@ -284,11 +289,11 @@ type Gateway struct {
 	cfg          *Config
 	localProxy   *alpn.LocalProxy
 	forwardProxy *alpn.ForwardProxy
-	// onNewCert is a callback function that updates the local proxy when TLS
-	// certificate is reissued.
-	onNewCert func(tls.Certificate) error
-	// cleanupFuncs contains a list of extra cleanup functions called during Close.
-	cleanupFuncs []func() error
+	// onNewCertFuncs contains a list of callback functions that update the local
+	// proxy when TLS certificate is reissued.
+	onNewCertFuncs []func(tls.Certificate) error
+	// onCloseFuncs contains a list of extra cleanup functions called during Close.
+	onCloseFuncs []func() error
 	// closeContext and closeCancel are used to signal to any waiting goroutines
 	// that the local proxy is now closed and to release any resources.
 	closeContext context.Context

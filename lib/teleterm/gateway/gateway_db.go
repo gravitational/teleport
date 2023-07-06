@@ -73,7 +73,7 @@ func (g *Gateway) makeLocalProxyForDB(listener net.Listener) error {
 	}
 
 	g.localProxy = localProxy
-	g.onNewCert = g.setDBCert
+	g.onNewCertFuncs = append(g.onNewCertFuncs, g.setDBCert)
 	return nil
 }
 

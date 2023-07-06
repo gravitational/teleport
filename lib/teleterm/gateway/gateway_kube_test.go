@@ -26,6 +26,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"os"
 	"path"
 	"testing"
 	"time"
@@ -65,6 +66,7 @@ func TestKubeGateway(t *testing.T) {
 	}
 	clock := clockwork.NewFakeClock()
 	proxy := mustStartMockProxyWithKubeAPI(t, identity)
+	profileDir := t.TempDir()
 	gateway, err := New(
 		Config{
 			Clock:              clock,
@@ -76,11 +78,13 @@ func TestKubeGateway(t *testing.T) {
 			ClusterName:        teleportClusterName,
 			CLICommandProvider: mockCLICommandProvider{},
 			Username:           identity.Username,
-			ConfigDir:          t.TempDir(),
+			ProfileDir:         profileDir,
 			RootClusterCACertPoolFunc: func(_ context.Context) (*x509.CertPool, error) {
 				return proxy.certPool(), nil
 			},
 			OnExpiredCert: func(_ context.Context, gateway *Gateway) error {
+				// Remove the profile dir to see if kubeconfig gets rewritten.
+				os.RemoveAll(profileDir)
 				return trace.Wrap(gateway.ReloadCert())
 			},
 		},
@@ -105,9 +109,11 @@ func TestKubeGateway(t *testing.T) {
 	// kubeMiddleware -> kubeCertReissuer.reissueCert -> gateway.cfg.OnExpiredCert -> gateway.ReloadCert -> kubeCertReissuer.updateCert
 	clock.Advance(time.Hour)
 	sendRequestToKubeLocalProxyAndSucceed(t, kubeClient)
+	require.True(t, utils.FileExists(gateway.KubeconfigPath()))
 
 	require.NoError(t, gateway.Close())
 	require.NoError(t, <-serveErr)
+	require.False(t, utils.FileExists(gateway.KubeconfigPath()))
 }
 
 func sendRequestToKubeLocalProxyAndSucceed(t *testing.T, client *kubernetes.Clientset) {

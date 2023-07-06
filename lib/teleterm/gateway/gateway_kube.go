@@ -37,7 +37,7 @@ import (
 // connect to the local proxy.
 func (g *Gateway) KubeconfigPath() string {
 	return keypaths.KubeConfigPath(
-		g.cfg.ConfigDir,
+		g.cfg.ProfileDir,
 		uri.New(g.cfg.TargetURI).GetProfileName(),
 		g.cfg.Username,
 		g.cfg.ClusterName,
@@ -69,6 +69,11 @@ func (g *Gateway) makeLocalProxiesForKube(listener net.Listener) error {
 	if err := g.writeKubeconfig(key, cas); err != nil {
 		return trace.NewAggregate(err, g.Close())
 	}
+	// make sure kubeconfig is written again on new cert as a relogin may
+	// cleanup profile dir.
+	g.onNewCertFuncs = append(g.onNewCertFuncs, func(_ tls.Certificate) error {
+		return trace.Wrap(g.writeKubeconfig(key, cas))
+	})
 	return nil
 }
 
@@ -111,7 +116,7 @@ func (g *Gateway) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, erro
 	}
 
 	certReissuer := newKubeCertReissuer(cert, g.onExpiredCert)
-	g.onNewCert = certReissuer.updateCert
+	g.onNewCertFuncs = append(g.onNewCertFuncs, certReissuer.updateCert)
 
 	certs := make(alpnproxy.KubeClientCerts)
 	certs.Add(g.cfg.ClusterName, g.cfg.TargetName, cert)
@@ -150,7 +155,8 @@ func (g *Gateway) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certi
 		//
 		// In this case here, since the kubeconfig for the local proxy is only
 		// for a single kube cluster and it is not created from the default
-		// kubeconfig, specifying the kube cluster address is not necessary.
+		// kubeconfig, specifying the correct kube cluster address is not
+		// necessary.
 		//
 		// In most cases, tc.KubeClusterAddr() is the same as
 		// g.cfg.WebProxyAddr anyway.
@@ -174,7 +180,7 @@ func (g *Gateway) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certi
 		return trace.Wrap(err)
 	}
 
-	g.cleanupFuncs = append(g.cleanupFuncs, func() error {
+	g.onCloseFuncs = append(g.onCloseFuncs, func() error {
 		return trace.Wrap(utils.RemoveFileIfExist(g.KubeconfigPath()))
 	})
 	return nil
