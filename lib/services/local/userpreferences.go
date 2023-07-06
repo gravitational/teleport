@@ -21,8 +21,10 @@ package local
 import (
 	"context"
 	"encoding/json"
+	"reflect"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/lib/backend"
@@ -36,12 +38,12 @@ type UserPreferencesService struct {
 func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 	return &userpreferencesv1.UserPreferences{
 		Assist: &userpreferencesv1.AssistUserPreferences{
-			PreferredLogins: nil,
+			PreferredLogins: []string{},
 			ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
 		},
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
-			PreferredResources: nil,
+			PreferredResources: []userpreferencesv1.Resource{},
 		},
 	}
 }
@@ -84,7 +86,7 @@ func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, req 
 		preferences = DefaultUserPreferences()
 	}
 
-	mergePreferences(preferences, req.Preferences)
+	overwriteValues(preferences, req.Preferences)
 
 	item, err := createBackendItem(req.Username, preferences)
 	if err != nil {
@@ -107,6 +109,8 @@ func (u *UserPreferencesService) getUserPreferences(ctx context.Context, usernam
 	if err := json.Unmarshal(existing.Value, &p); err != nil {
 		return nil, trace.Wrap(err)
 	}
+
+	mergeIfUnset(&p, DefaultUserPreferences())
 
 	return &p, nil
 }
@@ -142,36 +146,66 @@ func createBackendItem(username string, preferences *userpreferencesv1.UserPrefe
 	return item, nil
 }
 
-// mergePreferences merges the values from src into dest.
-func mergePreferences(dest, src *userpreferencesv1.UserPreferences) {
-	if src.Theme != userpreferencesv1.Theme_THEME_UNSPECIFIED {
-		dest.Theme = src.Theme
-	}
+// overwriteValues overwrites the values in dst with the values in src.
+func overwriteValues(dst, src protoreflect.ProtoMessage) {
+	d := dst.ProtoReflect()
+	s := src.ProtoReflect()
 
-	if src.Assist != nil {
-		mergeAssistUserPreferences(dest.Assist, src.Assist)
-	}
-
-	if src.Onboard != nil {
-		mergeOnboardUserPreferences(dest.Onboard, src.Onboard)
-	}
-
+	overwriteValuesRecursive(d, s)
 }
 
-// mergeAssistUserPreferences merges src preferences into the given dest assist user preferences.
-func mergeAssistUserPreferences(dest, src *userpreferencesv1.AssistUserPreferences) {
-	if src.PreferredLogins != nil {
-		dest.PreferredLogins = src.PreferredLogins
-	}
+// overwriteValuesRecursive recursively overwrites the values in dst with the values in src.
+// It's a helper function for overwriteValues.
+func overwriteValuesRecursive(dst, src protoreflect.Message) {
+	src.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case fd.Message() != nil:
+			overwriteValuesRecursive(dst.Mutable(fd).Message(), src.Get(fd).Message())
+		default:
+			if src.Has(fd) {
+				dst.Set(fd, src.Get(fd))
+			}
+		}
 
-	if src.ViewMode != userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_UNSPECIFIED {
-		dest.ViewMode = src.ViewMode
-	}
+		return true
+	})
 }
 
-// mergeOnboardUserPreferences merges src preferences into the given dest onboard user preferences.
-func mergeOnboardUserPreferences(dest, src *userpreferencesv1.OnboardUserPreferences) {
-	if src.PreferredResources != nil {
-		dest.PreferredResources = src.PreferredResources
+// mergeIfUnset merges the values in src with the values in dst if the values in dst are unset.
+func mergeIfUnset(dst, src any) {
+	if reflect.TypeOf(src) != reflect.TypeOf(dst) {
+		return
+	}
+
+	srcV := reflect.ValueOf(src).Elem()
+	dstV := reflect.ValueOf(dst).Elem()
+
+	for i := 0; i < dstV.NumField(); i++ {
+		dstF := dstV.Field(i)
+		srcF := srcV.Field(i)
+
+		switch dstF.Kind() {
+		case reflect.Ptr:
+			if dstF.IsNil() && dstF.CanInterface() {
+				dstF.Set(srcF)
+			} else if dstF.Type().Elem().Kind() == reflect.Struct {
+				// Recursively call mergeIfUnset for nested messages.
+				mergeIfUnset(dstF.Interface(), srcF.Interface())
+			}
+		case reflect.Slice, reflect.Map, reflect.Array:
+			if dstF.CanInterface() && dstF.Len() == 0 {
+				// Copy the slice/map/array from src to dst.
+				dstF.Set(srcF)
+			}
+		case reflect.Struct:
+			if dstF.CanInterface() {
+				// Recursively call mergeIfUnset for nested messages.
+				mergeIfUnset(dstF.Addr().Interface(), srcF.Addr().Interface())
+			}
+		default:
+			if dstF.CanInterface() && dstF.IsZero() {
+				dstF.Set(srcF)
+			}
+		}
 	}
 }
