@@ -17,7 +17,6 @@ limitations under the License.
 package track
 
 import (
-	"context"
 	"fmt"
 	pr "math/rand"
 	"sync"
@@ -144,22 +143,23 @@ func TestBasic(t *testing.T) {
 		proxyCount = 16
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
 	timeoutC := time.After(timeout)
 	ticker := time.NewTicker(time.Millisecond * 100)
 	t.Cleanup(ticker.Stop)
-	tracker, err := New(ctx, Config{ClusterName: "test-cluster"})
+	tracker, err := New(Config{ClusterName: "test-cluster"})
 	require.NoError(t, err)
 	min, max := time.Duration(0), timeout
 	var proxies simpleTestProxies
 	proxies.AddRandProxies(proxyCount, min, max)
 Discover:
 	for {
-		select {
-		case lease := <-tracker.Acquire():
+		if lease := tracker.TryAcquire(); lease != nil {
+			t.Logf("acquired lease %v", lease.ID())
 			go proxies.Discover(tracker, lease)
+			continue
+		}
+
+		select {
 		case <-ticker.C:
 			activeCount := tracker.activeCount()
 			t.Logf("activeCount: %v", activeCount)
@@ -182,22 +182,18 @@ func TestFullRotation(t *testing.T) {
 		timeout    = time.Second * 30
 	)
 
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
 	ticker := time.NewTicker(time.Millisecond * 100)
 	t.Cleanup(ticker.Stop)
 
 	var proxies simpleTestProxies
 	proxies.AddRandProxies(proxyCount, minConnA, maxConnA)
-	tracker, err := New(ctx, Config{ClusterName: "test-cluster"})
+	tracker, err := New(Config{ClusterName: "test-cluster"})
 	require.NoError(t, err)
 
 	timeoutC := time.After(timeout)
 Loop0:
 	for {
-		select {
-		case lease := <-tracker.Acquire():
+		if lease := tracker.TryAcquire(); lease != nil {
 			// get our "discovered" proxy in the foreground
 			// to prevent race with the call to RemoveRandProxies
 			// that comes after this loop.
@@ -206,6 +202,10 @@ Loop0:
 				t.Fatal("failed to get test proxy")
 			}
 			go proxies.ProxyLoop(tracker, lease, proxy)
+			continue
+		}
+
+		select {
 		case <-ticker.C:
 			activeCount := tracker.activeCount()
 			t.Logf("activeCount0: %v", activeCount)
@@ -233,9 +233,12 @@ Loop1:
 	proxies.AddRandProxies(proxyCount, minConnB, maxConnB)
 Loop2:
 	for {
-		select {
-		case lease := <-tracker.Acquire():
+		if lease := tracker.TryAcquire(); lease != nil {
 			go proxies.Discover(tracker, lease)
+			continue
+		}
+
+		select {
 		case <-ticker.C:
 			activeCount := tracker.activeCount()
 			t.Logf("activeCount2: %v", activeCount)
@@ -252,36 +255,28 @@ Loop2:
 // from the expected teleport principal format, and that gossip messages
 // consisting only of uuid don't create duplicate entries.
 func TestUUIDHandling(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	tracker, err := New(ctx, Config{ClusterName: "test-cluster"})
+	tracker, err := New(Config{ClusterName: "test-cluster"})
 	require.NoError(t, err)
 
-	lease := <-tracker.Acquire()
+	lease := tracker.TryAcquire()
+	require.NotNil(t, lease)
 	require.True(t, lease.Claim("my-proxy.test-cluster"))
 	require.Equal(t, "my-proxy", lease.claimName)
 
 	tracker.TrackExpected(Proxy{Name: "my-proxy"})
 
-	select {
-	case <-tracker.Acquire():
-		t.Error("received unexpected lease")
-	case <-time.After(50 * time.Millisecond):
-	}
+	require.Nil(t, tracker.TryAcquire())
 }
 
 func TestIsClaimed(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	tracker, err := New(ctx, Config{ClusterName: "test-cluster"})
+	tracker, err := New(Config{ClusterName: "test-cluster"})
 	require.NoError(t, err)
 
 	tracker.TrackExpected(Proxy{Name: "proxy1"}, Proxy{Name: "proxy2"})
 	require.False(t, tracker.IsClaimed("proxy1.test-cluster"))
 
-	lease := <-tracker.Acquire()
+	lease := tracker.TryAcquire()
+	require.NotNil(t, lease)
 
 	ok := lease.Claim("proxy1.test-cluster")
 	require.True(t, ok)
@@ -304,10 +299,7 @@ func (t *Tracker) activeCount() int {
 }
 
 func TestProxyGroups(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	t.Cleanup(cancel)
-
-	tracker, err := New(ctx, Config{ClusterName: "test-cluster"})
+	tracker, err := New(Config{ClusterName: "test-cluster"})
 	require.NoError(t, err)
 
 	tracker.SetConnectionCount(2)
@@ -319,41 +311,43 @@ func TestProxyGroups(t *testing.T) {
 		Proxy{Name: "yd", Group: "y", Generation: 1},
 	)
 
-	xa := <-tracker.Acquire()
-	xb := <-tracker.Acquire()
+	requireAcquire := func() *Lease {
+		lease := tracker.TryAcquire()
+		require.NotNil(t, lease)
+		return lease
+	}
+
+	requireNoAcquire := func() {
+		require.Nil(t, tracker.TryAcquire())
+	}
+
+	xa := requireAcquire()
+	xb := requireAcquire()
 
 	require.True(t, xa.Claim("xa"))
 	require.True(t, xb.Claim("xb"))
 
-	noAcquire := func() {
-		select {
-		case <-tracker.Acquire():
-			t.Fatal("unexpected lease granted")
-		case <-time.After(50 * time.Millisecond):
-		}
-	}
-
-	noAcquire()
+	requireNoAcquire()
 
 	tracker.TrackExpected(
 		Proxy{Name: "xe", Group: "x", Generation: 2},
 		Proxy{Name: "xf", Group: "x", Generation: 2},
 	)
 
-	yc := <-tracker.Acquire()
-	yd := <-tracker.Acquire()
+	yc := requireAcquire()
+	yd := requireAcquire()
 
 	require.True(t, yc.Claim("yc"))
 	require.True(t, yd.Claim("yd"))
 
-	noAcquire()
+	requireNoAcquire()
 
 	tracker.SetConnectionCount(0)
 
-	xe := <-tracker.Acquire()
-	xf := <-tracker.Acquire()
+	xe := requireAcquire()
+	xf := requireAcquire()
 
-	noAcquire()
+	requireNoAcquire()
 
 	require.True(t, xe.Claim("xe"))
 	require.True(t, xf.Claim("xf"))
@@ -361,9 +355,9 @@ func TestProxyGroups(t *testing.T) {
 	// releasing a proxy from a previous generation doesn't let a new connection
 	// spawn
 	xa.Release()
-	noAcquire()
+	requireNoAcquire()
 
 	// whereas releasing a proxy from a current generation does
 	yc.Release()
-	<-tracker.Acquire()
+	requireAcquire()
 }

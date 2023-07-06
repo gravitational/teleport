@@ -17,7 +17,6 @@ limitations under the License.
 package track
 
 import (
-	"context"
 	"strings"
 	"sync"
 	"time"
@@ -59,16 +58,28 @@ type Tracker struct {
 	proxyExpiry   time.Duration
 	clusterSuffix string
 
-	leaseC chan *Lease
+	mu sync.Mutex
 
-	mu   sync.Mutex
-	cond chan struct{}
-
+	// connectionCount is nonpositive for full connectivity (agent mesh) mode, a
+	// positive number for the connection count of proxy peering mode.
 	connectionCount int
 
+	// cannotLease is a flag that should be reset whenever the tracker state is
+	// changed in such a way that it might be possible to grant leases.
+	cannotLease bool
+
+	// lastLease is the ID of the last lease that was granted. It starts at 0,
+	// so the first Lease will have ID 1.
+	lastLease int
+
+	// inflight counts the granted leases that haven't claimed
 	inflight int
-	claimed  map[string]struct{}
-	tracked  map[string]Proxy
+
+	// claimed contains the names of all the claimed proxies.
+	claimed map[string]struct{}
+
+	// tracked contains the tracked proxies as a map of name to Proxy struct.
+	tracked map[string]Proxy
 }
 
 // Proxy holds the name and relevant metadata for a reverse tunnel server, as
@@ -96,87 +107,59 @@ type Lease struct {
 	claimName string
 }
 
-// New configures a new Tracker instance. All background goroutines stop when
-// the context is closed.
-func New(ctx context.Context, cfg Config) (*Tracker, error) {
+// New configures a new Tracker instance.
+func New(cfg Config) (*Tracker, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 	t := &Tracker{
 		proxyExpiry:   cfg.ProxyExpiry,
 		clusterSuffix: "." + cfg.ClusterName,
-		leaseC:        make(chan *Lease),
-		cond:          make(chan struct{}, 1),
 		claimed:       make(map[string]struct{}),
 		tracked:       make(map[string]Proxy),
 	}
-	go t.run(ctx)
 	return t, nil
 }
 
-// Acquire returns the channel from which the Tracker will give out Leases.
-func (t *Tracker) Acquire() <-chan *Lease {
-	return t.leaseC
-}
-
-func (t *Tracker) run(ctx context.Context) {
-	// in lieu of figuring out the closest proxy expiration time every time we
-	// enter the select, we just pick a reasonably frequent interval - there's
-	// no real drawback to attempting new connections for a few more seconds
-	// than necessary
-	expiryTicker := time.NewTicker(t.proxyExpiry / 4)
-	defer expiryTicker.Stop()
-
-	newLeaseID := 1
-	newLease := &Lease{
-		id:      newLeaseID,
-		tracker: t,
-	}
-
-	for {
-		leaseC := t.leaseC
-		if !t.canSpawn() {
-			leaseC = nil
-		}
-		select {
-		case leaseC <- newLease:
-			newLeaseID++
-			newLease = &Lease{
-				id:      newLeaseID,
-				tracker: t,
-			}
-
-			// as we need to grab a lock _after_ granting the lease (and the
-			// lease might get released immediately), it's possible for the
-			// value of inflight to go negative, but it doesn't matter because
-			// we only need it to be accurate when we call canSpawn() in this
-			// loop, which only happens after we've fixed it
-			t.mu.Lock()
-			t.inflight++
-			t.mu.Unlock()
-
-		case <-ctx.Done():
-			return
-
-		case <-t.cond:
-		case <-expiryTicker.C:
-		}
-	}
-}
-
-// canSpawn returns true if the current state of the Tracker is such that the
-// client should attempt to spawn new connections.
-func (t *Tracker) canSpawn() bool {
+func (t *Tracker) TryAcquire() *Lease {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
+	t.expireProxiesLocked()
+
+	if t.cannotLease {
+		return nil
+	}
+
+	if !t.canLeaseLocked() {
+		// until cannotLease is reset (because something in the state is
+		// changed) we know that we can't grant a lease, so we don't need to
+		// check
+		t.cannotLease = true
+		return nil
+	}
+
+	t.lastLease++
+	t.inflight++
+	return &Lease{
+		id:      t.lastLease,
+		tracker: t,
+	}
+}
+
+func (t *Tracker) expireProxiesLocked() {
 	now := time.Now()
 	for k, v := range t.tracked {
 		if v.expiry.Before(now) {
 			delete(t.tracked, k)
+			t.cannotLease = false
 		}
 	}
+}
 
+// canLeaseLocked returns true if the current state of the Tracker is such that
+// the client should attempt to spawn new connections.
+func (t *Tracker) canLeaseLocked() bool {
 	// degenerate condition: we've just started the tracker or we haven't
 	// successfully connected to any server yet, or network conditions were such
 	// that all tracked proxies have expired - spawn one connection, or we'll
@@ -216,15 +199,6 @@ func (t *Tracker) canSpawn() bool {
 	return desiredCount > desiredClaimed+t.inflight
 }
 
-// notify signals the run loop that conditions have changed and that the tracker
-// should check again if it should be giving out a lease or not.
-func (t *Tracker) notify() {
-	select {
-	case t.cond <- struct{}{}:
-	default:
-	}
-}
-
 // TrackExpected starts/refreshes tracking for expected proxies.  Called by
 // agents when gossip messages are received.
 func (t *Tracker) TrackExpected(proxies ...Proxy) {
@@ -234,9 +208,9 @@ func (t *Tracker) TrackExpected(proxies ...Proxy) {
 
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.notify()
 
 	expiry := time.Now().Add(t.proxyExpiry)
+	t.cannotLease = false
 	for _, p := range proxies {
 		p.expiry = expiry
 		t.tracked[p.Name] = p
@@ -249,8 +223,8 @@ func (t *Tracker) TrackExpected(proxies ...Proxy) {
 func (t *Tracker) SetConnectionCount(connectionCount int) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.notify()
 
+	t.cannotLease = false
 	t.connectionCount = connectionCount
 }
 
@@ -285,7 +259,7 @@ func (t *Tracker) claim(principals []string) string {
 		return ""
 	}
 
-	t.notify()
+	t.cannotLease = false
 	t.claimed[name] = struct{}{}
 	t.inflight--
 
@@ -338,8 +312,8 @@ func (l *Lease) IsReleased() bool {
 func (t *Tracker) release(name string) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	t.notify()
 
+	t.cannotLease = false
 	if name == "" {
 		t.inflight--
 	} else {

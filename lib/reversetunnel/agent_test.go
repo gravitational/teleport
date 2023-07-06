@@ -150,17 +150,15 @@ func (m *mockAgentInjection) getVersion(context.Context) (string, error) {
 }
 
 func testAgent(t *testing.T) (*agent, *mockSSHClient) {
-	trackerCtx, trackerCancel := context.WithCancel(context.Background())
-	t.Cleanup(trackerCancel)
-
-	tracker, err := track.New(trackerCtx, track.Config{
+	tracker, err := track.New(track.Config{
 		ClusterName: "test",
 	})
 	require.NoError(t, err)
 
 	addr := utils.NetAddr{Addr: "test-proxy-addr"}
 
-	lease := <-tracker.Acquire()
+	lease := tracker.TryAcquire()
+	require.NotNil(t, lease)
 
 	client := &mockSSHClient{
 		MockPrincipals:        []string{"default"},
@@ -239,9 +237,9 @@ func TestAgentFailedToClaimLease(t *testing.T) {
 	agent.stateCallback = callback.callback
 
 	agent.tracker.TrackExpected(track.Proxy{Name: claimedProxy}, track.Proxy{Name: "other-proxy"})
-	lease := <-agent.tracker.Acquire()
+	lease := agent.tracker.TryAcquire()
+	require.NotNil(t, lease)
 	lease.Claim(claimedProxy)
-	t.Cleanup(lease.Release)
 
 	client.MockPrincipals = []string{claimedProxy}
 
