@@ -44,6 +44,7 @@ const (
 var SupportedJoinMethods = []string{
 	string(types.JoinMethodAzure),
 	string(types.JoinMethodCircleCI),
+	string(types.JoinMethodGCP),
 	string(types.JoinMethodGitHub),
 	string(types.JoinMethodGitLab),
 	string(types.JoinMethodIAM),
