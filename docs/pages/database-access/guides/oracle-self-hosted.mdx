@@ -124,8 +124,49 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
 (!docs/pages/includes/install-linux-enterprise.mdx!)
 
-(!docs/pages/includes/database-access/db-configure-start.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" dbName="oracle" !)
+On the host where you will run the Teleport Database Service, start Teleport
+with the appropriate configuration.
 
+Note that a single Teleport process can run multiple different services, for
+example multiple Database Service agents as well as the SSH Service or Application
+Service. The step below will overwrite an existing configuration file, so if
+you're running multiple services add `--output=stdout` to print the config in
+your terminal, and manually adjust `/etc/teleport.yaml`.
+
+Generate a configuration file at `/etc/teleport.yaml` for the Database Service:
+
+<Tabs>
+<TabItem scope={["enterprise"]} label="Teleport Enterprise/Enterprise Cloud">
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=teleport.example.com:443 \
+   --name=oracle \
+   --protocol=oracle \
+   --uri=oracle.example.com:2484 \
+   --labels=env=dev 
+```
+
+</TabItem>
+<TabItem scope={["cloud"]} label="Teleport Team/Community Edition">
+
+```code
+$ teleport db configure create \
+   -o file \
+   --token=/tmp/token \
+   --proxy=mytenant.teleport.sh:443 \
+   --name=oracle \
+   --protocol=oracle \
+   --uri=oracle.example.com:2484 \
+   --labels=env=dev
+```
+
+</TabItem>
+</Tabs>
+
+(!docs/pages/includes/start-teleport.mdx service="the Teleport Database Service"!)
 </TabItem>
 <TabItem label="Kubernetes Cluster">
   Teleport provides Helm charts for installing the Teleport Database Service in Kubernetes Clusters.
