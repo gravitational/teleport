@@ -48,6 +48,10 @@ func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsi
 
 	claims, err := a.gcpIDTokenValidator.Validate(ctx, req.IDToken)
 	if err != nil {
+		log.WithFields(logrus.Fields{
+			"claims": claims,
+			"token":  pt.GetName(),
+		}).WithError(err).Warn("Unable to validate GCP IDToken")
 		return trace.Wrap(err)
 	}
 
@@ -61,17 +65,23 @@ func (a *Server) checkGCPJoinRequest(ctx context.Context, req *types.RegisterUsi
 
 func checkGCPAllowRules(token *types.ProvisionTokenV2, claims *gcp.IDTokenClaims) error {
 	compute := claims.Google.ComputeEngine
+	// unmatchedLocation is true if the location restriction is set and the "google.compute_engine.zone"
+	// claim is not present in the IDToken. This happens when the joining node is not a GCE VM.
+	unmatchedLocation := false
 	// If a single rule passes, accept the IDToken.
 	for _, rule := range token.Spec.GCP.Allow {
 		if !slices.Contains(rule.ProjectIDs, compute.ProjectID) {
 			continue
 		}
+
+		if len(rule.ServiceAccounts) > 0 && !slices.Contains(rule.ServiceAccounts, claims.Email) {
+			continue
+		}
+
 		if len(rule.Locations) > 0 && !slices.ContainsFunc(rule.Locations, func(location string) bool {
 			return isGCPZoneInLocation(location, compute.Zone)
 		}) {
-			continue
-		}
-		if len(rule.ServiceAccounts) > 0 && !slices.Contains(rule.ServiceAccounts, claims.Email) {
+			unmatchedLocation = true
 			continue
 		}
 
@@ -79,6 +89,12 @@ func checkGCPAllowRules(token *types.ProvisionTokenV2, claims *gcp.IDTokenClaims
 		return nil
 	}
 
+	// If the location restriction is set and the "google.compute_engine.zone" claim is not present in the IDToken,
+	// return a more specific error message.
+	if unmatchedLocation && compute.Zone == "" {
+		return trace.CompareFailed("id token %q claim is empty and didn't match the %q. "+
+			"Services running outside of GCE VM instances are incompatible with %q restriction.", "google.compute_engine.zone", "locations", "location")
+	}
 	return trace.AccessDenied("id token claims did not match any allow rules")
 }
 

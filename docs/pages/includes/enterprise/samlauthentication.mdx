@@ -2,13 +2,8 @@
 - Configure Teleport to use SAML authentication as the default instead of the local
 user database.
 
-  <ScopedBlock scope={["oss", "enterprise"]}>
-  You can either edit the Teleport Auth Service configuration file or create a dynamic
-  resource.
-  </ScopedBlock>
-
   <Tabs>
-  <TabItem scope={["cloud", "oss", "enterprise"]} label="Dynamic Resources (All Editions)">
+  <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
 
   Use `tctl` to edit the `cluster_auth_preference` value:
 
@@ -37,7 +32,7 @@ user database.
   ```
 
   </TabItem>
-  <TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
+  <TabItem label="Static Config (Self-Hosted)" scope={["enterprise"]}>
 
   Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
 

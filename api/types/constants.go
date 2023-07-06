@@ -16,6 +16,10 @@ limitations under the License.
 
 package types
 
+import (
+	"github.com/gravitational/teleport/api/types/common"
+)
+
 const (
 	// DefaultAPIGroup is a default group of permissions API,
 	// lets us to add different permission types
@@ -424,6 +428,9 @@ const (
 	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
 	KindWatchStatus = "watch_status"
 
+	// KindAccessList is an AccessList resource
+	KindAccessList = "access_list"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -494,11 +501,11 @@ const (
 	// account that the label might be removed, modified or could have been set by the user.
 	//
 	// See also TeleportInternalLabelPrefix and TeleportHiddenLabelPrefix.
-	TeleportNamespace = "teleport.dev"
+	TeleportNamespace = common.TeleportNamespace
 
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
-	OriginLabel = TeleportNamespace + "/origin"
+	OriginLabel = common.OriginLabel
 
 	// ClusterLabel is a label that identifies the current cluster when creating resources on another systems.
 	// Eg, when creating a resource in AWS, this label must be set as a Tag in the resource.
@@ -509,31 +516,31 @@ const (
 
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
-	OriginDefaults = "defaults"
+	OriginDefaults = common.OriginDefaults
 
 	// OriginConfigFile is an origin value indicating that the resource is
 	// derived from static configuration.
-	OriginConfigFile = "config-file"
+	OriginConfigFile = common.OriginConfigFile
 
 	// OriginDynamic is an origin value indicating that the resource was
 	// committed as dynamic configuration.
-	OriginDynamic = "dynamic"
+	OriginDynamic = common.OriginDynamic
 
 	// OriginCloud is an origin value indicating that the resource was
 	// imported from a cloud provider.
-	OriginCloud = "cloud"
+	OriginCloud = common.OriginCloud
 
 	// OriginKubernetes is an origin value indicating that the resource was
 	// created from the Kubernetes Operator.
-	OriginKubernetes = "kubernetes"
+	OriginKubernetes = common.OriginKubernetes
 
 	// OriginOkta is an origin value indicating that the resource was
 	// created from the Okta service.
-	OriginOkta = "okta"
+	OriginOkta = common.OriginOkta
 
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
-	OriginIntegrationAWSOIDC = "integration_awsoidc"
+	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
 
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"
@@ -676,14 +683,7 @@ const (
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{
-	OriginDefaults,
-	OriginConfigFile,
-	OriginDynamic,
-	OriginCloud,
-	OriginKubernetes,
-	OriginOkta,
-}
+var OriginValues = common.OriginValues
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
