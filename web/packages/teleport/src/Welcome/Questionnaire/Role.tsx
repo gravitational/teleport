@@ -20,7 +20,7 @@ import FieldSelect from 'shared/components/FieldSelect';
 import { requiredField } from 'shared/components/Validation/rules';
 import FieldInput from 'shared/components/FieldInput';
 
-import { RoleProps, TeamOptionsStrings, TitleOptionsStrings } from './types';
+import { RoleProps, TeamOption, TitleOption } from './types';
 import { teamSelectOptions, titleSelectOptions } from './constants';
 
 export const Role = ({ team, teamName, role, updateFields }: RoleProps) => (
@@ -29,13 +29,18 @@ export const Role = ({ team, teamName, role, updateFields }: RoleProps) => (
       label="Which Team are you on?"
       rule={requiredField('Team is required')}
       placeholder="Select Team"
-      onChange={(e: Option<TeamOptionsStrings, string>) =>
-        updateFields({ team: e.value })
-      }
+      onChange={(e: Option<TeamOption>) => updateFields({ team: e.value })}
       options={teamSelectOptions}
-      value={team ? { label: team, value: team } : null}
+      value={
+        team
+          ? {
+              value: team,
+              label: TeamOption[team],
+            }
+          : null
+      }
     />
-    {team === 'Other (free-form field)' && (
+    {TeamOption[team] === TeamOption.OTHER && (
       <FieldInput
         id="team-name"
         type="text"
@@ -51,11 +56,16 @@ export const Role = ({ team, teamName, role, updateFields }: RoleProps) => (
       label="Job Title"
       rule={requiredField('Job Title is required')}
       placeholder="Select Job Title"
-      onChange={(e: Option<TitleOptionsStrings, string>) =>
-        updateFields({ role: e.value })
-      }
+      onChange={(e: Option<TitleOption>) => updateFields({ role: e.value })}
       options={titleSelectOptions}
-      value={role ? { label: role, value: role } : null}
+      value={
+        role
+          ? {
+              value: role,
+              label: TitleOption[role],
+            }
+          : null
+      }
     />
   </>
 );

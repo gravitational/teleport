@@ -20,41 +20,44 @@ import Image from 'design/Image';
 import { CheckboxInput } from 'design/Checkbox';
 import { useRule } from 'shared/components/Validation';
 
-import { requiredResourceField } from 'teleport/Welcome/Questionnaire/constants';
+import { Option } from 'shared/components/Select';
 
-import { ResourcesProps, ResourceType, Resource } from './types';
+import {
+  GetResourceIcon,
+  requiredResourceField,
+  ResourceOptions,
+} from 'teleport/Welcome/Questionnaire/constants';
+
+import { ResourcesProps, ResourceOption } from './types';
 import { ResourceWrapper } from './ResourceWrapper';
 
-export const Resources = ({
-  resources,
-  checked,
-  updateFields,
-}: ResourcesProps) => {
+export const Resources = ({ checked, updateFields }: ResourcesProps) => {
   const { valid, message } = useRule(requiredResourceField(checked));
 
-  const updateResources = (label: Resource) => {
+  const updateResources = (r: Option<string, ResourceOption>) => {
+    const selected = r.value as ResourceOption;
     let updated = checked;
-    if (updated.includes(label)) {
-      updated = updated.filter(r => r !== label);
+    if (updated.includes(selected)) {
+      updated = updated.filter(r => r !== (r as ResourceOption));
     } else {
-      updated.push(label);
+      updated.push(selected);
     }
 
     updateFields({ resources: updated });
   };
 
-  const renderCheck = (resource: ResourceType) => {
-    const isSelected = checked.includes(resource.label);
+  const renderCheck = (resource: Option<string, ResourceOption>) => {
+    const isSelected = checked.includes(resource.value as ResourceOption);
     return (
       <label
-        htmlFor={`box-${resource.label}`}
-        data-testid={`box-${resource.label}`}
-        key={resource.label}
+        htmlFor={`box-${resource.value}`}
+        data-testid={`box-${resource.value}`}
+        key={resource.value}
         style={{
           width: '100%',
           height: '100%',
         }}
-        onClick={() => updateResources(resource.label)}
+        onClick={() => updateResources(resource)}
       >
         <ResourceWrapper isSelected={isSelected} invalid={!valid}>
           <CheckboxInput
@@ -63,7 +66,7 @@ export const Resources = ({
             type="checkbox"
             name={resource.label}
             readOnly
-            checked={checked.includes(resource.label)}
+            checked={checked.includes(resource.value as ResourceOption)}
             rule={requiredResourceField(checked)}
             style={{
               alignSelf: 'flex-end',
@@ -74,7 +77,11 @@ export const Resources = ({
             alignItems="center"
             justifyContent="center"
           >
-            <Image src={resource.image} height="64px" width="64px" />
+            <Image
+              src={GetResourceIcon(resource.label)}
+              height="64px"
+              width="64px"
+            />
             <Text textAlign="center" typography="body3">
               {resource.label}
             </Text>
@@ -95,7 +102,9 @@ export const Resources = ({
         </LabelInput>
       </Flex>
       <Flex gap={2} alignItems="flex-start" height="170px">
-        {resources.map((r: ResourceType) => renderCheck(r))}
+        {ResourceOptions.map((r: Option<string, ResourceOption>) =>
+          renderCheck(r)
+        )}
       </Flex>
     </>
   );

@@ -21,79 +21,58 @@ import stack from 'design/assets/resources/stack.png';
 import { Option } from 'shared/components/Select';
 
 import {
-  EmployeeOptionsStrings,
+  EmployeeOption,
   ProtoResource,
-  Resource,
-  TeamOptionsStrings,
-  TitleOptionsStrings,
+  ResourceOption,
+  TeamOption,
+  TitleOption,
 } from './types';
 
-export enum EmployeeOptions {
-  '0-19',
-  '20-199',
-  '200-499',
-  '500-999',
-  '1000-4999',
-  '5000+',
-}
-
-export const EmployeeSelectOptions: Option<
-  EmployeeOptionsStrings,
-  EmployeeOptionsStrings
->[] = Object.values(EmployeeOptions)
-  .filter(v => !isNaN(Number(v)))
-  .map(key => ({
-    value: EmployeeOptions[key],
-    label: EmployeeOptions[key],
+export const EmployeeSelectOptions: Option<string, EmployeeOption>[] =
+  Object.keys(EmployeeOption).map(key => ({
+    value: key,
+    label: EmployeeOption[key],
   }));
 
-export enum TeamOptions {
-  'Software Engineering',
-  'DevOps Engineering',
-  'IT',
-  'Support',
-  'Finance',
-  'Legal',
-  'Other (free-form field)',
-}
+export const teamSelectOptions: Option<string, TeamOption>[] = (
+  Object.keys(TeamOption) as Array<keyof typeof TeamOption>
+).map(key => ({
+  value: key,
+  label: TeamOption[key],
+}));
 
-export const teamSelectOptions: Option<
-  TeamOptionsStrings,
-  TeamOptionsStrings
->[] = Object.values(TeamOptions)
-  .filter(v => !isNaN(Number(v)))
-  .map(key => ({
-    value: TeamOptions[key],
-    label: TeamOptions[key],
-  }));
+export const titleSelectOptions: Option<string, TitleOption>[] = (
+  Object.keys(TitleOption) as Array<keyof typeof TitleOption>
+).map(key => ({
+  value: key,
+  label: TitleOption[key],
+}));
 
-export enum TitleOptions {
-  'Individual contributor',
-  'Manager',
-  'Director',
-  'VP',
-  'C-Suite/Owner',
-}
+export const ResourceOptions: Option<string, ResourceOption>[] = Object.keys(
+  ResourceOption
+).map(key => ({
+  value: key,
+  label: ResourceOption[key],
+}));
 
-export const titleSelectOptions: Option<
-  TitleOptionsStrings,
-  TitleOptionsStrings
->[] = Object.values(TitleOptions)
-  .filter(v => !isNaN(Number(v)))
-  .map(key => ({
-    value: TitleOptions[key],
-    label: TitleOptions[key],
-  }));
+export const GetResourceIcon = key => {
+  switch (ResourceOption[key]) {
+    case ResourceOption.RESOURCE_WEB_APPLICATIONS:
+      return application;
+    case ResourceOption.RESOURCE_WINDOWS_DESKTOPS:
+      return desktop;
+    case ResourceOption.RESOURCE_SERVER_SSH:
+      return stack;
+    case ResourceOption.RESOURCE_DATABASES:
+      return database;
+    case ResourceOption.RESOURCE_KUBERNETES:
+      return stack;
+    default:
+      return stack;
+  }
+};
 
-export const supportedResources = [
-  { label: Resource.RESOURCE_WEB_APPLICATIONS, image: application },
-  { label: Resource.RESOURCE_WINDOWS_DESKTOPS, image: desktop },
-  { label: Resource.RESOURCE_SERVER_SSH, image: stack },
-  { label: Resource.RESOURCE_DATABASES, image: database },
-  { label: Resource.RESOURCE_KUBERNETES, image: stack },
-];
-
-export const requiredResourceField = (value: Resource[]) => () => {
+export const requiredResourceField = (value: ResourceOption[]) => () => {
   const valid = !!value.length;
   return {
     valid,
@@ -101,10 +80,12 @@ export const requiredResourceField = (value: Resource[]) => () => {
   };
 };
 
-export const resourceMapping: { [key in Resource]: ProtoResource } = {
-  [Resource.RESOURCE_WINDOWS_DESKTOPS]: ProtoResource.RESOURCE_WINDOWS_DESKTOPS,
-  [Resource.RESOURCE_SERVER_SSH]: ProtoResource.RESOURCE_SERVER_SSH,
-  [Resource.RESOURCE_DATABASES]: ProtoResource.RESOURCE_DATABASES,
-  [Resource.RESOURCE_KUBERNETES]: ProtoResource.RESOURCE_KUBERNETES,
-  [Resource.RESOURCE_WEB_APPLICATIONS]: ProtoResource.RESOURCE_WEB_APPLICATIONS,
+export const resourceMapping: { [key in ResourceOption]: ProtoResource } = {
+  [ResourceOption.RESOURCE_WINDOWS_DESKTOPS]:
+    ProtoResource.RESOURCE_WINDOWS_DESKTOPS,
+  [ResourceOption.RESOURCE_SERVER_SSH]: ProtoResource.RESOURCE_SERVER_SSH,
+  [ResourceOption.RESOURCE_DATABASES]: ProtoResource.RESOURCE_DATABASES,
+  [ResourceOption.RESOURCE_KUBERNETES]: ProtoResource.RESOURCE_KUBERNETES,
+  [ResourceOption.RESOURCE_WEB_APPLICATIONS]:
+    ProtoResource.RESOURCE_WEB_APPLICATIONS,
 };
