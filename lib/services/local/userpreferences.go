@@ -151,6 +151,13 @@ func overwriteValues(dst, src protoreflect.ProtoMessage) {
 	d := dst.ProtoReflect()
 	s := src.ProtoReflect()
 
+	dName := d.Descriptor().FullName().Name()
+	sName := s.Descriptor().FullName().Name()
+	// If the names don't match, then the types don't match, so we can't overwrite.
+	if dName != sName {
+		return
+	}
+
 	overwriteValuesRecursive(d, s)
 }
 
@@ -162,9 +169,7 @@ func overwriteValuesRecursive(dst, src protoreflect.Message) {
 		case fd.Message() != nil:
 			overwriteValuesRecursive(dst.Mutable(fd).Message(), src.Get(fd).Message())
 		default:
-			if src.Has(fd) {
-				dst.Set(fd, src.Get(fd))
-			}
+			dst.Set(fd, src.Get(fd))
 		}
 
 		return true
