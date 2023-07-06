@@ -84,7 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -2392,7 +2392,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.Equal(t, "hello world\n", outputA.String())
 
 	// Update trusted CAs.
-	err = tc.UpdateTrustedCA(ctx, a.Secrets.SiteName)
+	err = tc.UpdateTrustedCA(ctx, a.GetSiteAPI(a.Secrets.SiteName))
 	require.NoError(t, err)
 
 	// The known_hosts file should have two certificates, the way bytes.Split
@@ -3810,7 +3810,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	var reverseTunnelAddr string
 
 	// Helper function for adding a new proxy to "main".
-	addNewMainProxy := func(name string) (reversetunnel.Server, helpers.ProxyConfig) {
+	addNewMainProxy := func(name string) (reversetunnelclient.Server, helpers.ProxyConfig) {
 		t.Logf("adding main proxy %q...", name)
 		newConfig := helpers.ProxyConfig{
 			Name:              name,

@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 )
 
 var (
@@ -151,14 +152,13 @@ func wrapConfigFn(cf *CLIConf) func(c *rest.Config) *rest.Config {
 // paths.
 func runKubectlCode(cf *CLIConf, args []string) {
 	closeTracer := func() {}
+	cf.TracingProvider = tracing.NoopProvider()
+	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 	if cf.SampleTraces {
 		provider, err := newTraceProvider(cf, "", nil)
 		if err != nil {
 			log.WithError(err).Debug("Failed to set up span forwarding")
 		} else {
-			// only update the provider if we successfully set it up
-			cf.TracingProvider = provider
-
 			// ensure that the provider is shutdown on exit to flush any spans
 			// that haven't been forwarded yet.
 			closeTracer = func() {

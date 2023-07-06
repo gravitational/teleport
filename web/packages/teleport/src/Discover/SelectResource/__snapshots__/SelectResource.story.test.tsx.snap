@@ -2604,7 +2604,6 @@ exports[`render with no access 1`] = `
 
 .c8 {
   box-sizing: border-box;
-  background-color: red;
   border-top-right-radius: 4px;
   border-bottom-left-radius: 4px;
   position: absolute;
@@ -2612,6 +2611,7 @@ exports[`render with no access 1`] = `
   top: 0px;
   right: 0px;
   font-size: 10px;
+  background-color: #FF6257;
 }
 
 .c6 {
@@ -4595,7 +4595,6 @@ exports[`render with partial access 1`] = `
 
 .c17 {
   box-sizing: border-box;
-  background-color: red;
   border-top-right-radius: 4px;
   border-bottom-left-radius: 4px;
   position: absolute;
@@ -4603,6 +4602,7 @@ exports[`render with partial access 1`] = `
   top: 0px;
   right: 0px;
   font-size: 10px;
+  background-color: #FF6257;
 }
 
 .c6 {

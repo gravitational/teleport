@@ -33,9 +33,6 @@ Teleport administrators to define policies like:
 </TabItem>
 </Tabs>
 
-
-(!docs/pages/includes/enterprise/samlauthentication.mdx!)
-
 ## Step 1/4. Create & assign groups
 
 Okta indicates a user's group membership as a SAML assertion in the data it provides
@@ -240,6 +237,8 @@ Create the connector using `tctl`:
 ```code
 $ tctl create okta-connector.yaml
 ```
+
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
 ## Step 4/4. Create a developer Teleport role
 

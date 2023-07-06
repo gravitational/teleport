@@ -39,7 +39,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/reversetunnel"
 	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/utils"
@@ -384,7 +383,7 @@ func (f *Forwarder) remoteClusterDialer(clusterName string) dialContextFunc {
 			return nil, trace.Wrap(err)
 		}
 
-		return targetCluster.DialTCP(reversetunnel.DialParams{
+		return targetCluster.DialTCP(reversetunnelclient.DialParams{
 			// Send a sentinel value to the remote cluster because this connection
 			// will be used to forward multiple requests to the remote cluster from
 			// different users.
@@ -471,7 +470,7 @@ func (f *Forwarder) localClusterDialer(kubeClusterName string, opts ...contextDi
 			// It is a combination of the server's hostname and the cluster name.
 			// <host_id>.<cluster_name>
 			serverID := fmt.Sprintf("%s.%s", s.GetHostID(), f.cfg.ClusterName)
-			conn, err := localCluster.DialTCP(reversetunnel.DialParams{
+			conn, err := localCluster.DialTCP(reversetunnelclient.DialParams{
 				// Send a sentinel value to the remote cluster because this connection
 				// will be used to forward multiple requests to the remote cluster from
 				// different users.

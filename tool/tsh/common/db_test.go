@@ -32,6 +32,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/breaker"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
@@ -315,6 +316,7 @@ func TestLocalProxyRequirement(t *testing.T) {
 				Context:         ctx,
 				TracingProvider: tracing.NoopProvider(),
 				HomePath:        tmpHomePath,
+				tracer:          tracing.NoopTracer(teleport.ComponentTSH),
 			}
 			tc, err := makeClient(cf)
 			require.NoError(t, err)
@@ -391,6 +393,8 @@ func TestListDatabase(t *testing.T) {
 }
 
 func TestFormatDatabaseListCommand(t *testing.T) {
+	t.Parallel()
+
 	t.Run("default", func(t *testing.T) {
 		require.Equal(t, "tsh db ls", formatDatabaseListCommand(""))
 	})
@@ -401,6 +405,8 @@ func TestFormatDatabaseListCommand(t *testing.T) {
 }
 
 func TestFormatConfigCommand(t *testing.T) {
+	t.Parallel()
+
 	db := tlsca.RouteToDatabase{
 		ServiceName: "example-db",
 	}
@@ -415,6 +421,8 @@ func TestFormatConfigCommand(t *testing.T) {
 }
 
 func TestDBInfoHasChanged(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		name               string
 		databaseUserName   string

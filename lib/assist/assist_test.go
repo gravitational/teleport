@@ -48,7 +48,7 @@ func TestChatComplete(t *testing.T) {
 	t.Cleanup(server.Close)
 
 	cfg := openai.DefaultConfig("secret-test-token")
-	cfg.BaseURL = server.URL + "/v1"
+	cfg.BaseURL = server.URL
 
 	// And a chat client.
 	ctx := context.Background()
@@ -80,23 +80,33 @@ func TestChatComplete(t *testing.T) {
 	})
 
 	t.Run("the first message is the hey message", func(t *testing.T) {
+		// Use called to make sure that the callback is called.
+		called := false
 		// The first message is the welcome message.
 		_, err = chat.ProcessComplete(ctx, func(kind MessageType, payload []byte, createdTime time.Time) error {
 			require.Equal(t, MessageKindAssistantMessage, kind)
 			require.Contains(t, string(payload), "Hey, I'm Teleport")
+			called = true
 			return nil
 		}, "")
 		require.NoError(t, err)
+		require.True(t, called)
 	})
 
 	t.Run("command should be returned in the response", func(t *testing.T) {
+		called := false
 		// The second message is the command response.
 		_, err = chat.ProcessComplete(ctx, func(kind MessageType, payload []byte, createdTime time.Time) error {
+			if kind == MessageKindProgressUpdate {
+				return nil
+			}
 			require.Equal(t, MessageKindCommand, kind)
 			require.Equal(t, string(payload), `{"command":"df -h","nodes":["localhost"]}`)
+			called = true
 			return nil
 		}, "Show free disk space on localhost")
 		require.NoError(t, err)
+		require.True(t, called)
 	})
 
 	t.Run("check what messages are stored in the backend", func(t *testing.T) {
@@ -111,6 +121,51 @@ func TestChatComplete(t *testing.T) {
 		require.Equal(t, string(MessageKindAssistantMessage), messages.Messages[0].Type)
 		require.Equal(t, string(MessageKindUserMessage), messages.Messages[1].Type)
 		require.Equal(t, string(MessageKindCommand), messages.Messages[2].Type)
+	})
+}
+
+func TestClassifyMessage(t *testing.T) {
+	// Given an OpenAI server that returns a response for a chat completion request.
+	responses := []string{
+		"troubleshooting",
+		"Troubleshooting",
+		"Troubleshooting.",
+		"non-existent",
+	}
+
+	server := httptest.NewServer(aitest.GetTestHandlerFn(t, responses))
+	t.Cleanup(server.Close)
+
+	cfg := openai.DefaultConfig("secret-test-token")
+	cfg.BaseURL = server.URL
+
+	// And a chat client.
+	ctx := context.Background()
+	client, err := NewClient(ctx, &mockPluginGetter{}, &apiKeyMock{}, &cfg)
+	require.NoError(t, err)
+
+	t.Run("Valid class", func(t *testing.T) {
+		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
+		require.NoError(t, err)
+		require.Equal(t, class, "troubleshooting")
+	})
+
+	t.Run("Valid class starting with upper-case", func(t *testing.T) {
+		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
+		require.NoError(t, err)
+		require.Equal(t, class, "troubleshooting")
+	})
+
+	t.Run("Valid class starting with upper-case and ending with dot", func(t *testing.T) {
+		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
+		require.NoError(t, err)
+		require.Equal(t, class, "troubleshooting")
+	})
+
+	t.Run("Model hallucinates", func(t *testing.T) {
+		class, err := client.ClassifyMessage(ctx, "whatever", MessageClasses)
+		require.Error(t, err)
+		require.Empty(t, class)
 	})
 }
 

@@ -145,12 +145,7 @@ type eventsEmitter interface {
 	EmitAuditEvent(ctx context.Context, in apievents.AuditEvent) error
 }
 
-func newMigrateTask(ctx context.Context, cfg Config) (*task, error) {
-	awsCfg, err := config.LoadDefaultConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-
+func newMigrateTask(ctx context.Context, cfg Config, awsCfg aws.Config) (*task, error) {
 	s3Client := s3.NewFromConfig(awsCfg)
 	return &task{
 		Config:       cfg,
@@ -179,7 +174,21 @@ func Migrate(ctx context.Context, cfg Config) error {
 		return trace.Wrap(err)
 	}
 
-	t, err := newMigrateTask(ctx, cfg)
+	awsCfg, err := config.LoadDefaultConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(MigrateWithAWS(ctx, cfg, awsCfg))
+}
+
+// MigrateWithAWS executed dynamodb -> athena migration. Provide your own awsCfg
+func MigrateWithAWS(ctx context.Context, cfg Config, awsCfg aws.Config) error {
+	if err := cfg.CheckAndSetDefaults(); err != nil {
+		return trace.Wrap(err)
+	}
+
+	t, err := newMigrateTask(ctx, cfg, awsCfg)
 	if err != nil {
 		return trace.Wrap(err)
 	}
