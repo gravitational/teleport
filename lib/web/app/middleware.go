@@ -90,7 +90,7 @@ func (h *Handler) redirectToLauncher(w http.ResponseWriter, r *http.Request) err
 	return nil
 }
 
-func (h *Handler) withCustomCors(handle routerFunc) routerFunc {
+func (h *Handler) withCustomCORS(handle routerFunc) routerFunc {
 	return func(w http.ResponseWriter, r *http.Request, p httprouter.Params) error {
 		// Allow minimal CORS from only the proxy origin
 		// This allows for requests from the proxy to `POST` to `/x-teleport-auth` and only
