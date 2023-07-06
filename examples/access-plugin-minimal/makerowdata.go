@@ -25,13 +25,15 @@ import (
 
 func stringPtr(s string) *string { return &s }
 
-func (g *googleSheetsClient) makeRowData(ar types.AccessRequest) *sheets.RowData {
-	requestState, ok := requestStates[ar.GetState()]
+var requestStates = map[types.RequestState]string{
+	types.RequestState_APPROVED: "APPROVED",
+	types.RequestState_DENIED:   "DENIED",
+	types.RequestState_PENDING:  "PENDING",
+	types.RequestState_NONE:     "NONE",
+}
 
-	// Could not find a state, but this is still a valid Access Request
-	if !ok {
-		requestState = requestStates[types.RequestState_NONE]
-	}
+func (g *googleSheetsClient) makeRowData(ar types.AccessRequest) *sheets.RowData {
+	requestState := requestStates[ar.GetState()]
 
 	viewLink := fmt.Sprintf(
 		`=HYPERLINK("%v", "%v")`,

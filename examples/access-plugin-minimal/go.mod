@@ -3,7 +3,6 @@ module teleport-sheets
 go 1.19
 
 require (
-	github.com/gravitational/teleport-plugins v0.0.0-20230317174934-153c31d8b4cf
 	github.com/gravitational/teleport/api v0.0.0-20230317154531-934cde5cb86b
 	github.com/gravitational/trace v1.2.1
 	google.golang.org/api v0.114.0
@@ -31,9 +30,7 @@ require (
 	github.com/googleapis/enterprise-certificate-proxy v0.2.3 // indirect
 	github.com/googleapis/gax-go/v2 v2.7.1 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.7.3 // indirect
-	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/jonboulle/clockwork v0.3.0 // indirect
-	github.com/julienschmidt/httprouter v1.3.0 // indirect
 	github.com/mattermost/xml-roundtrip-validator v0.1.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/russellhaering/gosaml2 v0.9.1 // indirect
