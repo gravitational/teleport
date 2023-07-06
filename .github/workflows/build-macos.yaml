@@ -25,6 +25,11 @@ jobs:
       contents: read
 
     steps:
+      # This is necessary on macos arm64 runners because the .cache and
+      # .config dirs on the runner are owned by root not the "runner" user.
+      - name: Fix home dir perms
+        run: sudo chown -R $(id -u):$(id -g) $HOME/.cache $HOME/.config
+
       - name: Checkout Teleport
         uses: actions/checkout@v3
 
