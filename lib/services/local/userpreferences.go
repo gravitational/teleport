@@ -21,6 +21,7 @@ package local
 import (
 	"context"
 	"encoding/json"
+	"google.golang.org/protobuf/proto"
 	"reflect"
 
 	"github.com/gravitational/trace"
@@ -86,7 +87,9 @@ func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, req 
 		preferences = DefaultUserPreferences()
 	}
 
-	overwriteValues(preferences, req.Preferences)
+	if err := overwriteValues(preferences, req.Preferences); err != nil {
+		return trace.Wrap(err)
+	}
 
 	item, err := createBackendItem(req.Username, preferences)
 	if err != nil {
@@ -110,7 +113,9 @@ func (u *UserPreferencesService) getUserPreferences(ctx context.Context, usernam
 		return nil, trace.Wrap(err)
 	}
 
-	mergeIfUnset(&p, DefaultUserPreferences())
+	if err := mergeIfUnset(&p, DefaultUserPreferences()); err != nil {
+		return nil, trace.Wrap(err)
+	}
 
 	return &p, nil
 }
@@ -147,7 +152,7 @@ func createBackendItem(username string, preferences *userpreferencesv1.UserPrefe
 }
 
 // overwriteValues overwrites the values in dst with the values in src.
-func overwriteValues(dst, src protoreflect.ProtoMessage) {
+func overwriteValues(dst, src protoreflect.ProtoMessage) error {
 	d := dst.ProtoReflect()
 	s := src.ProtoReflect()
 
@@ -155,10 +160,12 @@ func overwriteValues(dst, src protoreflect.ProtoMessage) {
 	sName := s.Descriptor().FullName().Name()
 	// If the names don't match, then the types don't match, so we can't overwrite.
 	if dName != sName {
-		return
+		return trace.BadParameter("dst and src must be the same type")
 	}
 
 	overwriteValuesRecursive(d, s)
+
+	return nil
 }
 
 // overwriteValuesRecursive recursively overwrites the values in dst with the values in src.
@@ -177,11 +184,18 @@ func overwriteValuesRecursive(dst, src protoreflect.Message) {
 }
 
 // mergeIfUnset merges the values in src with the values in dst if the values in dst are unset.
-func mergeIfUnset(dst, src any) {
+func mergeIfUnset(dst, src proto.Message) error {
 	if reflect.TypeOf(src) != reflect.TypeOf(dst) {
-		return
+		return trace.BadParameter("src and dst must be the same type")
 	}
 
+	mergeIfUnsetHelper(dst, src)
+
+	return nil
+}
+
+// mergeIfUnsetHelper recursively merges the values in src with the values in dst if the values in dst are unset.
+func mergeIfUnsetHelper(dst, src any) {
 	srcV := reflect.ValueOf(src).Elem()
 	dstV := reflect.ValueOf(dst).Elem()
 
@@ -191,24 +205,24 @@ func mergeIfUnset(dst, src any) {
 
 		switch dstF.Kind() {
 		case reflect.Ptr:
-			if dstF.IsNil() && dstF.CanInterface() {
+			if dstF.IsNil() && dstF.CanSet() {
 				dstF.Set(srcF)
 			} else if dstF.Type().Elem().Kind() == reflect.Struct {
 				// Recursively call mergeIfUnset for nested messages.
-				mergeIfUnset(dstF.Interface(), srcF.Interface())
+				mergeIfUnsetHelper(dstF.Interface(), srcF.Interface())
 			}
 		case reflect.Slice, reflect.Map, reflect.Array:
-			if dstF.CanInterface() && dstF.Len() == 0 {
+			if dstF.CanSet() && dstF.Len() == 0 {
 				// Copy the slice/map/array from src to dst.
 				dstF.Set(srcF)
 			}
 		case reflect.Struct:
 			if dstF.CanInterface() {
 				// Recursively call mergeIfUnset for nested messages.
-				mergeIfUnset(dstF.Addr().Interface(), srcF.Addr().Interface())
+				mergeIfUnsetHelper(dstF.Addr().Interface(), srcF.Addr().Interface())
 			}
 		default:
-			if dstF.CanInterface() && dstF.IsZero() {
+			if dstF.CanSet() && dstF.IsZero() {
 				dstF.Set(srcF)
 			}
 		}
