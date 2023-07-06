@@ -76,11 +76,13 @@ Finally, let's create a simple Ansible playbook, `playbook.yaml`.
 
 The playbook below runs `hostname` on all hosts. Make sure to set the
 `remote_user` parameter to a valid SSH username that works with the target host
-and is allowed by Teleport RBAC.
+and is allowed by Teleport RBAC. If you followed the [Machine ID getting started
+guide](../getting-started.mdx), this user will be `root`. Assign <Var
+name="root" /> to the username.
 
-```yaml
+```var
 - hosts: all
-  remote_user: ubuntu
+  remote_user: <Var name="root" />
   tasks:
     - name: "hostname"
       command: "hostname"
