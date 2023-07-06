@@ -30,6 +30,7 @@ import (
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/backend"
@@ -236,6 +237,20 @@ func (s *PresenceService) GetNodes(ctx context.Context, namespace string) ([]typ
 	}
 
 	return servers, nil
+}
+
+// GetNodeStream returns a stream of nodes in a namespace.
+func (s *PresenceService) GetNodeStream(ctx context.Context, namespace string) stream.Stream[types.Server] {
+	startKey := backend.ExactKey(nodesPrefix, namespace)
+	items := backend.StreamRange(ctx, s, startKey, backend.RangeEnd(startKey), 50)
+	return stream.FilterMap(items, func(item backend.Item) (types.Server, bool) {
+		embedding, err := services.UnmarshalServer(item.Value, types.KindNode)
+		if err != nil {
+			s.log.Warnf("Skipping node at %s, failed to unmarshal: %v", item.Key, err)
+			return nil, false
+		}
+		return embedding, true
+	})
 }
 
 // UpsertNode registers node presence, permanently if TTL is 0 or for the

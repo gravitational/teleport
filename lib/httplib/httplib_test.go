@@ -20,6 +20,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -31,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/observability/tracing"
 )
 
@@ -262,4 +264,105 @@ func TestMakeTracingHandler(t *testing.T) {
 		})
 	}
 
+}
+
+func TestSetIndexContentSecurityPolicy(t *testing.T) {
+	t.Parallel()
+
+	expectedCspVals := map[string]string{
+		"default-src":     "'self'",
+		"base-uri":        "'self'",
+		"form-action":     "'self'",
+		"frame-ancestors": "'none'",
+		"object-src":      "'none'",
+		"style-src":       "'self' 'unsafe-inline'",
+		"img-src":         "'self' data: blob:",
+		"font-src":        "'self' data:",
+		"connect-src":     "'self' wss:",
+	}
+
+	h := make(http.Header)
+	SetIndexContentSecurityPolicy(h, proto.Features{})
+	actualCsp := h.Get("Content-Security-Policy")
+	for k, v := range expectedCspVals {
+		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
+		require.Contains(t, actualCsp, expectedCspSubString)
+	}
+}
+
+func TestSetIndexContentSecurityPolicyForCloudUsageBased(t *testing.T) {
+	t.Parallel()
+
+	expectedCspVals := map[string]string{
+		"default-src":     "'self'",
+		"base-uri":        "'self'",
+		"form-action":     "'self'",
+		"frame-ancestors": "'none'",
+		"object-src":      "'none'",
+		"script-src":      "'self' https://js.stripe.com",
+		"frame-src":       "https://js.stripe.com",
+		"style-src":       "'self' 'unsafe-inline'",
+		"img-src":         "'self' data: blob:",
+		"font-src":        "'self' data:",
+		"connect-src":     "'self' wss:",
+	}
+
+	h := make(http.Header)
+	SetIndexContentSecurityPolicy(h, proto.Features{Cloud: true, IsUsageBased: true})
+	actualCsp := h.Get("Content-Security-Policy")
+	for k, v := range expectedCspVals {
+		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
+		require.Contains(t, actualCsp, expectedCspSubString)
+	}
+}
+
+func TestSetAppLaunchContentSecurityPolicy(t *testing.T) {
+	t.Parallel()
+
+	applicationURL := "https://example.com"
+
+	expectedCspVals := map[string]string{
+		"default-src":     "'self'",
+		"base-uri":        "'self'",
+		"form-action":     "'self'",
+		"frame-ancestors": "'none'",
+		"object-src":      "'none'",
+		"style-src":       "'self' 'unsafe-inline'",
+		"img-src":         "'self' data: blob:",
+		"font-src":        "'self' data:",
+		"connect-src":     fmt.Sprintf("'self' %s", applicationURL),
+	}
+
+	h := make(http.Header)
+	SetAppLaunchContentSecurityPolicy(h, applicationURL)
+	actualCsp := h.Get("Content-Security-Policy")
+	for k, v := range expectedCspVals {
+		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
+		require.Contains(t, actualCsp, expectedCspSubString)
+	}
+}
+
+func TestSetRedirectPageContentSecurityPolicy(t *testing.T) {
+	t.Parallel()
+
+	scriptSrc := "nonce-123456789abcdefg"
+
+	expectedCspVals := map[string]string{
+		"default-src":     "'self'",
+		"base-uri":        "'self'",
+		"form-action":     "'self'",
+		"frame-ancestors": "'none'",
+		"object-src":      "'none'",
+		"style-src":       "'self' 'unsafe-inline'",
+		"img-src":         "'self' data: blob:",
+		"script-src":      fmt.Sprintf("'%s'", scriptSrc),
+	}
+
+	h := make(http.Header)
+	SetRedirectPageContentSecurityPolicy(h, scriptSrc)
+	actualCsp := h.Get("Content-Security-Policy")
+	for k, v := range expectedCspVals {
+		expectedCspSubString := fmt.Sprintf("%s %s;", k, v)
+		require.Contains(t, actualCsp, expectedCspSubString)
+	}
 }

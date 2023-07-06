@@ -839,7 +839,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 
 	// scp
-	scp := app.Command("scp", "Transfer files to a remote Node.")
+	scp := app.Command("scp", "Transfer files to a remote SSH node.")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
@@ -1440,7 +1440,7 @@ func onVersion(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		utils.PrintVersion()
+		modules.GetModules().PrintVersion()
 		if proxyVersion != "" {
 			fmt.Printf("Proxy version: %s\n", proxyVersion)
 			fmt.Printf("Proxy: %s\n", proxyPublicAddr)
@@ -3237,7 +3237,7 @@ func onJoin(cf *CLIConf) error {
 		return trace.BadParameter("'%v' is not a valid session ID (must be GUID)", cf.SessionID)
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.Join(context.TODO(), types.SessionParticipantMode(cf.JoinMode), cf.Namespace, *sid, nil)
+		return tc.Join(cf.Context, types.SessionParticipantMode(cf.JoinMode), cf.Namespace, *sid, nil)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3343,11 +3343,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	options, err := parseOptions(cf.Options)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// apply defaults
-	if cf.MinsToLive == 0 {
-		cf.MinsToLive = int32(apidefaults.CertDuration / time.Minute)
 	}
 
 	// split login & host
@@ -3600,6 +3595,14 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 
 	// avoid adding keys to agent when using an identity file.
 	if (cf.IdentityFileOut != "" || cf.IdentityFileIn != "") && c.AddKeysToAgent == client.AddKeysToAgentAuto {
+		c.AddKeysToAgent = client.AddKeysToAgentNo
+	}
+
+	// headless login produces short-lived MFA-verifed certs, which should never be added to the agent.
+	if cf.AuthConnector == constants.HeadlessConnector {
+		if cf.AddKeysToAgent == client.AddKeysToAgentYes || cf.AddKeysToAgent == client.AddKeysToAgentOnly {
+			log.Info("Skipping adding keys to agent for headless login")
+		}
 		c.AddKeysToAgent = client.AddKeysToAgentNo
 	}
 

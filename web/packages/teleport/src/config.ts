@@ -241,6 +241,7 @@ const cfg = {
       '/v1/webapi/assistant/conversations/:conversationId',
     assistExecuteCommandWebSocketPath:
       'wss://:hostname/v1/webapi/command/:clusterId/execute',
+    userPreferencesPath: '/v1/webapi/user/preferences',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {

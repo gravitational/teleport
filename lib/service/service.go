@@ -66,8 +66,10 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	apiutils "github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib"
 	"github.com/gravitational/teleport/lib/agentless"
+	"github.com/gravitational/teleport/lib/ai"
 	"github.com/gravitational/teleport/lib/auditd"
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/auth/keygen"
@@ -222,7 +224,7 @@ const (
 	// been set up.
 	InstanceReady = "InstanceReady"
 
-	// DiscoveryReady is generated when the Teleport database proxy service
+	// DiscoveryReady is generated when the Teleport discovery service
 	// is ready to start accepting connections.
 	DiscoveryReady = "DiscoveryReady"
 
@@ -253,6 +255,15 @@ const (
 
 	// TeleportOKEvent is emitted whenever a service is operating normally.
 	TeleportOKEvent = "TeleportOKEvent"
+)
+
+const (
+	// embeddingInitialDelay is the time to wait before the first embedding
+	// routine is started.
+	embeddingInitialDelay = 10 * time.Second
+	// embeddingPeriod is the time between two embedding routines.
+	// A seventh jitter is applied on the period.
+	embeddingPeriod = time.Hour
 )
 
 // Connector has all resources process needs to connect to other parts of the
@@ -1060,7 +1071,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	if cfg.Tracing.Enabled {
 		eventMapping.In = append(eventMapping.In, TracingReady)
 	}
-	if cfg.Discovery.Enabled {
+	if process.shouldInitDiscovery() {
 		eventMapping.In = append(eventMapping.In, DiscoveryReady)
 	}
 
@@ -1112,6 +1123,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		process.initDatabases()
 		serviceStarted = true
 	} else {
+		if process.Config.Databases.Enabled {
+			process.log.Warn("Database service is enabled with empty configuration, skipping initialization")
+		}
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDatabase), process.log)
 	}
 
@@ -1133,6 +1147,9 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 		process.initDiscovery()
 		serviceStarted = true
 	} else {
+		if process.Config.Discovery.Enabled {
+			process.log.Warn("Discovery service is enabled with empty configuration, skipping initialization")
+		}
 		warnOnErr(process.closeImportedDescriptors(teleport.ComponentDiscovery), process.log)
 	}
 
@@ -1152,7 +1169,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	// run one upload completer per-process
 	// even in sync recording modes, since the recording mode can be changed
 	// at any time with dynamic configuration
-	process.RegisterFunc("common.upload", process.initUploaderService)
+	process.RegisterFunc("common.upload.init", process.initUploaderService)
 
 	if !serviceStarted {
 		return nil, trace.BadParameter("all services failed to start")
@@ -1616,6 +1633,13 @@ func (process *TeleportProcess) initAuthService() error {
 		traceClt = clt
 	}
 
+	var embedderClient ai.Embedder
+	if cfg.Auth.AssistAPIKey != "" {
+		embedderClient = ai.NewClient(cfg.Auth.AssistAPIKey)
+	}
+
+	embeddingsRetriever := ai.NewSimpleRetriever()
+
 	// first, create the AuthServer
 	authServer, err := auth.Init(auth.InitConfig{
 		Backend:                 b,
@@ -1654,6 +1678,8 @@ func (process *TeleportProcess) initAuthService() error {
 		LoadAllCAs:              cfg.Auth.LoadAllCAs,
 		Clock:                   cfg.Clock,
 		HTTPClientForAWSSTS:     cfg.Auth.HTTPClientForAWSSTS,
+		EmbeddingRetriever:      embeddingsRetriever,
+		EmbeddingClient:         embedderClient,
 	}, func(as *auth.Server) error {
 		if !process.Config.CachePolicy.Enabled {
 			return nil
@@ -1692,6 +1718,40 @@ func (process *TeleportProcess) initAuthService() error {
 		return trace.Wrap(err)
 	}
 	authServer.SetLockWatcher(lockWatcher)
+
+	if embedderClient != nil {
+		log.Debugf("Starting embedding watcher")
+		embeddingProcessor := ai.NewEmbeddingProcessor(&ai.EmbeddingProcessorConfig{
+			AIClient:            embedderClient,
+			EmbeddingsRetriever: embeddingsRetriever,
+			EmbeddingSrv:        authServer,
+			NodeSrv:             authServer,
+			Log:                 log,
+			Jitter:              retryutils.NewFullJitter(),
+		})
+
+		process.RegisterFunc("ai.embedding-processor", func() error {
+			// We check the Assist feature flag here rather than on creation of TeleportProcess,
+			// as when running Enterprise and the feature source is Cloud,
+			// features may be loaded at two different times:
+			// 1. When Cloud is reachable, features will be fetched from Cloud
+			//    before constructing TeleportProcess
+			// 2. When Cloud is not reachable, we will attempt to load cached features
+			//    from the Teleport backend.
+			// In the second case, we don't know the final value of Features().Assist
+			// when constructing the process.
+			// Services in the supervisor will only start after either 1 or 2 has succeeded,
+			// so we can make the decision here.
+			//
+			// Ref: e/tool/teleport/process/process.go
+			if !modules.GetModules().Features().Assist {
+				log.Debug("Skipping start of embedding processor: Assist feature not enabled for license")
+				return nil
+			}
+			log.Debugf("Starting embedding processor")
+			return embeddingProcessor.Run(process.GracefulExitContext(), embeddingInitialDelay, embeddingPeriod)
+		})
+	}
 
 	headlessAuthenticationWatcher, err := local.NewHeadlessAuthenticationWatcher(process.ExitContext(), local.HeadlessAuthenticationWatcherConfig{
 		Backend: b,
@@ -3795,7 +3855,6 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		proxyLimiter.WrapHandle(webHandler)
 		if !cfg.Proxy.DisableTLS && cfg.Proxy.DisableALPNSNIListener {
 			listeners.tls, err = multiplexer.NewWebListener(multiplexer.WebListenerConfig{
 				Listener: tls.NewListener(listeners.web, tlsConfigWeb),
@@ -3818,7 +3877,12 @@ func (process *TeleportProcess) initProxyEndpoint(conn *Connector) error {
 
 		webServer, err = web.NewServer(web.ServerConfig{
 			Server: &http.Server{
-				Handler:           httplib.MakeTracingHandler(proxyLimiter, teleport.ComponentProxy),
+				Handler: utils.ChainHTTPMiddlewares(
+					webHandler,
+					makeXForwardedForMiddleware(cfg),
+					limiter.MakeMiddleware(proxyLimiter),
+					httplib.MakeTracingMiddleware(teleport.ComponentProxy),
+				),
 				ReadHeaderTimeout: apidefaults.DefaultIOTimeout,
 				IdleTimeout:       apidefaults.DefaultIdleTimeout,
 				ErrorLog:          utils.NewStdlogger(log.Error, teleport.ComponentProxy),
@@ -5648,4 +5712,11 @@ func copyAndConfigureTLS(config *tls.Config, log logrus.FieldLogger, accessPoint
 	tlsConfig.GetConfigForClient = auth.WithClusterCAs(tlsConfig.Clone(), accessPoint, clusterName, log)
 
 	return tlsConfig
+}
+
+func makeXForwardedForMiddleware(cfg *servicecfg.Config) utils.HTTPMiddleware {
+	if cfg.Proxy.TrustXForwardedFor {
+		return web.NewXForwardedForMiddleware
+	}
+	return utils.NoopHTTPMiddleware
 }

@@ -100,7 +100,10 @@ func (t *TunnelAuthDialer) DialContext(ctx context.Context, _, _ string) (net.Co
 	if mode == types.ProxyListenerMode_Multiplex {
 		opts = append(opts, proxy.WithALPNDialer(client.ALPNDialerConfig{
 			TLSConfig: &tls.Config{
-				NextProtos:         []string{string(alpncommon.ProtocolReverseTunnel)},
+				NextProtos: []string{
+					string(alpncommon.ProtocolReverseTunnelV2),
+					string(alpncommon.ProtocolReverseTunnel),
+				},
 				InsecureSkipVerify: t.InsecureSkipTLSVerify,
 			},
 			DialTimeout:             t.ClientConfig.Timeout,
@@ -284,7 +287,7 @@ func (p *transport) start() {
 			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
 			src, err := utils.ParseAddr(dreq.ClientSrcAddr)
 			if err == nil {
-				clientConn = newConnectionWithSrcAddr(clientConn, src)
+				clientConn = utils.NewConnWithSrcAddr(clientConn, getTCPAddr(src))
 			}
 			p.server.HandleConnection(clientConn)
 			return
@@ -327,7 +330,7 @@ func (p *transport) start() {
 			var clientConn net.Conn = sshutils.NewChConn(p.sconn, p.channel)
 			src, err := utils.ParseAddr(dreq.ClientSrcAddr)
 			if err == nil {
-				clientConn = newConnectionWithSrcAddr(clientConn, src)
+				clientConn = utils.NewConnWithSrcAddr(clientConn, getTCPAddr(src))
 			}
 			p.server.HandleConnection(clientConn)
 			return
@@ -540,37 +543,9 @@ func (p *transport) directDial(addr string) (net.Conn, error) {
 	return conn, nil
 }
 
-// connectionWithSrcAddr is a net.Conn wrapper that allows us to specify remote client address
-type connectionWithSrcAddr struct {
-	net.Conn
-	clientSrcAddr net.Addr
-}
-
-// RemoteAddr returns specified client source address
-func (c *connectionWithSrcAddr) RemoteAddr() net.Addr {
-	return c.clientSrcAddr
-}
-
-// NetConn returns the underlying net.Conn.
-func (c *connectionWithSrcAddr) NetConn() net.Conn {
-	return c.Conn
-}
-
-// newConnectionWithSrcAddr wraps provided connection and overrides client remote address
-func newConnectionWithSrcAddr(conn net.Conn, clientSrcAddr net.Addr) *connectionWithSrcAddr {
-	var addr net.Addr
-	if clientSrcAddr != nil {
-		addr = getTCPAddr(clientSrcAddr) // SSH package requires net.TCPAddr for source-address check
-	}
-	if addr == nil {
-		addr = conn.RemoteAddr()
-	}
-	return &connectionWithSrcAddr{
-		Conn:          conn,
-		clientSrcAddr: addr,
-	}
-}
-
+// getTCPAddr converts net.Addr to *net.TCPAddr.
+//
+// SSH package requires net.TCPAddr for source-address check.
 func getTCPAddr(addr net.Addr) *net.TCPAddr {
 	ap, err := netip.ParseAddrPort(addr.String())
 	if err != nil {

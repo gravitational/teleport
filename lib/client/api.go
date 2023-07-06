@@ -20,7 +20,6 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -1017,9 +1016,7 @@ func NewClient(c *Config) (tc *TeleportClient, err error) {
 		}
 		log.Infof("no host login given. defaulting to %s", c.HostLogin)
 	}
-	if c.KeyTTL == 0 {
-		c.KeyTTL = apidefaults.CertDuration
-	}
+
 	c.Namespace = types.ProcessNamespace(c.Namespace)
 
 	if c.Tracer == nil {
@@ -1783,7 +1780,7 @@ func (tc *TeleportClient) runShellOrCommandOnSingleNode(ctx context.Context, clt
 		// Reuse the existing nodeClient we connected above.
 		return nodeClient.RunCommand(ctx, command)
 	}
-	return tc.runShell(ctx, nodeClient, types.SessionPeerMode, nil, nil)
+	return trace.Wrap(nodeClient.RunInteractiveShell(ctx, types.SessionPeerMode, nil, nil))
 }
 
 func (tc *TeleportClient) runShellOrCommandOnMultipleNodes(ctx context.Context, clt *ClusterClient, nodeAddrs []string, command []string) error {
@@ -1906,7 +1903,12 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	if mode == types.SessionModeratorMode {
 		beforeStart = func(out io.Writer) {
 			nc.OnMFA = func() {
-				runPresenceTask(presenceCtx, out, clt.AuthClient, tc, session.GetSessionID())
+				RunPresenceTask(presenceCtx, out, clt.AuthClient, session.GetSessionID(), func(ctx context.Context, proxyAddr string, c *proto.MFAAuthenticateChallenge) (*proto.MFAAuthenticateResponse, error) {
+					resp, err := tc.PromptMFAChallenge(ctx, proxyAddr, c, func(opts *PromptMFAChallengeOpts) {
+						opts.Quiet = true
+					})
+					return resp, trace.Wrap(err)
+				})
 			}
 		}
 	}
@@ -1914,7 +1916,7 @@ func (tc *TeleportClient) Join(ctx context.Context, mode types.SessionParticipan
 	fmt.Printf("Joining session with participant mode: %v. \n\n", mode)
 
 	// running shell with a given session means "join" it:
-	err = tc.runShell(ctx, nc, mode, session, beforeStart)
+	err = nc.RunInteractiveShell(ctx, mode, session, beforeStart)
 	return trace.Wrap(err)
 }
 
@@ -2681,49 +2683,6 @@ func (tc *TeleportClient) newSessionEnv() map[string]string {
 	return env
 }
 
-// runShell starts an interactive SSH session/shell.
-// sessionID : when empty, creates a new shell. otherwise it tries to join the existing session.
-func (tc *TeleportClient) runShell(ctx context.Context, nodeClient *NodeClient, mode types.SessionParticipantMode, sessToJoin types.SessionTracker, beforeStart func(io.Writer)) error {
-	ctx, span := tc.Tracer.Start(
-		ctx,
-		"teleportClient/runShell",
-		oteltrace.WithSpanKind(oteltrace.SpanKindClient),
-	)
-	defer span.End()
-
-	env := tc.newSessionEnv()
-	env[teleport.EnvSSHJoinMode] = string(mode)
-	env[teleport.EnvSSHSessionReason] = tc.Config.Reason
-	env[teleport.EnvSSHSessionDisplayParticipantRequirements] = strconv.FormatBool(tc.Config.DisplayParticipantRequirements)
-
-	encoded, err := json.Marshal(&tc.Config.Invited)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	env[teleport.EnvSSHSessionInvited] = string(encoded)
-
-	nodeSession, err := newSession(ctx, nodeClient, sessToJoin, env, tc.Stdin, tc.Stdout, tc.Stderr, tc.EnableEscapeSequences)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	if err = nodeSession.runShell(ctx, mode, beforeStart, tc.OnShellCreated); err != nil {
-		switch e := trace.Unwrap(err).(type) {
-		case *ssh.ExitError:
-			tc.ExitStatus = e.ExitStatus()
-		case *ssh.ExitMissingError:
-			tc.ExitStatus = 1
-		}
-
-		return trace.Wrap(err)
-	}
-	if nodeSession.ExitMsg == "" {
-		fmt.Fprintln(tc.Stderr, "the connection was closed on the remote side on ", time.Now().Format(time.RFC822))
-	} else {
-		fmt.Fprintln(tc.Stderr, nodeSession.ExitMsg)
-	}
-	return nil
-}
-
 // getProxyLogin determines which SSH principal to use when connecting to proxy.
 func (tc *TeleportClient) getProxySSHPrincipal() string {
 	if tc.ProxySSHPrincipal != "" {
@@ -3311,6 +3270,14 @@ func (tc *TeleportClient) Login(ctx context.Context) (*Key, error) {
 
 	// Perform the ALPN test once at login.
 	tc.TLSRoutingConnUpgradeRequired = client.IsALPNConnUpgradeRequired(ctx, tc.WebProxyAddr, tc.InsecureSkipVerify)
+
+	if tc.KeyTTL == 0 {
+		tc.KeyTTL = time.Duration(pr.Auth.DefaultSessionTTL)
+	}
+	// todo(lxea): DELETE IN v15(?) where the auth is guaranteed to send us a valid MaxSessionTTL or the auth is guaranteed to interpret 0 duration as the auth's default?
+	if tc.KeyTTL == 0 {
+		tc.KeyTTL = apidefaults.CertDuration
+	}
 
 	// Get the SSHLoginFunc that matches client and cluster settings.
 	sshLoginFunc, err := tc.getSSHLoginFunc(pr)
@@ -4826,7 +4793,7 @@ func (tc *TeleportClient) HeadlessApprove(ctx context.Context, headlessAuthentic
 		return trace.Wrap(err)
 	}
 
-	if headlessAuthn.State != types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING {
+	if !headlessAuthn.State.IsPending() {
 		return trace.Errorf("cannot approve a headless authentication from a non-pending state: %v", headlessAuthn.State.Stringify())
 	}
 

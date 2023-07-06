@@ -121,3 +121,26 @@ func GetAnyHeader(header http.Header, keys ...string) string {
 type HTTPDoClient interface {
 	Do(req *http.Request) (*http.Response, error)
 }
+
+// HTTPMiddleware defines a HTTP middleware.
+type HTTPMiddleware func(next http.Handler) http.Handler
+
+// ChainHTTPMiddlewares wraps an http.Handler with a list of middlewares. Inner
+// middlewares should be provided before outer middlewares.
+func ChainHTTPMiddlewares(handler http.Handler, middlewares ...HTTPMiddleware) http.Handler {
+	if len(middlewares) == 0 {
+		return handler
+	}
+	apply := middlewares[0]
+	middlewares = middlewares[1:]
+	if apply != nil {
+		handler = apply(handler)
+	}
+	return ChainHTTPMiddlewares(handler, middlewares...)
+}
+
+// NoopHTTPMiddleware is a no-operation HTTPMiddleware that returns the
+// original handler.
+func NoopHTTPMiddleware(next http.Handler) http.Handler {
+	return next
+}
