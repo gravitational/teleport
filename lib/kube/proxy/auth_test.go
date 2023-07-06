@@ -64,7 +64,6 @@ func TestCheckImpersonationPermissions(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		t.Log(tt.desc)
 		mock := &mockSARClient{
 			err:              tt.sarErr,
 			allowedVerbs:     tt.allowedVerbs,

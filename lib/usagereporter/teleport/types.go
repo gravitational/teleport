@@ -54,6 +54,22 @@ func (u *UserLoginEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequ
 	}
 }
 
+// BotJoinEvent is an event emitted when a user logs into Teleport,
+// potentially via SSO.
+type BotJoinEvent prehogv1a.BotJoinEvent
+
+func (u *BotJoinEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BotJoin{
+			BotJoin: &prehogv1a.BotJoinEvent{
+				BotName:       a.AnonymizeString(u.BotName),
+				JoinTokenName: a.AnonymizeString(u.JoinTokenName),
+				JoinMethod:    u.JoinMethod,
+			},
+		},
+	}
+}
+
 // SSOCreateEvent is emitted when an SSO connector has been created.
 type SSOCreateEvent prehogv1a.SSOCreateEvent
 
@@ -310,6 +326,24 @@ func (u *RoleCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventReq
 	}
 }
 
+// BotCreateEvent is an event emitted when a Machine ID bot is created.
+type BotCreateEvent prehogv1a.BotCreateEvent
+
+func (u *BotCreateEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_BotCreate{
+			BotCreate: &prehogv1a.BotCreateEvent{
+				UserName:    a.AnonymizeString(u.UserName),
+				RoleName:    a.AnonymizeString(u.RoleName),
+				BotUserName: a.AnonymizeString(u.BotUserName),
+				BotName:     a.AnonymizeString(u.BotName),
+				RoleCount:   u.RoleCount,
+				JoinMethod:  u.JoinMethod,
+			},
+		},
+	}
+}
+
 // UICreateNewRoleClickEvent is a UI event sent when a user prints recovery codes.
 type UICreateNewRoleClickEvent prehogv1a.UICreateNewRoleClickEvent
 
@@ -508,6 +542,20 @@ func (e *AssistCompletionEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEv
 	}
 }
 
+// EditorChangeEvent is an event emitted when the default editor is added or removed to an user
+type EditorChangeEvent prehogv1a.EditorChangeEvent
+
+func (e *EditorChangeEvent) Anonymize(a utils.Anonymizer) prehogv1a.SubmitEventRequest {
+	return prehogv1a.SubmitEventRequest{
+		Event: &prehogv1a.SubmitEventRequest_EditorChangeEvent{
+			EditorChangeEvent: &prehogv1a.EditorChangeEvent{
+				UserName: a.AnonymizeString(e.UserName),
+				Status:   e.Status,
+			},
+		},
+	}
+}
+
 // UserMetadata contains user metadata information which is used to contextualize events with user information.
 type UserMetadata struct {
 	// Username contains the user's name.
@@ -651,9 +699,11 @@ func ConvertUsageEvent(event *usageeventsv1.UsageEventOneOf, userMD UserMetadata
 
 	case *usageeventsv1.UsageEventOneOf_UiDiscoverDeployServiceEvent:
 		ret := &UIDiscoverDeployServiceEvent{
-			Metadata: discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
-			Resource: discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
-			Status:   discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
+			Metadata:     discoverMetadataToPrehog(e.UiDiscoverDeployServiceEvent.Metadata, userMD),
+			Resource:     discoverResourceToPrehog(e.UiDiscoverDeployServiceEvent.Resource),
+			Status:       discoverStatusToPrehog(e.UiDiscoverDeployServiceEvent.Status),
+			DeployMethod: prehogv1a.UIDiscoverDeployServiceEvent_DeployMethod(e.UiDiscoverDeployServiceEvent.DeployMethod),
+			DeployType:   prehogv1a.UIDiscoverDeployServiceEvent_DeployType(e.UiDiscoverDeployServiceEvent.DeployType),
 		}
 		if err := ret.CheckAndSetDefaults(); err != nil {
 			return nil, trace.Wrap(err)

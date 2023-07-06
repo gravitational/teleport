@@ -28,10 +28,12 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
+	assistpb "github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	devicepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/devicetrust/v1"
 	loginrulepb "github.com/gravitational/teleport/api/gen/proto/go/teleport/loginrule/v1"
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
+	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/lib/events"
@@ -280,6 +282,11 @@ func (c *Client) DeleteAuthServer(name string) error {
 // CompareAndSwapUser not implemented: can only be called locally
 func (c *Client) CompareAndSwapUser(ctx context.Context, new, expected types.User) error {
 	return trace.NotImplemented(notImplementedMessage)
+}
+
+// GetNodeStream not implemented: can only be called locally
+func (c *Client) GetNodeStream(_ context.Context, _ string) stream.Stream[types.Server] {
+	return stream.Fail[types.Server](trace.NotImplemented(notImplementedMessage))
 }
 
 // StreamSessionEvents streams all events from a given session recording. An error is returned on the first
@@ -703,6 +710,7 @@ type ClientI interface {
 	services.SAMLIdPServiceProviders
 	services.UserGroups
 	services.Assistant
+	services.UserPreferences
 	WebService
 	services.Status
 	services.ClusterConfiguration
@@ -726,6 +734,9 @@ type ClientI interface {
 	// still get a client when calling this method, but all RPCs will return
 	// "not implemented" errors (as per the default gRPC behavior).
 	LoginRuleClient() loginrulepb.LoginRuleServiceClient
+
+	// EmbeddingClient returns a client to the Embedding gRPC service.
+	EmbeddingClient() assistpb.AssistEmbeddingServiceClient
 
 	// NewKeepAliver returns a new instance of keep aliver
 	NewKeepAliver(ctx context.Context) (types.KeepAliver, error)

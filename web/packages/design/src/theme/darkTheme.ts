@@ -15,13 +15,43 @@ limitations under the License.
 */
 
 import { fonts } from './fonts';
-import { getContrastRatio } from './utils/colorManipulator';
+import { getContrastRatio, lighten } from './utils/colorManipulator';
 import { blueGrey, lightBlue, yellow } from './palette';
 import typography, { fontSizes, fontWeights } from './typography';
 import { sharedStyles } from './sharedStyles';
 
 const space = [0, 4, 8, 16, 24, 32, 40, 48, 56, 64, 72, 80];
 const contrastThreshold = 3;
+
+const dataVisualisationColors = {
+  primary: {
+    purple: '#9F85FF',
+    wednesdays: '#F74DFF',
+    picton: '#009EFF',
+    sunflower: '#FFAB00',
+    caribbean: '#00BFA6',
+    abbey: '#FF6257',
+    cyan: '#00D3F0',
+  },
+  secondary: {
+    purple: '#7D59FF',
+    wednesdays: '#D50DE0',
+    picton: '#007CC9',
+    sunflower: '#AC7400',
+    caribbean: '#008775',
+    abbey: '#DB3F34',
+    cyan: '#009CB1',
+  },
+  tertiary: {
+    purple: '#B9A6FF',
+    wednesdays: '#FA96FF',
+    picton: '#7BCDFF',
+    sunflower: '#FFD98C',
+    caribbean: '#2EFFD5',
+    abbey: '#FF948D',
+    cyan: '#74EEFF',
+  },
+};
 
 const colors = {
   /*
@@ -148,6 +178,39 @@ const colors = {
     disabledBackground: 'rgba(255, 255, 255, 0.12)',
   },
 
+  terminal: {
+    foreground: '#F1F2F4',
+    background: '#0C143D', // sunken
+    selectionBackground: 'rgba(255, 255, 255, 0.18)',
+    cursor: '#FFF',
+    cursorAccent: '#0C143D',
+    red: dataVisualisationColors.primary.abbey,
+    green: dataVisualisationColors.primary.caribbean,
+    yellow: dataVisualisationColors.primary.sunflower,
+    blue: dataVisualisationColors.primary.picton,
+    magenta: dataVisualisationColors.primary.purple,
+    cyan: dataVisualisationColors.primary.cyan,
+    brightWhite: lighten('#0C143D', 0.89),
+    white: lighten('#0C143D', 0.78),
+    brightBlack: lighten('#0C143D', 0.61),
+    black: '#000',
+    brightRed: dataVisualisationColors.tertiary.abbey,
+    brightGreen: dataVisualisationColors.tertiary.caribbean,
+    brightYellow: dataVisualisationColors.tertiary.sunflower,
+    brightBlue: dataVisualisationColors.tertiary.picton,
+    brightMagenta: dataVisualisationColors.tertiary.purple,
+    brightCyan: dataVisualisationColors.tertiary.cyan,
+  },
+
+  editor: {
+    abbey: dataVisualisationColors.tertiary.abbey,
+    purple: dataVisualisationColors.tertiary.purple,
+    cyan: dataVisualisationColors.tertiary.cyan,
+    picton: dataVisualisationColors.tertiary.picton,
+    sunflower: dataVisualisationColors.tertiary.sunflower,
+    caribbean: dataVisualisationColors.tertiary.caribbean,
+  },
+
   subtle: blueGrey[50],
   link: '#009EFF',
   bgTerminal: '#010B1C',
@@ -155,6 +218,8 @@ const colors = {
   disabled: blueGrey[500],
   info: lightBlue[600],
   success: '#00BFA5',
+
+  dataVisualisation: dataVisualisationColors,
 };
 
 const borders = [

@@ -17,6 +17,7 @@ limitations under the License.
 package web_test
 
 import (
+	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
 )
 
@@ -62,12 +64,11 @@ func TestTerminalReadFromClosedConn(t *testing.T) {
 	require.NoError(t, err)
 	defer resp.Body.Close()
 
-	stream, err := web.NewTerminalStream(conn)
-	require.NoError(t, err)
+	stream := web.NewTerminalStream(context.Background(), conn, utils.NewLoggerForTests())
 
 	// close the stream before we attempt to read from it,
 	// this will produce a net.ErrClosed error on the read
-	stream.Close()
+	require.NoError(t, stream.Close())
 
 	_, err = io.Copy(io.Discard, stream)
 	require.NoError(t, err)

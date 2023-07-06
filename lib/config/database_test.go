@@ -352,7 +352,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				flags: DatabaseSampleFlags{
 					StaticDatabaseName:     "",
 					StaticDatabaseProtocol: "postgres",
-					StaticDatabaseURI:      "postgres://localhost:5432",
+					StaticDatabaseURI:      "localhost:5432",
 				},
 				requireFn: require.Error,
 			},
@@ -360,7 +360,7 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				flags: DatabaseSampleFlags{
 					StaticDatabaseName:     "sample",
 					StaticDatabaseProtocol: "",
-					StaticDatabaseURI:      "postgres://localhost:5432",
+					StaticDatabaseURI:      "localhost:5432",
 				},
 				requireFn: require.Error,
 			},
@@ -372,11 +372,19 @@ func TestMakeDatabaseConfig(t *testing.T) {
 				},
 				requireFn: require.Error,
 			},
+			"BadURI": {
+				flags: DatabaseSampleFlags{
+					StaticDatabaseName:     "sample",
+					StaticDatabaseProtocol: "postgres",
+					StaticDatabaseURI:      "postgres://localhost:5432",
+				},
+				requireFn: require.Error,
+			},
 			"InvalidLabels": {
 				flags: DatabaseSampleFlags{
 					StaticDatabaseName:      "sample",
 					StaticDatabaseProtocol:  "postgres",
-					StaticDatabaseURI:       "postgres://localhost:5432",
+					StaticDatabaseURI:       "localhost:5432",
 					StaticDatabaseRawLabels: "abc",
 				},
 				requireFn: require.Error,

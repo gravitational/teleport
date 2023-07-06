@@ -41,6 +41,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/prompt"
+	"golang.org/x/exp/slices"
 
 	"github.com/alecthomas/kingpin/v2"
 	"github.com/ghodss/yaml"
@@ -219,6 +220,14 @@ func (c *mfaAddCommand) run(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 	ctx := cf.Context
+
+	// Attempt to diagnose clamshell failures.
+	if !slices.Contains(defaultDeviceTypes, touchIDDeviceType) {
+		diag, err := touchid.Diag()
+		if err == nil && diag.IsClamshellFailure() {
+			log.Warn("Touch ID support disabled, is your MacBook lid closed?")
+		}
+	}
 
 	if c.devType == "" {
 		// If we are prompting the user for the device type, then take a glimpse at

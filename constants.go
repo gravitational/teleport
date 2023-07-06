@@ -270,6 +270,9 @@ const (
 	// ComponentProxySecureGRPC represents secure gRPC server running on Proxy (used for Kube).
 	ComponentProxySecureGRPC = "proxy:secure-grpc"
 
+	// ComponentAssist represents Teleport Assist
+	ComponentAssist = "assist"
+
 	// VerboseLogEnvVar forces all logs to be verbose (down to DEBUG level)
 	VerboseLogsEnvVar = "TELEPORT_DEBUG"
 
@@ -612,6 +615,18 @@ const (
 	// PresetAuditorRoleName is a name of a preset role that allows
 	// reading cluster events and playing back session records.
 	PresetAuditorRoleName = "auditor"
+
+	// PresetReviewerRoleName is a name of a preset role that allows
+	// for reviewing access requests.
+	PresetReviewerRoleName = "reviewer"
+
+	// PresetRequesterRoleName is a name of a preset role that allows
+	// for requesting access to resources.
+	PresetRequesterRoleName = "requester"
+
+	// PresetGroupAccessRoleName is a name of a preset role that allows
+	// access to all user groups.
+	PresetGroupAccessRoleName = "group-access"
 )
 
 var PresetRoles = []string{PresetEditorRoleName, PresetAccessRoleName, PresetAuditorRoleName}

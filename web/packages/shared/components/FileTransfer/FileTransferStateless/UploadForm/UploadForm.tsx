@@ -127,7 +127,7 @@ const Dropzone = styled.button`
   color: inherit;
   background-color: ${props => props.theme.colors.spotBackground[0]};
   margin-top: ${props => props.theme.space[3]}px;
-  border: 1px dashed ${props => props.theme.colors.spotBackground[1]};
+  border: 1px dashed ${props => props.theme.colors.text.muted};
   height: 128px;
   text-align: center;
   cursor: pointer;

@@ -451,6 +451,10 @@ type CLIConf struct {
 
 	// HeadlessAuthenticationID is the ID of a headless authentication.
 	HeadlessAuthenticationID string
+
+	// headlessSkipConfirm determines whether to provide a y/N
+	// confirmation prompt before prompting for MFA.
+	headlessSkipConfirm bool
 }
 
 // Stdout returns the stdout writer.
@@ -520,13 +524,14 @@ func main() {
 }
 
 const (
-	authEnvVar        = "TELEPORT_AUTH"
-	clusterEnvVar     = "TELEPORT_CLUSTER"
-	kubeClusterEnvVar = "TELEPORT_KUBE_CLUSTER"
-	loginEnvVar       = "TELEPORT_LOGIN"
-	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
-	proxyEnvVar       = "TELEPORT_PROXY"
-	headlessEnvVar    = "TELEPORT_HEADLESS"
+	authEnvVar                = "TELEPORT_AUTH"
+	clusterEnvVar             = "TELEPORT_CLUSTER"
+	kubeClusterEnvVar         = "TELEPORT_KUBE_CLUSTER"
+	loginEnvVar               = "TELEPORT_LOGIN"
+	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
+	proxyEnvVar               = "TELEPORT_PROXY"
+	headlessEnvVar            = "TELEPORT_HEADLESS"
+	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar               = "TELEPORT_SITE"
@@ -834,7 +839,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 
 	// scp
-	scp := app.Command("scp", "Transfer files to a remote Node.")
+	scp := app.Command("scp", "Transfer files to a remote SSH node.")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
@@ -970,8 +975,9 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 
 	// Headless login approval
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
-	approve := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
-	approve.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
+	headlessApprove.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -1328,7 +1334,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])
-	case approve.FullCommand():
+	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
 	default:
 		// Handle commands that might not be available.
@@ -1434,7 +1440,7 @@ func onVersion(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		utils.PrintVersion()
+		modules.GetModules().PrintVersion()
 		if proxyVersion != "" {
 			fmt.Printf("Proxy version: %s\n", proxyVersion)
 			fmt.Printf("Proxy: %s\n", proxyPublicAddr)
@@ -2268,7 +2274,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(listings) == 0 {
-		if _, err := fmt.Fprintln(cf.Stderr(), missingPrincipalsFooter); err != nil {
+		if _, err := fmt.Fprintln(cf.Stderr(), emptyNodesFooter); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2466,7 +2472,7 @@ func printNodes(nodes []types.Server, conf *CLIConf) error {
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(nodes) == 0 {
-		if _, err := fmt.Fprintln(conf.Stderr(), missingPrincipalsFooter); err != nil {
+		if _, err := fmt.Fprintln(conf.Stderr(), emptyNodesFooter); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3231,7 +3237,7 @@ func onJoin(cf *CLIConf) error {
 		return trace.BadParameter("'%v' is not a valid session ID (must be GUID)", cf.SessionID)
 	}
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.Join(context.TODO(), types.SessionParticipantMode(cf.JoinMode), cf.Namespace, *sid, nil)
+		return tc.Join(cf.Context, types.SessionParticipantMode(cf.JoinMode), cf.Namespace, *sid, nil)
 	})
 	if err != nil {
 		return trace.Wrap(err)
@@ -3337,11 +3343,6 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 	options, err := parseOptions(cf.Options)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// apply defaults
-	if cf.MinsToLive == 0 {
-		cf.MinsToLive = int32(apidefaults.CertDuration / time.Minute)
 	}
 
 	// split login & host
@@ -3594,6 +3595,14 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 
 	// avoid adding keys to agent when using an identity file.
 	if (cf.IdentityFileOut != "" || cf.IdentityFileIn != "") && c.AddKeysToAgent == client.AddKeysToAgentAuto {
+		c.AddKeysToAgent = client.AddKeysToAgentNo
+	}
+
+	// headless login produces short-lived MFA-verifed certs, which should never be added to the agent.
+	if cf.AuthConnector == constants.HeadlessConnector {
+		if cf.AddKeysToAgent == client.AddKeysToAgentYes || cf.AddKeysToAgent == client.AddKeysToAgentOnly {
+			log.Info("Skipping adding keys to agent for headless login")
+		}
 		c.AddKeysToAgent = client.AddKeysToAgentNo
 	}
 
@@ -4833,7 +4842,7 @@ func onHeadlessApprove(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID)
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
 }

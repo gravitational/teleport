@@ -10,7 +10,7 @@ The Teleport team delivers a new major release roughly every 3 months.
 
 | Version | Date                |
 |---------|---------------------|
-| 13.2.0  | July 3rd, 2023      |
+| 13.2.0  | July 5th, 2023      |
 | 13.3.0  | July 31st, 2023     |
 | 14.0.0  | September 4th, 2023 |
 
@@ -24,9 +24,11 @@ to identify the nodes to run commands on more accurately.
 In addition, Teleport Assist will be better integrated within the Web UI and users
 will be able to interact with it from any page.
 
-#### (Preview) GCP Auto-Discovery for Server Access
+#### Theme updates for the Web UI and Teleport Connect
 
-Teleport will be able to automatically enroll GCP VMs for server access.
+Teleport Connect will include support for the light theme that was introduced to
+the Web UI in Teleport 13. Additionally, the terminal themes and YAML editor have
+been updated to match the Teleport themes.
 
 #### (Preview) Device Trust Jamf integration
 
@@ -53,12 +55,25 @@ Cluster administrators will be able to use label expressions to:
 - perform matching on label keys
 - combine logic with OR and AND operators
 
+#### (Preview) Host user creation for SSH servers
+
+Teleport user host creation will be updated to support creation of permanent
+users in addition to ephemeral users.
+
 ### 13.3.0
 
-#### (Preview) Device Trust Intune integration
+#### (Preview) GCP Auto-Discovery for Server Access
 
-Teleport will add a new service for integrating with Microsoft Intune, allowing
-users to sync device inventory and automatically enroll trusted devices.
+Teleport will be able to automatically enroll GCP VMs for server access.
+
+*Delayed from Teleport 13.2.0.*
+
+~#### (Preview) Device Trust Intune integration~
+
+~Teleport will add a new service for integrating with Microsoft Intune, allowing
+users to sync device inventory and automatically enroll trusted devices.~
+
+*Postponed.*
 
 ### 14.0.0
 
@@ -70,22 +85,20 @@ Teleport will add native support for Azure for Auth and Audit backends.
 
 Teleport will add support for ClickHouse to database access.
 
-#### (Preview) Automatic discovery of web applications
-
-Teleport will be able to automatically find and enroll web applications running
-in a Kubernetes cluster.
-
 #### Limited Passwordless access for local Windows users in OSS Teleport
 
-Teleport Community edition will add limited support for connecting to Windows
-desktops with local users.
-
-OSS Teleport will add limited support for Passwordless access for local Windows users.
+Teleport Community edition will gain the ability to create 3 Windows desktops
+with local users.
 
 #### Advanced Audit Log
 
-Teleport's will include a new audit log backend that supports efficient
+Teleport will include a new audit log backend that supports efficient
 searching, sorting, and filtering operations.
+
+#### Access Grants
+
+Teleport administrators will be able to configure long-term user access grants,
+with periodic mandatory access reviews and detailed audit trail.
 
 #### Additional features
 
@@ -94,13 +107,23 @@ In addition, Teleport 14 will include:
 - SAML configuration wizard
 - Performance improvements
 
+### 14.1.0
+
+#### (Preview) Automatic discovery of web applications
+
+Teleport will be able to automatically find and enroll web applications running
+in a Kubernetes cluster.
+
+*Delayed from Teleport 14.0.0.*
+
 ## Teleport Cloud
 
 The key deliverables for Teleport Cloud in the next quarter:
 
 | Week of          | Description                                           |
 |------------------|-------------------------------------------------------|
-| June 12th, 2023  | Advanced Audit Log rollout begins                     |
+| June 26th, 2023  | Advanced Audit Log rollout begins                     |
+| July 10th, 2023  | Teleport 13.2 will begin rollout                      |
 
 ## Production readiness
 

@@ -127,6 +127,8 @@ Teleport provides several pre-defined roles out-of-the-box:
 | `editor` | Allows editing of cluster configuration settings. |
 | `auditor`| Allows reading cluster events, audit logs, and playing back session records. |
 | `access`| Allows access to cluster resources. |
+| `requester`| Enterprise-only role that allows a user to create Access Requests. |
+| `reviewer`| Enterprise-only role that allows review of Access Requests. |
 
 ### Role versions
 
@@ -140,7 +142,7 @@ Label              | `v3` Default   | `v4`, `v5` and `v6` Default
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
 `app_labels`        | `[{"*": "*"}]` | `[]`
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
-`database_labels`   | `[{"*": "*"}]` | `[]`
+`db_labels`         | `[{"*": "*"}]` | `[]`
 
 Role `v6` introduced a new field `kubernetes_resources` that allows
 fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../kubernetes-access/manage-access/rbac.mdx) for more details.

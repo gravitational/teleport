@@ -793,15 +793,6 @@ func (set RuleSet) Slice() []types.Rule {
 	return out
 }
 
-// HostUsersInfo keeps information about groups and sudoers entries
-// for a particular host user
-type HostUsersInfo struct {
-	// Groups is the list of groups to include host users in
-	Groups []string
-	// Sudoers is a list of entries for a users sudoers file
-	Sudoers []string
-}
-
 // RoleFromSpec returns new Role created from spec
 func RoleFromSpec(name string, spec types.RoleSpecV6) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
@@ -2824,11 +2815,12 @@ func (set RoleSet) GetKubeResources(cluster types.KubeCluster, userTraits wrappe
 	}
 
 	for _, role := range set {
-		matchLabels, _, err := checkRoleLabelsMatch(types.Deny, role, userTraits, cluster, false)
-		if err != nil || !matchLabels {
-			continue
-		}
-
+		// deny rules are not checked for labels because they are greedy. It means that
+		// if there is a deny rule for a cluster, it will deny access to all resources
+		// in that cluster, regardless of kubernetes_resources (i.e. making them irrelevant).
+		// If the goal is to deny access to a specific resource, it should be done by collecting
+		// all kube resources in deny rules and ignoring if the role matches or not
+		// the cluster (i.e. no labels check).
 		denied = append(denied, role.GetKubeResources(types.Deny)...)
 	}
 

@@ -167,9 +167,16 @@ EOF
 
 Create the Teleport user assigned the `db` role we've just created:
 
+<ScopedBlock scope={["oss"]}>
 ```code
 $ tctl users add --roles=access,db alice
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```code
+$ tctl users add --roles=access,requester,db alice
+```
+</ScopedBlock>
 
 ## Step 4/4. Connect
 
