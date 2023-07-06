@@ -144,14 +144,14 @@ func TestBasic(t *testing.T) {
 	)
 
 	timeoutC := time.After(timeout)
-	ticker := time.NewTicker(time.Millisecond * 100)
+	ticker := time.NewTicker(time.Millisecond * 10)
 	t.Cleanup(ticker.Stop)
 	tracker, err := New(Config{ClusterName: "test-cluster"})
 	require.NoError(t, err)
 	min, max := time.Duration(0), timeout
 	var proxies simpleTestProxies
 	proxies.AddRandProxies(proxyCount, min, max)
-Discover:
+
 	for {
 		if lease := tracker.TryAcquire(); lease != nil {
 			t.Logf("acquired lease %v", lease.ID())
@@ -159,13 +159,14 @@ Discover:
 			continue
 		}
 
+		if tracker.activeCount() == proxyCount {
+			t.Logf("activeCount: %v", tracker.activeCount())
+			break
+		}
+
 		select {
 		case <-ticker.C:
-			activeCount := tracker.activeCount()
-			t.Logf("activeCount: %v", activeCount)
-			if activeCount == proxyCount {
-				break Discover
-			}
+			t.Logf("activeCount: %v", tracker.activeCount())
 		case <-timeoutC:
 			t.Fatal("timeout")
 		}
@@ -191,7 +192,6 @@ func TestFullRotation(t *testing.T) {
 	require.NoError(t, err)
 
 	timeoutC := time.After(timeout)
-Loop0:
 	for {
 		if lease := tracker.TryAcquire(); lease != nil {
 			// get our "discovered" proxy in the foreground
@@ -205,46 +205,49 @@ Loop0:
 			continue
 		}
 
+		if tracker.activeCount() == proxyCount {
+			t.Logf("activeCount0: %v", tracker.activeCount())
+			break
+		}
+
 		select {
 		case <-ticker.C:
-			activeCount := tracker.activeCount()
-			t.Logf("activeCount0: %v", activeCount)
-			if activeCount == proxyCount {
-				break Loop0
-			}
+			t.Logf("activeCount0: %v", tracker.activeCount())
 		case <-timeoutC:
 			t.Fatal("timeout")
 		}
 	}
 	proxies.RemoveRandProxies(proxyCount)
-Loop1:
+
 	for {
+		if tracker.activeCount() < 1 {
+			t.Logf("activeCount1: %v", tracker.activeCount())
+			break
+		}
+
 		select {
 		case <-ticker.C:
-			activeCount := tracker.activeCount()
-			t.Logf("activeCount1: %v", activeCount)
-			if activeCount < 1 {
-				break Loop1
-			}
+			t.Logf("activeCount1: %v", tracker.activeCount())
 		case <-timeoutC:
 			t.Fatal("timeout")
 		}
 	}
 	proxies.AddRandProxies(proxyCount, minConnB, maxConnB)
-Loop2:
+
 	for {
 		if lease := tracker.TryAcquire(); lease != nil {
 			go proxies.Discover(tracker, lease)
 			continue
 		}
 
+		if tracker.activeCount() >= proxyCount {
+			t.Logf("activeCount2: %v", tracker.activeCount())
+			break
+		}
+
 		select {
 		case <-ticker.C:
-			activeCount := tracker.activeCount()
-			t.Logf("activeCount2: %v", activeCount)
-			if activeCount >= proxyCount {
-				break Loop2
-			}
+			t.Logf("activeCount2: %v", tracker.activeCount())
 		case <-timeoutC:
 			t.Fatal("timeout")
 		}
