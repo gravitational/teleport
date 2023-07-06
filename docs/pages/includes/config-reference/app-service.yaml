@@ -5,6 +5,17 @@ app_service:
     # Application Service is working correctly. The app outputs JWTs so it can
     # be useful when extending your application.
     debug_app: true
+
+    # Matchers for application resources created with "tctl create" command
+    #
+    # All application resources have a predefined "teleport.dev/origin" label with
+    # one of the following values:
+    # "dynamic": application resources created with "tctl create" command
+    # "config": application resources defined in the "apps" array below
+    resources:
+      - labels:
+          "*": "*"
+
     apps:
     - name: "kubernetes-dashboard"
       # Optional: For access to cloud provider APIs, specify the cloud
