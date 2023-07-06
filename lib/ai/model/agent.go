@@ -244,9 +244,10 @@ func (a *Agent) plan(ctx context.Context, state *executionState) (*AgentAction, 
 	stream, err := state.llm.CreateChatCompletionStream(
 		ctx,
 		openai.ChatCompletionRequest{
-			Model:    openai.GPT4,
-			Messages: prompt,
-			Stream:   true,
+			Model:       openai.GPT4,
+			Messages:    prompt,
+			Temperature: 0.3,
+			Stream:      true,
 		},
 	)
 	if err != nil {
