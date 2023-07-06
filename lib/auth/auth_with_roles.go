@@ -2051,6 +2051,14 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 // events. For now, this just emits trusted_cluster_token.create.
 func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken) {
 	userMetadata := authz.ClientUserMetadata(ctx)
+	e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
+		Metadata: apievents.Metadata{
+			Type: events.ProvisionTokenCreateEvent,
+			Code: events.ProvisionTokenCreateCode,
+		},
+		UserMetadata: userMetadata,
+		Roles:        token.GetRoles(),
+	})
 	for _, role := range token.GetRoles() {
 		if role == types.RoleTrustedCluster {
 			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
