@@ -18,7 +18,7 @@ via "gossip" messages shared by other proxies as part of the reverse tunnel
 protocol, and to decide if and when it's appropriate to attempt a new connection
 to a proxy load balancer at any given moment.
 
-The [Tracker] object gives out [Lease] objects through its Acquire() channel
+The [Tracker] object gives out [Lease] objects through its TryAcquire() function
 whenever it's appropriate to attempt a new connection - the Lease object
 represents the permission to open a new connection and to try and Claim
 exclusivity over the remote proxy that was reached.
@@ -61,6 +61,7 @@ which group ID and generation they have reported:
     proxy); new connections can be spawned if the desired proxy count is
     strictly greater.
 
-Proxies are removed from the tracked set after a TTL (defaulting to 3 minutes).
+Proxies are removed from the tracked set after a TTL (defaulting to 3 minutes),
+which is refreshed whenever they're mentioned in a gossip message.
 */
 package track
