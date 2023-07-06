@@ -332,7 +332,7 @@ spec:
 
     # Functions transform variables.
     database_users: ['{{email.local(external.email)}}']
-    database_labels:
+    db_labels:
       'env': '{{regexp.replace(external.access["env"], "^(staging)$", "$1")}}'
 
     # Labels can mix template and hard-coded values.
@@ -372,7 +372,7 @@ spec:
     database_users: ['alice']
 
     # The function regexp.replace will transform and filter only matching values.
-    database_labels:
+    db_labels:
       'env': 'staging'
 
     # Node labels have 'env' replaced from a variable and 'region' hard-coded.

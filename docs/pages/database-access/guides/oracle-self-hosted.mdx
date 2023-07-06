@@ -31,7 +31,34 @@ This guide will help you to:
 
 (!docs/pages/includes/database-access/token.mdx!)
 
-(!docs/pages/includes/database-access/create-user.mdx!)
+<Admonition type="tip">
+
+To modify an existing user to provide access to the Database Service, see [Database Access Access Controls](../../database-access/rbac.mdx)
+
+</Admonition>
+
+Create a local Teleport user with the built-in `access` and `requester` roles:
+
+```code
+$ tctl users add \
+  --roles=access,requester \
+  --db-users=\* \
+  --db-names=\* \
+  alice
+```
+
+| Flag         | Description                                                                                                                              |
+|--------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| `--roles`    | List of roles to assign to the user. The builtin `access` role allows them to connect to any database server registered with Teleport.   |
+| `--db-users` | List of database usernames the user will be allowed to use when connecting to the databases. A wildcard allows any user.                 |
+| `--db-names` | List of logical databases (aka schemas) the user will be allowed to connect to within a database server. A wildcard allows any database. |
+
+<Admonition type="warning">
+  Database names are only enforced for PostgreSQL and MongoDB databases.
+</Admonition>
+
+For more detailed information about database access controls and how to restrict
+access see [RBAC](../../database-access/rbac.mdx) documentation.
 
 ## Step 2/5. Create a certificate/key pair and Teleport Oracle Wallet
 
@@ -92,7 +119,7 @@ Install and configure Teleport where you will run the Teleport Database Service:
 <Tabs>
 <TabItem label="Linux Server">
 
-(!docs/pages/includes/install-linux.mdx!)
+(!docs/pages/includes/install-linux-enterprise.mdx!)
 
 (!docs/pages/includes/database-access/db-configure-start.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" dbName="oracle" !)
 
@@ -102,7 +129,48 @@ Install and configure Teleport where you will run the Teleport Database Service:
 
   (!docs/pages/kubernetes-access/helm/includes/helm-repo-add.mdx!)
 
-  (!docs/pages/includes/database-access/db-helm-install.mdx dbName="oracle" dbProtocol="oracle" databaseAddress="oracle.example.com:2484" dbName="oracle" !)
+  <Tabs>
+  <TabItem label="Teleport Enterprise" scope={["enterprise"]}>
+  Install the Teleport Kube Agent into your Kubernetes Cluster
+  with the Teleport Database Service configuration.
+  
+  ```code
+  $ JOIN_TOKEN=$(cat /tmp/token)
+  $ helm install teleport-kube-agent teleport/teleport-kube-agent \
+    --create-namespace \
+    --namespace teleport-agent \
+    --set roles=db \
+    --set proxyAddr=teleport.example.com:443 \
+    --set authToken=${JOIN_TOKEN?} \
+    --set "databases[0].name=oracle" \
+    --set "databases[0].uri=oracle.example.com:2484" \
+    --set "databases[0].protocol=oracle" \
+    --set "labels.env=dev" \
+    --version (=teleport.version=)
+  ```
+  
+  </TabItem>
+  <TabItem label="Teleport Enterprise Cloud" scope={["cloud"]}>
+  Install the Teleport Kube Agent into your Kubernetes Cluster
+  with the Teleport Database Service configuration.
+  
+  ```code
+  $ JOIN_TOKEN=$(cat /tmp/token)
+  $ helm install teleport-kube-agent teleport/teleport-kube-agent \
+    --create-namespace \
+    --namespace teleport-agent \
+    --set roles=db \
+    --set proxyAddr=mytenant.teleport.sh:443 \
+    --set authToken=${JOIN_TOKEN?} \
+    --set "databases[0].name=oracle" \
+    --set "databases[0].uri=oracle.example.com:2484" \
+    --set "databases[0].protocol=oracle" \
+    --set "labels.env=dev" \
+    --version (=cloud.version=)
+  ```
+  
+  </TabItem>
+  </Tabs>
 </TabItem>
 </Tabs>
 
@@ -113,24 +181,15 @@ Install and configure Teleport where you will run the Teleport Database Service:
 Once the Database Service has joined the cluster, log in to see the available
 databases:
 
-<ScopedBlock scope={["oss", "enterprise"]}>
 ```code
-$ tsh login --proxy=teleport.example.com --user=alice
+$ tsh login --proxy=<Var name="mytenant.teleport.sh" /> --user=alice
 $ tsh db ls
 # Name   Description    Allowed Users Labels  Connect
 # ------ -------------- ------------- ------- -------
 # oracle Oracle Example [*]                   env=dev
 ```
-</ScopedBlock>
-<ScopedBlock scope={["cloud"]}>
-```code
-$ tsh login --proxy=mytenant.teleport.sh --user=alice
-$ tsh db ls
-# Name   Description    Allowed Users Labels  Connect
-# ------ -------------- ------------- ------- -------
-# oracle Oracle Example [*]                   env=dev
-```
-</ScopedBlock>
+
+Connect to the database:
 
 ```code
 $ tsh db connect --db-user=alice --db-name=XE oracle
@@ -146,6 +205,7 @@ $ tsh db connect --db-user=alice --db-name=XE oracle
 #
 # SQL>
 ```
+
 To log out of the database and remove credentials:
 
 ```code
