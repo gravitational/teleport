@@ -5302,20 +5302,14 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 	var hosts = []string{cfg.Hostname, "localhost"}
 
 	// add web public address hosts to self-signed cert
-	if len(cfg.Proxy.PublicAddrs) > 0 {
-		for _, element := range cfg.Proxy.PublicAddrs {
-			proxyHost, _, err := net.SplitHostPort(element.String())
-			if err != nil {
-				// ignore error since this is a nice to have
-				continue
-			}
-
-			if net.ParseIP(proxyHost) == nil {
-				hosts = append(hosts, proxyHost)
-			} else {
-				cfg.Log.Warningf("Not including ip address %v in self-signed cert.", proxyHost)
-			}
+	for _, addr := range cfg.Proxy.PublicAddrs {
+		proxyHost, _, err := net.SplitHostPort(addr.String())
+		if err != nil {
+			// log and skip error since this is a nice to have
+			cfg.Log.Errorf("Error parsing address %v, skipping adding to self-signed cert: %v", addr.String(), err)
+			continue
 		}
+		hosts = append(hosts, proxyHost)
 	}
 
 	creds, err := cert.GenerateSelfSignedCert(hosts)
