@@ -61,7 +61,6 @@ which group ID and generation they have reported:
     proxy); new connections can be spawned if the desired proxy count is
     strictly greater.
 
-Proxies are removed from the tracked set after a TTL (defaulting to 3 minutes),
-or if they're missing in gossip messages from two different proxies.
+Proxies are removed from the tracked set after a TTL (defaulting to 3 minutes).
 */
 package track

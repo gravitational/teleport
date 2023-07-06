@@ -78,8 +78,7 @@ type Proxy struct {
 	Group      string
 	Generation uint64
 
-	expiry        time.Time
-	deleteAttempt string
+	expiry time.Time
 }
 
 // Lease represents an authorization to attempt to connect to a reverse tunnel
@@ -228,7 +227,7 @@ func (t *Tracker) notify() {
 
 // TrackExpected starts/refreshes tracking for expected proxies.  Called by
 // agents when gossip messages are received.
-func (t *Tracker) TrackExpected(sourceID string, proxies ...Proxy) {
+func (t *Tracker) TrackExpected(proxies ...Proxy) {
 	if len(proxies) == 0 {
 		return
 	}
@@ -240,32 +239,7 @@ func (t *Tracker) TrackExpected(sourceID string, proxies ...Proxy) {
 	expiry := time.Now().Add(t.proxyExpiry)
 	for _, p := range proxies {
 		p.expiry = expiry
-		p.deleteAttempt = ""
 		t.tracked[p.Name] = p
-	}
-
-	if sourceID == "" {
-		return
-	}
-
-	for k, v := range t.tracked {
-		if v.expiry == expiry {
-			// we have just added/updated this (or some other gossip message did
-			// the same in the exact same nanosecond, which isn't really
-			// possible), so we should not attempt to delete this proxy
-			continue
-		}
-
-		switch v.deleteAttempt {
-		case "":
-			v.deleteAttempt = sourceID
-			t.tracked[k] = v
-		case sourceID:
-			// do nothing, we want a second opinion before deleting the proxy
-		default:
-			// we are the second opinion
-			delete(t.tracked, k)
-		}
 	}
 }
 
