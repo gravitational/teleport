@@ -373,6 +373,22 @@
                 "enterprise",
                 "cloud"
               ]
+            },
+            {
+              "title": "Set Up Auto-Enrollment",
+              "slug": "/access-controls/device-trust/auto-enrollment/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
+            },
+            {
+              "title": "Jamf Integration",
+              "slug": "/access-controls/device-trust/jamf-integration/",
+              "forScopes": [
+                "enterprise",
+                "cloud"
+              ]
             }
           ]
         },
@@ -473,7 +489,7 @@
 	{
 	  "title": "Using Dynamic Resources",
 	  "slug": "/management/dynamic-resources/",
-	  "entries": [            
+	  "entries": [
 	    {
               "title": "Kubernetes Operator (Preview)",
               "slug": "/management/dynamic-resources/teleport-operator/"
