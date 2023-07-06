@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import {Box, Flex} from 'design';
+import { Box, Flex } from 'design';
 
 import {
   FeatureBox,
@@ -28,7 +28,7 @@ import { Route, Switch } from 'teleport/components/Router';
 import { IntegrationTiles } from './IntegrationTiles';
 import {
   MachineIDIntegrationSection,
-  NoCodeIntegrationDescription
+  NoCodeIntegrationDescription,
 } from './common';
 import { getRoutesToEnrollIntegrations } from './IntegrationRoute';
 

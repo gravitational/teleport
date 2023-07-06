@@ -17,7 +17,7 @@ limitations under the License.
 export { AccessRequestsIcon } from './AccessRequests';
 export { ActiveSessionsIcon } from './ActiveSessions';
 export { AddIcon } from './Add';
-export { AnsibleIcon } from './Ansible'
+export { AnsibleIcon } from './Ansible';
 export { ApplicationsIcon } from './Applications';
 export { AuditLogIcon } from './AuditLog';
 export { AuthConnectorsIcon } from './AuthConnectors';

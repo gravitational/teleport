@@ -15,7 +15,7 @@
  */
 
 import React from 'react';
-import {Box, Flex, Link as ExternalLink, Text} from 'design';
+import { Box, Flex, Link as ExternalLink, Text } from 'design';
 import styled from 'styled-components';
 import {
   AnsibleIcon,
@@ -23,12 +23,13 @@ import {
   GitHubIcon,
   GitLabIcon,
   JenkinsIcon,
-  ServersIcon
-} from "design/SVGIcon";
+  ServersIcon,
+} from 'design/SVGIcon';
 import {
-  IntegrationEnrollEvent, IntegrationEnrollKind,
-  userEventService
-} from "teleport/services/userEvent";
+  IntegrationEnrollEvent,
+  IntegrationEnrollKind,
+  userEventService,
+} from 'teleport/services/userEvent';
 
 export const IntegrationTile = styled(Flex)`
   color: inherit;
@@ -39,23 +40,23 @@ export const IntegrationTile = styled(Flex)`
   border-radius: 4px;
   height: 170px;
   width: 170px;
-  background-color: ${({theme}) => theme.colors.buttons.secondary.default};
+  background-color: ${({ theme }) => theme.colors.buttons.secondary.default};
   text-align: center;
   cursor: pointer;
 
   ${props => {
-  const pointerEvents = props.disabled ? 'none' : null;
-  if (props.$exists) {
-    return {pointerEvents};
-  }
+    const pointerEvents = props.disabled ? 'none' : null;
+    if (props.$exists) {
+      return { pointerEvents };
+    }
 
-  return `
+    return `
     opacity: ${props.disabled ? '0.45' : '1'};
     &:hover {
       background-color: ${props.theme.colors.buttons.secondary.hover};
     }
     `;
-}}
+  }}
 `;
 
 export const NoCodeIntegrationDescription = () => (
@@ -72,49 +73,49 @@ export const NoCodeIntegrationDescription = () => (
 
 export const MachineIDIntegrationSection = () => {
   interface tile {
-    title: string
-    link: string
-    icon: JSX.Element
-    kind: IntegrationEnrollKind
+    title: string;
+    link: string;
+    icon: JSX.Element;
+    kind: IntegrationEnrollKind;
   }
   const tiles: tile[] = [
     {
       title: 'GitHub Actions',
       link: 'https://goteleport.com/docs/machine-id/guides/github-actions/',
-      icon: <GitHubIcon size={80}/>,
+      icon: <GitHubIcon size={80} />,
       kind: IntegrationEnrollKind.MachineIDGitHubActions,
     },
     {
       title: 'CircleCI',
       link: 'https://goteleport.com/docs/machine-id/guides/circleci/',
-      icon: <CircleCIIcon size={80}/>,
+      icon: <CircleCIIcon size={80} />,
       kind: IntegrationEnrollKind.MachineIDCircleCI,
     },
     {
       title: 'GitLab CI',
       link: 'https://goteleport.com/docs/machine-id/guides/gitlab/',
-      icon: <GitLabIcon size={80}/>,
+      icon: <GitLabIcon size={80} />,
       kind: IntegrationEnrollKind.MachineIDGitLab,
     },
     {
       title: 'Jenkins',
       link: 'https://goteleport.com/docs/machine-id/guides/jenkins/',
-      icon: <JenkinsIcon size={80}/>,
+      icon: <JenkinsIcon size={80} />,
       kind: IntegrationEnrollKind.MachineIDJenkins,
     },
     {
       title: 'Ansible',
       link: 'https://goteleport.com/docs/machine-id/guides/ansible/',
-      icon: <AnsibleIcon size={80}/>,
+      icon: <AnsibleIcon size={80} />,
       kind: IntegrationEnrollKind.MachineIDAnsible,
     },
     {
       title: 'Generic',
       link: 'https://goteleport.com/docs/machine-id/getting-started/',
-      icon: <ServersIcon size={80}/>,
+      icon: <ServersIcon size={80} />,
       kind: IntegrationEnrollKind.MachineID,
-    }
-  ]
+    },
+  ];
 
   const propsForTile = (t: tile) => {
     return {
@@ -130,35 +131,34 @@ export const MachineIDIntegrationSection = () => {
           },
         });
       },
-    }
-  }
+    };
+  };
 
-  return (<>
-  <Box mb={3}>
-    <Text fontWeight="bold" typography="h4">
-      Machine ID
-    </Text>
-    <Text typography="body1">
-      Set up Teleport Machine ID to allow CI/CD workflows and other machines to access resources protected by Teleport.
-    </Text>
-  </Box>
-    <Flex mb={2} gap={3}>
-    {
-      tiles.map((t: tile) => {
-        return (<>
-          <IntegrationTile
-            {...propsForTile(t)}
-          >
-            <Box mt={3} mb={2}>
-              {t.icon}
-            </Box>
-            <Text>
-              {t.title}
-            </Text>
-          </IntegrationTile>
-        </>)
-      })
-    }
-    </Flex>
-</>)
-}
+  return (
+    <>
+      <Box mb={3}>
+        <Text fontWeight="bold" typography="h4">
+          Machine ID
+        </Text>
+        <Text typography="body1">
+          Set up Teleport Machine ID to allow CI/CD workflows and other machines
+          to access resources protected by Teleport.
+        </Text>
+      </Box>
+      <Flex mb={2} gap={3}>
+        {tiles.map((t: tile) => {
+          return (
+            <>
+              <IntegrationTile {...propsForTile(t)}>
+                <Box mt={3} mb={2}>
+                  {t.icon}
+                </Box>
+                <Text>{t.title}</Text>
+              </IntegrationTile>
+            </>
+          );
+        })}
+      </Flex>
+    </>
+  );
+};
