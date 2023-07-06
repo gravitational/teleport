@@ -1155,6 +1155,10 @@
             {
               "title": "AWS IAM",
               "slug": "/database-access/reference/aws/"
+            },
+            {
+              "title": "Database Labels",
+              "slug": "/database-access/reference/labels/"
             }
           ]
         },
