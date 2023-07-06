@@ -22,5 +22,6 @@
 --deb-priority extra
 
 --rpm-os linux
+--rpm-digest sha256
 
 .
