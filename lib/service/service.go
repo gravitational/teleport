@@ -5308,7 +5308,12 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 			if err != nil {
 				return trace.Wrap(err)
 			}
-			hosts = append(hosts, proxyHost)
+
+			if net.ParseIP(proxyHost) == nil {
+				hosts = append(hosts, proxyHost)
+			} else {
+				cfg.Log.Warningf("Not including ip address %v in self-signed cert.", proxyHost)
+			}
 		}
 	}
 
