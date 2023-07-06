@@ -133,7 +133,7 @@ const storage = {
     return ThemePreference.Light;
   },
 
-  // TODO(ryan): remove in v15
+  // DELETE IN 15 (ryan)
   getDeprecatedThemePreference(): DeprecatedThemeOption {
     return window.localStorage.getItem(KeysEnum.THEME) as DeprecatedThemeOption;
   },
