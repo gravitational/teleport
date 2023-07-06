@@ -233,12 +233,15 @@ You can find our list of currently-supported versions in the [FAQ](../../faq.mdx
 There are many ways to create a backport.
 The following methods represent the most common ways to backport changes for Teleport documentation:
 
-- By using GitHub labels
-- By using the make program
-- By selecting commit hashes manually
+- By using GitHub labels (internal contributors)
+- By using the make program (internal contributors)
+- By selecting commit hashes manually (internal or external contributors)
 
 <Tabs>
 <TabItem label="Use GitHub labels">
+
+You must be an internal contributor to use the GitHub label process to backport changes.
+This method fails for forks of the `gravitational/teleport` repository.
 
 When you open a pull request, add labels of the format `backport/branch/v[0-9]+`
 to backport your pull request to different versioned branches of the `gravitational/teleport` repository.
@@ -248,16 +251,13 @@ For example, to backport a change to v13 of the documentation, add the label `ba
 After you merge your pull request, the continuous integration pipeline creates a table
 of links in the comments for the pull request.
 You can then create an additional pull request for your each backport version you specified as a label.
-
-<Notice>
-
-You must be an internal contributor to use the GitHub label process to backport changes.
-This method fails for forks of the `gravitational/teleport` repository.
-
-</Notice>
-
 </TabItem>
+
 <TabItem label="Use make">
+
+You must be an internal contributor and have Go installed in your environment to use the 
+`make backport` script to backport changes. This method fails for forks of the 
+`gravitational/teleport` repository.
 
 To use make:
 
@@ -271,25 +271,73 @@ the `TO` variable to a comma-separated list of versioned branch names:
     ```
 
     This `make backport` script automatically generates backport branches and opens pull requests for them.
+</TabItem>
 
-<Notice>
+<TabItem label="Select commits (internal)">
 
-You must be an internal contributor to use the GitHub label process to backport changes.
-This method fails for forks of the `gravitational/teleport` repository.
+If the automatic backport methods fail and you're an internal contributor, you 
+must backport changes manually by selecting specific commits.
 
-</Notice>
+The following example illustrates how to backport a change into Teleport, version 
+11.x.x. 
+In this example:
+
+- Changes were made in the `my-branch` working branch, then committed and pushed to 
+the remote branch.
+- A pull request was created to merge the change from `my-branch` into `master`.
+- A merge conflict prevented automatic backporting of the change.
+
+To commit a change manually:
+
+1. Open the closed pull request for the `my-branch` change that was successfully 
+merged.
+
+1. Click **Commits**, then copy the hash of the commit made to `my-branch`.
+
+1. Run the following commands to create a branch for the commit being backported:
+
+    ```code
+    $ git switch branch/v11
+    $ git pull
+    $ git switch -c my-branch-backport-v11
+    $ git cherry-pick <commit-hash>
+    ```
+
+1. Open the files that indicate there are merge conflicts and resolve all of the
+conflicts.
+
+1. Add the updated and saved files to the staged list of changes. For example:
+
+    ```code
+    $ git add docs/pages/core-concepts.mdx
+    ```
+
+    You can use `git status` to check whether there are additional merge conflicts.
+
+1. Finish the cherry-pick operation by running the following command:
+    
+    ```code
+    git cherry-pick --continue
+    ```
+
+1. Push the changes for the backport to the fork.
+
+    ```code 
+    $ git push --set-upstream origin my-branch-backport-v11
+    ```
+
+1. Create a pull request in the [Teleport repository](https://github.com/gravitational/teleport) for your backport.
 
 </TabItem>
-<TabItem label="Select commits manually">
+<TabItem label="Select commits (external)">
 
-If automatic backport methods fail or you're an external contributor, you must backport 
-changes manually.
+If you're an external contributor, you must backport changes manually.
 
 The following example illustrates how to backport a change into Teleport version 11.x.x. 
 In this example:
 
 - Changes were made in the `my-branch` branch and committed to a fork of the Teleport repository.
-- A pull request was created to merge the change from my-branch into `origin/master` from the fork.
+- A pull request was created to merge the change from `my-branch` into `origin/master` from the fork.
 
 1. Copy the hash of the commit made to `my-branch`.
 
@@ -305,7 +353,7 @@ In this example:
 1. Push the changes for the backport to the fork.
 
     ```code 
-    $ git push --set-upstream fork my-branch-backport-11
+    $ git push --set-upstream fork my-branch-backport-v11
     ```
 
 1. Create a pull request in the [Teleport repository](https://github.com/gravitational/teleport) for your backport.
