@@ -1,24 +1,30 @@
 ---
-title: How to contribute to Teleport documentation
+title: How to Contribute to Teleport Documentation
 description: Follow this guide to learn how to contribute changes to Teleport documentation.
 ---
 
-We encourage everyone with an interest in improving Teleport documentation to contribute content, submit issues, and suggest changes.
-This guide describes the process for making changes to the documentation whether you are an internal or external contributor.
+We encourage everyone with an interest in improving Teleport documentation 
+to contribute content, submit issues, and suggest changes.
+This guide describes the process for making changes to the documentation whether 
+you are an internal or external contributor.
 
-## Before you begin
+## Prerequisites
 
 Before you begin, verify that your environment meets the following prerequisites:
 
-* You have a code editor, a GitHub account, and experience using command-line programs, including `git` commands and command line options.
+- You have a code editor, a GitHub account, and experience using command-line 
+  programs, including `git` commands and command line options.
 
-* You have Node.js, version 14.x or newer, installed. 
+- You have Node.js, version 16.x or newer, installed. 
    Run `node --version` to check whether Node is installed.
-   If you need to install or update Node, see [Installing Node.js](https://nodejs.org/en/download/package-manager) for instructions to download and install Node.js using a package manager.
+   If you need to install or update Node, see 
+   [Installing Node.js](https://nodejs.org/en/download/package-manager) 
+   for instructions to download and install Node.js using a package manager.
 
-* You have the `yarn` package manager installed.
+- You have the `yarn` package manager installed.
    Run `yarn --version` to check whether `yarn` is installed. 
-   If you need to install `yarn`, run the command `npm install --global yarn` to add it to your local system.
+   If you need to install `yarn`, run the command `brew install yarn` or 
+   `npm install --global yarn` to add it to your local system.
 
 ## Step 1/5. Set up your local environment
 
@@ -29,30 +35,24 @@ To set up a local environment for contributing to Teleport documentation:
 1. Clone the `gravitational/docs` repository by running the following command:
 
     ```code
-    $ git clone https://github.com/gravitational/docs
+    $ git clone https://github.com/gravitational/docs --recurse-submodules
     ```
 
     This command clones the main branch for different versions of the documentation.
 
-1. Change to the root of the `docs` directory by running the following command:
+1. Change to the root of the `docs` directory:
     
     ```code
     $ cd docs
     ```
 
-1. Initialize the submodules for documentation by running the following command:
-    
-    ```code
-    $ git submodule init
-    ```
-
-1. Update the documentation to the latest version from the master branch by running the following command:
+1. Update the documentation to the latest version from the master branch:
     
     ```code
     $ yarn git-update
     ```
 
-1. Install dependencies by running the following command:
+1. Install dependencies:
     
     ```code
     $ yarn
@@ -60,8 +60,9 @@ To set up a local environment for contributing to Teleport documentation:
 
 ## Step 2/5. Navigate to a specific version
 
-Different versions of the documentation are organized into the `content` directory of the `gravitational/docs` repository. 
-Each subdirectory of the `content` directory includes a `git` submodule for a different branch of `gravitational/teleport`.
+Different versions of the documentation are organized into the `content` directory of the 
+`gravitational/docs` repository. Each subdirectory of the `content` directory includes 
+a `git` submodule for a different branch of `gravitational/teleport`.
 
 To navigate to a specific version of the documentation:
 
@@ -94,24 +95,30 @@ To navigate to a specific version of the documentation:
     ```
 
     You now have a branch for a specific version of the documentation content.
-    Before making any changes, note how the content is organized so you know where to find the files to update.
+    Before making any changes, note how the content is organized so you know where to find the files 
+    to update.
     
     Within the `content/*.*` directory in your branch, there's a `docs` subdirectory. 
-    The `content/*.*/docs` subdirectory contains the files and folders used to produce a specific version of the documentation. 
+    The `content/*.*/docs` subdirectory contains the files and folders used to produce a specific version 
+    of the documentation. 
+    
     The subdirectory includes the following:
 
-    * The `img/` folder for images used inside the pages.
-    * The `pages/` folder for the Markdown files that contain documentation content. 
+    - The `img/` folder for images used inside the pages.
+    - The `pages/` folder for the Markdown files that contain documentation content. 
       Every file in this folder is rendered as a page.
-    * The `config.json` file for configuring version information.
+    - The `pages/includes` folder for content that's only rendered when it's included in the body of a page.
+    - The `config.json` file for configuring version information.
 
     You're now ready to make changes in your own branch using the code editor of your choice.
 
 ## Step 3/5. Test changes locally
 
-As you make changes to the content in your local branch, it's helpful to see how the changes will be rendered when the documentation is published.
+As you make changes to the content in your local branch, it's helpful to see how the changes will be 
+rendered when the documentation is published.
 
-You can use `yarn` to run a development server that automatically detects changes to the documentation as you make them and refreshes the page within the browser.
+You can use `yarn` to run a development server that detects changes to the documentation and displays 
+them whenever you manually refresh the page in the browser.
 You can also use `yarn` commands to check for errors and fix common issues.
 
 To test changes in your local environment:
@@ -125,7 +132,6 @@ To test changes in your local environment:
 1. Start the development server by running the following commands:
     
     ```code
-    $ yarn install
     $ yarn dev
     ```
 
@@ -167,11 +173,13 @@ If you work at Teleport:
     $ git push origin my-branch
     ```
 
-1. Open the [Teleport repository](https://github.com/gravitational/teleport), select your branch as the branch to merge into main, then click **New pull request**.
+1. Open the [Teleport repository](https://github.com/gravitational/teleport), select your branch as the branch to 
+merge into main, then click **New pull request**.
 
 ### External contributors
 
-If you are an external contributor, you must commit your changes to your branch and push your branch to a fork of the `gravitational/teleport` repository.
+If you are an external contributor, you must commit your changes to your branch and push your branch to a 
+fork of the `gravitational/teleport` repository.
 
 To push changes as an external contributor:
 
@@ -191,23 +199,26 @@ To push changes as an external contributor:
 
     In this command, `my-user` represents your GitHub user name and `teleport` is the name of your Teleport repository fork.
 
-1. Pull all of the changes from the remote repository into your fork by running the following command:
+1. Pull all of the changes from the remote repository into your local fork by running the following command:
     
     ```code
-    $ git rebase origin/master
+    $ git fetch origin
     ```
 
-1. Push changes from your local branch to the remote fork of the [Teleport repository](https://github.com/gravitational/teleport) by running a command similar to the following:
+1. Push changes from your local branch to the remote fork of the [Teleport repository](https://github.com/gravitational/teleport) 
+by running a command similar to the following:
     
     ```code
     $ git push --set-upstream fork my-branch
     ```
 
-1. Open the [Teleport repository](https://github.com/gravitational/teleport), select your branch as the branch to merge into main, then click **New pull request**.
+1. Open the [Teleport repository](https://github.com/gravitational/teleport), select your branch as the branch to merge into main, 
+then click **New pull request**.
 
     The continuous integration (CI) pipeline automatically assign reviewers to your pull request. 
     To ensure that your PR is merged, you should respond to reviewer feedback in a timely manner. 
-    If you don't respond to reviewer feedback in a reasonable period of time, your pull request is likely to be deemed inactive and closed automatically. 
+    If you don't respond to reviewer feedback in a reasonable period of time, your pull request is likely to 
+    be deemed inactive and closed automatically. 
 
 1. Wait for the minimum required approvals, then merge your pull request as soon as possible.
 
@@ -271,9 +282,11 @@ This method fails for forks of the `gravitational/teleport` repository.
 </TabItem>
 <TabItem label="Select commits manually">
 
-If automatic backport methods fail or you're an external contributor, you must backport changes manually.
+If automatic backport methods fail or you're an external contributor, you must backport 
+changes manually.
 
-The following example illustrates how to backport a change into Teleport version 11.x.x. In this example:
+The following example illustrates how to backport a change into Teleport version 11.x.x. 
+In this example:
 
 - Changes were made in the `my-branch` branch and committed to a fork of the Teleport repository.
 - A pull request was created to merge the change from my-branch into `origin/master` from the fork.
@@ -283,8 +296,8 @@ The following example illustrates how to backport a change into Teleport version
 1. Run the following commands to create a branch for the commit being backported:
 
     ```code
-    $ git fetch origin
     $ git switch branch/v11
+    $ git Pull
     $ git switch -c my-branch-backport-v11
     $ git cherry-pick <commit-hash>
     ```
@@ -292,7 +305,7 @@ The following example illustrates how to backport a change into Teleport version
 1. Push the changes for the backport to the fork.
 
     ```code 
-    $ git push -u fork my-branch-backport-11
+    $ git push --set-upstream fork my-branch-backport-11
     ```
 
 1. Create a pull request in the [Teleport repository](https://github.com/gravitational/teleport) for your backport.
