@@ -211,7 +211,7 @@ func NewAgentPool(ctx context.Context, config AgentPoolConfig) (*AgentPool, erro
 	pool.newAgentFunc = pool.newAgent
 
 	pool.ctx, pool.cancel = context.WithCancel(ctx)
-	pool.tracker, err = track.New(pool.ctx, track.Config{ClusterName: pool.Cluster})
+	pool.tracker, err = track.New(track.Config{ClusterName: pool.Cluster})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -266,7 +266,7 @@ func (p *AgentPool) run() error {
 			return trace.Wrap(p.ctx.Err())
 		}
 
-		agent, err := p.connectAgent(p.ctx, p.tracker.Acquire(), p.events)
+		agent, err := p.connectAgent(p.ctx, p.events)
 		if err != nil {
 			p.log.WithError(err).Debugf("Failed to connect agent.")
 		} else {
@@ -284,8 +284,8 @@ func (p *AgentPool) run() error {
 
 // connectAgent connects a new agent and processes any agent events blocking until a
 // new agent is connected or an error occurs.
-func (p *AgentPool) connectAgent(ctx context.Context, leases <-chan *track.Lease, events <-chan Agent) (Agent, error) {
-	lease, err := p.waitForLease(ctx, leases, events)
+func (p *AgentPool) connectAgent(ctx context.Context, events <-chan Agent) (Agent, error) {
+	lease, err := p.waitForLease(ctx, events)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -361,28 +361,33 @@ func (p *AgentPool) processEvents(ctx context.Context, events <-chan Agent) erro
 }
 
 // waitForLease processes events while waiting to acquire a lease.
-func (p *AgentPool) waitForLease(ctx context.Context, leases <-chan *track.Lease, events <-chan Agent) (*track.Lease, error) {
-	for {
+func (p *AgentPool) waitForLease(ctx context.Context, events <-chan Agent) (*track.Lease, error) {
+	t := time.NewTicker(time.Second)
+	defer t.Stop()
+
+	for ctx.Err() == nil {
+		if lease := p.tracker.TryAcquire(); lease != nil {
+			return lease, nil
+		}
+
 		select {
 		case <-ctx.Done():
-			return nil, trace.Wrap(ctx.Err())
-		case lease := <-leases:
-			return lease, nil
+		case <-t.C:
 		case agent := <-events:
 			p.handleEvent(ctx, agent)
 		}
 	}
+
+	return nil, trace.Wrap(ctx.Err())
 }
 
 // waitForBackoff processes events while waiting for the backoff.
 func (p *AgentPool) waitForBackoff(ctx context.Context, events <-chan Agent) error {
-	backoffC := p.backoff.After()
-
 	for {
 		select {
 		case <-ctx.Done():
 			return trace.Wrap(ctx.Err())
-		case <-backoffC:
+		case <-p.backoff.After():
 			p.backoff.Inc()
 			return nil
 		case agent := <-events:
@@ -724,8 +729,10 @@ func (c *agentPoolRuntimeConfig) update(ctx context.Context, netConfig types.Clu
 }
 
 // Make sure ServerHandlerToListener implements both interfaces.
-var _ = net.Listener(ServerHandlerToListener{})
-var _ = ServerHandler(ServerHandlerToListener{})
+var (
+	_ = net.Listener(ServerHandlerToListener{})
+	_ = ServerHandler(ServerHandlerToListener{})
+)
 
 // ServerHandlerToListener is an adapter from ServerHandler to net.Listener. It
 // can be used as a Server field in AgentPoolConfig, while also being passed to
