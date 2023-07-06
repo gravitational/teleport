@@ -21,10 +21,10 @@ package local
 import (
 	"context"
 	"encoding/json"
-	"google.golang.org/protobuf/proto"
 	"reflect"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
