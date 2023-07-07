@@ -47,7 +47,7 @@ interface AgentBinaryParams {
  * The settings.appVersion is set to a real version only for packaged apps that went through our CI build pipeline.
  * In local builds, both for the development version and for packaged apps, settings.appVersion is set to 1.0.0-dev.
  * In those cases, we fetch the latest available stable version of the agent.
- * AGENT_VERSION is available as an escape hatch for cases where we want to fetch a different version.
+ * CONNECT_CMC_AGENT_VERSION is available as an escape hatch for cases where we want to fetch a different version.
  */
 export async function downloadAgent(
   fileDownloader: IFileDownloader,
@@ -77,8 +77,8 @@ async function calculateAgentVersion(appVersion: string): Promise<string> {
   if (appVersion !== '1.0.0-dev') {
     return appVersion;
   }
-  if (process.env.AGENT_VERSION) {
-    return process.env.AGENT_VERSION;
+  if (process.env.CONNECT_CMC_AGENT_VERSION) {
+    return process.env.CONNECT_CMC_AGENT_VERSION;
   }
   return await fetchLatestTeleportRelease();
 }

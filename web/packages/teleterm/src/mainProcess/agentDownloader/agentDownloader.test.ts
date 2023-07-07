@@ -94,7 +94,7 @@ const testCases = [
     shouldDownloadBinary: 'teleport-v13.0.0-darwin-arm64-bin.tar.gz',
   },
   {
-    name: 'Should download the latest avaiable agent version when Connect version is 1.0.0-dev',
+    name: 'Should download the latest available agent version when Connect version is 1.0.0-dev',
     connectVersion: '1.0.0-dev',
     versionFromCache: undefined,
     env: {},
@@ -105,7 +105,7 @@ const testCases = [
     connectVersion: '1.0.0-dev',
     versionFromCache: undefined,
     env: {
-      AGENT_VERSION: '12.1.0',
+      CONNECT_CMC_AGENT_VERSION: '12.1.0',
     },
     shouldDownloadBinary: 'teleport-v12.1.0-darwin-arm64-bin.tar.gz',
   },
