@@ -135,6 +135,13 @@ type DeployServiceRequest struct {
 	// DatabaseResourceMatcherLabels contains the set of labels to be used by the DatabaseService.
 	// This is used when the deployment mode creates a Database Service.
 	DatabaseResourceMatcherLabels types.Labels
+
+	// TeleportVersionTag is the version of teleport to install.
+	// Ensure the tag exists in:
+	// public.ecr.aws/gravitational/teleport-distroless:<TeleportVersionTag>
+	// Eg, 13.2.0
+	// Optional. Defaults to the current version.
+	TeleportVersionTag string
 }
 
 // normalizeECSResourceName converts a name into a valid ECS Resource Name.
@@ -166,6 +173,10 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("teleport cluster name is required")
 	}
 	baseResourceName := normalizeECSResourceName(r.TeleportClusterName)
+
+	if r.TeleportVersionTag == "" {
+		r.TeleportVersionTag = teleport.Version
+	}
 
 	if r.TeleportIAMTokenName == nil || *r.TeleportIAMTokenName == "" {
 		r.TeleportIAMTokenName = &defaultTeleportIAMTokenName
@@ -345,7 +356,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
-	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, teleport.Version)
+	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, req.TeleportVersionTag)
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,
