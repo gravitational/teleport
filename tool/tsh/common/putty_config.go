@@ -1,5 +1,7 @@
+//go:build !windows
+
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2022 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,10 +16,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package reversetunnel
+package common
 
-import "github.com/gravitational/teleport/lib/reversetunnelclient"
+import (
+	"github.com/gravitational/trace"
+)
 
-// RemoteSite is an alias used to prevent breaking e.
-// TODO(tross): remove once e has been updated to use reversetunnelclient
-type RemoteSite = reversetunnelclient.RemoteSite
+// onPuttyConfig handles the `tsh puttyconfig` subcommand
+func onPuttyConfig(cf *CLIConf) error {
+	return trace.NotImplemented("PuTTY config is only implemented on Windows")
+}

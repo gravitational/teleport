@@ -207,6 +207,7 @@ func NewPresetAccessRole() types.Role {
 						Kind:      types.Wildcard,
 						Namespace: types.Wildcard,
 						Name:      types.Wildcard,
+						Verbs:     []string{types.Wildcard},
 					},
 				},
 				Rules: []types.Rule{
