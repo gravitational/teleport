@@ -73,10 +73,6 @@ func UnmarshalAccessList(data []byte, opts ...MarshalOption) (*types.AccessList,
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	var h types.ResourceHeader
-	if err := utils.FastUnmarshal(data, &h); err != nil {
-		return nil, trace.Wrap(err)
-	}
 	var accessList *types.AccessList
 	if err := utils.FastUnmarshal(data, &accessList); err != nil {
 		return nil, trace.BadParameter(err.Error())
