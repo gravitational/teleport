@@ -735,3 +735,66 @@ func silenceLogger(t *testing.T) {
 	log.SetOutput(io.Discard)
 	log.SetLevel(log.PanicLevel)
 }
+
+func TestRetryWithRelogin(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	sa := newStandaloneTeleport(t, clock)
+
+	cfg := client.MakeDefaultConfig()
+	cfg.Username = sa.Username
+	cfg.HostLogin = sa.Username
+	cfg.WebProxyAddr = sa.ProxyWebAddr
+	cfg.KeysDir = t.TempDir()
+	cfg.InsecureSkipVerify = true
+	cfg.AllowStdinHijack = true
+
+	tc, err := client.NewClient(cfg)
+	require.NoError(t, err)
+
+	errorOnTry := func(counter *int, failedTry int) func() error {
+		return func() error {
+			*counter++
+			if *counter == failedTry {
+				return errors.New("ssh: cert has expired")
+			}
+			return nil
+		}
+	}
+
+	t.Run("Does not try login if function succeeds on the first run", func(t *testing.T) {
+		calledTimes := 0
+
+		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, -1))
+
+		require.NoError(t, err)
+		require.Equal(t, 1, calledTimes)
+	})
+	t.Run("Runs 'beforeLoginHook' before login, if it's present", func(t *testing.T) {
+		calledTimes := 0
+
+		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, 1), client.WithBeforeLoginHook(
+			func() error {
+				return errors.New("hook called")
+			}))
+
+		require.ErrorContains(t, err, "hook called")
+		require.Equal(t, 1, calledTimes)
+	})
+
+	t.Run("Successful retry after login", func(t *testing.T) {
+		solveOTP := func(ctx context.Context) (string, error) {
+			return totp.GenerateCode(sa.OTPKey, clock.Now())
+		}
+		oldStdin := prompt.Stdin()
+		t.Cleanup(func() {
+			prompt.SetStdin(oldStdin)
+		})
+		prompt.SetStdin(prompt.NewFakeReader().AddString(sa.Password).AddReply(solveOTP))
+		calledTimes := 0
+
+		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, 1))
+
+		require.NoError(t, err)
+		require.Equal(t, 2, calledTimes)
+	})
+}
