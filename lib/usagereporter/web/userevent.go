@@ -18,6 +18,7 @@ package usagereporter
 
 import (
 	"encoding/json"
+
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
