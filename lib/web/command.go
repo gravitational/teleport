@@ -87,6 +87,12 @@ type commandExecResult struct {
 	SessionID string `json:"session_id"`
 }
 
+// sessionEndEvent is an event that is sent when a session ends.
+type sessionEndEvent struct {
+	// NodeID is the ID of the server where the session was created.
+	NodeID string `json:"node_id"`
+}
+
 // Check checks if the request is valid.
 func (c *CommandRequest) Check() error {
 	if c.Command == "" {
@@ -342,7 +348,7 @@ func (h *Handler) computeAndSendSummary(
 		return trace.Wrap(err)
 	}
 
-	// Add the summary message to the backend so it is persisted on chat
+	// Add the summary message to the backend, so it is persisted on chat
 	// reload.
 	messagePayload, err := json.Marshal(&assistlib.CommandExecSummary{
 		ExecutionID: req.executionID,
@@ -674,7 +680,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		return
 	}
 
-	if err := t.stream.SendCloseMessage(); err != nil {
+	if err := t.stream.SendCloseMessage(sessionEndEvent{NodeID: t.sessionData.ServerID}); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}
