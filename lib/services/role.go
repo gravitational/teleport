@@ -708,15 +708,6 @@ func (set RuleSet) Slice() []types.Rule {
 	return out
 }
 
-// HostUsersInfo keeps information about groups and sudoers entries
-// for a particular host user
-type HostUsersInfo struct {
-	// Groups is the list of groups to include host users in
-	Groups []string
-	// Sudoers is a list of entries for a users sudoers file
-	Sudoers []string
-}
-
 // RoleFromSpec returns new Role created from spec
 func RoleFromSpec(name string, spec types.RoleSpecV6) (types.Role, error) {
 	role, err := types.NewRole(name, spec)
@@ -1750,6 +1741,18 @@ func (set RoleSet) hasPossibleLogins() bool {
 	return false
 }
 
+// HostUsersInfo keeps information about groups and sudoers entries
+// for a particular host user
+type HostUsersInfo struct {
+	// Groups is the list of groups to include host users in
+	Groups []string
+	// Sudoers is a list of entries for a users sudoers file
+	Sudoers []string
+	// Mode determines if a host user should be deleted after a session
+	// ends or not.
+	Mode types.CreateHostUserMode
+}
+
 // AWSRoleARNMatcher matches a role against AWS role ARN.
 type AWSRoleARNMatcher struct {
 	RoleARN string
@@ -2763,6 +2766,7 @@ func (set RoleSet) DesktopGroups(s types.WindowsDesktop) ([]string, error) {
 func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	groups := make(map[string]struct{})
 	var sudoers []string
+	var mode types.CreateHostUserMode
 	serverLabels := s.GetAllLabels()
 
 	roleSet := make([]types.Role, len(set))
@@ -2781,12 +2785,30 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 		if !result {
 			continue
 		}
+
+		createHostUserMode := role.GetOptions().CreateHostUserMode
 		createHostUser := role.GetOptions().CreateHostUser
+		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
+			createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_OFF
+			if createHostUser != nil && createHostUser.Value {
+				createHostUserMode = types.CreateHostUserMode_HOST_USER_MODE_DROP
+			}
+		}
+
 		// if any of the matching roles do not enable create host
 		// user, the user should not be allowed on
-		if createHostUser == nil || !createHostUser.Value {
+		if createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_OFF {
 			return nil, trace.AccessDenied("user is not allowed to create host users")
 		}
+
+		if mode == types.CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED {
+			mode = createHostUserMode
+		}
+		// prefer to use HostUserModeKeep over Drop if mode has already been set.
+		if mode == types.CreateHostUserMode_HOST_USER_MODE_DROP && createHostUserMode == types.CreateHostUserMode_HOST_USER_MODE_KEEP {
+			mode = types.CreateHostUserMode_HOST_USER_MODE_KEEP
+		}
+
 		for _, group := range role.GetHostGroups(types.Allow) {
 			groups[group] = struct{}{}
 		}
@@ -2830,6 +2852,7 @@ func (set RoleSet) HostUsers(s types.Server) (*HostUsersInfo, error) {
 	return &HostUsersInfo{
 		Groups:  utils.StringsSliceFromSet(groups),
 		Sudoers: sudoers,
+		Mode:    mode,
 	}, nil
 }
 
