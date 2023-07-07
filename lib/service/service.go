@@ -5306,7 +5306,7 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 		proxyHost, _, err := net.SplitHostPort(addr.String())
 		if err != nil {
 			// log and skip error since this is a nice to have
-			cfg.Log.Errorf("Error parsing address %v, skipping adding to self-signed cert: %v", addr.String(), err)
+			cfg.Log.Errorf("Error parsing proxy.public_address %v, skipping adding to self-signed cert: %v", addr.String(), err)
 			continue
 		}
 		hosts = append(hosts, proxyHost)
