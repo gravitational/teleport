@@ -88,17 +88,18 @@ async function calculateAgentVersion(appVersion: string): Promise<string> {
  * We don't have a way to simply take the latest tag.
  */
 async function fetchLatestTeleportRelease(): Promise<string> {
-  const teleportReleases = await fetch(
-    'https://rlz.teleport.sh/teleport?page=0'
-  );
-  const versions = (
-    (await teleportReleases.json()) as {
+  const response = await fetch('https://rlz.teleport.sh/teleport?page=0');
+  if (!response.ok) {
+    throw response;
+  }
+  const teleportVersions = (
+    (await response.json()) as {
       version: string;
     }[]
   ).map(r => r.version);
 
   // get the last element
-  const latest = versions.sort(compareSemVers)?.at(-1);
+  const latest = teleportVersions.sort(compareSemVers)?.at(-1);
   if (latest) {
     return latest;
   }
