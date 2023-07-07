@@ -655,15 +655,16 @@ func (s *Server) getServerInfoFunc(database types.Database) func() (types.Resour
 // getServerInfo returns up-to-date database resource e.g. with updated dynamic
 // labels.
 func (s *Server) getServerInfo(database types.Database) (types.Resource, error) {
+	s.mu.Lock()
 	if s.cfg.CloudLabels != nil {
 		s.cfg.CloudLabels.Apply(database)
 	}
 
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
-	s.mu.RLock()
 	copy := database.Copy()
-	s.mu.RUnlock()
+	s.mu.Unlock()
+
 	// Update dynamic labels if the database has them.
 	labels := s.getDynamicLabels(copy.GetName())
 	if labels != nil {
