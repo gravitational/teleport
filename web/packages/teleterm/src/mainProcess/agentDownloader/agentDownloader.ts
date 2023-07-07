@@ -34,7 +34,7 @@ import type { IFileDownloader } from './fileDownloader';
 const TELEPORT_CDN_ADDRESS = 'https://cdn.teleport.dev';
 const logger = new Logger('agentDownloader');
 
-interface AgentBinaryParams {
+interface AgentBinary {
   version: string;
   platform: string;
   arch: string;
@@ -55,7 +55,12 @@ export async function downloadAgent(
 ): Promise<void> {
   const version = await calculateAgentVersion(settings.appVersion);
 
-  if (await isAgentAlreadyDownloaded(settings.agentBinaryPath, version)) {
+  if (
+    await isCorrectAgentVersionAlreadyDownloaded(
+      settings.agentBinaryPath,
+      version
+    )
+  ) {
     logger.info(`Agent v.${version} is already downloaded. Skipping.`);
     return;
   }
@@ -113,12 +118,12 @@ async function fetchLatestTeleportRelease(): Promise<string> {
  * teleport-v<version>-darwin-arm64-bin.tar.gz
  * teleport-v<version>-darwin-amd64-bin.tar.gz
  */
-function createAgentBinaryName(params: AgentBinaryParams): string {
+function createAgentBinaryName(params: AgentBinary): string {
   const arch = params.arch === 'x64' ? 'amd64' : params.arch;
   return `teleport-v${params.version}-${params.platform}-${arch}-bin.tar.gz`;
 }
 
-async function isAgentAlreadyDownloaded(
+async function isCorrectAgentVersionAlreadyDownloaded(
   agentBinaryPath: string,
   neededVersion: string
 ): Promise<boolean> {
