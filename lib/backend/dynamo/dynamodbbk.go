@@ -93,9 +93,16 @@ type Config struct {
 	// capacity. Required to be set if auto scaling is enabled.
 	WriteTargetValue float64 `json:"write_target_value,omitempty"`
 
-	// OnDemand sets on-demand capacity to the DynamoDB tables
-	OnDemand *bool `json:"on_demand,omitempty"`
+	// BillingMode sets on-demand capacity to the DynamoDB tables
+	BillingMode billingMode `json:"billing_mode,omitempty"`
 }
+
+type billingMode string
+
+const (
+	billingModeProvisioned billingMode = "provisioned"
+	billingModeOnDemand    billingMode = "on_demand"
+)
 
 // CheckAndSetDefaults is a helper returns an error if the supplied configuration
 // is not enough to connect to DynamoDB
@@ -105,8 +112,8 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		return trace.BadParameter("DynamoDB: table_name is not specified")
 	}
 
-	if cfg.OnDemand == nil {
-		cfg.OnDemand = aws.Bool(true)
+	if cfg.BillingMode == "" {
+		cfg.BillingMode = billingModeOnDemand
 	}
 
 	if cfg.ReadCapacityUnits == 0 {
@@ -125,7 +132,7 @@ func (cfg *Config) CheckAndSetDefaults() error {
 		cfg.RetryPeriod = defaults.HighResPollingPeriod
 	}
 
-	if *cfg.OnDemand {
+	if cfg.BillingMode == billingModeOnDemand {
 		cfg.EnableAutoScaling = false
 	}
 
@@ -671,7 +678,7 @@ func (b *Backend) createTable(ctx context.Context, tableName string, rangeKey st
 		ReadCapacityUnits:  aws.Int64(b.ReadCapacityUnits),
 		WriteCapacityUnits: aws.Int64(b.WriteCapacityUnits),
 	}
-	if *b.OnDemand {
+	if b.BillingMode == billingModeOnDemand {
 		billingMode = aws.String(dynamodb.BillingModePayPerRequest)
 		pThroughput = nil
 	}

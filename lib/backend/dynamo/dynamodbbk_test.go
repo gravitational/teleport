@@ -137,12 +137,12 @@ func TestCreateTable(t *testing.T) {
 		writeCapacityUnits            int
 		expectedProvisionedThroughput *dynamodb.ProvisionedThroughput
 		expectedBillingMode           string
-		onDemand                      bool
+		billingMode                   billingMode
 	}{
 		{
 			name:                "table creation succeeds",
 			errorIsFn:           errIsNil,
-			onDemand:            true,
+			billingMode:         billingModeOnDemand,
 			expectedBillingMode: dynamodb.BillingModePayPerRequest,
 		},
 		{
@@ -150,7 +150,7 @@ func TestCreateTable(t *testing.T) {
 			readCapacityUnits:   10,
 			writeCapacityUnits:  10,
 			errorIsFn:           errIsNil,
-			onDemand:            true,
+			billingMode:         billingModeOnDemand,
 			expectedBillingMode: dynamodb.BillingModePayPerRequest,
 		},
 		{
@@ -162,7 +162,7 @@ func TestCreateTable(t *testing.T) {
 				ReadCapacityUnits:  aws.Int64(10),
 				WriteCapacityUnits: aws.Int64(10),
 			},
-			onDemand:            true,
+			billingMode:         billingModeOnDemand,
 			expectedBillingMode: dynamodb.BillingModePayPerRequest,
 		},
 		{
@@ -174,7 +174,7 @@ func TestCreateTable(t *testing.T) {
 				ReadCapacityUnits:  aws.Int64(10),
 				WriteCapacityUnits: aws.Int64(10),
 			},
-			onDemand:            false,
+			billingMode:         billingModeOnDemand,
 			expectedBillingMode: dynamodb.BillingModePayPerRequest,
 		},
 		{
@@ -186,7 +186,7 @@ func TestCreateTable(t *testing.T) {
 				ReadCapacityUnits:  aws.Int64(10),
 				WriteCapacityUnits: aws.Int64(10),
 			},
-			onDemand:            false,
+			billingMode:         billingModeProvisioned,
 			expectedBillingMode: dynamodb.BillingModeProvisioned,
 		},
 	} {
@@ -201,7 +201,7 @@ func TestCreateTable(t *testing.T) {
 			backend := &Backend{
 				Entry: log.NewEntry(log.New()),
 				Config: Config{
-					OnDemand:           &tc.onDemand,
+					BillingMode:        tc.billingMode,
 					ReadCapacityUnits:  int64(tc.readCapacityUnits),
 					WriteCapacityUnits: int64(tc.writeCapacityUnits),
 				},
