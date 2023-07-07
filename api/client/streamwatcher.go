@@ -20,10 +20,10 @@ import (
 	"context"
 	"sync"
 
-	eventv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/event/v1"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 
+	eventv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/event/v1"
 	"github.com/gravitational/teleport/api/types"
 )
 
