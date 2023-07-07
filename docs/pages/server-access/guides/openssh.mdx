@@ -48,8 +48,8 @@ In this setup, the Teleport SSH Service performs RBAC checks as well as audits a
 Teleport only allows access to resources in your infrastructure via Teleport
 processes that that have joined the cluster.
 
-To register the OpenSSH node requires a valid auth token to connect to the cluster.
-Generate one by running the following command against your Teleport Auth Service:
+To register the OpenSSH node, you must have a valid auth token to connect to the cluster.
+You can generate the token by running the following command against your Teleport Auth Service:
 
 ```code
 $ tctl tokens add --type=node --format=text
@@ -57,10 +57,7 @@ $ tctl tokens add --type=node --format=text
 ```
 
 Copy the `teleport` binary to your `sshd` host. Configure `sshd` and create a node
-resource on your cluster with the following command, assigning
-<Var name="teleport.example.com:443" /> to the address and port of your Teleport
-Proxy Service, <Var name="server1.example.com:22" /> to the address and port of
-the node that will join the cluster, and <Var name="token" /> to the token value:
+resource on your cluster with the following command:
 
 ```code
 $ sudo teleport join openssh \
@@ -71,9 +68,13 @@ $ sudo teleport join openssh \
   --labels env=dev
 ```
 
-Note that both the Teleport Proxy Service and node addresses must contain a host and a port.
-Check that your new node is listed with `tsh ls` or in the Web UI.  You can edit the
-hostname and labels with `tctl edit nodes/<hostname>`.  If the hostname isn't unique get the UUID
+Change the command-line options to assign the following values:
+- Set to the address and port of your Teleport Proxy Service.
+- Set to the address and port of the node that will join the cluster.
+- Set to the token value.
+
+Check that your new node is listed with `tsh ls` or in the Web UI. You can edit the
+hostname and labels with `tctl edit nodes/<hostname>`.  If the hostname isn't unique, get the UUID
 from `tctl nodes ls -v` and edit with `tctl edit nodes/<uuid>`.
 
 ## Step 2/3. Generate an SSH client configuration
