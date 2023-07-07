@@ -18,8 +18,6 @@ package usagereporter
 
 import (
 	"encoding/json"
-	"fmt"
-
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -248,12 +246,10 @@ func ConvertUserEventRequestToUsageEvent(req CreateUserEventRequest) (*usageeven
 			return nil, trace.BadParameter("eventData is invalid: %v", err)
 		}
 
-		fmt.Println("Json unmarshalled for start event")
 		kindEnum, ok := usageeventsv1.IntegrationEnrollKind_value[event.Kind]
 		if !ok {
 			return nil, trace.BadParameter("invalid integration enroll kind %s", event.Kind)
 		}
-		fmt.Printf("kind enum: %d\n", kindEnum)
 
 		switch req.Event {
 		case uiIntegrationEnrollStartEvent:
