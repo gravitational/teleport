@@ -655,6 +655,10 @@ func (s *Server) getServerInfoFunc(database types.Database) func() (types.Resour
 // getServerInfo returns up-to-date database resource e.g. with updated dynamic
 // labels.
 func (s *Server) getServerInfo(database types.Database) (types.Resource, error) {
+	if s.cfg.CloudLabels != nil {
+		s.cfg.CloudLabels.Apply(database)
+	}
+
 	// Make sure to return a new object, because it gets cached by
 	// heartbeat and will always compare as equal otherwise.
 	s.mu.RLock()
@@ -664,9 +668,6 @@ func (s *Server) getServerInfo(database types.Database) (types.Resource, error) 
 	labels := s.getDynamicLabels(copy.GetName())
 	if labels != nil {
 		copy.SetDynamicLabels(labels.Get())
-	}
-	if s.cfg.CloudLabels != nil {
-		s.cfg.CloudLabels.Apply(copy)
 	}
 	expires := s.cfg.Clock.Now().UTC().Add(apidefaults.ServerAnnounceTTL)
 	server, err := types.NewDatabaseServerV3(types.Metadata{

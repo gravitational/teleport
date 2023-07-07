@@ -32,6 +32,7 @@ import (
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/defaults"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/services"
 )
@@ -436,6 +437,62 @@ func TestCloseWithActiveConnections(t *testing.T) {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.NoError(t, server.Wait(), "unexpected error from server Wait")
 	}, time.Second, 100*time.Millisecond)
+}
+
+// TestUpdateDatabaseLabels given a database when its heartbeat is executed it
+// should have the new labels from labels.Importer. The test should ensure that
+// the database struct inside the server gets its labels updated.
+func TestUpdateDatabaseLabels(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t)
+
+	dbName := "postgres"
+	cloudLabels := &labelsImporter{
+		applyLabels: map[string]string{"importer": "label"},
+	}
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		CloudLabels: cloudLabels,
+		Databases: []types.Database{
+			withSelfHostedPostgres(dbName, func(db *types.DatabaseV3) {
+				db.SetStaticLabels(map[string]string{"static": "label"})
+			})(t, ctx, testCtx),
+		},
+	})
+
+	// Stop the heartbeat to avoid data race when asserting database labels.
+	testCtx.server.stopHeartbeat(dbName)
+
+	// For each database heartbeat sent the counter must go up by one. Here we
+	// we wait for the forced heartbeat (sent when server starts) and the regular
+	// heartbeat sent. Using Never will wait until all heartbeats arrive.
+	require.Never(t, func() bool {
+		return cloudLabels.applyCalls.Load() > int32(2)
+	}, time.Second, 250*time.Millisecond)
+
+	proxiedDatabases := testCtx.server.getProxiedDatabases()
+	require.Len(t, proxiedDatabases, 1)
+	proxiedDatabaseLabels := proxiedDatabases[0].GetStaticLabels()
+	require.Contains(t, proxiedDatabaseLabels, "static")
+	require.Contains(t, proxiedDatabaseLabels, "importer")
+}
+
+type labelsImporter struct {
+	labels.Importer
+
+	applyLabels map[string]string
+	applyCalls  atomic.Int32
+}
+
+func (l *labelsImporter) Apply(r types.ResourceWithLabels) {
+	l.applyCalls.Add(1)
+	labels := make(map[string]string)
+	for name, value := range l.applyLabels {
+		labels[name] = value
+	}
+	for name, value := range r.GetStaticLabels() {
+		labels[name] = value
+	}
+	r.SetStaticLabels(labels)
 }
 
 // serverWithActiveConnection starts a server with one active connection that

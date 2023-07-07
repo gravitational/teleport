@@ -58,6 +58,7 @@ import (
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/events/eventstest"
 	"github.com/gravitational/teleport/lib/fixtures"
+	"github.com/gravitational/teleport/lib/labels"
 	"github.com/gravitational/teleport/lib/limiter"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/multiplexer"
@@ -2064,6 +2065,8 @@ type agentParams struct {
 	AWSMatchers []types.AWSMatcher
 	// AzureMatchers is a list of Azure databases matchers.
 	AzureMatchers []types.AzureMatcher
+	// CloudLabels defines the cloud labels importer.
+	CloudLabels labels.Importer
 }
 
 func (p *agentParams) setDefaults(c *testContext) {
@@ -2186,6 +2189,7 @@ func (c *testContext) setupDatabaseServer(ctx context.Context, t *testing.T, p a
 		AWSMatchers:              p.AWSMatchers,
 		AzureMatchers:            p.AzureMatchers,
 		ShutdownPollPeriod:       100 * time.Millisecond,
+		CloudLabels:              p.CloudLabels,
 		discoveryResourceChecker: &fakeDiscoveryResourceChecker{},
 	})
 	require.NoError(t, err)
