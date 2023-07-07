@@ -26,8 +26,6 @@ export interface IFileDownloader {
 
 export class FileDownloader implements IFileDownloader {
   private logger = new Logger('fileDownloader');
-  private onResolve: () => void;
-  private onReject: (error: Error) => void;
 
   constructor(private window: BrowserWindow) {}
 
@@ -35,13 +33,16 @@ export class FileDownloader implements IFileDownloader {
     this.logger.info(
       `Starting download from ${url} (download directory: ${downloadDirectory}).`
     );
-    const handler = this.createDownloadHandler(url, downloadDirectory);
-    this.window.webContents.session.on('will-download', handler);
+
+    let handler: ReturnType<typeof this.createDownloadHandler>;
 
     try {
       return await new Promise<void>((resolve, reject) => {
-        this.onResolve = resolve;
-        this.onReject = reject;
+        handler = this.createDownloadHandler(url, downloadDirectory, {
+          resolve: resolve,
+          reject: reject,
+        });
+        this.window.webContents.session.on('will-download', handler);
         this.window.webContents.downloadURL(url);
       });
     } finally {
@@ -49,7 +50,29 @@ export class FileDownloader implements IFileDownloader {
     }
   }
 
-  private createDownloadHandler(url: string, downloadDirectory: string) {
+  private createDownloadHandler(
+    url: string,
+    downloadDirectory: string,
+    {
+      resolve,
+      reject,
+    }: {
+      resolve(): void;
+      reject(error: Error): void;
+    }
+  ) {
+    const onDownloadDone = () => {
+      resolve();
+      this.window.setProgressBar(-1);
+      this.logger.info('Download finished');
+    };
+
+    const onDownloadError = (error: Error) => {
+      reject(error);
+      this.window.setProgressBar(-1, { mode: 'error' });
+      this.logger.error(error);
+    };
+
     return (_: Event, item: DownloadItem) => {
       const isExpectedUrl = item.getURL() === url;
       if (!isExpectedUrl) {
@@ -60,7 +83,7 @@ export class FileDownloader implements IFileDownloader {
       item.on('updated', (_, state) => {
         switch (state) {
           case 'interrupted':
-            this.onDownloadError(new Error('Download failed: interrupted'));
+            onDownloadError(new Error('Download failed: interrupted'));
             break;
           case 'progressing':
             this.onProgress(item.getReceivedBytes(), item.getTotalBytes());
@@ -70,13 +93,13 @@ export class FileDownloader implements IFileDownloader {
       item.once('done', (_, state) => {
         switch (state) {
           case 'completed':
-            this.onDownloadDone();
+            onDownloadDone();
             break;
           case 'interrupted':
             // TODO(gzdunek): electron doesn't expose much information about why the download failed.
             // Fortunately, there is a PR in works that will add more info https://github.com/electron/electron/pull/38859.
             // Use Use DownloadItem.getLastReason() when merged.
-            this.onDownloadError(
+            onDownloadError(
               new Error(
                 `Download failed. Requested file may not exist or is temporarily unavailable.`
               )
@@ -84,7 +107,7 @@ export class FileDownloader implements IFileDownloader {
             break;
           case 'cancelled':
             // We cancel the download only when filename is incorrect, so we can mention that in the error message.
-            this.onDownloadError(
+            onDownloadError(
               new Error(
                 `Download was cancelled. Filename ${item.getFilename()} is incorrect.`
               )
@@ -108,17 +131,5 @@ export class FileDownloader implements IFileDownloader {
     const progress = received / total;
     this.window.setProgressBar(progress);
     this.logger.info(`Downloaded ${(progress * 100).toFixed(1)}%`);
-  }
-
-  private onDownloadDone() {
-    this.onResolve();
-    this.window.setProgressBar(-1);
-    this.logger.info('Download finished');
-  }
-
-  private onDownloadError(error: Error) {
-    this.onReject(error);
-    this.window.setProgressBar(-1, { mode: 'error' });
-    this.logger.error(error);
   }
 }
