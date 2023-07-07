@@ -762,6 +762,8 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 	desktopName := strings.TrimSuffix(proxyConn.ConnectionState().ServerName, SNISuffix)
 	log = log.WithField("desktop-name", desktopName)
 
+	buildType := modules.GetModules().BuildType()
+
 	desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx,
 		types.WindowsDesktopFilter{HostID: s.cfg.Heartbeat.HostUUID, Name: desktopName})
 	if err != nil {
@@ -776,6 +778,21 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		return
 	}
 	desktop := desktops[0]
+
+	if desktop.NonAD() && buildType == "oss" {
+		desktops, err := s.cfg.AccessPoint.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{NonAD: []bool{true}})
+		if err != nil {
+			log.WithError(err).Warning("Failed to fetch desktops")
+			sendTDPError("Teleport failed to fetch desktops.")
+			return
+		}
+		if len(desktops) > 3 {
+			log.Warning("More than 3 Non-AD desktops configured")
+			sendTDPError(fmt.Sprintf("OSS license only allows 3 Non-AD desktops configured. There were %d found. "+
+				"Please contanct Sales to upgrade your license", len(desktops)))
+			return
+		}
+	}
 
 	log = log.WithField("desktop-addr", desktop.GetAddr())
 	log.Debug("Connecting to Windows desktop")
