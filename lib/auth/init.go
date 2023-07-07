@@ -402,12 +402,6 @@ func Init(cfg InitConfig, opts ...ServerOption) (*Server, error) {
 	}
 	log.Infof("Created namespace: %q.", apidefaults.Namespace)
 
-	// Migrate Host CA as Database CA before certificates generation. Otherwise, the Database CA will be
-	// generated which we don't want for existing installations.
-	if err := migrateDBAuthority(ctx, asrv); err != nil {
-		return nil, trace.Wrap(err, "failed to migrate database CA")
-	}
-
 	// generate certificate authorities if they don't exist
 	for _, caType := range types.CertAuthTypes {
 		caID := types.CertAuthID{Type: caType, DomainName: cfg.ClusterName.GetClusterName()}
@@ -1214,90 +1208,6 @@ func migrateRemoteClusters(ctx context.Context, asrv *Server) error {
 			}
 		}
 		log.Infof("Migrations: added remote cluster resource for cert authority %q.", certAuthority.GetName())
-	}
-
-	return nil
-}
-
-// migrateDBAuthority copies Host CA as Database CA. Before v9.0 database access was using host CA to sign all
-// DB certificates. In order to support existing installations Teleport copies Host CA as Database CA on
-// the first run after update to v9.0+.
-// Function does nothing for databases created with Teleport v9.0+.
-// https://github.com/gravitational/teleport/issues/5029
-//
-// DELETE IN 11.0
-func migrateDBAuthority(ctx context.Context, asrv *Server) error {
-	migrationStart(ctx, "db_authority")
-	defer migrationEnd(ctx, "db_authority")
-
-	localClusterName, err := asrv.Services.GetClusterName()
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	trustedClusters, err := asrv.Services.GetTrustedClusters(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	allClusters := []string{
-		localClusterName.GetClusterName(),
-	}
-
-	for _, tr := range trustedClusters {
-		allClusters = append(allClusters, tr.GetName())
-	}
-
-	for _, clusterName := range allClusters {
-		dbCaID := types.CertAuthID{Type: types.DatabaseCA, DomainName: clusterName}
-		_, err = asrv.Services.GetCertAuthority(ctx, dbCaID, false)
-		if err == nil {
-			continue // no migration needed. DB cert already exists.
-		}
-		if err != nil && !trace.IsNotFound(err) {
-			return trace.Wrap(err)
-		}
-		// Database CA doesn't exist, check for Host.
-		hostCaID := types.CertAuthID{Type: types.HostCA, DomainName: clusterName}
-		hostCA, err := asrv.Services.GetCertAuthority(ctx, hostCaID, true)
-		if trace.IsNotFound(err) {
-			// DB CA and Host CA are missing. Looks like the first start. No migration needed.
-			continue
-		}
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		// Database CA is missing, but Host CA has been found. Database was created with pre v9.
-		// Copy the Host CA as Database CA.
-		log.Infof("Migrating Database CA cluster: %s", clusterName)
-
-		cav2, ok := hostCA.(*types.CertAuthorityV2)
-		if !ok {
-			return trace.BadParameter("expected host CA to be of *types.CertAuthorityV2 type, got: %T", hostCA)
-		}
-
-		dbCA, err := types.NewCertAuthority(types.CertAuthoritySpecV2{
-			Type:        types.DatabaseCA,
-			ClusterName: clusterName,
-			ActiveKeys: types.CAKeySet{
-				// Copy only TLS keys as SSH are not needed.
-				TLS: cav2.Spec.ActiveKeys.TLS,
-			},
-		})
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		err = asrv.CreateCertAuthority(ctx, dbCA)
-		switch {
-		case trace.IsAlreadyExists(err):
-			// Probably another auth server have created the DB CA since we last check.
-			// This shouldn't be a problem, but let's log it to know when it happens.
-			log.Warn("DB CA has already been created by a different Auth server instance")
-		case err != nil:
-			return trace.Wrap(err)
-		}
 	}
 
 	return nil
