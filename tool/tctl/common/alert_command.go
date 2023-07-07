@@ -217,9 +217,9 @@ func displayAlertsText(alerts []types.ClusterAlert, verbose bool) {
 		}
 		fmt.Println(table.AsBuffer().String())
 	} else {
-		table := asciitable.MakeTable([]string{"Severity", "Message"})
+		table := asciitable.MakeTable([]string{"ID", "Severity", "Message"})
 		for _, alert := range alerts {
-			table.AddRow([]string{alert.Spec.Severity.String(), fmt.Sprintf("%q", alert.Spec.Message)})
+			table.AddRow([]string{alert.GetName(), alert.Spec.Severity.String(), fmt.Sprintf("%q", alert.Spec.Message)})
 		}
 		fmt.Println(table.AsBuffer().String())
 	}
