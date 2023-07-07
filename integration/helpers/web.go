@@ -25,8 +25,12 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/gorilla/websocket"
+	"github.com/gravitational/roundtrip"
+	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/httplib/csrf"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/web"
@@ -143,4 +147,43 @@ func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload
 	require.NoError(t, err)
 
 	return resp.StatusCode, body
+}
+
+// TODO: docstring
+func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any) (*websocket.Conn, *http.Response, error) {
+	path, err := url.JoinPath("v1", "webapi", strings.ReplaceAll(endpoint, "$site", w.clusterName))
+	require.NoError(t, err)
+
+	u := url.URL{
+		Host:   w.host,
+		Scheme: client.WSS,
+		Path:   path,
+	}
+
+	data, err := json.Marshal(params)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	q := u.Query()
+	q.Set("params", string(data))
+	q.Set(roundtrip.AccessTokenQueryParam, w.bearerToken)
+	u.RawQuery = q.Encode()
+
+	dialer := websocket.Dialer{}
+	dialer.TLSClientConfig = &tls.Config{
+		InsecureSkipVerify: true,
+	}
+
+	cookie := &http.Cookie{
+		Name:  websession.CookieName,
+		Value: w.webCookie,
+	}
+
+	header := http.Header{}
+	header.Add("Origin", "http://localhost")
+	header.Add("Cookie", cookie.String())
+
+	ws, resp, err := dialer.Dial(u.String(), header)
+	return ws, resp, trace.Wrap(err)
 }
