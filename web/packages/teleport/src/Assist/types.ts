@@ -199,7 +199,7 @@ export interface SessionData {
 }
 
 export interface SessionEndData {
-  server_id: string;
+  node_id: string;
 }
 
 export interface ExecuteRemoteCommandPayload {

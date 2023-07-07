@@ -501,10 +501,10 @@ export function AssistContextProvider(props: PropsWithChildren<unknown>) {
           dispatch({
             type: AssistStateActionType.FinishCommandResult,
             conversationId: state.conversations.selectedId,
-            commandResultId: nodeIdToResultId.get(data.server_id),
+            commandResultId: nodeIdToResultId.get(data.node_id),
           });
 
-          nodeIdToResultId.delete(data.server_id);
+          nodeIdToResultId.delete(data.node_id);
 
           break;
         }

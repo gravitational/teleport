@@ -745,7 +745,7 @@ func (t *TerminalHandler) streamTerminal(ctx context.Context, tc *client.Telepor
 	}
 
 	// Send close envelope to web terminal upon exit without an error.
-	if err := t.stream.SendCloseMessage(sessionEndEvent{ServerID: t.sessionData.ServerID}); err != nil {
+	if err := t.stream.SendCloseMessage(sessionEndEvent{NodeID: t.sessionData.ServerID}); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 	}
 

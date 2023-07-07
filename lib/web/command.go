@@ -88,8 +88,8 @@ type commandExecResult struct {
 
 // sessionEndEvent is an event that is sent when a session ends.
 type sessionEndEvent struct {
-	// ServerID is the ID of the server where the session was created.
-	ServerID string `json:"server_id"`
+	// NodeID is the ID of the server where the session was created.
+	NodeID string `json:"node_id"`
 }
 
 // Check checks if the request is valid.
@@ -674,7 +674,7 @@ func (t *commandHandler) streamOutput(ctx context.Context, tc *client.TeleportCl
 		return
 	}
 
-	if err := t.stream.SendCloseMessage(sessionEndEvent{ServerID: t.sessionData.ServerID}); err != nil {
+	if err := t.stream.SendCloseMessage(sessionEndEvent{NodeID: t.sessionData.ServerID}); err != nil {
 		t.log.WithError(err).Error("Unable to send close event to web client.")
 		return
 	}

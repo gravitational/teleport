@@ -185,7 +185,7 @@ func TestExecuteCommandSummary(t *testing.T) {
 	var sessionMetadata sessionEndEvent
 	err = dec.Decode(&sessionMetadata)
 	require.NoError(t, err)
-	require.Equal(t, "node", sessionMetadata.ServerID)
+	require.Equal(t, "node", sessionMetadata.NodeID)
 
 	// Consume the summary message
 	var env outEnvelope
