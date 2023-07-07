@@ -35,6 +35,7 @@ import (
 	"golang.org/x/crypto/ssh/agent"
 
 	"github.com/gravitational/teleport/api/breaker"
+	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/constants"
 	apidefaults "github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
@@ -468,4 +469,18 @@ func MustCreateListener(t *testing.T) net.Listener {
 		listener.Close()
 	})
 	return listener
+}
+
+func FindNodeWithLabel(t *testing.T, ctx context.Context, cl auth.ClientI, key string) func() bool {
+	t.Helper()
+	return func() bool {
+		servers, err := cl.ListResources(ctx, proto.ListResourcesRequest{
+			ResourceType: types.KindNode,
+			Namespace:    apidefaults.Namespace,
+			Labels:       map[string]string{key: ""},
+			Limit:        1,
+		})
+		require.NoError(t, err)
+		return len(servers.Resources) >= 1
+	}
 }
