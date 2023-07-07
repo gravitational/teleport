@@ -17,6 +17,8 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/gravitational/trace"
@@ -24,6 +26,7 @@ import (
 	accesslistpb "github.com/gravitational/teleport/api/gen/proto/go/accesslist/v1"
 	"github.com/gravitational/teleport/api/types/header"
 	"github.com/gravitational/teleport/api/types/traits"
+	"github.com/gravitational/teleport/api/utils"
 )
 
 // FromAccessListV1 converts a v1 access list into an internal access list object.
@@ -259,4 +262,38 @@ func (a *AccessList) GetGrants() AccessListGrants {
 // GetMembers returns the members from the access list.
 func (a *AccessList) GetMembers() []AccessListMember {
 	return a.Spec.Members
+}
+
+// GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
+// and should be removed when possible.
+func (a *AccessList) GetMetadata() Metadata {
+	return FromHeaderMetadata(a.Metadata)
+}
+
+// MatchSearch goes through select field values of a resource
+// and tries to match against the list of search values.
+func (a *AccessList) MatchSearch(values []string) bool {
+	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
+	return MatchSearch(fieldVals, values, nil)
+}
+
+func (a *AccessListAudit) UnmarshalJSON(data []byte) error {
+	var audit map[string]interface{}
+	if err := json.Unmarshal(data, &audit); err != nil {
+		return trace.Wrap(err)
+	}
+
+	var err error
+	a.Frequency, err = time.ParseDuration(fmt.Sprintf("%v", audit["frequency"]))
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (a *AccessListAudit) MarshalJSON() ([]byte, error) {
+	audit := map[string]interface{}{}
+	audit["frequency"] = a.Frequency.String()
+	data, err := json.Marshal(audit)
+	return data, trace.Wrap(err)
 }
