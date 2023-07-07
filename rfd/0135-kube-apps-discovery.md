@@ -42,9 +42,12 @@ the backend to change resources to the desired state.
 The Teleport app service that runs in the same Kubernetes cluster will then react to those changes, and will start/stop proxying
 apps that are selected by appropriate labels.
 
-Name of the created Teleport app will consist of Kubernetes service name, namespace and cluster name:
-`$SERVICE_NAME-$CLUSTER_NAME-$NAMESPACE`. This is done to avoid naming collisions in discovered apps. Though app names
-will be long in that case, there's ongoing work to improve UX when working with long resources names in Teleport, see [RFD 129](https://github.com/gravitational/teleport/pull/27258).
+Name of the created Teleport app will consist of Kubernetes service name, namespace and Kubernetes cluster name:
+`$SERVICE_NAME-$NAMESPACE-$KUBE_CLUSTER_NAME`. This is done to avoid naming collisions in discovered apps.
+Dots in the cluster name will be replaces with hyphens "-", remaining parts of the name should already only contain alphanumeric
+symbols and hyphens. Though app names
+will be long in that case, there's ongoing work to improve UX when working with long resources names in Teleport, 
+see [RFD 129](https://github.com/gravitational/teleport/pull/27258).
 
 We will add capability to use optional annotations to better control transformation of Kubernetes services into Teleport apps.
 By default we will be exposing services as `tcp` apps, since it's the most general type, but annotation or exposed port's `appProtocol` field
@@ -67,16 +70,13 @@ Labels from the Kubernetes service will be copied to the corresponding Teleport 
 
 Discovery service will use new `kubernetes` matchers to periodically poll list of services inside the Kubernetes cluster.
 Labels specified in the config will be used to filter out services that should be exposed. Also users will be able to
-specify namespaces to process. Another new field for the configuration of the discovery service will be `kubernetes_cluster` - 
-it specifies kubernetes cluster name in which discovery service is running. It is mandatory if `kubernetes` matchers are
-specified in the config.
+specify namespaces to process. 
 
 ```yaml
 ## This section configures the Discovery Service
 discovery_service:
   enabled: yes
-  discovery_group: kube-auto-apps
-  kubernetes_cluster: main-cluster
+  discovery_group: main-cluster
   kubernetes:
     - types: ["app"] # in the future "db" will be possible
       namespaces: [ "toronto", "porto" ]
@@ -88,8 +88,9 @@ discovery_service:
         env: testing
 ```
 
-`kubernetes_cluster` field in the config will be translated into `teleport.dev/kubernetes-cluster` label on the Teleport app resource, so
-later it's be easier to target it in the corresponding app service.
+`discovery_group` field in the config will be translated into `teleport.dev/kubernetes-cluster` label on the Teleport app resource, so
+later it's be easier to target it in the corresponding app service. If `kubernetes` matchers are
+specified in the config `discovery_group` field is required to be set.
 
 #### Annotations
 
@@ -100,20 +101,20 @@ Annotation `teleport.dev/discovery-type` controls what Teleport entity will be c
 `app` which means Teleport application will be imported from this service. In the future there are plans to expand to database importing.
 If annotation is not set service is treated as an app.
 
-Annotation `teleport.dev/discovery-protocol` controls protocol for the access of the Teleport app we create. If annotation is missing
+Annotation `teleport.dev/protocol` controls protocol for the access of the Teleport app we create. If annotation is missing
 default fallback for the the app's URI is `tcp`. However, if annotation is not set, additional attempts will be performed to try to 
 determine protocol of an exposed port:
 -  if kubernetes service port definition has `appProtocol` field, and it contains
 values `http`/`https` we will use it in the URI.
-- if exposed port's name is `http` or it has numeric value 80, `http` will be used.
+- if exposed port's name is `http` or it has numeric value 80 or 8080, `http` will be used.
 - if exposed port's name is `https` or it has numeric value 443, `https` will be used.
 
-Annotation `teleport.dev/discovery-port` controls preferred port for the Kubernetes service, only this one will be used even if service
+Annotation `teleport.dev/port` controls preferred port for the Kubernetes service, only this one will be used even if service
 has multiple exposed ports. Its value should be one of the exposed service ports; otherwise, the app will not be imported. 
 Value can be matched either by numeric value or by the name of the port defined on the service.
 
 Annotation `teleport.dev/app-rewrite` controls rewrite configuration for Teleport app, if needed. It should
-contain full rewrite configuration in YAML format, as you would put into `rewrite` config section of an 
+contain full rewrite configuration in YAML format, same as one would put into `rewrite` config section of an 
 app (see [documentation](https://goteleport.com/docs/application-access/guides/connecting-apps/#rewrite-redirect)).
 ```yaml
 annotations:
@@ -126,7 +127,6 @@ annotations:
     - "Authorization: Bearer {{internal.jwt}}"
 ```
 
-
 Example Kubernetes service configs using annotations can look like this:
 ```yaml
 apiVersion: v1
@@ -137,8 +137,8 @@ metadata:
     app: first-service
   annotations:
     teleport.dev/discovery-type: app # Allowed values are [`app`]
-    teleport.dev/discovery-protocol: http # Allowed values are [`http`, `https`, `tcp`]
-    teleport.dev/discovery-port: 80
+    teleport.dev/protocol: http # Allowed values are [`http`, `https`, `tcp`]
+    teleport.dev/port: 80
 spec:
   ports:
   - name: http
@@ -159,8 +159,8 @@ metadata:
   labels:
     app: second-service
   annotations:
-    teleport.dev/discovery-protocol: tcp 
-    teleport.dev/discovery-port: fluentd
+    teleport.dev/protocol: tcp 
+    teleport.dev/port: fluentd
 spec:
   ports:
     - name: http
