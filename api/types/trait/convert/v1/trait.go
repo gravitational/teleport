@@ -18,7 +18,7 @@ package traitv1
 
 import (
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
-	"github.com/gravitational/teleport/lib/types/trait"
+	"github.com/gravitational/teleport/api/types/trait"
 )
 
 // FromProto converts an array of v1 traits into a map of string to string array.

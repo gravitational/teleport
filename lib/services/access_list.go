@@ -21,7 +21,7 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/lib/types/accesslist"
+	"github.com/gravitational/teleport/api/types/accesslist"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
