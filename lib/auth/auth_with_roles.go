@@ -1473,8 +1473,25 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 				return nil, trace.Wrap(err)
 			}
 
-			// Only users can watch their own headless authentications.
-			if !hasLocalUserRole(a.context) || filter.Username != a.context.User.GetName() {
+			// Users can only watch their own headless authentications.
+			if !hasLocalUserRole(a.context) {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.AccessDenied("non-local user roles cannot watch headless authentications")
+			}
+
+			if filter.Username == "" {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.AccessDenied("user cannot watch headless authentications without a filter for their username")
+			}
+
+			if filter.Username != a.context.User.GetName() {
+				if watch.AllowPartialSuccess {
+					continue
+				}
 				return nil, trace.AccessDenied("user %q cannot watch headless authentications of %q", a.context.User.GetName(), filter.Username)
 			}
 		default:
