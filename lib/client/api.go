@@ -542,7 +542,7 @@ func VirtualPathEnvNames(kind VirtualPathKind, params VirtualPathParams) []strin
 
 // RetryWithRelogin is a helper error handling method, attempts to relogin and
 // retry the function once.
-func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) error {
+func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error, opts ...RetryWithReloginOption) error {
 	fnErr := fn()
 	switch {
 	case fnErr == nil:
@@ -554,7 +554,10 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	case !IsErrorResolvableWithRelogin(fnErr):
 		return trace.Wrap(fnErr)
 	}
-
+	opt := retryWithReloginOptions{}
+	for _, o := range opts {
+		o(&opt)
+	}
 	log.Debugf("Activating relogin on %v.", fnErr)
 
 	// check if the error is a private key policy error.
@@ -568,6 +571,11 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 		tc.PrivateKeyPolicy = privateKeyPolicy
 	}
 
+	if opt.beforeLoginHook != nil {
+		if err := opt.beforeLoginHook(); err != nil {
+			return trace.Wrap(err)
+		}
+	}
 	key, err := tc.Login(ctx)
 	if err != nil {
 		if errors.Is(err, prompt.ErrNotTerminal) {
@@ -601,6 +609,24 @@ func RetryWithRelogin(ctx context.Context, tc *TeleportClient, fn func() error) 
 	}
 
 	return fn()
+}
+
+// RetryWithReloginOption is a functional option for configuring the
+// RetryWithRelogin helper.
+type RetryWithReloginOption func(*retryWithReloginOptions)
+
+// retryWithReloginOptions is a struct for configuring the RetryWithRelogin
+type retryWithReloginOptions struct {
+	// beforeLoginHook is a function that will be called before the login attempt.
+	beforeLoginHook func() error
+}
+
+// WithBeforeLogin is a functional option for configuring a function that will
+// be called before the login attempt.
+func WithBeforeLoginHook(fn func() error) RetryWithReloginOption {
+	return func(o *retryWithReloginOptions) {
+		o.beforeLoginHook = fn
+	}
 }
 
 func IsErrorResolvableWithRelogin(err error) bool {
