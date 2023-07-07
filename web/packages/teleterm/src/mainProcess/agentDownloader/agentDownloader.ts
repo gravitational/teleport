@@ -42,8 +42,12 @@ interface AgentBinaryParams {
 
 /**
  * Downloads and unpacks the agent binary, if it has not already been downloaded.
- * If `RuntimeSettings` does not contain the correct version (so it equals 1.0.0-dev),
- * the version from AGENT_VERSION env var is taken or the latest available version of the agent is downloaded.
+ *
+ * The agent version to download is taken from settings.appVersion if it is not a dev version (1.0.0-dev).
+ * The settings.appVersion is set to a real version only for packaged apps that went through our CI build pipeline.
+ * In local builds, both for the development version and for packaged apps, settings.appVersion is set to 1.0.0-dev.
+ * In those cases, we fetch the latest available stable version of the agent.
+ * AGENT_VERSION is available as an escape hatch for cases where we want to fetch a different version.
  */
 export async function downloadAgent(
   fileDownloader: IFileDownloader,

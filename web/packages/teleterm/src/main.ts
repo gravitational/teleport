@@ -197,8 +197,9 @@ async function initializeApp(): Promise<void> {
 
 /**
  * There is an outstanding issue about Electron storing its caches in the wrong location https://github.com/electron/electron/issues/8124.
- * Based on the Apple Developer docs and the discussion under that issue, changing the location of `sessionData`
- * to `~/Library/Caches` on macOS and `XDG_CACHE_HOME` or `~/.cache`
+ * Based on the Apple Developer docs (https://developer.apple.com/documentation/foundation/optimizing_your_app_s_data_for_icloud_backup/#3928528)
+ * and the discussion under that issue, changing the location of `sessionData` to `~/Library/Caches` on macOS
+ * and `XDG_CACHE_HOME` or `~/.cache`
  * (https://specifications.freedesktop.org/basedir-spec/basedir-spec-latest.html) on Linux seems like a reasonable thing to do.
  */
 function updateSessionDataPath() {
