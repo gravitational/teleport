@@ -18,7 +18,7 @@ import { pipeline } from 'node:stream/promises';
 import { createReadStream } from 'node:fs';
 import { join } from 'node:path';
 import { createUnzip } from 'node:zlib';
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
 import { extract } from 'tar-fs';
@@ -122,17 +122,21 @@ async function isAgentAlreadyDownloaded(
   agentBinaryPath: string,
   neededVersion: string
 ): Promise<boolean> {
-  const asyncExec = promisify(exec);
+  const asyncExecFile = promisify(execFile);
   try {
-    const agentVersion = await asyncExec(
-      `${agentBinaryPath.replace(/ /g, '\\ ')} version --raw`,
+    const agentVersion = await asyncExecFile(
+      agentBinaryPath,
+      ['version', '--raw'],
       {
         timeout: 10_000, // 10 seconds
       }
     );
     return agentVersion.stdout.trim() === neededVersion;
   } catch (e) {
-    logger.error(e);
+    // When it is called the first time, the binary does not yet exist.
+    if (e.code !== 'ENOENT') {
+      throw e;
+    }
     return false;
   }
 }

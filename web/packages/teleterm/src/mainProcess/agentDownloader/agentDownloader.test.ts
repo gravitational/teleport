@@ -61,6 +61,7 @@ beforeAll(() => {
   // eslint-disable-next-line jest/prefer-spy-on
   global.fetch = jest.fn().mockImplementation(() =>
     Promise.resolve({
+      ok: true,
       json: () => Promise.resolve(LATEST_TELEPORT_VERSIONS_MOCK),
     })
   );
@@ -125,14 +126,20 @@ test.each(testCases)(
       run: jest.fn(() => Promise.resolve()),
     };
     jest
-      .spyOn(childProcess, 'exec')
-      .mockImplementation((command, options, callback) => {
-        // @ts-expect-error - it should be `callback(undefined, stdout, stderr)`,
-        // but if I do this, asyncExec tries to read stdout.stdout (a string from string).
-        callback(undefined, {
-          stdout: versionFromCache,
-          stderr: undefined,
-        });
+      .spyOn(childProcess, 'execFile')
+      .mockImplementation((command, args, options, callback) => {
+        if (versionFromCache) {
+          // @ts-expect-error - it should be `callback(undefined, stdout, stderr)`,
+          // but if I do this, asyncExec tries to read stdout.stdout (a string from string).
+          callback(undefined, {
+            stdout: versionFromCache,
+            stderr: undefined,
+          });
+        } else {
+          const error = new Error();
+          error['code'] = 'ENOENT';
+          callback(error, undefined, undefined);
+        }
         return this;
       });
     jest.spyOn(fs, 'createReadStream').mockImplementation(getStreamMock);
