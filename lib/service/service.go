@@ -5309,6 +5309,11 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 			cfg.Log.Errorf("Error parsing proxy.public_address %v, skipping adding to self-signed cert: %v", addr.String(), err)
 			continue
 		}
+    // not including IPs included for public addresses for DNS SANS, may want to add to IP SANS in a future version
+    if ip := net.ParseIP(proxyHost); ip != nil {
+				cfg.Log.Warningf("proxy.public_address %v is an IP address, skipping adding to self-signed cert as DNS SANS.", proxyHost)
+				continue
+			}
 		hosts = append(hosts, proxyHost)
 	}
 
