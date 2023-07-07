@@ -328,7 +328,7 @@ const CreateAccessRole = ({
             <TextSelectCopyMulti
               lines={[
                 {
-                  text: `sudo bash -c "$(curl '${scriptUrl}')"`,
+                  text: `bash -c "$(curl '${scriptUrl}')"`,
                 },
               ]}
             />
