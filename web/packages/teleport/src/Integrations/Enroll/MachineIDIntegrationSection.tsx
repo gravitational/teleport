@@ -53,7 +53,7 @@ const integrations: Integration[] = [
     kind: IntegrationEnrollKind.MachineIDCircleCI,
   },
   {
-    title: 'GitLab CI',
+    title: 'GitLab CI/CD',
     link: 'https://goteleport.com/docs/machine-id/guides/gitlab/',
     icon: <GitLabIcon size={80} />,
     kind: IntegrationEnrollKind.MachineIDGitLab,
