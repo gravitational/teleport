@@ -31,7 +31,10 @@ import * as service from 'teleport/services/userPreferences';
 
 import storage, { KeysEnum } from 'teleport/services/localStorage';
 
-import { ThemePreference } from 'teleport/services/userPreferences/types';
+import {
+  deprecatedThemeToThemePreference,
+  ThemePreference,
+} from 'teleport/services/userPreferences/types';
 
 import { makeDefaultUserPreferences } from 'teleport/services/userPreferences/userPreferences';
 
@@ -60,21 +63,25 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
 
   async function loadUserPreferences() {
     const storedPreferences = storage.getUserPreferences();
-    const theme = storage.getThemePreference();
+    const theme = storage.getDeprecatedThemePreference();
 
     try {
       const preferences = await service.getUserPreferences();
 
       if (!storedPreferences) {
         // there are no mirrored user preferences in local storage so this is the first time
-        // the user has requested their preferences
+        // the user has requested their preferences in this browser session
 
-        // update the preferences with the previous theme setting in local storage
-        preferences.theme = theme;
+        // if there is a legacy theme preference, update the preferences with it and remove it
+        if (theme) {
+          preferences.theme = deprecatedThemeToThemePreference(theme);
 
-        if (theme !== ThemePreference.Light) {
-          // the light theme is the default, so only update the backend if it is not light
-          updatePreferences({ theme });
+          if (preferences.theme !== ThemePreference.Light) {
+            // the light theme is the default, so only update the backend if it is not light
+            updatePreferences({ theme: preferences.theme });
+          }
+
+          storage.clearDeprecatedThemePreference();
         }
       }
 
@@ -88,7 +95,10 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
       }
 
       if (theme) {
-        setPreferences({ ...preferences, theme });
+        setPreferences({
+          ...preferences,
+          theme: deprecatedThemeToThemePreference(theme),
+        });
       }
     }
   }
