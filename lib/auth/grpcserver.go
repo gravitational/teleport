@@ -39,6 +39,7 @@ import (
 	"google.golang.org/grpc/keepalive"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/status"
+	gproto "google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/emptypb"
 
 	"github.com/gravitational/teleport"
@@ -47,6 +48,7 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 	"github.com/gravitational/teleport/api/gen/proto/go/assist/v1"
 	auditlogpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/auditlog/v1"
+	eventv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/event/v1"
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
@@ -109,6 +111,7 @@ var (
 // GRPCServer is GPRC Auth Server API
 type GRPCServer struct {
 	auditlogpb.UnimplementedAuditLogServiceServer
+	eventv1.UnimplementedEventServiceServer
 	*logrus.Entry
 	APIConfig
 	server *grpc.Server
@@ -359,14 +362,21 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 const logInterval = 10000
 
 // WatchEvents returns a new stream of cluster events
-func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_WatchEventsServer) error {
+func (g *GRPCServer) WatchEvents(watch *eventv1.Watch, stream eventv1.EventService_WatchEventsServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
 	}
+	kinds := make([]types.WatchKind, len(watch.Kinds))
+	for i, kind := range watch.GetKinds() {
+		if kind == nil {
+			return trace.BadParameter("kind should not be nil")
+		}
+		kinds[i] = *kind
+	}
 	servicesWatch := types.Watch{
 		Name:                auth.User.GetName(),
-		Kinds:               watch.Kinds,
+		Kinds:               kinds,
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 
@@ -395,8 +405,9 @@ func (g *GRPCServer) WatchEvents(watch *proto.Watch, stream proto.AuthService_Wa
 				return trace.Wrap(err)
 			}
 
-			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
-			watcherEventSizes.Observe(float64(out.Size()))
+			size := float64(gproto.Size(out))
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(size)
+			watcherEventSizes.Observe(size)
 
 			if err := stream.Send(out); err != nil {
 				return trace.Wrap(err)
@@ -5213,7 +5224,7 @@ func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.G
 }
 
 // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
-func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, stream proto.AuthService_WatchPendingHeadlessAuthenticationsServer) error {
+func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, stream eventv1.EventService_WatchPendingHeadlessAuthenticationsServer) error {
 	auth, err := g.authenticate(stream.Context())
 	if err != nil {
 		return trace.Wrap(err)
@@ -5244,8 +5255,9 @@ func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, strea
 				return trace.Wrap(err)
 			}
 
-			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
-			watcherEventSizes.Observe(float64(out.Size()))
+			size := float64(gproto.Size(out))
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(size)
+			watcherEventSizes.Observe(size)
 
 			if err := stream.Send(out); err != nil {
 				return trace.Wrap(err)
@@ -5394,6 +5406,7 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 	}
 
 	proto.RegisterAuthServiceServer(server, authServer)
+	eventv1.RegisterEventServiceServer(server, authServer)
 	collectortracepb.RegisterTraceServiceServer(server, authServer)
 	auditlogpb.RegisterAuditLogServiceServer(server, authServer)
 

@@ -20,18 +20,22 @@ import (
 	"context"
 	"sync"
 
+	eventv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/event/v1"
 	"github.com/gravitational/trace"
 	"github.com/gravitational/trace/trail"
 
-	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
 )
 
 // NewWatcher returns a new streamWatcher
 func (c *Client) NewWatcher(ctx context.Context, watch types.Watch) (types.Watcher, error) {
 	cancelCtx, cancel := context.WithCancel(ctx)
-	protoWatch := proto.Watch{
-		Kinds:               watch.Kinds,
+	kinds := make([]*types.WatchKind, len(watch.Kinds))
+	for i, kind := range watch.Kinds {
+		kinds[i] = &kind
+	}
+	protoWatch := eventv1.Watch{
+		Kinds:               kinds,
 		AllowPartialSuccess: watch.AllowPartialSuccess,
 	}
 	stream, err := c.grpc.WatchEvents(cancelCtx, &protoWatch)
@@ -51,7 +55,7 @@ func (c *Client) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 
 type streamWatcher struct {
 	mu      sync.RWMutex
-	stream  proto.AuthService_WatchEventsClient
+	stream  eventv1.EventService_WatchEventsClient
 	ctx     context.Context
 	cancel  context.CancelFunc
 	eventsC chan types.Event
@@ -87,7 +91,7 @@ func (w *streamWatcher) receiveEvents() {
 			w.closeWithError(trail.FromGRPC(err))
 			return
 		}
-		out, err := EventFromGRPC(*event)
+		out, err := EventFromGRPC(event)
 		if err != nil {
 			w.closeWithError(trail.FromGRPC(err))
 			return

@@ -4,6 +4,7 @@ deps:
   - buf.build/gogo/protobuf:b03c65ea87cdc3521ede29f62fe3ce239267c1bc
   - buf.build/googleapis/googleapis:beb34b4050abfcfff72ff5cc6a28f0afa4043ce0
 lint:
+  allow_comment_ignores: true
   use:
     - DEFAULT
     - PACKAGE_NO_IMPORT_CYCLE
