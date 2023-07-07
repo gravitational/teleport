@@ -15,23 +15,8 @@
  */
 
 import React from 'react';
-import { Box, Flex, Link as ExternalLink, Text } from 'design';
+import { Box, Flex, Text } from 'design';
 import styled from 'styled-components';
-
-import {
-  AnsibleIcon,
-  CircleCIIcon,
-  GitHubIcon,
-  GitLabIcon,
-  JenkinsIcon,
-  ServersIcon,
-} from 'design/SVGIcon';
-
-import {
-  IntegrationEnrollEvent,
-  IntegrationEnrollKind,
-  userEventService,
-} from 'teleport/services/userEvent';
 
 export const IntegrationTile = styled(Flex)`
   color: inherit;
@@ -72,93 +57,3 @@ export const NoCodeIntegrationDescription = () => (
     </Text>
   </Box>
 );
-
-export const MachineIDIntegrationSection = () => {
-  interface tile {
-    title: string;
-    link: string;
-    icon: JSX.Element;
-    kind: IntegrationEnrollKind;
-  }
-  const tiles: tile[] = [
-    {
-      title: 'GitHub Actions',
-      link: 'https://goteleport.com/docs/machine-id/guides/github-actions/',
-      icon: <GitHubIcon size={80} />,
-      kind: IntegrationEnrollKind.MachineIDGitHubActions,
-    },
-    {
-      title: 'CircleCI',
-      link: 'https://goteleport.com/docs/machine-id/guides/circleci/',
-      icon: <CircleCIIcon size={80} />,
-      kind: IntegrationEnrollKind.MachineIDCircleCI,
-    },
-    {
-      title: 'GitLab CI',
-      link: 'https://goteleport.com/docs/machine-id/guides/gitlab/',
-      icon: <GitLabIcon size={80} />,
-      kind: IntegrationEnrollKind.MachineIDGitLab,
-    },
-    {
-      title: 'Jenkins',
-      link: 'https://goteleport.com/docs/machine-id/guides/jenkins/',
-      icon: <JenkinsIcon size={80} />,
-      kind: IntegrationEnrollKind.MachineIDJenkins,
-    },
-    {
-      title: 'Ansible',
-      link: 'https://goteleport.com/docs/machine-id/guides/ansible/',
-      icon: <AnsibleIcon size={80} />,
-      kind: IntegrationEnrollKind.MachineIDAnsible,
-    },
-    {
-      title: 'Generic',
-      link: 'https://goteleport.com/docs/machine-id/getting-started/',
-      icon: <ServersIcon size={80} />,
-      kind: IntegrationEnrollKind.MachineID,
-    },
-  ];
-
-  const propsForTile = (t: tile) => {
-    return {
-      as: ExternalLink,
-      href: t.link,
-      target: '_blank',
-      onClick: () => {
-        userEventService.captureIntegrationEnrollEvent({
-          event: IntegrationEnrollEvent.Started,
-          eventData: {
-            id: crypto.randomUUID(),
-            kind: t.kind,
-          },
-        });
-      },
-    };
-  };
-
-  return (
-    <>
-      <Box mb={3}>
-        <Text fontWeight="bold" typography="h4">
-          Machine ID
-        </Text>
-        <Text typography="body1">
-          Set up Teleport Machine ID to allow CI/CD workflows and other machines
-          to access resources protected by Teleport.
-        </Text>
-      </Box>
-      <Flex mb={2} gap={3}>
-        {tiles.map((t: tile) => {
-          return (
-            <IntegrationTile {...propsForTile(t)}>
-              <Box mt={3} mb={2}>
-                {t.icon}
-              </Box>
-              <Text>{t.title}</Text>
-            </IntegrationTile>
-          );
-        })}
-      </Flex>
-    </>
-  );
-};
