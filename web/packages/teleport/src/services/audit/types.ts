@@ -595,6 +595,12 @@ export type RawEvents = {
       name: string;
     }
   >;
+  [eventCodes.PROVISION_TOKEN_CREATED]: RawEvent<
+    typeof eventCodes.PROVISION_TOKEN_CREATED,
+    {
+      roles: string[];
+    }
+  >;
   [eventCodes.KUBE_REQUEST]: RawEvent<
     typeof eventCodes.KUBE_REQUEST,
     {

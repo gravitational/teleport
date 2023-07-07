@@ -921,7 +921,14 @@ func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.Generate
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return "", trace.Wrap(err)
 	}
-	return a.authServer.GenerateToken(ctx, req)
+
+	token, err := a.authServer.GenerateToken(ctx, req)
+	if err != nil {
+		return "", trace.Wrap(err)
+	}
+
+	emitTokenEvent(ctx, a.authServer.emitter, req.Roles)
+	return token, nil
 }
 
 func (a *ServerWithRoles) RegisterUsingToken(ctx context.Context, req *types.RegisterUsingTokenRequest) (*proto.Certs, error) {
@@ -2048,19 +2055,22 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 }
 
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
-// events. For now, this just emits trusted_cluster_token.create.
-func emitTokenEvent(ctx context.Context, e apievents.Emitter, token types.ProvisionToken) {
+// events.
+func emitTokenEvent(ctx context.Context, e apievents.Emitter, roles types.SystemRoles) {
 	userMetadata := authz.ClientUserMetadata(ctx)
-	e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
+	if err := e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
 		Metadata: apievents.Metadata{
 			Type: events.ProvisionTokenCreateEvent,
 			Code: events.ProvisionTokenCreateCode,
 		},
 		UserMetadata: userMetadata,
-		Roles:        token.GetRoles(),
-	})
-	for _, role := range token.GetRoles() {
+		Roles:        roles,
+	}); err != nil {
+		log.WithError(err).Warn("Failed to emit join token create event.")
+	}
+	for _, role := range roles {
 		if role == types.RoleTrustedCluster {
+			//nolint:staticcheck // Emit a deprecated event.
 			if err := e.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
 				Metadata: apievents.Metadata{
 					Type: events.TrustedClusterTokenCreateEvent,
@@ -2084,7 +2094,7 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	emitTokenEvent(ctx, a.authServer.emitter, token)
+	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles())
 	return nil
 }
 
@@ -2098,7 +2108,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	emitTokenEvent(ctx, a.authServer.emitter, token)
+	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles())
 	return nil
 }
 
