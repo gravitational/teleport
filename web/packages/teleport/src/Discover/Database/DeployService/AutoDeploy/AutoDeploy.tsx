@@ -239,8 +239,8 @@ const Heading = ({
         database. Teleport can configure the permissions required to spin up an
         ECS Fargate container (2vCPU, 4GB memory) in your Amazon account with
         the ability to access databases in this region (<Mark>{region}</Mark>).
-        You will only need to do this once for all databases per geographical
-        region. <br />
+        You will only need to do this once per geographical region.
+        <br />
         <br />
         Want to deploy a database service manually from one of your existing
         servers?{' '}
@@ -305,8 +305,8 @@ const CreateAccessRole = ({
         width="440px"
         mr="3"
         onChange={e => setTaskRoleArn(e.target.value)}
-        toolTipContent={`Amazon Resource Names (ARNs) uniquely identifies AWS \
-        resources, in this case you will be naming an IAM role that this \
+        toolTipContent={`Amazon Resource Names (ARNs) uniquely identify AWS \
+        resources. In this case you will naming an IAM role that this \
         deployed service will be using`}
       />
       <ButtonSecondary mb={3} onClick={generateAutoConfigScript}>

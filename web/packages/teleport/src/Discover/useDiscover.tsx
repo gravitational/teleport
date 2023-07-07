@@ -472,9 +472,9 @@ export type NodeMeta = BaseMeta & {
 export type DbMeta = BaseMeta & {
   // TODO(lisa): when we can enroll multiple RDS's, turn this into an array?
   // The enroll event expects num count of enrolled RDS's, update accordingly.
-  db: Database;
+  db?: Database;
   integration?: Integration;
-  selectedAwsRdsDb: AwsRdsDatabase;
+  selectedAwsRdsDb?: AwsRdsDatabase;
   // serviceDeployedMethod flag will be undefined if user skipped
   // deploying service (service already existed).
   serviceDeployedMethod?: ServiceDeployMethod;

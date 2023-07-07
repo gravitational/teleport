@@ -169,10 +169,12 @@ describe('test AutoDeploy.tsx', () => {
 
     fireEvent.click(screen.getByText(/Deploy Teleport Service/i));
 
+    // test initial loading state
     await screen.findByText(
       /Teleport is currently deploying a Database Service/i
     );
 
+    // test waiting state
     act(() => jest.advanceTimersByTime(SHOW_HINT_TIMEOUT + 1));
 
     expect(
@@ -180,6 +182,14 @@ describe('test AutoDeploy.tsx', () => {
         /We're still in the process of creating your Database Service/i
       )
     ).toBeInTheDocument();
+
+    // test success state
+    jest.spyOn(teleCtx.databaseService, 'fetchDatabases').mockResolvedValue({
+      agents: [{} as any], // the result doesn't matter, just need size one array.
+    });
+
+    act(() => jest.advanceTimersByTime(TEST_PING_INTERVAL + 1));
+    await screen.findByText(/Successfully created/i);
   });
 });
 
