@@ -53,6 +53,7 @@ describe('test EnrollRdsDatabase.tsx', () => {
       },
     } as any,
     viewConfig: null,
+    exitFlow: null,
     indexedViews: [],
     setResourceSpec: () => null,
     updateAgentMeta: jest.fn(x => x),
@@ -140,5 +141,7 @@ const mockAwsDbs: AwsRdsDatabase[] = [
     labels: [{ name: 'env', value: 'prod' }],
     accountId: 'account-id-1',
     resourceId: 'resource-id-1',
+    region: 'us-east-2',
+    subnets: ['subnet1', 'subnet2'],
   },
 ];

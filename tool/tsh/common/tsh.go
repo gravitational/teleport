@@ -452,10 +452,17 @@ type CLIConf struct {
 	// HeadlessAuthenticationID is the ID of a headless authentication.
 	HeadlessAuthenticationID string
 
+	// headlessSkipConfirm determines whether to provide a y/N
+	// confirmation prompt before prompting for MFA.
+	headlessSkipConfirm bool
+
 	// DTAuthnRunCeremony allows tests to override the default device
 	// authentication function.
 	// Defaults to [dtauthn.NewCeremony().Run].
 	DTAuthnRunCeremony client.DTAuthnRunCeremonyFunc
+
+	// LeafClusterName is the optional name of a leaf cluster to connect to instead
+	LeafClusterName string
 }
 
 // Stdout returns the stdout writer.
@@ -525,13 +532,14 @@ func Main() {
 }
 
 const (
-	authEnvVar        = "TELEPORT_AUTH"
-	clusterEnvVar     = "TELEPORT_CLUSTER"
-	kubeClusterEnvVar = "TELEPORT_KUBE_CLUSTER"
-	loginEnvVar       = "TELEPORT_LOGIN"
-	bindAddrEnvVar    = "TELEPORT_LOGIN_BIND_ADDR"
-	proxyEnvVar       = "TELEPORT_PROXY"
-	headlessEnvVar    = "TELEPORT_HEADLESS"
+	authEnvVar                = "TELEPORT_AUTH"
+	clusterEnvVar             = "TELEPORT_CLUSTER"
+	kubeClusterEnvVar         = "TELEPORT_KUBE_CLUSTER"
+	loginEnvVar               = "TELEPORT_LOGIN"
+	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
+	proxyEnvVar               = "TELEPORT_PROXY"
+	headlessEnvVar            = "TELEPORT_HEADLESS"
+	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
 	// TELEPORT_SITE uses the older deprecated "site" terminology to refer to a
 	// cluster. All new code should use TELEPORT_CLUSTER instead.
 	siteEnvVar               = "TELEPORT_SITE"
@@ -839,7 +847,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	play.Arg("session-id", "ID of the session to play").Required().StringVar(&cf.SessionID)
 
 	// scp
-	scp := app.Command("scp", "Transfer files to a remote Node.")
+	scp := app.Command("scp", "Transfer files to a remote SSH node.")
 	scp.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	scp.Arg("from, to", "Source and destination to copy, one must be a local path and one must be a remote path").Required().StringsVar(&cf.CopySpec)
 	scp.Flag("recursive", "Recursive copy of subdirectories").Short('r').BoolVar(&cf.RecursiveCopy)
@@ -887,7 +895,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	logout := app.Command("logout", "Delete a cluster certificate.")
 
 	// bench
-	bench := app.Command("bench", "Run shell or execute a command on a remote SSH node.").Hidden()
+	bench := app.Command("bench", "Run Teleport benchmark tests.").Hidden()
 	bench.Flag("cluster", clusterHelp).Short('c').StringVar(&cf.SiteName)
 	bench.Flag("duration", "Test duration").Default("1s").DurationVar(&cf.BenchDuration)
 	bench.Flag("rate", "Requests per second rate").Default("10").IntVar(&cf.BenchRate)
@@ -896,14 +904,21 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	bench.Flag("ticks", "Ticks per half distance").Default("100").Int32Var(&cf.BenchTicks)
 	bench.Flag("scale", "Value scale in which to scale the recorded values").Default("1.0").Float64Var(&cf.BenchValueScale)
 
-	benchSSH := bench.Command("ssh", "Run SSH benchmark test").Hidden()
+	benchSSH := bench.Command("ssh", "Run SSH benchmark tests").Hidden()
 	benchSSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
 	benchSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
 	benchSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
-	benchSSH.Flag("interactive", "Create interactive SSH session").BoolVar(&cf.BenchInteractive)
 	benchSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+
+	benchWeb := bench.Command("web", "Run Web benchmark tests").Hidden()
+	benchWebSSH := benchWeb.Command("ssh", "Run SSH benchmark tests").Hidden()
+	benchWebSSH.Arg("[user@]host", "Remote hostname and the login to use").Required().StringVar(&cf.UserHost)
+	benchWebSSH.Arg("command", "Command to execute on a remote host").Required().StringsVar(&cf.RemoteCommand)
+	benchWebSSH.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
+	benchWebSSH.Flag("random", "Connect to random hosts for each SSH session. The provided hostname must be all: tsh bench ssh --random <user>@all <command>").BoolVar(&cf.BenchRandom)
+
 	var benchKubeOpts benchKubeOptions
-	benchKube := bench.Command("kube", "Run Kube benchmark test").Hidden()
+	benchKube := bench.Command("kube", "Run Kube benchmark tests").Hidden()
 	benchKube.Flag("kube-namespace", "Selects the ").Default("default").StringVar(&benchKubeOpts.namespace)
 	benchListKube := benchKube.Command("ls", "Run a benchmark test to list Pods").Hidden()
 	benchListKube.Arg("kube_cluster", "Kubernetes cluster to use").Required().StringVar(&cf.KubernetesCluster)
@@ -975,8 +990,9 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// Headless login approval
 	headless := app.Command("headless", "Headless authentication commands.").Interspersed(true)
-	approve := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
-	approve.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove := headless.Command("approve", "Approve a headless authentication request.").Interspersed(true)
+	headlessApprove.Arg("request id", "Headless authentication request ID").StringVar(&cf.HeadlessAuthenticationID)
+	headlessApprove.Flag("skip-confirm", "Skip confirmation and prompt for MFA immediately").Envar(headlessSkipConfirmEnvVar).BoolVar(&cf.headlessSkipConfirm)
 
 	reqDrop := req.Command("drop", "Drop one more access requests from current identity.")
 	reqDrop.Arg("request-id", "IDs of requests to drop (default drops all requests)").Default("*").StringsVar(&cf.RequestIDs)
@@ -989,6 +1005,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	mfa := newMFACommand(app)
 
 	config := app.Command("config", "Print OpenSSH configuration details.")
+
+	puttyConfig := app.Command("puttyconfig", "Add PuTTY saved session configuration for specified hostname to Windows registry")
+	puttyConfig.Arg("[user@]host", "Remote hostname and optional login to use").Required().StringVar(&cf.UserHost)
+	puttyConfig.Flag("port", "SSH port on a remote host").Short('p').Int32Var(&cf.NodePort)
+	puttyConfig.Flag("leaf", "Add a configuration for connecting to a leaf cluster").StringVar(&cf.LeafClusterName)
+	// only expose `tsh puttyconfig` subcommand on windows
+	if runtime.GOOS != constants.WindowsOS {
+		puttyConfig.Hidden()
+	}
 
 	// FIDO2, TouchID and WebAuthnWin commands.
 	f2 := newFIDO2Command(app)
@@ -1089,6 +1114,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	// because the data that we would be tracing would be the tsh kubectl command.
 	// Instead, we want to enable tracing for the re-executed kubectl command and
 	// we do that in the kubectl command handler.
+	cf.TracingProvider = tracing.NoopProvider()
+	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 	if cf.SampleTraces && cf.command != kubectl.FullCommand() {
 		// login only needs to be ignored if forwarding to auth
 		var ignored []string
@@ -1099,16 +1126,13 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		if err != nil {
 			log.WithError(err).Debug("failed to set up span forwarding.")
 		} else {
-			// only update the provider if we successfully set it up
-			cf.TracingProvider = provider
-
 			// ensure that the provider is shutdown on exit to flush any spans
 			// that haven't been forwarded yet.
 			defer func() {
 				shutdownCtx, cancel := context.WithTimeout(cf.Context, 1*time.Second)
 				defer cancel()
 				err := provider.Shutdown(shutdownCtx)
-				if err != nil && !strings.Contains(err.Error(), context.DeadlineExceeded.Error()) {
+				if err != nil && !errors.Is(err, context.DeadlineExceeded) {
 					log.WithError(err).Debugf("failed to shutdown trace provider")
 				}
 			}()
@@ -1117,7 +1141,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 
 	// start the span for the command and update the config context so that all spans created
 	// in the future will be rooted at this span.
-	ctx, span := cf.TracingProvider.Tracer(teleport.ComponentTSH).Start(cf.Context, command)
+	ctx, span := cf.tracer.Start(cf.Context, command)
 	cf.Context = ctx
 	defer span.End()
 
@@ -1180,6 +1204,15 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 			&benchmark.SSHBenchmark{
 				Command: cf.RemoteCommand,
 				Random:  cf.BenchRandom,
+			},
+		)
+	case benchWebSSH.FullCommand():
+		err = onBenchmark(
+			&cf,
+			&benchmark.WebSSHBenchmark{
+				Command:  cf.RemoteCommand,
+				Random:   cf.BenchRandom,
+				Duration: cf.BenchDuration,
 			},
 		)
 	case benchListKube.FullCommand():
@@ -1302,6 +1335,8 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = onRequestDrop(&cf)
 	case config.FullCommand():
 		err = onConfig(&cf)
+	case puttyConfig.FullCommand():
+		err = onPuttyConfig(&cf)
 	case aws.FullCommand():
 		err = onAWS(&cf)
 	case azure.FullCommand():
@@ -1328,10 +1363,12 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 		err = deviceCmd.collect.run(&cf)
 	case deviceCmd.keyget.FullCommand():
 		err = deviceCmd.keyget.run(&cf)
+	case deviceCmd.activateCredential.FullCommand():
+		err = deviceCmd.activateCredential.run(&cf)
 	case kubectl.FullCommand():
 		idx := slices.Index(args, kubectl.FullCommand())
 		err = onKubectlCommand(&cf, args, args[idx:])
-	case approve.FullCommand():
+	case headlessApprove.FullCommand():
 		err = onHeadlessApprove(&cf)
 	default:
 		// Handle commands that might not be available.
@@ -1381,6 +1418,8 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 			SamplingRate: 1.0,
 		})
 
+		cf.TracingProvider = provider
+		cf.tracer = provider.Tracer(teleport.ComponentTSH)
 		return provider, trace.Wrap(err)
 	}
 
@@ -1417,6 +1456,8 @@ func newTraceProvider(cf *CLIConf, command string, ignored []string) (*tracing.P
 		return nil, trace.Wrap(err)
 	}
 
+	cf.TracingProvider = provider
+	cf.tracer = provider.Tracer(teleport.ComponentTSH)
 	return provider, nil
 }
 
@@ -1437,7 +1478,7 @@ func onVersion(cf *CLIConf) error {
 	format := strings.ToLower(cf.Format)
 	switch format {
 	case teleport.Text, "":
-		utils.PrintVersion()
+		modules.GetModules().PrintVersion()
 		if proxyVersion != "" {
 			fmt.Printf("Proxy version: %s\n", proxyVersion)
 			fmt.Printf("Proxy: %s\n", proxyPublicAddr)
@@ -1697,7 +1738,13 @@ func onLogin(cf *CLIConf) error {
 			// Try updating kube config. If it fails, then we may have
 			// switched to an inactive profile. Continue to normal login.
 			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err == nil {
-				return trace.Wrap(onStatus(cf))
+				profile, profiles, err = cf.FullProfileStatus()
+				if err != nil {
+					return trace.Wrap(err)
+				}
+
+				// Print status to show information of the logged in user.
+				return trace.Wrap(printProfiles(cf, profile, profiles))
 			}
 
 		// proxy is unspecified or the same as the currently provided proxy,
@@ -1723,7 +1770,8 @@ func onLogin(cf *CLIConf) error {
 				return trace.Wrap(err)
 			}
 
-			return trace.Wrap(onStatus(cf))
+			// Print status to show information of the logged in user.
+			return trace.Wrap(printProfiles(cf, profile, profiles))
 		// proxy is unspecified or the same as the currently provided proxy,
 		// but desired roles or request ID is specified, treat this as a
 		// privilege escalation request for the same login session.
@@ -1738,7 +1786,8 @@ func onLogin(cf *CLIConf) error {
 			if err := updateKubeConfigOnLogin(cf, tc, updateKubeConfigOption); err != nil {
 				return trace.Wrap(err)
 			}
-			return trace.Wrap(onStatus(cf))
+			// Print status to show information of the logged in user.
+			return trace.Wrap(printProfiles(cf, profile, profiles))
 
 		// otherwise just pass through to standard login
 		default:
@@ -1769,9 +1818,14 @@ func onLogin(cf *CLIConf) error {
 	// "authoritative" source.
 	cf.Username = tc.Username
 
-	if err := tc.ActivateKey(cf.Context, key); err != nil {
+	proxyClient, rootAuthClient, err := tc.ConnectToRootCluster(cf.Context, key)
+	if err != nil {
 		return trace.Wrap(err)
 	}
+	defer func() {
+		rootAuthClient.Close()
+		proxyClient.Close()
+	}()
 
 	// TODO(fspmarshall): Refactor access request & cert reissue logic to allow
 	// access requests to be applied to identity files.
@@ -1779,8 +1833,7 @@ func onLogin(cf *CLIConf) error {
 		// key.TrustedCA at this point only has the CA of the root cluster we
 		// logged into. We need to fetch all the CAs for leaf clusters too, to
 		// make them available in the identity file.
-		rootClusterName := key.TrustedCerts[0].ClusterName
-		authorities, err := tc.GetTrustedCA(cf.Context, rootClusterName)
+		authorities, err := rootAuthClient.GetCertAuthorities(cf.Context, types.HostCA, false)
 		if err != nil {
 			return trace.Wrap(err)
 		}
@@ -1812,7 +1865,7 @@ func onLogin(cf *CLIConf) error {
 	// Attempt device login. This activates a fresh key if successful.
 	// We do not save the resulting in the identity file above on purpose, as this
 	// certificate is bound to the present device.
-	if err := tc.AttemptDeviceLogin(cf.Context, key); err != nil {
+	if err := tc.AttemptDeviceLogin(cf.Context, key, rootAuthClient); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -1829,33 +1882,24 @@ func onLogin(cf *CLIConf) error {
 	}
 
 	if autoRequest && cf.DesiredRoles == "" && cf.RequestID == "" {
-		var capabailities *types.AccessCapabilities
-		err = tc.WithRootClusterClient(cf.Context, func(clt auth.ClientI) error {
-			cap, err := clt.GetAccessCapabilities(cf.Context, types.AccessCapabilitiesRequest{
-				User: cf.Username,
-			})
-			if err != nil {
-				return trace.Wrap(err)
-			}
-
-			capabailities = cap
-
-			return nil
+		capabilities, err := rootAuthClient.GetAccessCapabilities(cf.Context, types.AccessCapabilitiesRequest{
+			User: cf.Username,
 		})
+
 		if err != nil {
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
-		if capabailities.RequireReason && cf.RequestReason == "" {
+		if capabilities.RequireReason && cf.RequestReason == "" {
 			msg := "--request-reason must be specified"
-			if capabailities.RequestPrompt != "" {
-				msg = msg + ", prompt=" + capabailities.RequestPrompt
+			if capabilities.RequestPrompt != "" {
+				msg = msg + ", prompt=" + capabilities.RequestPrompt
 			}
 			err := trace.BadParameter(msg)
 			logoutErr := tc.Logout()
 			return trace.NewAggregate(err, logoutErr)
 		}
-		if capabailities.AutoRequest {
+		if capabilities.AutoRequest {
 			cf.DesiredRoles = "*"
 		}
 	}
@@ -1891,16 +1935,15 @@ func onLogin(cf *CLIConf) error {
 		alertSeverityMax = types.AlertSeverity_HIGH
 	}
 
-	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
-		types.AlertOnLogin: "yes",
-	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
-		log.WithError(err).Warn("Failed to display cluster alerts.")
-	}
-
 	// NOTE: we currently print all alerts that are marked as `on-login`, because we
 	// don't use the alert API very heavily. If we start to make more use of it, we
 	// could probably add a separate `tsh alerts ls` command, and truncate the list
 	// with a message like "run 'tsh alerts ls' to view N additional alerts".
+	if err := common.ShowClusterAlerts(cf.Context, proxyClient.CurrentCluster(), os.Stderr, map[string]string{
+		types.AlertOnLogin: "yes",
+	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
+		log.WithError(err).Warn("Failed to display cluster alerts.")
+	}
 
 	return nil
 }
@@ -2260,7 +2303,7 @@ func listNodesAllClusters(cf *CLIConf) error {
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(listings) == 0 {
-		if _, err := fmt.Fprintln(cf.Stderr(), missingPrincipalsFooter); err != nil {
+		if _, err := fmt.Fprintln(cf.Stderr(), emptyNodesFooter); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -2458,7 +2501,7 @@ func printNodes(nodes []types.Server, conf *CLIConf) error {
 
 	// Sometimes a user won't see any nodes because they're missing principals.
 	if len(nodes) == 0 {
-		if _, err := fmt.Fprintln(conf.Stderr(), missingPrincipalsFooter); err != nil {
+		if _, err := fmt.Fprintln(conf.Stderr(), emptyNodesFooter); err != nil {
 			return trace.Wrap(err)
 		}
 	}
@@ -3319,21 +3362,16 @@ func makeClientForProxy(cf *CLIConf, proxy string) (*client.TeleportClient, erro
 func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, error) {
 	if cf.TracingProvider == nil {
 		cf.TracingProvider = tracing.NoopProvider()
+		cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 	}
 
-	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
-	ctx, span := cf.tracer.Start(cf.Context, "loadClientConfigFromCLIConf/init")
+	ctx, span := cf.tracer.Start(cf.Context, "loadClientConfigFromCLIConf")
 	defer span.End()
 
 	// Parse OpenSSH style options.
 	options, err := parseOptions(cf.Options)
 	if err != nil {
 		return nil, trace.Wrap(err)
-	}
-
-	// apply defaults
-	if cf.MinsToLive == 0 {
-		cf.MinsToLive = int32(apidefaults.CertDuration / time.Minute)
 	}
 
 	// split login & host
@@ -3589,6 +3627,14 @@ func loadClientConfigFromCLIConf(cf *CLIConf, proxy string) (*client.Config, err
 		c.AddKeysToAgent = client.AddKeysToAgentNo
 	}
 
+	// headless login produces short-lived MFA-verifed certs, which should never be added to the agent.
+	if cf.AuthConnector == constants.HeadlessConnector {
+		if cf.AddKeysToAgent == client.AddKeysToAgentYes || cf.AddKeysToAgent == client.AddKeysToAgentOnly {
+			log.Info("Skipping adding keys to agent for headless login")
+		}
+		c.AddKeysToAgent = client.AddKeysToAgentNo
+	}
+
 	c.EnableEscapeSequences = cf.EnableEscapeSequences
 
 	// pass along mock functions if provided (only used in tests)
@@ -3782,8 +3828,6 @@ func proxyHostsErrorMsgDefault(proxyAddress string, ports []int) string {
 //
 // If successful, setClientWebProxyAddr will modify the client Config in-place.
 func setClientWebProxyAddr(ctx context.Context, cf *CLIConf, c *client.Config) error {
-	ctx, span := cf.tracer.Start(ctx, "makeClientForProxy/setClientWebProxyAddr")
-	defer span.End()
 	// If the user has specified a proxy on the command line, and one has not
 	// already been specified from configuration...
 
@@ -4634,7 +4678,7 @@ func setEnvFlags(cf *CLIConf, getEnv envGetter) {
 	// When using Headless, check for missing proxy/user/cluster values from the teleport session env variables.
 	if cf.Headless || cf.AuthConnector == constants.HeadlessConnector {
 		if cf.Proxy == "" {
-			cf.Proxy = getEnv(teleport.SSHSessionWebproxyAddr)
+			cf.Proxy = getEnv(teleport.SSHSessionWebProxyAddr)
 		}
 		if cf.Username == "" {
 			cf.Username = getEnv(teleport.SSHTeleportUser)
@@ -4826,7 +4870,7 @@ func onHeadlessApprove(cf *CLIConf) error {
 
 	tc.Stdin = os.Stdin
 	err = client.RetryWithRelogin(cf.Context, tc, func() error {
-		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID)
+		return tc.HeadlessApprove(cf.Context, cf.HeadlessAuthenticationID, !cf.headlessSkipConfirm)
 	})
 	return trace.Wrap(err)
 }

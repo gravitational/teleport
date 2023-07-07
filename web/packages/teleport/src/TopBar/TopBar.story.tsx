@@ -23,17 +23,20 @@ import { getOSSFeatures } from 'teleport/features';
 import TeleportContext from 'teleport/teleportContext';
 import { makeUserContext } from 'teleport/services/user';
 import TeleportContextProvider from 'teleport/TeleportContextProvider';
+import { LayoutContextProvider } from 'teleport/Main/LayoutContext';
 
 import { TopBar } from './TopBar';
 
 export default {
   title: 'Teleport/TopBar',
+  args: { userContext: true },
 };
 
 export function Story() {
   const ctx = new TeleportContext();
 
   ctx.storeUser.state = makeUserContext({
+    userName: 'admin',
     cluster: {
       name: 'test-cluster',
       lastConnected: Date.now(),
@@ -42,11 +45,13 @@ export function Story() {
 
   return (
     <Router history={createMemoryHistory()}>
-      <TeleportContextProvider ctx={ctx}>
-        <FeaturesContextProvider value={getOSSFeatures()}>
-          <TopBar />
-        </FeaturesContextProvider>
-      </TeleportContextProvider>
+      <LayoutContextProvider>
+        <TeleportContextProvider ctx={ctx}>
+          <FeaturesContextProvider value={getOSSFeatures()}>
+            <TopBar />
+          </FeaturesContextProvider>
+        </TeleportContextProvider>
+      </LayoutContextProvider>
     </Router>
   );
 }

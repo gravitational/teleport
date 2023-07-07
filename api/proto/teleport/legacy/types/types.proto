@@ -431,6 +431,11 @@ message AWS {
   // AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
   // Set this field and ExternalID to enable access across AWS accounts.
   string AssumeRoleARN = 11 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+  // OpenSearch contains AWS OpenSearch specific metadata.
+  OpenSearch OpenSearch = 12 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "opensearch,omitempty"
+  ];
 }
 
 // SecretStore contains secret store configurations.
@@ -503,6 +508,16 @@ message RedshiftServerless {
   string EndpointName = 2 [(gogoproto.jsontag) = "endpoint_name,omitempty"];
   // WorkgroupID is the workgroup ID.
   string WorkgroupID = 3 [(gogoproto.jsontag) = "workgroup_id,omitempty"];
+}
+
+// OpenSearch contains AWS OpenSearch specific metadata.
+message OpenSearch {
+  // DomainName is the name of the domain.
+  string DomainName = 1 [(gogoproto.jsontag) = "domain_name,omitempty"];
+  // DomainID is the ID of the domain.
+  string DomainID = 2 [(gogoproto.jsontag) = "domain_id,omitempty"];
+  // EndpointType is the type of the endpoint.
+  string EndpointType = 3 [(gogoproto.jsontag) = "endpoint_type,omitempty"];
 }
 
 // GCPCloudSQL contains parameters specific to GCP Cloud SQL databases.
@@ -854,6 +869,8 @@ message AppSpecV3 {
   AppAWS AWS = 6 [(gogoproto.jsontag) = "aws,omitempty"];
   // Cloud identifies the cloud instance the app represents.
   string Cloud = 7 [(gogoproto.jsontag) = "cloud,omitempty"];
+  // UserGroups are a list of user group IDs that this app is associated with.
+  repeated string UserGroups = 8;
 }
 
 // App is a specific application that a server proxies.
@@ -1720,6 +1737,13 @@ message AuthPreferenceSpecV2 {
     (gogoproto.jsontag) = "allow_headless,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // DefaultSessionTTL is the TTL to use for user certs when
+  // an explicit TTL is not requested.
+  int64 DefaultSessionTTL = 16 [
+    (gogoproto.jsontag) = "default_session_ttl,omitempty",
+    (gogoproto.casttype) = "Duration"
+  ];
 }
 
 // U2F defines settings for U2F device.
@@ -2301,6 +2325,19 @@ message RoleSpecV6 {
   ];
 }
 
+// CreateHostUserMode determines whether host user creation should be
+// disabled or if host users should be cleaned up or kept after
+// sessions end.
+enum CreateHostUserMode {
+  HOST_USER_MODE_UNSPECIFIED = 0;
+  // HOST_USER_MODE_OFF disables host user creation.
+  HOST_USER_MODE_OFF = 1;
+  // HOST_USER_MODE_DROP enables host user creation and deletes users at session end.
+  HOST_USER_MODE_DROP = 2;
+  // HOST_USER_MODE_KEEP enables host user creation and leaves users behind at session end.
+  HOST_USER_MODE_KEEP = 3;
+}
+
 // RoleOptions is a set of role options
 message RoleOptions {
   // ForwardAgent is SSH agent forwarding.
@@ -2414,7 +2451,7 @@ message RoleOptions {
   // CreateHostUser allows users to be automatically created on a host
   BoolValue CreateHostUser = 20 [
     (gogoproto.nullable) = true,
-    (gogoproto.jsontag) = "create_host_user",
+    (gogoproto.jsontag) = "create_host_user,omitempty",
     (gogoproto.customtype) = "BoolOption"
   ];
 
@@ -2458,6 +2495,10 @@ message RoleOptions {
     (gogoproto.jsontag) = "create_db_user",
     (gogoproto.customtype) = "BoolOption"
   ];
+
+  // CreateHostUserMode allows users to be automatically created on a
+  // host when not set to off
+  CreateHostUserMode CreateHostUserMode = 28 [(gogoproto.jsontag) = "create_host_user_mode,omitempty"];
 }
 
 message RecordSession {
@@ -2677,6 +2718,8 @@ message KubernetesResource {
   // Name is the resource name.
   // It supports wildcards.
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
+  // Verbs are the allowed Kubernetes verbs for the following resource.
+  repeated string Verbs = 4 [(gogoproto.jsontag) = "verbs,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -4987,6 +5030,18 @@ message DatabaseResourceMatcher {
     (gogoproto.jsontag) = "labels",
     (gogoproto.customtype) = "Labels"
   ];
+  ResourceMatcherAWS AWS = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "aws"
+  ];
+}
+
+// ResourceMatcherAWS contains AWS specific settings for resource matcher.
+message ResourceMatcherAWS {
+  // AssumeRoleARN is an optional AWS role ARN to assume when accessing a database.
+  string AssumeRoleARN = 1 [(gogoproto.jsontag) = "assume_role_arn,omitempty"];
+  // ExternalID is an optional AWS external ID used to enable assuming an AWS role across accounts.
+  string ExternalID = 2 [(gogoproto.jsontag) = "external_id,omitempty"];
 }
 
 // AlertSeverity represents how problematic/urgent an alert is, and is used to assist
@@ -5155,6 +5210,8 @@ message PluginSpecV1 {
     PluginOktaSettings okta = 4;
     // Settings for device trust jamf plugin
     PluginJamfSettings jamf = 5;
+    // Settings for the PagerDuty plugin
+    PluginPagerDutySettings pager_duty = 6;
   }
 }
 
@@ -5178,6 +5235,19 @@ message PluginOpsgenieAccessSettings {
   repeated string default_schedules = 4;
   // APIEndpoint is the address of Opsgenie API.
   string api_endpoint = 5;
+}
+
+message PluginPagerDutySettings {
+  option (gogoproto.equal) = true;
+
+  // UserEmail is the email address of the PagerDuty user that will be
+  // listed as the reporter source of incidents, comments, etc
+  // within PagerDuty. Should usually be the same user the API key
+  // represents.
+  string user_email = 1;
+
+  // APIEndpoint is the address of PagerDuty API.
+  string api_endpoint = 2;
 }
 
 // Defines settings for the OpenAI plugin. Currently there are no settings.
@@ -5465,6 +5535,18 @@ message UserGroupV1 {
     (gogoproto.jsontag) = "",
     (gogoproto.embed) = true
   ];
+
+  // Spec is the user group resource spec.
+  UserGroupSpecV1 Spec = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.jsontag) = "spec"
+  ];
+}
+
+// UserGroupSpecV1 is the specification of a user group.
+message UserGroupSpecV1 {
+  // Applications are a list of application IDs belonging to this user group.
+  repeated string Applications = 1;
 }
 
 // OktaImportRuleSpecV1 is a Okta import rule specification.
@@ -5766,8 +5848,8 @@ message JamfSpecV1 {
     (gogoproto.jsontag) = "sync_delay,omitempty",
     (gogoproto.casttype) = "Duration"
   ];
-  // Jamf API endpoint.
-  // Example: "https://yourtenant.jamfcloud.com".
+  // Jamf Pro API endpoint.
+  // Example: "https://yourtenant.jamfcloud.com/api".
   // Required.
   string api_endpoint = 4 [(gogoproto.jsontag) = "api_endpoint,omitempty"];
   // Jamf API username.
@@ -5796,8 +5878,7 @@ message JamfInventoryEntry {
   // PARTIAL syncs are scheduled in the time window between FULL syncs, so
   // sync_period_partial must always be smaller than sync_period_full, otherwise
   // it would never trigger.
-  // Set to negative to disable PARTIAL syncs.
-  // Defaults to 6h.
+  // Set to zero or negative to disable PARTIAL syncs.
   int64 sync_period_partial = 2 [
     (gogoproto.jsontag) = "sync_period_partial,omitempty",
     (gogoproto.casttype) = "Duration"
@@ -5805,8 +5886,7 @@ message JamfInventoryEntry {
   // Sync period for FULL syncs.
   // Ideally sync_period_full is a multiple of sync_period_partial, so schedules
   // line up perfectly.
-  // Set to negative to disable FULL syncs.
-  // Defaults to 24h.
+  // Set to zero or negative to disable FULL syncs.
   int64 sync_period_full = 3 [
     (gogoproto.jsontag) = "sync_period_full,omitempty",
     (gogoproto.casttype) = "Duration"

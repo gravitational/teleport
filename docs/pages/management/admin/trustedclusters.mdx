@@ -27,7 +27,7 @@ A leaf cluster always creates an outbound reverse SSH tunnel to the root cluster
 <Notice type="tip">
 Individual nodes and proxies can create reverse tunnels to proxy services without creating a new cluster.
 You don't need to set up a trusted cluster just to connect a couple of servers, kubernetes clusters or
-databases behind a firewall. For more information, see [Adding Nodes to the Cluster](../join-services-to-your-cluster/join-token.mdx).
+databases behind a firewall. For more information, see how to [join a service to your cluster](../../agents/join-services-to-your-cluster.mdx).
 </Notice>
 
 When a user tries to connect to any resource inside the leaf cluster using the root's proxy
@@ -42,46 +42,69 @@ This guide will explain how to:
 ## Prerequisites
 
 <Tabs>
-<TabItem scope={["oss"]} label="Open Source">
+<TabItem scope="team" label="Teleport Team">
 
-- Two running Teleport clusters. For details on how to set up your clusters, see
-  one of our [Getting Started](/docs/getting-started) guides.
+- A Teleport Team account. If you do not have one, visit the [signup
+  page](https://goteleport.com/signup/) to begin your free trial.
 
-- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
+- A second Teleport cluster, which will act as the leaf cluster. For details on
+  how to set up this cluster, see our [Getting Started](../../index.mdx)
+  guide.
 
-  See [Installation](/docs/installation.mdx) for details.
+  As an alternative, you can set up a second Teleport Team account.
+
+- (!docs/pages/includes/cloud/tctl-tsh-prerequisite.mdx!)
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a
-  Teleport Node in your cluster.
+  See [Join Services to your Cluster](../../agents/join-services-to-your-cluster.mdx) for
+  how to launch a Teleport Node in your cluster.
+
+</TabItem>
+<TabItem scope={["oss"]} label="Open Source">
+
+- Two running Teleport clusters. For details on how to set up your clusters, see
+  our [Getting Started](../../index.mdx) guide.
+
+- (!docs/pages/includes/tctl-tsh-prerequisite.mdx!)
+
+  See [Installation](../../installation.mdx) for details.
+
+- A Teleport agent that is joined to one of your clusters. We will refer to this
+  cluster as the **leaf cluster** throughout this guide.
+
+  See [Join Services to your
+  Cluster](../../agents/join-services-to-your-cluster.mdx) for how to launch a
+  Teleport agent in your cluster.
 
 </TabItem>
 <TabItem
   scope={["enterprise"]} label="Enterprise">
 
 - Two running Teleport clusters. For details on how to set up your clusters, see
-  our Enterprise [Getting Started](/docs/enterprise/getting-started) guide.
+  our Enterprise [Getting
+  Started](../../choose-an-edition/teleport-enterprise/introduction.mdx) guide.
 
 - (!docs/pages/includes/enterprise/tctl-tsh-prerequisite.mdx!)
 
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a Teleport Node in
+  See [Join Services to your Cluster](../../agents/join-services-to-your-cluster.mdx) for how to launch a Teleport agent in
   your cluster.
 
 </TabItem>
 <TabItem scope={["cloud"]}
-  label="Teleport Cloud">
+  label="Teleport Enterprise Cloud">
 
-- A Teleport Cloud account. If you do not have one, visit the
-  [sign up page](https://goteleport.com/signup/) to begin your free trial.
+- A Teleport Enterprise Cloud account. If you do not have one, visit the [sign
+  up page](https://goteleport.com/signup/) to begin a free trial of Teleport
+  Team and upgrade to Teleport Enterprise Cloud. 
 
 - A second Teleport cluster, which will act as the leaf cluster. For details on
-how to set up this cluster, see one of our
-[Getting Started](/docs/getting-started) guides.
+how to set up this cluster, see our
+[Getting Started](../../index.mdx) guide.
 
   As an alternative, you can set up a second Teleport Cloud account.
 
@@ -90,8 +113,8 @@ how to set up this cluster, see one of our
 - A Teleport Node that is joined to one of your clusters. We will refer to this
   cluster as the **leaf cluster** throughout this guide.
 
-  See [Adding Nodes](../join-services-to-your-cluster.mdx) for how to launch a
-  Teleport Node in your cluster.
+  See [Join Services to your Cluster](../../agents/join-services-to-your-cluster.mdx) for how to launch a
+  Teleport agent in your cluster.
 
 </TabItem>
 </Tabs>
@@ -240,7 +263,7 @@ You can create a join token using the `tctl` tool.
 
 First, log out of all clusters and log in to the root cluster.
 
-<ScopedBlock scope={["oss", "enterprise"]}>
+<ScopedBlock scope={["oss"]}>
 
 ```code
 $ tsh logout
@@ -256,6 +279,22 @@ $ tsh login --user=myuser --proxy=rootcluster.example.com
 ```
 
 </ScopedBlock>
+<ScopedBlock scope={["enterprise"]}>
+
+```code
+$ tsh logout
+$ tsh login --user=myuser --proxy=rootcluster.example.com
+> Profile URL:        https://rootcluster.example.com:443
+  Logged in as:       myuser
+  Cluster:            rootcluster.example.com
+  Roles:              access, auditor, editor, reviewer
+  Logins:             root
+  Kubernetes:         enabled
+  Valid until:        2022-04-29 03:07:22 -0400 EDT [valid for 12h0m0s]
+  Extensions:         permit-agent-forwarding, permit-port-forwarding, permit-pty
+```
+
+</ScopedBlock>
 <ScopedBlock scope={["cloud"]}>
 
 ```code
@@ -263,7 +302,7 @@ $ tsh login --user=myuser --proxy=myrootclustertenant.teleport.sh
 > Profile URL:        https://rootcluster.teleport.sh:443
   Logged in as:       myuser
   Cluster:            rootcluster.teleport.sh
-  Roles:              access, auditor, editor
+  Roles:              access, auditor, editor, reviewer
   Logins:             root
   Kubernetes:         enabled
   Valid until:        2022-04-29 03:07:22 -0400 EDT [valid for 12h0m0s]
@@ -285,6 +324,12 @@ Use this token when defining a trusted cluster resource on a remote cluster.
 
 This command generates a Trusted Cluster join token. The token can be used
 multiple times and has an expiration time of 5 minutes.
+
+<Details title="Optional: Add labels">
+The `--labels` flag will add labels to the trusted cluster. This lets teams use
+the same RBAC controls used on individual resources to approve or deny access
+to clusters.
+</Details>
 
 Copy the join token for later use. If you need to display your join token again,
 run the following command against your root cluster:
@@ -751,7 +796,7 @@ certificate authority. A certificate contains four important pieces of data:
 - Metadata (certificate extensions): additional data protected by the signature
   above. Teleport uses the metadata to store the list of user roles and SSH
   options like "permit-agent-forwarding".
-- The expiration date.
+- The expiration date, or time-to-live (**TTL**).
 
 When a user from the root cluster attempts to access a Node in the leaf cluster,
 the leaf cluster's Auth Service authenticates the user's certificate and reads
@@ -762,7 +807,7 @@ these pieces of data from it. It then performs the following actions:
   cluster with one of the remote user's roles.
 - Checks if the local role allows the requested identity (Unix login) to have
   access.
-- Checks that the certificate has not expired.
+- Checks that the certificate has not expired. The TTL is set by the root cluster.
 
 </Details>
 
@@ -786,10 +831,12 @@ these pieces of data from it. It then performs the following actions:
   type="tip"
   title="Note"
 >
+Trusted Clusters work only in one direction. In the example above, users from
+the leaf cluster cannot see or connect to Nodes in the root cluster.
 
-  Trusted Clusters work only in one direction. In the example above, users from
-  the leaf cluster cannot see or connect to Nodes in the root cluster.
-
+The Teleport root cluster's Web UI will not populate available OS users for
+leaf cluster Nodes. When using the web UI, type in the host user when creating
+SSH sessions.
 </Admonition>
 
 ## Step 5/5. Remove trust between your clusters
@@ -954,7 +1001,7 @@ should check to see the following:
   cluster. Check the audit log messages on both clusters to get answers for the
   questions above.
 </TabItem>
-<TabItem scope={["cloud"]} label="Teleport Cloud">
+<TabItem scope={["cloud", "team"]} label="Cloud-Hosted">
 Troubleshooting "access denied" messages can be challenging. A Teleport administrator
 should check to see the following:
 
@@ -968,6 +1015,7 @@ should check to see the following:
 </Tabs>
 
 ## Further reading
+
 - Read more about how Trusted Clusters fit into Teleport's overall architecture:
   [Architecture Introduction](../../architecture/trustedclusters.mdx).
 

@@ -17,19 +17,22 @@ limitations under the License.
 package proxy
 
 import (
-	"fmt"
+	"net/http"
 	"path"
 	"strings"
 
+	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
 )
 
 type apiResource struct {
-	apiGroup     string
-	namespace    string
-	resourceKind string
-	resourceName string
-	skipEvent    bool
+	apiGroup        string
+	apiGroupVersion string
+	namespace       string
+	resourceKind    string
+	resourceName    string
+	skipEvent       bool
+	isWatch         bool
 }
 
 // parseResourcePath does best-effort parsing of a Kubernetes API request path.
@@ -70,11 +73,12 @@ func parseResourcePath(p string) apiResource {
 	switch {
 	// Core API group has a "special" URL prefix /api/v1/.
 	case len(parts) >= 3 && parts[1] == "api" && parts[2] == "v1":
-		r.apiGroup = "core/v1"
+		r.apiGroup = "core"
+		r.apiGroupVersion = parts[2]
 		parts = parts[3:]
 	// Other API groups have URL prefix /apis/{group}/{version}.
 	case len(parts) >= 4 && parts[1] == "apis":
-		r.apiGroup = fmt.Sprintf("%s/%s", parts[2], parts[3])
+		r.apiGroup, r.apiGroupVersion = parts[2], parts[3]
 		parts = parts[4:]
 	case len(parts) >= 2 && (parts[1] == "api" || parts[1] == "apis"):
 		// /api or /apis.
@@ -90,6 +94,7 @@ func parseResourcePath(p string) apiResource {
 	// Watch API endpoints have an extra /watch/ prefix. For now, silently
 	// strip it from our result.
 	if len(parts) > 0 && parts[0] == "watch" {
+		r.isWatch = true
 		parts = parts[1:]
 	}
 
@@ -138,8 +143,145 @@ func parseResourcePath(p string) apiResource {
 }
 
 func (r apiResource) populateEvent(e *apievents.KubeRequest) {
-	e.ResourceAPIGroup = r.apiGroup
+	e.ResourceAPIGroup = path.Join(r.apiGroup, r.apiGroupVersion)
 	e.ResourceNamespace = r.namespace
 	e.ResourceKind = r.resourceKind
 	e.ResourceName = r.resourceName
+}
+
+// allowedResourcesKey is a key used to identify a resource in the allowedResources map.
+type allowedResourcesKey struct {
+	apiGroup     string
+	resourceKind string
+}
+
+// allowedResources is a map of supported resources and their corresponding
+// teleport resource kind for the purpose of resource rbac.
+var allowedResources = map[allowedResourcesKey]string{
+	{apiGroup: "core", resourceKind: "pods"}:                                      types.KindKubePod,
+	{apiGroup: "core", resourceKind: "secrets"}:                                   types.KindKubeSecret,
+	{apiGroup: "core", resourceKind: "configmaps"}:                                types.KindKubeConfigmap,
+	{apiGroup: "core", resourceKind: "namespaces"}:                                types.KindKubeNamespace,
+	{apiGroup: "core", resourceKind: "services"}:                                  types.KindKubeService,
+	{apiGroup: "core", resourceKind: "serviceaccounts"}:                           types.KindKubeServiceAccount,
+	{apiGroup: "core", resourceKind: "nodes"}:                                     types.KindKubeNode,
+	{apiGroup: "core", resourceKind: "persistentvolumes"}:                         types.KindKubePersistentVolume,
+	{apiGroup: "core", resourceKind: "persistentvolumeclaims"}:                    types.KindKubePersistentVolumeClaim,
+	{apiGroup: "apps", resourceKind: "deployments"}:                               types.KindKubeDeployment,
+	{apiGroup: "apps", resourceKind: "replicasets"}:                               types.KindKubeReplicaSet,
+	{apiGroup: "apps", resourceKind: "statefulsets"}:                              types.KindKubeStatefulset,
+	{apiGroup: "apps", resourceKind: "daemonsets"}:                                types.KindKubeDaemonSet,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterroles"}:         types.KindKubeClusterRole,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "roles"}:                types.KindKubeRole,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "clusterrolebindings"}:  types.KindKubeClusterRoleBinding,
+	{apiGroup: "rbac.authorization.k8s.io", resourceKind: "rolebindings"}:         types.KindKubeRoleBinding,
+	{apiGroup: "batch", resourceKind: "cronjobs"}:                                 types.KindKubeCronjob,
+	{apiGroup: "batch", resourceKind: "jobs"}:                                     types.KindKubeJob,
+	{apiGroup: "certificates.k8s.io", resourceKind: "certificatesigningrequests"}: types.KindKubeCertificateSigningRequest,
+	{apiGroup: "networking.k8s.io", resourceKind: "ingresses"}:                    types.KindKubeIngress,
+}
+
+// getKubeResourceAndAPIGroupFromType returns the Kubernetes resource kind and
+// API group for a given Teleport resource kind. If the Teleport resource kind
+// is not supported, it returns the Teleport resource kind as the Kubernetes
+// resource kind and an empty string as the API group.
+func getKubeResourceAndAPIGroupFromType(s string) (kind string, apiGroup string) {
+	for k, v := range allowedResources {
+		if v == s {
+			apiGroup := ""
+			if k.apiGroup != "core" {
+				apiGroup = k.apiGroup
+			}
+			return k.resourceKind, apiGroup
+		}
+	}
+	return s + "s", ""
+}
+
+// getResourceWithKey returns the teleport resource kind for a given resource key if
+// it exists, otherwise returns an empty string.
+func getResourceWithKey(k allowedResourcesKey) string {
+	if k.apiGroup == "" {
+		k.apiGroup = "core"
+	}
+	return allowedResources[k]
+}
+
+// getResourceFromRequest returns a KubernetesResource if the user tried to access
+// a specific endpoint that Teleport support resource filtering. Otherwise, returns nil.
+func getResourceFromRequest(req *http.Request) (*types.KubernetesResource, apiResource) {
+	apiResource := parseResourcePath(req.URL.Path)
+	resourceType, ok := getTeleportResourceKindFromAPIResource(apiResource)
+	// if the resource is not supported, return nil.
+	// if the resource is supported but the resource name is not present, return nil because it's a list request.
+	if !ok || apiResource.resourceName == "" {
+		return nil, apiResource
+	}
+	return &types.KubernetesResource{
+		Kind:      resourceType,
+		Namespace: apiResource.namespace,
+		Name:      apiResource.resourceName,
+		Verbs:     []string{apiResource.getVerb(req)},
+	}, apiResource
+}
+
+func getTeleportResourceKindFromAPIResource(r apiResource) (string, bool) {
+	resource := getResourceFromAPIResource(r.resourceKind)
+	resourceType, ok := allowedResources[allowedResourcesKey{apiGroup: r.apiGroup, resourceKind: resource}]
+	return resourceType, ok
+}
+
+// getResourceFromAPIResource returns the resource kind from the api resource.
+// If the resource kind contains sub resources (e.g. pods/exec), it returns the
+// resource kind without the subresource.
+func getResourceFromAPIResource(resourceKind string) string {
+	if idx := strings.Index(resourceKind, "/"); idx != -1 {
+		return resourceKind[:idx]
+	}
+	return resourceKind
+}
+
+// isKubeWatchRequest returns true if the request is a watch request.
+func isKubeWatchRequest(req *http.Request, r apiResource) bool {
+	if values := req.URL.Query()["watch"]; len(values) > 0 {
+		switch strings.ToLower(values[0]) {
+		case "false", "0":
+		default:
+			return true
+		}
+	}
+	return r.isWatch
+}
+
+func (r apiResource) getVerb(req *http.Request) string {
+	verb := ""
+	isWatch := isKubeWatchRequest(req, r)
+	switch req.Method {
+	case http.MethodPost:
+		verb = types.KubeVerbCreate
+	case http.MethodGet, http.MethodHead, http.MethodOptions:
+		switch {
+		case isWatch:
+			return types.KubeVerbWatch
+		case r.resourceName == "":
+			return types.KubeVerbList
+		default:
+			return types.KubeVerbGet
+		}
+	case http.MethodPut:
+		verb = types.KubeVerbUpdate
+	case http.MethodPatch:
+		verb = types.KubeVerbPatch
+	case http.MethodDelete:
+		switch {
+		case r.resourceName != "":
+			verb = types.KubeVerbDelete
+		default:
+			verb = types.KubeVerbDeleteCollection
+		}
+	default:
+		verb = ""
+	}
+
+	return verb
 }

@@ -84,7 +84,7 @@ import (
 	"github.com/gravitational/teleport/lib/events/filesessions"
 	"github.com/gravitational/teleport/lib/modules"
 	"github.com/gravitational/teleport/lib/pam"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/service"
 	"github.com/gravitational/teleport/lib/service/servicecfg"
 	"github.com/gravitational/teleport/lib/services"
@@ -132,6 +132,7 @@ func TestIntegrations(t *testing.T) {
 	t.Run("BPFExec", suite.bind(testBPFExec))
 	t.Run("BPFInteractive", suite.bind(testBPFInteractive))
 	t.Run("BPFSessionDifferentiation", suite.bind(testBPFSessionDifferentiation))
+	t.Run("ClientIdleConnection", suite.bind(testClientIdleConnection))
 	t.Run("CmdLabels", suite.bind(testCmdLabels))
 	t.Run("ControlMaster", suite.bind(testControlMaster))
 	t.Run("CustomReverseTunnel", suite.bind(testCustomReverseTunnel))
@@ -1814,6 +1815,114 @@ type disconnectTestCase struct {
 	verifyError errorVerifier
 }
 
+// repeatingReader is an [io.ReadCloser] that produces the
+// provided output at the configured interval until closed.
+// For example, all calls to Read on the following reader will
+// block for a minute and then return "hi" to the caller. Once
+// Closed an `io.EOF` will be returned from Read
+//
+// r := repeatingReader{output: hi, interval:time.Minute}
+// n, err := r.Read(out)
+type repeatingReader struct {
+	output   string
+	interval time.Duration
+	closed   chan struct{}
+}
+
+func newRepeatingReader(output string, interval time.Duration) repeatingReader {
+	return repeatingReader{
+		interval: interval,
+		output:   output,
+		closed:   make(chan struct{}),
+	}
+}
+
+func (r repeatingReader) Read(p []byte) (int, error) {
+	if len(p) == 0 {
+		return 0, nil
+	}
+
+	select {
+	case <-time.After(r.interval):
+	case <-r.closed:
+		return 0, io.EOF
+	}
+
+	end := len(r.output)
+	if end > len(p) {
+		end = len(p)
+	}
+
+	n := copy(p, r.output[:end])
+	return n, nil
+}
+
+func (r repeatingReader) Close() error {
+	close(r.closed)
+	return nil
+}
+
+// testClientIdleConnection validates that if a user is active beyond
+// the client idle timeout that the session is not terminated.
+func testClientIdleConnection(t *testing.T, suite *integrationTestSuite) {
+	netConfig := types.DefaultClusterNetworkingConfig()
+	netConfig.SetClientIdleTimeout(time.Second)
+
+	tconf := servicecfg.MakeDefaultConfig()
+	tconf.SSH.Enabled = true
+	tconf.Log = utils.NewLoggerForTests()
+	tconf.Proxy.DisableWebService = true
+	tconf.Proxy.DisableWebInterface = true
+	tconf.Auth.NetworkingConfig = netConfig
+	tconf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
+	tconf.InstanceMetadataClient = cloud.NewDisabledIMDSClient()
+
+	instance := suite.NewTeleportWithConfig(t, nil, nil, tconf)
+	t.Cleanup(func() { require.NoError(t, instance.StopAll()) })
+
+	var output bytes.Buffer
+
+	// SSH into the server, and stay active for longer than
+	// the client idle timeout.
+	sessionErr := make(chan error)
+	openSession := func() {
+		cl, err := instance.NewClient(helpers.ClientConfig{
+			Login:   suite.Me.Username,
+			Cluster: helpers.Site,
+			Host:    Host,
+		})
+		if err != nil {
+			sessionErr <- trace.Wrap(err)
+			return
+		}
+		cl.Stdout = &output
+		// Execute a command 10x faster than the idle timeout to stay active.
+		reader := newRepeatingReader("echo txlxport | sed 's/x/e/g'\n", netConfig.GetClientIdleTimeout()/10)
+		defer func() { reader.Close() }()
+		cl.Stdin = reader
+
+		// Terminate the session after 3x the idle timeout
+		ctx, cancel := context.WithTimeout(context.Background(), netConfig.GetClientIdleTimeout()*3)
+		defer cancel()
+		sessionErr <- cl.SSH(ctx, nil, false)
+	}
+
+	go openSession()
+
+	// Wait for the sessions to end - we expect an error
+	// since we are canceling the context.
+	err := waitForError(sessionErr, time.Second*10)
+	require.Error(t, err)
+
+	// Ensure that the session was alive beyond the idle timeout by
+	// counting the number of times "teleport" was output. If the session
+	// was alive past the idle timeout then there should be at least 11 occurrences
+	// since the command is run at 1/10 the idle timeout.
+	require.NotEmpty(t, output)
+	count := strings.Count(output.String(), "teleport")
+	require.Greater(t, count, 10)
+}
+
 // TestDisconnectScenarios tests multiple scenarios with client disconnects
 func testDisconnectScenarios(t *testing.T, suite *integrationTestSuite) {
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
@@ -2075,15 +2184,15 @@ func enterInput(ctx context.Context, person *Terminal, command, pattern string) 
 	}
 }
 
-// TestInvalidLogins validates that you can't login with invalid login or
-// with invalid 'site' parameter
+// testEnvironmentVariables validates that session specific environment
+// variables set by Teleport are present.
 func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
 	ctx := context.Background()
 	tr := utils.NewTracer(utils.ThisFunction()).Start()
 	defer tr.Stop()
 
 	s := suite.newTeleport(t, nil, true)
-	defer s.StopAll()
+	t.Cleanup(func() { require.NoError(t, s.StopAll()) })
 
 	// make sure sessions set run command
 	tc, err := s.NewClient(helpers.ClientConfig{
@@ -2094,25 +2203,27 @@ func testEnvironmentVariables(t *testing.T, suite *integrationTestSuite) {
 	})
 	require.NoError(t, err)
 
-	// if SessionID is provided, it should be set in the session env vars.
 	tc.SessionID = uuid.NewString()
-	cmd := []string{"printenv", sshutils.SessionEnvVar}
+
+	// The SessionID and Web address should be set in the session env vars.
+	cmd := []string{"printenv", sshutils.SessionEnvVar, ";", "printenv", teleport.SSHSessionWebProxyAddr}
 	out := &bytes.Buffer{}
 	tc.Stdout = out
 	tc.Stdin = nil
 	err = tc.SSH(ctx, cmd, false /* runLocally */)
-
 	require.NoError(t, err)
-	require.Equal(t, tc.SessionID, strings.TrimSpace(out.String()))
+	output := out.String()
+	require.Contains(t, output, tc.SessionID)
+	require.Contains(t, output, tc.WebProxyAddr)
 
-	// The proxy url should be set in the session env vars.
-	cmd = []string{"printenv", teleport.SSHSessionWebproxyAddr}
-	out = &bytes.Buffer{}
-	tc.Stdout = out
-	err = tc.SSH(ctx, cmd, false /* runLocally */)
-
+	term := NewTerminal(250)
+	tc.Stdout = term
+	tc.Stdin = strings.NewReader(strings.Join(cmd, " ") + "\r\nexit\r\n")
+	err = tc.SSH(ctx, nil, false /* runLocally */)
 	require.NoError(t, err)
-	require.Equal(t, tc.WebProxyAddr, strings.TrimSpace(out.String()))
+	output = term.AllOutput()
+	require.Contains(t, output, tc.SessionID)
+	require.Contains(t, output, tc.WebProxyAddr)
 }
 
 // TestInvalidLogins validates that you can't login with invalid login or
@@ -2281,7 +2392,7 @@ func twoClustersTunnel(t *testing.T, suite *integrationTestSuite, now time.Time,
 	require.Equal(t, "hello world\n", outputA.String())
 
 	// Update trusted CAs.
-	err = tc.UpdateTrustedCA(ctx, a.Secrets.SiteName)
+	err = tc.UpdateTrustedCA(ctx, a.GetSiteAPI(a.Secrets.SiteName))
 	require.NoError(t, err)
 
 	// The known_hosts file should have two certificates, the way bytes.Split
@@ -3699,7 +3810,7 @@ func testDiscoveryRecovers(t *testing.T, suite *integrationTestSuite) {
 	var reverseTunnelAddr string
 
 	// Helper function for adding a new proxy to "main".
-	addNewMainProxy := func(name string) (reversetunnel.Server, helpers.ProxyConfig) {
+	addNewMainProxy := func(name string) (reversetunnelclient.Server, helpers.ProxyConfig) {
 		t.Logf("adding main proxy %q...", name)
 		newConfig := helpers.ProxyConfig{
 			Name:              name,

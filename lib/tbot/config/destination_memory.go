@@ -21,7 +21,9 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// DestinationMemory is a memory certificate destination
+const DestinationMemoryType = "memory"
+
+// DestinationMemory is a memory certificate Destination
 type DestinationMemory struct {
 	store map[string][]byte `yaml:"-"`
 }
@@ -76,13 +78,18 @@ func (dm *DestinationMemory) Read(name string) ([]byte, error) {
 }
 
 func (dm *DestinationMemory) String() string {
-	return "[memory]"
+	return DestinationMemoryType
 }
 
 func (dm *DestinationMemory) TryLock() (func() error, error) {
 	// As this is purely in-memory, no locking behavior is required for the
-	// destination.
+	// Destination.
 	return func() error {
 		return nil
 	}, nil
+}
+
+func (dm DestinationMemory) MarshalYAML() (interface{}, error) {
+	type raw DestinationMemory
+	return withTypeHeader(raw(dm), DestinationMemoryType)
 }

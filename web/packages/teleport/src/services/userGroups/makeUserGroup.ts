@@ -17,13 +17,16 @@
 import type { UserGroup } from './types';
 
 export function makeUserGroup(json): UserGroup {
-  const { name, description } = json;
+  const { name, description, friendlyName } = json;
 
   const labels = json.labels || [];
+  const applications = json.applications || [];
 
   return {
     name,
     description,
     labels,
+    friendlyName,
+    applications,
   };
 }

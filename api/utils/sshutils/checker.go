@@ -36,7 +36,7 @@ type CertChecker struct {
 	FIPS bool
 
 	// OnCheckCert is called when validating host certificate.
-	OnCheckCert func(*ssh.Certificate)
+	OnCheckCert func(*ssh.Certificate) error
 }
 
 // Authenticate checks the validity of a user certificate.
@@ -67,7 +67,9 @@ func (c *CertChecker) CheckCert(principal string, cert *ssh.Certificate) error {
 	}
 
 	if c.OnCheckCert != nil {
-		c.OnCheckCert(cert)
+		if err := c.OnCheckCert(cert); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil
@@ -86,7 +88,9 @@ func (c *CertChecker) CheckHostKey(addr string, remote net.Addr, key ssh.PublicK
 	}
 
 	if cert, ok := key.(*ssh.Certificate); ok && c.OnCheckCert != nil {
-		c.OnCheckCert(cert)
+		if err := c.OnCheckCert(cert); err != nil {
+			return trace.Wrap(err)
+		}
 	}
 
 	return nil

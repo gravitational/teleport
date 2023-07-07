@@ -12,7 +12,7 @@ controls (RBAC) in your Teleport cluster.
 A Teleport `role` works by having two lists of rules: `allow` rules and `deny` rules.
 When declaring access rules, keep in mind the following:
 
-- Everything is denied by default.
+- Nothing is allowed by default.
 - Deny rules get evaluated first and take priority.
 
 A rule consists of two parts: the resources and verbs. Here's an example of an
@@ -25,10 +25,10 @@ allow:
     verbs: [list]
 ```
 
-If this rule was declared in the `deny` section of a role definition, it
-would prohibit users from getting a list of Trusted Clusters and
-sessions. You can see all of the available resources and verbs under the `allow`
-section in the example role configuration below.
+If this rule was declared in the `deny` section of a role definition, it would
+prohibit users from getting a list of active sessions. You can see all of the
+available resources and verbs under the `allow` section in the example role
+configuration below.
 
 To manage cluster roles, a Teleport administrator can use the Web UI or the
 command line using [tctl resource commands](../reference/resources.mdx).
@@ -116,7 +116,7 @@ The table below documents the behavior of each option if multiple roles are assi
 | `desktop_clipboard` | Allow clipboard sharing for desktop sessions | Logical "AND" i.e. evaluates to "yes" if all roles enable clipboard sharing |
 | `pin_source_ip` | Enable source IP pinning for SSH certificates. **Note:** IP pinning is currently in Preview mode | Logical "OR" i.e. evaluates to "yes" if at least one role requires session termination |
 | `cert_extensions` | Specifies extensions to be included in SSH certificates | |
-| `create_host_user` | Allow users to be automatically created on a host |  Logical "AND" i.e. evaluates to "yes" if all roles matching a Node enable host user creation |
+| `create_host_user_mode` | Allow users to be automatically created on a host |  Logical "AND" i.e. if all roles matching a server specify host user creation (`off`, `drop`, `keep`), it will evaluate to the option specified by all of the roles. If some roles specify both `drop` or `keep` it will evaluate to `keep`|
 
 ## Preset roles
 
@@ -127,6 +127,8 @@ Teleport provides several pre-defined roles out-of-the-box:
 | `editor` | Allows editing of cluster configuration settings. |
 | `auditor`| Allows reading cluster events, audit logs, and playing back session records. |
 | `access`| Allows access to cluster resources. |
+| `requester`| Enterprise-only role that allows a user to create Access Requests. |
+| `reviewer`| Enterprise-only role that allows review of Access Requests. |
 
 ### Role versions
 
@@ -140,7 +142,7 @@ Label              | `v3` Default   | `v4`, `v5` and `v6` Default
 `node_labels`       | `[{"*": "*"}]` if the role has any logins, else `[]` | `[]`
 `app_labels`        | `[{"*": "*"}]` | `[]`
 `kubernetes_labels` | `[{"*": "*"}]` | `[]`
-`database_labels`   | `[{"*": "*"}]` | `[]`
+`db_labels`         | `[{"*": "*"}]` | `[]`
 
 Role `v6` introduced a new field `kubernetes_resources` that allows
 fine-grained control over Kubernetes resources. See [Kubernetes RBAC](../kubernetes-access/manage-access/rbac.mdx) for more details.
@@ -151,15 +153,17 @@ Label              | `v3`, `v4` and `v5` Default   | `v6` Default
 
 ## RBAC for resources
 
-A Teleport role defines which resources (e.g., applications, servers, and databases) a user can have access to.
-This works by [labeling resources](../management/admin/labels.mdx) and listing
-allow/deny labels in a role definition.
+A Teleport role defines which resources (e.g., applications, servers, and
+databases) a user can access.
+This works by [labeling resources](../management/admin/labels.mdx) and
+configuring allow/deny labels in a role definition.
 
 Consider the following use case:
 
 The infrastructure is split into staging/production environments using labels
-like `environment=production` and `environment=staging`. You can create roles
-that only have access to one environment. Let's say you create an intern role with the allow rule for label `environment=staging`.
+like `environment=production` and `environment=staging`.
+You can create roles that only have access to one environment.
+Let's say you create an intern role with the allow rule for label `environment=staging`.
 
 ### Example
 
@@ -187,8 +191,8 @@ spec:
 ```
 
 Teleport handles multiple label entries with logical "AND" operations.
-As an example this entry would match to databases that have the `env: prod` label and a
-`region` label of either `us-west-1` or `eu-central-1`:
+As an example, this entry would match to databases that have the `env: prod`
+label *and* a `region` label of either `us-west-1` or `eu-central-1`:
 
 ```yaml
     db_labels:
@@ -200,12 +204,13 @@ As an example this entry would match to databases that have the `env: prod` labe
   type="tip"
   title="Dynamic RBAC"
 >
-  Resource labels can be dynamic, i.e. determined at runtime by an output of an executable. In this case, you can implement "permissions follow workload"
+  Resource labels can be dynamic, i.e. determined at runtime by an output of an executable.
+  In this case, you can implement "permissions follow workload"
   policies (eg., any server where PostgreSQL is running becomes *automatically*
   accessible only by the members of the "DBA" group and nobody else).
 </Admonition>
 
-### Extended labels syntax
+### Extended label matching syntax
 
 Below are a few examples for more complex filtering using various regexes.
 
@@ -227,6 +232,65 @@ spec:
       # of the list example above can be expressed as:
       'environment': '^test|staging$'
 ```
+
+### Label expressions
+
+<Admonition type="warning">
+Label expressions are available starting in Teleport version `13.1.1`.
+All components of your Teleport cluster must be upgraded to version `13.1.1`
+or newer before you will be able to use label expressions.
+This includes the Auth Service and **all** Teleport agents.
+</Admonition>
+
+Teleport roles also support matching resource labels with predicate expressions
+when you need to:
+
+- combine logic with OR and AND operators
+- perform matching on label keys
+- implement negative matches
+
+The following example role would allow access to any nodes labeled `env=staging`
+or labeled `team=<team>`, where `<team>` is one of the values of the user's
+`teams` trait:
+
+```yaml
+kind: role
+version: v6
+metadata:
+  name: example-role
+spec:
+  allow:
+    node_labels_expression: |
+      labels["env"] == "staging" ||
+      contains(user.spec.traits["teams"], labels["team"])
+```
+
+The `<kind>_labels_expression` fields have the same purpose of the
+matching `<kind>_labels` fields, but support predicate expressions instead
+of label matchers.
+They can be used in the following fields of role `spec.allow` and `spec.deny`
+conditions:
+
+- `node_labels_expression`
+- `app_labels_expression`
+- `cluster_labels_expression`
+- `kubernetes_labels_expression`
+- `db_labels_expression`
+- `db_service_labels_expression`
+- `windows_desktop_labels_expression`
+- `group_labels_expression`
+
+Check out our
+[predicate language](../reference/predicate-language.mdx#label-expressions)
+guide for a more in depth explanation of the language.
+
+Typically you will only want to use one of `<kind>_labels` or
+`<kind>_labels_expression` in a single role, but you are allowed to specify
+both.
+If you have both in a deny rule, the matching is greedy, if either one matches
+access will be denied.
+In an allow rule, the matching is not greedy, if both are set they both have to
+match for access to be allowed.
 
 ## Teleport resources
 

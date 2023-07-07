@@ -193,7 +193,7 @@ certificate-based smart card authentication, and ensuring RDP is enabled.
 
 The following step requires an existing cluster. If you don't already have a
 Teleport cluster up and running, see our general [Getting
-Started](../get-started.mdx) guide to set up a demo cluster.
+Started](../index.mdx) guide to set up a demo cluster.
 
 <Admonition type="note" title="User CA Rotation">
 These steps will need to be repeated if Teleport's user certificate authority is rotated.
@@ -204,7 +204,7 @@ machine where you can manage your group policy, assigning <Var name="proxy" />
 to the address of your Teleport Proxy Service:
 
 ```code
-$ curl 'https://<Var name="proxy"/>/webapi/auth/export?type=windows' > user-ca.cer
+$ curl -o user-ca.cer https://<Var name="proxy"/>/webapi/auth/export?type=windows
 ```
 
 <Admonition type="note" title="Take note of the location">
@@ -566,10 +566,11 @@ ssh_service:
 ```
 
 </TabItem>
-<TabItem scope={["cloud"]} label="Cloud">
-For Teleport Cloud, Windows Desktop Service should establish a reverse tunnel to
-the hosted proxy. This requires setting `proxy_server` to your cloud tenant and
-providing a join token.
+<TabItem scope={["cloud","team"]} label="Cloud-Hosted">
+
+For Teleport Team and Teleport Enterprise Cloud, the Windows Desktop Service
+should establish a reverse tunnel to the hosted Teleport Proxy Service. This
+requires setting `proxy_server` to your cloud tenant and providing a join token.
 
 First, generate a join token with the following command:
 

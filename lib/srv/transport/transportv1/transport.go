@@ -43,10 +43,10 @@ type Dialer interface {
 	DialHost(ctx context.Context, clientSrcAddr, clientDstAddr net.Addr, host, port, cluster string, checker services.AccessChecker, agentGetter teleagent.Getter, singer agentless.SignerCreator) (_ net.Conn, teleportVersion string, err error)
 }
 
-// ConnMonitor monitors authorized connections and terminates them when
+// ConnectionMonitor monitors authorized connections and terminates them when
 // session controls dictate so.
 type ConnectionMonitor interface {
-	MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, error)
+	MonitorConn(ctx context.Context, authCtx *authz.Context, conn net.Conn) (context.Context, net.Conn, error)
 }
 
 // ServerConfig holds creation parameters for Service.
@@ -296,8 +296,8 @@ func (s *Service) ProxySSH(stream transportv1pb.TransportService_ProxySSHServer)
 	}
 
 	// monitor the user connection
-	userConn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
-	monitorCtx, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, userConn)
+	conn := streamutils.NewConn(sshStreamRW, p.Addr, targetAddr)
+	monitorCtx, userConn, err := s.cfg.ConnectionMonitor.MonitorConn(ctx, authzContext, conn)
 	if err != nil {
 		return trace.Wrap(err)
 	}

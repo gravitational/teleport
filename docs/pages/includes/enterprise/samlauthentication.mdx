@@ -1,51 +1,58 @@
+### Enable default SAML authentication
 
-- Configure Teleport to use SAML authentication as the default instead of the local
+Configure Teleport to use SAML authentication as the default instead of the local
 user database.
 
-  <ScopedBlock scope={["oss", "enterprise"]}>
-  You can either edit the Teleport Auth Service configuration file or create a dynamic
-  resource.
-  </ScopedBlock>
+<ScopedBlock scope={["oss", "enterprise"]}>
+You can either edit the Teleport Auth Service configuration file or create a dynamic
+resource.
+</ScopedBlock>
 
-  <Tabs>
-  <TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
+<Tabs>
+<TabItem scope={["cloud", "team"]} label="Dynamic Resources (All Editions)">
 
-  Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
+Use `tctl` to edit the `cluster_auth_preference` value:
 
-  ```yaml
-  auth_service:
-    authentication:
-      type: saml
-  ```
+```code
+$ tctl edit cluster_auth_preference
+```
 
-  </TabItem>
-  <TabItem scope={["cloud"]} label="Dynamic Resources (All Editions)">
+Set the value of `spec.type` to `saml`:
 
-  Use `tctl` to edit the `cluster_auth_preference` value:
+```yaml
+kind: cluster_auth_preference
+metadata:
+  ...
+  name: cluster-auth-preference
+spec:
+  ...
+  type: saml
+  ...
+version: v2
+```
 
-  ```code
-  $ tctl edit cluster_auth_preference
-  ```
+After you save and exit the editor, `tctl` will update the resource:
 
-  Set the value of `spec.type` to `saml`:
+```text
+cluster auth preference has been updated
+```
 
-  ```yaml
-  kind: cluster_auth_preference
-  metadata:
-    ...
-    name: cluster-auth-preference
-  spec:
-    ...
+</TabItem>
+<TabItem label="Static Config (Self-Hosted)" scope={["oss", "enterprise"]}>
+
+Update `/etc/teleport.yaml` in the `auth_service` section and restart the `teleport` daemon.
+
+```yaml
+auth_service:
+  authentication:
     type: saml
-    ...
-  version: v2
-  ```
+```
 
-  After you save and exit the editor, `tctl` will update the resource:
+</TabItem>
+</Tabs>
 
-  ```text
-  cluster auth preference has been updated
-  ```
+<Admonition type="tip">
 
-  </TabItem>
-  </Tabs>
+If you need to log in again before configuring your SAML provider, use the flag <nobr>`--auth=local`</nobr>.
+
+</Admonition>

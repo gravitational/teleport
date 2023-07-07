@@ -10,6 +10,8 @@
     "directory": "packages/shared"
   },
   "dependencies": {
+    "@react-spring/web": "^9.7.2",
+    "@use-gesture/react": "^10.2.27",
     "ace-builds": "1.4.6",
     "create-react-class": "^15.6.3",
     "cross-env": "5.0.5",
@@ -21,9 +23,11 @@
     "react": "^16.8.4",
     "react-day-picker": "7.3.2",
     "react-dom": "^16.8.4",
+    "react-markdown": "^8.0.7",
     "react-router": "5.1.1",
     "react-router-dom": "5.1.1",
     "react-select": "^3.0.8",
+    "remark-gfm": "^3.0.1",
     "tslib": "^2.4.0",
     "whatwg-fetch": "^3.0.0",
     "@gravitational/design": "1.0.0"

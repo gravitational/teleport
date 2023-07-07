@@ -1,32 +1,28 @@
-Starting with Teleport v7.2.0, most `tsh` features are supported for Windows 10
-1607+. The `tsh ssh` command can be run under `cmd.exe`, PowerShell, and Windows
-Terminal.
+Most `tsh` features are supported for Windows 10 1607+. The `tsh ssh` command
+can be run under `cmd.exe`, PowerShell, and Windows Terminal.
 
-To install `tsh` on Windows, run the following commands in PowerShell:
+To install `tsh` on Windows, run the following commands in **PowerShell** (these commands will not work in `cmd.exe`):
 
-  ```code
-  # Get the expected checksum for the Windows tsh package
-  $ $Resp = Invoke-WebRequest https://get.gravitational.com/teleport-v(=teleport.version=)-windows-amd64-bin.zip.sha256
-  # PowerShell will return the binary representation of the response content
-  # by default, so you need to convert it to a string
-  $ [System.Text.Encoding]::UTF8.getstring($Resp.Content)
-  # <checksum> <filename>
-  $ curl -O https://cdn.teleport.dev/teleport-v(=teleport.version=)-windows-amd64-bin.zip
-  $ certUtil -hashfile teleport-v(=teleport.version=)-windows-amd64-bin.zip SHA256
-  # SHA256 hash of teleport-v(=teleport.version=)-windows-amd64-bin.zip:
-  # <checksum>
-  # CertUtil: -hashfile command completed successfully.
-  ```
+<Tabs dropdownView dropdownCaption="Teleport Edition">
+<TabItem label="Teleport Community Edition" scope="oss">
 
-  After you have verified that the checksums match, you can extract the archive.
-  The executable will be available at
-  `teleport-v(=teleport.version=)-windows-amd64-bin\teleport\tsh.exe`.
+  (!docs/pages/includes/install-windows-tsh.mdx version="(=teleport.version=)" !)
+ 
+</TabItem>
+<TabItem label="Teleport Team" scope="team">
 
-  ```code
-  $ Expand-Archive teleport-v(=teleport.version=)-windows-amd64-bin.zip
-  $ cd teleport-v(=teleport.version=)-windows-amd64-bin\teleport
-  $ .\tsh.exe version
-  Teleport v(=teleport.version=) git:v(=teleport.version=) go(=teleport.golang=)
-  ```
+  (!docs/pages/includes/install-windows-tsh.mdx version="(=teleport.version=)" !)
+ 
+</TabItem>
+<TabItem label="Teleport Enterprise" scope="enterprise">
 
-  Make sure to move `tsh.exe` into your PATH.
+  (!docs/pages/includes/install-windows-tsh.mdx version="(=teleport.version=)" !)
+ 
+</TabItem>
+
+<TabItem  label="Teleport Enterprise Cloud" scope="cloud">
+ 
+  (!docs/pages/includes/install-windows-tsh.mdx version="(=cloud.version=)" !)
+ 
+</TabItem>
+</Tabs>

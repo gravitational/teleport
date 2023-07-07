@@ -17,7 +17,6 @@ limitations under the License.
 package types
 
 import (
-	"regexp"
 	"strings"
 	"time"
 
@@ -25,6 +24,7 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport/api/defaults"
+	"github.com/gravitational/teleport/api/types/common"
 	"github.com/gravitational/teleport/api/utils"
 )
 
@@ -57,9 +57,21 @@ type Resource interface {
 	CheckAndSetDefaults() error
 }
 
+// IsSystemResource checks to see if the given resource is considered
+// part of the teleport system, as opposed to some user created resource
+// or preset.
+func IsSystemResource(r Resource) bool {
+	metadata := r.GetMetadata()
+	if t, ok := metadata.Labels[TeleportInternalResourceType]; ok {
+		return t == SystemResource
+	}
+	return false
+}
+
 // ResourceDetails includes details about the resource
 type ResourceDetails struct {
-	Hostname string
+	Hostname     string
+	FriendlyName string
 }
 
 // ResourceWithSecrets includes additional properties which must
@@ -456,15 +468,10 @@ func MatchLabels(resource ResourceWithLabels, labels map[string]string) bool {
 	return true
 }
 
-// LabelPattern is a regexp that describes a valid label key
-const LabelPattern = `^[a-zA-Z/.0-9_:*-]+$`
-
-var validLabelKey = regexp.MustCompile(LabelPattern)
-
 // IsValidLabelKey checks if the supplied string matches the
 // label key regexp.
 func IsValidLabelKey(s string) bool {
-	return validLabelKey.MatchString(s)
+	return common.IsValidLabelKey(s)
 }
 
 // MatchSearch goes through select field values from a resource

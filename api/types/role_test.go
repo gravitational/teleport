@@ -17,9 +17,12 @@ limitations under the License.
 package types
 
 import (
+	"encoding/json"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"gopkg.in/yaml.v2"
 
 	"github.com/gravitational/teleport/api/types/wrappers"
 )
@@ -141,5 +144,290 @@ func TestAccessReviewConditionsIsEmpty(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			require.Equal(t, test.expected, test.arc.IsEmpty())
 		})
+	}
+}
+
+func TestRole_GetKubeResources(t *testing.T) {
+	kubeLabels := Labels{
+		Wildcard: {Wildcard},
+	}
+	labelsExpression := "contains(user.spec.traits[\"groups\"], \"prod\")"
+	type args struct {
+		version          string
+		labels           Labels
+		labelsExpression string
+		resources        []KubernetesResource
+	}
+	tests := []struct {
+		name                string
+		args                args
+		want                []KubernetesResource
+		assertErrorCreation require.ErrorAssertionFunc
+	}{
+		{
+			name: "v7 with error",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      "invalid resource",
+						Namespace: "test",
+						Name:      "test",
+					},
+				},
+			},
+			assertErrorCreation: require.Error,
+		},
+		{
+			name: "v7",
+			args: args{
+				version: V7,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      KindKubePod,
+						Namespace: "test",
+						Name:      "test",
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			want: []KubernetesResource{
+				{
+					Kind:      KindKubePod,
+					Namespace: "test",
+					Name:      "test",
+				},
+			},
+		},
+		{
+			name: "v7 with labels expression",
+			args: args{
+				version:          V7,
+				labelsExpression: labelsExpression,
+				resources: []KubernetesResource{
+					{
+						Kind:      KindKubePod,
+						Namespace: "test",
+						Name:      "test",
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			want: []KubernetesResource{
+				{
+					Kind:      KindKubePod,
+					Namespace: "test",
+					Name:      "test",
+				},
+			},
+		},
+		{
+			name: "v6 to v7 without wildcard; labels expression",
+			args: args{
+				version:          V6,
+				labelsExpression: labelsExpression,
+				resources: []KubernetesResource{
+					{
+						Kind:      KindKubePod,
+						Namespace: "test",
+						Name:      "test",
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			want: append([]KubernetesResource{
+				{
+					Kind:      KindKubePod,
+					Namespace: "test",
+					Name:      "test",
+					Verbs:     []string{Wildcard},
+				},
+			},
+				appendV7KubeResources()...),
+		},
+		{
+			name: "v6 to v7 with wildcard",
+			args: args{
+				version: V6,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      KindKubePod,
+						Namespace: Wildcard,
+						Name:      Wildcard,
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			want: []KubernetesResource{
+				{
+					Kind:      Wildcard,
+					Namespace: Wildcard,
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+				},
+			},
+		},
+		{
+			name: "v6 to v7 without wildcard",
+			args: args{
+				version: V6,
+				labels:  kubeLabels,
+				resources: []KubernetesResource{
+					{
+						Kind:      KindKubePod,
+						Namespace: "test",
+						Name:      "test",
+					},
+				},
+			},
+			assertErrorCreation: require.NoError,
+			want: append([]KubernetesResource{
+				{
+					Kind:      KindKubePod,
+					Namespace: "test",
+					Name:      "test",
+					Verbs:     []string{Wildcard},
+				},
+			},
+				appendV7KubeResources()...),
+		},
+		{
+			name: "v5 to v7: populate with defaults.",
+			args: args{
+				version:   V5,
+				labels:    kubeLabels,
+				resources: nil,
+			},
+			assertErrorCreation: require.NoError,
+			want: []KubernetesResource{
+				{
+					Kind:      Wildcard,
+					Namespace: Wildcard,
+					Name:      Wildcard,
+					Verbs:     []string{Wildcard},
+				},
+			},
+		},
+		{
+			name: "v5 to v7 without kube labels",
+			args: args{
+				version:   V5,
+				resources: nil,
+			},
+			assertErrorCreation: require.NoError,
+			want:                nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			r, err := NewRoleWithVersion(
+				"test",
+				tt.args.version,
+				RoleSpecV6{
+					Allow: RoleConditions{
+						Namespaces:                 []string{"default"},
+						KubernetesLabels:           tt.args.labels,
+						KubernetesResources:        tt.args.resources,
+						KubernetesLabelsExpression: tt.args.labelsExpression,
+					},
+				},
+			)
+			tt.assertErrorCreation(t, err)
+			if err != nil {
+				return
+			}
+			got := r.GetKubeResources(Allow)
+			require.Equal(t, tt.want, got)
+			got = r.GetKubeResources(Deny)
+			require.Empty(t, got)
+		})
+	}
+}
+
+func appendV7KubeResources() []KubernetesResource {
+	resources := []KubernetesResource{}
+	// append other kubernetes resources
+	for _, resource := range KubernetesResourcesKinds {
+		if resource == KindKubePod {
+			continue
+		}
+		resources = append(resources, KubernetesResource{
+			Kind:      resource,
+			Namespace: Wildcard,
+			Name:      Wildcard,
+			Verbs:     []string{Wildcard},
+		},
+		)
+	}
+	return resources
+}
+
+func TestMarshallCreateHostUserModeJSON(t *testing.T) {
+	for _, tc := range []struct {
+		input    CreateHostUserMode
+		expected string
+	}{
+		{input: CreateHostUserMode_HOST_USER_MODE_OFF, expected: "off"},
+		{input: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, expected: ""},
+		{input: CreateHostUserMode_HOST_USER_MODE_DROP, expected: "drop"},
+		{input: CreateHostUserMode_HOST_USER_MODE_KEEP, expected: "keep"},
+	} {
+		got, err := json.Marshal(&tc.input)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%q", tc.expected), string(got))
+	}
+}
+
+func TestMarshallCreateHostUserModeYAML(t *testing.T) {
+	for _, tc := range []struct {
+		input    CreateHostUserMode
+		expected string
+	}{
+		{input: CreateHostUserMode_HOST_USER_MODE_OFF, expected: "\"off\""},
+		{input: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, expected: "\"\""},
+		{input: CreateHostUserMode_HOST_USER_MODE_DROP, expected: "drop"},
+		{input: CreateHostUserMode_HOST_USER_MODE_KEEP, expected: "keep"},
+	} {
+		got, err := yaml.Marshal(&tc.input)
+		require.NoError(t, err)
+		require.Equal(t, fmt.Sprintf("%s\n", tc.expected), string(got))
+	}
+}
+
+func TestUnmarshallCreateHostUserModeJSON(t *testing.T) {
+	for _, tc := range []struct {
+		expected CreateHostUserMode
+		input    string
+	}{
+		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "off"},
+		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: ""},
+		{expected: CreateHostUserMode_HOST_USER_MODE_DROP, input: "drop"},
+		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "keep"},
+	} {
+		var got CreateHostUserMode
+		err := json.Unmarshal([]byte(fmt.Sprintf("%q", tc.input)), &got)
+		require.NoError(t, err)
+		require.Equal(t, tc.expected, got)
+	}
+}
+
+func TestUnmarshallCreateHostUserModeYAML(t *testing.T) {
+	for _, tc := range []struct {
+		expected CreateHostUserMode
+		input    string
+	}{
+		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "\"off\""},
+		{expected: CreateHostUserMode_HOST_USER_MODE_OFF, input: "off"},
+		{expected: CreateHostUserMode_HOST_USER_MODE_UNSPECIFIED, input: "\"\""},
+		{expected: CreateHostUserMode_HOST_USER_MODE_DROP, input: "drop"},
+		{expected: CreateHostUserMode_HOST_USER_MODE_KEEP, input: "keep"},
+	} {
+		var got CreateHostUserMode
+		err := yaml.Unmarshal([]byte(tc.input), &got)
+		require.NoError(t, err)
+		require.Equal(t, tc.expected, got)
 	}
 }

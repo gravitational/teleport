@@ -66,6 +66,8 @@ const cfg = {
     authType: 'local' as AuthType,
     preferredLocalMfa: '' as PreferredMfaType,
     privateKeyPolicy: 'none' as PrivateKeyPolicy,
+    // motd is message of the day, displayed to users before login.
+    motd: '',
   },
 
   proxyCluster: 'localhost',
@@ -225,6 +227,8 @@ const cfg = {
     thumbprintPath: '/v1/webapi/thumbprint',
     awsRdsDbListPath:
       '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/databases',
+    awsDeployTeleportServicePath:
+      '/v1/webapi/sites/:clusterId/integrations/aws-oidc/:name/deployservice',
 
     userGroupsListPath:
       '/v1/webapi/sites/:clusterId/user-groups?searchAsRoles=:searchAsRoles?&limit=:limit?&startKey=:startKey?&query=:query?&search=:search?&sort=:sort?',
@@ -239,6 +243,7 @@ const cfg = {
       '/v1/webapi/assistant/conversations/:conversationId',
     assistExecuteCommandWebSocketPath:
       'wss://:hostname/v1/webapi/command/:clusterId/execute',
+    userPreferencesPath: '/v1/webapi/user/preferences',
   },
 
   getAppFqdnUrl(params: UrlAppParams) {
@@ -278,6 +283,10 @@ const cfg = {
 
   getPreferredMfaType() {
     return cfg.auth ? cfg.auth.preferredLocalMfa : null;
+  },
+
+  getMotd() {
+    return cfg.auth.motd;
   },
 
   getLocalAuthFlag() {
@@ -660,6 +669,15 @@ const cfg = {
     const clusterId = cfg.proxyCluster;
 
     return generatePath(cfg.api.awsRdsDbListPath, {
+      clusterId,
+      name: integrationName,
+    });
+  },
+
+  getAwsDeployTeleportServiceUrl(integrationName: string) {
+    const clusterId = cfg.proxyCluster;
+
+    return generatePath(cfg.api.awsDeployTeleportServicePath, {
       clusterId,
       name: integrationName,
     });

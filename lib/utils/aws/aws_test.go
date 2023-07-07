@@ -436,3 +436,54 @@ func TestIsUserARN(t *testing.T) {
 		})
 	}
 }
+
+func FuzzParseSigV4(f *testing.F) {
+	f.Add("")
+	f.Add("Authorization: AWS4-HMAC-SHA256 " +
+		"Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, " +
+		"SignedHeaders=host;range;x-amz-date, " +
+		"Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024")
+
+	f.Fuzz(func(t *testing.T, str string) {
+		require.NotPanics(t, func() {
+			_, _ = ParseSigV4(str)
+		})
+	})
+}
+
+func TestResourceARN(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		resourceType string
+		partition    string
+		accountID    string
+		resourceName string
+		expected     string
+	}{
+		{
+			name:         "role",
+			resourceType: "role",
+			partition:    "aws",
+			accountID:    "123456789012",
+			resourceName: "MyRole",
+			expected:     "arn:aws:iam::123456789012:role/MyRole",
+		},
+		{
+			name:         "policy",
+			resourceType: "policy",
+			partition:    "aws",
+			accountID:    "123456789012",
+			resourceName: "MyPolicy",
+			expected:     "arn:aws:iam::123456789012:policy/MyPolicy",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			switch tt.resourceType {
+			case "role":
+				require.Equal(t, tt.expected, RoleARN(tt.partition, tt.accountID, tt.resourceName))
+			case "policy":
+				require.Equal(t, tt.expected, PolicyARN(tt.partition, tt.accountID, tt.resourceName))
+			}
+		})
+	}
+}

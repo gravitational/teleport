@@ -236,15 +236,18 @@ func upsertLockWithPutEvent(ctx context.Context, t *testing.T, client *testClien
 	defer lockWatch.Close()
 
 	require.NoError(t, client.UpsertLock(ctx, lock))
-	select {
-	case event := <-lockWatch.Events():
-		require.Equal(t, types.OpPut, event.Type)
-		require.Empty(t, resourceDiff(lock, event.Resource))
-	case <-lockWatch.Done():
-		t.Fatalf("Watcher exited with error: %v.", lockWatch.Error())
-	case <-time.After(2 * time.Second):
-		t.Fatal("Timeout waiting for lock put.")
-	}
+
+	// Retry a few times to wait for the resource event we expect as the
+	// resource watcher can potentially return events for previously
+	// created resources as well.
+	require.Eventually(t, func() bool {
+		select {
+		case event := <-lockWatch.Events():
+			return types.OpPut == event.Type && resourceDiff(lock, event.Resource) == ""
+		case <-lockWatch.Done():
+			return false
+		}
+	}, 2*time.Second, 100*time.Millisecond)
 }
 
 func TestGetClientUserIsSSO(t *testing.T) {

@@ -38,20 +38,23 @@ in your Teleport cluster.
 
 ## Step 2/7. Install the Teleport email plugin
 
-<ScopedBlock scope={["enterprise", "oss"]}>
+In this step, you will install the Teleport email plugin.
+
+<Tabs>
+<TabItem label="Teleport Enterprise" scope={["enterprise"]}>
 
 We recommend installing Teleport plugins on the same host as the Teleport Proxy
 Service. This is an ideal location as plugins have a low memory footprint, and
 will require both public internet access and Teleport Auth Service access. 
 
-</ScopedBlock>
-
-<ScopedBlock scope="cloud">
+</TabItem>
+<TabItem scope="cloud" label="Teleport Enterprise Cloud">
 
 Install the Teleport email plugin on a host that can access both your
 Teleport Cloud tenant and your SMTP service.
 
-</ScopedBlock>
+</TabItem>
+</Tabs>
 
 <Details title="Using a local SMTP server?">
 

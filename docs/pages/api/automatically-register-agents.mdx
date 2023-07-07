@@ -216,7 +216,7 @@ The program, which you can find in
 |---|---|
 |`context`|Includes the `context.Context` type. `context.Context` is an abstraction for controlling long-running routines, such as connections to external services, that might fail or time out. Programs can cancel contexts or assign them timeouts and metadata. |
 |`crypto/rand`|Includes cryptographic randomization functions, which we will use to generate join tokens for Application Services to use to establish trust with the Teleport Auth Service.|
-|<nobr>`encoding/hex`</nobr>|The number generator we use from `crypto/rand` returns data in bytes, so we will encode these as hexadecimal strings using this package.|
+|`encoding/hex`|The number generator we use from `crypto/rand` returns data in bytes, so we will encode these as hexadecimal strings using this package.|
 |`fmt`|Formats data for printing, strings, or errors.|
 |`net`|Deals with network I/O.|
 |`net/url`|Parses URLs.|
@@ -228,7 +228,7 @@ The client imports the following third-party code:
 |Package|Description|
 |---|---|
 |`github.com/docker/docker/api/types`|Types used in the Docker daemon API. Aliased as `dtypes` here. |
-|<nobr>`github.com/docker/docker/api/types/container`</nobr>|Container-specific types used in the Docker daemon API.|
+|`github.com/docker/docker/api/types/container`|Container-specific types used in the Docker daemon API.|
 |`github.com/docker/docker/api/types/filters`|Types used for filtering containers in the Docker daemon API.|
 |`github.com/docker/docker/api/types/strslice`|A utility package for working with slices of strings in Docker's API client library. (In Go, slices are similar to arrays, but with variable lengths and capacities. Arrays have a fixed size.)|
 |`github.com/docker/docker/client`|The Docker API client library, aliased as `docker` here.|
@@ -266,7 +266,7 @@ want to change later, including:
 |`proxyAddr`|The host and port of the Teleport Proxy Service, e.g., `mytenant.teleport.sh:443`, which we will use to connect the client to your cluster. **Assign this to your own Proxy Service's host and port.**|
 |`teleportImage`|The name of the Teleport container image, which the program will use to run instances of the Teleport Application Service.|
 |`initTimeout`|The timeout for connecting to the Teleport cluster (30 seconds).|
-|<nobr>`updateInterval`</nobr>|How often the program will wait between reconciling Application Service instances and application containers (5 seconds).|
+|`updateInterval`|How often the program will wait between reconciling Application Service instances and application containers (5 seconds).|
 |`tokenTTL`|How long of a TTL to set for join tokens that Application Service instances will use to establish trust with the Teleport cluster. This client application will use join tokens immediately after creating them, so we can set this TTL to a small value (5 minutes) to prevent this credential from leaking.|
 |`networkName`|The name of the Docker network to search for application containers. `bridge` is the default local network managed by the Docker daemon.|
 |`managementPort`|The management API port of our RabbitMQ containers.|
@@ -529,8 +529,9 @@ corresponding role permissions with the `create` verb:
 |Resource|Method|Within a Role|
 |---|---|---|
 |Database|`*client.Client.CreateDatabase`|`db`|
-|Kubernetes cluster|<nobr>`*client.Client.CreateKubernetesCluster`</nobr>|`kube_cluster`|
-|Windows Desktop|`*client.Client.CreateWindowsDesktop`|<nobr>`windows_desktop`</nobr>|
+|Kubernetes cluster|`*client.Client.CreateKubernetesCluster`|`kube_cluster`|
+|Windows Desktop|`*client.Client.CreateWindowsDesktop`|`windows_desktop`|
+
 Since a server must run an instance of the Teleport Service in order to join
 a Teleport cluster, API clients can only register servers by using tokens.
 

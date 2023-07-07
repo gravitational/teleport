@@ -22,9 +22,14 @@ package botfs
 import (
 	"io"
 	"os/user"
+	"sync"
 
 	"github.com/gravitational/trace"
 )
+
+// unsupportedPlatformWarning is used to reduce log spam when on an unsupported
+// platform.
+var unsupportedPlatformWarning sync.Once
 
 // Create attempts to create the given file or directory without
 // evaluating symlinks. This is only supported on recent Linux kernel versions
@@ -44,7 +49,9 @@ func Read(path string, symlinksMode SymlinksMode) ([]byte, error) {
 	case SymlinksSecure:
 		return nil, trace.BadParameter("cannot read with `symlinks: secure` on unsupported platform")
 	case SymlinksTrySecure:
-		log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+		unsupportedPlatformWarning.Do(func() {
+			log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+		})
 	}
 
 	file, err := openStandard(path, ReadMode)
@@ -68,7 +75,9 @@ func Write(path string, data []byte, symlinksMode SymlinksMode) error {
 	case SymlinksSecure:
 		return trace.BadParameter("cannot write with `symlinks: secure` on unsupported platform")
 	case SymlinksTrySecure:
-		log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+		unsupportedPlatformWarning.Do(func() {
+			log.Warn("Secure symlinks not supported on this platform, set `symlinks: insecure` to disable this message", path)
+		})
 	}
 
 	file, err := openStandard(path, WriteMode)

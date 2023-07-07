@@ -16,12 +16,18 @@ limitations under the License.
 
 package model
 
-import "fmt"
+import (
+	"fmt"
+	"strings"
+)
 
 var observationPrefix = "Observation: "
 var thoughtPrefix = "Thought: "
 
 const PromptSummarizeTitle = `You will be given a message. Create a short summary of that message.
+Respond only with summary, nothing else.`
+
+const PromptSummarizeCommand = `You will be given a chat history and a command output. Based on the history context, extract relevant information from the command output and write a short summary of the command output.
 Respond only with summary, nothing else.`
 
 const InitialAIResponse = `Hey, I'm Teleport - a powerful tool that can assist you in managing your Teleport cluster via OpenAI GPT-4.`
@@ -55,6 +61,7 @@ Markdown code snippet formatted in the following schema:
 {
 	"action": string \\ The action to take. Must be one of %v
 	"action_input": string \\ The input to the action
+	"reasoning": string \\ Your reasoning for taking this action
 }
 %v
 
@@ -62,14 +69,10 @@ Markdown code snippet formatted in the following schema:
 Use this if you want to respond directly to the human or you want to ask the human a question to gather more information.
 You should avoid asking too many questions when you have other options available to you as it may be perceived as annoying.
 But asking is far better than guessing or making assumptions.
-Markdown code snippet formatted in the following schema:
+Text with the hardcoded header %v followed by your response as below:
 
-%vjson
-{
-    "action": "Final Answer",
-    "action_input": string \\ You should put what you want to return to use here
-}
-%v`, "```", toolnames, "```", "```", "```",
+%v
+YOUR RESPONSE HERE`, "```", toolnames, "```", finalResponseHeader, finalResponseHeader,
 	)
 }
 
@@ -99,4 +102,30 @@ USER'S INPUT
 --------------------
 
 Okay, so what is the response to my last comment? If using information obtained from the tools you must mention it explicitly without mentioning the tool names - I have forgotten all TOOL RESPONSES! Remember to respond with a markdown code snippet of a json blob with a single action, and NOTHING else.`, toolResponse)
+}
+
+func ConversationCommandResult(result map[string][]byte) string {
+	var message strings.Builder
+	for node, output := range result {
+		message.WriteString(fmt.Sprintf(`Command ran on node "%s" and produced the following output:\n`, node))
+		message.WriteString(string(output))
+		message.WriteString("\n")
+	}
+	message.WriteString("Based on the chat history, extract relevant information out of the command output and write a summary.")
+	return message.String()
+}
+
+func MessageClassificationPrompt(classes map[string]string) string {
+	var classList strings.Builder
+	for name, description := range classes {
+		classList.WriteString(fmt.Sprintf("- `%s` (%s)\n", name, description))
+	}
+
+	return fmt.Sprintf(`Teleport is a tool that provides access to servers, kubernetes clusters, databases, and applications. All connected Teleport resources are called a cluster. Server resources might be called nodes.
+
+Classify the provided message between the following categories:
+
+%v
+
+Answer only with the category name. Nothing else.`, classList.String())
 }

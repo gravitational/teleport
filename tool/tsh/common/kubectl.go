@@ -50,6 +50,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
+	"github.com/gravitational/teleport/lib/observability/tracing"
 )
 
 var (
@@ -151,14 +152,13 @@ func wrapConfigFn(cf *CLIConf) func(c *rest.Config) *rest.Config {
 // paths.
 func runKubectlCode(cf *CLIConf, args []string) {
 	closeTracer := func() {}
+	cf.TracingProvider = tracing.NoopProvider()
+	cf.tracer = cf.TracingProvider.Tracer(teleport.ComponentTSH)
 	if cf.SampleTraces {
 		provider, err := newTraceProvider(cf, "", nil)
 		if err != nil {
 			log.WithError(err).Debug("Failed to set up span forwarding")
 		} else {
-			// only update the provider if we successfully set it up
-			cf.TracingProvider = provider
-
 			// ensure that the provider is shutdown on exit to flush any spans
 			// that haven't been forwarded yet.
 			closeTracer = func() {
@@ -453,11 +453,11 @@ func makeAndStartKubeLocalProxy(cf *CLIConf, config *clientcmdapi.Config, cluste
 }
 
 // shouldUseKubeLocalProxy checks if a local proxy is required for kube
-// access.
+// access for `tsh kubectl` or `tsh kube exec`.
 //
 // The local proxy is required when all of these conditions are met:
 // - profile is loadable
-// - kube access is enabled
+// - kube access is enabled, and is accessed through web proxy address
 // - ALPN connection upgrade is required (e.g. Proxy behind ALB)
 // - not `kubectl config` commands
 // - original/default kubeconfig is loadable
@@ -470,9 +470,7 @@ func shouldUseKubeLocalProxy(cf *CLIConf, kubectlArgs []string) (*clientcmdapi.C
 		return nil, nil, false
 	}
 
-	// Only use local proxy when Kube is enabled and ALPN connection upgrade is
-	// required.
-	if !profile.TLSRoutingConnUpgradeRequired || profile.KubeProxyAddr == "" {
+	if !profile.RequireKubeLocalProxy() {
 		return nil, nil, false
 	}
 

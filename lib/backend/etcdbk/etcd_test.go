@@ -82,7 +82,7 @@ func TestEtcd(t *testing.T) {
 		// we can't fiddle with clocks inside the etcd client, so instead of creating
 		// and returning a fake clock, we wrap the real clock used by the etcd client
 		// in a FakeClock interface that sleeps instead of instantly advancing.
-		sleepingClock := blockingFakeClock{bk.clock}
+		sleepingClock := test.BlockingFakeClock{Clock: bk.clock}
 
 		return bk, sleepingClock, nil
 	}
@@ -254,22 +254,4 @@ func etcdTestEndpoint() string {
 		return host
 	}
 	return "https://127.0.0.1:2379"
-}
-
-func (r blockingFakeClock) Advance(d time.Duration) {
-	if d < 0 {
-		panic("Invalid argument, negative duration")
-	}
-
-	// We cannot rewind time for etcd since it will not have any effect on the server
-	// so we actually sleep in this case
-	time.Sleep(d)
-}
-
-func (r blockingFakeClock) BlockUntil(int) {
-	panic("Not implemented")
-}
-
-type blockingFakeClock struct {
-	clockwork.Clock
 }

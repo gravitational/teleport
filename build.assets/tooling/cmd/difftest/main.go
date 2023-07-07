@@ -60,6 +60,14 @@ var (
 		// TestProxySSH and TestList takes around 10-15s to run, largely due to the 7-10 seconds it takes to create a
 		// tsh test suite. This prevents it from ever completing the 100 runs successfully.
 		"TestProxySSH", "TestList", "TestForwardingTraces", "TestExportingTraces",
+
+		// TestDiagnoseSSHConnection takes around 15s to run.
+		// When running 100x it exceeds the 600s defined to run the tests.
+		"TestDiagnoseSSHConnection",
+
+		// TestServer_Authenticate_headless takes about 4-5 seconds to run, so if other tests are changed
+		// in the same PR that take >1 second total, it may cause the flaky test detector to time out.
+		"TestServer_Authenticate_headless",
 	}
 )
 

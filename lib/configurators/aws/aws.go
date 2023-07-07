@@ -109,10 +109,6 @@ func (a databaseActions) buildStatement(boundary bool) *awslib.Statement {
 var (
 	// defaultPolicyTags default list of tags present at the managed policies.
 	defaultPolicyTags = map[string]string{policyTeleportTagKey: policyTeleportTagValue}
-	// userBaseActions list of actions used when target is an user.
-	userBaseActions = []string{"iam:GetUserPolicy", "iam:PutUserPolicy", "iam:DeleteUserPolicy"}
-	// roleBaseActions list of actions used when target is a role.
-	roleBaseActions = []string{"iam:GetRolePolicy", "iam:PutRolePolicy", "iam:DeleteRolePolicy"}
 	// secretsManagerActions is a list of actions used for SecretsManager.
 	secretsManagerActions = []string{
 		"secretsmanager:DescribeSecret",
@@ -868,21 +864,20 @@ func isRDSProxyEndpoint(uri string) bool {
 // buildIAMEditStatements returns IAM statements necessary for the Teleport
 // agent to edit user/role permissions.
 func buildIAMEditStatements(target awslib.Identity) ([]*awslib.Statement, error) {
-	statement := &awslib.Statement{
-		Effect:    awslib.EffectAllow,
-		Resources: []string{target.String()},
-	}
-
 	switch target.(type) {
 	case awslib.User, *awslib.User:
-		statement.Actions = userBaseActions
+		return []*awslib.Statement{
+			awslib.StatementForIAMEditUserPolicy(target.String()),
+		}, nil
+
 	case awslib.Role, *awslib.Role:
-		statement.Actions = roleBaseActions
+		return []*awslib.Statement{
+			awslib.StatementForIAMEditRolePolicy(target.String()),
+		}, nil
+
 	default:
 		return nil, trace.BadParameter("policies target must be an user or role, received %T", target)
 	}
-
-	return []*awslib.Statement{statement}, nil
 }
 
 // buildEC2AutoDiscoveryStatements returns IAM statements necessary for
@@ -1053,12 +1048,13 @@ func getTargetConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config,
 	}
 	awsMatchers := awsMatchersFromConfig(flags, cfg)
 	databases := databasesFromConfig(flags, cfg)
-	targetIsAssumeRole := isTargetAWSAssumeRole(flags, awsMatchers, databases, target)
+	resourceMatchers := resourceMatchersFromConfig(flags, cfg)
+	targetIsAssumeRole := isTargetAWSAssumeRole(flags, awsMatchers, databases, resourceMatchers, target)
 	return targetConfig{
 		identity:        target,
 		awsMatchers:     matchersForTarget(awsMatchers, target, targetIsAssumeRole),
 		databases:       databasesForTarget(databases, target, targetIsAssumeRole),
-		assumesAWSRoles: rolesForTarget(forcedRoles, awsMatchers, databases, targetIsAssumeRole),
+		assumesAWSRoles: rolesForTarget(forcedRoles, awsMatchers, databases, resourceMatchers, targetIsAssumeRole),
 	}, nil
 }
 
@@ -1084,9 +1080,16 @@ func databasesFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Con
 	return databases
 }
 
+func resourceMatchersFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config) []services.ResourceMatcher {
+	if flags.DiscoveryService {
+		return nil
+	}
+	return cfg.Databases.ResourceMatchers
+}
+
 // isTargetAWSAssumeRole determines if the target identity exists in config or cli
 // flags as an AWS IAM role arn that will be assumed by the database agent.
-func isTargetAWSAssumeRole(flags configurators.BootstrapFlags, matchers []types.AWSMatcher, databases []*servicecfg.Database, target awslib.Identity) bool {
+func isTargetAWSAssumeRole(flags configurators.BootstrapFlags, matchers []types.AWSMatcher, databases []*servicecfg.Database, resourceMatchers []services.ResourceMatcher, target awslib.Identity) bool {
 	switch target.(type) {
 	case awslib.Role, *awslib.Role:
 	default:
@@ -1095,7 +1098,8 @@ func isTargetAWSAssumeRole(flags configurators.BootstrapFlags, matchers []types.
 
 	targetARN := target.String()
 	return isTargetAWSAssumeRoleForMatchers(matchers, targetARN) ||
-		isTargetAWSAssumeRoleForDatabases(databases, targetARN)
+		isTargetAWSAssumeRoleForDatabases(databases, targetARN) ||
+		isTargetAWSAssumeRoleForResourceMatchers(resourceMatchers, targetARN)
 }
 
 // isTargetAWSAssumeRoleForMatchers checks if the target identity is the same as
@@ -1116,6 +1120,15 @@ func isTargetAWSAssumeRoleForDatabases(databases []*servicecfg.Database, targetA
 	return findDatabaseIs(databases, func(db *servicecfg.Database) bool {
 		return db.AWS.AssumeRoleARN == targetARN
 	})
+}
+
+func isTargetAWSAssumeRoleForResourceMatchers(resourceMatchers []services.ResourceMatcher, targetARN string) bool {
+	for _, resourceMatcher := range resourceMatchers {
+		if resourceMatcher.AWS.AssumeRoleARN == targetARN {
+			return true
+		}
+	}
+	return false
 }
 
 // predicate is a generic predicate function type.
@@ -1200,7 +1213,7 @@ func isStubAccountIDError(target awslib.Identity, err error) bool {
 
 // rolesForTarget returns all AWS roles from cli flags, AWS matchers, and
 // databases that the target identity will need to be able to assume.
-func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases []*servicecfg.Database, targetIsAssumeRole bool) []string {
+func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases []*servicecfg.Database, resourceMatchers []services.ResourceMatcher, targetIsAssumeRole bool) []string {
 	roleSet := make(map[string]struct{})
 	for _, roleARN := range forcedRoles {
 		roleSet[roleARN] = struct{}{}
@@ -1226,6 +1239,12 @@ func rolesForTarget(forcedRoles []string, matchers []types.AWSMatcher, databases
 			continue
 		}
 		roleSet[db.AWS.AssumeRoleARN] = struct{}{}
+	}
+	for _, resourceMatcher := range resourceMatchers {
+		if resourceMatcher.AWS.AssumeRoleARN == "" {
+			continue
+		}
+		roleSet[resourceMatcher.AWS.AssumeRoleARN] = struct{}{}
 	}
 	return utils.StringsSliceFromSet(roleSet)
 }

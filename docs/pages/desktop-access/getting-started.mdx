@@ -20,8 +20,6 @@ with the static host definitions described below.
 <Details
   title="Version warning"
   opened={true}
-  scope={["oss", "enterprise"]}
-  scopeOnly={true}
   min="12.0"
 >
 Passwordless access for local users is available starting from Teleport `v12`.
@@ -50,21 +48,8 @@ Export the Teleport user certificate authority by running the following from
 `cmd.exe` on your Windows system:
 
 ```code
-$ curl -o teleport.cer 'https://teleport-proxy.example.com:443/webapi/auth/export?type=windows'
+$ curl -o teleport.cer https://teleport-proxy.example.com/webapi/auth/export?type=windows
 ```
-
-<Admonition type="warning" title="PowerShell">
-Be sure to run the above command in `cmd.exe`. In PowerShell, `curl` is an alias for
-[`Invoke-WebRequest`](https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-webrequest?view=powershell-7.3)
-which has different semantics.
-
-If you must use PowerShell, remove the alias before running curl with the
-following command:
-
-```
-> Remove-Item alias:curl
-```
-</Admonition>
 
 ### Install the Teleport service for Windows
 
@@ -104,7 +89,7 @@ for detailed information on configuring Teleport Desktop Access with this token.
 
 Copy the token to the Linux host where you will run the Desktop service as `/tmp/token`.
 
-(!docs/pages/includes/install-linux.mdx!)
+(!docs/pages/includes/install-linux-enterprise.mdx!)
 
 Create `/etc/teleport.yaml` and configure it for desktop access. Update the `proxy_server`
 value to your Teleport proxy service or cloud tenant, and put the Windows machine address
