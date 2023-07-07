@@ -78,7 +78,7 @@ export class FileDownloader implements IFileDownloader {
             // Use Use DownloadItem.getLastReason() when merged.
             this.onDownloadError(
               new Error(
-                `Download failed. Requested file may not exist or is temporary unavailable.`
+                `Download failed. Requested file may not exist or is temporarily unavailable.`
               )
             );
             break;
