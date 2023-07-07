@@ -848,6 +848,21 @@ The default is left blank, which will automatically create a `PersistentVolumeCl
     existingClaimName: my-existing-pvc-name
   ```
 
+### `persistence.storageClassName`
+
+| Type   | Default value |
+|--------|---------------|
+| `string` | `nil`        |
+
+`persistence.storageClassName` can be used to set the storage class for the `PersistentVolumeClaim`.
+
+`values.yaml` example:
+
+  ```yaml
+  persistence:
+    storageClassName: ebs-ssd
+  ```
+
 ### `persistence.volumeSize`
 
 | Type     | Default value |
