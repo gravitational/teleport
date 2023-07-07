@@ -2,4 +2,6 @@ version: v1
 plugins:
   - name: gogofast
     out: ./gogogen
-    opt: plugins=grpc
+    opt:
+      - plugins=grpc
+      - Mteleport/accesslist/v1/accesslist.proto=github.com/gravitational/teleport/api/gen/wrappers/teleport/accesslist/v1

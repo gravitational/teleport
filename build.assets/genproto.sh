@@ -34,7 +34,15 @@ main() {
   # Clean gen/proto directories before regenerating them. Legacy protos are
   # generated all over the directory tree, so they won't get cleaned up
   # automatically if the proto is deleted.
-  [[ $skip_rm -eq 0 ]] && echoed rm -fr api/gen/proto gen/proto
+  [[ $skip_rm -eq 0 ]] && echoed rm -fr api/gen/proto gen/proto gen/wrappers
+
+  # Generate Gogo proto wrappers. These are wrappers for non-gogo objects that
+  # need to interact with gogo objects, like for adding to the authservice Event
+  # message.
+  echoed buf generate --template=buf-gogo.wrappers.yaml \
+    --path=api/proto/teleport/accesslist/v1/accesslist.proto \
+    --path=api/proto/teleport/header/v1 \
+    --path=api/proto/teleport/trait/v1
 
   # Generate Gogo protos. Generated protos are written to
   # gogogen/github.com/gravitational/teleport/..., so we copy them to the

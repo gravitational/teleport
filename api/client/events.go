@@ -17,8 +17,15 @@ package client
 import (
 	"github.com/gravitational/trace"
 
+	gogoproto "github.com/gogo/protobuf/proto"
 	"github.com/gravitational/teleport/api/client/proto"
+	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
+	accesslistv1wrapper "github.com/gravitational/teleport/api/gen/wrappers/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/types/accesslist"
+	accesslistv1conv "github.com/gravitational/teleport/lib/types/accesslist/convert/v1"
+	gproto "google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
 // EventToGRPC converts types.Event to proto.Event.
@@ -210,6 +217,14 @@ func EventToGRPC(in types.Event) (*proto.Event, error) {
 		out.Resource = &proto.Event_HeadlessAuthentication{
 			HeadlessAuthentication: r,
 		}
+	case *accesslist.AccessList:
+		accessList, err := toWrapper(r, &accesslistv1wrapper.AccessList{}, accesslistv1conv.ToProto)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out.Resource = &proto.Event_AccessList{
+			AccessList: accessList,
+		}
 	default:
 		return nil, trace.BadParameter("resource type %T is not supported", in.Resource)
 	}
@@ -365,6 +380,13 @@ func EventFromGRPC(in proto.Event) (*types.Event, error) {
 	} else if r := in.GetHeadlessAuthentication(); r != nil {
 		out.Resource = r
 		return &out, nil
+	} else if r := in.GetAccessList(); r != nil {
+		accessList, err := fromWrapper(r, &accesslistv1.AccessList{}, accesslistv1conv.FromProto)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+		out.Resource = accessList
+		return &out, nil
 	} else {
 		return nil, trace.BadParameter("received unsupported resource %T", in.Resource)
 	}
@@ -382,4 +404,39 @@ func EventTypeFromGRPC(in proto.Operation) (types.OpType, error) {
 	default:
 		return types.OpInvalid, trace.BadParameter("unsupported operation type: %v", in)
 	}
+}
+
+type gogoMarshal interface {
+	gogoproto.Marshaler
+	gogoproto.Unmarshaler
+}
+
+// toWrapper will convert from the given object into its intended wrapper object using a
+// conversion function. A storage object, dst, must be passed to store intermediary data during this
+// conversion process.
+func toWrapper[T any, V protoreflect.ProtoMessage, U gogoMarshal](obj T, dst U, toProto func(T) V) (zero U, err error) {
+	targetProto := toProto(obj)
+	data, err := gproto.Marshal(targetProto)
+	if err != nil {
+		return zero, trace.Wrap(err)
+	}
+	if err := dst.Unmarshal(data); err != nil {
+		return zero, trace.Wrap(err)
+	}
+	return dst, nil
+}
+
+// fromWrapper will convert from the given wrapper object into its intended destination object using a
+// conversion function. A storage object, msg, must be passed to store intermediary data during this
+// conversion process.
+func fromWrapper[T gogoMarshal, V protoreflect.ProtoMessage, U any](obj T, msg V, fromProto func(V) (U, error)) (zero U, err error) {
+	data, err := obj.Marshal()
+	if err != nil {
+		return zero, trace.Wrap(err)
+	}
+	if err := gproto.Unmarshal(data, msg); err != nil {
+		return zero, trace.Wrap(err)
+	}
+	target, err := fromProto(msg)
+	return target, trace.Wrap(err)
 }

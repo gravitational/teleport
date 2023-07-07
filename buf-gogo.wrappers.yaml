@@ -1,0 +1,12 @@
+version: v1
+plugins:
+  - name: gogofast
+    out: ./api/gen/wrappers
+    opt:
+      - plugins=grpc
+      - paths=source_relative
+      - Mteleport/header/v1/resourceheader.proto=github.com/gravitational/teleport/api/gen/wrappers/teleport/header/v1
+      - Mteleport/header/v1/metadata.proto=github.com/gravitational/teleport/api/gen/wrappers/teleport/header/v1
+      - Mteleport/trait/v1/trait.proto=github.com/gravitational/teleport/api/gen/wrappers/teleport/trait/v1
+      - Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types
+      - Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types

@@ -19,6 +19,7 @@ package proto;
 import "gogoproto/gogo.proto";
 import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
+import "teleport/accesslist/v1/accesslist.proto";
 import "teleport/attestation/v1/attestation.proto";
 import "teleport/legacy/client/proto/certs.proto";
 import "teleport/legacy/types/events/events.proto";
@@ -137,6 +138,8 @@ message Event {
     types.WatchStatusV1 WatchStatus = 43 [(gogoproto.jsontag) = "watch_status,omitempty"];
     // HeadlessAuthentication is a HeadlessAuthentication resource.
     types.HeadlessAuthentication HeadlessAuthentication = 44 [(gogoproto.jsontag) = "headless_authentication,omitempty"];
+    // AccessList is an AccessList resource.
+    teleport.accesslist.v1.AccessList AccessList = 45 [(gogoproto.jsontag) = "access_list,omitempty"];
   }
 }
 

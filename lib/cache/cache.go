@@ -43,6 +43,7 @@ import (
 	"github.com/gravitational/teleport/lib/observability/tracing"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
+	"github.com/gravitational/teleport/lib/types/accesslist"
 	"github.com/gravitational/teleport/lib/utils"
 	"github.com/gravitational/teleport/lib/utils/interval"
 )
@@ -114,6 +115,7 @@ func ForAuth(cfg Config) Config {
 		{Kind: types.KindOktaAssignment},
 		{Kind: types.KindIntegration},
 		{Kind: types.KindHeadlessAuthentication},
+		{Kind: types.KindAccessList},
 	}
 	cfg.QueueSize = defaults.AuthQueueSize
 	// We don't want to enable partial health for auth cache because auth uses an event stream
@@ -469,6 +471,7 @@ type Cache struct {
 	oktaCache                    services.Okta
 	integrationsCache            services.Integrations
 	headlessAuthenticationsCache services.HeadlessAuthenticationService
+	accessListsCache             services.AccessLists
 	eventsFanout                 *services.FanoutSet
 
 	// closed indicates that the cache has been closed
@@ -622,6 +625,8 @@ type Config struct {
 	Okta services.Okta
 	// Integrations is an Integrations service.
 	Integrations services.Integrations
+	// AccessLists is the access list service.
+	AccessLists services.AccessLists
 	// Backend is a backend for local cache
 	Backend backend.Backend
 	// MaxRetryPeriod is the maximum period between cache retries on failures
@@ -791,6 +796,12 @@ func New(config Config) (*Cache, error) {
 		return nil, trace.Wrap(err)
 	}
 
+	accessListsCache, err := local.NewAccessListService(config.Backend, config.Clock)
+	if err != nil {
+		cancel()
+		return nil, trace.Wrap(err)
+	}
+
 	cs := &Cache{
 		ctx:                          ctx,
 		cancel:                       cancel,
@@ -820,6 +831,7 @@ func New(config Config) (*Cache, error) {
 		oktaCache:                    oktaCache,
 		integrationsCache:            integrationsCache,
 		headlessAuthenticationsCache: local.NewIdentityService(config.Backend),
+		accessListsCache:             accessListsCache,
 		eventsFanout:                 services.NewFanoutSet(),
 		Logger: log.WithFields(log.Fields{
 			trace.Component: config.Component,
@@ -2451,6 +2463,32 @@ func (c *Cache) GetIntegration(ctx context.Context, name string) (types.Integrat
 	}
 	defer rg.Release()
 	return rg.reader.GetIntegration(ctx, name)
+}
+
+// GetAccessLists returns a list of all access lists resources.
+func (c *Cache) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessLists")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessLists)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessLists(ctx)
+}
+
+// GetAccessList returns the specified access list resource.
+func (c *Cache) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
+	ctx, span := c.Tracer.Start(ctx, "cache/GetAccessList")
+	defer span.End()
+
+	rg, err := readCollectionCache(c, c.collections.accessLists)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	defer rg.Release()
+	return rg.reader.GetAccessList(ctx, name)
 }
 
 // ListResources is a part of auth.Cache implementation
