@@ -218,7 +218,6 @@ spec:
   options:
     cert_format: standard
     create_desktop_user: false
-    create_host_user: false
     desktop_clipboard: true
     desktop_directory_sharing: true
     enhanced_recording:

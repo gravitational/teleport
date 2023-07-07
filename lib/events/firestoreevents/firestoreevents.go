@@ -424,6 +424,7 @@ func (l *Log) searchEventsWithFilter(fromUTC, toUTC time.Time, namespace string,
 	}
 
 	query := l.svc.Collection(l.CollectionName).
+		Where(sessionIDDocProperty, "!=", ""). // exclude any non audit event documents in the collection
 		Where(eventNamespaceDocProperty, "==", apidefaults.Namespace).
 		Where(createdAtDocProperty, ">=", fromUTC.Unix()).
 		Where(createdAtDocProperty, "<=", toUTC.Unix())
