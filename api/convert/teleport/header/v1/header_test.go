@@ -21,8 +21,9 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/gravitational/teleport/api/types/header"
 	"github.com/stretchr/testify/require"
+
+	"github.com/gravitational/teleport/api/types/header"
 )
 
 func TestResourceHeaderRoundtrip(t *testing.T) {

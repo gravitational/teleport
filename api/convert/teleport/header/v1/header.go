@@ -17,9 +17,10 @@ limitations under the License.
 package headerv1
 
 import (
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
 	"github.com/gravitational/teleport/api/types/header"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // FromResourceHeaderV1 converts the resource header protobuf message into an internal resource header object.

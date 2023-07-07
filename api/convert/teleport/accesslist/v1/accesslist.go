@@ -17,13 +17,14 @@ limitations under the License.
 package accesslistv1
 
 import (
+	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	headerv1 "github.com/gravitational/teleport/api/convert/teleport/header/v1"
 	traitv1 "github.com/gravitational/teleport/api/convert/teleport/trait/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // FromV1 converts a v1 access list into an internal access list object.
