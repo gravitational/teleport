@@ -487,9 +487,10 @@ teleport:
     # This value can be configured as shown below. If set to 0 seconds, TTL is disabled.
     audit_retention_period: 365d
 
-    # Enables On-Demand billing for the dynamodb table, if set to false, provisioned mode will be used.
-    # default: true
-    on_demand: true
+    # Enables either On-Demand or Provisioned billing for the DynamoDB table. Set when Teleport creates the table.
+    # Possible values: "on_demand" and "provisioned"
+    # default: "on_demand"
+    billing_mode: "on_demand"
 ```
 
 - Replace `us-east-1` and `Example_TELEPORT_DYNAMO_TABLE_NAME`
@@ -552,6 +553,11 @@ teleport:
     # auto_scaling is used to optionally enable (and define settings for) auto scaling.
     # default: false
     auto_scaling:  [true|false]
+    # Enables either On-Demand or Provisioned billing for the DynamoDB table. Set when Teleport creates the table.
+    # If billing_mode is set to "on_demand", read/write capacity and auto_scaling settings will be ignored.
+    # Possible values: "on_demand" and "provisioned"
+    # default: "on_demand"
+    billing_mode: ["on_demand"|"provisioned"]
     # Minimum/maximum read capacity in units
     read_min_capacity: int
     read_max_capacity: int
@@ -560,9 +566,6 @@ teleport:
     write_min_capacity: int
     write_max_capacity: int
     write_target_value: float
-    # Enables On-Demand billing
-    # default: true
-    on_demand: [true|false]
 ```
 
 To enable these options you will need to update the IAM Policy for Teleport.
