@@ -214,6 +214,11 @@ function updateSessionDataPath() {
         'sessionData',
         path.resolve(os.homedir(), 'Library', 'Caches', app.getName())
       );
+      break;
+    }
+    case 'win32': {
+      const localAppData = process.env.LOCALAPPDATA;
+      app.setPath('sessionData', path.resolve(localAppData, app.getName()));
     }
   }
 }
