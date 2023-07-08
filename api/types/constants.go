@@ -572,6 +572,28 @@ const (
 	// discovered databases.
 	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
 
+	// AWSDatabaseNameOverrideLabel is the label key containing the database
+	// name override for discovered AWS databases.
+	AWSDatabaseNameOverrideLabel = TeleportNamespace + "/database_name"
+
+	// AWSKubeClusterNameOverrideLabel is the label key containing the
+	// kubernetes cluster name override for disocvered AWS kube clusters.
+	AWSKubeClusterNameOverrideLabel = TeleportNamespace + "/kubernetes-name"
+
+	// AzureDatabaseNameOverrideLabel is the label key containing the database
+	// name override for discovered Azure databases.
+	// Azure tags connot contain these characters: "<>%&\?/", so it doesn't
+	// start with the namespace prefix.
+	AzureDatabaseNameOverrideLabel = "TeleportDatabaseName"
+
+	// AzureKubeClusterNameOverrideLabel is the label key containing the
+	// kubernetes cluster name override for discovered Azure kube clusters.
+	AzureKubeClusterNameOverrideLabel = "TeleportKubernetesName"
+
+	// GCPKubeClusterNameOverrideLabel is the label key containing the
+	// kubernetes cluster name override for discovered GCP kube clusters.
+	GCPKubeClusterNameOverrideLabel = "TeleportKubernetesName"
+
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
 
@@ -584,6 +606,63 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
+)
+
+// Labels added by the discovery service to discovered databases,
+// Kubernetes clusters, and Windows desktops.
+const (
+	// DiscoveryLabelRegion identifies a discovered cloud resource's region.
+	DiscoveryLabelRegion = "region"
+	// DiscoveryLabelAccountID is the label key containing AWS account ID.
+	DiscoveryLabelAccountID = "account-id"
+	// DiscoveryLabelEngine is the label key containing database engine name.
+	DiscoveryLabelEngine = "engine"
+	// DiscoveryLabelEngineVersion is the label key containing database engine version.
+	DiscoveryLabelEngineVersion = "engine-version"
+	// DiscoveryLabelEndpointType is the label key containing the endpoint type.
+	DiscoveryLabelEndpointType = "endpoint-type"
+	// DiscoveryLabelVPCID is the label key containing the VPC ID.
+	DiscoveryLabelVPCID = "vpc-id"
+	// DiscoveryLabelNamespace is the label key for namespace name.
+	DiscoveryLabelNamespace = "namespace"
+	// DiscoveryLabelWorkgroup is the label key for workgroup name.
+	DiscoveryLabelWorkgroup = "workgroup"
+	// DiscoveryLabelStatus is the label key containing the database status, e.g. "available"
+	DiscoveryLabelStatus = "status"
+
+	// DiscoveryLabelAzureSubscriptionID is the label key for Azure subscription ID.
+	DiscoveryLabelAzureSubscriptionID = "subscription-id"
+	// DiscoveryLabelResourceGroup is the label key for the Azure resource group name.
+	DiscoveryLabelResourceGroup = "resource-group"
+	// DiscoveryLabelReplicationRole is the replication role of an Azure DB Flexible server, e.g. "Source" or "Replica".
+	DiscoveryLabelReplicationRole = "replication-role"
+	// DiscoveryLabelSourceServer is the source server for replica Azure DB Flexible servers.
+	// This is the source (primary) database resource name.
+	DiscoveryLabelSourceServer = "source-server"
+
+	// DiscoveryLabelGCPProjectID is the label key for GCP project ID.
+	DiscoveryLabelGCPProjectID = "project-id"
+	// DiscoveryLabelGCPLocation is the label key for GCP location.
+	DiscoveryLabelGCPLocation = "location"
+
+	// DiscoveryLabelWindowsDNSHostName is the DNS hostname of an LDAP object.
+	DiscoveryLabelWindowsDNSHostName = TeleportNamespace + "/dns_host_name"
+	//DiscoveryLabelWindowsComputerName is the name of an LDAP object.
+	DiscoveryLabelWindowsComputerName = TeleportNamespace + "/computer_name"
+	//DiscoveryLabelWindowsOS is the operating system of an LDAP object.
+	DiscoveryLabelWindowsOS = TeleportNamespace + "/os"
+	//DiscoveryLabelWindowsOSVersion operating system version of an LDAP object.
+	DiscoveryLabelWindowsOSVersion = TeleportNamespace + "/os_version"
+	//DiscoveryLabelWindowsOU is an LDAP objects's OU.
+	DiscoveryLabelWindowsOU = TeleportNamespace + "/ou"
+	//DiscoveryLabelWindowsIsDomainController is whether an LDAP object is a
+	// domain controller.
+	DiscoveryLabelWindowsIsDomainController = TeleportNamespace + "/is_domain_controller"
+	//DiscoveryLabelWindowsDomain is an Active Directory domain name.
+	DiscoveryLabelWindowsDomain = TeleportNamespace + "/windows_domain"
+	// DiscoveryLabelLDAPPrefix is the prefix used when applying any custom
+	// labels per the discovery LDAP attribute labels configuration.
+	DiscoveryLabelLDAPPrefix = "ldap/"
 )
 
 const (
