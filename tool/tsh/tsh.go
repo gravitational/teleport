@@ -524,6 +524,7 @@ const (
 	kubeClusterEnvVar         = "TELEPORT_KUBE_CLUSTER"
 	loginEnvVar               = "TELEPORT_LOGIN"
 	bindAddrEnvVar            = "TELEPORT_LOGIN_BIND_ADDR"
+  browserEnvVar             = "TELEPORT_LOGIN_BROWSER"
 	proxyEnvVar               = "TELEPORT_PROXY"
 	headlessEnvVar            = "TELEPORT_HEADLESS"
 	headlessSkipConfirmEnvVar = "TELEPORT_HEADLESS_SKIP_CONFIRM"
@@ -634,6 +635,7 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 		Default("true").
 		BoolVar(&cf.EnableEscapeSequences)
 	app.Flag("bind-addr", "Override host:port used when opening a browser for cluster logins").Envar(bindAddrEnvVar).StringVar(&cf.BindAddr)
+	app.Flag("browser", browserHelp).Envar(browserEnvVar).StringVar(&cf.Browser)
 	modes := []string{mfaModeAuto, mfaModeCrossPlatform, mfaModePlatform, mfaModeOTP}
 	app.Flag("mfa-mode", fmt.Sprintf("Preferred mode for MFA and Passwordless assertions (%v)", strings.Join(modes, ", "))).
 		Default(mfaModeAuto).
@@ -859,7 +861,6 @@ func Run(ctx context.Context, args []string, opts ...cliOption) error {
 	login.Flag("request-nowait", "Finish without waiting for request resolution").BoolVar(&cf.NoWait)
 	login.Flag("request-id", "Login with the roles requested in the given request").StringVar(&cf.RequestID)
 	login.Arg("cluster", clusterHelp).StringVar(&cf.SiteName)
-	login.Flag("browser", browserHelp).StringVar(&cf.Browser)
 	login.Flag("kube-cluster", "Name of the Kubernetes cluster to login to").StringVar(&cf.KubernetesCluster)
 	login.Flag("verbose", "Show extra status information").Short('v').BoolVar(&cf.Verbose)
 	login.Alias(loginUsageFooter)
