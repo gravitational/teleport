@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { DeprecatedThemeOption } from 'design/theme';
+
 import type { AssistUserPreferences } from 'teleport/Assist/types';
 
 export enum ThemePreference {
@@ -28,3 +30,14 @@ export interface UserPreferences {
 
 export type UserPreferencesSubset = Subset<UserPreferences>;
 export type GetUserPreferencesResponse = UserPreferences;
+
+export function deprecatedThemeToThemePreference(
+  theme: DeprecatedThemeOption
+): ThemePreference {
+  switch (theme) {
+    case 'light':
+      return ThemePreference.Light;
+    case 'dark':
+      return ThemePreference.Dark;
+  }
+}
