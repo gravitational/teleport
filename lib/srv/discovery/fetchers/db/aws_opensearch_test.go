@@ -27,6 +27,7 @@ import (
 	"github.com/gravitational/teleport/lib/cloud"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestOpenSearchFetcher(t *testing.T) {
@@ -150,8 +151,11 @@ func makeOpenSearchDomain(t *testing.T, tagMap map[string][]*opensearchservice.T
 
 	tagMap[aws.StringValue(domain.ARN)] = tags
 
-	database, err := services.NewDatabaseFromOpenSearchDomain(domain, tags)
+	databases, err := services.NewDatabasesFromOpenSearchDomain(domain, tags)
 	require.NoError(t, err)
 
-	return domain, database
+	for _, db := range databases {
+		common.ApplyAWSDatabaseNameSuffix(db, services.AWSMatcherOpenSearch)
+	}
+	return domain, databases
 }

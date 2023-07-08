@@ -28,6 +28,7 @@ import (
 	libcloudaws "github.com/gravitational/teleport/lib/cloud/aws"
 	"github.com/gravitational/teleport/lib/cloud/mocks"
 	"github.com/gravitational/teleport/lib/services"
+	"github.com/gravitational/teleport/lib/srv/discovery/common"
 )
 
 func TestRedshiftServerlessFetcher(t *testing.T) {
@@ -93,6 +94,7 @@ func makeRedshiftServerlessWorkgroup(t *testing.T, name, region string, labels m
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
 	database, err := services.NewDatabaseFromRedshiftServerlessWorkgroup(workgroup, tags)
 	require.NoError(t, err)
+	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshiftServerless)
 	return workgroup, database
 }
 
@@ -101,5 +103,6 @@ func makeRedshiftServerlessEndpoint(t *testing.T, workgroup *redshiftserverless.
 	tags := libcloudaws.LabelsToTags[redshiftserverless.Tag](labels)
 	database, err := services.NewDatabaseFromRedshiftServerlessVPCEndpoint(endpoint, workgroup, tags)
 	require.NoError(t, err)
+	common.ApplyAWSDatabaseNameSuffix(database, services.AWSMatcherRedshiftServerless)
 	return endpoint, database
 }

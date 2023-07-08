@@ -578,9 +578,9 @@ func (c *cloudClients) getAWSSessionForRegion(region string) (*awssession.Sessio
 
 // getAWSSessionForRole returns AWS session for the specified region and role.
 func (c *cloudClients) getAWSSessionForRole(ctx context.Context, region string, options awsAssumeRoleOpts) (*awssession.Session, error) {
-	assumeRoler := sts.New(options.baseSession)
 	cacheKey := fmt.Sprintf("Region[%s]:RoleARN[%s]:ExternalID[%s]", region, options.assumeRoleARN, options.assumeRoleExternalID)
 	return utils.FnCacheGet(ctx, c.awsSessionsCache, cacheKey, func(ctx context.Context) (*awssession.Session, error) {
+		assumeRoler := sts.New(options.baseSession)
 		return newSessionWithRole(ctx, assumeRoler, region, options.assumeRoleARN, options.assumeRoleExternalID)
 	})
 }
