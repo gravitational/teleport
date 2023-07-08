@@ -350,12 +350,12 @@ func TestDatabaseFromAzureDBServer(t *testing.T) {
 		Name:        "testdb",
 		Description: "Azure MySQL server in eastus",
 		Labels: map[string]string{
-			labelRegion:         "eastus",
-			labelEngine:         "Microsoft.DBforMySQL/servers",
-			labelEngineVersion:  "5.7",
-			labelResourceGroup:  "defaultRG",
-			labelSubscriptionID: "sub1",
-			"foo":               "bar",
+			types.DiscoveryLabelRegion:              "eastus",
+			types.DiscoveryLabelEngine:              "Microsoft.DBforMySQL/servers",
+			types.DiscoveryLabelEngineVersion:       "5.7",
+			types.DiscoveryLabelResourceGroup:       "defaultRG",
+			types.DiscoveryLabelAzureSubscriptionID: "sub1",
+			"foo":                                   "bar",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolMySQL,
@@ -397,12 +397,12 @@ func TestDatabaseFromAzureRedis(t *testing.T) {
 		Name:        name,
 		Description: "Azure Redis server in eastus",
 		Labels: map[string]string{
-			labelRegion:         region,
-			labelEngine:         "Microsoft.Cache/Redis",
-			labelEngineVersion:  "6.0",
-			labelResourceGroup:  group,
-			labelSubscriptionID: subscription,
-			"foo":               "bar",
+			types.DiscoveryLabelRegion:              region,
+			types.DiscoveryLabelEngine:              "Microsoft.Cache/Redis",
+			types.DiscoveryLabelEngineVersion:       "6.0",
+			types.DiscoveryLabelResourceGroup:       group,
+			types.DiscoveryLabelAzureSubscriptionID: subscription,
+			"foo":                                   "bar",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -454,13 +454,13 @@ func TestDatabaseFromAzureRedisEnterprise(t *testing.T) {
 		Name:        name,
 		Description: "Azure Redis Enterprise server in eastus",
 		Labels: map[string]string{
-			labelRegion:         region,
-			labelEngine:         "Microsoft.Cache/redisEnterprise",
-			labelEngineVersion:  "6.0",
-			labelResourceGroup:  group,
-			labelSubscriptionID: subscription,
-			labelEndpointType:   "OSSCluster",
-			"foo":               "bar",
+			types.DiscoveryLabelRegion:              region,
+			types.DiscoveryLabelEngine:              "Microsoft.Cache/redisEnterprise",
+			types.DiscoveryLabelEngineVersion:       "6.0",
+			types.DiscoveryLabelResourceGroup:       group,
+			types.DiscoveryLabelAzureSubscriptionID: subscription,
+			types.DiscoveryLabelEndpointType:        "OSSCluster",
+			"foo":                                   "bar",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -503,12 +503,12 @@ func TestDatabaseFromRDSInstance(t *testing.T) {
 		Name:        "instance-1",
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
-			labelAccountID:     "123456789012",
-			labelRegion:        "us-west-1",
-			labelEngine:        RDSEnginePostgres,
-			labelEngineVersion: "13.0",
-			labelEndpointType:  "instance",
-			"key":              "val",
+			types.DiscoveryLabelAccountID:     "123456789012",
+			types.DiscoveryLabelRegion:        "us-west-1",
+			types.DiscoveryLabelEngine:        RDSEnginePostgres,
+			types.DiscoveryLabelEngineVersion: "13.0",
+			types.DiscoveryLabelEndpointType:  "instance",
+			"key":                             "val",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -562,13 +562,13 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 		Name:        "instance-1",
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
-			labelAccountID:     "123456789012",
-			labelRegion:        "us-west-1",
-			labelEngine:        RDSEnginePostgres,
-			labelEngineVersion: "13.0",
-			labelEndpointType:  "instance",
-			labelStatus:        "available",
-			"key":              "val",
+			types.DiscoveryLabelAccountID:     "123456789012",
+			types.DiscoveryLabelRegion:        "us-west-1",
+			types.DiscoveryLabelEngine:        RDSEnginePostgres,
+			types.DiscoveryLabelEngineVersion: "13.0",
+			types.DiscoveryLabelEndpointType:  "instance",
+			types.DiscoveryLabelStatus:        "available",
+			"key":                             "val",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -599,7 +599,7 @@ func TestDatabaseFromRDSV2Instance(t *testing.T) {
 
 		instance.TagList = append(instance.TagList,
 			rdsTypesV2.Tag{
-				Key:   aws.String(labelTeleportDBName),
+				Key:   aws.String(types.AWSDatabaseNameOverrideLabel),
 				Value: aws.String(newName),
 			},
 		)
@@ -627,20 +627,20 @@ func TestDatabaseFromRDSInstanceNameOverride(t *testing.T) {
 		},
 		TagList: []*rds.Tag{
 			{Key: aws.String("key"), Value: aws.String("val")},
-			{Key: aws.String(labelTeleportDBName), Value: aws.String("override-1")},
+			{Key: aws.String(types.AWSDatabaseNameOverrideLabel), Value: aws.String("override-1")},
 		},
 	}
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "override-1",
 		Description: "RDS instance in us-west-1",
 		Labels: map[string]string{
-			labelAccountID:      "123456789012",
-			labelRegion:         "us-west-1",
-			labelEngine:         RDSEnginePostgres,
-			labelEngineVersion:  "13.0",
-			labelEndpointType:   "instance",
-			labelTeleportDBName: "override-1",
-			"key":               "val",
+			types.DiscoveryLabelAccountID:      "123456789012",
+			types.DiscoveryLabelRegion:         "us-west-1",
+			types.DiscoveryLabelEngine:         RDSEnginePostgres,
+			types.DiscoveryLabelEngineVersion:  "13.0",
+			types.DiscoveryLabelEndpointType:   "instance",
+			types.AWSDatabaseNameOverrideLabel: "override-1",
+			"key":                              "val",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -699,12 +699,12 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			Name:        "cluster-1",
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
-				labelAccountID:     "123456789012",
-				labelRegion:        "us-east-1",
-				labelEngine:        RDSEngineAuroraMySQL,
-				labelEngineVersion: "8.0.0",
-				labelEndpointType:  "primary",
-				"key":              "val",
+				types.DiscoveryLabelAccountID:     "123456789012",
+				types.DiscoveryLabelRegion:        "us-east-1",
+				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
+				types.DiscoveryLabelEngineVersion: "8.0.0",
+				types.DiscoveryLabelEndpointType:  "primary",
+				"key":                             "val",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
@@ -722,12 +722,12 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 			Name:        "cluster-1-reader",
 			Description: "Aurora cluster in us-east-1 (reader endpoint)",
 			Labels: map[string]string{
-				labelAccountID:     "123456789012",
-				labelRegion:        "us-east-1",
-				labelEngine:        RDSEngineAuroraMySQL,
-				labelEngineVersion: "8.0.0",
-				labelEndpointType:  "reader",
-				"key":              "val",
+				types.DiscoveryLabelAccountID:     "123456789012",
+				types.DiscoveryLabelRegion:        "us-east-1",
+				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
+				types.DiscoveryLabelEngineVersion: "8.0.0",
+				types.DiscoveryLabelEndpointType:  "reader",
+				"key":                             "val",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
@@ -742,12 +742,12 @@ func TestDatabaseFromRDSCluster(t *testing.T) {
 
 	t.Run("custom endpoints", func(t *testing.T) {
 		expectedLabels := map[string]string{
-			labelAccountID:     "123456789012",
-			labelRegion:        "us-east-1",
-			labelEngine:        RDSEngineAuroraMySQL,
-			labelEngineVersion: "8.0.0",
-			labelEndpointType:  "custom",
-			"key":              "val",
+			types.DiscoveryLabelAccountID:     "123456789012",
+			types.DiscoveryLabelRegion:        "us-east-1",
+			types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
+			types.DiscoveryLabelEngineVersion: "8.0.0",
+			types.DiscoveryLabelEndpointType:  "custom",
+			"key":                             "val",
 		}
 
 		expectedMyEndpoint1, err := types.NewDatabaseV3(types.Metadata{
@@ -833,13 +833,13 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 			Name:        "cluster-1",
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
-				labelAccountID:     "123456789012",
-				labelRegion:        "us-east-1",
-				labelEngine:        RDSEngineAuroraMySQL,
-				labelEngineVersion: "8.0.0",
-				labelEndpointType:  "primary",
-				labelStatus:        "available",
-				"key":              "val",
+				types.DiscoveryLabelAccountID:     "123456789012",
+				types.DiscoveryLabelRegion:        "us-east-1",
+				types.DiscoveryLabelEngine:        RDSEngineAuroraMySQL,
+				types.DiscoveryLabelEngineVersion: "8.0.0",
+				types.DiscoveryLabelEndpointType:  "primary",
+				types.DiscoveryLabelStatus:        "available",
+				"key":                             "val",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
@@ -856,7 +856,7 @@ func TestDatabaseFromRDSV2Cluster(t *testing.T) {
 
 			cluster.TagList = append(cluster.TagList,
 				rdsTypesV2.Tag{
-					Key:   aws.String(labelTeleportDBName),
+					Key:   aws.String(types.AWSDatabaseNameOverrideLabel),
 					Value: aws.String(newName),
 				},
 			)
@@ -887,7 +887,7 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 		},
 		TagList: []*rds.Tag{
 			{Key: aws.String("key"), Value: aws.String("val")},
-			{Key: aws.String(labelTeleportDBName), Value: aws.String("mycluster-2")},
+			{Key: aws.String(types.AWSDatabaseNameOverrideLabel), Value: aws.String("mycluster-2")},
 		},
 	}
 
@@ -906,13 +906,13 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 			Name:        "mycluster-2",
 			Description: "Aurora cluster in us-east-1",
 			Labels: map[string]string{
-				labelAccountID:      "123456789012",
-				labelRegion:         "us-east-1",
-				labelEngine:         RDSEngineAuroraMySQL,
-				labelEngineVersion:  "8.0.0",
-				labelEndpointType:   "primary",
-				labelTeleportDBName: "mycluster-2",
-				"key":               "val",
+				types.DiscoveryLabelAccountID:      "123456789012",
+				types.DiscoveryLabelRegion:         "us-east-1",
+				types.DiscoveryLabelEngine:         RDSEngineAuroraMySQL,
+				types.DiscoveryLabelEngineVersion:  "8.0.0",
+				types.DiscoveryLabelEndpointType:   "primary",
+				types.AWSDatabaseNameOverrideLabel: "mycluster-2",
+				"key":                              "val",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
@@ -930,13 +930,13 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 			Name:        "mycluster-2-reader",
 			Description: "Aurora cluster in us-east-1 (reader endpoint)",
 			Labels: map[string]string{
-				labelAccountID:      "123456789012",
-				labelRegion:         "us-east-1",
-				labelEngine:         RDSEngineAuroraMySQL,
-				labelEngineVersion:  "8.0.0",
-				labelEndpointType:   "reader",
-				labelTeleportDBName: "mycluster-2",
-				"key":               "val",
+				types.DiscoveryLabelAccountID:      "123456789012",
+				types.DiscoveryLabelRegion:         "us-east-1",
+				types.DiscoveryLabelEngine:         RDSEngineAuroraMySQL,
+				types.DiscoveryLabelEngineVersion:  "8.0.0",
+				types.DiscoveryLabelEndpointType:   "reader",
+				types.AWSDatabaseNameOverrideLabel: "mycluster-2",
+				"key":                              "val",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
@@ -951,13 +951,13 @@ func TestDatabaseFromRDSClusterNameOverride(t *testing.T) {
 
 	t.Run("custom endpoints", func(t *testing.T) {
 		expectedLabels := map[string]string{
-			labelAccountID:      "123456789012",
-			labelRegion:         "us-east-1",
-			labelEngine:         RDSEngineAuroraMySQL,
-			labelEngineVersion:  "8.0.0",
-			labelEndpointType:   "custom",
-			labelTeleportDBName: "mycluster-2",
-			"key":               "val",
+			types.DiscoveryLabelAccountID:      "123456789012",
+			types.DiscoveryLabelRegion:         "us-east-1",
+			types.DiscoveryLabelEngine:         RDSEngineAuroraMySQL,
+			types.DiscoveryLabelEngineVersion:  "8.0.0",
+			types.DiscoveryLabelEndpointType:   "custom",
+			types.AWSDatabaseNameOverrideLabel: "mycluster-2",
+			"key":                              "val",
 		}
 
 		expectedMyEndpoint1, err := types.NewDatabaseV3(types.Metadata{
@@ -1032,11 +1032,11 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			Name:        "testproxy",
 			Description: "RDS Proxy in ca-central-1",
 			Labels: map[string]string{
-				"key":          "val",
-				labelAccountID: "123456789012",
-				labelRegion:    "ca-central-1",
-				labelEngine:    "MYSQL",
-				labelVPCID:     "test-vpc-id",
+				"key":                         "val",
+				types.DiscoveryLabelAccountID: "123456789012",
+				types.DiscoveryLabelRegion:    "ca-central-1",
+				types.DiscoveryLabelEngine:    "MYSQL",
+				types.DiscoveryLabelVPCID:     "test-vpc-id",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
@@ -1062,12 +1062,12 @@ func TestDatabaseFromRDSProxy(t *testing.T) {
 			Name:        "testproxy-custom",
 			Description: "RDS Proxy endpoint in ca-central-1",
 			Labels: map[string]string{
-				"key":             "val",
-				labelAccountID:    "123456789012",
-				labelRegion:       "ca-central-1",
-				labelEngine:       "MYSQL",
-				labelVPCID:        "test-vpc-id",
-				labelEndpointType: "READ_ONLY",
+				"key":                            "val",
+				types.DiscoveryLabelAccountID:    "123456789012",
+				types.DiscoveryLabelRegion:       "ca-central-1",
+				types.DiscoveryLabelEngine:       "MYSQL",
+				types.DiscoveryLabelVPCID:        "test-vpc-id",
+				types.DiscoveryLabelEndpointType: "READ_ONLY",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolMySQL,
@@ -1253,8 +1253,8 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			Name:        "mycluster",
 			Description: "Redshift cluster in us-east-1",
 			Labels: map[string]string{
-				labelAccountID:                    "123456789012",
-				labelRegion:                       "us-east-1",
+				types.DiscoveryLabelAccountID:     "123456789012",
+				types.DiscoveryLabelRegion:        "us-east-1",
 				"key":                             "val",
 				"elasticbeanstalk:environment-id": "id",
 			},
@@ -1295,7 +1295,7 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 					Value: aws.String("id"),
 				},
 				{
-					Key:   aws.String(labelTeleportDBName),
+					Key:   aws.String(types.AWSDatabaseNameOverrideLabel),
 					Value: aws.String("mycluster-override-2"),
 				},
 			},
@@ -1304,11 +1304,11 @@ func TestDatabaseFromRedshiftCluster(t *testing.T) {
 			Name:        "mycluster-override-2",
 			Description: "Redshift cluster in us-east-1",
 			Labels: map[string]string{
-				labelAccountID:                    "123456789012",
-				labelRegion:                       "us-east-1",
-				labelTeleportDBName:               "mycluster-override-2",
-				"key":                             "val",
-				"elasticbeanstalk:environment-id": "id",
+				types.DiscoveryLabelAccountID:      "123456789012",
+				types.DiscoveryLabelRegion:         "us-east-1",
+				types.AWSDatabaseNameOverrideLabel: "mycluster-override-2",
+				"key":                              "val",
+				"elasticbeanstalk:environment-id":  "id",
 			},
 		}, types.DatabaseSpecV3{
 			Protocol: defaults.ProtocolPostgres,
@@ -1381,10 +1381,10 @@ func TestDatabaseFromElastiCacheConfigurationEndpoint(t *testing.T) {
 		Name:        "my-cluster",
 		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
 		Labels: map[string]string{
-			labelAccountID:    "123456789012",
-			labelRegion:       "us-east-1",
-			labelEndpointType: "configuration",
-			"key":             "value",
+			types.DiscoveryLabelAccountID:    "123456789012",
+			types.DiscoveryLabelRegion:       "us-east-1",
+			types.DiscoveryLabelEndpointType: "configuration",
+			"key":                            "value",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -1445,19 +1445,19 @@ func TestDatabaseFromElastiCacheConfigurationEndpointNameOverride(t *testing.T) 
 		},
 	}
 	extraLabels := map[string]string{
-		labelTeleportDBName: "my-override-cluster-2",
-		"key":               "value",
+		types.AWSDatabaseNameOverrideLabel: "my-override-cluster-2",
+		"key":                              "value",
 	}
 
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "my-override-cluster-2",
 		Description: "ElastiCache cluster in us-east-1 (configuration endpoint)",
 		Labels: map[string]string{
-			labelAccountID:      "123456789012",
-			labelRegion:         "us-east-1",
-			labelEndpointType:   "configuration",
-			labelTeleportDBName: "my-override-cluster-2",
-			"key":               "value",
+			types.DiscoveryLabelAccountID:      "123456789012",
+			types.DiscoveryLabelRegion:         "us-east-1",
+			types.DiscoveryLabelEndpointType:   "configuration",
+			types.AWSDatabaseNameOverrideLabel: "my-override-cluster-2",
+			"key":                              "value",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -1508,10 +1508,10 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Name:        "my-cluster",
 		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
 		Labels: map[string]string{
-			labelAccountID:    "123456789012",
-			labelRegion:       "us-east-1",
-			labelEndpointType: "primary",
-			"key":             "value",
+			types.DiscoveryLabelAccountID:    "123456789012",
+			types.DiscoveryLabelRegion:       "us-east-1",
+			types.DiscoveryLabelEndpointType: "primary",
+			"key":                            "value",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -1533,10 +1533,10 @@ func TestDatabaseFromElastiCacheNodeGroups(t *testing.T) {
 		Name:        "my-cluster-reader",
 		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
 		Labels: map[string]string{
-			labelAccountID:    "123456789012",
-			labelRegion:       "us-east-1",
-			labelEndpointType: "reader",
-			"key":             "value",
+			types.DiscoveryLabelAccountID:    "123456789012",
+			types.DiscoveryLabelRegion:       "us-east-1",
+			types.DiscoveryLabelEndpointType: "reader",
+			"key":                            "value",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -1582,19 +1582,19 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 		},
 	}
 	extraLabels := map[string]string{
-		labelTeleportDBName: "my-override-cluster-2",
-		"key":               "value",
+		types.AWSDatabaseNameOverrideLabel: "my-override-cluster-2",
+		"key":                              "value",
 	}
 
 	expectedPrimary, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "my-override-cluster-2",
 		Description: "ElastiCache cluster in us-east-1 (primary endpoint)",
 		Labels: map[string]string{
-			labelAccountID:      "123456789012",
-			labelRegion:         "us-east-1",
-			labelEndpointType:   "primary",
-			labelTeleportDBName: "my-override-cluster-2",
-			"key":               "value",
+			types.DiscoveryLabelAccountID:      "123456789012",
+			types.DiscoveryLabelRegion:         "us-east-1",
+			types.DiscoveryLabelEndpointType:   "primary",
+			types.AWSDatabaseNameOverrideLabel: "my-override-cluster-2",
+			"key":                              "value",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -1616,11 +1616,11 @@ func TestDatabaseFromElastiCacheNodeGroupsNameOverride(t *testing.T) {
 		Name:        "my-override-cluster-2-reader",
 		Description: "ElastiCache cluster in us-east-1 (reader endpoint)",
 		Labels: map[string]string{
-			labelAccountID:      "123456789012",
-			labelRegion:         "us-east-1",
-			labelEndpointType:   "reader",
-			labelTeleportDBName: "my-override-cluster-2",
-			"key":               "value",
+			types.DiscoveryLabelAccountID:      "123456789012",
+			types.DiscoveryLabelRegion:         "us-east-1",
+			types.DiscoveryLabelEndpointType:   "reader",
+			types.AWSDatabaseNameOverrideLabel: "my-override-cluster-2",
+			"key":                              "value",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -1661,10 +1661,10 @@ func TestDatabaseFromMemoryDBCluster(t *testing.T) {
 		Name:        "my-cluster",
 		Description: "MemoryDB cluster in us-east-1",
 		Labels: map[string]string{
-			labelAccountID:    "123456789012",
-			labelRegion:       "us-east-1",
-			labelEndpointType: "cluster",
-			"key":             "value",
+			types.DiscoveryLabelAccountID:    "123456789012",
+			types.DiscoveryLabelRegion:       "us-east-1",
+			types.DiscoveryLabelEndpointType: "cluster",
+			"key":                            "value",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -1694,12 +1694,12 @@ func TestDatabaseFromRedshiftServerlessWorkgroup(t *testing.T) {
 		Name:        "my-workgroup",
 		Description: "Redshift Serverless workgroup in eu-west-2",
 		Labels: map[string]string{
-			labelAccountID:    "123456789012",
-			labelRegion:       "eu-west-2",
-			labelEndpointType: "workgroup",
-			labelNamespace:    "my-namespace",
-			labelVPCID:        "vpc-id",
-			"env":             "prod",
+			types.DiscoveryLabelAccountID:    "123456789012",
+			types.DiscoveryLabelRegion:       "eu-west-2",
+			types.DiscoveryLabelEndpointType: "workgroup",
+			types.DiscoveryLabelNamespace:    "my-namespace",
+			types.DiscoveryLabelVPCID:        "vpc-id",
+			"env":                            "prod",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -1728,13 +1728,13 @@ func TestDatabaseFromRedshiftServerlessVPCEndpoint(t *testing.T) {
 		Name:        "my-workgroup-my-endpoint",
 		Description: "Redshift Serverless endpoint in eu-west-2",
 		Labels: map[string]string{
-			labelAccountID:    "123456789012",
-			labelRegion:       "eu-west-2",
-			labelEndpointType: "vpc-endpoint",
-			labelWorkgroup:    "my-workgroup",
-			labelNamespace:    "my-namespace",
-			labelVPCID:        "vpc-id",
-			"env":             "prod",
+			types.DiscoveryLabelAccountID:    "123456789012",
+			types.DiscoveryLabelRegion:       "eu-west-2",
+			types.DiscoveryLabelEndpointType: "vpc-endpoint",
+			types.DiscoveryLabelWorkgroup:    "my-workgroup",
+			types.DiscoveryLabelNamespace:    "my-namespace",
+			types.DiscoveryLabelVPCID:        "vpc-id",
+			"env":                            "prod",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolPostgres,
@@ -1772,19 +1772,19 @@ func TestDatabaseFromMemoryDBClusterNameOverride(t *testing.T) {
 		},
 	}
 	extraLabels := map[string]string{
-		labelTeleportDBName: "override-1",
-		"key":               "value",
+		types.AWSDatabaseNameOverrideLabel: "override-1",
+		"key":                              "value",
 	}
 
 	expected, err := types.NewDatabaseV3(types.Metadata{
 		Name:        "override-1",
 		Description: "MemoryDB cluster in us-east-1",
 		Labels: map[string]string{
-			labelAccountID:      "123456789012",
-			labelRegion:         "us-east-1",
-			labelEndpointType:   "cluster",
-			labelTeleportDBName: "override-1",
-			"key":               "value",
+			types.DiscoveryLabelAccountID:      "123456789012",
+			types.DiscoveryLabelRegion:         "us-east-1",
+			types.DiscoveryLabelEndpointType:   "cluster",
+			types.AWSDatabaseNameOverrideLabel: "override-1",
+			"key":                              "value",
 		},
 	}, types.DatabaseSpecV3{
 		Protocol: defaults.ProtocolRedis,
@@ -1947,16 +1947,16 @@ func TestGetLabelEngineVersion(t *testing.T) {
 		{
 			name: "mysql-8.0.0",
 			labels: map[string]string{
-				labelEngine:        RDSEngineMySQL,
-				labelEngineVersion: "8.0.0",
+				types.DiscoveryLabelEngine:        RDSEngineMySQL,
+				types.DiscoveryLabelEngineVersion: "8.0.0",
 			},
 			want: "8.0.0",
 		},
 		{
 			name: "mariadb returns nothing",
 			labels: map[string]string{
-				labelEngine:        RDSEngineMariaDB,
-				labelEngineVersion: "10.6.7",
+				types.DiscoveryLabelEngine:        RDSEngineMariaDB,
+				types.DiscoveryLabelEngineVersion: "10.6.7",
 			},
 			want: "",
 		},
@@ -1968,16 +1968,16 @@ func TestGetLabelEngineVersion(t *testing.T) {
 		{
 			name: "azure-mysql-8.0.0",
 			labels: map[string]string{
-				labelEngine:        AzureEngineMySQL,
-				labelEngineVersion: "8.0.0",
+				types.DiscoveryLabelEngine:        AzureEngineMySQL,
+				types.DiscoveryLabelEngineVersion: "8.0.0",
 			},
 			want: "8.0.0",
 		},
 		{
 			name: "azure-mysql-8.0.0 flex server",
 			labels: map[string]string{
-				labelEngine:        AzureEngineMySQLFlex,
-				labelEngineVersion: string(armmysqlflexibleservers.ServerVersionEight021),
+				types.DiscoveryLabelEngine:        AzureEngineMySQLFlex,
+				types.DiscoveryLabelEngineVersion: string(armmysqlflexibleservers.ServerVersionEight021),
 			},
 			want: "8.0.21",
 		},
@@ -1991,51 +1991,6 @@ func TestGetLabelEngineVersion(t *testing.T) {
 			if got := GetMySQLEngineVersion(tt.labels); got != tt.want {
 				t.Errorf("GetMySQLEngineVersion() = %v, want %v", got, tt.want)
 			}
-		})
-	}
-}
-
-func Test_setDBName(t *testing.T) {
-	tests := []struct {
-		name           string
-		meta           types.Metadata
-		firstNamePart  string
-		extraNameParts []string
-		want           types.Metadata
-	}{
-		{
-			name:           "no override, one part name",
-			meta:           types.Metadata{},
-			firstNamePart:  "foo",
-			extraNameParts: nil,
-			want:           types.Metadata{Name: "foo"},
-		},
-		{
-			name:           "no override, multi part name",
-			meta:           types.Metadata{},
-			firstNamePart:  "foo",
-			extraNameParts: []string{"bar", "baz"},
-			want:           types.Metadata{Name: "foo-bar-baz"},
-		},
-		{
-			name:           "override, one part name",
-			meta:           types.Metadata{Labels: map[string]string{labelTeleportDBName: "gizmo"}},
-			firstNamePart:  "foo",
-			extraNameParts: nil,
-			want:           types.Metadata{Name: "gizmo", Labels: map[string]string{labelTeleportDBName: "gizmo"}},
-		},
-		{
-			name:           "override, multi part name",
-			meta:           types.Metadata{Labels: map[string]string{labelTeleportDBName: "gizmo"}},
-			firstNamePart:  "foo",
-			extraNameParts: []string{"bar", "baz"},
-			want:           types.Metadata{Name: "gizmo-bar-baz", Labels: map[string]string{labelTeleportDBName: "gizmo"}},
-		},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := setDBName(tt.meta, tt.firstNamePart, tt.extraNameParts...)
-			require.Equal(t, tt.want, result)
 		})
 	}
 }
@@ -2071,8 +2026,8 @@ func TestNewDatabaseFromAzureSQLServer(t *testing.T) {
 
 				// Assert labels
 				labels := db.GetMetadata().Labels
-				require.Equal(t, "westus", labels[labelRegion])
-				require.Equal(t, "12.0", labels[labelEngineVersion])
+				require.Equal(t, "westus", labels[types.DiscoveryLabelRegion])
+				require.Equal(t, "12.0", labels[types.DiscoveryLabelEngineVersion])
 			},
 		},
 		{
@@ -2126,7 +2081,7 @@ func TestNewDatabaseFromAzureManagedSQLServer(t *testing.T) {
 
 				// Assert labels
 				labels := db.GetMetadata().Labels
-				require.Equal(t, "westus", labels[labelRegion])
+				require.Equal(t, "westus", labels[types.DiscoveryLabelRegion])
 			},
 		},
 		{
@@ -2212,18 +2167,18 @@ func TestDatabaseFromAzureMySQLFlexServer(t *testing.T) {
 			}
 
 			wantLabels := map[string]string{
-				labelRegion:         region,
-				labelEngine:         provider,
-				labelEngineVersion:  "8.0.21",
-				labelResourceGroup:  group,
-				labelSubscriptionID: subID,
-				"foo":               "bar",
+				types.DiscoveryLabelRegion:              region,
+				types.DiscoveryLabelEngine:              provider,
+				types.DiscoveryLabelEngineVersion:       "8.0.21",
+				types.DiscoveryLabelResourceGroup:       group,
+				types.DiscoveryLabelAzureSubscriptionID: subID,
+				"foo":                                   "bar",
 			}
 			if tt.wantReplicationRoleLabel != "" {
-				wantLabels[labelReplicationRole] = tt.wantReplicationRoleLabel
+				wantLabels[types.DiscoveryLabelReplicationRole] = tt.wantReplicationRoleLabel
 			}
 			if tt.wantSourceServerLabel != "" {
-				wantLabels[labelSourceServer] = tt.wantSourceServerLabel
+				wantLabels[types.DiscoveryLabelSourceServer] = tt.wantSourceServerLabel
 			}
 			wantDB, err := types.NewDatabaseV3(types.Metadata{
 				Name:        tt.serverName,
@@ -2287,12 +2242,12 @@ func TestDatabaseFromAzurePostgresFlexServer(t *testing.T) {
 			}
 
 			wantLabels := map[string]string{
-				labelRegion:         region,
-				labelEngine:         provider,
-				labelEngineVersion:  "14",
-				labelResourceGroup:  group,
-				labelSubscriptionID: subID,
-				"foo":               "bar",
+				types.DiscoveryLabelRegion:              region,
+				types.DiscoveryLabelEngine:              provider,
+				types.DiscoveryLabelEngineVersion:       "14",
+				types.DiscoveryLabelResourceGroup:       group,
+				types.DiscoveryLabelAzureSubscriptionID: subID,
+				"foo":                                   "bar",
 			}
 			wantDB, err := types.NewDatabaseV3(types.Metadata{
 				Name:        tt.serverName,
@@ -2383,12 +2338,12 @@ func TestMakeAzureDatabaseLoginUsername(t *testing.T) {
 				Name:        serverName,
 				Description: "test azure db server",
 				Labels: map[string]string{
-					labelRegion:         "eastus",
-					labelEngine:         tt.engine,
-					labelEngineVersion:  "1.2.3",
-					labelResourceGroup:  group,
-					labelSubscriptionID: subID,
-					"foo":               "bar",
+					types.DiscoveryLabelRegion:              "eastus",
+					types.DiscoveryLabelEngine:              tt.engine,
+					types.DiscoveryLabelEngineVersion:       "1.2.3",
+					types.DiscoveryLabelResourceGroup:       group,
+					types.DiscoveryLabelAzureSubscriptionID: subID,
+					"foo":                                   "bar",
 				},
 			}, types.DatabaseSpecV3{
 				Protocol: tt.protocol,

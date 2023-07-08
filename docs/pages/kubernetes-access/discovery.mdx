@@ -38,9 +38,21 @@ cloud provider such as:
 
 <Notice type="tip">
 You can import the cluster under a different name into Teleport's registry.
-To achieve this, you must attach the following tag to the resources — EKS and AKS — in your cloud provider:
+To achieve this, you must attach the following tag to the resources — EKS, AKS, GKE — in your cloud provider:
+<Tabs>
+<TabItem label="AWS">
  - ***key***: `teleport.dev/kubernetes-name`
  - ***value***: desired name
+</TabItem>
+<TabItem label="Azure">
+ - ***key***: `TeleportKuberenetesName`
+ - ***value***: desired name
+</TabItem>
+<TabItem label="GCP">
+ - ***key***: `TeleportKuberenetesName`
+ - ***value***: desired name
+</TabItem>
+</Tabs>
 
 The Discovery Service will check if the cluster includes the tag and use its value
 as the resource name in Teleport.

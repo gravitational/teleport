@@ -176,3 +176,61 @@ func TestParseShortcut(t *testing.T) {
 		})
 	}
 }
+
+func Test_setResourceName(t *testing.T) {
+	tests := []struct {
+		name               string
+		meta               types.Metadata
+		overrideLabel      string
+		overrideLabelValue string
+		firstNamePart      string
+		extraNameParts     []string
+		want               types.Metadata
+	}{
+		{
+			name:           "no override, one part name",
+			meta:           types.Metadata{},
+			firstNamePart:  "foo",
+			extraNameParts: nil,
+			want:           types.Metadata{Name: "foo"},
+		},
+		{
+			name:           "no override, multi part name",
+			meta:           types.Metadata{},
+			firstNamePart:  "foo",
+			extraNameParts: []string{"bar", "baz"},
+			want:           types.Metadata{Name: "foo-bar-baz"},
+		},
+		{
+			name:               "override, one part name",
+			meta:               types.Metadata{},
+			overrideLabel:      types.AWSDatabaseNameOverrideLabel,
+			overrideLabelValue: "gizmo",
+			firstNamePart:      "foo",
+			extraNameParts:     nil,
+			want:               types.Metadata{Name: "gizmo", Labels: map[string]string{types.AWSDatabaseNameOverrideLabel: "gizmo"}},
+		},
+		{
+			name:               "override, multi part name",
+			meta:               types.Metadata{},
+			overrideLabel:      types.AzureDatabaseNameOverrideLabel,
+			overrideLabelValue: "gizmo",
+			firstNamePart:      "foo",
+			extraNameParts:     []string{"bar", "baz"},
+			want:               types.Metadata{Name: "gizmo-bar-baz", Labels: map[string]string{types.AzureDatabaseNameOverrideLabel: "gizmo"}},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			meta := tt.meta
+			if tt.overrideLabelValue != "" {
+				if meta.Labels == nil {
+					meta.Labels = make(map[string]string)
+				}
+				meta.Labels[tt.overrideLabel] = tt.overrideLabelValue
+			}
+			result := setResourceName(tt.overrideLabel, meta, tt.firstNamePart, tt.extraNameParts...)
+			require.Equal(t, tt.want, result)
+		})
+	}
+}
