@@ -270,8 +270,8 @@ github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.14.14 h1:T9FMVvefm8TWwyV
 github.com/aws/aws-sdk-go-v2/service/dynamodbstreams v1.14.14/go.mod h1:31kKOlv+a+XLCu0wDK8BeeCOjdcZihEoQcLiPIZoyw4=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.102.0 h1:P4dyjm49F2kKws0FpouBC6fjVImACXKt752+CWa01lM=
 github.com/aws/aws-sdk-go-v2/service/ec2 v1.102.0/go.mod h1:tIctCeX9IbzsUTKHt53SVEcgyfxV2ElxJeEB+QUbc4M=
-github.com/aws/aws-sdk-go-v2/service/ecs v1.27.1 h1:54QSuWR3Pot7HqBRXd+c1yF97h2bqzDBID8qFSAkTlE=
-github.com/aws/aws-sdk-go-v2/service/ecs v1.27.1/go.mod h1:SB6YszwN1iKvyt/Qk+ICeKsfBxjd0CTEwwkmej9qoa0=
+github.com/aws/aws-sdk-go-v2/service/ecs v1.28.0 h1:CxxNazMyvwLiVSkqJ+GOf+n95p94kl8imaN9PKGvwW8=
+github.com/aws/aws-sdk-go-v2/service/ecs v1.28.0/go.mod h1:0irnFofeEZwT7uTjSkNVcSQJbWRqZ9BRoxhKjt1BObM=
 github.com/aws/aws-sdk-go-v2/service/glue v1.53.0 h1:ExLbAGiyb67NYziNPRi/AmG27lE6n/WXaXhOGNH3qY8=
 github.com/aws/aws-sdk-go-v2/service/glue v1.53.0/go.mod h1:wMCE0B6l8eHb57l2DMYCGxt0rHIfcu3RvIY7SAfc+Fs=
 github.com/aws/aws-sdk-go-v2/service/iam v1.21.0 h1:8hEpu60CWlrp7iEBUFRZhgPoX6+gadaGL1sD4LoRYS0=
