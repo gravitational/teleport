@@ -17,8 +17,10 @@ limitations under the License.
 package types
 
 import (
+	"strings"
 	"time"
 
+	"github.com/coreos/go-semver/semver"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -39,12 +41,80 @@ func (f InstanceFilter) Match(i Instance) bool {
 		return false
 	}
 
+	if fv, ok := parseVersionRelaxed(f.OlderThanVersion); ok {
+		if iv, ok := parseVersionRelaxed(i.GetTeleportVersion()); ok {
+			if !iv.LessThan(fv) {
+				return false
+			}
+		}
+	}
+
+	if fv, ok := parseVersionRelaxed(f.NewerThanVersion); ok {
+		iv, ok := parseVersionRelaxed(i.GetTeleportVersion())
+
+		if !ok {
+			// treat instances with invalid versions are less/older than
+			// valid versions.
+			return false
+		}
+
+		if !fv.LessThan(iv) {
+			return false
+		}
+	}
+
 	// if Services was specified, ensure instance has at least one of the listed services.
 	if len(f.Services) != 0 && slices.IndexFunc(f.Services, i.HasService) == -1 {
 		return false
 	}
 
+	if f.ExternalUpgrader != "" && f.ExternalUpgrader != i.GetExternalUpgrader() {
+		return false
+	}
+
+	// empty upgrader matches all, so we have a separate bool flag for
+	// specifically matching instances with no ext upgrader defined.
+	if f.NoExtUpgrader && i.GetExternalUpgrader() != "" {
+		return false
+	}
+
 	return true
+}
+
+// shorthandChars are expected characters in version shorthand (e.g. "1" or "1.0" are shorthand for "1.0.0").
+const shorthandChars = "0123456789."
+
+// normalizeVersionShorthand attempts to convert go-style semver into the stricter semver
+// notation expected by coreos/go-semver.
+func normalizeVersionShorthand(version string) string {
+	version = strings.TrimPrefix(version, "v")
+	for _, c := range version {
+		if !strings.ContainsRune(shorthandChars, c) {
+			return version
+		}
+	}
+
+	switch strings.Count(version, ".") {
+	case 0:
+		return version + ".0.0"
+	case 1:
+		return version + ".0"
+	default:
+		return version
+	}
+}
+
+// parseVersionRelaxed wraps standard semver parsing with shorthand normalization.
+func parseVersionRelaxed(version string) (ver semver.Version, ok bool) {
+	if version == "" {
+		return semver.Version{}, false
+	}
+
+	if ver.Set(normalizeVersionShorthand(version)) != nil {
+		return semver.Version{}, false
+	}
+
+	return ver, true
 }
 
 // Instance describes the configuration/status of a unique teleport server identity. Each
@@ -80,6 +150,12 @@ type Instance interface {
 	// should follow up by calling SyncLogAndResourceExpiry so that the control log
 	// and resource-level expiry values can be reevaluated.
 	SetLastSeen(time.Time)
+
+	// GetExternalUpgrader gets the upgrader value as represented in the most recent
+	// hello message from this instance. This value corresponds to the TELEPORT_EXT_UPGRADER
+	// env var that is set when agents are configured to export schedule values to external
+	// upgraders.
+	GetExternalUpgrader() string
 
 	// SyncLogAndResourceExpiry filters expired entries from the control log and updates
 	// the resource-level expiry. All calculations are performed relative to the value of
@@ -192,6 +268,10 @@ func (i *InstanceV1) GetLastSeen() time.Time {
 
 func (i *InstanceV1) SetLastSeen(t time.Time) {
 	i.Spec.LastSeen = t.UTC()
+}
+
+func (i *InstanceV1) GetExternalUpgrader() string {
+	return i.Spec.ExternalUpgrader
 }
 
 func (i *InstanceV1) GetControlLog() []InstanceControlLogEntry {
