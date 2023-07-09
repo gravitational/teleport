@@ -4,10 +4,12 @@ go 1.18
 
 require (
 	github.com/google/go-github/v41 v41.0.0
+	github.com/google/go-github/v53 v53.2.0
 	github.com/gravitational/trace v1.2.1
 	github.com/stretchr/testify v1.8.4
 	golang.org/x/oauth2 v0.9.0
-	gopkg.in/yaml.v2 v2.4.0
+	gopkg.in/yaml.v2 v2.2.3
+	gopkg.in/yaml.v3 v3.0.1
 )
 
 require (
@@ -22,6 +24,6 @@ require (
 	golang.org/x/sys v0.9.0 // indirect
 	golang.org/x/term v0.9.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
+	google.golang.org/appengine/v2 v2.0.3 // indirect
 	google.golang.org/protobuf v1.31.0 // indirect
-	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
