@@ -220,6 +220,12 @@ func (t *Tracker) TrackExpected(proxies ...Proxy) {
 	t.cannotLease = false
 	for _, p := range proxies {
 		p.expiry = expiry
+		// TODO(espadolini): log a warning if a proxy is changing group or
+		// changing (decreasing?) generation; it should be paired with support
+		// for parsing discovery messages coming from proxies that don't support
+		// the feature (and that will thus send id and generation as labels), or
+		// we're liable to log a lot of changes between ""/0 and the actual
+		// id/gen
 		t.tracked[p.Name] = p
 	}
 }
