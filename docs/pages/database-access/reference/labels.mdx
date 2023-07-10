@@ -1,5 +1,5 @@
 ---
-title: Database Access Database Labels Reference
+title: Database Labels Reference
 description: Database labels reference for Teleport database access.
 ---
 
@@ -11,7 +11,7 @@ of the following values:
 | Label Value | Description |
 | - | - |
 | `cloud`   | database resources created by auto-discovery. |
-| `config`  | database resources manually defined in the `database_service.databases` section. |
+| `config`  | database resources manually defined in the `database_service.databases` section of `teleport.yaml`. |
 | `dynamic` | database resources created with "tctl create" command or web interface. |
 
 ## Auto-discovery
@@ -36,7 +36,7 @@ resource attributes:
 | `vpc-id`           | ID of the Amazon VPC the resource resides in, if available. |
 | `workgroup`        | Amazon Redshift Serverless workgroup name. |
 
-### endpoint-type
+### `endpoint-type`
 
 The following values are used to indicate the type of the database endpoint:
 

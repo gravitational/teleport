@@ -117,9 +117,10 @@ For more details please refer to the reference
 
 ## Can I disable read-only and custom endpoints from auto-discovered databases?
 
-Yes, you can use Teleport generated label `endpoint-type` on your `aws` matcher
-to filter the endpoints. For example, to disable read-only and custom endpoints
-for RDS auto-discovery, you can specify other endpoint types to match:
+Yes, you can use the Teleport generated label `endpoint-type` on your `aws`
+matcher to filter the endpoints. For example, to disable read-only and custom
+endpoints for RDS auto-discovery, you can specify other endpoint types to
+match:
 ```
   aws:
   - types: ["rds"]
