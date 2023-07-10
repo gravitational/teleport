@@ -5449,7 +5449,7 @@ func TestCheckInventorySupportsRole(t *testing.T) {
 		},
 	} {
 		t.Run(tc.desc, func(t *testing.T) {
-			getInventory := func(context.Context, proto.InventoryStatusRequest) proto.InventoryStatusSummary {
+			getInventory := func(context.Context, proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
 				if tc.expectNoInventoryCheck {
 					require.Fail(t, "getInventory called when the inventory check should have been skipped")
 				}
@@ -5462,7 +5462,7 @@ func TestCheckInventorySupportsRole(t *testing.T) {
 				}
 				return proto.InventoryStatusSummary{
 					Connected: hellos,
-				}
+				}, nil
 			}
 
 			err := checkInventorySupportsRole(ctx, tc.role, tc.authVersion, getInventory)

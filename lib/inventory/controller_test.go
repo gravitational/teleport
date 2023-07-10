@@ -17,7 +17,6 @@ limitations under the License.
 package inventory
 
 import (
-	"bytes"
 	"context"
 	"sync"
 	"testing"
@@ -46,8 +45,7 @@ type fakeAuth struct {
 	expectAddr      string
 	unexpectedAddrs int
 
-	failGetRawInstance         int
-	failCompareAndSwapInstance int
+	failUpsertInstance int
 
 	lastInstance    types.Instance
 	lastRawInstance []byte
@@ -80,28 +78,13 @@ func (a *fakeAuth) KeepAliveServer(_ context.Context, _ types.KeepAlive) error {
 	return a.err
 }
 
-func (a *fakeAuth) GetRawInstance(ctx context.Context, serverID string) (types.Instance, []byte, error) {
+func (a *fakeAuth) UpsertInstance(ctx context.Context, instance types.Instance) error {
 	a.mu.Lock()
 	defer a.mu.Unlock()
-	if a.failGetRawInstance > 0 {
-		a.failGetRawInstance--
-		return nil, nil, trace.Errorf("get raw instance failed as test condition")
-	}
-	if a.lastRawInstance == nil {
-		return nil, nil, trace.NotFound("no instance in fake/test auth")
-	}
-	return a.lastInstance, a.lastRawInstance, nil
-}
 
-func (a *fakeAuth) CompareAndSwapInstance(ctx context.Context, instance types.Instance, expect []byte) ([]byte, error) {
-	a.mu.Lock()
-	defer a.mu.Unlock()
-	if a.failCompareAndSwapInstance > 0 {
-		a.failCompareAndSwapInstance--
-		return nil, trace.Errorf("cas instance failed as test condition")
-	}
-	if !bytes.Equal(a.lastRawInstance, expect) {
-		return nil, trace.CompareFailed("expect value does not match")
+	if a.failUpsertInstance > 0 {
+		a.failUpsertInstance--
+		return trace.Errorf("upsert instance failed as test condition")
 	}
 
 	a.lastInstance = instance.Clone()
@@ -110,7 +93,8 @@ func (a *fakeAuth) CompareAndSwapInstance(ctx context.Context, instance types.In
 	if err != nil {
 		panic("fastmarshal of instance should be infallible")
 	}
-	return a.lastRawInstance, nil
+
+	return nil
 }
 
 // TestSSHServerBasics verifies basic expected behaviors for a single control stream heartbeating
@@ -312,7 +296,6 @@ func TestInstanceHeartbeat(t *testing.T) {
 
 	const serverID = "test-instance"
 	const peerAddr = "1.2.3.4:456"
-	const includeAttempts = 16
 
 	events := make(chan testEvent, 1024)
 
@@ -352,102 +335,9 @@ func TestInstanceHeartbeat(t *testing.T) {
 	// this service was not seen, so it should be 0.
 	require.Equal(t, uint64(0), controller.serviceCounter.get(types.RoleOkta))
 
+	// set up single failure of upsert. stream should recover.
 	auth.mu.Lock()
-	auth.lastInstance.AppendControlLog(types.InstanceControlLogEntry{
-		Type: "concurrent-test-event",
-		ID:   1,
-		Time: time.Now(),
-	})
-	auth.lastRawInstance, _ = utils.FastMarshal(auth.lastInstance)
-	auth.mu.Unlock()
-
-	// wait for us to hit CompareFailed
-	awaitEvents(t, events,
-		expect(instanceCompareFailed),
-		deny(instanceHeartbeatErr, handlerClose),
-	)
-
-	// expect that we immediately recover on next iteration
-	awaitEvents(t, events,
-		expect(instanceHeartbeatOk),
-		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
-	)
-
-	// attempt qualified event inclusion
-	var included bool
-	for i := 0; i < includeAttempts; i++ {
-		handle.VisitInstanceState(func(ref InstanceStateRef) (update InstanceStateUpdate) {
-			// check if we've already successfully included the ping entry
-			if ref.LastHeartbeat != nil {
-				for _, entry := range ref.LastHeartbeat.GetControlLog() {
-					if entry.Type == "qualified" && entry.ID == 2 {
-						included = true
-						return
-					}
-				}
-			}
-			// check if the ping entry is in the pinding log
-			for _, entry := range ref.QualifiedPendingControlLog {
-				if entry.Type == "qualified" && entry.ID == 2 {
-					return
-				}
-			}
-			update.QualifiedPendingControlLog = append(update.QualifiedPendingControlLog, types.InstanceControlLogEntry{
-				Type: "qualified",
-				ID:   2,
-			})
-			handle.HeartbeatInstance()
-			return
-		})
-
-		if included {
-			break
-		}
-
-		awaitEvents(t, events,
-			expect(instanceHeartbeatOk),
-			deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
-		)
-	}
-
-	require.True(t, included)
-
-	// attempt unqualified event inclusion
-	handle.VisitInstanceState(func(_ InstanceStateRef) (update InstanceStateUpdate) {
-		update.UnqualifiedPendingControlLog = append(update.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
-			Type: "unqualified",
-			ID:   3,
-		})
-		handle.HeartbeatInstance()
-		return
-	})
-	included = false
-	for i := 0; i < includeAttempts; i++ {
-		awaitEvents(t, events,
-			expect(instanceHeartbeatOk),
-			deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
-		)
-		handle.VisitInstanceState(func(ref InstanceStateRef) (_ InstanceStateUpdate) {
-			if ref.LastHeartbeat != nil {
-				for _, entry := range ref.LastHeartbeat.GetControlLog() {
-					if entry.Type == "unqualified" && entry.ID == 3 {
-						included = true
-						return
-					}
-				}
-			}
-			return
-		})
-		if included {
-			break
-		}
-	}
-
-	require.True(t, included)
-
-	// set up single failure of CAS. stream should recover.
-	auth.mu.Lock()
-	auth.failCompareAndSwapInstance = 1
+	auth.failUpsertInstance = 1
 	auth.mu.Unlock()
 
 	// verify that heartbeat error occurs
@@ -462,50 +352,6 @@ func TestInstanceHeartbeat(t *testing.T) {
 		deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
 	)
 
-	var unqualifiedCount int
-	// confirm that qualified pending control log is reset on failed CompareAndSwap but
-	// unqualified pending control log is not.
-	for i := 0; i < includeAttempts; i++ {
-		handle.VisitInstanceState(func(ref InstanceStateRef) (update InstanceStateUpdate) {
-			if i%2 == 0 {
-				update.QualifiedPendingControlLog = append(update.QualifiedPendingControlLog, types.InstanceControlLogEntry{
-					Type: "never",
-					ID:   4,
-				})
-			} else {
-				unqualifiedCount++
-				update.UnqualifiedPendingControlLog = append(update.UnqualifiedPendingControlLog, types.InstanceControlLogEntry{
-					Type: "always",
-					ID:   uint64(unqualifiedCount),
-				})
-			}
-			// inject concurrent update to cause CompareAndSwap to fail. we do this while the tracker
-			// lock is held to prevent concurrent injection of the qualified control log event.
-			auth.mu.Lock()
-			auth.lastInstance.AppendControlLog(types.InstanceControlLogEntry{
-				Type: "concurrent-test-event",
-				ID:   1,
-				Time: time.Now(),
-			})
-			auth.lastRawInstance, _ = utils.FastMarshal(auth.lastInstance)
-			auth.mu.Unlock()
-			handle.HeartbeatInstance()
-			return
-		})
-
-		// wait to hit CompareFailed.
-		awaitEvents(t, events,
-			expect(instanceCompareFailed),
-			deny(instanceHeartbeatErr, handlerClose),
-		)
-
-		// wait for recovery.
-		awaitEvents(t, events,
-			expect(instanceHeartbeatOk),
-			deny(instanceHeartbeatErr, instanceCompareFailed, handlerClose),
-		)
-	}
-
 	// verify the service counter shows the correct number for the given services.
 	require.Equal(t, map[types.SystemRole]uint64{
 		types.RoleApp:  1,
@@ -514,24 +360,9 @@ func TestInstanceHeartbeat(t *testing.T) {
 	require.Equal(t, uint64(1), controller.ConnectedServiceCount(types.RoleNode))
 	require.Equal(t, uint64(1), controller.ConnectedServiceCount(types.RoleApp))
 
-	// verify that none of the qualified events were ever heartbeat because
-	// a reset always occurred.
-	var unqualifiedIncludes int
-	handle.VisitInstanceState(func(ref InstanceStateRef) (_ InstanceStateUpdate) {
-		require.NotNil(t, ref.LastHeartbeat)
-		for _, entry := range ref.LastHeartbeat.GetControlLog() {
-			require.NotEqual(t, entry.Type, "never")
-			if entry.Type == "always" {
-				unqualifiedIncludes++
-			}
-		}
-		return
-	})
-	require.Equal(t, unqualifiedCount, unqualifiedIncludes)
-
 	// set up double failure of CAS. stream should not recover.
 	auth.mu.Lock()
-	auth.failCompareAndSwapInstance = 2
+	auth.failUpsertInstance = 2
 	auth.mu.Unlock()
 
 	// expect failure and handle closure
@@ -551,12 +382,6 @@ func TestInstanceHeartbeat(t *testing.T) {
 	case <-closeTimeout:
 		t.Fatal("timeout waiting for handle closure")
 	}
-
-	// verify that control log entries survived the above sequence
-	auth.mu.Lock()
-	logSize := len(auth.lastInstance.GetControlLog())
-	auth.mu.Unlock()
-	require.Greater(t, logSize, 2)
 
 	// verify the service counter now shows no connected services.
 	require.Equal(t, map[types.SystemRole]uint64{

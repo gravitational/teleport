@@ -2157,6 +2157,18 @@ message InventoryStatusSummary {
   // Connected is a summary of the instances connected to the current auth server.  Only set if
   // the Connected flag in the status request is true.
   repeated UpstreamInventoryHello Connected = 1 [(gogoproto.nullable) = false];
+
+  // InstanceCount is the total number of instance resources aggregated.
+  uint32 InstanceCount = 2;
+
+  // VersionCounts aggregates unique version counts.
+  map<string, uint32> VersionCounts = 3;
+
+  // UpgraderCounts aggregates the unique upgrader counts.
+  map<string, uint32> UpgraderCounts = 4;
+
+  // ServiceCounts aggregates the number of services.
+  map<string, uint32> ServiceCounts = 5;
 }
 
 // InventoryConnectedServiceCountsRequest requests inventory connected service counts.
