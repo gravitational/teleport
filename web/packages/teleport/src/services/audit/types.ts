@@ -599,6 +599,7 @@ export type RawEvents = {
     typeof eventCodes.PROVISION_TOKEN_CREATED,
     {
       roles: string[];
+      join_method: string;
     }
   >;
   [eventCodes.KUBE_REQUEST]: RawEvent<

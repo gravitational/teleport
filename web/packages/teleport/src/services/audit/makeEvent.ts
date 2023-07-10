@@ -722,8 +722,8 @@ export const formatters: Formatters = {
   [eventCodes.PROVISION_TOKEN_CREATED]: {
     type: 'join_token.create',
     desc: 'Join Token Created',
-    format: ({ user, roles }) =>
-      `User [${user}] has created a join token with role(s) [${roles}]`,
+    format: ({ user, roles, join_method }) =>
+      `User [${user}] created a join token with role(s) [${roles}] and a join method [${join_method}]`,
   },
   [eventCodes.TRUSTED_CLUSTER_DELETED]: {
     type: 'trusted_cluster.delete',

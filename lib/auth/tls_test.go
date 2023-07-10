@@ -38,7 +38,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
-	"golang.org/x/exp/slices"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
@@ -3834,6 +3833,17 @@ func mustNewToken(
 	return tok
 }
 
+func mustNewTokenFromSpec(
+	t *testing.T,
+	token string,
+	expires time.Time,
+	spec types.ProvisionTokenSpecV2,
+) types.ProvisionToken {
+	tok, err := types.NewProvisionTokenFromSpec(token, expires, spec)
+	require.NoError(t, err)
+	return tok
+}
+
 func requireAccessDenied(t require.TestingT, err error, i ...interface{}) {
 	require.True(
 		t,
@@ -3897,11 +3907,14 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 		{
 			name:     "success",
 			identity: TestUser(privilegedUser.GetName()),
-			token: mustNewToken(
+			token: mustNewTokenFromSpec(
 				t,
 				"success",
-				types.SystemRoles{types.RoleNode, types.RoleKube},
 				time.Time{},
+				types.ProvisionTokenSpecV2{
+					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
+					JoinMethod: types.JoinMethodToken,
+				},
 			),
 			requireError:        require.NoError,
 			requireTokenCreated: true,
@@ -3914,18 +3927,22 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 					UserMetadata: eventtypes.UserMetadata{
 						User: "token-creator",
 					},
-					Roles: types.SystemRoles{types.RoleNode, types.RoleKube},
+					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
+					JoinMethod: types.JoinMethodToken,
 				},
 			},
 		},
 		{
 			name:     "success (trusted cluster)",
 			identity: TestUser(privilegedUser.GetName()),
-			token: mustNewToken(
+			token: mustNewTokenFromSpec(
 				t,
 				"success-trusted-cluster",
-				types.SystemRoles{types.RoleTrustedCluster},
 				time.Time{},
+				types.ProvisionTokenSpecV2{
+					Roles:      types.SystemRoles{types.RoleTrustedCluster},
+					JoinMethod: types.JoinMethodToken,
+				},
 			),
 			requireError:        require.NoError,
 			requireTokenCreated: true,
@@ -3938,7 +3955,8 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 					UserMetadata: eventtypes.UserMetadata{
 						User: "token-creator",
 					},
-					Roles: types.SystemRoles{types.RoleTrustedCluster},
+					Roles:      types.SystemRoles{types.RoleTrustedCluster},
+					JoinMethod: types.JoinMethodToken,
 				},
 				//nolint:staticcheck // Emit a deprecated event.
 				&eventtypes.TrustedClusterTokenCreate{
@@ -4054,11 +4072,14 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 		{
 			name:     "success",
 			identity: TestUser(privilegedUser.GetName()),
-			token: mustNewToken(
+			token: mustNewTokenFromSpec(
 				t,
 				"success",
-				types.SystemRoles{types.RoleNode, types.RoleKube},
 				time.Time{},
+				types.ProvisionTokenSpecV2{
+					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
+					JoinMethod: types.JoinMethodToken,
+				},
 			),
 			requireError:        require.NoError,
 			requireTokenCreated: true,
@@ -4071,18 +4092,22 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					UserMetadata: eventtypes.UserMetadata{
 						User: "token-upserter",
 					},
-					Roles: types.SystemRoles{types.RoleNode, types.RoleKube},
+					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
+					JoinMethod: types.JoinMethodToken,
 				},
 			},
 		},
 		{
 			name:     "success (trusted cluster)",
 			identity: TestUser(privilegedUser.GetName()),
-			token: mustNewToken(
+			token: mustNewTokenFromSpec(
 				t,
 				"success-trusted-cluster",
-				types.SystemRoles{types.RoleTrustedCluster},
 				time.Time{},
+				types.ProvisionTokenSpecV2{
+					Roles:      types.SystemRoles{types.RoleTrustedCluster},
+					JoinMethod: types.JoinMethodToken,
+				},
 			),
 			requireError:        require.NoError,
 			requireTokenCreated: true,
@@ -4095,7 +4120,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					UserMetadata: eventtypes.UserMetadata{
 						User: "token-upserter",
 					},
-					Roles: types.SystemRoles{types.RoleTrustedCluster},
+					Roles:      types.SystemRoles{types.RoleTrustedCluster},
+					JoinMethod: types.JoinMethodToken,
 				},
 				//nolint:staticcheck // Emit a deprecated event.
 				&eventtypes.TrustedClusterTokenCreate{
@@ -4112,13 +4138,16 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 		{
 			name:     "existing token replaced",
 			identity: TestUser(privilegedUser.GetName()),
-			token: mustNewToken(
+			token: mustNewTokenFromSpec(
 				t,
 				alreadyExistsToken.GetName(),
-				// These roles differ from the roles on the already existing
-				// token.
-				types.SystemRoles{types.RoleNode},
 				time.Time{},
+				types.ProvisionTokenSpecV2{
+					// These roles differ from the roles on the already existing
+					// token.
+					Roles:      types.SystemRoles{types.RoleNode},
+					JoinMethod: types.JoinMethodToken,
+				},
 			),
 			requireTokenCreated: true,
 			requireError:        require.NoError,
@@ -4131,7 +4160,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 					UserMetadata: eventtypes.UserMetadata{
 						User: "token-upserter",
 					},
-					Roles: types.SystemRoles{types.RoleNode},
+					Roles:      types.SystemRoles{types.RoleNode},
+					JoinMethod: types.JoinMethodToken,
 				},
 			},
 		},
@@ -4186,8 +4216,8 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 	}
 }
 
-// This test verifies the behavior of a deprecated GenerateToken method that we
-// still need to keep for the time being.
+// TestGRPCServer_GenerateToken verifies the behavior of a deprecated
+// GenerateToken method that we still need to keep for the time being.
 func TestGRPCServer_GenerateToken(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
@@ -4239,7 +4269,8 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 					UserMetadata: eventtypes.UserMetadata{
 						User: "token-generator",
 					},
-					Roles: types.SystemRoles{types.RoleNode, types.RoleKube},
+					Roles:      types.SystemRoles{types.RoleNode, types.RoleKube},
+					JoinMethod: types.JoinMethodToken,
 				},
 			},
 		},
@@ -4258,7 +4289,8 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 					UserMetadata: eventtypes.UserMetadata{
 						User: "token-generator",
 					},
-					Roles: types.SystemRoles{types.RoleTrustedCluster},
+					Roles:      types.SystemRoles{types.RoleTrustedCluster},
+					JoinMethod: types.JoinMethodToken,
 				},
 				//nolint:staticcheck // Emit a deprecated event.
 				&eventtypes.TrustedClusterTokenCreate{
@@ -4286,6 +4318,9 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			client, err := ac.server.NewClient(tt.identity)
 			require.NoError(t, err)
+			// The client doesn't expose the deprecated GenerateToken method, so we
+			// need to cerate a raw AuthService client using the API client's
+			// connection.
 			rawAuthSvcClient := proto.NewAuthServiceClient(client.APIClient.GetConnection())
 
 			mockEmitter.Reset()
@@ -4306,13 +4341,15 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 				cmpopts.EquateEmpty(),
 			))
 			if tt.requireTokenCreated {
-				tokens, err := ac.server.Auth().GetTokens(ctx)
+				// tokens, err := ac.server.Auth().GetTokens(ctx)
+				createdToken, err := ac.server.Auth().GetToken(ctx, tokenResp.Token)
 				require.NoError(t, err)
-				si := slices.IndexFunc(tokens, func(t types.ProvisionToken) bool {
-					return t.V1().Token == tokenResp.Token
-				})
-				require.True(t, si >= 0, "Token not found")
-				assert.Equal(t, tt.roles, tokens[si].GetRoles())
+				assert.Equal(t, tt.roles, createdToken.GetRoles())
+				// si := slices.IndexFunc(tokens, func(t types.ProvisionToken) bool {
+				// 	return t.V1().Token == tokenResp.Token
+				// })
+				// require.True(t, si >= 0, "Token not found")
+				// assert.Equal(t, tt.roles, tokens[si].GetRoles())
 			}
 		})
 	}
