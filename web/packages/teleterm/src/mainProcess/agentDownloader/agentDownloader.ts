@@ -32,6 +32,7 @@ import { RuntimeSettings } from '../types';
 import type { IFileDownloader } from './fileDownloader';
 
 const TELEPORT_CDN_ADDRESS = 'https://cdn.teleport.dev';
+const TELEPORT_RELEASES_ADDRESS = 'https://rlz.teleport.sh/teleport?page=0';
 const logger = new Logger('agentDownloader');
 
 interface AgentBinary {
@@ -93,9 +94,12 @@ async function calculateAgentVersion(appVersion: string): Promise<string> {
  * We don't have a way to simply take the latest tag.
  */
 async function fetchLatestTeleportRelease(): Promise<string> {
-  const response = await fetch('https://rlz.teleport.sh/teleport?page=0');
+  const response = await fetch(TELEPORT_RELEASES_ADDRESS);
   if (!response.ok) {
-    throw response;
+    logger.error(response);
+    throw new Error(
+      `Failed to fetch ${TELEPORT_RELEASES_ADDRESS}. Status code: ${response.status}.`
+    );
   }
   const teleportVersions = (
     (await response.json()) as {
