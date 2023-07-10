@@ -25,7 +25,7 @@ import {
 import cfg from 'teleport/config';
 import { Route, Switch } from 'teleport/components/Router';
 
-import MachineIDIntegrationSection from './MachineIDIntegrationSection';
+import { MachineIDIntegrationSection } from './MachineIDIntegrationSection';
 import { IntegrationTiles } from './IntegrationTiles';
 import { NoCodeIntegrationDescription } from './common';
 import { getRoutesToEnrollIntegrations } from './IntegrationRoute';

@@ -30,7 +30,8 @@ import {
   IntegrationEnrollKind,
   userEventService,
 } from 'teleport/services/userEvent';
-import { IntegrationTile } from 'teleport/Integrations/Enroll/common';
+
+import { IntegrationTile } from './common';
 
 interface Integration {
   title: string;
@@ -78,7 +79,7 @@ const integrations: Integration[] = [
   },
 ];
 
-const MachineIDIntegrationSection = () => {
+export const MachineIDIntegrationSection = () => {
   return (
     <>
       <Box mb={3}>
@@ -119,5 +120,3 @@ const MachineIDIntegrationSection = () => {
     </>
   );
 };
-
-export default MachineIDIntegrationSection;
