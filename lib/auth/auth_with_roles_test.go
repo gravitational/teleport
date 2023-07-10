@@ -1141,7 +1141,8 @@ func TestAuthPreferenceRBAC(t *testing.T) {
 func TestClusterNetworkingCloudUpdates(t *testing.T) {
 	srv := newTestTLSServer(t)
 	ctx := context.Background()
-	srv.Auth().SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	err := srv.Auth().SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
+	require.NoError(t, err)
 
 	user, _, err := CreateUserAndRole(srv.Auth(), "username", []string{}, []types.Rule{
 		{
@@ -1170,9 +1171,40 @@ func TestClusterNetworkingCloudUpdates(t *testing.T) {
 			name:         "non admin user cannot set keep_alive_interval",
 			cloud:        true,
 			identity:     TestUser(user.GetName()),
-			expectSetErr: cloudTenantNetworkingError("keep_alive_interval"),
+			expectSetErr: "keep_alive_interval",
 			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
 				KeepAliveInterval: types.Duration(time.Second * 20),
+			}),
+		},
+		{
+			name:         "non admin user cannot set tunnel_strategy",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "tunnel_strategy",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				TunnelStrategy: &types.TunnelStrategyV1{
+					Strategy: &types.TunnelStrategyV1_ProxyPeering{
+						ProxyPeering: types.DefaultProxyPeeringTunnelStrategy(),
+					},
+				},
+			}),
+		},
+		{
+			name:         "non admin user cannot set proxy_listener_mode",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "proxy_listener_mode",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				ProxyListenerMode: types.ProxyListenerMode_Multiplex,
+			}),
+		},
+		{
+			name:         "non admin user cannot set keep_alive_count_max",
+			cloud:        true,
+			identity:     TestUser(user.GetName()),
+			expectSetErr: "keep_alive_count_max",
+			clusterNetworkingConfig: newClusterNetworkingConf(t, types.ClusterNetworkingConfigSpecV2{
+				KeepAliveCountMax: 55,
 			}),
 		},
 		{
@@ -1214,7 +1246,7 @@ func TestClusterNetworkingCloudUpdates(t *testing.T) {
 			err = client.SetClusterNetworkingConfig(ctx, tc.clusterNetworkingConfig)
 			if err != nil {
 				require.NotEmpty(t, tc.expectSetErr)
-				require.ErrorContains(t, err, tc.expectSetErr)
+				require.ErrorContains(t, err, fmt.Sprintf("%q", tc.expectSetErr))
 			} else {
 				require.Empty(t, tc.expectSetErr)
 			}

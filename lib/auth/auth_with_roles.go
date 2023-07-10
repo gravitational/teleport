@@ -4074,12 +4074,8 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	}
 
 	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
-}
 
-func cloudTenantNetworkingError(field string) string {
-	return fmt.Sprintf("cloud tenants cannot update %q", field)
 }
-
 func (a *ServerWithRoles) validateCloudNetworkConfigUpdate(newConfig, oldConfig types.ClusterNetworkingConfig) error {
 	if a.hasBuiltinRole(types.RoleAdmin) {
 		return nil
@@ -4089,21 +4085,23 @@ func (a *ServerWithRoles) validateCloudNetworkConfigUpdate(newConfig, oldConfig 
 		return nil
 	}
 
+	const cloudUpdateFailureMsg = "cloud tenants cannot update %q"
+
 	if newConfig.GetProxyListenerMode() != oldConfig.GetProxyListenerMode() {
-		return trace.BadParameter(cloudTenantNetworkingError("proxy_listener_mode"))
+		return trace.BadParameter(cloudUpdateFailureMsg, "proxy_listener_mode")
 	}
-	newtst, newerr := newConfig.GetTunnelStrategyType()
-	oldtst, olderr := oldConfig.GetTunnelStrategyType()
-	if newerr != olderr || newtst != oldtst {
-		return trace.BadParameter(cloudTenantNetworkingError("tunnel_strategy"))
+	newtst, _ := newConfig.GetTunnelStrategyType()
+	oldtst, _ := oldConfig.GetTunnelStrategyType()
+	if newtst != oldtst {
+		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
 	}
 
 	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
-		return trace.BadParameter(cloudTenantNetworkingError("keep_alive_interval"))
+		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
 	}
 
 	if newConfig.GetKeepAliveCountMax() != oldConfig.GetKeepAliveCountMax() {
-		return trace.BadParameter(cloudTenantNetworkingError("keep_alive_count_max"))
+		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_count_max")
 	}
 
 	return nil
