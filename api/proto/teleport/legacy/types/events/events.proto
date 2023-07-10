@@ -1889,6 +1889,11 @@ message ProvisionTokenCreate {
     (gogoproto.jsontag) = "roles,omitempty",
     (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.SystemRole"
   ];
+
+  string JoinMethod = 5 [
+    (gogoproto.jsontag) = "join_method,omitempty",
+    (gogoproto.casttype) = "github.com/gravitational/teleport/api/types.JoinMethod"
+  ];
 }
 
 // TrustedClusterTokenCreate event is emitted (in addition to

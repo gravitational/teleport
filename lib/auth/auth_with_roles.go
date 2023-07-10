@@ -927,7 +927,7 @@ func (a *ServerWithRoles) GenerateToken(ctx context.Context, req *proto.Generate
 		return "", trace.Wrap(err)
 	}
 
-	emitTokenEvent(ctx, a.authServer.emitter, req.Roles)
+	emitTokenEvent(ctx, a.authServer.emitter, req.Roles, types.JoinMethodToken)
 	return token, nil
 }
 
@@ -2039,7 +2039,12 @@ func enforceEnterpriseJoinMethodCreation(token types.ProvisionToken) error {
 
 // emitTokenEvent is called by Create/Upsert Token in order to emit any relevant
 // events.
-func emitTokenEvent(ctx context.Context, e apievents.Emitter, roles types.SystemRoles) {
+func emitTokenEvent(
+	ctx context.Context,
+	e apievents.Emitter,
+	roles types.SystemRoles,
+	joinMethod types.JoinMethod,
+) {
 	userMetadata := authz.ClientUserMetadata(ctx)
 	if err := e.EmitAuditEvent(ctx, &apievents.ProvisionTokenCreate{
 		Metadata: apievents.Metadata{
@@ -2048,6 +2053,7 @@ func emitTokenEvent(ctx context.Context, e apievents.Emitter, roles types.System
 		},
 		UserMetadata: userMetadata,
 		Roles:        roles,
+		JoinMethod:   joinMethod,
 	}); err != nil {
 		log.WithError(err).Warn("Failed to emit join token create event.")
 	}
@@ -2077,11 +2083,12 @@ func (a *ServerWithRoles) UpsertToken(ctx context.Context, token types.Provision
 	if err := a.authServer.UpsertToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles())
+	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), token.GetJoinMethod())
 	return nil
 }
 
 func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.ProvisionToken) error {
+	jm := token.GetJoinMethod()
 	if err := a.action(apidefaults.Namespace, types.KindToken, types.VerbCreate); err != nil {
 		return trace.Wrap(err)
 	}
@@ -2091,7 +2098,7 @@ func (a *ServerWithRoles) CreateToken(ctx context.Context, token types.Provision
 	if err := a.authServer.CreateToken(ctx, token); err != nil {
 		return trace.Wrap(err)
 	}
-	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles())
+	emitTokenEvent(ctx, a.authServer.emitter, token.GetRoles(), jm)
 	return nil
 }
 
