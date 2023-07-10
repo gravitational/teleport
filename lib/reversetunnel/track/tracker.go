@@ -65,9 +65,9 @@ type Tracker struct {
 	connectionCount int
 
 	// cannotLease being true indicates that no leases should be granted, but
-	// false does not necessarily mean that leases *can* be granted.
-	// this flag should be reset whenever the tracker state is
-	// changed such that we *might* be able to grant leases.
+	// false does not necessarily mean that leases *can* be granted. this flag
+	// should be reset whenever the tracker state is changed such that we
+	// *might* be able to grant leases.
 	cannotLease bool
 
 	// lastLease is the ID of the last lease that was granted. It starts at 0,
@@ -123,6 +123,11 @@ func New(cfg Config) (*Tracker, error) {
 	return t, nil
 }
 
+// TryAcquire attempts to acquire a [Lease] from the tracker; if we shouldn't
+// attempt a new connection at the moment, it will return nil, otherwise it will
+// return a new Lease in the unclaimed state that can attempt to claim
+// exclusivity over a proxy and that must be released (with [Lease.Release()])
+// at the end of its lifetime.
 func (t *Tracker) TryAcquire() *Lease {
 	t.mu.Lock()
 	defer t.mu.Unlock()
@@ -136,7 +141,7 @@ func (t *Tracker) TryAcquire() *Lease {
 	if !t.canLeaseLocked() {
 		// until cannotLease is reset (because something in the state is
 		// changed) we know that we can't grant a lease, so we don't need to
-		// check
+		// check again
 		t.cannotLease = true
 		return nil
 	}
