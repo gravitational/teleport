@@ -472,6 +472,51 @@ func TestUpdateStaticDatabaseLabels(t *testing.T) {
 	require.Contains(t, proxiedDatabaseLabels, "importer")
 }
 
+// TestUpdateStaticDatabaseLabels given a dynamic registered database when its
+// heartbeat is executed it should have the new labels from labels.Importer.
+// The test should ensure that the database struct inside the server gets its
+// labels updated.
+func TestUpdateDynamicDatabaseLabels(t *testing.T) {
+	ctx := context.Background()
+	testCtx := setupTestContext(ctx, t)
+
+	// Start with empty labels, this way the initial reconciliation won't have
+	// the cloud labels.
+	cloudLabels := &labelsImporter{}
+	db, err := makeDynamicDatabase("postgres", map[string]string{"static": "label"})
+	require.NoError(t, err)
+	require.NoError(t, testCtx.authServer.CreateDatabase(ctx, db))
+
+	reconcileCh := make(chan types.Databases)
+	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
+		CloudLabels: cloudLabels,
+		ResourceMatchers: []services.ResourceMatcher{
+			{Labels: types.Labels{
+				"static": []string{"label"},
+			}},
+		},
+		OnReconcile: func(d types.Databases) {
+			reconcileCh <- d
+		},
+	})
+	assertReconciledResource(t, reconcileCh, types.Databases{db})
+
+	cloudLabels.applyLabels = map[string]string{"importer": "label"}
+	require.NoError(t, testCtx.server.ForceHeartbeat())
+	require.Eventually(t, func() bool {
+		return cloudLabels.applyCalls.Load() > int32(1)
+	}, time.Second, 100*time.Millisecond)
+
+	// Stop the heartbeat to avoid data race when asserting database labels.
+	testCtx.server.stopHeartbeat(db.GetName())
+
+	proxiedDatabases := testCtx.server.getProxiedDatabases()
+	require.Len(t, proxiedDatabases, 1)
+	proxiedDatabaseLabels := proxiedDatabases[0].GetStaticLabels()
+	require.Contains(t, proxiedDatabaseLabels, "static")
+	require.Contains(t, proxiedDatabaseLabels, "importer")
+}
+
 type labelsImporter struct {
 	labels.Importer
 
