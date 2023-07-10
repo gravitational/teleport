@@ -64,8 +64,10 @@ type Tracker struct {
 	// positive number for the connection count of proxy peering mode.
 	connectionCount int
 
-	// cannotLease is a flag that should be reset whenever the tracker state is
-	// changed in such a way that it might be possible to grant leases.
+	// cannotLease being true indicates that no leases should be granted, but
+	// false does not necessarily mean that leases *can* be granted.
+	// this flag should be reset whenever the tracker state is
+	// changed such that we *might* be able to grant leases.
 	cannotLease bool
 
 	// lastLease is the ID of the last lease that was granted. It starts at 0,
