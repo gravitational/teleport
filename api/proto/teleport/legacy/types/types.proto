@@ -5192,6 +5192,8 @@ message PluginSpecV1 {
     PluginOktaSettings okta = 4;
     // Settings for device trust jamf plugin
     PluginJamfSettings jamf = 5;
+    // Settings for the PagerDuty plugin
+    PluginPagerDutySettings pager_duty = 6;
   }
 }
 
@@ -5215,6 +5217,19 @@ message PluginOpsgenieAccessSettings {
   repeated string default_schedules = 4;
   // APIEndpoint is the address of Opsgenie API.
   string api_endpoint = 5;
+}
+
+message PluginPagerDutySettings {
+  option (gogoproto.equal) = true;
+
+  // UserEmail is the email address of the PagerDuty user that will be
+  // listed as the reporter source of incidents, comments, etc
+  // within PagerDuty. Should usually be the same user the API key
+  // represents.
+  string user_email = 1;
+
+  // APIEndpoint is the address of PagerDuty API.
+  string api_endpoint = 2;
 }
 
 // Defines settings for the OpenAI plugin. Currently there are no settings.
