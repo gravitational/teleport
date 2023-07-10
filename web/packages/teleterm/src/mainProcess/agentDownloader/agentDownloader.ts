@@ -61,7 +61,7 @@ export async function downloadAgent(
       version
     )
   ) {
-    logger.info(`Agent v.${version} is already downloaded. Skipping.`);
+    logger.info(`Agent v${version} is already downloaded. Skipping.`);
     return;
   }
 
