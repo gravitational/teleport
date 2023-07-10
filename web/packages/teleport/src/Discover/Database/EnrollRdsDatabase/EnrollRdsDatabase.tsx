@@ -98,7 +98,7 @@ export function EnrollRdsDatabase() {
   }
 
   async function fetchDatabases(data: TableData) {
-    const integrationName = (agentMeta as DbMeta).integrationName;
+    const integrationName = (agentMeta as DbMeta).integration.name;
 
     setTableData({ ...data, fetchStatus: 'loading' });
     setFetchDbAttempt({ status: 'processing' });
