@@ -1,25 +1,30 @@
 ---
-title: SSH Authentication with Active Directory (AD) on Azure
-description: How to configure SSH access with Active Directory (AD) on Azure using Teleport
-h1: SSH Authentication with Azure Active Directory (AD)
+title: Teleport Authentication with Azure Active Directory (AD)
+description: How to configure Teleport access with Active Directory (AD) on Azure.
 ---
 
 This guide will cover how to configure Microsoft Azure Active Directory to issue
-SSH credentials to specific groups of users with a SAML Authentication Connector. When used in combination with role-based access control (RBAC), it allows SSH administrators to define policies like:
+credentials to specific groups of users with a SAML Authentication Connector.
+When used in combination with role-based access control (RBAC), it allows Teleport
+administrators to define policies like:
 
-- Only members of the "DBA" Azure AD group can SSH into machines running PostgreSQL.
+- Only members of the "DBA" Azure AD group can connect to PostgreSQL databases.
 - Developers must never SSH into production servers.
 
-The following steps configure an example SAML authentication connector matching Azure AD groups with security roles.  You can choose to configure other options.
+The following steps configure an example SAML authentication connector matching
+Azure AD groups with security roles. You can choose to configure other options.
 
 ## Prerequisites
 
 Before you get started you’ll need:
 
-- An Azure AD admin account with access to creating non-gallery applications (P2 License)
-- To register one or more users in the directory
-- To create at least two security groups in Azure AD and assign one or more users to each group
-- Teleport role with access to maintaining `saml` resources.  This is available in the default `editor` role.
+- An Azure AD admin account with access to creating non-gallery applications
+  (P2 License).
+- To register one or more users in the directory.
+- To create at least two security groups in Azure AD and assign one or more
+  users to each group.
+- Teleport role with access to maintaining `saml` resources. This is available
+  in the default `editor` role.
 
 (!docs/pages/includes/commercial-prereqs-tabs.mdx!)
 
@@ -37,8 +42,9 @@ Before you get started you’ll need:
 
    ![Select New Applications From Manage](../../../img/azuread/azuread-2-newapp.png)
 
-3. Select **Create your own application**, enter the application name (e.g Teleport),
-   and select **Integrate any other application you don't find in the gallery (Non-gallery)**.
+3. Select **Create your own application**, enter the application name (e.g
+   Teleport), and select **Integrate any other application you don't find in
+   the gallery (Non-gallery)**.
 
    ![Select Non-gallery application](../../../img/azuread/azuread-3-createnongalleryapp.png)
 
@@ -67,7 +73,8 @@ Before you get started you’ll need:
 8. Edit **User Attributes & Claims**
 
    - Edit the claim name.
-   - Change the name identifier format to **Default**. Make sure the source attribute is `user.userprincipalname`.
+   - Change the name identifier format to **Default**. Make sure the source
+     attribute is `user.userprincipalname`.
 
    ![Confirm Name Identifier](../../../img/azuread/azuread-8a-nameidentifier.png)
 
@@ -79,15 +86,19 @@ Before you get started you’ll need:
 
    ![Add a transformed username](../../../img/azuread/azuread-8c-usernameclaim.png)
 
-9. In **SAML Signing Certificate**, click the link to download the **Federation Metadata XML**.
+9. In **SAML Signing Certificate**, click the link to download the **Federation
+   Metadata XML**.
 
    ![Download Federation Metadata XML](../../../img/azuread/azuread-9-fedmeatadataxml.png)
 
 <Admonition
-  type="warning"
-  title="Important"
+type="warning"
+title="Important"
 >
-  This is an important document.  The Federation Metadata XML file sets the SSO location and other important values. Transmit the Federation Metadata XML file securely so it is not malformed.  Using the `entity_descriptor_url` setting allows for loading from the source.
+This is an important document. The Federation Metadata XML file sets the SSO
+location and other important values. Transmit the Federation Metadata XML file
+securely so it is not malformed. Using the `entity_descriptor_url` setting
+allows for loading from the source.
 </Admonition>
 
 ## Create a SAML Connector
@@ -120,7 +131,9 @@ spec:
 
 (!docs/pages/includes/sso/idp-initiated.mdx!)
 
-Replace the `acs` field with your Teleport address, update the group IDs in the `attributes_to_roles` field with the actual Azure AD group ID values, and insert the downloaded Federation Metadata XML into the `entity_descriptor` field.
+Replace the `acs` field with your Teleport address, update the group IDs in the
+`attributes_to_roles` field with the actual Azure AD group ID values, and insert
+the downloaded Federation Metadata XML into the `entity_descriptor` field.
 
 Create the connector using `tctl`:
 
@@ -129,27 +142,32 @@ $ tctl create azure-connector.yaml
 ```
 
 <Admonition
-  type="tip"
-  title="Automatic signing key pair"
+type="tip"
+title="Automatic signing key pair"
 >
-  Teleport will generate a signing key pair and update the SAML connector with the `signing_key_pair`
-  property.
+Teleport will generate a signing key pair and update the SAML connector with
+the `signing_key_pair` property.
 
-  ![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
+![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
 
-  Alternatively, you can generate your own keypair when creating a connector using `openssl`:
+Alternatively, you can generate your own keypair when creating a connector using
+`openssl`:
 
-  ```code
-  $ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
-  ```
+```code
+$ openssl req -nodes -new -x509 -keyout server.key -out server.cer
+```
+
 </Admonition>
 
 ## Create a new Teleport role
 
-Create a Teleport role resource that will use external username data from the Azure AD connector to determine which Linux logins to allow on a host.
+Create a Teleport role resource that will use external username data from the
+Azure AD connector to determine which Linux logins to allow on a host.
 
-Users with the following `dev` role are only allowed to log in to nodes with the `access: relaxed` Teleport label. They can log in as either `ubuntu` or a username that
-arrives via the Azure AD connector. Users with this role cannot obtain admin access to Teleport.
+Users with the following `dev` role are only allowed to log in to nodes with
+the `access: relaxed` Teleport label. They can log in as either `ubuntu` or a
+username that arrives via the Azure AD connector. Users with this role cannot
+obtain admin access to Teleport.
 
 ```yaml
 kind: role
@@ -176,6 +194,7 @@ $ tctl create dev.yaml
 ![Login with Microsoft](../../../img/azuread/azure-11-loginwithmsft.png)
 
 The CLI is the same as before:
+
 ```code
 $ tsh --proxy=proxy.example.com login
 ```
@@ -194,7 +213,7 @@ automatically in a browser.
 ## Token encryption (Optional)
 
 Azure AD's SAML token encryption encrypts the SAML assertions sent to Teleport
-during SSO redirect. 
+during SSO redirect.
 
 Token encryption is an Azure Active Directory premium feature and requires a
 separate license. Since traffic between Azure AD and the Teleport Proxy Service
@@ -204,11 +223,11 @@ should enable token encryption, read the Azure AD
 
 ### Set up Teleport token encryption
 
-Start with generating a public/private key and a certificate. You will set up the public
-certificate with Azure AD and the private key with Teleport.
+Start with generating a public/private key and a certificate. You will set up
+the public certificate with Azure AD and the private key with Teleport.
 
 ```code
-$ openssl req  -nodes -new -x509  -keyout server.key -out server.cer
+$ openssl req -nodes -new -x509 -keyout server.key -out server.cer
 ```
 
 If you are modifying the existing connector, write the YAML to a file first:
@@ -373,9 +392,9 @@ If the SSO login with this connector is successful, the encryption works.
 
 If you encounter a "Failed to process SAML callback" error, take a look at the audit log.
 
-```
-Special characters are not allowed in resource names, please use name composed only from characters,
-hyphens and dots: /web/users/ops_example.com#EXT#@opsexample.onmicrosoft.com/params
+```text
+Special characters are not allowed in resource names, please use name composed only from
+characters, hyphens and dots: /web/users/ops_example.com#EXT#@opsexample.onmicrosoft.com/params
 ```
 
 The error above is caused by a Name ID format that is not compatible with Teleport's naming conventions.
@@ -385,5 +404,5 @@ Change the Name ID format to use email instead:
 ![Change NameID format to use email](../../../img/azuread/azuread-nameid.png)
 
 ## Further reading
-- [Teleport Configuration Resources Reference](../../reference/resources.mdx)
 
+- [Teleport Configuration Resources Reference](../../reference/resources.mdx)
