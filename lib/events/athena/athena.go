@@ -276,8 +276,7 @@ func (cfg *Config) SetFromURL(url *url.URL) error {
 	}
 	cfg.Database, cfg.TableName = splitted[0], splitted[1]
 
-	region := url.Query().Get("region")
-	if region != "" {
+	if region := url.Query().Get("region");  region != "" {
 		cfg.Region = region
 	}
 	topicARN := url.Query().Get("topicArn")
