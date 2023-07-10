@@ -178,7 +178,7 @@ func TestCreateTable(t *testing.T) {
 			expectedBillingMode: dynamodb.BillingModePayPerRequest,
 		},
 		{
-			name:               "create table suceeds",
+			name:               "create table succeeds",
 			readCapacityUnits:  10,
 			writeCapacityUnits: 10,
 			errorIsFn:          errIsNil,
