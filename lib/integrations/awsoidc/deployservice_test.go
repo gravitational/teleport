@@ -24,6 +24,7 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/stretchr/testify/require"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 )
 
@@ -136,6 +137,7 @@ func TestDeployServiceRequest(t *testing.T) {
 			errCheck: require.NoError,
 			reqWithDefaults: DeployServiceRequest{
 				TeleportClusterName:  "mycluster",
+				TeleportVersionTag:   teleport.Version,
 				Region:               "r",
 				SubnetIDs:            []string{"1"},
 				TaskRoleARN:          "arn",
