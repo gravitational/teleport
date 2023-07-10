@@ -39,10 +39,10 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/athena v1.30.2
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.20.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.102.0
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.1
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.28.0
 	github.com/aws/aws-sdk-go-v2/service/glue v1.54.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.21.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.44.1
+	github.com/aws/aws-sdk-go-v2/service/rds v1.46.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.13
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.23.2
@@ -166,7 +166,7 @@ require (
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.130.0
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
-	google.golang.org/grpc v1.56.1
+	google.golang.org/grpc v1.56.2
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.31.0
