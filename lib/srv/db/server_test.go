@@ -439,28 +439,24 @@ func TestCloseWithActiveConnections(t *testing.T) {
 	}, time.Second, 100*time.Millisecond)
 }
 
-// TestUpdateDatabaseLabels given a database when its heartbeat is executed it
-// should have the new labels from labels.Importer. The test should ensure that
-// the database struct inside the server gets its labels updated.
-func TestUpdateDatabaseLabels(t *testing.T) {
+// TestUpdateStaticDatabaseLabels given a static database when its heartbeat is
+// executed it should have the new labels from labels.Importer. The test should
+// ensure that the database struct inside the server gets its labels updated.
+func TestUpdateStaticDatabaseLabels(t *testing.T) {
 	ctx := context.Background()
 	testCtx := setupTestContext(ctx, t)
 
-	dbName := "postgres"
-	cloudLabels := &labelsImporter{
-		applyLabels: map[string]string{"importer": "label"},
-	}
+	cloudLabels := &labelsImporter{applyLabels: map[string]string{"importer": "label"}}
+	db, err := makeStaticDatabase("postgres", map[string]string{"static": "label"})
+	require.NoError(t, err)
+
 	testCtx.server = testCtx.setupDatabaseServer(ctx, t, agentParams{
 		CloudLabels: cloudLabels,
-		Databases: []types.Database{
-			withSelfHostedPostgres(dbName, func(db *types.DatabaseV3) {
-				db.SetStaticLabels(map[string]string{"static": "label"})
-			})(t, ctx, testCtx),
-		},
+		Databases:   []types.Database{db},
 	})
 
 	// Stop the heartbeat to avoid data race when asserting database labels.
-	testCtx.server.stopHeartbeat(dbName)
+	testCtx.server.stopHeartbeat(db.GetName())
 
 	// For each database heartbeat sent the counter must go up by one. Here we
 	// we wait for the forced heartbeat (sent when server starts) and the regular
