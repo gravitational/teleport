@@ -17,6 +17,7 @@ limitations under the License.
 package types
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -513,27 +514,15 @@ func TestDatabaseSelfHosted(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name              string
-		dbName            string
-		inputURI          string
-		expectErrContains string
+		name     string
+		inputURI string
 	}{
 		{
-			// Captured error:
-			// "invalid-database-name-" does not match regex used for validation
-			// "^[a-zA-Z]([-a-zA-Z0-9]*[a-zA-Z0-9])?$"
-			dbName:            "invalid-database-name-",
-			inputURI:          "localhost:5432",
-			expectErrContains: `"invalid-database-name-" does not match regex`,
-		},
-		{
 			name:     "localhost",
-			dbName:   "self-hosted-localhost",
 			inputURI: "localhost:5432",
 		},
 		{
 			name:     "ec2 hostname",
-			dbName:   "self-hosted-localhost",
 			inputURI: "ec2-11-22-33-44.us-east-2.compute.amazonaws.com:5432",
 		},
 	}
@@ -541,16 +530,11 @@ func TestDatabaseSelfHosted(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			database, err := NewDatabaseV3(Metadata{
-				Name: test.dbName,
+				Name: "self-hosted-localhost",
 			}, DatabaseSpecV3{
 				Protocol: "postgres",
 				URI:      test.inputURI,
 			})
-			if test.expectErrContains != "" {
-				require.Error(t, err)
-				require.ErrorContains(t, err, test.expectErrContains)
-				return
-			}
 			require.NoError(t, err)
 			require.Equal(t, DatabaseTypeSelfHosted, database.GetType())
 			require.False(t, database.IsCloudHosted())
@@ -904,6 +888,43 @@ func TestAWSIsEmpty(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			test.assert(t, test.input.IsEmpty())
+		})
+	}
+}
+
+func TestValidateDatabaseName(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name              string
+		dbName            string
+		expectErrContains string
+	}{
+		{
+			name:   "valid long name and uppercase chars",
+			dbName: strings.Repeat("aA", 100),
+		},
+		{
+			name:              "invalid trailing hyphen",
+			dbName:            "invalid-database-name-",
+			expectErrContains: `"invalid-database-name-" does not match regex`,
+		},
+		{
+			name:              "invalid first character",
+			dbName:            "1-invalid-database-name",
+			expectErrContains: `"1-invalid-database-name" does not match regex`,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateDatabaseName(test.dbName)
+			if test.expectErrContains != "" {
+				require.Error(t, err)
+				require.ErrorContains(t, err, test.expectErrContains)
+				return
+			}
+			require.NoError(t, err)
 		})
 	}
 }
