@@ -24,15 +24,25 @@ import { markdownCSS } from 'teleport/Assist/markdown';
 
 interface MessageEntryProps {
   content: string;
+  markdown: boolean;
 }
 
 const Container = styled.div`
   padding: 10px 15px 0 17px;
+  word-break: break-word;
 
   ${markdownCSS}
 `;
 
 export function MessageEntry(props: MessageEntryProps) {
+  if (!props.markdown) {
+    return (
+      <Container>
+        <p>{props.content}</p>
+      </Container>
+    );
+  }
+
   return (
     <Container>
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{props.content}</ReactMarkdown>
