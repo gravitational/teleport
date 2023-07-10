@@ -28,7 +28,13 @@ export enum ServerMessageType {
   AssistThought = 'CHAT_MESSAGE_PROGRESS_UPDATE',
 }
 
+// ExecutionEnvelopeType is the type of message that is returned when
+// the command summary is returned.
 export const ExecutionEnvelopeType = 'summary';
+
+// ExecutionTeleportErrorType is the type of error that is returned when
+// Teleport returns an error (failed to execute command, failed to connect, etc.)
+export const ExecutionTeleportErrorType = 'teleport-error';
 
 export interface Conversation {
   id: string;
@@ -190,6 +196,10 @@ export interface RawPayload {
 
 export interface SessionData {
   session: { server_id: string };
+}
+
+export interface SessionEndData {
+  node_id: string;
 }
 
 export interface ExecuteRemoteCommandPayload {

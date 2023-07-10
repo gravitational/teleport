@@ -1,5 +1,5 @@
 /*
-Copyright 2020 Gravitational, Inc.
+Copyright 2023 Gravitational, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
@@ -14,10 +14,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package reversetunnel
+package traits
 
-import "github.com/gravitational/teleport/lib/reversetunnelclient"
+import (
+	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/trait/v1"
+)
 
-// RemoteSite is an alias used to prevent breaking e.
-// TODO(tross): remove once e has been updated to use reversetunnelclient
-type RemoteSite = reversetunnelclient.RemoteSite
+// FromV1 converts an array of traits into a map of string to string array.
+func FromV1(traits []*traitv1.Trait) map[string][]string {
+	traitMap := map[string][]string{}
+	for _, trait := range traits {
+		traitMap[trait.Key] = trait.Values
+	}
+	return traitMap
+}

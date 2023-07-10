@@ -1512,7 +1512,7 @@
       "aws_secret_access_key": "zyxw9876-this-is-an-example"
     },
     "cloud": {
-      "version": "13.1.5",
+      "version": "13.2.0",
       "major_version": "13",
       "sla": {
         "monthly_percentage": "99.9%",
@@ -2628,6 +2628,51 @@
     {
       "source": "/get-started/",
       "destination": "/",
+      "permanent": true
+    },
+    {
+      "source": "/management/join-services-to-your-cluster/",
+      "destination": "/agents/join-services-to-your-cluster/",
+      "permanent": true
+    },
+    {
+      "source": "/management/join-services-to-your-cluster/aws-ec2/",
+      "destination": "/agents/join-services-to-your-cluster/aws-ec2/",
+      "permanent": true
+    },
+    {
+      "source": "/management/join-services-to-your-cluster/aws-iam/",
+      "destination": "/agents/join-services-to-your-cluster/aws-iam/",
+      "permanent": true
+    },
+    {
+      "source": "/management/join-services-to-your-cluster/azure/",
+      "destination": "/agents/join-services-to-your-cluster/azure/",
+      "permanent": true
+    },
+    {
+      "source": "/management/join-services-to-your-cluster/gcp/",
+      "destination": "/agents/join-services-to-your-cluster/gcp/",
+      "permanent": true
+    },
+    {
+      "source": "/management/join-services-to-your-cluster/join-token/",
+      "destination": "/agents/join-services-to-your-cluster/join-token/",
+      "permanent": true
+    },
+    {
+      "source": "/management/join-services-to-your-cluster/kubernetes/",
+      "destination": "/agents/join-services-to-your-cluster/kubernetes/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/teleport-operator/",
+      "destination": "/management/dynamic-resources/teleport-operator/",
+      "permanent": true
+    },
+    {
+      "source": "/management/guides/terraform-provider/",
+      "destination": "/management/dynamic-resources/terraform-provider/",
       "permanent": true
     }
   ]
