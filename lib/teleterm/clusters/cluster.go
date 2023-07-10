@@ -38,7 +38,7 @@ import (
 type Cluster struct {
 	// URI is the cluster URI
 	URI uri.ResourceURI
-	// Name is the cluster name
+	// Name is the cluster name, AKA SiteName.
 	Name string
 	// ProfileName is the name of the tsh profile
 	ProfileName string

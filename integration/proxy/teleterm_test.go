@@ -83,7 +83,8 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr 
 	}, *creds)
 	require.NoError(t, err)
 	// Save the profile yaml file to disk as NewClientWithCreds doesn't do that by itself.
-	tc.SaveProfile(false /* makeCurrent */)
+	err = tc.SaveProfile(false /* makeCurrent */)
+	require.NoError(t, err)
 
 	fakeClock := clockwork.NewFakeClockAt(time.Now())
 

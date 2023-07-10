@@ -23,6 +23,7 @@ import (
 
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
+	"github.com/gravitational/teleport/lib/teleterm/services/connectmycomputer"
 )
 
 // Config is the cluster service config
@@ -30,7 +31,10 @@ type Config struct {
 	// Storage is a storage service that reads/writes to tsh profiles
 	Storage *clusters.Storage
 	// Log is a component logger
-	Log              *logrus.Entry
+	Log *logrus.Entry
+	// PrehogAddr is the URL where prehog events should be submitted.
+	PrehogAddr string
+
 	GatewayCreator   GatewayCreator
 	TCPPortAllocator gateway.TCPPortAllocator
 	// CreateTshdEventsClientCredsFunc lazily creates creds for the tshd events server ran by the
@@ -38,8 +42,7 @@ type Config struct {
 	// expected location by the time we get around to creating the client.
 	CreateTshdEventsClientCredsFunc CreateTshdEventsClientCredsFunc
 	GatewayCertReissuer             *GatewayCertReissuer
-	// PrehogAddr is the URL where prehog events should be submitted.
-	PrehogAddr string
+	ConnectMyComputerRoleSetup      *connectmycomputer.RoleSetup
 }
 
 type CreateTshdEventsClientCredsFunc func() (grpc.DialOption, error)
@@ -66,6 +69,14 @@ func (c *Config) CheckAndSetDefaults() error {
 		c.GatewayCertReissuer = &GatewayCertReissuer{
 			Log: c.Log,
 		}
+	}
+
+	if c.ConnectMyComputerRoleSetup == nil {
+		roleSetup, err := connectmycomputer.NewRoleSetup(&connectmycomputer.RoleSetupConfig{})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		c.ConnectMyComputerRoleSetup = roleSetup
 	}
 
 	return nil

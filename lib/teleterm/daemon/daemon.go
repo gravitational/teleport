@@ -550,6 +550,39 @@ func (s *Service) TransferFile(ctx context.Context, request *api.FileTransferReq
 	return cluster.TransferFile(ctx, request, sendProgress)
 }
 
+// CreateConnectMyComputerRole creates a role which allows access to nodes with the label
+// teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
+// the current system user.
+func (s *Service) CreateConnectMyComputerRole(ctx context.Context, req *api.CreateConnectMyComputerRoleRequest) (*api.CreateConnectMyComputerRoleResponse, error) {
+	cluster, clusterClient, err := s.ResolveCluster(req.RootClusterUri)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	response := &api.CreateConnectMyComputerRoleResponse{}
+	err = clusters.AddMetadataToRetryableError(ctx, func() error {
+		proxyClient, err := clusterClient.ConnectToProxy(ctx)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer proxyClient.Close()
+
+		authClient, err := proxyClient.ConnectToCluster(ctx, clusterClient.SiteName)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		defer authClient.Close()
+
+		result, err := s.cfg.ConnectMyComputerRoleSetup.Run(ctx, authClient, proxyClient, cluster)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		response.CertsReloaded = result.CertsReloaded
+		return nil
+	})
+
+	return response, trace.Wrap(err)
+}
+
 // Service is the daemon service
 type Service struct {
 	cfg *Config

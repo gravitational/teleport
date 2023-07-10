@@ -61,6 +61,7 @@ const (
 	TerminalService_Logout_FullMethodName                          = "/teleport.lib.teleterm.v1.TerminalService/Logout"
 	TerminalService_TransferFile_FullMethodName                    = "/teleport.lib.teleterm.v1.TerminalService/TransferFile"
 	TerminalService_ReportUsageEvent_FullMethodName                = "/teleport.lib.teleterm.v1.TerminalService/ReportUsageEvent"
+	TerminalService_CreateConnectMyComputerRole_FullMethodName     = "/teleport.lib.teleterm.v1.TerminalService/CreateConnectMyComputerRole"
 )
 
 // TerminalServiceClient is the client API for TerminalService service.
@@ -149,6 +150,10 @@ type TerminalServiceClient interface {
 	TransferFile(ctx context.Context, in *FileTransferRequest, opts ...grpc.CallOption) (TerminalService_TransferFileClient, error)
 	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
 	ReportUsageEvent(ctx context.Context, in *ReportUsageEventRequest, opts ...grpc.CallOption) (*EmptyResponse, error)
+	// CreateConnectMyComputerRole creates a role which allows access to nodes with the label
+	// teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
+	// the current system user.
+	CreateConnectMyComputerRole(ctx context.Context, in *CreateConnectMyComputerRoleRequest, opts ...grpc.CallOption) (*CreateConnectMyComputerRoleResponse, error)
 }
 
 type terminalServiceClient struct {
@@ -456,6 +461,15 @@ func (c *terminalServiceClient) ReportUsageEvent(ctx context.Context, in *Report
 	return out, nil
 }
 
+func (c *terminalServiceClient) CreateConnectMyComputerRole(ctx context.Context, in *CreateConnectMyComputerRoleRequest, opts ...grpc.CallOption) (*CreateConnectMyComputerRoleResponse, error) {
+	out := new(CreateConnectMyComputerRoleResponse)
+	err := c.cc.Invoke(ctx, TerminalService_CreateConnectMyComputerRole_FullMethodName, in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // TerminalServiceServer is the server API for TerminalService service.
 // All implementations must embed UnimplementedTerminalServiceServer
 // for forward compatibility
@@ -542,6 +556,10 @@ type TerminalServiceServer interface {
 	TransferFile(*FileTransferRequest, TerminalService_TransferFileServer) error
 	// ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
 	ReportUsageEvent(context.Context, *ReportUsageEventRequest) (*EmptyResponse, error)
+	// CreateConnectMyComputerRole creates a role which allows access to nodes with the label
+	// teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
+	// the current system user.
+	CreateConnectMyComputerRole(context.Context, *CreateConnectMyComputerRoleRequest) (*CreateConnectMyComputerRoleResponse, error)
 	mustEmbedUnimplementedTerminalServiceServer()
 }
 
@@ -632,6 +650,9 @@ func (UnimplementedTerminalServiceServer) TransferFile(*FileTransferRequest, Ter
 }
 func (UnimplementedTerminalServiceServer) ReportUsageEvent(context.Context, *ReportUsageEventRequest) (*EmptyResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method ReportUsageEvent not implemented")
+}
+func (UnimplementedTerminalServiceServer) CreateConnectMyComputerRole(context.Context, *CreateConnectMyComputerRoleRequest) (*CreateConnectMyComputerRoleResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method CreateConnectMyComputerRole not implemented")
 }
 func (UnimplementedTerminalServiceServer) mustEmbedUnimplementedTerminalServiceServer() {}
 
@@ -1161,6 +1182,24 @@ func _TerminalService_ReportUsageEvent_Handler(srv interface{}, ctx context.Cont
 	return interceptor(ctx, in, info, handler)
 }
 
+func _TerminalService_CreateConnectMyComputerRole_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(CreateConnectMyComputerRoleRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(TerminalServiceServer).CreateConnectMyComputerRole(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: TerminalService_CreateConnectMyComputerRole_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(TerminalServiceServer).CreateConnectMyComputerRole(ctx, req.(*CreateConnectMyComputerRoleRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 // TerminalService_ServiceDesc is the grpc.ServiceDesc for TerminalService service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -1271,6 +1310,10 @@ var TerminalService_ServiceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "ReportUsageEvent",
 			Handler:    _TerminalService_ReportUsageEvent_Handler,
+		},
+		{
+			MethodName: "CreateConnectMyComputerRole",
+			Handler:    _TerminalService_CreateConnectMyComputerRole_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{

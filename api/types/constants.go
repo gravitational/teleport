@@ -584,6 +584,10 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
+
+	// ConnectMyComputerNodeOwnerLabel is a label used to control access to the node managed by
+	// Teleport Connect as part of Connect My Computer. See [teleterm.connectmycomputer.RoleSetup].
+	ConnectMyComputerNodeOwnerLabel = TeleportNamespace + "/connect-my-computer/owner"
 )
 
 const (

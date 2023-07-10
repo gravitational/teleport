@@ -119,6 +119,11 @@ service TerminalService {
   rpc TransferFile(FileTransferRequest) returns (stream FileTransferProgress);
   // ReportUsageEvent allows to send usage events that are then anonymized and forwarded to prehog
   rpc ReportUsageEvent(ReportUsageEventRequest) returns (EmptyResponse);
+
+  // CreateConnectMyComputerRole creates a role which allows access to nodes with the label
+  // teleport.dev/connect-my-computer/owner: <cluster user> and allows logging in to those nodes as
+  // the current system user.
+  rpc CreateConnectMyComputerRole(CreateConnectMyComputerRoleRequest) returns (CreateConnectMyComputerRoleResponse);
 }
 
 message EmptyResponse {}
@@ -419,3 +424,12 @@ message UpdateTshdEventsServerAddressRequest {
   string address = 1;
 }
 message UpdateTshdEventsServerAddressResponse {}
+
+message CreateConnectMyComputerRoleRequest {
+  string root_cluster_uri = 1;
+}
+message CreateConnectMyComputerRoleResponse {
+  // certs_reloaded signals to the Electron app that tshd has reloaded the certs in order to refresh
+  // the role list. The Electron app should refresh the details from the user cert as well.
+  bool certs_reloaded = 1;
+}
