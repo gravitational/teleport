@@ -295,7 +295,8 @@ export default class MainProcess {
     ipcMain.handle('main-process-connect-my-computer-download-agent', () =>
       downloadAgent(
         new FileDownloader(this.windowsManager.getWindow()),
-        this.settings
+        this.settings,
+        process.env
       )
     );
 

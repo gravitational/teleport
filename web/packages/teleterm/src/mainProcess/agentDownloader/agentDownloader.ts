@@ -52,9 +52,10 @@ interface AgentBinary {
  */
 export async function downloadAgent(
   fileDownloader: IFileDownloader,
-  settings: RuntimeSettings
+  settings: RuntimeSettings,
+  env: Record<string, any>
 ): Promise<void> {
-  const version = await calculateAgentVersion(settings.appVersion);
+  const version = await calculateAgentVersion(settings.appVersion, env);
 
   if (
     await isCorrectAgentVersionAlreadyDownloaded(
@@ -79,12 +80,15 @@ export async function downloadAgent(
   logger.info(`Downloaded agent v.${version}.`);
 }
 
-async function calculateAgentVersion(appVersion: string): Promise<string> {
+async function calculateAgentVersion(
+  appVersion: string,
+  env: Record<string, any>
+): Promise<string> {
   if (appVersion !== '1.0.0-dev') {
     return appVersion;
   }
-  if (process.env.CONNECT_CMC_AGENT_VERSION) {
-    return process.env.CONNECT_CMC_AGENT_VERSION;
+  if (env.CONNECT_CMC_AGENT_VERSION) {
+    return env.CONNECT_CMC_AGENT_VERSION;
   }
   return await fetchLatestTeleportRelease();
 }

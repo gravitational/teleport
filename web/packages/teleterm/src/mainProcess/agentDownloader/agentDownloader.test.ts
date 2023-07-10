@@ -121,7 +121,6 @@ test.each(testCases)(
       sessionDataDir: '/home/cache',
       appVersion: connectVersion,
     });
-    process.env = env;
     const fileDownloader: IFileDownloader = {
       run: jest.fn(() => Promise.resolve()),
     };
@@ -146,7 +145,7 @@ test.each(testCases)(
     jest.spyOn(zlib, 'createUnzip').mockImplementation(getStreamMock);
     jest.spyOn(tarFs, 'extract').mockImplementation(getStreamMock);
 
-    const call = downloadAgent(fileDownloader, runtimeSettings);
+    const call = downloadAgent(fileDownloader, runtimeSettings, env);
     await expect(call).resolves.toBeUndefined();
 
     if (shouldDownloadBinary) {
