@@ -47,7 +47,7 @@ export const integrationService = {
   },
 
   createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
-    return api.post(cfg.getIntegrationsUrl(), req);
+    return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
   },
 
   updateIntegration(
