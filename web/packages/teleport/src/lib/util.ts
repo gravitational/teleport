@@ -25,6 +25,15 @@ export {
   pluralize,
 } from 'shared/utils/text';
 
+// TODO(gzdunek): Refactor teleport.e to import compareSemVers from shared/utils/semVer
+// and remove this temporary reexport.
+export {
+  /**
+   * @deprecated Import compareSemVers from `shared/utils/semVer` instead.
+   */
+  compareSemVers,
+} from 'shared/utils/semVer';
+
 export const openNewTab = (url: string) => {
   const element = document.createElement('a');
   element.setAttribute('href', `${url}`);
