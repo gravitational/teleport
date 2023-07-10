@@ -20,7 +20,6 @@ import { Box, ButtonSecondary, Link, Text } from 'design';
 import * as Icons from 'design/Icon';
 import FieldInput from 'shared/components/FieldInput';
 import Validation, { Validator } from 'shared/components/Validation';
-import { requiredField } from 'shared/components/Validation/rules';
 import useAttempt from 'shared/hooks/useAttemptNext';
 
 import { TextSelectCopyMulti } from 'teleport/components/TextSelectCopy';
@@ -35,7 +34,12 @@ import {
   integrationService,
 } from 'teleport/services/integrations';
 import { useDiscover, DbMeta } from 'teleport/Discover/useDiscover';
-import { DiscoverEventStatus } from 'teleport/services/userEvent';
+import {
+  DiscoverEventStatus,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeployType,
+} from 'teleport/services/userEvent';
+import cfg from 'teleport/config';
 
 import {
   ActionButtons,
@@ -69,7 +73,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   const [labels, setLabels] = useState<DiscoverLabel[]>([
     { name: '*', value: '*', isFixed: dbLabels.length === 0 },
   ]);
-  const agent = agentMeta as DbMeta;
+  const dbMeta = agentMeta as DbMeta;
 
   useEffect(() => {
     // Turn off error once user changes labels.
@@ -78,7 +82,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     }
   }, [labels]);
 
-  function handleDeploy(validator: Validator) {
+  function handleDeploy(validator) {
     if (!validator.validate()) {
       return;
     }
@@ -91,10 +95,10 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
     setShowLabelMatchErr(false);
     setAttempt({ status: 'processing' });
     integrationService
-      .deployAwsOidcService(agent.integrationName, {
+      .deployAwsOidcService(dbMeta.integration?.name, {
         deploymentMode: 'database-service',
-        region: agent.selectedAwsRdsDb?.region,
-        subnetIds: agent.selectedAwsRdsDb?.subnets,
+        region: dbMeta.selectedAwsRdsDb?.region,
+        subnetIds: dbMeta.selectedAwsRdsDb?.subnets,
         taskRoleArn,
         databaseAgentMatcherLabels: labels,
       })
@@ -114,9 +118,13 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
   function handleOnProceed() {
     nextStep(2); // skip the IAM policy view
     emitEvent(
-      { stepStatus: DiscoverEventStatus.Success }
-      // TODO(lisa) uncomment after backend handles this field
-      // { deployMethod: 'auto' }
+      { stepStatus: DiscoverEventStatus.Success },
+      {
+        serviceDeploy: {
+          method: DiscoverServiceDeployMethod.Auto,
+          type: DiscoverServiceDeployType.AmazonEcs,
+        },
+      }
     );
   }
 
@@ -148,7 +156,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
             <Heading
               toggleDeployMethod={abortDeploying}
               togglerDisabled={isProcessing}
-              region={agent.selectedAwsRdsDb.region}
+              region={dbMeta.selectedAwsRdsDb.region}
             />
 
             {/* step one */}
@@ -156,6 +164,8 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
               taskRoleArn={taskRoleArn}
               setTaskRoleArn={setTaskRoleArn}
               disabled={isProcessing}
+              dbMeta={dbMeta}
+              validator={validator}
             />
 
             {/* step two */}
@@ -169,7 +179,7 @@ export function AutoDeploy({ toggleDeployMethod }: DeployServiceProp) {
                   showLabelMatchErr={showLabelMatchErr}
                   dbLabels={dbLabels}
                   autoFocus={false}
-                  region={agent.selectedAwsRdsDb?.region}
+                  region={dbMeta.selectedAwsRdsDb?.region}
                 />
               </Box>
               <ButtonSecondary
@@ -227,10 +237,10 @@ const Heading = ({
       <HeaderSubtitle>
         Teleport needs a database service to be able to connect to your
         database. Teleport can configure the permissions required to spin up an
-        ECS Fargate container (0.xxx vCPU, 1GB memory) in your Amazon account
-        with the ability to access databases in this region (
-        <Mark>{region}</Mark>). You will only need to do this once for all
-        databases per geographical region. <br />
+        ECS Fargate container (2vCPU, 4GB memory) in your Amazon account with
+        the ability to access databases in this region (<Mark>{region}</Mark>).
+        You will only need to do this once per geographical region.
+        <br />
         <br />
         Want to deploy a database service manually from one of your existing
         servers?{' '}
@@ -247,49 +257,84 @@ const CreateAccessRole = ({
   taskRoleArn,
   setTaskRoleArn,
   disabled,
+  dbMeta,
+  validator,
 }: {
   taskRoleArn: string;
   setTaskRoleArn(r: string): void;
   disabled: boolean;
+  dbMeta: DbMeta;
+  validator: Validator;
 }) => {
+  const [scriptUrl, setScriptUrl] = useState('');
+  const { integration, selectedAwsRdsDb } = dbMeta;
+
+  function generateAutoConfigScript() {
+    if (!validator.validate()) {
+      return;
+    }
+
+    const newScriptUrl = cfg.getDeployServiceIamConfigureScriptUrl({
+      integrationName: integration.name,
+      region: selectedAwsRdsDb.region,
+      // arn's are formatted as `don-care-about-this-part/role-arn`.
+      // We are splitting by slash and getting the last element.
+      awsOidcRoleArn: integration.spec.roleArn.split('/').pop(),
+      taskRoleArn,
+    });
+
+    setScriptUrl(newScriptUrl);
+  }
+
   return (
     <StyledBox mb={5}>
       <Text bold>Step 1</Text>
-      <Text mb={2}>Create an Access Role for the Database Service</Text>
+      <Text mb={2}>
+        Name a Task Role ARN for this Database Service and generate a configure
+        command. This command will configure the required permissions in your
+        AWS account.
+      </Text>
       <FieldInput
         mb={4}
         disabled={disabled}
-        rule={requiredField('Task Role ARN is required')}
+        rule={roleArnMatcher}
         label="Name a Task Role ARN"
         autoFocus
         value={taskRoleArn}
-        placeholder="teleport"
-        width="400px"
+        placeholder="TeleportDatabaseAccess"
+        width="440px"
         mr="3"
         onChange={e => setTaskRoleArn(e.target.value)}
-        toolTipContent="Lorem ipsume dolores"
+        toolTipContent={`Amazon Resource Names (ARNs) uniquely identify AWS \
+        resources. In this case you will naming an IAM role that this \
+        deployed service will be using`}
       />
-      <Text mb={2}>
-        Then open{' '}
-        <Link
-          href="https://console.aws.amazon.com/cloudshell/home"
-          target="_blank"
-        >
-          Amazon CloudShell
-        </Link>{' '}
-        and copy/paste the following command to create an access role for your
-        database service:
-      </Text>
-      <Box mb={2}>
-        <TextSelectCopyMulti
-          // TODO(lisa): replace with actual script when ready
-          lines={[
-            {
-              text: 'sudo bash -c "$(curl -fsSL https://kenny-r-test.teleport.sh/scripts/40884566df6fbdb02411364e641f78b2/set-up-aws-role.sh)"',
-            },
-          ]}
-        />
-      </Box>
+      <ButtonSecondary mb={3} onClick={generateAutoConfigScript}>
+        {scriptUrl ? 'Regenerate Command' : 'Generate Command'}
+      </ButtonSecondary>
+      {scriptUrl && (
+        <>
+          <Text mb={2}>
+            Open{' '}
+            <Link
+              href="https://console.aws.amazon.com/cloudshell/home"
+              target="_blank"
+            >
+              Amazon CloudShell
+            </Link>{' '}
+            and copy/paste the following command:
+          </Text>
+          <Box mb={2}>
+            <TextSelectCopyMulti
+              lines={[
+                {
+                  text: `bash -c "$(curl '${scriptUrl}')"`,
+                },
+              ]}
+            />
+          </Box>
+        </>
+      )}
     </StyledBox>
   );
 };
@@ -374,3 +419,21 @@ const StyledBox = styled(Box)`
   padding: ${props => `${props.theme.space[3]}px`};
   border-radius: ${props => `${props.theme.space[2]}px`};
 `;
+
+// ROLE_ARN_REGEX uses the same regex matcher used in the backend:
+// https://github.com/gravitational/teleport/blob/2cba82cb332e769ebc8a658d32ff24ddda79daff/api/utils/aws/identifiers.go#L43
+//
+// Regex checks for alphanumerics and select few characters.
+export const ROLE_ARN_REGEX = /^[\w+=,.@-]+$/;
+const roleArnMatcher = value => () => {
+  const isValid = value.match(ROLE_ARN_REGEX);
+  if (!isValid) {
+    return {
+      valid: false,
+      message: 'name can only contain characters @ = , . + - and alphanumerics',
+    };
+  }
+  return {
+    valid: true,
+  };
+};

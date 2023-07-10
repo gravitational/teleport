@@ -21,6 +21,7 @@ import { render, screen, fireEvent } from 'design/utils/testing';
 import { ContextProvider } from 'teleport';
 import {
   AwsRdsDatabase,
+  IntegrationStatusCode,
   integrationService,
 } from 'teleport/services/integrations';
 import { createTeleportContext } from 'teleport/mocks/contexts';
@@ -41,7 +42,17 @@ import { EnrollRdsDatabase } from './EnrollRdsDatabase';
 describe('test EnrollRdsDatabase.tsx', () => {
   const ctx = createTeleportContext();
   const discoverCtx: DiscoverContextState = {
-    agentMeta: {} as any,
+    agentMeta: {
+      integration: {
+        kind: 'aws-oidc',
+        name: 'aws-oidc-integration',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn-123',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      },
+    } as any,
     currentStep: 0,
     nextStep: jest.fn(x => x),
     prevStep: () => null,
