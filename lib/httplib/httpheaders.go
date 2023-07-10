@@ -26,6 +26,8 @@ import (
 	"time"
 
 	"golang.org/x/exp/maps"
+
+	"github.com/gravitational/teleport/api/client/proto"
 )
 
 var defaultContentSecurityPolicy = map[string]string{
@@ -36,14 +38,17 @@ var defaultContentSecurityPolicy = map[string]string{
 	"frame-ancestors": "'none'",
 	// additional default restrictions
 	"object-src": "'none'",
-	// auto-pay plans in Cloud use stripe.com to manage billing information
-	"script-src": "'self' https://js.stripe.com",
-	"frame-src":  "https://js.stripe.com",
 	"img-src":    "'self' data: blob:",
 	"style-src":  "'self' 'unsafe-inline'",
 }
 
 var defaultFontSrc = map[string]string{"font-src": "'self' data:"}
+
+var stripeSecurityPolicy = map[string]string{
+	// auto-pay plans in Cloud use stripe.com to manage billing information
+	"script-src": "'self' https://js.stripe.com",
+	"frame-src":  "https://js.stripe.com",
+}
 
 // combineCSPMaps combines multiple CSP maps into a single map.
 // When multiple of the input cspMaps have the same key, the
@@ -114,15 +119,18 @@ func SetDefaultSecurityHeaders(h http.Header) {
 }
 
 // SetIndexContentSecurityPolicy sets the Content-Security-Policy header for main index.html page
-func SetIndexContentSecurityPolicy(h http.Header) {
-	cspString := getContentSecurityPolicyString(
+func SetIndexContentSecurityPolicy(h http.Header, cfg proto.Features) {
+	cspMaps := []map[string]string{
 		defaultContentSecurityPolicy,
 		defaultFontSrc,
-		map[string]string{
-			"connect-src": "'self' wss:",
-		},
-	)
+		{"connect-src": "'self' wss:"},
+	}
 
+	if cfg.GetCloud() && cfg.GetIsUsageBased() {
+		cspMaps = append(cspMaps, stripeSecurityPolicy)
+	}
+
+	cspString := getContentSecurityPolicyString(cspMaps...)
 	h.Set("Content-Security-Policy", cspString)
 }
 

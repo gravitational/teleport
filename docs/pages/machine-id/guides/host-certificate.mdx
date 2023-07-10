@@ -389,7 +389,7 @@ The Machine ID host is now fully configured to accept connections from a `tsh` u
 To confirm this, enter the following command from your local machine logged into the cluster using `tsh`:
 
 ```code
-$ tsh ssh root@nodename.my.domain.com:22
+$ tsh ssh -p 22 root@nodename.my.domain.com
 ```
 
 The connection should successfully complete without the need to manually enter any additional credentials.
@@ -402,6 +402,6 @@ to connect to OpenSSH with Teleport, see the following documentation:
 - [Using Teleport With OpenSSH](../../server-access/guides/openssh.mdx)
 - [Using SSH Host Certificates](https://goteleport.com/blog/how-to-ssh-properly/)
 - [Machine ID Configuration Reference](../reference/configuration.mdx)
-- [Joining Nodes using the IAM method](../../management/join-services-to-your-cluster/aws-ec2.mdx)
+- [Joining Nodes using the IAM method](../../agents/join-services-to-your-cluster/aws-ec2.mdx)
 
 [More information about `TELEPORT_ANONYMOUS_TELEMETRY`.](../reference/telemetry.mdx)

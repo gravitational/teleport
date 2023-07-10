@@ -276,7 +276,7 @@ $ kubectl -n teleport create secret generic license --from-file=license.pem
 Next, configure the `teleport-cluster` Helm chart to use the `aws` mode. Create
 a file called `aws-values.yaml` and write the values you've chosen above to it:
 
-<ScopedBlock scope={["oss", "cloud"]}>
+<ScopedBlock scope={["oss"]}>
 
 <Tabs>
 <TabItem label="cert-manager">
@@ -497,6 +497,7 @@ $ aws route53 get-change --id "${CHANGEID?}" | jq '.ChangeInfo.Status'
 Create a user to be able to log into Teleport. This needs to be done on the Teleport auth server,
 so we can run the command using `kubectl`:
 
+<ScopedBlock scope={["oss"]}>
 ```code
 $ kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add test --roles=access,editor
 
@@ -505,6 +506,17 @@ https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
 
 NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
 ```
+</ScopedBlock>
+<ScopedBlock scope={["enterprise", "cloud"]}>
+```code
+$ kubectl --namespace teleport exec deploy/teleport-auth -- tctl users add test --roles=access,editor,reviewer
+
+User "test" has been created but requires a password. Share this URL with the user to complete user setup, link is valid for 1h:
+https://teleport.example.com:443/web/invite/91cfbd08bc89122275006e48b516cc68
+
+NOTE: Make sure teleport.example.com:443 points at a Teleport proxy that users can access.
+```
+</ScopedBlock>
 
 Load the user creation link to create a password and set up 2-factor authentication for the Teleport user via the web UI.
 

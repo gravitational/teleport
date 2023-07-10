@@ -50,6 +50,7 @@ import (
 	integrationpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/integration/v1"
 	oktapb "github.com/gravitational/teleport/api/gen/proto/go/teleport/okta/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/metadata"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -59,6 +60,7 @@ import (
 	integrationService "github.com/gravitational/teleport/lib/auth/integration/integrationv1"
 	"github.com/gravitational/teleport/lib/auth/okta"
 	"github.com/gravitational/teleport/lib/auth/trust/trustv1"
+	"github.com/gravitational/teleport/lib/auth/userpreferences/userpreferencesv1"
 	wanlib "github.com/gravitational/teleport/lib/auth/webauthn"
 	"github.com/gravitational/teleport/lib/authz"
 	"github.com/gravitational/teleport/lib/backend"
@@ -3955,6 +3957,9 @@ func (g *GRPCServer) CreateDatabase(ctx context.Context, database *types.Databas
 	if database.Origin() == "" {
 		database.SetOrigin(types.OriginDynamic)
 	}
+	if err := services.ValidateDatabase(database); err != nil {
+		return nil, trace.Wrap(err)
+	}
 	if err := auth.CreateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -3969,6 +3974,9 @@ func (g *GRPCServer) UpdateDatabase(ctx context.Context, database *types.Databas
 	}
 	if database.Origin() == "" {
 		database.SetOrigin(types.OriginDynamic)
+	}
+	if err := services.ValidateDatabase(database); err != nil {
+		return nil, trace.Wrap(err)
 	}
 	if err := auth.UpdateDatabase(ctx, database); err != nil {
 		return nil, trace.Wrap(err)
@@ -5171,15 +5179,79 @@ func (g *GRPCServer) UpdateHeadlessAuthenticationState(ctx context.Context, req 
 	return &emptypb.Empty{}, trace.Wrap(err)
 }
 
-// GetHeadlessAuthentication retrieves a headless authentication by id.
+// GetHeadlessAuthentication retrieves a headless authentication.
 func (g *GRPCServer) GetHeadlessAuthentication(ctx context.Context, req *proto.GetHeadlessAuthenticationRequest) (*types.HeadlessAuthentication, error) {
 	auth, err := g.authenticate(ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	authReq, err := auth.GetHeadlessAuthentication(ctx, req.Id)
+	// First, try to retrieve the headless authentication directly if it already exists.
+	if ha, err := auth.GetHeadlessAuthentication(ctx, req.Id); err == nil {
+		return ha, nil
+	} else if !trace.IsNotFound(err) {
+		return nil, trace.Wrap(err)
+	}
+
+	// If the headless authentication doesn't exist yet, the headless login process may be waiting
+	// for the user to create a stub to authorize the insert.
+	if err := auth.UpsertHeadlessAuthenticationStub(ctx); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// Force a short request timeout to prevent GetHeadlessAuthenticationFromWatcher
+	// from waiting indefinitely for a nonexistent headless authentication. This is
+	// useful for cases when the headless link/command is copied incorrectly or is
+	// run with the wrong user.
+	timeout := 5 * time.Second
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+
+	// Wait for the login process to insert the actual headless authentication details.
+	authReq, err := auth.GetHeadlessAuthenticationFromWatcher(ctx, req.Id)
 	return authReq, trace.Wrap(err)
+}
+
+// WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+func (g *GRPCServer) WatchPendingHeadlessAuthentications(_ *emptypb.Empty, stream proto.AuthService_WatchPendingHeadlessAuthenticationsServer) error {
+	auth, err := g.authenticate(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	watcher, err := auth.WatchPendingHeadlessAuthentications(stream.Context())
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	defer watcher.Close()
+
+	stubErr := make(chan error)
+	go func() {
+		stubErr <- auth.MaintainHeadlessAuthenticationStub(stream.Context())
+	}()
+
+	for {
+		select {
+		case err := <-stubErr:
+			return trace.Wrap(err)
+		case <-stream.Context().Done():
+			return nil
+		case <-watcher.Done():
+			return watcher.Error()
+		case event := <-watcher.Events():
+			out, err := client.EventToGRPC(event)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+
+			watcherEventsEmitted.WithLabelValues(resourceLabel(event)).Observe(float64(out.Size()))
+			watcherEventSizes.Observe(float64(out.Size()))
+
+			if err := stream.Send(out); err != nil {
+				return trace.Wrap(err)
+			}
+		}
+	}
 }
 
 // ExportUpgradeWindows is used to load derived upgrade window values for agents that
@@ -5337,12 +5409,17 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 
 	// Initialize and register the assist service.
 	assistSrv, err := assistv1.NewService(&assistv1.ServiceConfig{
-		Backend: cfg.AuthServer.Services,
+		Backend:        cfg.AuthServer.Services,
+		Embeddings:     cfg.AuthServer.embeddingsRetriever,
+		Embedder:       cfg.AuthServer.embedder,
+		Authorizer:     cfg.Authorizer,
+		ResourceGetter: cfg.AuthServer,
 	})
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	assist.RegisterAssistServiceServer(server, assistSrv)
+	assist.RegisterAssistEmbeddingServiceServer(server, assistSrv)
 
 	// create server with no-op role to pass to JoinService server
 	serverWithNopRole, err := serverWithNopRole(cfg)
@@ -5372,6 +5449,15 @@ func NewGRPCServer(cfg GRPCServerConfig) (*GRPCServer, error) {
 		return nil, trace.Wrap(err)
 	}
 	integrationpb.RegisterIntegrationServiceServer(server, integrationServiceServer)
+
+	// Initialize and register the user preferences service.
+	userPreferencesSrv, err := userpreferencesv1.NewService(&userpreferencesv1.ServiceConfig{
+		Backend: cfg.AuthServer.Services,
+	})
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	userpreferencespb.RegisterUserPreferencesServiceServer(server, userPreferencesSrv)
 
 	return authServer, nil
 }

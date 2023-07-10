@@ -71,24 +71,20 @@ func (b *Bot) initializeConfig() {
 			JoinMethod: types.JoinMethodToken,
 		},
 		Storage: &config.StorageConfig{
-			DestinationMixin: config.DestinationMixin{
-				Memory: rootMemoryStore,
+			Destination: rootMemoryStore,
+		},
+		Outputs: []config.Output{
+			&config.IdentityOutput{
+				Destination: destMemoryStore,
 			},
 		},
-		Destinations: []*config.DestinationConfig{
-			{
-				DestinationMixin: config.DestinationMixin{
-					Memory: destMemoryStore,
-				},
-			},
-		},
+
 		Debug:           false,
 		AuthServer:      b.opts.Addr,
 		CertificateTTL:  DefaultCertificateTTL,
 		RenewalInterval: DefaultRenewalInterval,
 		Oneshot:         false,
 	}
-
 	// We do our own init because config's "CheckAndSetDefaults" is too linked with tbot logic and invokes
 	// `addRequiredConfigs` on each Storage Destination
 	rootMemoryStore.CheckAndSetDefaults()
@@ -107,10 +103,11 @@ func (b *Bot) GetClient(ctx context.Context) (*client.Client, error) {
 	}
 	// If the bot has not joined the cluster yet or not generated client certs we bail out
 	// This is either temporary or the bot is dead and the manager will shut down everything.
-	if botCert, err := b.cfg.Storage.Memory.Read(identity.TLSCertKey); err != nil || len(botCert) == 0 {
+	storageDestination := b.cfg.Storage.Destination
+	if botCert, err := storageDestination.Read(identity.TLSCertKey); err != nil || len(botCert) == 0 {
 		return nil, trace.Retry(err, "bot cert not yet present")
 	}
-	if cert, err := b.cfg.Destinations[0].Memory.Read(identity.TLSCertKey); err != nil || len(cert) == 0 {
+	if cert, err := b.cfg.Outputs[0].GetDestination().Read(identity.TLSCertKey); err != nil || len(cert) == 0 {
 		return nil, trace.Retry(err, "cert not yet present")
 	}
 
@@ -119,18 +116,18 @@ func (b *Bot) GetClient(ctx context.Context) (*client.Client, error) {
 	// We loop over missing artifacts and are loading them from the bot storage to the destination
 	for _, artifact := range identity.GetArtifacts() {
 		if artifact.Kind == identity.KindBotInternal {
-			value, err := b.cfg.Storage.Memory.Read(artifact.Key)
+			value, err := storageDestination.Read(artifact.Key)
 			if err != nil {
 				return nil, trace.Wrap(err)
 			}
-			if err := b.cfg.Destinations[0].Memory.Write(artifact.Key, value); err != nil {
+			if err := b.cfg.Outputs[0].GetDestination().Write(artifact.Key, value); err != nil {
 				return nil, trace.Wrap(err)
 			}
 
 		}
 	}
 
-	id, err := identity.LoadIdentity(b.cfg.Destinations[0].Memory, identity.BotKinds()...)
+	id, err := identity.LoadIdentity(b.cfg.Outputs[0].GetDestination(), identity.BotKinds()...)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -239,18 +236,14 @@ func CreateAndBootstrapBot(ctx context.Context, opts Options) (*Bot, *proto.Feat
 // See https://github.com/gravitational/teleport/issues/13091
 func createOrReplaceBot(ctx context.Context, opts Options, authClient auth.ClientI) (string, error) {
 	var token string
-	botPresent, err := botExists(ctx, opts, authClient)
-	if err != nil {
+	// We remove the bot and its role. If this is the first operator to run,
+	// this throws a "NotFound" error.
+	botRoleName := fmt.Sprintf("bot-%s", opts.Name)
+	if err := authClient.DeleteBot(ctx, opts.Name); err != nil && !trace.IsNotFound(err) {
 		return "", trace.Wrap(err)
 	}
-	if botPresent {
-		if err := authClient.DeleteBot(ctx, opts.Name); err != nil {
-			return "", trace.Wrap(err)
-		}
-		if err := authClient.DeleteRole(ctx, fmt.Sprintf("bot-%s", opts.Name)); err != nil {
-			return "", trace.Wrap(err)
-		}
-
+	if err := authClient.DeleteRole(ctx, botRoleName); err != nil && !trace.IsNotFound(err) {
+		return "", trace.Wrap(err)
 	}
 	response, err := authClient.CreateBot(ctx, &proto.CreateBotRequest{
 		Name:  opts.Name,
@@ -262,18 +255,4 @@ func createOrReplaceBot(ctx context.Context, opts Options, authClient auth.Clien
 	token = response.TokenID
 
 	return token, nil
-}
-
-func botExists(ctx context.Context, opts Options, authClient auth.ClientI) (bool, error) {
-	botUsers, err := authClient.GetBotUsers(ctx)
-	if err != nil {
-		return false, trace.Wrap(err)
-	}
-	for _, botUser := range botUsers {
-
-		if botUser.GetName() == fmt.Sprintf("bot-%s", opts.Name) {
-			return true, nil
-		}
-	}
-	return false, nil
 }

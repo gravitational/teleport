@@ -31,6 +31,27 @@ export const createAppConfigSchema = (platform: Platform) => {
 
   // `keymap.` prefix is used in `initUi.ts` in a predicate function.
   return z.object({
+    theme: z
+      .enum(['light', 'dark', 'system'])
+      .default('system')
+      .describe('Color theme for the app.'),
+    /**
+     * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
+     * in a styled component or used in CSS, as it may inject malicious CSS code.
+     * Before using it, sanitize it with `CSS.escape` or pass it as a `style` prop.
+     * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
+     */
+    'terminal.fontFamily': z
+      .string()
+      .default(defaultTerminalFont)
+      .describe('Font family for the terminal.'),
+    'terminal.fontSize': z
+      .number()
+      .int()
+      .min(1)
+      .max(256)
+      .default(15)
+      .describe('Font size for the terminal.'),
     'usageReporting.enabled': z
       .boolean()
       .default(false)
@@ -89,27 +110,10 @@ export const createAppConfigSchema = (platform: Platform) => {
     'keymap.openSearchBar': shortcutSchema
       .default(defaultKeymap['openSearchBar'])
       .describe(getShortcutDesc('open the search bar')),
-    /**
-     * This value can be provided by the user and is unsanitized. This means that it cannot be directly interpolated
-     * in a styled component or used in CSS, as it may inject malicious CSS code.
-     * Before using it, sanitize it with `CSS.escape` or pass it as a `style` prop.
-     * Read more https://frontarm.com/james-k-nelson/how-can-i-use-css-in-js-securely/.
-     */
-    'terminal.fontFamily': z
-      .string()
-      .default(defaultTerminalFont)
-      .describe('Font family for the terminal.'),
-    'terminal.fontSize': z
-      .number()
-      .int()
-      .min(1)
-      .max(256)
-      .default(15)
-      .describe('Font size for the terminal.'),
-    theme: z
-      .enum(['light', 'dark', 'system'])
-      .default('system')
-      .describe('Color theme for the app.'),
+    'feature.connectMyComputer': z
+      .boolean()
+      .default(false)
+      .describe('Enables sharing the computer.'),
   });
 };
 

@@ -102,7 +102,8 @@ cluster.
 This will allow users to view the OpenSSH nodes in Web UI and using `tsh ls`
 and use RBAC to control access to them.
 
-See updated OpenSSH integration guide: https://goteleport.com/docs/ver/13.x/server-access/guides/openssh/.
+See the updated [OpenSSH integration
+guide](docs/pages/server-access/guides/openssh.mdx).
 
 ### Cross-cluster search for Teleport Connect
 
@@ -194,7 +195,8 @@ create users and assign them invalid roles. In Teleport 13 this is a hard error.
 Quay.io registry was deprecated in Teleport 11 and starting with Teleport 13,
 Teleport container images are no longer being published to it.
 
-Users should use the public ECR registry: https://goteleport.com/docs/installation/#docker.
+Users should use the [public ECR
+registry](https://gallery.ecr.aws/gravitational).
 
 #### Helm chart uses `distroless`-based container image by default
 
@@ -605,9 +607,8 @@ The “teleport-cluster” Helm chart underwent significant refactoring in Telep
 deployments and the new “scratch” chart mode makes it easier to provide a custom
 Teleport config.
 
-“Custom” mode users should follow the migration guide:
-
-https://goteleport.com/docs/deploy-a-cluster/helm-deployments/migration-v12/
+“Custom” mode users should follow the [migration
+guide](./docs/pages/deploy-a-cluster/helm-deployments/migration-v12.mdx).
 
 ### Dropped support for SHA1 in Server Access
 
@@ -632,10 +633,9 @@ Teleport 12 before upgrading.
 #### Helm charts
 
 The teleport-cluster Helm chart underwent significant changes in Teleport 12. To
-upgrade from an older version of the Helm chart deployed in “custom” mode, use
-the following migration guide:
-
-https://goteleport.com/docs/ver/12.x/deploy-a-cluster/helm-deployments/migration-v12/
+upgrade from an older version of the Helm chart deployed in “custom” mode,
+follow
+the [migration guide](./docs/pages/deploy-a-cluster/helm-deployments/migration-v12.mdx).
 
 Additionally, PSPs are removed from the chart when installing on Kubernetes 1.23
 and higher to account for the deprecation/removal of PSPs by Kubernetes.
@@ -751,8 +751,9 @@ Visit the individual repositories to find out more and see usage examples:
 - https://github.com/teleport-actions/auth
 - https://github.com/teleport-actions/auth-k8s
 
-For a more in-depth guide, see our refreshed documentation for using Teleport with
-GitHub Actions at https://goteleport.com/docs/machine-id/guides/github-actions/
+For a more in-depth guide, see our
+[documentation](./docs/pages/machine-id/guides/github-actions.mdx) for using
+Teleport with GitHub Actions.
 
 ### Secure certificate mapping for Desktop Access
 
@@ -1005,9 +1006,8 @@ Teleport 11 clients (such as tsh or Connect) support storing their private key
 material on Yubikey devices instead of filesystem which helps prevent
 credentials exfiltration attacks.
 
-See how to enable it in this guide:
-
-https://goteleport.com/docs/access-controls/guides/hardware-key-support/
+See how to enable it in the
+[documentation](./docs/pages/access-controls/guides/hardware-key-support.mdx):
 
 Hardware-backed private keys is an enterprise only feature, and is currently
 supported for server access only.
@@ -1021,8 +1021,8 @@ editing files on remote systems.
 The following guides explain how to use IDEs to connect to a remote machine via
 Teleport:
 
-https://goteleport.com/docs/server-access/guides/vscode/
-https://goteleport.com/docs/server-access/guides/jetbrains-sftp/
+- [VS Code](./docs/pages/server-access/guides/vscode.mdx)
+- [JetBrains](./docs/pages/server-access/guides/jetbrains-sftp.mdx)
 
 In addition, Teleport 11 clients will use SFTP protocol for file transfer under
 the hood instead of the obsolete scp protocol. Server-side scp is still
@@ -1051,8 +1051,9 @@ Teleport agents running on Azure VMs will now automatically import Azure tags to
 label resources.
 
 Teleport database access now supports auto-discovery for Azure-hosted PostgreSQL
-and MySQL databases. See the updated Azure guide for more details:
-https://goteleport.com/docs/ver/11.0/database-access/guides/azure-postgres-mysql/.
+and MySQL databases. See the [Azure
+guide](docs/pages/database-access/guides/azure-postgres-mysql.mdx) for more
+details.
 
 In addition, Teleport database access will now use Azure AD managed identity
 authentication for Azure-hosted SQL Server databases.
@@ -1112,8 +1113,8 @@ redirect_url = [ "http://example.com" ]
 #### Deprecated Quay.io registry
 
 Starting with Teleport 11, Quay.io as a container registry has been deprecated.
-Customers should use the new AWS ECR registry to pull Teleport Docker images:
-https://goteleport.com/docs/installation/#docker.
+Customers should use the new AWS ECR registry to pull [Teleport Docker
+images](./docs/pages/installation.mdx#docker).
 
 Quay.io registry support will be removed in a future release.
 
@@ -1122,7 +1123,7 @@ Quay.io registry support will be removed in a future release.
 In Teleport 11, old deb/rpm repositories (deb.releases.teleport.dev and
 rpm.releases.teleport.dev) have been deprecated. Customers should use the new
 repositories (apt.releases.teleport.dev and yum.releases.teleport.dev) to
-install Teleport: https://goteleport.com/docs/installation/#linux.
+[install Teleport](docs/pages/installation.mdx#linux).
 
 Support for our old deb/rpm repositories will be removed in a future release.
 
@@ -1186,7 +1187,7 @@ Teleport 10 introduces passwordless support to your clusters. To use passwordles
 users may register a security key with resident credentials or use a built-in
 authenticator, like Touch ID.
 
-See https://goteleport.com/docs/access-controls/guides/passwordless/.
+See the [documentation](./docs/pages/access-controls/guides/passwordless.mdx).
 
 ### Resource Access Requests (Preview)
 
@@ -1238,8 +1239,8 @@ Teleport 10 can be configured to automatically create Linux host users upon
 login without having to use Teleport's PAM integration. Users can be added to specific
 Linux groups and assigned appropriate “sudoer” privileges.
 
-To learn more about configuring automatic user provisioning read the guide:
-https://goteleport.com/docs/server-access/guides/host-user-creation/.
+To learn more about configuring automatic user provisioning read the
+[documentation](docs/pages/server-access/guides/host-user-creation.mdx).
 
 ### Audit Logging for Microsoft SQL Server database access
 
@@ -1251,8 +1252,8 @@ to other supported database protocols.
 Teleport database access for SQL Server remains in Preview mode with more UX
 improvements coming in future releases.
 
-Refer to the guide to set up access to a SQL Server with Active Directory
-authentication: https://goteleport.com/docs/database-access/guides/sql-server-ad/.
+Refer to [the guide](docs/pages/database-access/guides/sql-server-ad.mdx) to set
+up access to a SQL Server with Active Directory authentication.
 
 ### Snowflake database access (Preview)
 
@@ -1261,8 +1262,8 @@ set up access to Snowflake databases through Teleport for their users with
 standard database access features like role-based access control and audit
 logging, including query activity.
 
-Connect your Snowflake database to Teleport following this guide:
-https://goteleport.com/docs/database-access/guides/snowflake/.
+Connect your Snowflake database to Teleport following the
+[documentation](docs/pages/database-access/guides/snowflake.mdx).
 
 ### Elasticache/MemoryDB database access (Preview)
 
@@ -1271,8 +1272,8 @@ this integration by adding native support for AWS-hosted Elasticache and
 MemoryDB, including auto-discovery and automatic credential management in some
 deployment configurations.
 
-Learn more about it in this guide:
-https://goteleport.com/docs/database-access/guides/redis-aws/.
+Learn more about it in the [documentation](
+docs/pages/database-access/guides/redis-aws.mdx).
 
 ### Teleport Connect for server and database access (Preview)
 
@@ -1288,8 +1289,8 @@ https://goteleport.com/download/.
 In Teleport 10 we’ve added database access support to Machine ID. Applications
 can use Machine ID to access databases protected by Teleport.
 
-You can find Machine ID guide for database access in the documentation:
-https://goteleport.com/docs/machine-id/guides/databases/.
+You can find Machine ID guide for database access in the
+[documentation](docs/pages/machine-id/guides/databases.mdx).
 
 ### Breaking changes
 
@@ -1302,8 +1303,8 @@ Teleport 10 agents will now refuse to start if they detect that the Auth Service
 is more than one major version behind them. You can use the `--skip-version-check` flag to
 bypass the version check.
 
-Take a look at component compatibility guarantees in the documentation:
-https://goteleport.com/docs/setup/operations/upgrading/#component-compatibility.
+Take a look at component compatibility guarantees in the
+[documentation](docs/pages/management/operations/upgrading.mdx).
 
 #### HTTP_PROXY for reverse tunnels
 
@@ -1312,8 +1313,9 @@ This may result in reverse tunnel agents not being able to re-establish
 connections if the HTTP proxy is set in their environment and does not allow
 connections to the Teleport Proxy Service.
 
-Refer to the following documentation section for more details:
-https://goteleport.com/docs/setup/reference/networking/#http-connect-proxies.
+Refer to the
+[documentation](docs/pages/reference/networking.mdx#http-connect-proxies)
+for more details.
 
 #### New APT repos
 
@@ -1323,8 +1325,8 @@ repositories have been backfilled with Teleport versions starting from 6.2.31
 and we recommend upgrading to them. The old repositories will be maintained for
 the foreseeable future.
 
-See updated installation instructions:
-https://goteleport.com/docs/server-access/getting-started/#step-14-install-teleport-on-your-linux-host.
+See the [installation
+instructions](docs/pages/server-access/getting-started.mdx#step-14-install-teleport-on-your-linux-host).
 
 #### Removed “tctl access ls”
 
@@ -1339,8 +1341,9 @@ pod in order to join a session. Teleport 10 relaxes this requirement. Joining
 sessions remains deny-by-default but now only `join_sessions` statements are
 checked for session join RBAC.
 
-See the Moderated Sessions guide for more details:
-https://goteleport.com/docs/access-controls/guides/moderated-sessions/.
+See the [Moderated Sessions
+guide](docs/pages/access-controls/guides/moderated-sessions.mdx) for more
+details.
 
 #### GitHub connectors
 
@@ -1358,8 +1361,8 @@ for example:
 s3://bucket/path?region=us-east-1&use_fips_endpoint=false
 ```
 
-See the S3/DynamoDB backends documentation for more information:
-https://goteleport.com/docs/setup/reference/backends/#s3.
+See the [S3/DynamoDB backend
+documentation](docs/pages/reference/backends.mdx) for more information.
 
 ## 9.3.9
 
@@ -1490,9 +1493,9 @@ Teleport 9.3.0 reduces the minimum GLIBC requirement to 2.18 and enforces more
 secure cipher suites for desktop access.
 
 As a result of these changes, desktop access users with desktops running Windows
-Server 2012R2 will need to perform
-[additional configuration](https://goteleport.com/docs/desktop-access/getting-started/#step-47-configure-a-certificate-for-rdp-connections)
-to force Windows to use compatible cipher suites.
+Server 2012R2 will need to perform [additional
+configuration](docs/pages/desktop-access/getting-started.mdx) to force Windows
+to use compatible cipher suites.
 
 Windows desktops running Windows Server 2016 and newer will continue to operate
 normally - no additional configuration is required.
@@ -1598,9 +1601,7 @@ Teleport build infrastructure was updated to use Go v1.17.9 to fix CVE-2022-2467
 
 Teleport users can now use PostgreSQL or CockroachDB for storing auth server data.
 
-See the documentation for more information:
-
-https://goteleport.com/docs/setup/reference/backends/#postgresqlcockroachdb-preview
+See the [documentation](docs/pages/reference/backends.mdx) for more information.
 
 ### Server-side filtering and pagination
 
@@ -2138,7 +2139,13 @@ Teleport 6.1 contains multiple new features, improvements, and bug fixes.
 
 Added support for U2F authentication on every SSH and Kubernetes "connection" (a single `tsh ssh` or `kubectl` call). This is an advanced security feature that protects users against compromises of their on-disk Teleport certificates. Per-session MFA can be enforced cluster-wide or only for some specific roles.
 
-For more details see [Per-Session MFA](https://goteleport.com/docs/access-controls/guides/per-session-mfa) documentation or [RFD 14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md) and [RFD 15](https://github.com/gravitational/teleport/blob/master/rfd/0015-2fa-management.md) for technical details.
+For more details see [Per-Session
+MFA](docs/pages/access-controls/guides/per-session-mfa.mdx) documentation or
+[RFD
+14](https://github.com/gravitational/teleport/blob/master/rfd/0014-session-2FA.md)
+and [RFD
+15](https://github.com/gravitational/teleport/blob/master/rfd/0015-2fa-management.md)
+for technical details.
 
 #### Dual Authorization Workflows
 
@@ -2210,13 +2217,13 @@ Configure database access following the [Getting Started](./docs/pages/database-
 * [AWS RDS/Aurora MySQL](./docs/pages/database-access/guides/rds.mdx)
 * [Self-hosted PostgreSQL](./docs/pages/database-access/guides/postgres-self-hosted.mdx)
 * [Self-hosted MySQL](./docs/pages/database-access/guides/mysql-self-hosted.mdx)
-* [GUI clients](https://goteleport.com/docs/connect-your-client/gui-clients/)
+* [GUI clients](docs/pages/connect-your-client/gui-clients.mdx)
 
 ##### Resources
 
-To learn more about configuring role-based access control for database access, check out the [RBAC](./docs/pages/database-access/introduction.mdx/) section.
+To learn more about configuring role-based access control for database access, check out the [RBAC](./docs/pages/database-access/introduction.mdx) section.
 
-[Architecture](./docs/pages/database-access/introduction.mdx/) provides a more in-depth look at database access internals such as networking and security.
+[Architecture](./docs/pages/database-access/introduction.mdx) provides a more in-depth look at database access internals such as networking and security.
 
 See [Reference](./docs/pages/database-access/reference.mdx) for an overview of database access related configuration and CLI commands.
 
@@ -2565,7 +2572,7 @@ Enterprise Only:
 
 #### Documentation
 
-We've added an [API Reference](https://goteleport.com/docs/api-reference/) to simply developing applications against Teleport.
+We've added an [API Guide](docs/pages/api/introduction.mdx) to simply developing applications against Teleport.
 
 #### Upgrade Notes
 

@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"sync"
 	"time"
 
@@ -32,11 +33,8 @@ import (
 	"github.com/google/uuid"
 	"github.com/gravitational/trace"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/segmentio/parquet-go"
 	log "github.com/sirupsen/logrus"
-	"github.com/xitongsys/parquet-go-source/s3v2"
-	"github.com/xitongsys/parquet-go/parquet"
-	"github.com/xitongsys/parquet-go/source"
-	"github.com/xitongsys/parquet-go/writer"
 	"golang.org/x/exp/slices"
 
 	"github.com/gravitational/teleport"
@@ -72,7 +70,7 @@ type consumer struct {
 
 	// perDateFileParquetWriter returns file writer per date.
 	// Added in config to allow testing.
-	perDateFileParquetWriter func(ctx context.Context, date string) (source.ParquetFile, error)
+	perDateFileParquetWriter func(ctx context.Context, date string) (io.WriteCloser, error)
 
 	collectConfig sqsCollectConfig
 
@@ -134,9 +132,9 @@ func newConsumer(cfg Config, cancelFn context.CancelFunc, metricConsumerBatchPro
 		collectConfig:       collectCfg,
 		sqsDeleter:          sqsClient,
 		queueURL:            cfg.QueueURL,
-		perDateFileParquetWriter: func(ctx context.Context, date string) (source.ParquetFile, error) {
+		perDateFileParquetWriter: func(ctx context.Context, date string) (io.WriteCloser, error) {
 			key := fmt.Sprintf("%s/%s/%s.parquet", cfg.locationS3Prefix, date, uuid.NewString())
-			fw, err := s3v2.NewS3FileWriterWithClient(ctx, s3client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
+			fw, err := awsutils.NewS3V2FileWriter(ctx, s3client, cfg.locationS3Bucket, key, nil /* uploader options */, func(poi *s3.PutObjectInput) {
 				// ChecksumAlgorithm is required for putting objects when object lock is enabled.
 				poi.ChecksumAlgorithm = s3Types.ChecksumAlgorithmSha256
 			})
@@ -476,6 +474,9 @@ func (s *sqsMessagesCollector) fromSQS(ctx context.Context) {
 		consumerBatchCount.Add(float64(fullBatchMetadata.Count))
 		consumerBatchSize.Observe(float64(fullBatchMetadata.Size))
 		consumerAgeOfOldestProcessedMessage.Set(time.Since(fullBatchMetadata.OldestTimestamp).Seconds())
+	} else {
+		// When no messages were processed, clear gauge metric.
+		consumerAgeOfOldestProcessedMessage.Set(0)
 	}
 }
 
@@ -500,14 +501,18 @@ func (c *collectedEventsMetadata) Merge(in collectedEventsMetadata) {
 }
 
 // MergeWithEvent combines collectedEventsMetadata with metadata of single event.
-func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent) {
+func (c *collectedEventsMetadata) MergeWithEvent(in apievents.AuditEvent, publishedToQueueTimestamp time.Time) {
 	c.Merge(collectedEventsMetadata{
 		// 1 because we are merging single event
 		Count:           1,
 		Size:            in.Size(),
-		OldestTimestamp: in.GetTime(),
+		OldestTimestamp: publishedToQueueTimestamp,
 	})
 }
+
+// SDK defines invalid type for attribute names, let's just use const here.
+// https://github.com/aws/aws-sdk-go-v2/issues/2124
+const sentTimestampAttribute = "SentTimestamp"
 
 func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context, eventsC chan<- eventAndAckID, errorsC chan<- error) collectedEventsMetadata {
 	sqsOut, err := s.cfg.sqsReceiver.ReceiveMessage(ctx, &sqs.ReceiveMessageInput{
@@ -516,6 +521,7 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 		WaitTimeSeconds:       s.cfg.waitOnReceiveTimeout,
 		VisibilityTimeout:     s.cfg.visibilityTimeout,
 		MessageAttributeNames: []string{payloadTypeAttr},
+		AttributeNames:        []sqsTypes.QueueAttributeName{sentTimestampAttribute},
 	})
 	if err != nil {
 		// We don't need handle canceled errors anyhow.
@@ -547,9 +553,28 @@ func (s *sqsMessagesCollector) receiveMessagesAndSendOnChan(ctx context.Context,
 			event:         event,
 			receiptHandle: aws.ToString(msg.ReceiptHandle),
 		}
-		singleReceiveMetadata.MergeWithEvent(event)
+		messageSentTimestamp, err := getMessageSentTimestamp(msg)
+		if err != nil {
+			s.cfg.logger.Debugf("Failed to get sentTimestamp: %v", err)
+		}
+		singleReceiveMetadata.MergeWithEvent(event, messageSentTimestamp)
 	}
 	return singleReceiveMetadata
+}
+
+func getMessageSentTimestamp(msg sqsTypes.Message) (time.Time, error) {
+	if msg.Attributes == nil {
+		return time.Time{}, nil
+	}
+	attribute := msg.Attributes[sentTimestampAttribute]
+	if attribute == "" {
+		return time.Time{}, nil
+	}
+	milis, err := strconv.Atoi(attribute)
+	if err != nil {
+		return time.Time{}, trace.Wrap(err)
+	}
+	return time.UnixMilli(int64(milis)).UTC(), nil
 }
 
 // auditEventFromSQSorS3 returns events either directly from SQS message payload
@@ -679,7 +704,7 @@ func (s *sqsMessagesCollector) downloadEventFromS3(ctx context.Context, payload 
 // to s3 bucket. It returns receiptHandles of elements to delete from queue.
 // If error is returned, it means that messages won't be deleted from SQS,
 // and events will be retried or go to dead-letter queue.
-func (c *consumer) writeToS3(ctx context.Context, eventsCh <-chan eventAndAckID, newPerDateFileWriterFn func(ctx context.Context, date string) (source.ParquetFile, error)) ([]string, error) {
+func (c *consumer) writeToS3(ctx context.Context, eventsCh <-chan eventAndAckID, newPerDateFileWriterFn func(ctx context.Context, date string) (io.WriteCloser, error)) ([]string, error) {
 	toDelete := make([]string, 0, c.batchMaxItems)
 	// TODO(tobiaszheller): later write in goroutine, so far it's not bottleneck.
 	perDateWriter := map[string]*parquetWriter{}
@@ -697,7 +722,7 @@ eventLoop:
 				c.logger.WithError(err).Error("Could not convert event to parquet format")
 				continue
 			}
-			date := pqtEvent.GetDate()
+			date := pqtEvent.EventTime.Format(time.DateOnly)
 			pw := perDateWriter[date]
 			if pw == nil {
 				fw, err := newPerDateFileWriterFn(ctx, date)
@@ -743,23 +768,14 @@ eventLoop:
 			// If we are not able to close parquet file, it make sense to retrun
 			// error and retry whole batch again from SQS.
 
-			// TODO(tobiaszheller): verify if broken files are removed from s3.
 			return nil, trace.Wrap(err)
 		}
 	}
 	return toDelete, nil
 }
 
-func newParquetWriter(ctx context.Context, fw source.ParquetFile) (*parquetWriter, error) {
-	// numberOfWorkersMarshalingParquet defines number how many goroutines
-	// will do marshaling of objects. I have followed example from xitongsys/parquet-go, where they use 4.
-	const numberOfWorkersMarshalingParquet = 4
-	pw, err := writer.NewParquetWriter(fw, new(eventParquet), numberOfWorkersMarshalingParquet)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	pw.CompressionType = parquet.CompressionCodec_SNAPPY
-
+func newParquetWriter(ctx context.Context, fw io.WriteCloser) (*parquetWriter, error) {
+	pw := parquet.NewGenericWriter[eventParquet](fw, parquet.Compression(&parquet.Snappy))
 	return &parquetWriter{
 		closer: fw,
 		writer: pw,
@@ -768,15 +784,16 @@ func newParquetWriter(ctx context.Context, fw source.ParquetFile) (*parquetWrite
 
 type parquetWriter struct {
 	closer io.Closer
-	writer *writer.ParquetWriter
+	writer *parquet.GenericWriter[eventParquet]
 }
 
 func (pw *parquetWriter) Write(ctx context.Context, in eventParquet) error {
-	return trace.Wrap(pw.writer.Write(in))
+	_, err := pw.writer.Write([]eventParquet{in})
+	return trace.Wrap(err)
 }
 
 func (pw *parquetWriter) Close() error {
-	if err := pw.writer.WriteStop(); err != nil {
+	if err := pw.writer.Close(); err != nil {
 		return trace.NewAggregate(err, pw.closer.Close())
 	}
 	return trace.Wrap(pw.closer.Close())

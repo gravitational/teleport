@@ -23,6 +23,9 @@ import {
   DiscoverEvent,
   DiscoverEventResource,
   userEventService,
+  DiscoverServiceDeployMethod,
+  DiscoverServiceDeploy,
+  DiscoverServiceDeployType,
 } from 'teleport/services/userEvent';
 import cfg from 'teleport/config';
 
@@ -34,12 +37,14 @@ import {
 } from './flow';
 import { viewConfigs } from './resourceViewConfigs';
 import { EViewConfigs } from './types';
+import { ServiceDeployMethod } from './Database/common';
 
 import type { Node } from 'teleport/services/nodes';
 import type { Kube } from 'teleport/services/kube';
 import type { Database } from 'teleport/services/databases';
 import type { AgentLabel } from 'teleport/services/agents';
 import type { ResourceSpec } from './SelectResource';
+import type { AwsRdsDatabase } from 'teleport/services/integrations';
 
 export interface DiscoverContextState<T = any> {
   agentMeta: AgentMeta;
@@ -70,6 +75,7 @@ type CustomEventInput = {
   eventResourceName?: DiscoverEventResource;
   autoDiscoverResourcesCount?: number;
   selectedResourcesCount?: number;
+  serviceDeploy?: DiscoverServiceDeploy;
 };
 
 type DiscoverProviderProps = {
@@ -120,13 +126,28 @@ export function DiscoverProvider({
     (status: DiscoverEventStepStatus, custom?: CustomEventInput) => {
       const { id, currEventName } = eventState;
 
+      const event = custom?.eventName || currEventName;
+
+      let serviceDeploy: DiscoverServiceDeploy;
+      if (event === DiscoverEvent.DeployService) {
+        if (custom?.serviceDeploy) {
+          serviceDeploy = custom.serviceDeploy;
+        } else {
+          serviceDeploy = {
+            method: DiscoverServiceDeployMethod.Unspecified,
+            type: DiscoverServiceDeployType.Unspecified,
+          };
+        }
+      }
+
       userEventService.captureDiscoverEvent({
-        event: custom?.eventName || currEventName,
+        event,
         eventData: {
           id: id || custom.id,
           resource: custom?.eventResourceName || resourceSpec?.event,
           autoDiscoverResourcesCount: custom?.autoDiscoverResourcesCount,
           selectedResourcesCount: custom?.selectedResourcesCount,
+          serviceDeploy,
           ...status,
         },
       });
@@ -387,7 +408,14 @@ export function DiscoverProvider({
         stepStatus: DiscoverEventStatus.Error,
         stepStatusError: errorStr,
       },
-      { autoDiscoverResourcesCount: 0, selectedResourcesCount: 0 }
+      {
+        autoDiscoverResourcesCount: 0,
+        selectedResourcesCount: 0,
+        serviceDeploy: {
+          method: DiscoverServiceDeployMethod.Unspecified,
+          type: DiscoverServiceDeployType.Unspecified,
+        },
+      }
     );
   }
 
@@ -444,6 +472,10 @@ export type DbMeta = BaseMeta & {
   // The enroll event expects num count of enrolled RDS's, update accordingly.
   db: Database;
   integrationName?: string;
+  selectedAwsRdsDb: AwsRdsDatabase;
+  // serviceDeployedMethod flag will be undefined if user skipped
+  // deploying service (service already existed).
+  serviceDeployedMethod?: ServiceDeployMethod;
 };
 
 // KubeMeta describes the fields for a kube resource

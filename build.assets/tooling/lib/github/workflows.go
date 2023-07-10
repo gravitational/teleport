@@ -140,7 +140,7 @@ func ListWorkflowJobs(ctx context.Context, lister WorkflowJobLister, owner, repo
 // WaitForRun blocks until the specified workflow run completes, and returns the overall
 // workflow status.
 func WaitForRun(ctx context.Context, actions WorkflowRuns, owner, repo, path string, runID int64) (string, error) {
-	ticker := time.NewTicker(30 * time.Second)
+	ticker := time.NewTicker(1 * time.Minute)
 	defer ticker.Stop()
 
 	for {

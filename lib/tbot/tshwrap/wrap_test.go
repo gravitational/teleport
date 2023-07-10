@@ -82,86 +82,53 @@ func TestTSHSupported(t *testing.T) {
 // TestGetEnvForTSH ensures we generate a valid minimum subset of environment
 // parameters needed for tsh wrappers to work.
 func TestGetEnvForTSH(t *testing.T) {
-	destination := config.DestinationConfig{
-		DestinationMixin: config.DestinationMixin{
-			Directory: &config.DestinationDirectory{
-				Path: "/foo",
-			},
-		},
-	}
-	require.NoError(t, destination.CheckAndSetDefaults())
-
-	p, err := GetDestinationPath(&destination)
-	require.NoError(t, err)
-
-	tlsCAs, err := GetTLSCATemplate(&destination)
-	require.NoError(t, err)
+	p := "/foo"
 
 	expected := map[string]string{
 		client.VirtualPathEnvName(client.VirtualPathKey, nil):      filepath.Join(p, identity.PrivateKeyKey),
 		client.VirtualPathEnvName(client.VirtualPathDatabase, nil): filepath.Join(p, identity.TLSCertKey),
 		client.VirtualPathEnvName(client.VirtualPathApp, nil):      filepath.Join(p, identity.TLSCertKey),
 
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)):     filepath.Join(p, tlsCAs.UserCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)):     filepath.Join(p, tlsCAs.HostCAPath),
-		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA)): filepath.Join(p, tlsCAs.DatabaseCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.UserCA)):     filepath.Join(p, config.UserCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.HostCA)):     filepath.Join(p, config.HostCAPath),
+		client.VirtualPathEnvName(client.VirtualPathCA, client.VirtualPathCAParams(types.DatabaseCA)): filepath.Join(p, config.DatabaseCAPath),
 	}
 
-	env, err := GetEnvForTSH(&destination)
+	env, err := GetEnvForTSH(p)
 	require.NoError(t, err)
 	for k, v := range expected {
 		assert.Equal(t, v, env[k])
 	}
 }
 
-func TestGetDestinationPath(t *testing.T) {
-	destination := config.DestinationConfig{
-		DestinationMixin: config.DestinationMixin{
-			Directory: &config.DestinationDirectory{
-				Path: "/foo",
+func TestGetDestinationDirectory(t *testing.T) {
+	output := func() config.Output {
+		return &config.IdentityOutput{
+			Destination: &config.DestinationDirectory{
+				Path: "/from-bot-config",
 			},
-		},
+		}
 	}
-	require.NoError(t, destination.CheckAndSetDefaults())
-
-	path, err := GetDestinationPath(&destination)
-	require.NoError(t, err)
-	require.Equal(t, "/foo", path)
-}
-
-func TestGetIdentityTemplate(t *testing.T) {
-	destination := config.DestinationConfig{
-		DestinationMixin: config.DestinationMixin{
-			Directory: &config.DestinationDirectory{
-				Path: "/foo",
+	t.Run("one output configured", func(t *testing.T) {
+		dest, err := GetDestinationDirectory(&config.BotConfig{
+			Outputs: []config.Output{
+				output(),
 			},
-		},
-	}
-	require.NoError(t, destination.CheckAndSetDefaults())
-
-	tpl, err := GetIdentityTemplate(&destination)
-	require.NoError(t, err)
-
-	// We don't particularly care where the file goes, but it does need to be
-	// set.
-	require.NotEmpty(t, tpl.FileName)
-}
-
-func TestGetTLSCATemplate(t *testing.T) {
-	destination := config.DestinationConfig{
-		DestinationMixin: config.DestinationMixin{
-			Directory: &config.DestinationDirectory{
-				Path: "/foo",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "/from-bot-config", dest.Path)
+	})
+	t.Run("no outputs specified", func(t *testing.T) {
+		_, err := GetDestinationDirectory(&config.BotConfig{})
+		require.ErrorContains(t, err, "either --destination-dir or a config file containing an output must be specified")
+	})
+	t.Run("multiple outputs specified", func(t *testing.T) {
+		_, err := GetDestinationDirectory(&config.BotConfig{
+			Outputs: []config.Output{
+				output(),
+				output(),
 			},
-		},
-	}
-	require.NoError(t, destination.CheckAndSetDefaults())
-
-	tpl, err := GetTLSCATemplate(&destination)
-	require.NoError(t, err)
-
-	// As above, the name is arbitrary but these do need to exist.
-	require.NotEmpty(t, tpl.HostCAPath)
-	require.NotEmpty(t, tpl.UserCAPath)
-	require.NotEmpty(t, tpl.DatabaseCAPath)
+		})
+		require.ErrorContains(t, err, "the config file contains multiple outputs; a --destination-dir must be specified")
+	})
 }
