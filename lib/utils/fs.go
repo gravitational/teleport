@@ -243,11 +243,12 @@ func overwriteFile(filePath string) (err error) {
 }
 
 // RemoveFileIfExist removes file if exits.
-func RemoveFileIfExist(filePath string) {
+func RemoveFileIfExist(filePath string) error {
 	if !FileExists(filePath) {
-		return
+		return nil
 	}
 	if err := os.Remove(filePath); err != nil {
-		log.WithError(err).Warnf("Failed to remove %v", filePath)
+		return trace.ConvertSystemError(err)
 	}
+	return nil
 }
