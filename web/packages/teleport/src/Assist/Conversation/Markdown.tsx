@@ -13,37 +13,19 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 import React from 'react';
-import styled from 'styled-components';
 
-import { markdownCSS } from 'teleport/Assist/markdown';
-import { Markdown } from 'teleport/Assist/Conversation/Markdown';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 
-interface MessageEntryProps {
+interface MarkdownProps {
   content: string;
-  markdown: boolean;
 }
 
-const Container = styled.div`
-  padding: 10px 15px 0 17px;
-  word-break: break-word;
-
-  ${markdownCSS}
-`;
-
-export function MessageEntry(props: MessageEntryProps) {
-  if (!props.markdown) {
-    return (
-      <Container>
-        <p>{props.content}</p>
-      </Container>
-    );
-  }
-
+export function Markdown(props: MarkdownProps) {
   return (
-    <Container>
-      <Markdown content={props.content} />
-    </Container>
+    <ReactMarkdown remarkPlugins={[remarkGfm]} disallowedElements={['img']}>
+      {props.content}
+    </ReactMarkdown>
   );
 }
