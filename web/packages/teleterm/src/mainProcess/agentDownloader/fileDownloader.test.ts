@@ -126,19 +126,3 @@ test('rejects a promise when an unexpected error occurs', async () => {
   });
   expect(downloadItem.setSavePath).toHaveBeenCalled();
 });
-
-test('rejects a promise when the file has incorrect name', async () => {
-  const { browserWindow, downloadItem } = getBrowserWindowMock();
-  downloadItem.getFilename = () => {
-    return '../unsafe-file-name';
-  };
-  const downloader = new FileDownloader(browserWindow);
-  const result = downloader.run(URL, DOWNLOAD_DIR);
-
-  expect(browserWindow.webContents.downloadURL).toHaveBeenCalledWith(URL);
-  await expect(result).rejects.toThrow(`Download was cancelled.`);
-  expect(browserWindow.setProgressBar).toHaveBeenCalledWith(-1, {
-    mode: 'error',
-  });
-  expect(downloadItem.setSavePath).not.toHaveBeenCalled();
-});

@@ -106,24 +106,15 @@ export class FileDownloader implements IFileDownloader {
             );
             break;
           case 'cancelled':
-            // We cancel the download only when filename is incorrect, so we can mention that in the error message.
-            onDownloadError(
-              new Error(
-                `Download was cancelled. Filename ${item.getFilename()} is incorrect.`
-              )
-            );
+            onDownloadError(new Error('Download was cancelled.'));
         }
       });
 
-      // The filename is taken from Content-Disposition header, so it is worth to check if it does not contain
-      // any disallowed characters that could cause storing the file outside the download directory.
-      if (path.basename(item.getFilename()) !== item.getFilename()) {
-        item.cancel();
-      } else {
-        // set the save path, making Electron not to prompt a save dialog
-        const filePath = path.join(downloadDirectory, item.getFilename());
-        item.setSavePath(filePath);
-      }
+      // Set the save path, making Electron not to prompt a save dialog.
+      // We don't have to check if the filename contains forbidden characters, they are escaped by Chromium.
+      // For example, downloading from the URL localhost:1234/%2Ftest ("/" encoded as %2F) gives _test filename.
+      const filePath = path.join(downloadDirectory, item.getFilename());
+      item.setSavePath(filePath);
     };
   }
 
