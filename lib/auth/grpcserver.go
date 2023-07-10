@@ -368,7 +368,7 @@ func (g *GRPCServer) WatchEvents(watch *eventv1.Watch, stream eventv1.EventServi
 		return trace.Wrap(err)
 	}
 	kinds := make([]types.WatchKind, len(watch.Kinds))
-	for i, kind := range watch.GetKinds() {
+	for i, kind := range watch.Kinds {
 		if kind == nil {
 			return trace.BadParameter("kind should not be nil")
 		}

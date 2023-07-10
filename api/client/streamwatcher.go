@@ -32,6 +32,7 @@ func (c *Client) NewWatcher(ctx context.Context, watch types.Watch) (types.Watch
 	cancelCtx, cancel := context.WithCancel(ctx)
 	kinds := make([]*types.WatchKind, len(watch.Kinds))
 	for i, kind := range watch.Kinds {
+		kind := kind
 		kinds[i] = &kind
 	}
 	protoWatch := eventv1.Watch{
