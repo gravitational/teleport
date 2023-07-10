@@ -40,6 +40,8 @@ import {
 import { PluginKind } from 'teleport/services/integrations';
 import cfg from 'teleport/config';
 
+import { MachineIDIntegrationSection } from 'teleport/Integrations/Enroll/MachineIDIntegrationSection';
+
 import useTeleport from 'e-teleport/useTeleportE';
 
 import {
@@ -166,6 +168,10 @@ export function IntegrationPick() {
             </Flex>
           </Flex>
         )}
+
+        <Flex flexDirection="column">
+          <MachineIDIntegrationSection />
+        </Flex>
       </Flex>
     );
   }
