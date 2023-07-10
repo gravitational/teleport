@@ -27,7 +27,6 @@ import (
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
@@ -109,11 +108,7 @@ func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.
 		return trace.Wrap(err)
 	}
 
-	clusterURI, err := uri.ParseClusterURI(gateway.TargetURI())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-	rootClusterURI := clusterURI.GetRootClusterURI().String()
+	rootClusterURI := gateway.TargetURI().GetRootClusterURI().String()
 
 	err = r.requestReloginFromElectronApp(ctx,
 		&api.ReloginRequest{
@@ -121,7 +116,7 @@ func (r *GatewayCertReissuer) reissueCert(ctx context.Context, gateway *gateway.
 			Reason: &api.ReloginRequest_GatewayCertExpired{
 				GatewayCertExpired: &api.GatewayCertExpired{
 					GatewayUri: gateway.URI().String(),
-					TargetUri:  gateway.TargetURI(),
+					TargetUri:  gateway.TargetURI().String(),
 				},
 			},
 		})
@@ -180,7 +175,7 @@ func (r *GatewayCertReissuer) notifyAppAboutError(ctx context.Context, err error
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{
 					GatewayUri: gateway.URI().String(),
-					TargetUri:  gateway.TargetURI(),
+					TargetUri:  gateway.TargetURI().String(),
 					Error:      err.Error(),
 				},
 			},

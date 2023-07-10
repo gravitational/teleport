@@ -25,6 +25,7 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client/db/dbcmd"
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	usagereporter "github.com/gravitational/teleport/lib/usagereporter/daemon"
@@ -127,13 +128,18 @@ func (s *Service) RemoveCluster(ctx context.Context, uri string) error {
 //
 // It doesn't make network requests so the returned clusters.Cluster will not include full
 // information returned from the web/auth servers.
-func (s *Service) ResolveCluster(uri string) (*clusters.Cluster, error) {
-	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
+func (s *Service) ResolveCluster(path string) (*clusters.Cluster, error) {
+	resourceURI, err := uri.Parse(path)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	cluster, err := s.resolveCluster(resourceURI)
+	return cluster, trace.Wrap(err)
+}
 
-	return cluster, nil
+func (s *Service) resolveCluster(uri uri.ResourceURI) (*clusters.Cluster, error) {
+	cluster, err := s.cfg.Storage.GetByResourceURI(uri)
+	return cluster, trace.Wrap(err)
 }
 
 // ResolveClusterWithDetails returns fully detailed cluster information. It makes requests to the auth server and includes
@@ -185,9 +191,14 @@ type GatewayCreator interface {
 
 // createGateway assumes that mu is already held by a public method.
 func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+	targetURI, err := uri.ParseGatewayTargetURI(params.TargetURI)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
-		TargetURI:             params.TargetURI,
+		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
 		TargetSubresourceName: params.TargetSubresourceName,
 		LocalPort:             params.LocalPort,
@@ -213,7 +224,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 }
 
 func (s *Service) onExpiredGatewayCert(ctx context.Context, gateway *gateway.Gateway) error {
-	cluster, err := s.ResolveCluster(gateway.TargetURI())
+	cluster, err := s.resolveCluster(gateway.TargetURI())
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -47,13 +47,11 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		hs.Close()
 	})
 
-	resourceURI := uri.New(params.TargetURI)
-
 	keyPairPaths := gatewaytest.MustGenAndSaveCert(m.t, tlsca.Identity{
 		Username: params.TargetUser,
 		Groups:   []string{"test-group"},
 		RouteToDatabase: tlsca.RouteToDatabase{
-			ServiceName: resourceURI.GetDbName(),
+			ServiceName: params.TargetURI.GetDbName(),
 			Protocol:    defaults.ProtocolPostgres,
 			Username:    params.TargetUser,
 		},
@@ -63,7 +61,7 @@ func (m *mockGatewayCreator) CreateGateway(ctx context.Context, params clusters.
 		LocalPort:             params.LocalPort,
 		TargetURI:             params.TargetURI,
 		TargetUser:            params.TargetUser,
-		TargetName:            params.TargetURI,
+		TargetName:            params.TargetURI.GetDbName(),
 		TargetSubresourceName: params.TargetSubresourceName,
 		Protocol:              defaults.ProtocolPostgres,
 		CertPath:              keyPairPaths.CertPath,

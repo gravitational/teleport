@@ -21,13 +21,14 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
 type CreateGatewayParams struct {
 	// TargetURI is the cluster resource URI
-	TargetURI string
+	TargetURI uri.ResourceURI
 	// TargetUser is the target user name
 	TargetUser string
 	// TargetSubresourceName points at a subresource of the remote resource, for example a database
@@ -42,7 +43,7 @@ type CreateGatewayParams struct {
 
 // CreateGateway creates a gateway
 func (c *Cluster) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
-	db, err := c.GetDatabase(ctx, params.TargetURI)
+	db, err := c.GetDatabase(ctx, params.TargetURI.String())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

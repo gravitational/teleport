@@ -160,7 +160,7 @@ func mustCreateGateway(ctx context.Context, t *testing.T) *gateway.Gateway {
 
 	gatewayCreator := &mockGatewayCreator{t: t}
 	gateway, err := gatewayCreator.CreateGateway(ctx, clusters.CreateGatewayParams{
-		TargetURI:          uri.NewClusterURI("foo").AppendDB("postgres").String(),
+		TargetURI:          uri.NewClusterURI("foo").AppendDB("postgres"),
 		TargetUser:         "alice",
 		CLICommandProvider: &mockCLICommandProvider{},
 	})

@@ -19,6 +19,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 )
 
@@ -43,5 +44,5 @@ func (g GatewayCreator) CreateGateway(ctx context.Context, params CreateGatewayP
 }
 
 type Resolver interface {
-	ResolveCluster(string) (*Cluster, error)
+	ResolveCluster(uri.ResourceURI) (*Cluster, error)
 }
