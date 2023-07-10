@@ -73,7 +73,7 @@ func (s *Storage) GetByURI(clusterURI uri.ResourceURI) (*Cluster, error) {
 // GetByResourceURI returns a cluster by a URI of its resource. Accepts both root and leaf cluster
 // resources and will return a root or leaf cluster accordingly.
 func (s *Storage) GetByResourceURI(resourceURI uri.ResourceURI) (*Cluster, error) {
-	cluster, err := s.GetByURI(resourceURI.ToClusterURI())
+	cluster, err := s.GetByURI(resourceURI.GetClusterURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

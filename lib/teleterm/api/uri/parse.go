@@ -18,15 +18,16 @@ package uri
 
 import "github.com/gravitational/trace"
 
-type validateFunc func(ResourceURI) error
+// ValidateFunc validates the provided ResourceURI.
+type ValidateFunc func(ResourceURI) error
 
 // Parse parses provided path as a cluster URI or a cluster resource URI.
-func Parse(path string, validateFuncs ...validateFunc) (ResourceURI, error) {
+func Parse(path string, validateFuncs ...ValidateFunc) (ResourceURI, error) {
 	r := New(path)
 
 	for _, validate := range append(
-		[]validateFunc{checkProfileName}, // Basic validation.
-		validateFuncs...,                 // Extra validations.
+		[]ValidateFunc{validateProfileName}, // Basic validation.
+		validateFuncs...,                    // Extra validations.
 	) {
 		if err := validate(r); err != nil {
 			return ResourceURI{}, trace.Wrap(err)
@@ -37,18 +38,18 @@ func Parse(path string, validateFuncs ...validateFunc) (ResourceURI, error) {
 
 // ParseGatewayTargetURI parses the provided path as a gateway target URI.
 func ParseGatewayTargetURI(path string) (ResourceURI, error) {
-	r, err := Parse(path, checkGatewayTargetResource)
+	r, err := Parse(path, validateGatewayTargetResource)
 	return r, trace.Wrap(err)
 }
 
-func checkProfileName(r ResourceURI) error {
+func validateProfileName(r ResourceURI) error {
 	if r.GetProfileName() == "" {
 		return trace.BadParameter("missing root cluster name")
 	}
 	return nil
 }
 
-func checkGatewayTargetResource(r ResourceURI) error {
+func validateGatewayTargetResource(r ResourceURI) error {
 	if r.GetDbName() == "" && r.GetKubeName() == "" {
 		return trace.BadParameter("missing target resource name")
 	}
