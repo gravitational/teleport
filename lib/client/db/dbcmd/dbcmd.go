@@ -58,6 +58,8 @@ const (
 	redisBin = "redis-cli"
 	// mssqlBin is the SQL Server client program name.
 	mssqlBin = "mssql-cli"
+	// sqlcmd is the SQL Server client program name.
+	sqlcmdBin = "sqlcmd"
 	// snowsqlBin is the Snowflake client program name.
 	snowsqlBin = "snowsql"
 	// cqlshBin is the Cassandra client program name.
@@ -408,6 +410,12 @@ func (c *CLICommandBuilder) isMySQLBinMariaDBFlavor() (bool, error) {
 	return strings.Contains(strings.ToLower(string(mysqlVer)), "mariadb"), nil
 }
 
+// isSqlcmdAvailable returns true if "sqlcmd" binary is fouind in the system
+// PATH.
+func (c *CLICommandBuilder) isSqlcmdAvailable() bool {
+	return c.isBinAvailable(sqlcmdBin)
+}
+
 func (c *CLICommandBuilder) shouldUseMongoshBin() bool {
 	// Use "mongosh" if available.
 	// If not, use legacy "mongo" if available.
@@ -533,6 +541,8 @@ func (c *CLICommandBuilder) getRedisCommand() *exec.Cmd {
 	return exec.Command(redisBin, args...)
 }
 
+// getSQLServerCommand returns a command to connect to SQL Server.
+// mssql-cli and sqlcmd commands have the same argument names.
 func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 	args := []string{
 		// Host and port must be comma-separated.
@@ -545,6 +555,10 @@ func (c *CLICommandBuilder) getSQLServerCommand() *exec.Cmd {
 
 	if c.db.Database != "" {
 		args = append(args, "-d", c.db.Database)
+	}
+
+	if c.isSqlcmdAvailable() {
+		return exec.Command(sqlcmdBin, args...)
 	}
 
 	return exec.Command(mssqlBin, args...)
