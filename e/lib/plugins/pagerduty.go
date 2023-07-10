@@ -5,6 +5,7 @@ import (
 
 	"github.com/gravitational/trace"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/integrations/access/pagerduty"
 	"github.com/gravitational/teleport/integrations/lib/logger"
@@ -26,8 +27,9 @@ func pagerDutyInstanceFactory(ctx context.Context, plugin *types.PluginV1, deps 
 			APIEndpoint: pagerDutySpec.ApiEndpoint,
 			UserEmail:   pagerDutySpec.UserEmail,
 		},
-		Client:     deps.client,
-		StatusSink: deps.statusSink,
+		Client:       deps.client,
+		StatusSink:   deps.statusSink,
+		TeleportUser: teleport.SystemAccessApproverUserName,
 	}
 	if err := pdc.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
