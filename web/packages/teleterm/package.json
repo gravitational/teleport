@@ -35,7 +35,7 @@
     "@gravitational/build": "^1.0.0",
     "@gravitational/design": "1.0.0",
     "@gravitational/shared": "1.0.0",
-    "@grpc/grpc-js": "1.6.7",
+    "@grpc/grpc-js": "1.8.8",
     "@types/google-protobuf": "^3.10.0",
     "@types/node-forge": "^1.0.4",
     "clean-webpack-plugin": "4.0.0",
