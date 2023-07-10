@@ -212,14 +212,9 @@ func oidcRunFunc(ctx context.Context, cmd *configure.SSOConfigureCommand, spec *
 	}
 
 	if spec.GoogleServiceAccountURI != "" {
-		uri, err := apiutils.ParseSessionsURI(spec.GoogleServiceAccountURI)
+		_, err := apiutils.ParseSessionsURI(spec.GoogleServiceAccountURI)
 		if err != nil {
 			return trace.BadParameter("Failed to parse --google-acc-uri: %v", err)
-		}
-
-		_, err = os.ReadFile(uri.Path)
-		if err != nil {
-			return trace.BadParameter("Failed to read --google-acc-uri %q: %v", uri.Path, err)
 		}
 	}
 
