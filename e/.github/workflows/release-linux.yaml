@@ -1,16 +1,54 @@
-# This is a placeholder workflow and will be replaced once the appropriate
-# functionality passes code review.
-#
-# Dispatching workflow calls to a GHA workflow on a branch requires that a
-# workflow file with the correct name exists in the default branch, even
-# if that workflow bears no resemblance to the target workflow
-
-name: Build Release Artifacts on Linux
+name: Build Linux (Push)
 on:
   workflow_dispatch:
+    inputs:
+      oss-teleport-repo:
+        description: "The name of the OSS teleport repo to build"
+        required: false
+        default: "gravitational/teleport"
+        type: string
+
+      oss-teleport-ref:
+        description: "Tag, branch or reference to OSS teleport to build"
+        type: string
+        required: true
+
+      ent-teleport-ref:
+        description: |
+          Tag, branch or reference to Enterprise teleport to include in the
+          build. If no value is supplied this workflow will use whatever
+          reference is specified in the OSS teleport submodule record.
+        type: string
+        required: false
+        default: ""
+
+      release-target:
+        description: "Release target to run from build.assets/Makefile."
+        type: string
+        required: true
+
+      workflow-tag:
+        description: |
+          Tag used to identify workflow runs spawned by this event
+        type: string
+        default: ""
+
+run-name: "Push Build for ${{ inputs.release-target }} of ${{ inputs.oss-teleport-repo }} branch ${{ inputs.oss-teleport-ref }}"
+
 jobs:
-  dummy:
+  identity:
     runs-on: ubuntu-latest
+    if: inputs.workflow-tag != ''
     steps:
-      - name: Greeting
-        run: echo "This is a dummy build to placate GitHub."
+      - name: ${{ inputs.workflow-tag }}
+        run: echo ${{ inputs.workflow-tag }}
+
+  build-artifacts:
+    name: Build Artifacts
+    uses: ./.github/workflows/build-linux.yaml
+    with:
+      oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+      oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+      ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
+      release: enterprise
+      release-target: ${{ inputs.release-target }}

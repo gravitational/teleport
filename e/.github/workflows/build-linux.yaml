@@ -1,0 +1,84 @@
+# This workflow build a Teleport release on a Linux-based buildbox using the
+# release-* targets defined in build.assets/Makefile of the OSS Teleport
+# repository. Both the OSS and Enterprise release tarballs will be built.
+
+name: Build Release on Linux
+on:
+  workflow_call:
+    inputs:
+      oss-teleport-repo:
+        description: "The name of the OSS teleport repo to checkout"
+        required: false
+        default: "gravitational/teleport"
+        type: string
+
+      oss-teleport-ref:
+        description: "Git SHA, tag or branch of the revision of OSS teleport to build"
+        required: true
+        type: string
+
+      ent-teleport-ref:
+        description: |
+          Git SHA, tag or branch of the revision of Enterprise teleport to build. If no
+          value is supplied this workflow will use whatever reference is specified in
+          the OSS teleport submodule record.
+        required: false
+        default: ""
+        type: string
+
+      release:
+        description: "Release level to build. Currently supports `oss` and `enterprise`"
+        required: true
+        type: string
+
+      release-target:
+        description: "Release target to run from build.assets/Makefile."
+        required: true
+        type: string
+
+jobs:
+  build-release-artifacts:
+    permissions:
+      contents: read
+
+    # Self-hosted ARC runners are currently (July 2023) not auto-scaling.
+    # If too many scheduling failures, change this to ubuntu-latest.
+    runs-on: [self-hosted, linux, x64]
+
+    env:
+      # GOMODCACHE and GOCACHE can be removed when we commit to the self-hosted
+      # ARC runners, as these runners set up these vars for us.
+      GOMODCACHE: /tmp/gomodcache
+      GOCACHE: /tmp/gocache
+
+    steps:
+      - name: Ensure required packages are installed
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          if [[ "${CI_SYSTEM}" == "ARC" ]]; then
+            sudo apt update
+            sudo apt install -y make
+          fi
+
+      # The step can be removed when we commit to the self-hosted ARC runners,
+      # as it runs with a consistent UID/GID and creates the directories with
+      # the correct ownership.
+      - name: Create cache directories with correct owner/group
+        run: |
+          sudo mkdir -p "$GOCACHE" "$GOMODCACHE"
+          sudo chown -Rf $(id -u):$(id -g) "$GOCACHE" "$GOMODCACHE"
+
+      - name: Checkout Teleport
+        uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
+        with:
+          oss-teleport-repo: ${{ inputs.oss-teleport-repo }}
+          oss-teleport-ref: ${{ inputs.oss-teleport-ref }}
+          edition: ${{ inputs.release }}
+          ent-teleport-ref: ${{ inputs.ent-teleport-ref }}
+          repo-access-app-id: ${{ secrets.DEPLOY_APP_ID }}
+          repo-access-app-key: ${{ secrets.DEPLOY_APP_PRIVATE_KEY }}
+
+      - name: Build Release
+        run: |
+          make -C build.assets ${{ inputs.release-target }}
