@@ -138,7 +138,7 @@ async function isCorrectAgentVersionAlreadyDownloaded(
     );
     return agentVersion.stdout.trim() === neededVersion;
   } catch (e) {
-    // When it is called the first time, the binary does not yet exist.
+    // When the agent is being downloaded for the first time, the binary does not yet exist.
     if (e.code !== 'ENOENT') {
       throw e;
     }
