@@ -478,6 +478,7 @@ func (c *Client) dialGRPC(ctx context.Context, addr string) error {
 		AssistServiceClient:          assist.NewAssistServiceClient(c.conn),
 		AuditLogServiceClient:        auditlogpb.NewAuditLogServiceClient(c.conn),
 		UserPreferencesServiceClient: userpreferencespb.NewUserPreferencesServiceClient(c.conn),
+		EventServiceClient:           eventv1.NewEventServiceClient(c.conn),
 	}
 	c.JoinServiceClient = NewJoinServiceClient(proto.NewJoinServiceClient(c.conn))
 
