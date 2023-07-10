@@ -22,9 +22,11 @@ import (
 	"github.com/gravitational/trace"
 	"github.com/julienschmidt/httprouter"
 
+	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
 	"github.com/gravitational/teleport/api/utils/aws"
+	"github.com/gravitational/teleport/lib/automaticupgrades"
 	"github.com/gravitational/teleport/lib/httplib"
 	"github.com/gravitational/teleport/lib/integrations/awsoidc"
 	"github.com/gravitational/teleport/lib/reversetunnel"
@@ -140,6 +142,17 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		databaseAgentMatcherLabels[label.Name] = utils.Strings{label.Value}
 	}
 
+	teleportVersionTag := teleport.Version
+	if automaticUpgrades(h.ClusterFeatures) {
+		cloudStableVersion, err := automaticupgrades.Version(ctx, "" /* use default version server */)
+		if err != nil {
+			return "", trace.Wrap(err)
+		}
+
+		// cloudStableVersion has vX.Y.Z format, however the container image tag does not include the `v`.
+		teleportVersionTag = strings.TrimPrefix(cloudStableVersion, "v")
+	}
+
 	deployServiceResp, err := awsoidc.DeployService(ctx, deployDBServiceClient, awsoidc.DeployServiceRequest{
 		Region:                        req.Region,
 		SubnetIDs:                     req.SubnetIDs,
@@ -149,6 +162,7 @@ func (h *Handler) awsOIDCDeployService(w http.ResponseWriter, r *http.Request, p
 		TaskRoleARN:                   req.TaskRoleARN,
 		ProxyServerHostPort:           h.PublicProxyAddr(),
 		TeleportClusterName:           h.auth.clusterName,
+		TeleportVersionTag:            teleportVersionTag,
 		DeploymentMode:                req.DeploymentMode,
 		IntegrationName:               awsClientReq.IntegrationName,
 		DatabaseResourceMatcherLabels: databaseAgentMatcherLabels,
