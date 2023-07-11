@@ -58,7 +58,7 @@ it is executed. This consists of:
 
 - [A join method](#onboarding) that the bot can use to prove that it should be
   allowed to join the Teleport cluster.
-- A series of "outputs". An output is a set of configuration that specifies
+- A series of "outputs". An output consists of the configuration settings that specify
   where a set of credentials should be output, and any options that
   should be applied to those credentials (for example, what roles should be
   impersonated).
@@ -74,9 +74,9 @@ Then on a configured regular period `tbot` begins its renewal process. It begins
 by refreshing the bot's own credentials, by renewing them or fetching a fresh 
 set of credentials depending on the configured onboarding method.
 
-For each output provided in `tbot`'s configuration, `tbot` then uses
+For each output provided in the `tbot` configuration, the `tbot` program uses
 impersonation to obtain credentials from the Auth Service for the roles
-specified in the output's configuration. Once these are fetched, these are
+specified in the configuration for that output. After `tbot` fetches the credentials for its roles, they are
 then persisted to the output's destination in various formats along with other
 useful artifacts such as the current certificate authority certificates.
 

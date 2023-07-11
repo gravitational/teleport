@@ -115,8 +115,8 @@ outputs:
     username: alice
     database: example
     # Specify a format to use for the output credentials. For most databases,
-    # this configuration field can be omitted. See the table below for what
-    # databases require a value specified here.
+    # this configuration field can be omitted. See the table below for the
+    # databases that require a value to be specified here.
     # format: mongo
 
 ```
@@ -150,17 +150,17 @@ outputs:
 </ScopedBlock>
 
 The `format` field in the database output controls the format of the generated
-credentials. This allows them to work with database clients that require a
+credentials. This setting allows the credentials to work with database clients that require a
 specific format. When this field is not specified, a sensible default option is
 used that is compatible with most clients. The full list of supported `format`
 options is below:
 
 | Client        | `format`      | Description                          |
 |---------------|---------------|--------------------------------------|
-| Default       | Unspecified   | Provides a certificate in `tlscert`, a private key in `key` and the CA in `teleport-database-ca.crt`. This is compatible with most clients |
-| MongoDB       | `mongo`       | Provides `mongo.crt` and `mongo.cas` |
+| Default       | Unspecified   | Provides a certificate in `tlscert`, a private key in `key` and the CA in `teleport-database-ca.crt`. This is compatible with most clients. |
+| MongoDB       | `mongo`       | Provides `mongo.crt` and `mongo.cas`. |
 | CockroachDB   | `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt` |
-| Generic TLS   | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas` (for generic clients that require specific file extensions) |
+| Generic TLS   | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas` for generic clients that require specific file extensions. |
 
 Be sure to configure the `token` and `ca_pins` fields to match the output from
 `tctl bots add ...`.
