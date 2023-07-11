@@ -31,7 +31,7 @@ func TestRoundtrip(t *testing.T) {
 		"trait3": {"value5", "value6"},
 	}
 
-	converted := FromV1(ToV1(traits))
+	converted := FromProto(ToProto(traits))
 
 	require.Empty(t, cmp.Diff(traits, converted))
 }

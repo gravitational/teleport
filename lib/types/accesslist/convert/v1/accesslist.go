@@ -56,15 +56,15 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 		},
 		MembershipRequires: accesslist.AccessListRequires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
-			Traits: traitv1.FromV1(msg.Spec.MembershipRequires.Traits),
+			Traits: traitv1.FromProto(msg.Spec.MembershipRequires.Traits),
 		},
 		OwnershipRequires: accesslist.AccessListRequires{
 			Roles:  msg.Spec.OwnershipRequires.Roles,
-			Traits: traitv1.FromV1(msg.Spec.OwnershipRequires.Traits),
+			Traits: traitv1.FromProto(msg.Spec.OwnershipRequires.Traits),
 		},
 		Grants: accesslist.AccessListGrants{
 			Roles:  msg.Spec.Grants.Roles,
-			Traits: traitv1.FromV1(msg.Spec.Grants.Traits),
+			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},
 		Members: members,
 	})
@@ -103,15 +103,15 @@ func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 			},
 			MembershipRequires: &accesslistv1.AccessListRequires{
 				Roles:  accessList.Spec.MembershipRequires.Roles,
-				Traits: traitv1.ToV1(accessList.Spec.MembershipRequires.Traits),
+				Traits: traitv1.ToProto(accessList.Spec.MembershipRequires.Traits),
 			},
 			OwnershipRequires: &accesslistv1.AccessListRequires{
 				Roles:  accessList.Spec.OwnershipRequires.Roles,
-				Traits: traitv1.ToV1(accessList.Spec.OwnershipRequires.Traits),
+				Traits: traitv1.ToProto(accessList.Spec.OwnershipRequires.Traits),
 			},
 			Grants: &accesslistv1.AccessListGrants{
 				Roles:  accessList.Spec.Grants.Roles,
-				Traits: traitv1.ToV1(accessList.Spec.Grants.Traits),
+				Traits: traitv1.ToProto(accessList.Spec.Grants.Traits),
 			},
 			Members: members,
 		},
