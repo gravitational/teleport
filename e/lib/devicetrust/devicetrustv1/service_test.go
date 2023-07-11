@@ -415,7 +415,7 @@ func TestService_rateLimiting(t *testing.T) {
 }
 
 func TestService_CreateDevice(t *testing.T) {
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
 	devices := env.DevicesClient
@@ -800,7 +800,7 @@ func TestService_CreateDevice_asResource(t *testing.T) {
 }
 
 func TestService_UpdateDevice(t *testing.T) {
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
 
@@ -1049,7 +1049,7 @@ func TestService_UpdateDevice_errors(t *testing.T) {
 }
 
 func TestService_UpsertDevice(t *testing.T) {
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
 
@@ -1280,7 +1280,7 @@ func TestService_UpsertDevice_errors(t *testing.T) {
 }
 
 func TestService_DeleteDevice(t *testing.T) {
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
 
@@ -1569,7 +1569,7 @@ func TestService_FindDevices(t *testing.T) {
 }
 
 func TestService_BulkCreateDevices(t *testing.T) {
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
 
@@ -1682,7 +1682,7 @@ func TestService_BulkCreateDevices(t *testing.T) {
 }
 
 func TestService_CreateDeviceEnrollToken(t *testing.T) {
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
 
@@ -1768,7 +1768,7 @@ func TestService_CreateDeviceEnrollToken_autoEnroll(t *testing.T) {
 		authorizedUsers: []string{adminUser},
 	}
 
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	dt := &types.DeviceTrust{
 		Mode: constants.DeviceTrustModeRequired,
 	}

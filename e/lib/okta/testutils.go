@@ -110,7 +110,7 @@ func newTestAccessPoint(t *testing.T, clock clockwork.Clock) *testAccessPoint {
 	})
 	require.NoError(t, err)
 
-	streamer := events.NewDiscardEmitter()
+	streamer := events.NewDiscardStreamer()
 
 	access := local.NewAccessService(backend)
 	ca := local.NewCAService(backend)

@@ -49,7 +49,7 @@ func enrollSimulator(
 }
 
 func TestService_AuthenticateDevice(t *testing.T) {
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.NewUsingT(
 		t,
 		testenv.WithAugmentCertsFunc(fakeAugmentFunc),
@@ -203,7 +203,7 @@ func TestService_AuthenticateDevice(t *testing.T) {
 }
 
 func TestService_AuthenticateDevice_errors(t *testing.T) {
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.NewUsingT(
 		t,
 		testenv.WithEmitter(emitter),
@@ -482,7 +482,7 @@ func (c *fakeRolesChecker) Roles() []types.Role {
 
 func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 	checker := &fakeRolesChecker{}
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.NewUsingT(
 		t,
 		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
@@ -582,7 +582,6 @@ func TestService_AuthenticateDevice_deviceModeOff(t *testing.T) {
 	} {
 		role, err := types.NewRole(fmt.Sprintf("mode=%v", mode), types.RoleSpecV6{
 			Options: types.RoleOptions{
-
 				DeviceTrustMode: mode,
 			},
 			Allow: allowRule,

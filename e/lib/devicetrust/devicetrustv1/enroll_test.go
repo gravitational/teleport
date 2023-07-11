@@ -48,7 +48,7 @@ func (e *unsupportedDeviceSimulator) enrollRequest(dev *devicepb.Device, enrollT
 
 func TestService_EnrollDevice(t *testing.T) {
 	deviceTrustConfig := &types.DeviceTrust{}
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.MustNew(
 		testenv.WithEmitter(emitter),
 		testenv.WithAuthPreferenceSpec(types.AuthPreferenceSpecV2{
@@ -543,7 +543,7 @@ func TestService_EnrollDevice(t *testing.T) {
 
 			// Create device and enrollment token to use below.
 			var created *devicepb.Device
-			var enrollToken = ""
+			enrollToken := ""
 			switch dev := test.deviceTemplate; {
 			case dev == nil:
 				t.Fatal("No device template provided. This is likely a test setup mistake.")

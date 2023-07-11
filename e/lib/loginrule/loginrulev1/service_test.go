@@ -82,7 +82,7 @@ func TestRBAC(t *testing.T) {
 
 	authorizer := &fakeAuthorizer{}
 
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 
 	cfg := &ServiceConfig{
 		Storage:    p.s,

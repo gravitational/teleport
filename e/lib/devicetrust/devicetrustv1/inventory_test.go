@@ -682,7 +682,7 @@ func runSyncInventoryTests(t *testing.T, ctx context.Context, devices devicepb.D
 }
 
 func TestService_SyncInventory_audit(t *testing.T) {
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
 
@@ -768,7 +768,7 @@ func TestService_SyncInventory_audit(t *testing.T) {
 }
 
 func TestService_SyncInventory_devicesToRemove(t *testing.T) {
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 	env := testenv.MustNew(testenv.WithEmitter(emitter))
 	defer env.Close()
 
@@ -1094,7 +1094,8 @@ func syncInventoryPages(
 	ctx context.Context,
 	devices devicepb.DeviceTrustServiceClient,
 	startReq *devicepb.SyncInventoryStart,
-	devicePages [][]*devicepb.Device) ([][]*devicepb.DeviceOrStatus, error) {
+	devicePages [][]*devicepb.Device,
+) ([][]*devicepb.DeviceOrStatus, error) {
 	stream, err := devices.SyncInventory(ctx)
 	if err != nil {
 		return nil, err
@@ -1214,7 +1215,8 @@ func syncInventoryDelete(
 	ctx context.Context,
 	devicesClient devicepb.DeviceTrustServiceClient,
 	source *devicepb.DeviceSource,
-	devsToUpsert, devsToRemove []*devicepb.Device) ([][]*devicepb.DeviceOrStatus, error) {
+	devsToUpsert, devsToRemove []*devicepb.Device,
+) ([][]*devicepb.DeviceOrStatus, error) {
 	// Start stream.
 	stream, err := devicesClient.SyncInventory(ctx)
 	if err != nil {
