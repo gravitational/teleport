@@ -420,7 +420,7 @@ func TestRetryWithRelogin(t *testing.T) {
 				return tt.fnErrs[fnCallCount-1]
 			}
 
-			err = daemon.retryWithRelogin(ctx, fn, &api.ReloginRequest{})
+			err = daemon.retryWithRelogin(ctx, &api.ReloginRequest{}, fn)
 			if tt.wantErr != nil {
 				require.ErrorIs(t, err, tt.wantErr)
 				require.ErrorContains(t, err, tt.wantAddedMessage)
@@ -442,15 +442,18 @@ type mockTSHDEventsService struct {
 }
 
 func newMockTSHDEventsServiceServer(t *testing.T) (service *mockTSHDEventsService, addr string) {
+	t.Helper()
+
 	tshdEventsService := &mockTSHDEventsService{
 		callCounts: make(map[string]int),
 	}
 
-	ls, err := net.Listen("tcp", ":0")
+	ls, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
+	t.Cleanup(grpcServer.GracefulStop)
 
 	go func() {
 		err := grpcServer.Serve(ls)

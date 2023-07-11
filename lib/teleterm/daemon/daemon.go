@@ -93,7 +93,13 @@ func (s *Service) relogin(ctx context.Context, req *api.ReloginRequest) error {
 
 // retryWithRelogin tries the given function. If the function returns an error that appears to be
 // resolvable with relogin, then it requests relogin and tries the function a second time.
-func (s *Service) retryWithRelogin(ctx context.Context, fn func() error, reloginReq *api.ReloginRequest) error {
+//
+// retryWithRelogin is reserved for cases where the retryable request does not originate from the
+// Electron app, for example when the request is made a long-running goroutine such as a gateway.
+// When the request originates from the Electron app and daemon.Service is merely an intermediary,
+// the retry flow is handled by clusters.addMetadataToRetryableError and the JavaScript version of
+// client.RetryWithRelogin with the same name.
+func (s *Service) retryWithRelogin(ctx context.Context, reloginReq *api.ReloginRequest, fn func() error) error {
 	err := fn()
 	if err == nil {
 		return nil
@@ -264,25 +270,11 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 
 // reissueGatewayCerts tries to reissue gateway certs.
 func (s *Service) reissueGatewayCerts(ctx context.Context, g *gateway.Gateway) error {
-	cluster, err := s.ResolveCluster(g.TargetURI())
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
 	clusterURI, err := uri.ParseClusterURI(g.TargetURI())
 	if err != nil {
 		return trace.Wrap(err)
 	}
 	rootClusterURI := clusterURI.GetRootClusterURI().String()
-
-	reissueGatewayCert := func() error {
-		err := cluster.ReissueDBCerts(ctx, g.RouteToDatabase())
-		if err != nil {
-			return trace.Wrap(err)
-		}
-
-		return trace.Wrap(g.ReloadCert())
-	}
 
 	reloginReq := &api.ReloginRequest{
 		RootClusterUri: rootClusterURI,
@@ -294,13 +286,26 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g *gateway.Gateway) e
 		},
 	}
 
-	// It might happen that the protocol specific certs have expired but the user cert is still active,
-	// allowing us to obtain new certs without having to relogin first.
+	reissueDBCerts := func() error {
+		cluster, err := s.ResolveCluster(g.TargetURI())
+		if err != nil {
+			return trace.Wrap(err)
+		}
+
+		if err := cluster.ReissueDBCerts(ctx, g.RouteToDatabase()); err != nil {
+			return trace.Wrap(err)
+		}
+
+		return trace.Wrap(g.ReloadCert())
+	}
+
+	// If the gateway certs have expired but the user cert is active,
+	// new certs can be obtained without having to relogin first.
 	//
 	// This can happen if the user cert was refreshed by anything other than the gateway itself. For
 	// example, if you execute `tsh ssh` within Connect after your user cert expires or there are two
 	// gateways that subsequently go through this flow.
-	if err := s.retryWithRelogin(ctx, reissueGatewayCert, reloginReq); err != nil {
+	if err := s.retryWithRelogin(ctx, reloginReq, reissueDBCerts); err != nil {
 		notifyErr := s.notifyApp(ctx, &api.SendNotificationRequest{
 			Subject: &api.SendNotificationRequest_CannotProxyGatewayConnection{
 				CannotProxyGatewayConnection: &api.CannotProxyGatewayConnection{

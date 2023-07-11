@@ -180,17 +180,20 @@ type mockTSHDEventsService struct {
 }
 
 func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, pack *dbhelpers.DatabasePack) (service *mockTSHDEventsService, addr string) {
+	t.Helper()
+
 	tshdEventsService := &mockTSHDEventsService{
 		tc:         tc,
 		pack:       pack,
 		callCounts: make(map[string]int),
 	}
 
-	ls, err := net.Listen("tcp", ":0")
+	ls, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 
 	grpcServer := grpc.NewServer()
 	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
+	t.Cleanup(grpcServer.GracefulStop)
 
 	go func() {
 		err := grpcServer.Serve(ls)
