@@ -3875,7 +3875,7 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 
 	// Inject mockEmitter to capture audit event for trusted cluster
 	// creation.
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	ac.server.Auth().SetEmitter(mockEmitter)
 
 	// Create a user with the least privilege access to call this RPC.
@@ -4034,7 +4034,7 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 
 	// Inject mockEmitter to capture audit event for trusted cluster
 	// creation.
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	ac.server.Auth().SetEmitter(mockEmitter)
 
 	// Create a user with the least privilege access to call this RPC.
@@ -4213,7 +4213,7 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 
 	// Inject mockEmitter to capture audit event for trusted cluster
 	// creation.
-	mockEmitter := &eventstest.MockEmitter{}
+	mockEmitter := &eventstest.MockRecorderEmitter{}
 	ac.server.Auth().SetEmitter(mockEmitter)
 
 	// Create a user with the least privilege access to call this RPC.

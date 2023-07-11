@@ -105,7 +105,7 @@ func TestUploadCompleterEmitsSessionEnd(t *testing.T) {
 			test.startEvent.SetTime(startTime)
 
 			log := &eventstest.MockAuditLog{
-				Emitter: &eventstest.MockEmitter{},
+				Emitter: &eventstest.MockRecorderEmitter{},
 				SessionEvents: []apievents.AuditEvent{
 					test.startEvent,
 					&apievents.SessionPrint{Metadata: apievents.Metadata{Time: endTime}},

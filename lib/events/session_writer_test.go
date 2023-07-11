@@ -36,21 +36,23 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
-// TestAuditWriter tests audit writer - a component used for
+// TestSessionWriter tests session writer - a component used for
 // session recording
-func TestAuditWriter(t *testing.T) {
+func TestSessionWriter(t *testing.T) {
 	// Session tests emission of multiple session events
 	t.Run("Session", func(t *testing.T) {
-		test := newAuditWriterTest(t, nil)
+		test := newSessionWriterTest(t, nil)
 		defer test.cancel()
 
-		inEvents := events.GenerateTestSession(events.SessionParams{
+		inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
 			PrintEvents: 1024,
 			SessionID:   string(test.sid),
 		})
 
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			event, err := test.preparer.PrepareSessionEvent(event)
+			require.NoError(t, err)
+			err = test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		err := test.writer.Complete(test.ctx)
@@ -85,10 +87,11 @@ func TestAuditWriter(t *testing.T) {
 		var streamCreated, terminateConnection, streamResumed atomic.Uint64
 		terminateConnection.Store(1)
 
-		test := newAuditWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
+		test := newSessionWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
+				OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
+					event := pe.GetAuditEvent()
 					if event.GetIndex() > 1 && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
@@ -120,14 +123,16 @@ func TestAuditWriter(t *testing.T) {
 
 		defer test.cancel()
 
-		inEvents := events.GenerateTestSession(events.SessionParams{
+		inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
 			PrintEvents: 1024,
 			SessionID:   string(test.sid),
 		})
 
 		start := time.Now()
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			event, err := test.preparer.PrepareSessionEvent(event)
+			require.NoError(t, err)
+			err = test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		log.Debugf("Emitted %v events in %v.", len(inEvents), time.Since(start))
@@ -147,10 +152,11 @@ func TestAuditWriter(t *testing.T) {
 		var streamCreated, terminateConnection, streamResumed atomic.Uint64
 		terminateConnection.Store(1)
 
-		test := newAuditWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
+		test := newSessionWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
+				OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
+					event := pe.GetAuditEvent()
 					if event.GetIndex() > 600 && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Terminating connection at event %v", event.GetIndex())
 						return trace.ConnectionProblem(nil, "connection terminated")
@@ -174,14 +180,16 @@ func TestAuditWriter(t *testing.T) {
 
 		defer test.cancel()
 
-		inEvents := events.GenerateTestSession(events.SessionParams{
+		inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
 			PrintEvents: 1024,
 			SessionID:   string(test.sid),
 		})
 
 		start := time.Now()
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			event, err := test.preparer.PrepareSessionEvent(event)
+			require.NoError(t, err)
+			err = test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		log.Debugf("Emitted all events in %v.", time.Since(start))
@@ -205,10 +213,11 @@ func TestAuditWriter(t *testing.T) {
 		hangCtx, hangCancel := context.WithCancel(context.TODO())
 		defer hangCancel()
 
-		test := newAuditWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
+		test := newSessionWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
+				OnRecordEvent: func(ctx context.Context, sid session.ID, pe apievents.PreparedSessionEvent) error {
+					event := pe.GetAuditEvent()
 					if event.GetIndex() >= int64(submitEvents-1) && terminateConnection.CompareAndSwap(1, 0) == true {
 						log.Debugf("Locking connection at event %v", event.GetIndex())
 						<-hangCtx.Done()
@@ -233,14 +242,16 @@ func TestAuditWriter(t *testing.T) {
 
 		defer test.cancel()
 
-		inEvents := events.GenerateTestSession(events.SessionParams{
+		inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
 			PrintEvents: 1024,
 			SessionID:   string(test.sid),
 		})
 
 		start := time.Now()
 		for _, event := range inEvents {
-			err := test.writer.EmitAuditEvent(test.ctx, event)
+			event, err := test.preparer.PrepareSessionEvent(event)
+			require.NoError(t, err)
+			err = test.writer.RecordEvent(test.ctx, event)
 			require.NoError(t, err)
 		}
 		elapsedTime := time.Since(start)
@@ -258,23 +269,25 @@ func TestAuditWriter(t *testing.T) {
 
 	t.Run("SetsEventDefaults", func(t *testing.T) {
 		var emittedEvents []apievents.AuditEvent
-		test := newAuditWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
+		test := newSessionWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(ctx context.Context, sid session.ID, event apievents.AuditEvent) error {
-					emittedEvents = append(emittedEvents, event)
+				OnRecordEvent: func(ctx context.Context, sid session.ID, event apievents.PreparedSessionEvent) error {
+					emittedEvents = append(emittedEvents, event.GetAuditEvent())
 					return nil
 				},
 			})
 		})
 		defer test.Close(context.Background())
-		inEvents := events.GenerateTestSession(events.SessionParams{
+		inEvents := eventstest.GenerateTestSession(eventstest.SessionParams{
 			SessionID: string(test.sid),
 			// ClusterName explicitly empty in parameters
 		})
 		for _, event := range inEvents {
 			require.Empty(t, event.GetClusterName())
-			require.NoError(t, test.writer.EmitAuditEvent(test.ctx, event))
+			event, err := test.preparer.PrepareSessionEvent(event)
+			require.NoError(t, err)
+			require.NoError(t, test.writer.RecordEvent(test.ctx, event))
 		}
 		test.Close(context.Background())
 		require.Equal(t, len(inEvents), len(emittedEvents))
@@ -284,10 +297,10 @@ func TestAuditWriter(t *testing.T) {
 	})
 
 	t.Run("NonRecoverable", func(t *testing.T) {
-		test := newAuditWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
+		test := newSessionWriterTest(t, func(streamer events.Streamer) (*events.CallbackStreamer, error) {
 			return events.NewCallbackStreamer(events.CallbackStreamerConfig{
 				Inner: streamer,
-				OnEmitAuditEvent: func(_ context.Context, _ session.ID, _ apievents.AuditEvent) error {
+				OnRecordEvent: func(_ context.Context, _ session.ID, _ apievents.PreparedSessionEvent) error {
 					// Returns an unrecoverable error.
 					return errors.New("uploader failed to reserve upload part")
 				},
@@ -295,12 +308,14 @@ func TestAuditWriter(t *testing.T) {
 		})
 
 		// First event will not fail since it is processed in the goroutine.
-		events := events.GenerateTestSession(events.SessionParams{SessionID: string(test.sid)})
-		require.NoError(t, test.writer.EmitAuditEvent(test.ctx, events[1]))
+		events := eventstest.GenerateTestSession(eventstest.SessionParams{SessionID: string(test.sid)})
+		event := events[1]
+		preparedEvent, err := test.preparer.PrepareSessionEvent(event)
+		require.NoError(t, err)
+		require.NoError(t, test.writer.RecordEvent(test.ctx, preparedEvent))
 
 		// Subsequent events will fail.
-		err := test.writer.EmitAuditEvent(test.ctx, events[1])
-		require.Error(t, err)
+		require.Error(t, test.writer.RecordEvent(test.ctx, preparedEvent))
 
 		require.Eventually(t, func() bool {
 			select {
@@ -313,27 +328,28 @@ func TestAuditWriter(t *testing.T) {
 	})
 }
 
-type auditWriterTest struct {
+type sessionWriterTest struct {
 	eventsCh chan events.UploadEvent
 	uploader *eventstest.MemoryUploader
 	ctx      context.Context
 	cancel   context.CancelFunc
-	writer   *events.AuditWriter
+	preparer events.SessionEventPreparer
+	writer   *events.SessionWriter
 	sid      session.ID
 }
 
 type newStreamerFn func(streamer events.Streamer) (*events.CallbackStreamer, error)
 
-type auditWriterOption func(c *events.AuditWriterConfig)
+type sessionWriterOption func(c *events.SessionWriterConfig)
 
-func withBackoff(timeout, dur time.Duration) auditWriterOption {
-	return func(c *events.AuditWriterConfig) {
+func withBackoff(timeout, dur time.Duration) sessionWriterOption {
+	return func(c *events.SessionWriterConfig) {
 		c.BackoffTimeout = timeout
 		c.BackoffDuration = dur
 	}
 }
 
-func newAuditWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...auditWriterOption) *auditWriterTest {
+func newSessionWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...sessionWriterOption) *sessionWriterTest {
 	eventsCh := make(chan events.UploadEvent, 1)
 	uploader := eventstest.NewMemoryUploader(eventsCh)
 	protoStreamer, err := events.NewProtoStreamer(events.ProtoStreamerConfig{
@@ -353,23 +369,29 @@ func newAuditWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...auditWr
 	ctx, cancel := context.WithTimeout(context.TODO(), 10*time.Second)
 
 	sid := session.NewID()
-	cfg := events.AuditWriterConfig{
-		SessionID:    sid,
-		Namespace:    apidefaults.Namespace,
-		RecordOutput: true,
-		Streamer:     streamer,
-		Context:      ctx,
-		ClusterName:  "cluster",
+	preparer, err := events.NewPreparer(events.PreparerConfig{
+		SessionID:   sid,
+		Namespace:   apidefaults.Namespace,
+		ClusterName: "cluster",
+	})
+	require.NoError(t, err)
+
+	cfg := events.SessionWriterConfig{
+		SessionID: sid,
+		Preparer:  preparer,
+		Streamer:  streamer,
+		Context:   ctx,
 	}
 	for _, opt := range opts {
 		opt(&cfg)
 	}
-	writer, err := events.NewAuditWriter(cfg)
+	writer, err := events.NewSessionWriter(cfg)
 	require.NoError(t, err)
 
-	return &auditWriterTest{
+	return &sessionWriterTest{
 		ctx:      ctx,
 		cancel:   cancel,
+		preparer: preparer,
 		writer:   writer,
 		uploader: uploader,
 		eventsCh: eventsCh,
@@ -377,7 +399,7 @@ func newAuditWriterTest(t *testing.T, newStreamer newStreamerFn, opts ...auditWr
 	}
 }
 
-func (a *auditWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
+func (a *sessionWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	start := time.Now()
 	var uploadID string
 	select {
@@ -405,7 +427,7 @@ func (a *auditWriterTest) collectEvents(t *testing.T) []apievents.AuditEvent {
 	return outEvents
 }
 
-func (a *auditWriterTest) Close(ctx context.Context) error {
+func (a *sessionWriterTest) Close(ctx context.Context) error {
 	return a.writer.Close(ctx)
 }
 

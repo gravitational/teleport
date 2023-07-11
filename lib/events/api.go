@@ -804,15 +804,29 @@ type UploadMetadataGetter interface {
 	GetUploadMetadata(sid session.ID) UploadMetadata
 }
 
-// StreamWriter implements io.Writer to be plugged into the multi-writer
-// associated with every session. It forwards session stream to the audit log
-type StreamWriter interface {
+// SessionEventPreparer will set necessary event fields for session-related
+// events and must be called before the event is used, regardless
+// of whether the event will be recorded, emitted, or both.
+type SessionEventPreparer interface {
+	PrepareSessionEvent(event apievents.AuditEvent) (apievents.PreparedSessionEvent, error)
+}
+
+// SessionRecorder records session events. It can be used both as a
+// [io.Writer] when recording raw session data and as a [apievents.Recorder]
+// when recording session events.
+type SessionRecorder interface {
 	io.Writer
 	apievents.Stream
 }
 
-// StreamEmitter supports submitting single events and streaming
-// session events
+// SessionPreparerRecorder sets necessary session event fields and records them.
+type SessionPreparerRecorder interface {
+	SessionEventPreparer
+	SessionRecorder
+}
+
+// StreamEmitter supports emitting single events to the audit log
+// and streaming events to a session recording.
 type StreamEmitter interface {
 	apievents.Emitter
 	Streamer
@@ -887,8 +901,8 @@ type AuditLogger interface {
 	// Closer releases connection and resources associated with log if any
 	io.Closer
 
-	// EmitAuditEvent emits audit event
-	EmitAuditEvent(context.Context, apievents.AuditEvent) error
+	// Emitter emits an audit event
+	apievents.Emitter
 
 	// SearchEvents is a flexible way to find events.
 	//

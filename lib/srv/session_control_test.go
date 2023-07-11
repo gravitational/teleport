@@ -99,13 +99,14 @@ func (m mockAccessChecker) MaxConnections() int64 {
 func (m mockAccessChecker) PrivateKeyPolicy(defaultPolicy keys.PrivateKeyPolicy) keys.PrivateKeyPolicy {
 	return m.keyPolicy
 }
+
 func (m mockAccessChecker) RoleNames() []string {
 	return m.roleNames
 }
 
 func TestSessionController_AcquireSessionContext(t *testing.T) {
 	clock := clockwork.NewFakeClock()
-	emitter := &eventstest.MockEmitter{}
+	emitter := &eventstest.MockRecorderEmitter{}
 
 	minimalCfg := SessionControllerConfig{
 		Semaphores: mockSemaphores{},
@@ -164,7 +165,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 		buildType string // defaults to modules.BuildOSS
 		cfg       SessionControllerConfig
 		identity  IdentityContext
-		assertion func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockEmitter)
+		assertion func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter)
 	}{
 		{
 			name: "proxy: access allowed",
@@ -199,7 +200,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 					maxConnections: 1,
 				},
 			},
-			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockEmitter) {
+			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.NoError(t, err)
 				require.NotNil(t, ctx)
 				require.Empty(t, emitter.Events())
@@ -250,7 +251,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 					maxConnections: 1,
 				},
 			},
-			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockEmitter) {
+			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.NoError(t, err)
 				require.NotNil(t, ctx)
 				require.Empty(t, emitter.Events())
@@ -291,7 +292,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 					maxConnections: 1,
 				},
 			},
-			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockEmitter) {
+			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.ErrorIs(t, err, trace.AccessDenied("lock in force"))
 				require.NotNil(t, ctx)
 				require.Len(t, emitter.Events(), 1)
@@ -337,7 +338,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 					maxConnections: 1,
 				},
 			},
-			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockEmitter) {
+			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.Error(t, err)
 				require.True(t, trace.IsBadParameter(err))
 				require.NotNil(t, ctx)
@@ -384,7 +385,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 					maxConnections: 1,
 				},
 			},
-			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockEmitter) {
+			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.Error(t, err)
 				require.True(t, trace.IsAccessDenied(err))
 				require.NotNil(t, ctx)
@@ -439,7 +440,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 					maxConnections: 0,
 				},
 			},
-			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockEmitter) {
+			assertion: func(t *testing.T, ctx context.Context, err error, emitter *eventstest.MockRecorderEmitter) {
 				require.NoError(t, err)
 				require.NotNil(t, ctx)
 				require.Empty(t, emitter.Events(), 0)
@@ -449,7 +450,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 			name:     "device extensions not enforced for OSS",
 			cfg:      cfgWithDeviceMode(constants.DeviceTrustModeRequired),
 			identity: minimalIdentity,
-			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockEmitter) {
+			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
 				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
 			},
 		},
@@ -458,7 +459,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 			buildType: modules.BuildEnterprise,
 			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
 			identity:  minimalIdentity,
-			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockEmitter) {
+			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
 				assert.ErrorContains(t, err, "device", "AcquireSessionContext returned an unexpected error")
 				assert.True(t, trace.IsAccessDenied(err), "AcquireSessionContext returned an error other than trace.AccessDeniedError: %T", err)
 			},
@@ -468,7 +469,7 @@ func TestSessionController_AcquireSessionContext(t *testing.T) {
 			buildType: modules.BuildEnterprise,
 			cfg:       cfgWithDeviceMode(constants.DeviceTrustModeRequired),
 			identity:  identityWithDeviceExtensions(),
-			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockEmitter) {
+			assertion: func(t *testing.T, _ context.Context, err error, _ *eventstest.MockRecorderEmitter) {
 				assert.NoError(t, err, "AcquireSessionContext returned an unexpected error")
 			},
 		},
