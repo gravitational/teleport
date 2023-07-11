@@ -148,6 +148,7 @@ read [Exporting Teleport Audit Events](../management/export-audit-events.mdx).
 | user.login | A user logged into web UI or via tsh. The following fields will be logged: `{"user": "alice@example.com", "method": "local"}` . |
 | app.session.start | A user accessed an application |
 | app.session.chunk | A record of activity during an app session |
+| join_token.created | A new join token has been created. Adds the following fields: `{"roles": ["Node", "Db"], "join_method": "token"}` |
 
 ## Recorded sessions
 

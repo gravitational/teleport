@@ -3241,21 +3241,6 @@ func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequ
 		return "", trace.Wrap(err)
 	}
 
-	userMetadata := authz.ClientUserMetadata(ctx)
-	for _, role := range req.Roles {
-		if role == types.RoleTrustedCluster {
-			if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
-				Metadata: apievents.Metadata{
-					Type: events.TrustedClusterTokenCreateEvent,
-					Code: events.TrustedClusterTokenCreateCode,
-				},
-				UserMetadata: userMetadata,
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
-			}
-		}
-	}
-
 	return req.Token, nil
 }
 
