@@ -30,7 +30,7 @@ import (
 	"github.com/gravitational/teleport/lib/services/local"
 )
 
-// ServiceConfig is the service config for the Okta gRPC service.
+// ServiceConfig is the service config for the Access Lists gRPC service.
 type ServiceConfig struct {
 	// Backend is the backend to use.
 	Backend backend.Backend
@@ -45,13 +45,13 @@ type ServiceConfig struct {
 	AccessLists services.AccessLists
 }
 
-func (c *ServiceConfig) CheckAndSetDefaults() error {
+func (c *ServiceConfig) validateConfig() error {
 	if c.Backend == nil {
 		return trace.BadParameter("backend is missing")
 	}
 
 	if c.Logger == nil {
-		c.Logger = logrus.New().WithField(trace.Component, "okta_crud_service")
+		c.Logger = logrus.New().WithField(trace.Component, "access_list_crud_service")
 	}
 
 	if c.Authorizer == nil {
@@ -69,8 +69,6 @@ func (c *ServiceConfig) CheckAndSetDefaults() error {
 	return nil
 }
 
-var _ accesslistv1.AccessListServiceServer = (*Service)(nil)
-
 type Service struct {
 	accesslistv1.UnimplementedAccessListServiceServer
 
@@ -81,7 +79,7 @@ type Service struct {
 
 // NewService creates a new Access List gRPC service.
 func NewService(cfg ServiceConfig) (*Service, error) {
-	if err := cfg.CheckAndSetDefaults(); err != nil {
+	if err := cfg.validateConfig(); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
@@ -132,7 +130,7 @@ func (s *Service) GetAccessList(ctx context.Context, req *accesslistv1.GetAccess
 }
 
 // UpsertAccessList creates or updates an access list resource.
-func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.UpsertAccessListRequest) (*emptypb.Empty, error) {
+func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.UpsertAccessListRequest) (*accesslistv1.UpsertAccessListResponse, error) {
 	_, err := authz.AuthorizeWithVerbs(ctx, s.log, s.authorizer, true, types.KindAccessList, types.VerbCreate, types.VerbUpdate)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -142,12 +140,14 @@ func (s *Service) UpsertAccessList(ctx context.Context, req *accesslistv1.Upsert
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	err = s.accessLists.UpsertAccessList(ctx, accessList)
+	responseAccessList, err := s.accessLists.UpsertAccessList(ctx, accessList)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &emptypb.Empty{}, nil
+	return &accesslistv1.UpsertAccessListResponse{
+		AccessList: conv.ToV1(responseAccessList),
+	}, nil
 }
 
 // DeleteAccessList removes the specified access list resource.

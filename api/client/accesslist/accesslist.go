@@ -30,7 +30,7 @@ type Client struct {
 	grpcClient accesslistv1.AccessListServiceClient
 }
 
-// NewClient creates a new Okta client.
+// NewClient creates a new Access List client.
 func NewClient(grpcClient accesslistv1.AccessListServiceClient) *Client {
 	return &Client{
 		grpcClient: grpcClient,

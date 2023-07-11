@@ -28,10 +28,10 @@ service AccessListService {
   // GetAccessList returns the specified access list resource.
   rpc GetAccessList(GetAccessListRequest) returns (GetAccessListResponse);
   // UpsertAccessList creates or updates an access list resource.
-  rpc UpsertAccessList(UpsertAccessListRequest) returns (google.protobuf.Empty);
-  // DeleteAccessList removes the specified access list resource.
+  rpc UpsertAccessList(UpsertAccessListRequest) returns (UpsertAccessListResponse);
+  // DeleteAccessList hard deletes the specified access list resource.
   rpc DeleteAccessList(DeleteAccessListRequest) returns (google.protobuf.Empty);
-  // DeleteAllAccessLists removes all access lists.
+  // DeleteAllAccessLists hard deletes all access lists.
   rpc DeleteAllAccessLists(DeleteAllAccessListsRequest) returns (google.protobuf.Empty);
 }
 
@@ -59,6 +59,12 @@ message GetAccessListResponse {
 // UpsertAccessListRequest is the request for upserting an access list.
 message UpsertAccessListRequest {
   // access_list is the access list to upsert.
+  AccessList access_list = 1;
+}
+
+// UpsertAccessListResponse is the response for upserting an access list.
+message UpsertAccessListResponse {
+  // access_list is the access list that has been upserted.
   AccessList access_list = 1;
 }
 

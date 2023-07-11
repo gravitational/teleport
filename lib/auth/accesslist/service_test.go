@@ -54,10 +54,13 @@ func TestAccessLists(t *testing.T) {
 	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToV1(a3)})
 	require.NoError(t, err)
 
+	cmpOpts := []cmp.Option{
+		cmpopts.IgnoreFields(header.Metadata{}, "ID"),
+	}
+
 	getResp, err = svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*types.AccessList{a1, a2, a3}, mustFromV1All(t, getResp.AccessLists...),
-		cmpopts.IgnoreFields(header.Metadata{}, "ID")))
+	require.Empty(t, cmp.Diff([]*types.AccessList{a1, a2, a3}, mustFromV1All(t, getResp.AccessLists...), cmpOpts...))
 
 	a1.SetExpiry(time.Now().Add(30 * time.Minute))
 	_, err = svc.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{AccessList: conv.ToV1(a1)})
@@ -65,16 +68,14 @@ func TestAccessLists(t *testing.T) {
 
 	a, err := svc.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff(a1, mustFromV1(t, a.AccessList),
-		cmpopts.IgnoreFields(header.Metadata{}, "ID")))
+	require.Empty(t, cmp.Diff(a1, mustFromV1(t, a.AccessList), cmpOpts...))
 
 	_, err = svc.DeleteAccessList(ctx, &accesslistv1.DeleteAccessListRequest{Name: a1.GetName()})
 	require.NoError(t, err)
 
 	getResp, err = svc.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	require.NoError(t, err)
-	require.Empty(t, cmp.Diff([]*types.AccessList{a2, a3}, mustFromV1All(t, getResp.AccessLists...),
-		cmpopts.IgnoreFields(header.Metadata{}, "ID")))
+	require.Empty(t, cmp.Diff([]*types.AccessList{a2, a3}, mustFromV1All(t, getResp.AccessLists...), cmpOpts...))
 
 	_, err = svc.DeleteAllAccessLists(ctx, &accesslistv1.DeleteAllAccessListsRequest{})
 	require.NoError(t, err)
