@@ -18,25 +18,26 @@ package traitv1
 
 import (
 	traitv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/trait/v1"
+	"github.com/gravitational/teleport/lib/types/trait"
 )
 
 // FromV1 converts an array of v1 traits into a map of string to string array.
-func FromV1(traits []*traitv1.Trait) map[string][]string {
-	traitMap := map[string][]string{}
+func FromV1(traits []*traitv1.Trait) trait.Traits {
+	out := map[string][]string{}
 	for _, trait := range traits {
-		traitMap[trait.Key] = trait.Values
+		out[trait.Key] = trait.Values
 	}
-	return traitMap
+	return out
 }
 
 // ToV1 converts a map of string to string array to an array of v1 traits.
-func ToV1(traitMap map[string][]string) []*traitv1.Trait {
-	traits := make([]*traitv1.Trait, 0, len(traitMap))
-	for key, values := range traitMap {
-		traits = append(traits, &traitv1.Trait{
+func ToV1(traits trait.Traits) []*traitv1.Trait {
+	out := make([]*traitv1.Trait, 0, len(traits))
+	for key, values := range traits {
+		out = append(out, &traitv1.Trait{
 			Key:    key,
 			Values: values,
 		})
 	}
-	return traits
+	return out
 }

@@ -20,32 +20,32 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	headerv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/header/v1"
-	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/types/header"
 )
 
-// FromResourceHeaderV1 converts the resource header protobuf message into an internal resource header object.
+// FromResourceHeaderProto converts the resource header protobuf message into an internal resource header object.
 // This function does not use the builder due to the generics for the builder object.
-func FromResourceHeaderV1(msg *headerv1.ResourceHeader) header.ResourceHeader {
+func FromResourceHeaderProto(msg *headerv1.ResourceHeader) header.ResourceHeader {
 	return header.ResourceHeader{
 		Kind:     msg.Kind,
 		SubKind:  msg.SubKind,
 		Version:  msg.Version,
-		Metadata: FromMetadataV1(msg.Metadata),
+		Metadata: FromMetadataProto(msg.Metadata),
 	}
 }
 
-// ToResourceHeaderV1 converts an internal resource header object into a v1 resource header protobuf message.
-func ToResourceHeaderV1(resourceHeader header.ResourceHeader) *headerv1.ResourceHeader {
+// ToResourceHeaderProto converts an internal resource header object into a v1 resource header protobuf message.
+func ToResourceHeaderProto(resourceHeader header.ResourceHeader) *headerv1.ResourceHeader {
 	return &headerv1.ResourceHeader{
 		Kind:     resourceHeader.Kind,
 		SubKind:  resourceHeader.SubKind,
 		Version:  resourceHeader.Version,
-		Metadata: ToMetadataV1(resourceHeader.Metadata),
+		Metadata: ToMetadataProto(resourceHeader.Metadata),
 	}
 }
 
-// FromMetadataV1 converts v1 metadata into an internal metadata object.
-func FromMetadataV1(msg *headerv1.Metadata) header.Metadata {
+// FromMetadataProto converts v1 metadata into an internal metadata object.
+func FromMetadataProto(msg *headerv1.Metadata) header.Metadata {
 	return header.Metadata{
 		Name:        msg.Name,
 		Description: msg.Description,
@@ -55,8 +55,8 @@ func FromMetadataV1(msg *headerv1.Metadata) header.Metadata {
 	}
 }
 
-// ToMetadataV1 converts an internal metadata object into a v1 metadata protobuf message.
-func ToMetadataV1(metadata header.Metadata) *headerv1.Metadata {
+// ToMetadataProto converts an internal metadata object into a v1 metadata protobuf message.
+func ToMetadataProto(metadata header.Metadata) *headerv1.Metadata {
 	return &headerv1.Metadata{
 		Name:        metadata.Name,
 		Description: metadata.Description,

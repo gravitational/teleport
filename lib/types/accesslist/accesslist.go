@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package types
+package accesslist
 
 import (
 	"encoding/json"
@@ -23,8 +23,11 @@ import (
 
 	"github.com/gravitational/trace"
 
-	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/api/utils"
+	"github.com/gravitational/teleport/lib/types/header"
+	"github.com/gravitational/teleport/lib/types/header/convert/legacy"
+	"github.com/gravitational/teleport/lib/types/trait"
 )
 
 // AccessList describes the basic building block of access grants, which are
@@ -88,7 +91,7 @@ type AccessListRequires struct {
 	Roles []string `json:"roles" yaml:"roles"`
 
 	// Traits are the traits that must be present for the user to obtain access.
-	Traits map[string][]string `json:"traits" yaml:"traits"`
+	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
 // AccessListGrants describes what access is granted by membership to the access list.
@@ -97,7 +100,7 @@ type AccessListGrants struct {
 	Roles []string `json:"roles" yaml:"roles"`
 
 	// Traits are the traits that are granted to users who are members of the access list.
-	Traits map[string][]string `json:"traits" yaml:"traits"`
+	Traits trait.Traits `json:"traits" yaml:"traits"`
 }
 
 // AccessListMember describes a member of an access list.
@@ -134,8 +137,8 @@ func NewAccessList(metadata header.Metadata, spec AccessListSpec) (*AccessList, 
 
 // CheckAndSetDefaults validates fields and populates empty fields with default values.
 func (a *AccessList) CheckAndSetDefaults() error {
-	a.SetKind(KindAccessList)
-	a.SetVersion(V1)
+	a.SetKind(types.KindAccessList)
+	a.SetVersion(types.V1)
 
 	if err := a.ResourceHeader.CheckAndSetDefaults(); err != nil {
 		return trace.Wrap(err)
@@ -220,15 +223,15 @@ func (a *AccessList) GetMembers() []AccessListMember {
 
 // GetMetadata returns metadata. This is specifically for conforming to the Resource interface,
 // and should be removed when possible.
-func (a *AccessList) GetMetadata() Metadata {
-	return FromHeaderMetadata(a.Metadata)
+func (a *AccessList) GetMetadata() types.Metadata {
+	return legacy.FromHeaderMetadata(a.Metadata)
 }
 
 // MatchSearch goes through select field values of a resource
 // and tries to match against the list of search values.
 func (a *AccessList) MatchSearch(values []string) bool {
 	fieldVals := append(utils.MapToStrings(a.GetAllLabels()), a.GetName())
-	return MatchSearch(fieldVals, values, nil)
+	return types.MatchSearch(fieldVals, values, nil)
 }
 
 func (a *AccessListAudit) UnmarshalJSON(data []byte) error {

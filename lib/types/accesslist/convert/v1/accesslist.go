@@ -14,32 +14,32 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package accesslistv1
+package v1
 
 import (
 	"github.com/gravitational/trace"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	headerv1 "github.com/gravitational/teleport/api/convert/teleport/header/v1"
-	traitv1 "github.com/gravitational/teleport/api/convert/teleport/trait/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/types/accesslist"
+	headerv1 "github.com/gravitational/teleport/lib/types/header/convert/v1"
+	traitv1 "github.com/gravitational/teleport/lib/types/trait/convert/v1"
 )
 
-// FromV1 converts a v1 access list into an internal access list object.
-func FromV1(msg *accesslistv1.AccessList) (*types.AccessList, error) {
-	owners := make([]types.AccessListOwner, len(msg.Spec.Owners))
+// FromProto converts a v1 access list into an internal access list object.
+func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
+	owners := make([]accesslist.AccessListOwner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
-		owners[i] = types.AccessListOwner{
+		owners[i] = accesslist.AccessListOwner{
 			Name:        owner.Name,
 			Description: owner.Description,
 		}
 	}
 
-	members := make([]types.AccessListMember, len(msg.Spec.Members))
+	members := make([]accesslist.AccessListMember, len(msg.Spec.Members))
 	for i, member := range msg.Spec.Members {
-		members[i] = types.AccessListMember{
+		members[i] = accesslist.AccessListMember{
 			Name:    member.Name,
 			Joined:  member.Joined.AsTime(),
 			Expires: member.Expires.AsTime(),
@@ -48,21 +48,21 @@ func FromV1(msg *accesslistv1.AccessList) (*types.AccessList, error) {
 		}
 	}
 
-	accessList, err := types.NewAccessList(headerv1.FromMetadataV1(msg.Header.Metadata), types.AccessListSpec{
+	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.AccessListSpec{
 		Description: msg.Spec.Description,
 		Owners:      owners,
-		Audit: types.AccessListAudit{
+		Audit: accesslist.AccessListAudit{
 			Frequency: msg.Spec.Audit.Frequency.AsDuration(),
 		},
-		MembershipRequires: types.AccessListRequires{
+		MembershipRequires: accesslist.AccessListRequires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
 			Traits: traitv1.FromV1(msg.Spec.MembershipRequires.Traits),
 		},
-		OwnershipRequires: types.AccessListRequires{
+		OwnershipRequires: accesslist.AccessListRequires{
 			Roles:  msg.Spec.OwnershipRequires.Roles,
 			Traits: traitv1.FromV1(msg.Spec.OwnershipRequires.Traits),
 		},
-		Grants: types.AccessListGrants{
+		Grants: accesslist.AccessListGrants{
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: traitv1.FromV1(msg.Spec.Grants.Traits),
 		},
@@ -72,8 +72,8 @@ func FromV1(msg *accesslistv1.AccessList) (*types.AccessList, error) {
 	return accessList, trace.Wrap(err)
 }
 
-// ToV1 converts an internal access list into a v1 access list object.
-func ToV1(accessList *types.AccessList) *accesslistv1.AccessList {
+// ToProto converts an internal access list into a v1 access list object.
+func ToProto(accessList *accesslist.AccessList) *accesslistv1.AccessList {
 	owners := make([]*accesslistv1.AccessListOwner, len(accessList.Spec.Owners))
 	for i, owner := range accessList.Spec.Owners {
 		owners[i] = &accesslistv1.AccessListOwner{
@@ -94,7 +94,7 @@ func ToV1(accessList *types.AccessList) *accesslistv1.AccessList {
 	}
 
 	return &accesslistv1.AccessList{
-		Header: headerv1.ToResourceHeaderV1(accessList.ResourceHeader),
+		Header: headerv1.ToResourceHeaderProto(accessList.ResourceHeader),
 		Spec: &accesslistv1.AccessListSpec{
 			Description: accessList.Spec.Description,
 			Owners:      owners,

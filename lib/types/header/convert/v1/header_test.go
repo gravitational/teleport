@@ -23,7 +23,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/types/header"
 )
 
 func TestResourceHeaderRoundtrip(t *testing.T) {
@@ -40,7 +40,7 @@ func TestResourceHeaderRoundtrip(t *testing.T) {
 		},
 	}
 
-	converted := FromResourceHeaderV1(ToResourceHeaderV1(resourceHeader))
+	converted := FromResourceHeaderProto(ToResourceHeaderProto(resourceHeader))
 
 	require.Empty(t, cmp.Diff(resourceHeader, converted))
 }
@@ -54,7 +54,7 @@ func TestMetadataRoundtrip(t *testing.T) {
 		ID:          12345,
 	}
 
-	converted := FromMetadataV1(ToMetadataV1(metadata))
+	converted := FromMetadataProto(ToMetadataProto(metadata))
 
 	require.Empty(t, cmp.Diff(metadata, converted))
 }

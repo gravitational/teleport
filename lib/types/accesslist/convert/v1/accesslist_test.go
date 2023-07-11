@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package accesslistv1
+package v1
 
 import (
 	"testing"
@@ -23,18 +23,18 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/api/types/header"
+	"github.com/gravitational/teleport/lib/types/accesslist"
+	"github.com/gravitational/teleport/lib/types/header"
 )
 
 func TestRoundtrip(t *testing.T) {
-	accessList, err := types.NewAccessList(
+	accessList, err := accesslist.NewAccessList(
 		header.Metadata{
 			Name: "access-list",
 		},
-		types.AccessListSpec{
+		accesslist.AccessListSpec{
 			Description: "test access list",
-			Owners: []types.AccessListOwner{
+			Owners: []accesslist.AccessListOwner{
 				{
 					Name:        "test-user1",
 					Description: "test user 1",
@@ -44,31 +44,31 @@ func TestRoundtrip(t *testing.T) {
 					Description: "test user 2",
 				},
 			},
-			Audit: types.AccessListAudit{
+			Audit: accesslist.AccessListAudit{
 				Frequency: time.Hour,
 			},
-			MembershipRequires: types.AccessListRequires{
+			MembershipRequires: accesslist.AccessListRequires{
 				Roles: []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			OwnershipRequires: types.AccessListRequires{
+			OwnershipRequires: accesslist.AccessListRequires{
 				Roles: []string{"orole1", "orole2"},
 				Traits: map[string][]string{
 					"otrait1": {"ovalue1", "ovalue2"},
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			Grants: types.AccessListGrants{
+			Grants: accesslist.AccessListGrants{
 				Roles: []string{"grole1", "grole2"},
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
-			Members: []types.AccessListMember{
+			Members: []accesslist.AccessListMember{
 				{
 					Name:    "member1",
 					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -88,7 +88,7 @@ func TestRoundtrip(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	converted, err := FromV1(ToV1(accessList))
+	converted, err := FromProto(ToProto(accessList))
 	require.NoError(t, err)
 
 	require.Empty(t, cmp.Diff(accessList, converted))
