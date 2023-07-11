@@ -4519,6 +4519,15 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.validateCloudNetworkConfigUpdate(newNetConfig, oldNetConf); err != nil {
+		return trace.Wrap(err)
+	}
+
 	_, err = a.authServer.UpsertClusterNetworkingConfig(ctx, newNetConfig)
 	var msg string
 	if err != nil {
@@ -4539,9 +4548,39 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 	}); auditErr != nil {
 		log.WithError(auditErr).Warn("Failed to emit cluster networking config update event event.")
 	}
-
 	return trace.Wrap(err)
 
+}
+
+func (a *ServerWithRoles) validateCloudNetworkConfigUpdate(newConfig, oldConfig types.ClusterNetworkingConfig) error {
+	if a.hasBuiltinRole(types.RoleAdmin) {
+		return nil
+	}
+
+	if !modules.GetModules().Features().Cloud {
+		return nil
+	}
+
+	const cloudUpdateFailureMsg = "cloud tenants cannot update %q"
+
+	if newConfig.GetProxyListenerMode() != oldConfig.GetProxyListenerMode() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "proxy_listener_mode")
+	}
+	newtst, _ := newConfig.GetTunnelStrategyType()
+	oldtst, _ := oldConfig.GetTunnelStrategyType()
+	if newtst != oldtst {
+		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
+	}
+
+	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
+	}
+
+	if newConfig.GetKeepAliveCountMax() != oldConfig.GetKeepAliveCountMax() {
+		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_count_max")
+	}
+
+	return nil
 }
 
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
@@ -4558,6 +4597,14 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
 			return trace.Wrap(err)
 		}
+	}
+	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
+	if err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.validateCloudNetworkConfigUpdate(types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
+		return trace.Wrap(err)
 	}
 
 	if err := a.context.AuthorizeAdminAction(); err != nil {
