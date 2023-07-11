@@ -22,7 +22,7 @@ import (
 
 	"github.com/gravitational/trace"
 	"github.com/jonboulle/clockwork"
-	"github.com/sirupsen/logrus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
@@ -74,7 +74,6 @@ func testTeletermGatewaysCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack)
 		testGatewayCertRenewal(t, pack, albProxy.Addr().String(), creds, databaseURI)
 	})
 }
-
 func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr string, creds *helpers.UserCreds, databaseURI uri.ResourceURI) {
 	tc, err := pack.Root.Cluster.NewClientWithCreds(helpers.ClientConfig{
 		Login:   pack.Root.User.GetName(),
@@ -96,28 +95,23 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr 
 	})
 	require.NoError(t, err)
 
-	tshdEventsClient := &mockTSHDEventsClient{
-		tc:         tc,
-		pack:       pack,
-		callCounts: make(map[string]int),
-	}
-
-	gatewayCertReissuer := &daemon.GatewayCertReissuer{
-		Log:              logrus.NewEntry(logrus.StandardLogger()).WithField(trace.Component, "reissuer"),
-		TSHDEventsClient: tshdEventsClient,
-	}
-
 	daemonService, err := daemon.New(daemon.Config{
 		Storage: storage,
 		CreateTshdEventsClientCredsFunc: func() (grpc.DialOption, error) {
 			return grpc.WithTransportCredentials(insecure.NewCredentials()), nil
 		},
-		GatewayCertReissuer: gatewayCertReissuer,
 	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		daemonService.Stop()
 	})
+
+	// Create a mock tshd events service server and have the daemon connect to it,
+	// like it would during normal initialization of the app.
+
+	tshdEventsService, tshEventsServerAddr := newMockTSHDEventsServiceServer(t, tc, pack)
+	err = daemonService.UpdateAndDialTshdEventsServerAddress(tshEventsServerAddr)
+	require.NoError(t, err)
 
 	// Here the test setup ends and actual test code starts.
 
@@ -171,21 +165,47 @@ func testGatewayCertRenewal(t *testing.T, pack *dbhelpers.DatabasePack, albAddr 
 	// Disconnect.
 	require.NoError(t, client.Close())
 
-	require.Equal(t, 1, tshdEventsClient.callCounts["Relogin"],
+	require.Equal(t, 1, tshdEventsService.callCounts["Relogin"],
 		"Unexpected number of calls to TSHDEventsClient.Relogin")
-	require.Equal(t, 0, tshdEventsClient.callCounts["SendNotification"],
+	require.Equal(t, 0, tshdEventsService.callCounts["SendNotification"],
 		"Unexpected number of calls to TSHDEventsClient.SendNotification")
 }
 
-type mockTSHDEventsClient struct {
+type mockTSHDEventsService struct {
+	*api.UnimplementedTshdEventsServiceServer
+
 	tc         *libclient.TeleportClient
 	pack       *dbhelpers.DatabasePack
 	callCounts map[string]int
 }
 
+func newMockTSHDEventsServiceServer(t *testing.T, tc *libclient.TeleportClient, pack *dbhelpers.DatabasePack) (service *mockTSHDEventsService, addr string) {
+	t.Helper()
+
+	tshdEventsService := &mockTSHDEventsService{
+		tc:         tc,
+		pack:       pack,
+		callCounts: make(map[string]int),
+	}
+
+	ls, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	grpcServer := grpc.NewServer()
+	api.RegisterTshdEventsServiceServer(grpcServer, tshdEventsService)
+	t.Cleanup(grpcServer.GracefulStop)
+
+	go func() {
+		err := grpcServer.Serve(ls)
+		assert.NoError(t, err)
+	}()
+
+	return tshdEventsService, ls.Addr().String()
+}
+
 // Relogin simulates the act of the user logging in again in the Electron app by replacing the user
 // cert on disk with a valid one.
-func (c *mockTSHDEventsClient) Relogin(context.Context, *api.ReloginRequest, ...grpc.CallOption) (*api.ReloginResponse, error) {
+func (c *mockTSHDEventsService) Relogin(context.Context, *api.ReloginRequest) (*api.ReloginResponse, error) {
 	c.callCounts["Relogin"]++
 	creds, err := helpers.GenerateUserCreds(helpers.UserCredsRequest{
 		Process:  c.pack.Root.Cluster.Process,
@@ -202,7 +222,7 @@ func (c *mockTSHDEventsClient) Relogin(context.Context, *api.ReloginRequest, ...
 	return &api.ReloginResponse{}, nil
 }
 
-func (c *mockTSHDEventsClient) SendNotification(context.Context, *api.SendNotificationRequest, ...grpc.CallOption) (*api.SendNotificationResponse, error) {
+func (c *mockTSHDEventsService) SendNotification(context.Context, *api.SendNotificationRequest) (*api.SendNotificationResponse, error) {
 	c.callCounts["SendNotification"]++
 	return &api.SendNotificationResponse{}, nil
 }
