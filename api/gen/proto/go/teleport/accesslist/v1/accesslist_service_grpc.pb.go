@@ -50,10 +50,10 @@ type AccessListServiceClient interface {
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(ctx context.Context, in *GetAccessListRequest, opts ...grpc.CallOption) (*GetAccessListResponse, error)
 	// UpsertAccessList creates or updates an access list resource.
-	UpsertAccessList(ctx context.Context, in *UpsertAccessListRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteAccessList removes the specified access list resource.
+	UpsertAccessList(ctx context.Context, in *UpsertAccessListRequest, opts ...grpc.CallOption) (*UpsertAccessListResponse, error)
+	// DeleteAccessList hard deletes the specified access list resource.
 	DeleteAccessList(ctx context.Context, in *DeleteAccessListRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
-	// DeleteAllAccessLists removes all access lists.
+	// DeleteAllAccessLists hard deletes all access lists.
 	DeleteAllAccessLists(ctx context.Context, in *DeleteAllAccessListsRequest, opts ...grpc.CallOption) (*emptypb.Empty, error)
 }
 
@@ -83,8 +83,8 @@ func (c *accessListServiceClient) GetAccessList(ctx context.Context, in *GetAcce
 	return out, nil
 }
 
-func (c *accessListServiceClient) UpsertAccessList(ctx context.Context, in *UpsertAccessListRequest, opts ...grpc.CallOption) (*emptypb.Empty, error) {
-	out := new(emptypb.Empty)
+func (c *accessListServiceClient) UpsertAccessList(ctx context.Context, in *UpsertAccessListRequest, opts ...grpc.CallOption) (*UpsertAccessListResponse, error) {
+	out := new(UpsertAccessListResponse)
 	err := c.cc.Invoke(ctx, AccessListService_UpsertAccessList_FullMethodName, in, out, opts...)
 	if err != nil {
 		return nil, err
@@ -119,10 +119,10 @@ type AccessListServiceServer interface {
 	// GetAccessList returns the specified access list resource.
 	GetAccessList(context.Context, *GetAccessListRequest) (*GetAccessListResponse, error)
 	// UpsertAccessList creates or updates an access list resource.
-	UpsertAccessList(context.Context, *UpsertAccessListRequest) (*emptypb.Empty, error)
-	// DeleteAccessList removes the specified access list resource.
+	UpsertAccessList(context.Context, *UpsertAccessListRequest) (*UpsertAccessListResponse, error)
+	// DeleteAccessList hard deletes the specified access list resource.
 	DeleteAccessList(context.Context, *DeleteAccessListRequest) (*emptypb.Empty, error)
-	// DeleteAllAccessLists removes all access lists.
+	// DeleteAllAccessLists hard deletes all access lists.
 	DeleteAllAccessLists(context.Context, *DeleteAllAccessListsRequest) (*emptypb.Empty, error)
 	mustEmbedUnimplementedAccessListServiceServer()
 }
@@ -137,7 +137,7 @@ func (UnimplementedAccessListServiceServer) GetAccessLists(context.Context, *Get
 func (UnimplementedAccessListServiceServer) GetAccessList(context.Context, *GetAccessListRequest) (*GetAccessListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method GetAccessList not implemented")
 }
-func (UnimplementedAccessListServiceServer) UpsertAccessList(context.Context, *UpsertAccessListRequest) (*emptypb.Empty, error) {
+func (UnimplementedAccessListServiceServer) UpsertAccessList(context.Context, *UpsertAccessListRequest) (*UpsertAccessListResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method UpsertAccessList not implemented")
 }
 func (UnimplementedAccessListServiceServer) DeleteAccessList(context.Context, *DeleteAccessListRequest) (*emptypb.Empty, error) {

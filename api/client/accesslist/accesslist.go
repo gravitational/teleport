@@ -19,9 +19,9 @@ import (
 
 	"github.com/gravitational/trace/trail"
 
-	conv "github.com/gravitational/teleport/api/convert/teleport/accesslist/v1"
 	accesslistv1 "github.com/gravitational/teleport/api/gen/proto/go/teleport/accesslist/v1"
-	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/lib/types/accesslist"
+	conv "github.com/gravitational/teleport/lib/types/accesslist/convert/v1"
 )
 
 // Client is an access list client that conforms to the following lib/services interfaces:
@@ -38,16 +38,16 @@ func NewClient(grpcClient accesslistv1.AccessListServiceClient) *Client {
 }
 
 // GetAccessLists returns a list of all access lists.
-func (c *Client) GetAccessLists(ctx context.Context) ([]*types.AccessList, error) {
+func (c *Client) GetAccessLists(ctx context.Context) ([]*accesslist.AccessList, error) {
 	resp, err := c.grpcClient.GetAccessLists(ctx, &accesslistv1.GetAccessListsRequest{})
 	if err != nil {
 		return nil, trail.FromGRPC(err)
 	}
 
-	accessLists := make([]*types.AccessList, len(resp.AccessLists))
+	accessLists := make([]*accesslist.AccessList, len(resp.AccessLists))
 	for i, accessList := range resp.AccessLists {
 		var err error
-		accessLists[i], err = conv.FromV1(accessList)
+		accessLists[i], err = conv.FromProto(accessList)
 		if err != nil {
 			return nil, trail.FromGRPC(err)
 		}
@@ -57,7 +57,7 @@ func (c *Client) GetAccessLists(ctx context.Context) ([]*types.AccessList, error
 }
 
 // GetAccessList returns the specified access list resource.
-func (c *Client) GetAccessList(ctx context.Context, name string) (*types.AccessList, error) {
+func (c *Client) GetAccessList(ctx context.Context, name string) (*accesslist.AccessList, error) {
 	resp, err := c.grpcClient.GetAccessList(ctx, &accesslistv1.GetAccessListRequest{
 		Name: name,
 	})
@@ -65,14 +65,18 @@ func (c *Client) GetAccessList(ctx context.Context, name string) (*types.AccessL
 		return nil, trail.FromGRPC(err)
 	}
 
-	accessList, err := conv.FromV1(resp.AccessList)
+	accessList, err := conv.FromProto(resp.AccessList)
 	return accessList, trail.FromGRPC(err)
 }
 
 // UpsertAccessList creates or updates an access list resource.
-func (c *Client) UpsertAccessList(ctx context.Context, accessList *types.AccessList) error {
-	_, err := c.grpcClient.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{})
-	return trail.FromGRPC(err)
+func (c *Client) UpsertAccessList(ctx context.Context, accessList *accesslist.AccessList) (*accesslist.AccessList, error) {
+	resp, err := c.grpcClient.UpsertAccessList(ctx, &accesslistv1.UpsertAccessListRequest{})
+	if err != nil {
+		return nil, trail.FromGRPC(err)
+	}
+	responseAccessList, err := conv.FromProto(resp.AccessList)
+	return responseAccessList, trail.FromGRPC(err)
 }
 
 // DeleteAccessList removes the specified access list resource.
