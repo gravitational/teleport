@@ -16,6 +16,7 @@
 
 import { pipeline } from 'node:stream/promises';
 import { createReadStream } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createUnzip } from 'node:zlib';
 import { execFile } from 'node:child_process';
@@ -75,7 +76,9 @@ export async function downloadAgent(
   const url = `${TELEPORT_CDN_ADDRESS}/${binaryName}`;
   await fileDownloader.run(url, settings.tempDataDir);
 
-  await unpack(join(settings.tempDataDir, binaryName), settings.sessionDataDir);
+  const binaryPath = join(settings.tempDataDir, binaryName);
+  await unpack(binaryPath, settings.sessionDataDir);
+  await rm(binaryPath);
 
   logger.info(`Downloaded agent v${version}.`);
 }

@@ -19,6 +19,7 @@
 import childProcess from 'node:child_process';
 import { PassThrough } from 'node:stream';
 import fs from 'node:fs';
+import fsPromises from 'node:fs/promises';
 import zlib from 'node:zlib';
 
 import tarFs from 'tar-fs';
@@ -33,6 +34,7 @@ import type { IFileDownloader } from './fileDownloader';
 
 jest.mock('node:child_process');
 jest.mock('node:fs');
+jest.mock('node:fs/promises');
 jest.mock('node:zlib');
 jest.mock('tar-fs');
 
@@ -160,10 +162,14 @@ test.each(testCases)(
         runtimeSettings.sessionDataDir,
         expect.anything()
       );
+      expect(fsPromises.rm).toHaveBeenCalledWith(
+        `${runtimeSettings.tempDataDir}/${shouldDownloadBinary}`
+      );
     } else {
       expect(fileDownloader.run).not.toHaveBeenCalled();
       expect(fs.createReadStream).not.toHaveBeenCalled();
       expect(tarFs.extract).not.toHaveBeenCalled();
+      expect(fsPromises.rm).not.toHaveBeenCalled();
     }
   }
 );
