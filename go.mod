@@ -6,7 +6,7 @@ require (
 	cloud.google.com/go/compute/metadata v0.2.3
 	cloud.google.com/go/container v1.22.1
 	cloud.google.com/go/firestore v1.11.0
-	cloud.google.com/go/iam v1.1.0
+	cloud.google.com/go/iam v1.1.1
 	cloud.google.com/go/kms v1.12.1
 	cloud.google.com/go/storage v1.31.0
 	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.6.0
@@ -39,18 +39,18 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/athena v1.30.2
 	github.com/aws/aws-sdk-go-v2/service/dynamodb v1.20.0
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.102.0
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.27.1
-	github.com/aws/aws-sdk-go-v2/service/glue v1.53.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.28.0
+	github.com/aws/aws-sdk-go-v2/service/glue v1.54.0
 	github.com/aws/aws-sdk-go-v2/service/iam v1.21.0
-	github.com/aws/aws-sdk-go-v2/service/rds v1.44.1
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.35.0
+	github.com/aws/aws-sdk-go-v2/service/rds v1.46.1
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.36.0
 	github.com/aws/aws-sdk-go-v2/service/sns v1.20.13
-	github.com/aws/aws-sdk-go-v2/service/sqs v1.22.0
+	github.com/aws/aws-sdk-go-v2/service/sqs v1.23.2
 	github.com/aws/aws-sdk-go-v2/service/sts v1.19.2
 	github.com/aws/aws-sigv4-auth-cassandra-gocql-driver-plugin v0.0.0-20220331165046-e4d000c0d6a6
 	github.com/aws/smithy-go v1.13.5
 	github.com/beevik/etree v1.2.0
-	github.com/bufbuild/connect-go v1.7.0
+	github.com/bufbuild/connect-go v1.9.0
 	github.com/buildkite/bintest/v3 v3.1.1
 	github.com/coreos/go-oidc v2.1.0+incompatible // replaced
 	github.com/coreos/go-semver v0.3.1
@@ -130,7 +130,7 @@ require (
 	github.com/prometheus/common v0.44.0
 	github.com/russellhaering/gosaml2 v0.9.1
 	github.com/russellhaering/goxmldsig v1.4.0
-	github.com/sashabaranov/go-openai v1.12.0
+	github.com/sashabaranov/go-openai v1.13.0
 	github.com/schollz/progressbar/v3 v3.13.1
 	github.com/segmentio/parquet-go v0.0.0-20230622230624-510764ae9e80
 	github.com/sethvargo/go-diceware v0.3.0
@@ -158,7 +158,7 @@ require (
 	golang.org/x/exp v0.0.0-20230213192124-5e25df0256eb
 	golang.org/x/mod v0.10.0
 	golang.org/x/net v0.12.0
-	golang.org/x/oauth2 v0.9.0
+	golang.org/x/oauth2 v0.10.0
 	golang.org/x/sync v0.3.0
 	golang.org/x/sys v0.10.0
 	golang.org/x/term v0.10.0
@@ -166,7 +166,7 @@ require (
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.130.0
 	google.golang.org/genproto v0.0.0-20230530153820-e85fd2cbaebc // indirect
-	google.golang.org/grpc v1.56.1
+	google.golang.org/grpc v1.56.2
 	google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.3.0
 	google.golang.org/grpc/examples v0.0.0-20221010194801-c67245195065
 	google.golang.org/protobuf v1.31.0
@@ -177,7 +177,7 @@ require (
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	k8s.io/api v0.27.3
-	k8s.io/apiextensions-apiserver v0.27.2
+	k8s.io/apiextensions-apiserver v0.27.3
 	k8s.io/apimachinery v0.27.3
 	k8s.io/apiserver v0.27.3
 	k8s.io/cli-runtime v0.27.3
@@ -200,7 +200,7 @@ require (
 
 require (
 	cloud.google.com/go v0.110.2 // indirect
-	cloud.google.com/go/compute v1.19.3 // indirect
+	cloud.google.com/go/compute v1.20.1 // indirect
 	cloud.google.com/go/longrunning v0.5.0 // indirect
 	cloud.google.com/go/pubsub v1.31.0 // indirect
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect

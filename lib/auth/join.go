@@ -143,9 +143,11 @@ func (a *Server) RegisterUsingToken(ctx context.Context, req *types.RegisterUsin
 			return nil, trace.Wrap(err)
 		}
 	case types.JoinMethodGCP:
-		if err := a.checkGCPJoinRequest(ctx, req); err != nil {
+		claims, err := a.checkGCPJoinRequest(ctx, req)
+		if err != nil {
 			return nil, trace.Wrap(err)
 		}
+		joinAttributeSrc = claims
 	case types.JoinMethodToken:
 		// carry on to common token checking logic
 	default:

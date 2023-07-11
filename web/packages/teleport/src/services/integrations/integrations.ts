@@ -46,8 +46,8 @@ export const integrationService = {
     });
   },
 
-  createIntegration(req: IntegrationCreateRequest): Promise<void> {
-    return api.post(cfg.getIntegrationsUrl(), req);
+  createIntegration(req: IntegrationCreateRequest): Promise<Integration> {
+    return api.post(cfg.getIntegrationsUrl(), req).then(makeIntegration);
   },
 
   updateIntegration(

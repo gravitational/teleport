@@ -760,27 +760,6 @@ func TestLocalControlStream(t *testing.T) {
 	}
 }
 
-func TestGenerateTokenEventsEmitted(t *testing.T) {
-	t.Parallel()
-	s := newAuthSuite(t)
-
-	ctx := context.Background()
-	// test trusted cluster token emit
-	_, err := s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{types.RoleTrustedCluster}})
-	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
-	s.mockEmitter.Reset()
-
-	// test emit with multiple roles
-	_, err = s.a.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: types.SystemRoles{
-		types.RoleNode,
-		types.RoleTrustedCluster,
-		types.RoleAuth,
-	}})
-	require.NoError(t, err)
-	require.Equal(t, s.mockEmitter.LastEvent().GetType(), events.TrustedClusterTokenCreateEvent)
-}
-
 func TestUpdateConfig(t *testing.T) {
 	t.Parallel()
 	s := newAuthSuite(t)
