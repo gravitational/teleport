@@ -154,6 +154,8 @@ func createBackendItem(username string, preferences *userpreferencesv1.UserPrefe
 }
 
 // overwriteValues overwrites the values in dst with the values in src.
+// This function uses proto.Ranges internally to iterate over the fields in src.
+// Because of this, only non-nil/empty fields in src will overwrite the values in dst.
 func overwriteValues(dst, src protoreflect.ProtoMessage) error {
 	d := dst.ProtoReflect()
 	s := src.ProtoReflect()
