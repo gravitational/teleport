@@ -4315,15 +4315,9 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 			tokenResp, err := rawAuthSvcClient.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: tt.roles})
 			tt.requireError(t, err)
 
-			// Expect last emitted audit events to match the expected ones.
-			emittedEvents := mockEmitter.Events()
-			emittedEventsSliceStart := len(emittedEvents) - len(tt.auditEvents)
-			if emittedEventsSliceStart < 0 {
-				emittedEventsSliceStart = 0
-			}
 			require.Empty(t, cmp.Diff(
 				tt.auditEvents,
-				emittedEvents[emittedEventsSliceStart:],
+				mockEmitter.Events(),
 				cmpopts.IgnoreFields(eventtypes.Metadata{}, "Time"),
 				cmpopts.IgnoreFields(eventtypes.ResourceMetadata{}, "Expires"),
 				cmpopts.EquateEmpty(),
