@@ -100,7 +100,6 @@ async function calculateAgentVersion(
 async function fetchLatestTeleportRelease(): Promise<string> {
   const response = await fetch(TELEPORT_RELEASES_ADDRESS);
   if (!response.ok) {
-    logger.error(response);
     throw new Error(
       `Failed to fetch ${TELEPORT_RELEASES_ADDRESS}. Status code: ${response.status}.`
     );
