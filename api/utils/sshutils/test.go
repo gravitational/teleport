@@ -27,6 +27,8 @@ import (
 	"github.com/gravitational/teleport/api/constants"
 )
 
+const defaultPrincipal = "127.0.0.1"
+
 // MakeTestSSHCA generates a new SSH certificate authority for tests.
 func MakeTestSSHCA() (ssh.Signer, error) {
 	privateKey, err := rsa.GenerateKey(rand.Reader, constants.RSAKeySize)
@@ -42,17 +44,23 @@ func MakeTestSSHCA() (ssh.Signer, error) {
 
 // MakeSpoofedHostCert makes an SSH host certificate that claims to be signed
 // by the provided CA but in fact is signed by a different CA.
-func MakeSpoofedHostCert(realCA ssh.Signer, principals ...string) (ssh.Signer, error) {
+func MakeSpoofedHostCert(realCA ssh.Signer) (ssh.Signer, error) {
 	fakeCA, err := MakeTestSSHCA()
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
-	return makeHostCert(realCA.PublicKey(), fakeCA, principals...)
+	return makeHostCert(realCA.PublicKey(), fakeCA, defaultPrincipal)
 }
 
 // MakeRealHostCert makes an SSH host certificate that is signed by the
 // provided CA.
-func MakeRealHostCert(realCA ssh.Signer, principals ...string) (ssh.Signer, error) {
+func MakeRealHostCert(realCA ssh.Signer) (ssh.Signer, error) {
+	return makeHostCert(realCA.PublicKey(), realCA, defaultPrincipal)
+}
+
+// MakeRealHostCertWithPrincipals makes an SSH host certificate that is signed by the
+// provided CA for the provided principals.
+func MakeRealHostCertWithPrincipals(realCA ssh.Signer, principals ...string) (ssh.Signer, error) {
 	return makeHostCert(realCA.PublicKey(), realCA, principals...)
 }
 
@@ -82,7 +90,7 @@ func makeHostCert(signKey ssh.PublicKey, signer ssh.Signer, principals ...string
 		Key:             pub,
 		CertType:        ssh.HostCert,
 		SignatureKey:    signKey,
-		ValidPrincipals: append(principals, "127.0.0.1"),
+		ValidPrincipals: principals,
 		ValidBefore:     uint64(time.Now().Add(time.Hour).Unix()),
 	}
 
