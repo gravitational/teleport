@@ -230,7 +230,7 @@
               "forScopes": ["enterprise", "cloud"]
             },
             {
-              "title": "Hardware Key Support (Preview)",
+              "title": "Hardware Key Support",
               "slug": "/access-controls/guides/hardware-key-support/",
               "forScopes": ["enterprise", "cloud"]
             },
@@ -472,9 +472,9 @@
 	{
 	  "title": "Using Dynamic Resources",
 	  "slug": "/management/dynamic-resources/",
-	  "entries": [            
+	  "entries": [
 	    {
-              "title": "Kubernetes Operator (Preview)",
+              "title": "Kubernetes Operator",
               "slug": "/management/dynamic-resources/teleport-operator/",
               "forScopes": ["oss","enterprise"]
             },
@@ -875,11 +875,11 @@
               "slug": "/server-access/guides/auditd/"
             },
             {
-              "title": "EC2 Instance Discovery (Preview)",
+              "title": "EC2 Instance Discovery",
               "slug": "/server-access/guides/ec2-discovery/"
             },
             {
-              "title": "Azure Instance Discovery (Preview)",
+              "title": "Azure Instance Discovery",
               "slug": "/server-access/guides/azure-discovery/"
             },
             {
@@ -907,7 +907,7 @@
           "slug": "/kubernetes-access/getting-started/"
         },
         {
-          "title": "Kubernetes Discovery (Preview)",
+          "title": "Kubernetes Discovery",
           "slug": "/kubernetes-access/discovery/",
           "entries": [
             {
@@ -1023,7 +1023,7 @@
               "slug": "/database-access/guides/azure-postgres-mysql/"
             },
             {
-              "title": "Azure SQL Server (Preview)",
+              "title": "Azure SQL Server",
               "slug": "/database-access/guides/azure-sql-server-ad/"
             },
             {
@@ -1047,11 +1047,11 @@
               "slug": "/database-access/guides/mongodb-atlas/"
             },
             {
-              "title": "SQL Server (Preview)",
+              "title": "SQL Server",
               "slug": "/database-access/guides/sql-server-ad/"
             },
             {
-              "title": "SQL Server with PKINIT (Preview)",
+              "title": "SQL Server with PKINIT",
               "slug": "/database-access/guides/sql-server-ad-pkinit/"
             },
             {
@@ -1087,12 +1087,12 @@
               "slug": "/database-access/guides/redis-cluster/"
             },
             {
-              "title": "Self-Hosted Oracle (Preview)",
+              "title": "Self-Hosted Oracle",
               "forScopes": ["enterprise", "cloud"],
               "slug": "/database-access/guides/oracle-self-hosted/"
             },
             {
-              "title": "Snowflake (Preview)",
+              "title": "Snowflake",
               "slug": "/database-access/guides/snowflake/"
             }
           ]
