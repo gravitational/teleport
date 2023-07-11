@@ -4007,15 +4007,9 @@ func TestGRPCServer_CreateTokenV2(t *testing.T) {
 			err = client.CreateToken(ctx, tt.token)
 			tt.requireError(t, err)
 
-			// Expect last emitted audit events to match the expected ones.
-			emittedEvents := mockEmitter.Events()
-			emittedEventsSliceStart := len(emittedEvents) - len(tt.auditEvents)
-			if emittedEventsSliceStart < 0 {
-				emittedEventsSliceStart = 0
-			}
 			require.Empty(t, cmp.Diff(
 				tt.auditEvents,
-				emittedEvents[emittedEventsSliceStart:],
+				mockEmitter.Events(),
 				cmpopts.IgnoreFields(eventtypes.Metadata{}, "Time"),
 				cmpopts.IgnoreFields(eventtypes.ResourceMetadata{}, "Expires"),
 				cmpopts.EquateEmpty(),
@@ -4190,15 +4184,9 @@ func TestGRPCServer_UpsertTokenV2(t *testing.T) {
 			err = client.UpsertToken(ctx, tt.token)
 			tt.requireError(t, err)
 
-			// Expect last emitted audit events to match the expected ones.
-			emittedEvents := mockEmitter.Events()
-			emittedEventsSliceStart := len(emittedEvents) - len(tt.auditEvents)
-			if emittedEventsSliceStart < 0 {
-				emittedEventsSliceStart = 0
-			}
 			require.Empty(t, cmp.Diff(
 				tt.auditEvents,
-				emittedEvents[emittedEventsSliceStart:],
+				mockEmitter.Events(),
 				cmpopts.IgnoreFields(eventtypes.Metadata{}, "Time"),
 				cmpopts.IgnoreFields(eventtypes.ResourceMetadata{}, "Expires"),
 				cmpopts.EquateEmpty(),
@@ -4319,7 +4307,7 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 			client, err := ac.server.NewClient(tt.identity)
 			require.NoError(t, err)
 			// The client doesn't expose the deprecated GenerateToken method, so we
-			// need to cerate a raw AuthService client using the API client's
+			// need to create a raw AuthService client using the API client's
 			// connection.
 			rawAuthSvcClient := proto.NewAuthServiceClient(client.APIClient.GetConnection())
 
@@ -4327,29 +4315,17 @@ func TestGRPCServer_GenerateToken(t *testing.T) {
 			tokenResp, err := rawAuthSvcClient.GenerateToken(ctx, &proto.GenerateTokenRequest{Roles: tt.roles})
 			tt.requireError(t, err)
 
-			// Expect last emitted audit events to match the expected ones.
-			emittedEvents := mockEmitter.Events()
-			emittedEventsSliceStart := len(emittedEvents) - len(tt.auditEvents)
-			if emittedEventsSliceStart < 0 {
-				emittedEventsSliceStart = 0
-			}
 			require.Empty(t, cmp.Diff(
 				tt.auditEvents,
-				emittedEvents[emittedEventsSliceStart:],
+				mockEmitter.Events(),
 				cmpopts.IgnoreFields(eventtypes.Metadata{}, "Time"),
 				cmpopts.IgnoreFields(eventtypes.ResourceMetadata{}, "Expires"),
 				cmpopts.EquateEmpty(),
 			))
 			if tt.requireTokenCreated {
-				// tokens, err := ac.server.Auth().GetTokens(ctx)
 				createdToken, err := ac.server.Auth().GetToken(ctx, tokenResp.Token)
 				require.NoError(t, err)
 				assert.Equal(t, tt.roles, createdToken.GetRoles())
-				// si := slices.IndexFunc(tokens, func(t types.ProvisionToken) bool {
-				// 	return t.V1().Token == tokenResp.Token
-				// })
-				// require.True(t, si >= 0, "Token not found")
-				// assert.Equal(t, tt.roles, tokens[si].GetRoles())
 			}
 		})
 	}
