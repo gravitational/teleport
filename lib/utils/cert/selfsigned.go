@@ -86,8 +86,7 @@ func GenerateSelfSignedCert(hostNames []string, ipAddresses ...string) (*Credent
 	ips, _ := net.LookupIP("localhost")
 	if ips != nil {
 		template.IPAddresses = append(ips, net.ParseIP("::1"))
-	}
-	// Add
+	}	
 	for _, ip := range ipAddresses {
 		template.IPAddresses = append(template.IPAddresses, net.ParseIP(ip))
 	}
