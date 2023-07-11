@@ -119,6 +119,7 @@ func LoginWebClient(t *testing.T, host, username, password string) *WebClientPac
 // DoRequest receives a method, endpoint and payload and sends an HTTP Request to the Teleport API.
 // The endpoint must not contain the host neither the base path ('/v1/webapi/').
 // Status Code and Body are returned.
+// "$site" in the endpoint is substituted by the current site.
 func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload any) (int, []byte) {
 	endpoint = fmt.Sprintf("https://%s/v1/webapi/%s", w.host, endpoint)
 	endpoint = strings.ReplaceAll(endpoint, "$site", w.clusterName)
@@ -149,7 +150,10 @@ func (w *WebClientPack) DoRequest(t *testing.T, method, endpoint string, payload
 	return resp.StatusCode, body
 }
 
-// TODO: docstring
+// OpenWebsocket opens a websocket on a given Teleport API endpoint.
+// The endpoint must not contain the host neither the base path ('/v1/webapi/').
+// Raw websocket and HTTP response are returned.
+// "$site" in the endpoint is substituted by the current site.
 func (w *WebClientPack) OpenWebsocket(t *testing.T, endpoint string, params any) (*websocket.Conn, *http.Response, error) {
 	path, err := url.JoinPath("v1", "webapi", strings.ReplaceAll(endpoint, "$site", w.clusterName))
 	require.NoError(t, err)
