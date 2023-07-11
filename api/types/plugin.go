@@ -40,6 +40,8 @@ const (
 	PluginTypeJamf = "jamf"
 	// PluginTypeOpsgenie is the Opsgenie access request plugin
 	PluginTypeOpsgenie = "opsgenie"
+	// PluginTypePagerDuty is the PagerDuty access plugin
+	PluginTypePagerDuty = "pagerduty"
 )
 
 // PluginSubkind represents the type of the plugin, e.g., access request, MDM etc.
@@ -183,6 +185,13 @@ func (p *PluginV1) CheckAndSetDefaults() error {
 		if len(staticCreds.Labels) == 0 {
 			return trace.BadParameter("labels must be specified")
 		}
+	case *PluginSpecV1_PagerDuty:
+		if settings.PagerDuty == nil {
+			return trace.BadParameter("missing PagerDuty settings")
+		}
+		if err := settings.PagerDuty.CheckAndSetDefaults(); err != nil {
+			return trace.Wrap(err)
+		}
 	default:
 		return trace.BadParameter("settings are not set or have an unknown type")
 	}
@@ -321,6 +330,8 @@ func (p *PluginV1) GetType() PluginType {
 		return PluginTypeJamf
 	case *PluginSpecV1_Opsgenie:
 		return PluginTypeOpsgenie
+	case *PluginSpecV1_PagerDuty:
+		return PluginTypePagerDuty
 	default:
 		return PluginTypeUnknown
 	}
@@ -370,6 +381,18 @@ func (c *PluginOAuth2AuthorizationCodeCredentials) CheckAndSetDefaults() error {
 		return trace.BadParameter("redirect_uri must be set")
 	}
 
+	return nil
+}
+
+// CheckAndSetDefaults validates and set the default PagerDuty values
+func (c *PluginPagerDutySettings) CheckAndSetDefaults() error {
+	if c.ApiEndpoint == "" {
+		return trace.BadParameter("api_endpoint must be set")
+	}
+
+	if c.UserEmail == "" {
+		return trace.BadParameter("user_email must be set")
+	}
 	return nil
 }
 

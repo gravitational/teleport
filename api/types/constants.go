@@ -591,6 +591,10 @@ const (
 	//           but user changes to these resources will be preserved.
 	TeleportInternalResourceType = TeleportInternalLabelPrefix + "resource-type"
 
+	// TeleportResourceRevision marks a teleport-managed resource with a reversion
+	// number to aid future migrations. Label value is expected to be a number.
+	TeleportResourceRevision = TeleportInternalLabelPrefix + "revision"
+
 	// SystemResource are resources that will be automatically created and overwritten on startup. Users
 	// should not change these resources.
 	SystemResource = "system"
