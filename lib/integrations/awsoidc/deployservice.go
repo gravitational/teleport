@@ -22,8 +22,10 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/ecs"
 	ecsTypes "github.com/aws/aws-sdk-go-v2/service/ecs/types"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/gravitational/trace"
 	"golang.org/x/exp/slices"
 
@@ -91,6 +93,10 @@ type DeployServiceRequest struct {
 	// Region is the AWS Region
 	Region string
 
+	// AccountID is the AWS Account ID.
+	// Optional. sts.GetCallerIdentity is used if the value is not provided.
+	AccountID string
+
 	// SubnetIDs are the subnets associated with the service.
 	SubnetIDs []string
 
@@ -135,6 +141,13 @@ type DeployServiceRequest struct {
 	// DatabaseResourceMatcherLabels contains the set of labels to be used by the DatabaseService.
 	// This is used when the deployment mode creates a Database Service.
 	DatabaseResourceMatcherLabels types.Labels
+
+	// TeleportVersionTag is the version of teleport to install.
+	// Ensure the tag exists in:
+	// public.ecr.aws/gravitational/teleport-distroless:<TeleportVersionTag>
+	// Eg, 13.2.0
+	// Optional. Defaults to the current version.
+	TeleportVersionTag string
 }
 
 // normalizeECSResourceName converts a name into a valid ECS Resource Name.
@@ -166,6 +179,10 @@ func (r *DeployServiceRequest) CheckAndSetDefaults() error {
 		return trace.BadParameter("teleport cluster name is required")
 	}
 	baseResourceName := normalizeECSResourceName(r.TeleportClusterName)
+
+	if r.TeleportVersionTag == "" {
+		r.TeleportVersionTag = teleport.Version
+	}
 
 	if r.TeleportIAMTokenName == nil || *r.TeleportIAMTokenName == "" {
 		r.TeleportIAMTokenName = &defaultTeleportIAMTokenName
@@ -269,11 +286,54 @@ type DeployServiceClient interface {
 	// RegisterTaskDefinition registers a new task definition from the supplied family and containerDefinitions.
 	// https://pkg.go.dev/github.com/aws/aws-sdk-go-v2/service/ecs@v1.27.1#Client.RegisterTaskDefinition
 	RegisterTaskDefinition(ctx context.Context, params *ecs.RegisterTaskDefinitionInput, optFns ...func(*ecs.Options)) (*ecs.RegisterTaskDefinitionOutput, error)
+
+	// TokenService are the required methods to manage the IAM Join Token.
+	// When the deployed service connects to the cluster, it will use the IAM Join method.
+	// Before deploying the service, it must ensure that the token exists and has the appropriate token rul.
+	TokenService
+
+	// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
+	GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error)
+}
+
+type defaultDeployServiceClient struct {
+	*ecs.Client
+	stsClient          *sts.Client
+	tokenServiceClient TokenService
+}
+
+// GetToken returns a provision token by name.
+func (d *defaultDeployServiceClient) GetToken(ctx context.Context, name string) (types.ProvisionToken, error) {
+	return d.tokenServiceClient.GetToken(ctx, name)
+}
+
+// UpsertToken creates or updates a provision token.
+func (d *defaultDeployServiceClient) UpsertToken(ctx context.Context, token types.ProvisionToken) error {
+	return d.tokenServiceClient.UpsertToken(ctx, token)
+}
+
+// GetCallerIdentity returns details about the IAM user or role whose credentials are used to call the operation.
+func (d defaultDeployServiceClient) GetCallerIdentity(ctx context.Context, params *sts.GetCallerIdentityInput, optFns ...func(*sts.Options)) (*sts.GetCallerIdentityOutput, error) {
+	return d.stsClient.GetCallerIdentity(ctx, params, optFns...)
 }
 
 // NewDeployServiceClient creates a new DeployServiceClient using a AWSClientRequest.
-func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest) (DeployServiceClient, error) {
-	return newECSClient(ctx, clientReq)
+func NewDeployServiceClient(ctx context.Context, clientReq *AWSClientRequest, tokenServiceClient TokenService) (DeployServiceClient, error) {
+	ecsClient, err := newECSClient(ctx, clientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	stsClient, err := newSTSClient(ctx, clientReq)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return &defaultDeployServiceClient{
+		Client:             ecsClient,
+		stsClient:          stsClient,
+		tokenServiceClient: tokenServiceClient,
+	}, nil
 }
 
 // DeployService calls Amazon ECS APIs to deploy a Teleport Service.
@@ -312,6 +372,26 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 		return nil, trace.Wrap(err)
 	}
 
+	if req.AccountID == "" {
+		callerIdentity, err := clt.GetCallerIdentity(ctx, nil)
+		if err != nil {
+			return nil, trace.Wrap(err)
+		}
+
+		req.AccountID = aws.ToString(callerIdentity.Account)
+	}
+
+	upsertTokenReq := upsertIAMJoinTokenRequest{
+		tokenName:      *req.TeleportIAMTokenName,
+		accountID:      req.AccountID,
+		region:         req.Region,
+		iamRole:        req.TaskRoleARN,
+		deploymentMode: req.DeploymentMode,
+	}
+	if err := upsertIAMJoinToken(ctx, upsertTokenReq, clt); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	teleportConfigString, err := generateTeleportConfigString(req)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -345,7 +425,7 @@ func DeployService(ctx context.Context, clt DeployServiceClient, req DeployServi
 
 // upsertTask ensures a TaskDefinition with TaskName exists
 func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceRequest, configB64 string) (*ecsTypes.TaskDefinition, error) {
-	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, teleport.Version)
+	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, req.TeleportVersionTag)
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,
