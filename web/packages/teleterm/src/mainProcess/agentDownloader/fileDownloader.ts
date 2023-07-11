@@ -98,7 +98,7 @@ export class FileDownloader implements IFileDownloader {
           case 'interrupted':
             // TODO(gzdunek): electron doesn't expose much information about why the download failed.
             // Fortunately, there is a PR in works that will add more info https://github.com/electron/electron/pull/38859.
-            // Use Use DownloadItem.getLastReason() when merged.
+            // Use DownloadItem.getLastReason() when it gets merged.
             onDownloadError(
               new Error(
                 `Download failed. Requested file may not exist or is temporarily unavailable.`

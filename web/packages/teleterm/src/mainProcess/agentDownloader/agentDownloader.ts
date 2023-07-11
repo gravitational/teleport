@@ -77,7 +77,7 @@ export async function downloadAgent(
 
   await unpack(join(settings.tempDataDir, binaryName), settings.sessionDataDir);
 
-  logger.info(`Downloaded agent v.${version}.`);
+  logger.info(`Downloaded agent v${version}.`);
 }
 
 async function calculateAgentVersion(
