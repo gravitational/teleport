@@ -108,12 +108,13 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 			return noCertsReloaded, trace.Wrap(err, "creating role %v", role.GetName())
 		}
 	} else {
-		if slices.Contains(clusterUser.GetLogins(), systemUser.Username) {
+		allowedLogins := existingRole.GetLogins(types.Allow)
+
+		if slices.Contains(allowedLogins, systemUser.Username) {
 			s.cfg.Log.Infof("The role %v already exists and includes current system username.", roleName)
 		} else {
 			s.cfg.Log.Infof("Adding %v to the logins of the role %v.", systemUser.Username, roleName)
 
-			allowedLogins := existingRole.GetLogins(types.Allow)
 			existingRole.SetLogins(types.Allow, append(allowedLogins, systemUser.Username))
 
 			timeoutCtx, cancel := context.WithTimeout(ctx, 15*time.Second)
