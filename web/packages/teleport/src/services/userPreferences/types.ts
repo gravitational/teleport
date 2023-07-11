@@ -16,7 +16,6 @@
 
 import { DeprecatedThemeOption } from 'design/theme';
 
-import { ProtoResource } from 'teleport/Welcome/Questionnaire/types';
 import type { AssistUserPreferences } from 'teleport/Assist/types';
 
 export enum ThemePreference {
@@ -24,8 +23,17 @@ export enum ThemePreference {
   Dark = 2,
 }
 
+export enum ClusterResource {
+  RESOURCE_UNSPECIFIED = 0,
+  RESOURCE_WINDOWS_DESKTOPS = 1,
+  RESOURCE_SERVER_SSH = 2,
+  RESOURCE_DATABASES = 3,
+  RESOURCE_KUBERNETES = 4,
+  RESOURCE_WEB_APPLICATIONS = 5,
+}
+
 export type OnboardUserPreferences = {
-  preferredResources: ProtoResource[];
+  preferredResources: ClusterResource[];
 };
 
 export interface UserPreferences {

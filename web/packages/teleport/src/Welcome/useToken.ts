@@ -33,8 +33,6 @@ export default function useToken(tokenId: string): UseTokenState {
   const [recoveryCodes, setRecoveryCodes] = useState<RecoveryCodes>();
   const [success, setSuccess] = useState(false); // TODO rename
   const [privateKeyPolicyEnabled, setPrivateKeyPolicyEnabled] = useState(false);
-  const [displayOnboardingQuestionnaire, setDisplayOnboardingQuestionnaire] =
-    useState(cfg.isUsageBasedBilling && cfg.isCloud);
 
   const fetchAttempt = useAttempt('');
   const submitAttempt = useAttempt('');
@@ -112,7 +110,5 @@ export default function useToken(tokenId: string): UseTokenState {
     success,
     finishedRegister,
     privateKeyPolicyEnabled,
-    displayOnboardingQuestionnaire,
-    setDisplayOnboardingQuestionnaire,
   };
 }

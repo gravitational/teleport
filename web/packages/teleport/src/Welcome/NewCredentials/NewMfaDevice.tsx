@@ -30,9 +30,11 @@ import createMfaOptions from 'shared/utils/createMfaOptions';
 import { useRefAutoFocus } from 'shared/hooks';
 import { Auth2faType } from 'shared/services';
 
-import { UseTokenState } from 'teleport/Welcome/NewCredentials/types';
+import {
+  SliderProps,
+  UseTokenState,
+} from 'teleport/Welcome/NewCredentials/types';
 
-import { SliderProps } from './NewCredentials';
 import secKeyGraphic from './sec-key-with-bg.png';
 
 export function NewMfaDevice(props: Props) {

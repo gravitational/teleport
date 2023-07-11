@@ -16,33 +16,27 @@ limitations under the License.
 
 import React, { useState } from 'react';
 import { Card } from 'design';
-import { PrimaryAuthType } from 'shared/services';
-import { NewFlow, StepComponentProps, StepSlider } from 'design/StepSlider';
+import { NewFlow, StepSlider } from 'design/StepSlider';
 
 import RecoveryCodes from 'teleport/components/RecoveryCodes';
 import { PrivateKeyLoginDisabledCard } from 'teleport/components/PrivateKeyPolicy';
-import { Questionnaire } from 'teleport/Welcome/Questionnaire/Questionnaire';
 import cfg from 'teleport/config';
+
+import { loginFlows } from 'teleport/Welcome/NewCredentials/constants';
 
 import useToken from '../useToken';
 
 import { Expired } from './Expired';
-import { NewCredentialsProps } from './types';
+import { LoginFlow, NewCredentialsProps } from './types';
 import { RegisterSuccess } from './Success';
-import { NewMfaDevice } from './NewMfaDevice';
-import { NewPasswordlessDevice } from './NewPasswordlessDevice';
-import { NewPassword } from './NewPassword';
 
-export type LoginFlow = Extract<PrimaryAuthType, 'passwordless' | 'local'>;
-export type SliderProps = StepComponentProps & {
-  changeFlow(f: NewFlow<LoginFlow>): void;
-};
-
-const loginFlows = {
-  local: [NewPassword, NewMfaDevice],
-  passwordless: [NewPasswordlessDevice],
-};
-
+/**
+ *
+ * @remarks
+ * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
+ * equivalent change should be applied in Enterprise
+ *
+ */
 export function Container({ tokenId = '', resetMode = false }) {
   const state = useToken(tokenId);
   return (
@@ -66,8 +60,6 @@ export function NewCredentials(props: NewCredentialsProps) {
     finishedRegister,
     privateKeyPolicyEnabled,
     isDashboard,
-    displayOnboardingQuestionnaire,
-    setDisplayOnboardingQuestionnaire,
   } = props;
 
   // Check which flow to render as default.
@@ -96,17 +88,6 @@ export function NewCredentials(props: NewCredentialsProps) {
     );
   }
 
-  if (success && !resetMode && displayOnboardingQuestionnaire) {
-    // todo (michellescripts) check cluster config to determine if all or partial questions are asked
-    return (
-      <Questionnaire
-        full={true}
-        username={resetToken.user}
-        onSubmit={() => setDisplayOnboardingQuestionnaire(false)}
-      />
-    );
-  }
-
   if (success) {
     return (
       <RegisterSuccess
@@ -129,7 +110,6 @@ export function NewCredentials(props: NewCredentialsProps) {
     );
   }
 
-  // display credentials flow
   function onSwitchFlow(flow: LoginFlow) {
     setFlow(flow);
   }

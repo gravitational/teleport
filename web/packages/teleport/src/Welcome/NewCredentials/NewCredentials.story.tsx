@@ -17,10 +17,17 @@ limitations under the License.
 import React from 'react';
 import { Card } from 'design';
 
-import { NewCredentials, SliderProps } from './NewCredentials';
+import { NewCredentials } from './NewCredentials';
 import { NewMfaDevice } from './NewMfaDevice';
-import { NewCredentialsProps } from './types';
+import { NewCredentialsProps, SliderProps } from './types';
 
+/**
+ *
+ * @remarks
+ * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
+ * equivalent change should be applied in Enterprise
+ *
+ */
 export default {
   title: 'Teleport/Welcome/Form',
   component: NewCredentials,
@@ -246,6 +253,4 @@ const props: NewCredentialsProps = {
       'IYKEEEFCiCAh5KMwdgQ8OCEhRJAQ8v8AAAD//1QuL6EmJFBiAAAAAElFTkSuQmCC',
   },
   isDashboard: false,
-  displayOnboardingQuestionnaire: false,
-  setDisplayOnboardingQuestionnaire: () => {},
 };

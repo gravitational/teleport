@@ -19,6 +19,13 @@ import { render } from 'design/utils/testing';
 
 import * as story from './NewCredentials.story';
 
+/**
+ *
+ * @remarks
+ * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
+ * equivalent change should be applied in Enterprise
+ *
+ */
 test('story.PasswordOnlyError', () => {
   const { container } = render(<story.PasswordOnlyError />);
   expect(container.firstChild).toMatchSnapshot();

@@ -25,8 +25,7 @@ import {
 } from 'shared/components/Validation/rules';
 import { useRefAutoFocus } from 'shared/hooks';
 
-import { UseTokenState } from './types';
-import { SliderProps } from './NewCredentials';
+import { SliderProps, UseTokenState } from './types';
 
 export function NewPassword(props: Props) {
   const {

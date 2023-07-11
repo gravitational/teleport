@@ -20,6 +20,13 @@ import { MemoryRouter } from 'react-router-dom';
 import Welcome from './Welcome';
 import { CardWelcome } from './CardWelcome';
 
+/**
+ *
+ * @remarks
+ * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
+ * equivalent change should be applied in Enterprise
+ *
+ */
 export default { title: 'Teleport/Welcome' };
 
 export const WelcomeCustom = () => (

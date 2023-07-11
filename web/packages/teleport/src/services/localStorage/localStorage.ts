@@ -24,7 +24,7 @@ import {
   UserPreferences,
 } from 'teleport/services/userPreferences/types';
 
-import { KeysEnum } from './types';
+import { KeysEnum, LocalStorageSurvey } from './types';
 
 // This is an array of local storage `KeysEnum` that are kept when a user logs out
 const KEEP_LOCALSTORAGE_KEYS_ON_LOGOUT = [
@@ -117,6 +117,31 @@ const storage = {
         newValue: json,
       })
     );
+  },
+
+  getOnboardSurvey(): LocalStorageSurvey {
+    const survey = window.localStorage.getItem(KeysEnum.ONBOARD_SURVEY);
+    if (survey) {
+      return JSON.parse(survey);
+    }
+    return null;
+  },
+
+  setOnboardSurvey(survey: LocalStorageSurvey) {
+    const json = JSON.stringify(survey);
+
+    window.localStorage.setItem(KeysEnum.ONBOARD_SURVEY, json);
+
+    window.dispatchEvent(
+      new StorageEvent('storage', {
+        key: KeysEnum.ONBOARD_SURVEY,
+        newValue: json,
+      })
+    );
+  },
+
+  clearOnboardSurvey() {
+    window.localStorage.removeItem(KeysEnum.ONBOARD_SURVEY);
   },
 
   getThemePreference(): ThemePreference {

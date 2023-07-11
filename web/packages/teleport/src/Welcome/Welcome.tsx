@@ -20,11 +20,17 @@ import { Route, Switch, useParams } from 'teleport/components/Router';
 import history from 'teleport/services/history';
 import LogoHero from 'teleport/components/LogoHero';
 import cfg from 'teleport/config';
-import { UserContextProvider } from 'teleport/User';
 
 import { NewCredentials } from './NewCredentials';
 import { CardWelcome } from './CardWelcome';
 
+/**
+ *
+ * @remarks
+ * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
+ * equivalent change should be applied in Enterprise
+ *
+ */
 export default function Welcome() {
   const { tokenId } = useParams<{ tokenId: string }>();
 
@@ -39,32 +45,30 @@ export default function Welcome() {
   return (
     <>
       <LogoHero />
-      <UserContextProvider>
-        <Switch>
-          <Route exact path={cfg.routes.userInvite}>
-            <CardWelcome
-              title="Welcome to Teleport"
-              subTitle="Please click the button below to create an account"
-              btnText="Get started"
-              onClick={handleOnInviteContinue}
-            />
-          </Route>
-          <Route exact path={cfg.routes.userReset}>
-            <CardWelcome
-              title="Reset Authentication"
-              subTitle="Please click the button below to begin recovery of your account"
-              btnText="Continue"
-              onClick={handleOnResetContinue}
-            />
-          </Route>
-          <Route path={cfg.routes.userInviteContinue}>
-            <NewCredentials tokenId={tokenId} />
-          </Route>
-          <Route path={cfg.routes.userResetContinue}>
-            <NewCredentials resetMode={true} tokenId={tokenId} />
-          </Route>
-        </Switch>
-      </UserContextProvider>
+      <Switch>
+        <Route exact path={cfg.routes.userInvite}>
+          <CardWelcome
+            title="Welcome to Teleport"
+            subTitle="Please click the button below to create an account"
+            btnText="Get started"
+            onClick={handleOnInviteContinue}
+          />
+        </Route>
+        <Route exact path={cfg.routes.userReset}>
+          <CardWelcome
+            title="Reset Authentication"
+            subTitle="Please click the button below to begin recovery of your account"
+            btnText="Continue"
+            onClick={handleOnResetContinue}
+          />
+        </Route>
+        <Route path={cfg.routes.userInviteContinue}>
+          <NewCredentials tokenId={tokenId} />
+        </Route>
+        <Route path={cfg.routes.userResetContinue}>
+          <NewCredentials resetMode={true} tokenId={tokenId} />
+        </Route>
+      </Switch>
     </>
   );
 }

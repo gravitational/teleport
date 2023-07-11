@@ -23,12 +23,18 @@ import { Logger } from 'shared/libs/logger';
 import cfg from 'teleport/config';
 import history from 'teleport/services/history';
 import auth from 'teleport/services/auth';
+
 import { userEventService } from 'teleport/services/userEvent';
-import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
 
 import Welcome from './Welcome';
 
+/**
+ *
+ * @remarks
+ * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
+ * equivalent change should be applied in Enterprise
+ *
+ */
 const invitePath = '/web/invite/5182';
 const inviteContinuePath = '/web/invite/5182/continue';
 const resetPath = '/web/reset/5182';
@@ -45,8 +51,6 @@ describe('teleport/components/Welcome', () => {
     jest
       .spyOn(userEventService, 'capturePreUserEvent')
       .mockImplementation(() => new Promise(() => null));
-
-    mockUserContextProviderWith(makeTestUserContext());
   });
 
   afterEach(() => {
@@ -68,9 +72,10 @@ describe('teleport/components/Welcome', () => {
       </Router>
     );
 
-    await screen.findByText(
-      /Please click the button below to create an account/i
-    );
+    expect(
+      screen.getByText(/Please click the button below to create an account/i)
+    ).toBeInTheDocument();
+
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/get started/i));
@@ -99,9 +104,12 @@ describe('teleport/components/Welcome', () => {
       </Router>
     );
 
-    await screen.findByText(
-      /Please click the button below to begin recovery of your account/i
-    );
+    expect(
+      screen.getByText(
+        /Please click the button below to begin recovery of your account/i
+      )
+    ).toBeInTheDocument();
+
     expect(auth.fetchPasswordToken).not.toHaveBeenCalled();
 
     fireEvent.click(screen.getByText(/Continue/i));

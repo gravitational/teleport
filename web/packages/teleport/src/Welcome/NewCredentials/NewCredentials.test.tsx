@@ -22,9 +22,14 @@ import React from 'react';
 import { RecoveryCodes, ResetToken } from 'teleport/services/auth';
 import { NewCredentialsProps } from 'teleport/Welcome/NewCredentials/types';
 import { NewCredentials } from 'teleport/Welcome/NewCredentials/NewCredentials';
-import { mockUserContextProviderWith } from 'teleport/User/testHelpers/mockUserContextWith';
-import { makeTestUserContext } from 'teleport/User/testHelpers/makeTestUserContext';
 
+/**
+ *
+ * @remarks
+ * This component is duplicated in Enterprise for Enterprise onboarding. If you are making edits to this file, check to see if the
+ * equivalent change should be applied in Enterprise
+ *
+ */
 const attempt: Attempt = { status: '' };
 const failedAttempt: Attempt = { status: 'failed' };
 const processingAttempt: Attempt = { status: 'processing' };
@@ -55,8 +60,6 @@ const makeProps = (): NewCredentialsProps => {
     success: false,
     finishedRegister: () => {},
     privateKeyPolicyEnabled: false,
-    displayOnboardingQuestionnaire: false,
-    setDisplayOnboardingQuestionnaire: () => {},
     resetMode: false,
     isDashboard: false,
   };
@@ -162,17 +165,4 @@ test('renders credential flow for sso', () => {
   render(<NewCredentials {...props} />);
 
   expect(screen.getByText(/Set A Password/i)).toBeInTheDocument();
-});
-
-test('renders questionnaire', () => {
-  mockUserContextProviderWith(makeTestUserContext());
-
-  const props = makeProps();
-  props.fetchAttempt = { status: 'success' };
-  props.success = true;
-  props.recoveryCodes = undefined;
-  props.displayOnboardingQuestionnaire = true;
-  render(<NewCredentials {...props} />);
-
-  expect(screen.getByText(/Tell us about yourself/i)).toBeInTheDocument();
 });

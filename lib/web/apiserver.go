@@ -806,9 +806,8 @@ func (h *Handler) bindDefaultEndpoints() {
 	// Fetches the user's preferences
 	h.GET("/webapi/user/preferences", h.WithAuth(h.getUserPreferences))
 
-	// Updates the user's preferences. This leverages WithAuthCookieAndCSRF rather than WithAuth because
-	// we update preferences during the onboarding flow, before a bearer token is set.
-	h.PUT("/webapi/user/preferences", h.WithAuthCookieAndCSRF(h.updateUserPreferences))
+	// Updates the user's preferences
+	h.PUT("/webapi/user/preferences", h.WithAuth(h.updateUserPreferences))
 }
 
 // GetProxyClient returns authenticated auth server client
