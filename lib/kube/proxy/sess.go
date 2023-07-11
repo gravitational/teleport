@@ -401,7 +401,7 @@ func newSession(ctx authContext, forwarder *Forwarder, req *http.Request, params
 		log:                            log,
 		io:                             io,
 		accessEvaluator:                accessEvaluator,
-		emitter:                        events.NewDiscardEmitterReal(),
+		emitter:                        events.NewDiscardEmitter(),
 		terminalSizeQueue:              newMultiResizeQueue(streamContext),
 		started:                        false,
 		sess:                           sess,
