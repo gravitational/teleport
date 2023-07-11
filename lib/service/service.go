@@ -1177,7 +1177,7 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 	}
 
 	// initInstance initializes the pseudo-service "Instance" that is active for all teleport
-	// instances. We active this last because it cares about which other services are active.
+	// instances. We activate this last because it cares about which other services are active.
 	if err := process.initInstance(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -1196,6 +1196,10 @@ func NewTeleport(cfg *servicecfg.Config) (*TeleportProcess, error) {
 
 	// notify parent process that this process has started
 	go process.notifyParent()
+
+	if err := process.GetAuthServer().UpdateOSSDesktopAlert(process.ExitContext()); err != nil {
+		return nil, err
+	}
 
 	return process, nil
 }

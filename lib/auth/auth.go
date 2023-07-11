@@ -117,6 +117,13 @@ const (
 	mfaDeviceNameMaxLen = 30
 )
 
+const (
+	OSSDesktopsAlertId      = "oss-desktops"
+	OSSDesktopsAlertMessage = "OSS license only allows 3 Non-AD desktops configured. " +
+		"You won't be able to connect to any of them if there are more" +
+		"Please contact Sales to upgrade your license"
+)
+
 var ErrRequiresEnterprise = services.ErrRequiresEnterprise
 
 // ServerOption allows setting options as functional arguments to Server
@@ -4189,10 +4196,45 @@ func (a *Server) UpsertDatabaseServer(ctx context.Context, server types.Database
 	return lease, nil
 }
 
+func (a *Server) UpdateOSSDesktopAlert(ctx context.Context) error {
+	windowsDesktops, err := a.GetWindowsDesktops(ctx, types.WindowsDesktopFilter{NonAD: []bool{true}})
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	desktops := len(windowsDesktops)
+
+	if modules.GetModules().BuildType() == modules.BuildOSS && desktops > 3 {
+		alert, err := types.NewClusterAlert(OSSDesktopsAlertId, OSSDesktopsAlertMessage,
+			types.WithAlertSeverity(types.AlertSeverity_MEDIUM),
+			types.WithAlertLabel(types.AlertOnLogin, "yes"),
+			types.WithAlertLabel(types.AlertPermitAll, "yes"),
+			types.WithAlertExpires(time.Now().Add(200*24*365*time.Hour)))
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		return trace.Wrap(a.UpsertClusterAlert(ctx, alert))
+	} else if err := a.DeleteClusterAlert(ctx, OSSDesktopsAlertId); err != nil && !trace.IsNotFound(err) {
+		return trace.Wrap(err)
+	}
+	return nil
+}
+
+func (a *Server) DeleteWindowsDesktop(ctx context.Context, hostID, name string) error {
+	if err := a.Services.DeleteWindowsDesktop(ctx, hostID, name); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.UpdateOSSDesktopAlert(ctx))
+}
+
 // CreateWindowsDesktop implements [services.WindowsDesktops] by delegating to
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) CreateWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
 	if err := a.Services.CreateWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.UpdateOSSDesktopAlert(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 
@@ -4212,6 +4254,10 @@ func (a *Server) UpdateWindowsDesktop(ctx context.Context, desktop types.Windows
 		return trace.Wrap(err)
 	}
 
+	if err := a.UpdateOSSDesktopAlert(ctx); err != nil {
+		return trace.Wrap(err)
+	}
+
 	a.AnonymizeAndSubmit(&usagereporter.ResourceHeartbeatEvent{
 		Name:   desktop.GetName(),
 		Kind:   usagereporter.ResourceKindWindowsDesktop,
@@ -4225,6 +4271,10 @@ func (a *Server) UpdateWindowsDesktop(ctx context.Context, desktop types.Windows
 // [Server.Services] and then potentially emitting a [usagereporter] event.
 func (a *Server) UpsertWindowsDesktop(ctx context.Context, desktop types.WindowsDesktop) error {
 	if err := a.Services.UpsertWindowsDesktop(ctx, desktop); err != nil {
+		return trace.Wrap(err)
+	}
+
+	if err := a.UpdateOSSDesktopAlert(ctx); err != nil {
 		return trace.Wrap(err)
 	}
 

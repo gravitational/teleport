@@ -788,8 +788,7 @@ func (s *WindowsService) handleConnection(proxyConn *tls.Conn) {
 		}
 		if len(desktops) > 3 {
 			log.Warning("More than 3 Non-AD desktops configured")
-			sendTDPError(fmt.Sprintf("OSS license only allows 3 Non-AD desktops configured. There were %d found. "+
-				"Please contanct Sales to upgrade your license", len(desktops)))
+			sendTDPError(auth.OSSDesktopsAlertMessage)
 			return
 		}
 	}
