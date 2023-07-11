@@ -87,7 +87,10 @@ function AgentSetup() {
     useCallback(() => wait(1_000), [])
   );
   const [downloadAgentAttempt, runDownloadAgentAttempt] = useAsync(
-    ctx.mainProcessClient.downloadAgent
+    useCallback(
+      () => ctx.connectMyComputerService.downloadAgent(),
+      [ctx.connectMyComputerService]
+    )
   );
   const [generateConfigFileAttempt, runGenerateConfigFileAttempt] = useAsync(
     useCallback(() => wait(1_000), [])
@@ -120,7 +123,7 @@ function AgentSetup() {
     const actions = [
       // runSetUpRolesAttempt,
       runDownloadAgentAttempt,
-      // runGenerateConfigFileAttempt,
+      runGenerateConfigFileAttempt,
       // runJoinClusterAttempt,
     ];
     for (const action of actions) {
