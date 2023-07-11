@@ -11,6 +11,7 @@ import (
 	"encoding/pem"
 	"fmt"
 	"net"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -21,6 +22,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
+	"github.com/sashabaranov/go-openai"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -35,6 +37,7 @@ import (
 	"github.com/gravitational/teleport/api/utils/keys"
 	apisshutils "github.com/gravitational/teleport/api/utils/sshutils"
 	"github.com/gravitational/teleport/integration/helpers"
+	"github.com/gravitational/teleport/lib/ai/testutils"
 	libauth "github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
@@ -61,7 +64,9 @@ func TestAssistCommandOpenSSH(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	t.Cleanup(cancel)
 
-	rc := setupTeleport(t, testDir)
+	openAIMock := mockOpenAI(t)
+
+	rc := setupTeleport(t, testDir, openAIMock.URL)
 	auth := rc.Process.GetAuthServer()
 	proxyAddr, err := rc.Process.ProxyWebAddr()
 	require.NoError(t, err)
@@ -150,10 +155,22 @@ func TestAssistCommandOpenSSH(t *testing.T) {
 	require.Equal(t, testCommandOutput, string(chunk))
 }
 
+// mockOpenAI starts an OpenAI mock server that answers one completion request
+// successfully (the output is a plain text command summary, it cannot be used
+// for an agent thinking step.
+// The server returns errors for embeddings requests from the auth, but
+// this should not affect the test.
+func mockOpenAI(t *testing.T) *httptest.Server {
+	responses := []string{"This is the summary of the command."}
+	server := httptest.NewServer(testutils.GetTestHandlerFn(t, responses))
+	t.Cleanup(server.Close)
+	return server
+}
+
 // setupTeleport starts a Teleport instance running the Auth and Proxy service,
 // with Assist and the web service enabled. The instance supports Node joining
 // with the static token testToken.
-func setupTeleport(t *testing.T, testDir string) *helpers.TeleInstance {
+func setupTeleport(t *testing.T, testDir, openaiMockURL string) *helpers.TeleInstance {
 	cfg := helpers.InstanceConfig{
 		ClusterName: testClusterName,
 		HostID:      uuid.New().String(),
@@ -184,6 +201,9 @@ func setupTeleport(t *testing.T, testDir string) *helpers.TeleInstance {
 	})
 	rcConf.Proxy.AssistAPIKey = "test"
 	rcConf.Auth.AssistAPIKey = "test"
+	openAIConfig := openai.DefaultConfig("test")
+	openAIConfig.BaseURL = openaiMockURL + "/v1"
+	rcConf.OpenAIConfig = &openAIConfig
 	require.NoError(t, err)
 	rcConf.CircuitBreakerConfig = breaker.NoopBreakerConfig()
 

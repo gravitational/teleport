@@ -31,7 +31,7 @@ import (
 // the chat API. It takes a list of responses that will be returned in order.
 func GetTestHandlerFn(t *testing.T, responses []string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodPost || r.URL.Path != "/chat/completions" {
+		if r.Method != http.MethodPost || !(r.URL.Path == "/chat/completions" || r.URL.Path == "/v1/chat/completions") {
 			http.Error(w, "Unexpected request", http.StatusBadRequest)
 			return
 		}
