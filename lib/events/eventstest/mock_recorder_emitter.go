@@ -24,9 +24,6 @@ import (
 	"github.com/gravitational/teleport/lib/session"
 )
 
-// TODO(capnspacehook): remove after e PR is merged
-type MockEmitter = MockRecorderEmitter
-
 // MockRecorderEmitter is a recorder and emitter that stores all events.
 type MockRecorderEmitter struct {
 	mu     sync.RWMutex
