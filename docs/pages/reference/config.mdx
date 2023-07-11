@@ -779,6 +779,16 @@ app_service:
     # Application Access is working correctly. The app outputs JWTs so it can
     # be useful when extending your application.
     debug_app: true
+    # Matchers for dynamic application resources
+    #
+    # All application resources have a predefined "teleport.dev/origin" label with
+    # one of the following values:
+    # "dynamic": application resources created via an Auth Service API
+    # client like `tctl` or the Teleport Terraform provider
+    # "config": application resources defined in the "apps" array below
+    resources:
+      - labels:
+          "*": "*"
     apps:
     - name: "kubernetes-dashboard"
       # URI and Port of Application.
