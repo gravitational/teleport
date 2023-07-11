@@ -24,6 +24,7 @@ import { CircleCheck, CircleCross, CirclePlay, Spinner } from 'design/Icon';
 import * as types from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
+import { useWorkspaceContext } from 'teleterm/ui/Documents';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
@@ -33,8 +34,9 @@ interface DocumentConnectMyComputerSetupProps {
 export function DocumentConnectMyComputerSetup(
   props: DocumentConnectMyComputerSetupProps
 ) {
-  const [step, setStep] =
-    useState<'information' | 'agent-setup'>('information');
+  const [step, setStep] = useState<'information' | 'agent-setup'>(
+    'information'
+  );
 
   return (
     <Document visible={props.visible}>
@@ -82,9 +84,32 @@ function Information(props: { onSetUpAgentClick(): void }) {
 
 function AgentSetup() {
   const ctx = useAppContext();
+  const { rootClusterUri } = useWorkspaceContext();
 
   const [setUpRolesAttempt, runSetUpRolesAttempt] = useAsync(
-    useCallback(() => wait(1_000), [])
+    useCallback(async () => {
+      let certsReloaded = false;
+
+      try {
+        const response = await ctx.connectMyComputerService.createRole(
+          rootClusterUri
+        );
+        certsReloaded = response.certsReloaded;
+      } catch (error) {
+        if ((error.message as string)?.includes('access denied')) {
+          throw new Error(
+            'Access denied. Contact your administrator for permissions to manage users and roles.'
+          );
+        }
+        throw error;
+      }
+
+      // If tshd reloaded the certs to refresh the role list, the Electron app must resync details
+      // of the cluster to also update the role list in the UI.
+      if (certsReloaded) {
+        await ctx.clustersService.syncRootCluster(rootClusterUri);
+      }
+    }, [ctx.connectMyComputerService, ctx.clustersService, rootClusterUri])
   );
   const [downloadAgentAttempt, runDownloadAgentAttempt] = useAsync(
     useCallback(
@@ -101,7 +126,7 @@ function AgentSetup() {
 
   const steps = [
     {
-      name: 'Setting up roles',
+      name: 'Setting up the role',
       attempt: setUpRolesAttempt,
     },
     {
@@ -121,7 +146,7 @@ function AgentSetup() {
   const runSteps = useCallback(async () => {
     // uncomment when implemented
     const actions = [
-      // runSetUpRolesAttempt,
+      runSetUpRolesAttempt,
       runDownloadAgentAttempt,
       // runGenerateConfigFileAttempt,
       // runJoinClusterAttempt,
