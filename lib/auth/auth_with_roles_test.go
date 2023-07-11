@@ -1246,7 +1246,7 @@ func TestClusterNetworkingCloudUpdates(t *testing.T) {
 			err = client.SetClusterNetworkingConfig(ctx, tc.clusterNetworkingConfig)
 			if err != nil {
 				require.NotEmpty(t, tc.expectSetErr)
-				require.ErrorContains(t, err, fmt.Sprintf("%q", tc.expectSetErr))
+				require.ErrorContains(t, err, tc.expectSetErr)
 			} else {
 				require.Empty(t, tc.expectSetErr)
 			}
