@@ -5706,3 +5706,149 @@ func mustResourceID(clusterName, kind, name string) types.ResourceID {
 		Name:        name,
 	}
 }
+
+func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	srv := newTestTLSServer(t)
+	alice, bob, admin := createSessionTestUsers(t, srv.Auth())
+
+	// For each user, prepare 4 different headless authentications with the varying states.
+	// These will be created during each test, and the watcher will return a subset of the
+	// collected events based on the test's filter.
+	var headlessAuthns []*types.HeadlessAuthentication
+	for _, username := range []string{alice, bob} {
+		for _, state := range []types.HeadlessAuthenticationState{
+			types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_UNSPECIFIED,
+			types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
+			types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_DENIED,
+			types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_APPROVED,
+		} {
+			ha, err := types.NewHeadlessAuthentication(username, uuid.NewString(), srv.Clock().Now().Add(time.Minute))
+			require.NoError(t, err)
+			ha.State = state
+			headlessAuthns = append(headlessAuthns, ha)
+		}
+	}
+	aliceAuthns := headlessAuthns[:4]
+	bobAuthns := headlessAuthns[4:]
+
+	testCases := []struct {
+		name             string
+		identity         TestIdentity
+		filter           types.HeadlessAuthenticationFilter
+		expectWatchError string
+		expectResources  []*types.HeadlessAuthentication
+	}{
+		{
+			name:             "NOK non local users cannot watch headless authentications",
+			identity:         TestAdmin(),
+			expectWatchError: "non-local user roles cannot watch headless authentications",
+		},
+		{
+			name:             "NOK must filter for username",
+			identity:         TestUser(admin),
+			filter:           types.HeadlessAuthenticationFilter{},
+			expectWatchError: "user cannot watch headless authentications without a filter for their username",
+		}, {
+			name:     "NOK alice cannot filter for username=bob",
+			identity: TestUser(alice),
+			filter: types.HeadlessAuthenticationFilter{
+				Username: bob,
+			},
+			expectWatchError: "user \"alice\" cannot watch headless authentications of \"bob\"",
+		}, {
+			name:     "OK alice can filter for username=alice",
+			identity: TestUser(alice),
+			filter: types.HeadlessAuthenticationFilter{
+				Username: alice,
+			},
+			expectResources: aliceAuthns,
+		}, {
+			name:     "OK bob can filter for username=bob",
+			identity: TestUser(bob),
+			filter: types.HeadlessAuthenticationFilter{
+				Username: bob,
+			},
+			expectResources: bobAuthns,
+		}, {
+			name:     "OK alice can filter for pending requests",
+			identity: TestUser(alice),
+			filter: types.HeadlessAuthenticationFilter{
+				Username: alice,
+				State:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
+			},
+			expectResources: []*types.HeadlessAuthentication{aliceAuthns[types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING]},
+		}, {
+			name:     "OK alice can filter for a specific request",
+			identity: TestUser(alice),
+			filter: types.HeadlessAuthenticationFilter{
+				Username: alice,
+				Name:     headlessAuthns[2].GetName(),
+			},
+			expectResources: aliceAuthns[2:3],
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			client, err := srv.NewClient(tc.identity)
+			require.NoError(t, err)
+
+			watchCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+			defer cancel()
+
+			watcher, err := client.NewWatcher(watchCtx, types.Watch{
+				Kinds: []types.WatchKind{
+					{
+						Kind:   types.KindHeadlessAuthentication,
+						Filter: tc.filter.IntoMap(),
+					},
+				},
+			})
+			require.NoError(t, err)
+
+			select {
+			case event := <-watcher.Events():
+				require.Equal(t, types.OpInit, event.Type, "Expected watcher init event but got %v", event)
+			case <-time.After(time.Second):
+				t.Fatal("Failed to receive watcher init event before timeout")
+			case <-watcher.Done():
+				if tc.expectWatchError != "" {
+					require.True(t, trace.IsAccessDenied(watcher.Error()), "Expected access denied error but got %v", err)
+					require.ErrorContains(t, watcher.Error(), tc.expectWatchError)
+					return
+				}
+				t.Fatalf("Watcher unexpectedly closed with error: %v", watcher.Error())
+			}
+
+			for _, ha := range headlessAuthns {
+				err = srv.Auth().UpsertHeadlessAuthentication(ctx, ha)
+				require.NoError(t, err)
+			}
+
+			var expectEvents []types.Event
+			for _, expectResource := range tc.expectResources {
+				expectEvents = append(expectEvents, types.Event{
+					Type:     types.OpPut,
+					Resource: expectResource,
+				})
+			}
+
+			var events []types.Event
+		loop:
+			for {
+				select {
+				case event := <-watcher.Events():
+					events = append(events, event)
+				case <-time.After(100 * time.Millisecond):
+					break loop
+				case <-watcher.Done():
+					t.Fatalf("Watcher unexpectedly closed with error: %v", watcher.Error())
+				}
+			}
+
+			require.Equal(t, expectEvents, events)
+		})
+	}
+}

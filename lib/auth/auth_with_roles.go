@@ -1414,76 +1414,12 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 
 	validKinds := make([]types.WatchKind, 0, len(watch.Kinds))
 	for _, kind := range watch.Kinds {
-		// Check the permissions for data of each kind. For watching, most
-		// kinds of data just need a Read permission, but some have more
-		// complicated logic.
-		switch kind.Kind {
-		case types.KindCertAuthority:
-			verb := types.VerbReadNoSecrets
-			if kind.LoadSecrets {
-				verb = types.VerbRead
+		err := a.hasWatchPermissionForKind(kind)
+		if err != nil {
+			if watch.AllowPartialSuccess {
+				continue
 			}
-			if err := a.action(apidefaults.Namespace, types.KindCertAuthority, verb); err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-		case types.KindAccessRequest:
-			var filter types.AccessRequestFilter
-			if err := filter.FromMap(kind.Filter); err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-			if filter.User == "" || a.currentUserAction(filter.User) != nil {
-				if err := a.action(apidefaults.Namespace, types.KindAccessRequest, types.VerbRead); err != nil {
-					if watch.AllowPartialSuccess {
-						continue
-					}
-					return nil, trace.Wrap(err)
-				}
-			}
-		case types.KindWebSession:
-			var filter types.WebSessionFilter
-			if err := filter.FromMap(kind.Filter); err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-			// Allow reading Snowflake sessions to DB service.
-			if !(kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase)) {
-				if filter.User == "" || a.currentUserAction(filter.User) != nil {
-					if err := a.action(apidefaults.Namespace, types.KindWebSession, types.VerbRead); err != nil {
-						if watch.AllowPartialSuccess {
-							continue
-						}
-						return nil, trace.Wrap(err)
-					}
-				}
-			}
-		case types.KindHeadlessAuthentication:
-			var filter types.HeadlessAuthenticationFilter
-			if err := filter.FromMap(kind.Filter); err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
-
-			// Only users can watch their own headless authentications.
-			if !hasLocalUserRole(a.context) || filter.Username != a.context.User.GetName() {
-				return nil, trace.AccessDenied("user %q cannot watch headless authentications of %q", a.context.User.GetName(), filter.Username)
-			}
-		default:
-			if err := a.action(apidefaults.Namespace, kind.Kind, types.VerbRead); err != nil {
-				if watch.AllowPartialSuccess {
-					continue
-				}
-				return nil, trace.Wrap(err)
-			}
+			return nil, trace.Wrap(err)
 		}
 
 		validKinds = append(validKinds, kind)
@@ -1501,6 +1437,62 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 		watch.QueueSize = defaults.NodeQueueSize
 	}
 	return a.authServer.NewWatcher(ctx, watch)
+}
+
+// hasWatchPermissionForKind checks the permissions for data of each kind.
+// For watching, most kinds of data just need a Read permission, but some
+// have more complicated logic.
+func (a *ServerWithRoles) hasWatchPermissionForKind(kind types.WatchKind) error {
+	verb := types.VerbRead
+	switch kind.Kind {
+	case types.KindCertAuthority:
+		if !kind.LoadSecrets {
+			verb = types.VerbReadNoSecrets
+		}
+	case types.KindAccessRequest:
+		var filter types.AccessRequestFilter
+		if err := filter.FromMap(kind.Filter); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Users can watch their own access requests.
+		if filter.User != "" && a.currentUserAction(filter.User) == nil {
+			return nil
+		}
+	case types.KindWebSession:
+		var filter types.WebSessionFilter
+		if err := filter.FromMap(kind.Filter); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Allow reading Snowflake sessions to DB service.
+		if kind.SubKind == types.KindSnowflakeSession && a.hasBuiltinRole(types.RoleDatabase) {
+			return nil
+		}
+
+		// Users can watch their own web sessions.
+		if filter.User != "" && a.currentUserAction(filter.User) == nil {
+			return nil
+		}
+	case types.KindHeadlessAuthentication:
+		var filter types.HeadlessAuthenticationFilter
+		if err := filter.FromMap(kind.Filter); err != nil {
+			return trace.Wrap(err)
+		}
+
+		// Users can only watch their own headless authentications, meaning we don't fallback to
+		// the generalized verb-kind-action check below.
+		if !hasLocalUserRole(a.context) {
+			return trace.AccessDenied("non-local user roles cannot watch headless authentications")
+		} else if filter.Username == "" {
+			return trace.AccessDenied("user cannot watch headless authentications without a filter for their username")
+		} else if filter.Username != a.context.User.GetName() {
+			return trace.AccessDenied("user %q cannot watch headless authentications of %q", a.context.User.GetName(), filter.Username)
+		}
+
+		return nil
+	}
+	return trace.Wrap(a.action(apidefaults.Namespace, kind.Kind, verb))
 }
 
 // DeleteAllNodes deletes all nodes in a given namespace
