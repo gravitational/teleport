@@ -21,10 +21,11 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/google/go-cmp/cmp"
-	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
 
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/lib/backend"
@@ -171,7 +172,8 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 				Username: username,
 			})
 			require.NoError(t, err)
-			require.Equal(t, defaultPref, res.Preferences)
+			// Clone the proto as the accessing fields for some reason modifies the state.
+			require.Empty(t, cmp.Diff(defaultPref, proto.Clone(res.Preferences), protocmp.Transform()))
 
 			if test.req != nil {
 				err := identity.UpsertUserPreferences(ctx, test.req)
@@ -183,12 +185,7 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			require.Empty(t, cmp.Diff(test.expected, res.Preferences,
-				cmpopts.IgnoreUnexported(
-					userpreferencesv1.UserPreferences{},
-					userpreferencesv1.AssistUserPreferences{},
-					userpreferencesv1.OnboardUserPreferences{}),
-			))
+			require.Empty(t, cmp.Diff(test.expected, res.Preferences, protocmp.Transform()))
 		})
 	}
 }
