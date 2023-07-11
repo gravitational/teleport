@@ -7,7 +7,7 @@ state: draft
 
 ## Required Approvers
 
-* Engineering: TBD
+* Engineering: @fspmarshall && (@rosstimothy || @zmb3)
 * Product: @xinding33 || @klizhentas
 
 ## What
