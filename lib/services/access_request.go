@@ -42,6 +42,13 @@ import (
 
 const maxAccessRequestReasonSize = 4096
 
+// A day is sometimes 23 hours, sometimes 25 hours, usually 24 hours.
+const day = 24 * time.Hour
+
+// maxPersistDuration is the maximum duration that an access request can be
+// granted for.
+const maxPersistDuration = 7 * day
+
 // ValidateAccessRequest validates the AccessRequest and sets default values
 func ValidateAccessRequest(ar types.AccessRequest) error {
 	if err := ar.CheckAndSetDefaults(); err != nil {
@@ -353,6 +360,11 @@ func ValidateAccessPredicates(role types.Role) error {
 		}
 	}
 
+	persist := role.GetAccessRequestConditions(types.Allow).Persist
+	if persist.Duration() != 0 && persist.Duration() > maxPersistDuration {
+		return trace.BadParameter("persist duration must be less or equal 7 days")
+	}
+
 	return nil
 }
 
@@ -531,7 +543,7 @@ type requestResolution struct {
 }
 
 // calculateReviewBasedResolution calculates the request resolution based upon
-// a request's reviews.  Returns (nil,nil) in the event no resolution has been reached.
+// a request's reviews. Returns (nil,nil) in the event no resolution has been reached.
 func calculateReviewBasedResolution(req types.AccessRequest) (*requestResolution, error) {
 	// thresholds and reviews must be populated before state-transitions are possible
 	thresholds, reviews := req.GetThresholds(), req.GetReviews()
@@ -741,7 +753,7 @@ func insertAnnotations(annotations map[string][]string, conditions types.AccessR
 	}
 }
 
-// ReviewPermissionChecker is a helper for validating whether or not a user
+// ReviewPermissionChecker is a helper for validating whether a user
 // is allowed to review specific access requests.
 type ReviewPermissionChecker struct {
 	User  types.User
@@ -914,9 +926,9 @@ func (c *ReviewPermissionChecker) push(role types.Role) error {
 }
 
 // RequestValidator a helper for validating access requests.
-// a user's statically assigned roles are are "added" to the
+// a user's statically assigned roles are "added" to the
 // validator via the push() method, which extracts all the
-// relevant rules, peforms variable substitutions, and builds
+// relevant rules, performs variable substitutions, and builds
 // a set of simple Allow/Deny datastructures.  These, in turn,
 // are used to validate and expand the access request.
 type RequestValidator struct {
@@ -932,6 +944,7 @@ type RequestValidator struct {
 	Roles struct {
 		AllowRequest, DenyRequest []parse.Matcher
 		AllowSearch, DenySearch   []string
+		Persist                   map[string]time.Duration // role => expiration
 	}
 	Annotations struct {
 		Allow, Deny map[string][]string
@@ -943,7 +956,7 @@ type RequestValidator struct {
 	SuggestedReviewers []string
 }
 
-// NewRequestValidator configures a new RequestValidor for the specified user.
+// NewRequestValidator configures a new RequestValidator for the specified user.
 func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter RequestValidatorGetter, username string, opts ...ValidateRequestOption) (RequestValidator, error) {
 	user, err := getter.GetUser(username, false)
 	if err != nil {
@@ -964,6 +977,8 @@ func NewRequestValidator(ctx context.Context, clock clockwork.Clock, getter Requ
 		// before it is inserted into the backend.
 		m.Annotations.Allow = make(map[string][]string)
 		m.Annotations.Deny = make(map[string][]string)
+		// initialize role persist cache
+		m.Roles.Persist = make(map[string]time.Duration)
 	}
 
 	// load all statically assigned roles for the user and
@@ -1026,7 +1041,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 			if !m.CanSearchAsRole(roleName) {
 				// Roles are normally determined automatically for resource
 				// access requests, this role must have been explicitly
-				// requested or a new deny rule has since been added.
+				// requested, or a new deny rule has since been added.
 				return trace.BadParameter("user %q can not request role %q", req.GetUser(), roleName)
 			}
 		} else {
@@ -1075,7 +1090,7 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 
 		now := m.clock.Now().UTC()
 
-		// Calculate expiration time of the Access Request (how long it
+		// Calculate the expiration time of the Access Request (how long it
 		// will await approval).
 		ttl, err := m.requestTTL(ctx, identity, req)
 		if err != nil {
@@ -1083,16 +1098,60 @@ func (m *RequestValidator) Validate(ctx context.Context, req types.AccessRequest
 		}
 		req.SetExpiry(now.Add(ttl))
 
-		// Calculate expiration time of the elevated certificate that will
-		// be issued if the Access Request is approved.
-		ttl, err = m.sessionTTL(ctx, identity, req)
+		persist, err := m.calculatePersist(ctx, req)
 		if err != nil {
 			return trace.Wrap(err)
 		}
-		req.SetAccessExpiry(now.Add(ttl))
+		// If the persist flag is set, use it instead of the session TTL.
+		if persist > 0 {
+			ttl = persist
+		} else {
+			// Calculate the expiration time of the elevated certificate that will
+			// be issued if the Access Request is approved.
+			ttl, err = m.sessionTTL(ctx, identity, req)
+			if err != nil {
+				return trace.Wrap(err)
+			}
+		}
+
+		accessTTL := now.Add(ttl)
+		req.SetAccessExpiry(accessTTL)
 	}
 
 	return nil
+}
+
+// calculatePersist calculates the persist time for the access request.
+func (m *RequestValidator) calculatePersist(ctx context.Context, req types.AccessRequest) (time.Duration, error) {
+	// Check if the persist time is set.
+	persistTime := req.GetPersist()
+	if persistTime.IsZero() {
+		return 0, nil
+	}
+
+	persistDuration := persistTime.Sub(req.GetCreationTime())
+	if persistDuration < 0 {
+		return 0, trace.BadParameter("persist must be greater than creation time. Invalid request?")
+	}
+
+	if persistDuration > maxPersistDuration {
+		return 0, trace.BadParameter("persist must be less or equal 7 days")
+	}
+
+	maxPersist := persistDuration
+	// Adjust the expiration time if the persist value is set.
+	for _, roleName := range req.GetRoles() {
+		rolePersist, found := m.Roles.Persist[roleName]
+		if !found {
+			continue
+		}
+
+		if rolePersist < persistDuration {
+			maxPersist = rolePersist
+		}
+	}
+
+	return maxPersist, nil
 }
 
 // requestTTL calculates the TTL of the Access Request (how long it will await
@@ -1228,6 +1287,13 @@ func (m *RequestValidator) push(role types.Role) error {
 
 	m.Roles.AllowSearch = apiutils.Deduplicate(append(m.Roles.AllowSearch, allow.SearchAsRoles...))
 	m.Roles.DenySearch = apiutils.Deduplicate(append(m.Roles.DenySearch, deny.SearchAsRoles...))
+	// convert string duration to time.Duration
+
+	if allow.Persist != 0 {
+		for _, r := range allow.Roles {
+			m.Roles.Persist[r] = allow.Persist.Duration()
+		}
+	}
 
 	if m.opts.expandVars {
 		// if this role added additional allow matchers, then we need to record the relationship

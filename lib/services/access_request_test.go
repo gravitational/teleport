@@ -333,7 +333,7 @@ func TestReviewThresholds(t *testing.T) {
 					author:  g.user(t, "proletariat"),
 					propose: approve,
 				},
-				{ // 1 of 2 required denials (does not triger threshold)
+				{ // 1 of 2 required denials (does not trigger a threshold)
 					author:  g.user(t, "proletariat"),
 					propose: deny,
 				},
@@ -368,7 +368,7 @@ func TestReviewThresholds(t *testing.T) {
 					author:   g.user(t, "proletariat"),
 					noReview: true,
 				},
-				{ // 1 of 2 required denials for "coup" (does not triger threshold)
+				{ // 1 of 2 required denials for "coup" (does not trigger a threshold)
 					author:  g.user(t, "military"),
 					propose: deny,
 				},
@@ -1867,6 +1867,168 @@ func TestGetResourceDetails(t *testing.T) {
 
 	// This Okta sourced user group should have a friendly name.
 	require.Equal(t, "friendly group 1", details[types.ResourceIDToString(resourceIDs[4])].FriendlyName)
+}
+
+type roleTestSet map[string]struct {
+	condition types.RoleConditions
+	options   types.RoleOptions
+}
+
+func TestDurations(t *testing.T) {
+	// describes a collection of roles and their conditions
+	roleDesc := roleTestSet{
+		"requestedRole": {
+			// ...
+		},
+		"setMaxTTLRole": {
+			options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(8 * time.Hour),
+			},
+		},
+		"defaultRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles: []string{"requestedRole", "setMaxTTLRole"},
+				},
+			},
+		},
+		"shortPersistReqRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:   []string{"requestedRole"},
+					Persist: types.Duration(3 * day),
+				},
+			},
+		},
+		"maxTTLPersistRole": {
+			condition: types.RoleConditions{
+				Request: &types.AccessRequestConditions{
+					Roles:   []string{"requestedRole"},
+					Persist: types.Duration(day),
+				},
+			},
+			options: types.RoleOptions{
+				MaxSessionTTL: types.Duration(10 * time.Hour),
+			},
+		},
+	}
+
+	// describes a collection of users with various roles
+	userDesc := map[string][]string{
+		"alice": {"shortPersistReqRole"},
+		"bob":   {"defaultRole"},
+		"carol": {"defaultRole"},
+		"dave":  {"maxTTLPersistRole"},
+		"erika": {"idealist"},
+	}
+
+	g := getMockGetter(t, roleDesc, userDesc)
+
+	tts := []struct {
+		// desc is a short description of the test scenario (should be unique)
+		desc string
+		// requestor is the name of the requesting user
+		requestor string
+		// the roles to be requested (defaults to "dictator")
+		roles []string
+
+		persist time.Duration
+
+		expectedAccessDuration time.Duration
+	}{
+		{
+			desc:                   "role persist is respected",
+			requestor:              "alice",
+			roles:                  []string{"requestedRole"},
+			persist:                7 * day,
+			expectedAccessDuration: 3 * day,
+		},
+		{
+			desc:                   "persist not set, default maxTTL (8h)",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"},
+			expectedAccessDuration: 8 * time.Hour,
+		},
+		{
+			desc:                   "persist inside request is respected",
+			requestor:              "bob",
+			roles:                  []string{"requestedRole"},
+			persist:                5 * time.Hour,
+			expectedAccessDuration: 5 * time.Hour,
+		},
+		{
+			desc:                   "persist can exceed maxTTL",
+			requestor:              "carol",
+			roles:                  []string{"setMaxTTLRole"},
+			persist:                day,
+			expectedAccessDuration: day,
+		},
+		{
+			desc:                   "persist shorter than maxTTL",
+			requestor:              "carol",
+			roles:                  []string{"setMaxTTLRole"},
+			persist:                2 * time.Hour,
+			expectedAccessDuration: 2 * time.Hour,
+		},
+	}
+
+	for _, tt := range tts {
+		t.Run(tt.desc, func(t *testing.T) {
+			require.GreaterOrEqual(t, len(tt.roles), 1, "at least one role must be specified")
+
+			// create a request for the specified author
+			req, err := types.NewAccessRequest("some-id", tt.requestor, tt.roles...)
+			require.NoError(t, err)
+
+			clock := clockwork.NewFakeClock()
+			now := clock.Now().UTC()
+			identity := tlsca.Identity{
+				Expires: now.Add(8 * time.Hour),
+			}
+
+			// perform request validation (necessary in order to initialize internal
+			// request variables like annotations and thresholds).
+			validator, err := NewRequestValidator(context.Background(), clock, g, tt.requestor, ExpandVars(true))
+			require.NoError(t, err)
+
+			req.SetCreationTime(now)
+			req.SetPersist(now.Add(tt.persist))
+
+			require.NoError(t, validator.Validate(context.Background(), req, identity))
+
+			require.Equal(t, now.Add(tt.expectedAccessDuration), req.GetAccessExpiry())
+		})
+	}
+}
+
+func getMockGetter(t *testing.T, roleDesc roleTestSet, userDesc map[string][]string) *mockGetter {
+	roles := make(map[string]types.Role)
+
+	for name, desc := range roleDesc {
+		role, err := types.NewRole(name, types.RoleSpecV6{
+			Allow:   desc.condition,
+			Options: desc.options,
+		})
+		require.NoError(t, err)
+
+		roles[name] = role
+	}
+
+	users := make(map[string]types.User)
+
+	for name, roles := range userDesc {
+		user, err := types.NewUser(name)
+		require.NoError(t, err)
+
+		user.SetRoles(roles)
+		users[name] = user
+	}
+
+	g := &mockGetter{
+		roles: roles,
+		users: users,
+	}
+	return g
 }
 
 func newNode(t *testing.T, name, hostname string) types.Server {

@@ -98,6 +98,10 @@ type AccessRequest interface {
 	GetLoginHint() string
 	// SetLoginHint sets the requested login hint.
 	SetLoginHint(string)
+	// GetPersist gets the maximum time at which the access should be approved for.
+	GetPersist() time.Time
+	// SetPersist sets the maximum time at which the access should be approved for.
+	SetPersist(time.Time)
 	// GetDryRun returns true if this request should not be created and is only
 	// a dry run to validate request capabilities.
 	GetDryRun() bool
@@ -414,6 +418,14 @@ func (r *AccessRequestV3) GetDryRun() bool {
 	return r.Spec.DryRun
 }
 
+func (r *AccessRequestV3) GetPersist() time.Time {
+	return r.Spec.Persist
+}
+
+func (r *AccessRequestV3) SetPersist(t time.Time) {
+	r.Spec.Persist = t
+}
+
 // SetDryRun sets the dry run flag on the request.
 func (r *AccessRequestV3) SetDryRun(dryRun bool) {
 	r.Spec.DryRun = dryRun
@@ -508,6 +520,8 @@ type AccessRequestUpdate struct {
 	// and must be a subset of the role list originally
 	// present on the request.
 	Roles []string
+
+	Persist time.Time
 }
 
 // Check validates the request's fields

@@ -321,6 +321,9 @@ type CLIConf struct {
 	// be issued if the Access Request is approved.
 	SessionTTL time.Duration
 
+	// Persist specifies how long the access will be granted for.
+	Persist time.Duration
+
 	// executablePath is the absolute path to the current executable.
 	executablePath string
 
@@ -1000,6 +1003,7 @@ func Run(ctx context.Context, args []string, opts ...CliOption) error {
 	reqCreate.Flag("resource", "Resource ID to be requested").StringsVar(&cf.RequestedResourceIDs)
 	reqCreate.Flag("request-ttl", "Expiration time for the access request").DurationVar(&cf.RequestTTL)
 	reqCreate.Flag("session-ttl", "Expiration time for the elevated certificate").DurationVar(&cf.SessionTTL)
+	reqCreate.Flag("persist", "How long the approval should persist").DurationVar(&cf.Persist)
 
 	reqReview := req.Command("review", "Review an access request.")
 	reqReview.Arg("request-id", "ID of target request").Required().StringVar(&cf.RequestID)
@@ -2409,13 +2413,17 @@ func createAccessRequest(cf *CLIConf) (types.AccessRequest, error) {
 	req.SetSuggestedReviewers(reviewers)
 
 	// Only set RequestTTL and SessionTTL if values are greater than zero.
-	// Otherwise leave defaults and the server will take the zero values and
+	// Otherwise, leave defaults, and the server will take the zero values and
 	// transform them into default expirations accordingly.
 	if cf.RequestTTL > 0 {
 		req.SetExpiry(time.Now().UTC().Add(cf.RequestTTL))
 	}
 	if cf.SessionTTL > 0 {
 		req.SetAccessExpiry(time.Now().UTC().Add(cf.SessionTTL))
+	}
+	if cf.Persist > 0 {
+		// Time will be relative to the approval time instead of the request time.
+		req.SetPersist(time.Now().UTC().Add(cf.Persist))
 	}
 
 	return req, nil
