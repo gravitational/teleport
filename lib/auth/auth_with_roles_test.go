@@ -4578,7 +4578,7 @@ func createSAMLIdPTestUsers(t *testing.T, server *Server) (string, string) {
 func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, client *Client, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
 	// Make sure we ignore events after consuming this one.
 	defer func() {
-		srv.AuthServer.AuthServer.emitter = events.NewDiscardEmitterReal()
+		srv.AuthServer.AuthServer.emitter = events.NewDiscardEmitter()
 	}()
 	chanEmitter := eventstest.NewChannelEmitter(1)
 	srv.AuthServer.AuthServer.emitter = chanEmitter
@@ -5750,28 +5750,32 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 			identity:         TestUser(admin),
 			filter:           types.HeadlessAuthenticationFilter{},
 			expectWatchError: "user cannot watch headless authentications without a filter for their username",
-		}, {
+		},
+		{
 			name:     "NOK alice cannot filter for username=bob",
 			identity: TestUser(alice),
 			filter: types.HeadlessAuthenticationFilter{
 				Username: bob,
 			},
 			expectWatchError: "user \"alice\" cannot watch headless authentications of \"bob\"",
-		}, {
+		},
+		{
 			name:     "OK alice can filter for username=alice",
 			identity: TestUser(alice),
 			filter: types.HeadlessAuthenticationFilter{
 				Username: alice,
 			},
 			expectResources: aliceAuthns,
-		}, {
+		},
+		{
 			name:     "OK bob can filter for username=bob",
 			identity: TestUser(bob),
 			filter: types.HeadlessAuthenticationFilter{
 				Username: bob,
 			},
 			expectResources: bobAuthns,
-		}, {
+		},
+		{
 			name:     "OK alice can filter for pending requests",
 			identity: TestUser(alice),
 			filter: types.HeadlessAuthenticationFilter{
@@ -5779,7 +5783,8 @@ func TestWatchHeadlessAuthentications_usersCanOnlyWatchThemselves(t *testing.T) 
 				State:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
 			},
 			expectResources: []*types.HeadlessAuthentication{aliceAuthns[types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING]},
-		}, {
+		},
+		{
 			name:     "OK alice can filter for a specific request",
 			identity: TestUser(alice),
 			filter: types.HeadlessAuthenticationFilter{
