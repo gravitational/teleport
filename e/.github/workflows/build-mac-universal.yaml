@@ -63,7 +63,7 @@ on:
 jobs:
   build-release-artifacts:
     environment: ${{ inputs.environment }}
-    runs-on: macos-12-xl
+    runs-on: macos-13-xl-arm64
     permissions:
       contents: read
     env:
@@ -71,6 +71,16 @@ jobs:
       GOCACHE: /tmp/gocache
     steps:
       # --- Setup -------------------------------------------------------------
+
+      # This is necessary on macos arm64 runners because the .cache and
+      # .config dirs on the runner are owned by root not the "runner" user.
+      # And pkg-config is missing on MacOS 13+ runners
+      # TODO(camscale): Remove this when the runners are fixed.
+      - name: Fix beta runner
+        run: |
+          sudo chown -R $(id -u):$(id -g) $HOME/.cache $HOME/.config
+          brew install pkg-config
+
       - name: Checkout Teleport
         uses: gravitational/teleport.e/.github/actions/checkout-teleport@master
         with:
