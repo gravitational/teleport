@@ -29,11 +29,26 @@ import (
 	"github.com/sirupsen/logrus"
 
 	"github.com/gravitational/teleport/lib/defaults"
-	"github.com/gravitational/teleport/lib/srv/db/common"
 )
 
 // MySQLPinger implements the DatabasePinger interface for the MySQL protocol.
 type MySQLPinger struct{}
+
+// convertError converts the error from MySQL client since it can be wrapped in an [errors.Causer].
+// The MySQL engine in the agent already does this, but we need it here because
+// the error is from the MySQL client.
+func convertError(err error) error {
+	// causer defines an interface for errors wrapped by the [errors] package.
+	type causer interface {
+		Cause() error
+	}
+
+	if causer, ok := err.(causer); ok {
+		return trace.Wrap(causer.Cause())
+	}
+
+	return trace.Wrap(err)
+}
 
 // Ping connects to the database and issues a basic select statement to validate the connection.
 func (p *MySQLPinger) Ping(ctx context.Context, params PingParams) error {
@@ -50,10 +65,7 @@ func (p *MySQLPinger) Ping(ctx context.Context, params PingParams) error {
 		nd.DialContext,
 	)
 	if err != nil {
-		// convert the error from MySQL client since it can be wrapped in a "Causer".
-		// The MySQL engine in the agent already does this, but we need it here because
-		// the error is from the MySQL client.
-		return trace.Wrap(common.ConvertError(err))
+		return convertError(err)
 	}
 
 	defer func() {
@@ -63,7 +75,7 @@ func (p *MySQLPinger) Ping(ctx context.Context, params PingParams) error {
 	}()
 
 	if err := conn.Ping(); err != nil {
-		return trace.Wrap(common.ConvertError(err))
+		return convertError(err)
 	}
 
 	return nil

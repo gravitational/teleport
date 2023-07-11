@@ -43,6 +43,8 @@ test('correct formatting of database fetch response', async () => {
         aws: {
           rds: {
             resourceId: 'resource-id',
+            region: 'us-west-1',
+            subnets: ['sn1', 'sn2'],
           },
         },
       },
@@ -177,6 +179,8 @@ const mockResponse = {
       aws: {
         rds: {
           resource_id: 'resource-id',
+          region: 'us-west-1',
+          subnets: ['sn1', 'sn2'],
         },
       },
     },

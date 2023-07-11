@@ -26,7 +26,7 @@ import (
 
 	"github.com/gravitational/teleport/api/defaults"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/lib/reversetunnel"
+	"github.com/gravitational/teleport/lib/reversetunnelclient"
 	"github.com/gravitational/teleport/lib/services"
 )
 
@@ -99,7 +99,7 @@ func MatchName(name string) Matcher {
 // MatchHealthy tries to establish a connection with the server using the
 // `dialAppServer` function. The app server is matched if the function call
 // doesn't return any error.
-func MatchHealthy(proxyClient reversetunnel.Tunnel, clusterName string) Matcher {
+func MatchHealthy(proxyClient reversetunnelclient.Tunnel, clusterName string) Matcher {
 	return func(ctx context.Context, appServer types.AppServer) bool {
 		conn, err := dialAppServer(ctx, proxyClient, clusterName, appServer)
 		if err != nil {
@@ -132,7 +132,7 @@ func MatchAll(matchers ...Matcher) Matcher {
 // cluster, this method will always return "acme" running within the root
 // cluster. Always supply public address and cluster name to deterministically
 // resolve an application.
-func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnel.Tunnel, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
+func ResolveFQDN(ctx context.Context, clt Getter, tunnel reversetunnelclient.Tunnel, proxyDNSNames []string, fqdn string) (types.AppServer, string, error) {
 	// Try and match FQDN to public address of application within cluster.
 	servers, err := Match(ctx, clt, MatchPublicAddr(fqdn))
 	if err == nil && len(servers) > 0 {

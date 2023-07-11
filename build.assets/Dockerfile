@@ -114,7 +114,7 @@ ARG BUILDARCH
 
 # Install packages.
 # Java JRE is required by gcloud firestore emulator.
-# Latest git 2.18+ is required for GitHub actions
+# Latest git 2.18+ is required for GitHub actions.
 # NOTE: gcc-multilib is not available on ARM, so ony amd64 version includes it.
 RUN apt-get -y update && \
     apt-get -y install software-properties-common && \
@@ -149,6 +149,8 @@ RUN apt-get -y update && \
         python3-setuptools \
         python3-wheel \
         pkg-config \
+        # rsync is required for some integration tests
+        rsync \
         softhsm2 \
         sudo \
         tree \

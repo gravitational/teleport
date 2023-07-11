@@ -16,6 +16,10 @@ limitations under the License.
 
 package types
 
+import (
+	"github.com/gravitational/teleport/api/types/common"
+)
+
 const (
 	// DefaultAPIGroup is a default group of permissions API,
 	// lets us to add different permission types
@@ -155,8 +159,68 @@ const (
 	// KindKubernetesCluster is a Kubernetes cluster.
 	KindKubernetesCluster = "kube_cluster"
 
-	// KindKubePod is an Kubernetes Pod resource type.
+	// KindKubePod is a Kubernetes Pod resource type.
 	KindKubePod = "pod"
+
+	// KindKubeSecret is a Kubernetes Secret resource type.
+	KindKubeSecret = "secret"
+
+	// KindKubeConfigMap is a Kubernetes Configmap resource type.
+	KindKubeConfigmap = "configmap"
+
+	// KindKubeNamespace is a Kubernetes namespace resource type.
+	KindKubeNamespace = "namespace"
+
+	// KindKubeService is a Kubernetes Service resource type.
+	KindKubeService = "service"
+
+	// KindKubeServiceAccount is an Kubernetes Service Account resource type.
+	KindKubeServiceAccount = "serviceaccount"
+
+	// KindKubeNode is a Kubernetes Node resource type.
+	KindKubeNode = "kube_node"
+
+	// KindKubePersistentVolume is a Kubernetes Persistent Volume resource type.
+	KindKubePersistentVolume = "persistentvolume"
+
+	// KindKubePersistentVolumeClaim is a Kubernetes Persistent Volume Claim resource type.
+	KindKubePersistentVolumeClaim = "persistentvolumeclaim"
+
+	// KindKubeDeployment is a Kubernetes Deployment resource type.
+	KindKubeDeployment = "deployment"
+
+	// KindKubeReplicaSet is a Kubernetes Replicaset resource type.
+	KindKubeReplicaSet = "replicaset"
+
+	// KindKubeStatefulset is a Kubernetes Statefulset resource type.
+	KindKubeStatefulset = "statefulset"
+
+	// KindKubeDaemonSet is a Kubernetes Daemonset resource type.
+	KindKubeDaemonSet = "daemonset"
+
+	// KindKubeClusterRole is a Kubernetes ClusterRole resource type.
+	KindKubeClusterRole = "clusterrole"
+
+	// KindKubeRole is a Kubernetes Role resource type.
+	KindKubeRole = "role"
+
+	// KindKubeClusterRoleBinding is a Kubernetes Cluster Role Binding resource type.
+	KindKubeClusterRoleBinding = "clusterrolebinding"
+
+	// KindKubeRoleBinding is a Kubernetes Role Binding resource type.
+	KindKubeRoleBinding = "rolebinding"
+
+	// KindKubeCronjob is a Kubernetes Cronjob resource type.
+	KindKubeCronjob = "cronjob"
+
+	// KindKubeJob is a Kubernetes job resource type.
+	KindKubeJob = "job"
+
+	// KindKubeCertificateSigningRequest is a Certificate Signing Request resource type.
+	KindKubeCertificateSigningRequest = "certificatesigningrequest"
+
+	// KindKubeIngress is a Kubernetes Ingress resource type.
+	KindKubeIngress = "ingress"
 
 	// KindToken is a provisioning token resource
 	KindToken = "token"
@@ -364,6 +428,9 @@ const (
 	// KindWatchStatus is a kind for WatchStatus resource which contains information about a successful Watch request.
 	KindWatchStatus = "watch_status"
 
+	// KindAccessList is an AccessList resource
+	KindAccessList = "access_list"
+
 	// V7 is the seventh version of resources.
 	V7 = "v7"
 
@@ -434,11 +501,11 @@ const (
 	// account that the label might be removed, modified or could have been set by the user.
 	//
 	// See also TeleportInternalLabelPrefix and TeleportHiddenLabelPrefix.
-	TeleportNamespace = "teleport.dev"
+	TeleportNamespace = common.TeleportNamespace
 
 	// OriginLabel is a resource metadata label name used to identify a source
 	// that the resource originates from.
-	OriginLabel = TeleportNamespace + "/origin"
+	OriginLabel = common.OriginLabel
 
 	// ClusterLabel is a label that identifies the current cluster when creating resources on another systems.
 	// Eg, when creating a resource in AWS, this label must be set as a Tag in the resource.
@@ -449,31 +516,31 @@ const (
 
 	// OriginDefaults is an origin value indicating that the resource was
 	// constructed as a default value.
-	OriginDefaults = "defaults"
+	OriginDefaults = common.OriginDefaults
 
 	// OriginConfigFile is an origin value indicating that the resource is
 	// derived from static configuration.
-	OriginConfigFile = "config-file"
+	OriginConfigFile = common.OriginConfigFile
 
 	// OriginDynamic is an origin value indicating that the resource was
 	// committed as dynamic configuration.
-	OriginDynamic = "dynamic"
+	OriginDynamic = common.OriginDynamic
 
 	// OriginCloud is an origin value indicating that the resource was
 	// imported from a cloud provider.
-	OriginCloud = "cloud"
+	OriginCloud = common.OriginCloud
 
 	// OriginKubernetes is an origin value indicating that the resource was
 	// created from the Kubernetes Operator.
-	OriginKubernetes = "kubernetes"
+	OriginKubernetes = common.OriginKubernetes
 
 	// OriginOkta is an origin value indicating that the resource was
 	// created from the Okta service.
-	OriginOkta = "okta"
+	OriginOkta = common.OriginOkta
 
 	// OriginIntegrationAWSOIDC is an origin value indicating that the resource was
 	// created from the AWS OIDC Integration.
-	OriginIntegrationAWSOIDC = "integration_awsoidc"
+	OriginIntegrationAWSOIDC = common.OriginIntegrationAWSOIDC
 
 	// IntegrationLabel is a resource metadata label name used to identify the integration name that created the resource.
 	IntegrationLabel = TeleportNamespace + "/integration"
@@ -601,6 +668,16 @@ const (
 	// PresetResource are resources resources will be created if they don't exist. Updates may be applied
 	// to them, but user changes to these resources will be preserved.
 	PresetResource = "preset"
+
+	// ProxyGroupIDLabel is the internal-use label for proxy heartbeats that's
+	// used by reverse tunnel agents to keep track of multiple independent sets
+	// of proxies in proxy peering mode.
+	ProxyGroupIDLabel = TeleportInternalLabelPrefix + "proxygroup-id"
+
+	// ProxyGroupGenerationLabel is the internal-use label for proxy heartbeats
+	// that's used by reverse tunnel agents to know which proxies in each proxy
+	// group they should attempt to be connected to.
+	ProxyGroupGenerationLabel = TeleportInternalLabelPrefix + "proxygroup-gen"
 )
 
 // CloudHostnameTag is the name of the tag in a cloud instance used to override a node's hostname.
@@ -616,14 +693,7 @@ const (
 )
 
 // OriginValues lists all possible origin values.
-var OriginValues = []string{
-	OriginDefaults,
-	OriginConfigFile,
-	OriginDynamic,
-	OriginCloud,
-	OriginKubernetes,
-	OriginOkta,
-}
+var OriginValues = common.OriginValues
 
 const (
 	// RecordAtNode is the default. Sessions are recorded at Teleport nodes.
@@ -712,13 +782,96 @@ var RequestableResourceKinds = []string{
 	KindDatabase,
 	KindApp,
 	KindWindowsDesktop,
-	KindKubePod,
 	KindUserGroup,
+	KindKubePod,
+	KindKubeSecret,
+	KindKubeConfigmap,
+	KindKubeNamespace,
+	KindKubeService,
+	KindKubeServiceAccount,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubePersistentVolumeClaim,
+	KindKubeDeployment,
+	KindKubeReplicaSet,
+	KindKubeStatefulset,
+	KindKubeDaemonSet,
+	KindKubeClusterRole,
+	KindKubeRole,
+	KindKubeClusterRoleBinding,
+	KindKubeRoleBinding,
+	KindKubeCronjob,
+	KindKubeJob,
+	KindKubeCertificateSigningRequest,
+	KindKubeIngress,
 }
 
 // KubernetesResourcesKinds lists the supported Kubernetes resource kinds.
 var KubernetesResourcesKinds = []string{
 	KindKubePod,
+	KindKubeSecret,
+	KindKubeConfigmap,
+	KindKubeNamespace,
+	KindKubeService,
+	KindKubeServiceAccount,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubePersistentVolumeClaim,
+	KindKubeDeployment,
+	KindKubeReplicaSet,
+	KindKubeStatefulset,
+	KindKubeDaemonSet,
+	KindKubeClusterRole,
+	KindKubeRole,
+	KindKubeClusterRoleBinding,
+	KindKubeRoleBinding,
+	KindKubeCronjob,
+	KindKubeJob,
+	KindKubeCertificateSigningRequest,
+	KindKubeIngress,
+}
+
+const (
+	// KubeVerbGet is the Kubernetes verb for "get".
+	KubeVerbGet = "get"
+	// KubeVerbCreate is the Kubernetes verb for "create".
+	KubeVerbCreate = "create"
+	// KubeVerbUpdate is the Kubernetes verb for "update".
+	KubeVerbUpdate = "update"
+	// KubeVerbPatch is the Kubernetes verb for "patch".
+	KubeVerbPatch = "patch"
+	// KubeVerbDelete is the Kubernetes verb for "delete".
+	KubeVerbDelete = "delete"
+	// KubeVerbList is the Kubernetes verb for "list".
+	KubeVerbList = "list"
+	// KubeVerbWatch is the Kubernetes verb for "watch".
+	KubeVerbWatch = "watch"
+	// KubeVerbDeleteCollection is the Kubernetes verb for "deletecollection".
+	KubeVerbDeleteCollection = "deletecollection"
+)
+
+// KubernetesVerbs lists the supported Kubernetes verbs.
+var KubernetesVerbs = []string{
+	Wildcard,
+	KubeVerbGet,
+	KubeVerbCreate,
+	KubeVerbUpdate,
+	KubeVerbPatch,
+	KubeVerbDelete,
+	KubeVerbList,
+	KubeVerbWatch,
+	KubeVerbDeleteCollection,
+}
+
+// KubernetesClusterWideResourceKinds is the list of supported Kubernetes cluster resource kinds
+// that are not namespaced.
+var KubernetesClusterWideResourceKinds = []string{
+	KindKubeNamespace,
+	KindKubeNode,
+	KindKubePersistentVolume,
+	KindKubeClusterRole,
+	KindKubeClusterRoleBinding,
+	KindKubeCertificateSigningRequest,
 }
 
 const (

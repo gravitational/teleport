@@ -46,6 +46,7 @@ import (
 	pluginspb "github.com/gravitational/teleport/api/gen/proto/go/teleport/plugins/v1"
 	samlidppb "github.com/gravitational/teleport/api/gen/proto/go/teleport/samlidp/v1"
 	trustpb "github.com/gravitational/teleport/api/gen/proto/go/teleport/trust/v1"
+	userpreferencespb "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/api/internalutils/stream"
 	"github.com/gravitational/teleport/api/types"
 	apievents "github.com/gravitational/teleport/api/types/events"
@@ -315,6 +316,15 @@ func (a *ServerWithRoles) OktaClient() services.Okta {
 func (a *ServerWithRoles) PluginsClient() pluginspb.PluginServiceClient {
 	return pluginspb.NewPluginServiceClient(
 		utils.NewGRPCDummyClientConnection("PluginsClient() should not be called on ServerWithRoles"),
+	)
+}
+
+// EmbeddingClient allows ServerWithRoles to implement ClientI.
+// It should not be called through ServerWithRoles,
+// as it returns a dummy client that will always respond with "not implemented".
+func (a *ServerWithRoles) EmbeddingClient() assist.AssistEmbeddingServiceClient {
+	return assist.NewAssistEmbeddingServiceClient(
+		utils.NewGRPCDummyClientConnection("EmbeddingClient() should not be called on ServerWithRoles"),
 	)
 }
 
@@ -1101,18 +1111,23 @@ func (a *ServerWithRoles) RegisterInventoryControlStream(ics client.UpstreamInve
 }
 
 func (a *ServerWithRoles) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
-	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
-	// the inventory APIs once they are more developed.
-	if !a.hasBuiltinRole(types.RoleAdmin, types.RoleProxy) {
-		return proto.InventoryStatusSummary{}, trace.AccessDenied("requires builtin admin role")
+	if err := a.action(apidefaults.Namespace, types.KindInstance, types.VerbList, types.VerbRead); err != nil {
+		return proto.InventoryStatusSummary{}, trace.Wrap(err)
 	}
-	return a.authServer.GetInventoryStatus(ctx, req), nil
+
+	if req.Connected {
+		if !a.hasBuiltinRole(types.RoleAdmin) {
+			return proto.InventoryStatusSummary{}, trace.AccessDenied("requires local tctl, try using 'tctl inventory ls' instead")
+		}
+	}
+	return a.authServer.GetInventoryStatus(ctx, req)
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
 func (a *ServerWithRoles) GetInventoryConnectedServiceCounts() (proto.InventoryConnectedServiceCounts, error) {
-	// only support builtin roles for now, but we'll eventually want to develop an RBAC syntax for
-	// the inventory APIs once they are more developed.
+	// TODO(fspmarshall): switch this to being scoped to instance:read once we have a sane remote version of
+	// this method. for now we're leaving it as requiring local admin because the returned value is basically
+	// nonsense if you aren't connected locally.
 	if !a.hasBuiltinRole(types.RoleAdmin) {
 		return proto.InventoryConnectedServiceCounts{}, trace.AccessDenied("requires builtin admin role")
 	}
@@ -1120,8 +1135,8 @@ func (a *ServerWithRoles) GetInventoryConnectedServiceCounts() (proto.InventoryC
 }
 
 func (a *ServerWithRoles) PingInventory(ctx context.Context, req proto.InventoryPingRequest) (proto.InventoryPingResponse, error) {
-	// admin-only for now, but we'll eventually want to develop an RBAC syntax for
-	// the inventory APIs once they are more developed.
+	// this is scoped to admin-only not because we don't have appropriate rbac, but because this method doesn't function
+	// as expected if you aren't connected locally.
 	if !a.hasBuiltinRole(types.RoleAdmin) {
 		return proto.InventoryPingResponse{}, trace.AccessDenied("requires builtin admin role")
 	}
@@ -1441,6 +1456,19 @@ func (a *ServerWithRoles) NewWatcher(ctx context.Context, watch types.Watch) (ty
 						return nil, trace.Wrap(err)
 					}
 				}
+			}
+		case types.KindHeadlessAuthentication:
+			var filter types.HeadlessAuthenticationFilter
+			if err := filter.FromMap(kind.Filter); err != nil {
+				if watch.AllowPartialSuccess {
+					continue
+				}
+				return nil, trace.Wrap(err)
+			}
+
+			// Only users can watch their own headless authentications.
+			if !hasLocalUserRole(a.context) || filter.Username != a.context.User.GetName() {
+				return nil, trace.AccessDenied("user %q cannot watch headless authentications of %q", a.context.User.GetName(), filter.Username)
 			}
 		default:
 			if err := a.action(apidefaults.Namespace, kind.Kind, types.VerbRead); err != nil {
@@ -3715,7 +3743,7 @@ func checkRoleFeatureSupport(role types.Role) error {
 	}
 }
 
-type inventoryGetter func(context.Context, proto.InventoryStatusRequest) proto.InventoryStatusSummary
+type inventoryGetter func(context.Context, proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error)
 
 // checkInventorySupportsRole returns an error if any connected servers found in
 // the inventory do not support some features enabled in [role]. This is only a
@@ -3731,7 +3759,10 @@ func checkInventorySupportsRole(ctx context.Context, role types.Role, authVersio
 		return nil
 	}
 
-	inventoryStatus := getInventory(ctx, proto.InventoryStatusRequest{Connected: true})
+	inventoryStatus, err := getInventory(ctx, proto.InventoryStatusRequest{Connected: true})
+	if err != nil {
+		return trace.Wrap(err)
+	}
 	for _, hello := range inventoryStatus.Connected {
 		version, err := semver.NewVersion(hello.Version)
 		if err != nil {
@@ -6183,50 +6214,63 @@ func (a *ServerWithRoles) DeleteAllUserGroups(ctx context.Context) error {
 	return a.authServer.DeleteAllUserGroups(ctx)
 }
 
-// GetHeadlessAuthentication retrieves a headless authentication by id.
-func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, id string) (*types.HeadlessAuthentication, error) {
-	// GetHeadlessAuthentication will wait for the headless details
-	// if they don't yet exist in the backend.
-	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
-	defer cancel()
+// GetHeadlessAuthentication gets a headless authentication from the backend.
+func (a *ServerWithRoles) GetHeadlessAuthentication(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	if !hasLocalUserRole(a.context) {
+		return nil, trace.AccessDenied("non-local user roles cannot get headless authentication resources")
+	}
+	username := a.context.User.GetName()
 
-	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, username, name)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
+	return headlessAuthn, nil
+}
 
-	// Only users can get their own headless authentication requests.
-	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
-		// This method would usually time out above if the headless authentication
-		// does not exist, so we mimick this behavior here for users without access.
-		<-ctx.Done()
-		return nil, trace.Wrap(ctx.Err())
+// GetHeadlessAuthenticationFromWatcher gets a headless authentication from the headless
+// authentication watcher.
+func (a *ServerWithRoles) GetHeadlessAuthenticationFromWatcher(ctx context.Context, name string) (*types.HeadlessAuthentication, error) {
+	if !hasLocalUserRole(a.context) {
+		return nil, trace.AccessDenied("non-local user roles cannot get headless authentication resources")
+	}
+	username := a.context.User.GetName()
+
+	headlessAuthn, err := a.authServer.GetHeadlessAuthenticationFromWatcher(ctx, username, name)
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
 	return headlessAuthn, nil
 }
 
-// UpdateHeadlessAuthenticationState updates a headless authentication state.
-func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, id string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
-	// GetHeadlessAuthentication will wait for the headless details
-	// if they don't yet exist in the backend.
-	ctx, cancel := context.WithTimeout(ctx, defaults.HTTPRequestTimeout)
-	defer cancel()
+// UpsertHeadlessAuthenticationStub creates a headless authentication stub for the user
+// that will expire after the standard callback timeout. Headless login processes will
+// look for this stub before inserting the headless authentication resource into the
+// backend as a form of indirect authorization.
+func (a *ServerWithRoles) UpsertHeadlessAuthenticationStub(ctx context.Context) error {
+	if !hasLocalUserRole(a.context) {
+		return trace.AccessDenied("non-local user roles cannot create headless authentication stubs")
+	}
+	username := a.context.User.GetName()
 
-	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, id)
+	err := a.authServer.UpsertHeadlessAuthenticationStub(ctx, username)
+	return trace.Wrap(err)
+}
+
+// UpdateHeadlessAuthenticationState updates a headless authentication state.
+func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context, name string, state types.HeadlessAuthenticationState, mfaResp *proto.MFAAuthenticateResponse) error {
+	if !hasLocalUserRole(a.context) {
+		return trace.AccessDenied("non-local user roles cannot approve or deny headless authentication resources")
+	}
+	username := a.context.User.GetName()
+
+	headlessAuthn, err := a.authServer.GetHeadlessAuthentication(ctx, username, name)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	// Only users can update their own headless authentication requests.
-	if !hasLocalUserRole(a.context) || headlessAuthn.User != a.context.User.GetName() {
-		// This method would usually time out above if the headless authentication
-		// does not exist, so we mimick this behavior here for users without access.
-		<-ctx.Done()
-		return trace.Wrap(ctx.Err())
-	}
-
-	if headlessAuthn.State != types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING {
+	if !headlessAuthn.State.IsPending() {
 		return trace.AccessDenied("cannot update a headless authentication state from a non-pending state")
 	}
 
@@ -6260,6 +6304,58 @@ func (a *ServerWithRoles) UpdateHeadlessAuthenticationState(ctx context.Context,
 
 	_, err = a.authServer.CompareAndSwapHeadlessAuthentication(ctx, headlessAuthn, &replaceHeadlessAuthn)
 	return trace.Wrap(err)
+}
+
+// MaintainHeadlessAuthenticationStub maintains a headless authentication stub for the user.
+// Headless login processes will look for this stub before inserting the headless authentication
+// resource into the backend as a form of indirect authorization.
+func (a *ServerWithRoles) MaintainHeadlessAuthenticationStub(ctx context.Context) error {
+	if !hasLocalUserRole(a.context) {
+		return trace.AccessDenied("non-local user roles cannot create headless authentication stubs")
+	}
+	username := a.context.User.GetName()
+
+	// Create a stub and re-create it each time it expires.
+	// Authorization is handled by UpsertHeadlessAuthenticationStub.
+	if err := a.authServer.UpsertHeadlessAuthenticationStub(ctx, username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	ticker := time.NewTicker(defaults.CallbackTimeout)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ticker.C:
+			if err := a.authServer.UpsertHeadlessAuthenticationStub(ctx, username); err != nil {
+				return trace.Wrap(err)
+			}
+		case <-ctx.Done():
+			return nil
+		}
+	}
+}
+
+// WatchPendingHeadlessAuthentications creates a watcher for pending headless authentication for the current user.
+func (a *ServerWithRoles) WatchPendingHeadlessAuthentications(ctx context.Context) (types.Watcher, error) {
+	if !hasLocalUserRole(a.context) {
+		return nil, trace.AccessDenied("non-local user roles cannot watch headless authentications")
+	}
+	username := a.context.User.GetName()
+
+	// Authorization is handled by NewWatcher.
+	filter := types.HeadlessAuthenticationFilter{
+		Username: username,
+		State:    types.HeadlessAuthenticationState_HEADLESS_AUTHENTICATION_STATE_PENDING,
+	}
+
+	return a.NewWatcher(ctx, types.Watch{
+		Name: username,
+		Kinds: []types.WatchKind{{
+			Kind:   types.KindHeadlessAuthentication,
+			Filter: filter.IntoMap(),
+		}},
+	})
 }
 
 // CreateAssistantConversation creates a new conversation entry in the backend.
@@ -6323,6 +6419,29 @@ func (a *ServerWithRoles) UpdateAssistantConversationInfo(ctx context.Context, m
 	}
 
 	return a.authServer.UpdateAssistantConversationInfo(ctx, msg)
+}
+
+// GetUserPreferences returns the user preferences for a given user.
+func (a *ServerWithRoles) GetUserPreferences(ctx context.Context, req *userpreferencespb.GetUserPreferencesRequest) (*userpreferencespb.GetUserPreferencesResponse, error) {
+	if err := a.currentUserAction(req.Username); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	preferences, err := a.authServer.GetUserPreferences(ctx, req)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return preferences, nil
+}
+
+// UpsertUserPreferences creates or updates user preferences for a given username.
+func (a *ServerWithRoles) UpsertUserPreferences(ctx context.Context, req *userpreferencespb.UpsertUserPreferencesRequest) error {
+	if err := a.currentUserAction(req.Username); err != nil {
+		return trace.Wrap(err)
+	}
+
+	return trace.Wrap(a.authServer.UpsertUserPreferences(ctx, req))
 }
 
 // CloneHTTPClient creates a new HTTP client with the same configuration.

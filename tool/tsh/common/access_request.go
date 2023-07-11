@@ -450,6 +450,7 @@ func onRequestSearch(cf *CLIConf) error {
 
 	var rows [][]string
 	var resourceIDs []string
+	deduplicateResourceIDs := map[string]struct{}{}
 	for _, resource := range resources {
 		var row []string
 		switch r := resource.(type) {
@@ -460,6 +461,9 @@ func onRequestSearch(cf *CLIConf) error {
 				Name:            cf.KubernetesCluster,
 				SubResourceName: fmt.Sprintf("%s/%s", r.Spec.Namespace, resource.GetName()),
 			})
+			if ignoreDuplicateResourceId(deduplicateResourceIDs, resourceID) {
+				continue
+			}
 			resourceIDs = append(resourceIDs, resourceID)
 
 			row = []string{
@@ -475,6 +479,10 @@ func onRequestSearch(cf *CLIConf) error {
 				Kind:        resource.GetKind(),
 				Name:        resource.GetName(),
 			})
+			if ignoreDuplicateResourceId(deduplicateResourceIDs, resourceID) {
+				continue
+			}
+
 			resourceIDs = append(resourceIDs, resourceID)
 			hostName := ""
 			if r, ok := resource.(interface{ GetHostname() string }); ok {
@@ -505,6 +513,18 @@ To request access to these resources, run
 	}
 
 	return nil
+}
+
+// ignoreDuplicateResourceId returns true if the resource ID is a duplicate
+// and should be ignored. Otherwise, it returns false and adds the resource ID
+// to the deduplicateResourceIDs map.
+func ignoreDuplicateResourceId(deduplicateResourceIDs map[string]struct{}, resourceID string) bool {
+	// Ignore duplicate resource IDs.
+	if _, ok := deduplicateResourceIDs[resourceID]; ok {
+		return true
+	}
+	deduplicateResourceIDs[resourceID] = struct{}{}
+	return false
 }
 
 func onRequestDrop(cf *CLIConf) error {

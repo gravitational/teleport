@@ -18,20 +18,9 @@ deployments, use your own private key and certificate.
     an email address used for notifications (you can use any domain):
 
     ```code
-    $ teleport configure --acme --acme-email=<Var name="user@example.com" description="Your email address to register with Let's Encrypt for TLS certificates" /> --cluster-name=<Var name="tele.example.com" description="The domain name of your Teleport cluster" /> | sudo tee /etc/teleport.yaml > /dev/null
-    ```
-
-    The `--acme`, `--acme-email`, and `--cluster-name` flags will add the following
-    settings to your Teleport configuration file:
-
-    ```yaml
-    proxy_service:
-      enabled: "yes"
-      web_listen_addr: 0.0.0.0:443
-      public_addr: tele.example.com:443
-      acme:
-        enabled: "yes"
-        email: user@example.com
+    $ sudo teleport configure -o file \
+        --acme --acme-email=<Var name="user@example.com" description="Your email address to register with Let's Encrypt for TLS certificates" /> \
+        --cluster-name=<Var name="tele.example.com" description="The domain name of your Teleport cluster" />
     ```
 
     Port 443 on your Teleport Proxy Service host must allow traffic from all sources.

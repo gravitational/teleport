@@ -22,6 +22,7 @@ import { Option } from 'shared/components/Select';
 
 import {
   EmployeeOptionsStrings,
+  Resource,
   TeamOptionsStrings,
   TitleOptionsStrings,
 } from './types';
@@ -84,14 +85,14 @@ export const titleSelectOptions: Option<
   }));
 
 export const supportedResources = [
-  { label: 'Web Applications', image: application },
-  { label: 'Windows Desktops', image: desktop },
-  { label: 'Server/SSH', image: stack },
-  { label: 'Databases', image: database },
-  { label: 'Kubernetes', image: stack },
+  { label: Resource.RESOURCE_WEB_APPLICATIONS, image: application },
+  { label: Resource.RESOURCE_WINDOWS_DESKTOPS, image: desktop },
+  { label: Resource.RESOURCE_SERVER_SSH, image: stack },
+  { label: Resource.RESOURCE_DATABASES, image: database },
+  { label: Resource.RESOURCE_KUBERNETES, image: stack },
 ];
 
-export const requiredResourceField = (value: string[]) => () => {
+export const requiredResourceField = (value: Resource[]) => () => {
   const valid = !!value.length;
   return {
     valid,

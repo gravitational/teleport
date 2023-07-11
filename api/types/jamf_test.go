@@ -148,7 +148,7 @@ func TestValidateJamfSpecV1(t *testing.T) {
 					},
 				}
 			}),
-			wantErr: "greater than sync_period_full",
+			wantErr: "greater or equal to sync_period_full",
 		},
 		{
 			name: "inventory on_missing invalid",
@@ -161,6 +161,42 @@ func TestValidateJamfSpecV1(t *testing.T) {
 				}
 			}),
 			wantErr: "on_missing",
+		},
+		{
+			name: "inventory sync_partial disabled",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					validEntry,
+					{
+						SyncPeriodPartial: -1,
+						SyncPeriodFull:    types.Duration(8 * time.Hour),
+					},
+				}
+			}),
+		},
+		{
+			name: "inventory sync_full disabled",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					validEntry,
+					{
+						SyncPeriodPartial: types.Duration(12 * time.Hour),
+						SyncPeriodFull:    -1,
+					},
+				}
+			}),
+		},
+		{
+			name: "inventory all syncs disabled",
+			spec: modify(func(spec *types.JamfSpecV1) {
+				spec.Inventory = []*types.JamfInventoryEntry{
+					validEntry,
+					{
+						SyncPeriodPartial: 0,
+						SyncPeriodFull:    0,
+					},
+				}
+			}),
 		},
 	}
 	for _, test := range tests {

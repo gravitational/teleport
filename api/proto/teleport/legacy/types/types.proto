@@ -644,6 +644,10 @@ message InstanceSpecV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "control_log,omitempty"
   ];
+
+  // ExternalUpgrader identifies the external upgrader that the instance is configured to
+  // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
+  string ExternalUpgrader = 7 [(gogoproto.jsontag) = "ext_upgrader,omitempty"];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -704,6 +708,18 @@ message InstanceFilter {
   // expose *at least* one of the listed services. This is in contrast to service matching in version
   // directives which match instances that expose a *at most* the listed services.
   repeated string Services = 3 [(gogoproto.casttype) = "SystemRole"];
+
+  // ExternalUpgrader matches instance upgrader if specified.
+  string ExternalUpgrader = 4;
+
+  // NoExtUpgrader explicitly matches instances for which no upgrader is defined.
+  bool NoExtUpgrader = 5;
+
+  // OlderThanVersion is an optional exclusive upper version bound.
+  string OlderThanVersion = 6;
+
+  // NewerThanVersion is an optional exclusive lower version bound.
+  string NewerThanVersion = 7;
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.
@@ -2722,6 +2738,8 @@ message KubernetesResource {
   // Name is the resource name.
   // It supports wildcards.
   string Name = 3 [(gogoproto.jsontag) = "name,omitempty"];
+  // Verbs are the allowed Kubernetes verbs for the following resource.
+  repeated string Verbs = 4 [(gogoproto.jsontag) = "verbs,omitempty"];
 }
 
 // SessionRequirePolicy a requirement policy that needs to be fulfilled to grant access.
@@ -5880,8 +5898,7 @@ message JamfInventoryEntry {
   // PARTIAL syncs are scheduled in the time window between FULL syncs, so
   // sync_period_partial must always be smaller than sync_period_full, otherwise
   // it would never trigger.
-  // Set to negative to disable PARTIAL syncs.
-  // Defaults to 6h.
+  // Set to zero or negative to disable PARTIAL syncs.
   int64 sync_period_partial = 2 [
     (gogoproto.jsontag) = "sync_period_partial,omitempty",
     (gogoproto.casttype) = "Duration"
@@ -5889,8 +5906,7 @@ message JamfInventoryEntry {
   // Sync period for FULL syncs.
   // Ideally sync_period_full is a multiple of sync_period_partial, so schedules
   // line up perfectly.
-  // Set to negative to disable FULL syncs.
-  // Defaults to 24h.
+  // Set to zero or negative to disable FULL syncs.
   int64 sync_period_full = 3 [
     (gogoproto.jsontag) = "sync_period_full,omitempty",
     (gogoproto.casttype) = "Duration"

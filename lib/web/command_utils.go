@@ -45,6 +45,13 @@ type WSConn interface {
 	SetPongHandler(h func(appData string) error)
 }
 
+const (
+	envelopeTypeStdout  = "stdout"
+	envelopeTypeStderr  = "stderr"
+	envelopeTypeError   = "teleport-error"
+	envelopeTypeSummary = "summary"
+)
+
 // outEnvelope is an envelope used to wrap messages send back to the client connected over WS.
 type outEnvelope struct {
 	NodeID  string `json:"node_id"`
@@ -56,7 +63,7 @@ type outEnvelope struct {
 // outEnvelope and writes it to the underlying stream.
 type payloadWriter struct {
 	nodeID string
-	// output name, can be stdout, stderr or teleport-error.
+	// output name, can be stdout, stderr, teleport-error or summary.
 	outputName string
 	// stream is the underlying stream.
 	stream io.Writer
@@ -129,4 +136,67 @@ func (s *syncRWWSConn) ReadMessage() (messageType int, p []byte, err error) {
 	s.rmtx.Lock()
 	defer s.rmtx.Unlock()
 	return s.WSConn.ReadMessage()
+}
+
+func newBufferedPayloadWriter(pw *payloadWriter, buffer *summaryBuffer) *bufferedPayloadWriter {
+	return &bufferedPayloadWriter{
+		payloadWriter: pw,
+		buffer:        buffer,
+	}
+}
+
+type bufferedPayloadWriter struct {
+	*payloadWriter
+	buffer *summaryBuffer
+}
+
+func (bp *bufferedPayloadWriter) Write(data []byte) (int, error) {
+	bp.buffer.Write(bp.nodeID, data)
+	return bp.payloadWriter.Write(data)
+}
+
+func newSummaryBuffer(capacity int) *summaryBuffer {
+	return &summaryBuffer{
+		buffer:            make(map[string][]byte),
+		remainingCapacity: capacity,
+		invalid:           false,
+		mutex:             sync.Mutex{},
+	}
+}
+
+type summaryBuffer struct {
+	buffer            map[string][]byte
+	remainingCapacity int
+	invalid           bool
+	// mutex protects all members of the struct and must be acquired before
+	// performing any read or write operation
+	mutex sync.Mutex
+}
+
+func (b *summaryBuffer) Write(node string, data []byte) {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	if b.invalid {
+		return
+	}
+	if len(data) > b.remainingCapacity {
+		// We're out of capacity, not all content will be written to the buffer
+		// it should not be used anymore
+		b.invalid = true
+		return
+	}
+	b.buffer[node] = append(b.buffer[node], data...)
+	b.remainingCapacity -= len(data)
+}
+
+// Export returns the buffer content and a whether the Export is valid.
+// Exporting the buffer can only happen once.
+func (b *summaryBuffer) Export() (map[string][]byte, bool) {
+	b.mutex.Lock()
+	defer b.mutex.Unlock()
+	if b.invalid {
+		return nil, false
+	}
+	b.invalid = true
+	return b.buffer, len(b.buffer) != 0
 }

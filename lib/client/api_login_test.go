@@ -443,9 +443,13 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 	// Login the current user and fetch a valid pair of certificates.
 	key, err := teleportClient.Login(ctx)
 	require.NoError(t, err, "Login failed")
-	require.NoError(t,
-		teleportClient.ActivateKey(ctx, key),
-		"ActivateKey failed")
+
+	proxyClient, rootAuthClient, err := teleportClient.ConnectToRootCluster(ctx, key)
+	require.NoError(t, err, "Connecting to the root cluster failed")
+	t.Cleanup(func() {
+		require.NoError(t, rootAuthClient.Close())
+		require.NoError(t, proxyClient.Close())
+	})
 
 	// Prepare "device aware" certificates from key.
 	// In a real scenario these would be augmented certs.
@@ -487,16 +491,18 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		require.NoError(t, authenticatedAction(), "Authenticated action failed *before* AttemptDeviceLogin")
 
 		// Test! Exercise DeviceLogin.
-		got, err := teleportClient.DeviceLogin(ctx, &devicepb.UserCertificates{
-			SshAuthorizedKey: key.Cert,
-		})
+		got, err := teleportClient.DeviceLogin(ctx,
+			rootAuthClient,
+			&devicepb.UserCertificates{
+				SshAuthorizedKey: key.Cert,
+			})
 		require.NoError(t, err, "DeviceLogin failed")
 		require.Equal(t, validCerts, got, "DeviceLogin mismatch")
 		assert.Equal(t, 1, runCeremonyCalls, `DeviceLogin didn't call dtAuthnRunCeremony()`)
 
 		// Test! Exercise AttemptDeviceLogin.
 		require.NoError(t,
-			teleportClient.AttemptDeviceLogin(ctx, key),
+			teleportClient.AttemptDeviceLogin(ctx, key, rootAuthClient),
 			"AttemptDeviceLogin failed")
 		assert.Equal(t, 2, runCeremonyCalls, `AttemptDeviceLogin didn't call dtAuthnRunCeremony()`)
 
@@ -521,7 +527,7 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 		// Test!
 		// AttemptDeviceLogin should obey Ping and not attempt the ceremony.
 		require.NoError(t,
-			teleportClient.AttemptDeviceLogin(ctx, key),
+			teleportClient.AttemptDeviceLogin(ctx, key, rootAuthClient),
 			"AttemptDeviceLogin failed")
 		assert.False(t, runCeremonyCalled, "AttemptDeviceLogin called DeviceLogin/dtAuthnRunCeremony, despite the Ping response")
 	})
@@ -550,10 +556,21 @@ func TestTeleportClient_DeviceLogin(t *testing.T) {
 			}, nil
 		})
 
+		proxyClient, err := teleportClient.ConnectToProxy(ctx)
+		require.NoError(t, err)
+		defer proxyClient.Close()
+
+		rootAuthClient, err := proxyClient.ConnectToRootCluster(ctx)
+		require.NoError(t, err)
+		defer rootAuthClient.Close()
+
 		// Test!
-		got, err := teleportClient.DeviceLogin(ctx, &devicepb.UserCertificates{
-			SshAuthorizedKey: key.Cert,
-		})
+		got, err := teleportClient.DeviceLogin(
+			ctx,
+			rootAuthClient,
+			&devicepb.UserCertificates{
+				SshAuthorizedKey: key.Cert,
+			})
 		require.NoError(t, err, "DeviceLogin failed")
 		assert.Equal(t, got, validCerts, "DeviceLogin mismatch")
 		assert.Equal(t, 2, runCeremonyCalls, "RunCeremony called an unexpected number of times")
@@ -734,4 +751,67 @@ func silenceLogger(t *testing.T) {
 	})
 	log.SetOutput(io.Discard)
 	log.SetLevel(log.PanicLevel)
+}
+
+func TestRetryWithRelogin(t *testing.T) {
+	clock := clockwork.NewFakeClockAt(time.Now())
+	sa := newStandaloneTeleport(t, clock)
+
+	cfg := client.MakeDefaultConfig()
+	cfg.Username = sa.Username
+	cfg.HostLogin = sa.Username
+	cfg.WebProxyAddr = sa.ProxyWebAddr
+	cfg.KeysDir = t.TempDir()
+	cfg.InsecureSkipVerify = true
+	cfg.AllowStdinHijack = true
+
+	tc, err := client.NewClient(cfg)
+	require.NoError(t, err)
+
+	errorOnTry := func(counter *int, failedTry int) func() error {
+		return func() error {
+			*counter++
+			if *counter == failedTry {
+				return errors.New("ssh: cert has expired")
+			}
+			return nil
+		}
+	}
+
+	t.Run("Does not try login if function succeeds on the first run", func(t *testing.T) {
+		calledTimes := 0
+
+		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, -1))
+
+		require.NoError(t, err)
+		require.Equal(t, 1, calledTimes)
+	})
+	t.Run("Runs 'beforeLoginHook' before login, if it's present", func(t *testing.T) {
+		calledTimes := 0
+
+		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, 1), client.WithBeforeLoginHook(
+			func() error {
+				return errors.New("hook called")
+			}))
+
+		require.ErrorContains(t, err, "hook called")
+		require.Equal(t, 1, calledTimes)
+	})
+
+	t.Run("Successful retry after login", func(t *testing.T) {
+		solveOTP := func(ctx context.Context) (string, error) {
+			return totp.GenerateCode(sa.OTPKey, clock.Now())
+		}
+		oldStdin := prompt.Stdin()
+		t.Cleanup(func() {
+			prompt.SetStdin(oldStdin)
+		})
+		prompt.SetStdin(prompt.NewFakeReader().AddString(sa.Password).AddReply(solveOTP))
+		calledTimes := 0
+
+		err = client.RetryWithRelogin(context.Background(), tc, errorOnTry(&calledTimes, 1))
+
+		require.NoError(t, err)
+		require.Equal(t, 2, calledTimes)
+	})
 }

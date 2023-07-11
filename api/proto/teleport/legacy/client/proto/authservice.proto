@@ -135,6 +135,8 @@ message Event {
     types.IntegrationV1 Integration = 42 [(gogoproto.jsontag) = "integration,omitempty"];
     // WatchStatus is an WatchStatus resource.
     types.WatchStatusV1 WatchStatus = 43 [(gogoproto.jsontag) = "watch_status,omitempty"];
+    // HeadlessAuthentication is a HeadlessAuthentication resource.
+    types.HeadlessAuthentication HeadlessAuthentication = 44 [(gogoproto.jsontag) = "headless_authentication,omitempty"];
   }
 }
 
@@ -2188,6 +2190,18 @@ message InventoryStatusSummary {
   // Connected is a summary of the instances connected to the current auth server.  Only set if
   // the Connected flag in the status request is true.
   repeated UpstreamInventoryHello Connected = 1 [(gogoproto.nullable) = false];
+
+  // InstanceCount is the total number of instance resources aggregated.
+  uint32 InstanceCount = 2;
+
+  // VersionCounts aggregates unique version counts.
+  map<string, uint32> VersionCounts = 3;
+
+  // UpgraderCounts aggregates the unique upgrader counts.
+  map<string, uint32> UpgraderCounts = 4;
+
+  // ServiceCounts aggregates the number of services.
+  map<string, uint32> ServiceCounts = 5;
 }
 
 // InventoryConnectedServiceCountsRequest requests inventory connected service counts.
@@ -3000,6 +3014,9 @@ service AuthService {
 
   // GetHeadlessAuthentication is a request to retrieve a headless authentication from the backend.
   rpc GetHeadlessAuthentication(GetHeadlessAuthenticationRequest) returns (types.HeadlessAuthentication);
+
+  // WatchPendingHeadlessAuthentications watches the backend for pending headless authentication requests for the user.
+  rpc WatchPendingHeadlessAuthentications(google.protobuf.Empty) returns (stream Event);
 
   // UpdateHeadlessAuthenticationState is a request to update a headless authentication's state.
   rpc UpdateHeadlessAuthenticationState(UpdateHeadlessAuthenticationStateRequest) returns (google.protobuf.Empty);
