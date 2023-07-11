@@ -122,24 +122,28 @@ type configureDiscoveryBootstrapFlags struct {
 
 func makeDatabaseServiceBootstrapFlagsWithDiscoveryServiceConfig(flags configureDiscoveryBootstrapFlags) configurators.BootstrapFlags {
 	config := flags.config
+	config.Service = configurators.DatabaseServiceByDiscoveryServiceConfig
 	config.AttachToUser = ""
 	config.AttachToRole = flags.databaseServiceRole
 	config.PolicyName = flags.databaseServicePolicyName
-	config.DiscoveryService = false
-	config.DiscoveryServiceConfig = true
 	return config
 }
 
 // onConfigureDiscoveryBootstrap subcommand that bootstraps configuration for
 // discovery  agents.
 func onConfigureDiscoveryBootstrap(flags configureDiscoveryBootstrapFlags) error {
+	fmt.Printf("Reading configuration at %q...\n", flags.config.ConfigPath)
+
 	ctx := context.TODO()
 	configurators, err := configuratorbuilder.BuildConfigurators(flags.config)
 	if err != nil {
 		return trace.Wrap(err)
 	}
 
-	if flags.config.DiscoveryService && flags.databaseServiceRole != "" {
+	// If database service role is specified while bootstrap discovery service,
+	// generate configurator actions for database service using the discovery
+	// service config.
+	if flags.config.Service.IsDiscovery() && flags.databaseServiceRole != "" {
 		config := makeDatabaseServiceBootstrapFlagsWithDiscoveryServiceConfig(flags)
 		dbConfigurators, err := configuratorbuilder.BuildConfigurators(config)
 		if err != nil {
@@ -148,7 +152,6 @@ func onConfigureDiscoveryBootstrap(flags configureDiscoveryBootstrapFlags) error
 		configurators = append(configurators, dbConfigurators...)
 	}
 
-	fmt.Printf("Reading configuration at %q...\n", flags.config.ConfigPath)
 	if len(configurators) == 0 {
 		fmt.Println("The agent doesn't require any extra configuration.")
 		return nil

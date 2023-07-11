@@ -539,7 +539,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 		},
 		"AutoDiscovery EC2": {
 			target: roleTarget,
-			flags:  configurators.BootstrapFlags{DiscoveryService: true},
+			flags:  configurators.BootstrapFlags{Service: configurators.DiscoveryService},
 			fileConfig: &config.FileConfig{
 				Discovery: config.Discovery{
 					Service: config.Service{EnabledFlag: "true"},
@@ -1040,7 +1040,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 			},
 		}
 
-		flags := configurators.BootstrapFlags{DiscoveryService: true}
+		flags := configurators.BootstrapFlags{Service: configurators.DiscoveryService}
 		for name, test := range tests {
 			t.Run(name, func(t *testing.T) {
 				targetCfg := mustGetTargetConfig(t, flags, roleTarget, test.fileConfig)
@@ -1322,8 +1322,7 @@ func TestAWSIAMDocuments(t *testing.T) {
 		}
 
 		flags := configurators.BootstrapFlags{
-			DiscoveryService:       false,
-			DiscoveryServiceConfig: true,
+			Service: configurators.DatabaseServiceByDiscoveryServiceConfig,
 		}
 		for name, test := range tests {
 			t.Run(name, func(t *testing.T) {
@@ -1692,7 +1691,7 @@ func TestAWSDocumentConfigurator(t *testing.T) {
 		},
 		ServiceConfig: serviceConfig,
 		Flags: configurators.BootstrapFlags{
-			DiscoveryService:    true,
+			Service:             configurators.DiscoveryService,
 			ForceEC2Permissions: true,
 		},
 		Policies: &policiesMock{
@@ -1743,7 +1742,7 @@ func TestAWSConfigurator(t *testing.T) {
 		require.NoError(t, err)
 	}
 
-	config.Flags.DiscoveryService = true
+	config.Flags.Service = configurators.DiscoveryService
 	config.Flags.ForceEC2Permissions = true
 	config.Flags.Proxy = "proxy.xyz"
 
@@ -1815,7 +1814,7 @@ func TestExtractTargetConfig(t *testing.T) {
 		},
 		"target in discovery assume roles": {
 			target: roleTarget,
-			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, DiscoveryService: true},
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, Service: configurators.DiscoveryService},
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
@@ -1842,7 +1841,7 @@ func TestExtractTargetConfig(t *testing.T) {
 		},
 		"target in discovery assume roles (boostrapping database service)": {
 			target: roleTarget,
-			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, DiscoveryServiceConfig: true},
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, Service: configurators.DatabaseServiceByDiscoveryServiceConfig},
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
@@ -1909,7 +1908,7 @@ func TestExtractTargetConfig(t *testing.T) {
 		},
 		"target not in discovery roles": {
 			target: roleTarget,
-			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, DiscoveryService: true},
+			flags:  configurators.BootstrapFlags{ForceAssumesRoles: role1, Service: configurators.DiscoveryService},
 			cfg: &servicecfg.Config{
 				Discovery: servicecfg.DiscoveryConfig{
 					AWSMatchers: []types.AWSMatcher{
