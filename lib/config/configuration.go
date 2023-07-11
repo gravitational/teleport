@@ -1342,12 +1342,13 @@ func applyKubeConfig(fc *FileConfig, cfg *servicecfg.Config) error {
 	}
 
 	for _, matcher := range fc.Kube.ResourceMatchers {
-		if matcher.AWS.AssumeRoleARN != "" {
-			return trace.NotImplemented("assume_role_arn is not supported for kube resource matchers")
-		}
 		cfg.Kube.ResourceMatchers = append(cfg.Kube.ResourceMatchers,
 			services.ResourceMatcher{
 				Labels: matcher.Labels,
+				AWS: services.ResourceMatcherAWS{
+					AssumeRoleARN: matcher.AWS.AssumeRoleARN,
+					ExternalID:    matcher.AWS.ExternalID,
+				},
 			})
 	}
 

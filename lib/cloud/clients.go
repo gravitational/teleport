@@ -987,7 +987,7 @@ func (c *TestCloudClients) GetAzurePostgresClient(subscription string) (azure.DB
 
 // GetAzureKubernetesClient returns an AKS client for the specified subscription
 func (c *TestCloudClients) GetAzureKubernetesClient(subscription string) (azure.AKSClient, error) {
-	if len(c.AzurePostgresPerSub) != 0 {
+	if len(c.AzureAKSClientPerSub) != 0 {
 		return c.AzureAKSClientPerSub[subscription], nil
 	}
 	return c.AzureAKSClient, nil

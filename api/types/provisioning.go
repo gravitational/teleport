@@ -98,6 +98,8 @@ type ProvisionToken interface {
 	SetRoles(SystemRoles)
 	// GetAllowRules returns the list of allow rules
 	GetAllowRules() []*TokenRule
+	// SetAllowRules sets the allow rules
+	SetAllowRules([]*TokenRule)
 	// GetAWSIIDTTL returns the TTL of EC2 IIDs
 	GetAWSIIDTTL() Duration
 	// GetJoinMethod returns joining method that must be used with this token.
@@ -325,6 +327,11 @@ func (p *ProvisionTokenV2) SetRoles(r SystemRoles) {
 // GetAllowRules returns the list of allow rules
 func (p *ProvisionTokenV2) GetAllowRules() []*TokenRule {
 	return p.Spec.Allow
+}
+
+// SetAllowRules sets the allow rules.
+func (p *ProvisionTokenV2) SetAllowRules(rules []*TokenRule) {
+	p.Spec.Allow = rules
 }
 
 // GetAWSIIDTTL returns the TTL of EC2 IIDs

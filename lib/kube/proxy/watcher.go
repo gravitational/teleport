@@ -181,10 +181,13 @@ func (m *monitoredKubeClusters) get() types.ResourcesWithLabelsMap {
 func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	clusterDetails, err := newClusterDetails(
 		ctx,
-		s.CloudClients,
-		cluster,
-		s.log,
-		s.CheckImpersonationPermissions,
+		clusterDetailsConfig{
+			cloudClients:     s.CloudClients,
+			cluster:          cluster,
+			log:              s.log,
+			checker:          s.CheckImpersonationPermissions,
+			resourceMatchers: s.ResourceMatchers,
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)
@@ -196,10 +199,13 @@ func (s *TLSServer) registerKubeCluster(ctx context.Context, cluster types.KubeC
 func (s *TLSServer) updateKubeCluster(ctx context.Context, cluster types.KubeCluster) error {
 	clusterDetails, err := newClusterDetails(
 		ctx,
-		s.CloudClients,
-		cluster,
-		s.log,
-		s.CheckImpersonationPermissions,
+		clusterDetailsConfig{
+			cloudClients:     s.CloudClients,
+			cluster:          cluster,
+			log:              s.log,
+			checker:          s.CheckImpersonationPermissions,
+			resourceMatchers: s.ResourceMatchers,
+		},
 	)
 	if err != nil {
 		return trace.Wrap(err)

@@ -263,6 +263,7 @@ func NewPresetAuditorRole() types.Role {
 					types.NewRule(types.KindEvent, RO()),
 					types.NewRule(types.KindSessionTracker, RO()),
 					types.NewRule(types.KindClusterAlert, RO()),
+					types.NewRule(types.KindInstance, RO()),
 					// Please see defaultAllowRules when adding a new rule.
 				},
 			},
@@ -387,6 +388,7 @@ func defaultAllowRules() map[string][]types.Rule {
 	return map[string][]types.Rule{
 		teleport.PresetAuditorRoleName: {
 			types.NewRule(types.KindSessionTracker, RO()),
+			types.NewRule(types.KindInstance, RO()),
 		},
 		teleport.PresetEditorRoleName: {
 			types.NewRule(types.KindConnectionDiagnostic, RW()),
@@ -401,9 +403,11 @@ func defaultAllowRules() map[string][]types.Rule {
 			types.NewRule(types.KindLock, RW()),
 			types.NewRule(types.KindIntegration, append(RW(), types.VerbUse)),
 			types.NewRule(types.KindBilling, RW()),
+			types.NewRule(types.KindInstance, RO()),
 			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),
 		},
 		teleport.PresetAccessRoleName: {
+			types.NewRule(types.KindInstance, RO()),
 			// Allow assist access to access role. This role only allow access
 			// to the assist console, not any other cluster resources.
 			types.NewRule(types.KindAssistant, append(RW(), types.VerbUse)),

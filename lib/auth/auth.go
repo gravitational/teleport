@@ -3505,14 +3505,41 @@ func (a *Server) MakeLocalInventoryControlStream(opts ...client.ICSPipeOption) c
 	return downstream
 }
 
-func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) proto.InventoryStatusSummary {
+func (a *Server) GetInventoryStatus(ctx context.Context, req proto.InventoryStatusRequest) (proto.InventoryStatusSummary, error) {
 	var rsp proto.InventoryStatusSummary
 	if req.Connected {
 		a.inventory.Iter(func(handle inventory.UpstreamHandle) {
 			rsp.Connected = append(rsp.Connected, handle.Hello())
 		})
+
+		// connected instance list is a special case, don't bother aggregating heartbeats
+		return rsp, nil
 	}
-	return rsp
+
+	rsp.VersionCounts = make(map[string]uint32)
+	rsp.UpgraderCounts = make(map[string]uint32)
+	rsp.ServiceCounts = make(map[string]uint32)
+
+	ins := a.GetInstances(ctx, types.InstanceFilter{})
+
+	for ins.Next() {
+		rsp.InstanceCount++
+
+		rsp.VersionCounts[vc.Normalize(ins.Item().GetTeleportVersion())]++
+
+		upgrader := ins.Item().GetExternalUpgrader()
+		if upgrader == "" {
+			upgrader = "none"
+		}
+
+		rsp.UpgraderCounts[upgrader]++
+
+		for _, service := range ins.Item().GetServices() {
+			rsp.ServiceCounts[string(service)]++
+		}
+	}
+
+	return rsp, ins.Done()
 }
 
 // GetInventoryConnectedServiceCounts returns the counts of each connected service seen in the inventory.
