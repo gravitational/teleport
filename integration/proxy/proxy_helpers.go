@@ -563,7 +563,9 @@ func mustStartALPNLocalProxyWithConfig(t *testing.T, config alpnproxy.LocalProxy
 func mustStartKubeForwardProxy(t *testing.T, lpAddr string) *alpnproxy.ForwardProxy {
 	t.Helper()
 
-	fp, err := alpnproxy.NewKubeForwardProxy(context.Background(), "", lpAddr)
+	fp, err := alpnproxy.NewKubeForwardProxy(alpnproxy.KubeForwardProxyConfig{
+		ForwardAddr: lpAddr,
+	})
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		fp.Close()

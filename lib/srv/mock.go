@@ -61,6 +61,8 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 	sshConn.remoteAddr, _ = utils.ParseAddr("10.0.0.5:4817")
 
 	ctx, cancel := context.WithCancel(context.Background())
+	recConfig := types.DefaultSessionRecordingConfig()
+	recConfig.SetMode(types.RecordOff)
 	clusterName := "localhost"
 	scx := &ServerContext{
 		Entry: logrus.NewEntry(logrus.StandardLogger()),
@@ -68,7 +70,7 @@ func newTestServerContext(t *testing.T, srv Server, roleSet services.RoleSet) *S
 			ServerConn: &ssh.ServerConn{Conn: sshConn},
 		},
 		env:                    make(map[string]string),
-		SessionRecordingConfig: types.DefaultSessionRecordingConfig(),
+		SessionRecordingConfig: recConfig,
 		IsTestStub:             true,
 		ClusterName:            clusterName,
 		srv:                    srv,
@@ -138,15 +140,15 @@ func newMockServer(t *testing.T) *mockServer {
 	require.NoError(t, err)
 
 	return &mockServer{
-		auth:        authServer,
-		datadir:     t.TempDir(),
-		MockEmitter: &eventstest.MockEmitter{},
-		clock:       clock,
+		auth:                authServer,
+		datadir:             t.TempDir(),
+		MockRecorderEmitter: &eventstest.MockRecorderEmitter{},
+		clock:               clock,
 	}
 }
 
 type mockServer struct {
-	*eventstest.MockEmitter
+	*eventstest.MockRecorderEmitter
 	datadir   string
 	auth      *auth.Server
 	component string
@@ -246,7 +248,6 @@ func (m *mockServer) UseTunnel() bool {
 // GetBPF returns the BPF service used for enhanced session recording.
 func (m *mockServer) GetBPF() bpf.BPF {
 	return &bpf.NOP{}
-
 }
 
 // GetRestrictedSessionManager returns the manager for restricting user activity

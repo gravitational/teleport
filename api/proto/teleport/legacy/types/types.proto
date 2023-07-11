@@ -644,6 +644,10 @@ message InstanceSpecV1 {
     (gogoproto.nullable) = false,
     (gogoproto.jsontag) = "control_log,omitempty"
   ];
+
+  // ExternalUpgrader identifies the external upgrader that the instance is configured to
+  // export schedules to (e.g. 'kube'). Empty if no upgrader is defined.
+  string ExternalUpgrader = 7 [(gogoproto.jsontag) = "ext_upgrader,omitempty"];
 }
 
 // InstanceControlLogEntry represents an entry in a given instance's control log. The control log of
@@ -704,6 +708,18 @@ message InstanceFilter {
   // expose *at least* one of the listed services. This is in contrast to service matching in version
   // directives which match instances that expose a *at most* the listed services.
   repeated string Services = 3 [(gogoproto.casttype) = "SystemRole"];
+
+  // ExternalUpgrader matches instance upgrader if specified.
+  string ExternalUpgrader = 4;
+
+  // NoExtUpgrader explicitly matches instances for which no upgrader is defined.
+  bool NoExtUpgrader = 5;
+
+  // OlderThanVersion is an optional exclusive upper version bound.
+  string OlderThanVersion = 6;
+
+  // NewerThanVersion is an optional exclusive lower version bound.
+  string NewerThanVersion = 7;
 }
 
 // ServerV2 represents a Node, App, Database, Proxy or Auth server in a Teleport cluster.

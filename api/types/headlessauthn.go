@@ -158,7 +158,7 @@ func (f *HeadlessAuthenticationFilter) FromMap(m map[string]string) error {
 }
 
 // Match checks if a given headless authentication matches this filter.
-func (f *HeadlessAuthenticationFilter) Match(req HeadlessAuthentication) bool {
+func (f *HeadlessAuthenticationFilter) Match(req *HeadlessAuthentication) bool {
 	if f.Name != "" && req.GetName() != f.Name {
 		return false
 	}
