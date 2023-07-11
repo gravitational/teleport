@@ -35,7 +35,7 @@ import (
 )
 
 func TestDBMiddleware_OnNewConnection(t *testing.T) {
-	testCert, err := cert.GenerateSelfSignedCert([]string{"localhost"})
+	testCert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, []string{})
 	require.NoError(t, err)
 	tlsCert, err := keys.X509KeyPair(testCert.Cert, testCert.PrivateKey)
 	require.NoError(t, err)
