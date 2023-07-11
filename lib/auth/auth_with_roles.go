@@ -3580,7 +3580,8 @@ func (s *streamWithRoles) Close(ctx context.Context) error {
 	return s.stream.Close(ctx)
 }
 
-func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (s *streamWithRoles) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
+	event := pe.GetAuditEvent()
 	err := events.ValidateServerMetadata(event, s.serverID, s.a.hasBuiltinRole(types.RoleProxy))
 	if err != nil {
 		// TODO: this should be a proper audit event
@@ -3591,7 +3592,7 @@ func (s *streamWithRoles) EmitAuditEvent(ctx context.Context, event apievents.Au
 		// this message is sparse on purpose to avoid conveying extra data to an attacker
 		return trace.AccessDenied("failed to validate event metadata")
 	}
-	return s.stream.EmitAuditEvent(ctx, event)
+	return s.stream.RecordEvent(ctx, pe)
 }
 
 func (a *ServerWithRoles) GetSessionChunk(namespace string, sid session.ID, offsetBytes, maxBytes int) ([]byte, error) {
@@ -4111,47 +4112,7 @@ func (a *ServerWithRoles) SetClusterNetworkingConfig(ctx context.Context, newNet
 		return trace.AccessDenied("proxy peering is an enterprise-only feature")
 	}
 
-	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.validateCloudNetworkConfigUpdate(newNetConfig, oldNetConf); err != nil {
-		return trace.Wrap(err)
-	}
-
 	return a.authServer.SetClusterNetworkingConfig(ctx, newNetConfig)
-
-}
-func (a *ServerWithRoles) validateCloudNetworkConfigUpdate(newConfig, oldConfig types.ClusterNetworkingConfig) error {
-	if a.hasBuiltinRole(types.RoleAdmin) {
-		return nil
-	}
-
-	if !modules.GetModules().Features().Cloud {
-		return nil
-	}
-
-	const cloudUpdateFailureMsg = "cloud tenants cannot update %q"
-
-	if newConfig.GetProxyListenerMode() != oldConfig.GetProxyListenerMode() {
-		return trace.BadParameter(cloudUpdateFailureMsg, "proxy_listener_mode")
-	}
-	newtst, _ := newConfig.GetTunnelStrategyType()
-	oldtst, _ := oldConfig.GetTunnelStrategyType()
-	if newtst != oldtst {
-		return trace.BadParameter(cloudUpdateFailureMsg, "tunnel_strategy")
-	}
-
-	if newConfig.GetKeepAliveInterval() != oldConfig.GetKeepAliveInterval() {
-		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_interval")
-	}
-
-	if newConfig.GetKeepAliveCountMax() != oldConfig.GetKeepAliveCountMax() {
-		return trace.BadParameter(cloudUpdateFailureMsg, "keep_alive_count_max")
-	}
-
-	return nil
 }
 
 // ResetClusterNetworkingConfig resets cluster networking configuration to defaults.
@@ -4168,14 +4129,6 @@ func (a *ServerWithRoles) ResetClusterNetworkingConfig(ctx context.Context) erro
 		if err2 := a.action(apidefaults.Namespace, types.KindClusterConfig, types.VerbUpdate); err2 != nil {
 			return trace.Wrap(err)
 		}
-	}
-	oldNetConf, err := a.authServer.GetClusterNetworkingConfig(ctx)
-	if err != nil {
-		return trace.Wrap(err)
-	}
-
-	if err := a.validateCloudNetworkConfigUpdate(types.DefaultClusterNetworkingConfig(), oldNetConf); err != nil {
-		return trace.Wrap(err)
 	}
 
 	return a.authServer.SetClusterNetworkingConfig(ctx, types.DefaultClusterNetworkingConfig())
