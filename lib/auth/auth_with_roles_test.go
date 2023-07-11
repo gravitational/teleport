@@ -4578,7 +4578,7 @@ func createSAMLIdPTestUsers(t *testing.T, server *Server) (string, string) {
 func modifyAndWaitForEvent(t *testing.T, errFn require.ErrorAssertionFunc, client *Client, srv *TestTLSServer, eventCode string, fn func() error) apievents.AuditEvent {
 	// Make sure we ignore events after consuming this one.
 	defer func() {
-		srv.AuthServer.AuthServer.emitter = events.NewDiscardEmitter()
+		srv.AuthServer.AuthServer.emitter = events.NewDiscardEmitterReal()
 	}()
 	chanEmitter := eventstest.NewChannelEmitter(1)
 	srv.AuthServer.AuthServer.emitter = chanEmitter

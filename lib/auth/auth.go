@@ -181,7 +181,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.AuditLog = events.NewDiscardAuditLog()
 	}
 	if cfg.Emitter == nil {
-		cfg.Emitter = events.NewDiscardEmitter()
+		cfg.Emitter = events.NewDiscardEmitterReal()
 	}
 	if cfg.Streamer == nil {
 		cfg.Streamer = events.NewDiscardStreamer()

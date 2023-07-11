@@ -129,16 +129,17 @@ func (d *DiscardRecorder) RecordEvent(ctx context.Context, pe apievents.Prepared
 	return nil
 }
 
-// NewDiscardEmitter returns a no-op discard emitter
-func NewDiscardEmitter() *DiscardEmitter {
-	return &DiscardEmitter{}
+// NewDiscardEmitterReal returns a no-op discard emitter
+func NewDiscardEmitterReal() *DiscardEmitterReal {
+	return &DiscardEmitterReal{}
 }
 
 // DiscardEmitter discards all events
-type DiscardEmitter struct{}
+// TODO(capnspacehook): rename to DiscardEmitter after e PR is merged
+type DiscardEmitterReal struct{}
 
 // EmitAuditEvent discards audit event
-func (*DiscardEmitter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+func (*DiscardEmitterReal) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
 	log.WithFields(log.Fields{
 		"event_id":    event.GetID(),
 		"event_type":  event.GetType(),
@@ -154,8 +155,25 @@ func NewDiscardStreamer() *DiscardStreamer {
 	return &DiscardStreamer{}
 }
 
+// TODO(capnspacehook): remove after e PR is merged
+func NewDiscardEmitter() *DiscardStreamer {
+	return NewDiscardStreamer()
+}
+
 // DiscardStreamer creates DiscardRecorders
 type DiscardStreamer struct{}
+
+// EmitAuditEvent discards audit event
+// TODO(capnspacehook): remove after e PR is merged
+func (*DiscardStreamer) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
+	log.WithFields(log.Fields{
+		"event_id":    event.GetID(),
+		"event_type":  event.GetType(),
+		"event_time":  event.GetTime(),
+		"event_index": event.GetIndex(),
+	}).Debugf("Discarding event")
+	return nil
+}
 
 // CreateAuditStream creates a stream that discards all events
 func (*DiscardStreamer) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
