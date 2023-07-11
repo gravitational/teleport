@@ -21,6 +21,8 @@ import (
 	"encoding/json"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/jonboulle/clockwork"
 	"github.com/stretchr/testify/require"
 
@@ -181,7 +183,12 @@ func TestUserPreferencesCRUD2(t *testing.T) {
 			})
 
 			require.NoError(t, err)
-			require.Equal(t, test.expected, res.Preferences)
+			require.Empty(t, cmp.Diff(test.expected, res.Preferences,
+				cmpopts.IgnoreUnexported(
+					userpreferencesv1.UserPreferences{},
+					userpreferencesv1.AssistUserPreferences{},
+					userpreferencesv1.OnboardUserPreferences{}),
+			))
 		})
 	}
 }

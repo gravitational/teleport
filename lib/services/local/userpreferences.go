@@ -21,10 +21,8 @@ package local
 import (
 	"context"
 	"encoding/json"
-	"reflect"
 
 	"github.com/gravitational/trace"
-	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/reflect/protoreflect"
 
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
@@ -113,11 +111,15 @@ func (u *UserPreferencesService) getUserPreferences(ctx context.Context, usernam
 		return nil, trace.Wrap(err)
 	}
 
-	if err := mergeIfUnset(&p, DefaultUserPreferences()); err != nil {
+	// Appy the default values to the existing preferences.
+	// This allows updating the preferences schema without returning empty values
+	// for new fields in the existing preferences.
+	df := DefaultUserPreferences()
+	if err := overwriteValues(df, &p); err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	return &p, nil
+	return df, nil
 }
 
 // backendKey returns the backend key for the user preferences for the given username.
@@ -181,50 +183,4 @@ func overwriteValuesRecursive(dst, src protoreflect.Message) {
 
 		return true
 	})
-}
-
-// mergeIfUnset merges the values in src with the values in dst if the values in dst are unset.
-func mergeIfUnset(dst, src proto.Message) error {
-	if reflect.TypeOf(src) != reflect.TypeOf(dst) {
-		return trace.BadParameter("src and dst must be the same type")
-	}
-
-	mergeIfUnsetHelper(dst, src)
-
-	return nil
-}
-
-// mergeIfUnsetHelper recursively merges the values in src with the values in dst if the values in dst are unset.
-func mergeIfUnsetHelper(dst, src any) {
-	srcV := reflect.ValueOf(src).Elem()
-	dstV := reflect.ValueOf(dst).Elem()
-
-	for i := 0; i < dstV.NumField(); i++ {
-		dstF := dstV.Field(i)
-		srcF := srcV.Field(i)
-
-		switch dstF.Kind() {
-		case reflect.Ptr:
-			if dstF.IsNil() && dstF.CanSet() {
-				dstF.Set(srcF)
-			} else if dstF.Type().Elem().Kind() == reflect.Struct {
-				// Recursively call mergeIfUnset for nested messages.
-				mergeIfUnsetHelper(dstF.Interface(), srcF.Interface())
-			}
-		case reflect.Slice, reflect.Map, reflect.Array:
-			if dstF.CanSet() && dstF.Len() == 0 {
-				// Copy the slice/map/array from src to dst.
-				dstF.Set(srcF)
-			}
-		case reflect.Struct:
-			if dstF.CanInterface() {
-				// Recursively call mergeIfUnset for nested messages.
-				mergeIfUnsetHelper(dstF.Addr().Interface(), srcF.Addr().Interface())
-			}
-		default:
-			if dstF.CanSet() && dstF.IsZero() {
-				dstF.Set(srcF)
-			}
-		}
-	}
 }
