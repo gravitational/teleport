@@ -35,6 +35,7 @@ import (
 	"github.com/sirupsen/logrus"
 	oteltrace "go.opentelemetry.io/otel/trace"
 	"golang.org/x/crypto/ssh"
+	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/gravitational/teleport"
@@ -396,33 +397,20 @@ func outputByName(hosts []hostInfo, output map[string][]byte) map[string][]byte 
 
 // runCommands runs the given command on the given hosts.
 func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, numParallel int64, log logrus.FieldLogger) {
-	// Create a synchronization channel to limit the number of concurrent commands.
-	syncChan := make(chan struct{}, numParallel)
-	// WaitGroup to wait for all commands to finish.
-	wg := sync.WaitGroup{}
+	var group errgroup.Group
+	group.SetLimit(int(numParallel))
 
 	for _, host := range hosts {
 		host := host
-		wg.Add(1)
-
-		go func() {
-			defer wg.Done()
-
-			// Limit the number of concurrent commands.
-			syncChan <- struct{}{}
-			defer func() {
-				// Release the command slot.
-				<-syncChan
-			}()
-
-			if err := runCmd(&host); err != nil {
-				log.WithError(err).Warnf("Failed to start session: %v", host.hostName)
-			}
-		}()
+		group.Go(func() error {
+			return trace.Wrap(runCmd(&host), "failed to start session on %v", host.hostName)
+		})
 	}
 
 	// Wait for all commands to finish.
-	wg.Wait()
+	if err := group.Wait(); err != nil {
+		log.Warn(err)
+	}
 }
 
 // getMFACacheFn returns a function that caches the result of the given
