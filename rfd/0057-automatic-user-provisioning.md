@@ -245,6 +245,35 @@ spec:
     logins: [ "{{external.username}}" ]
 ```
 
+## Update: allow the UID and GID of the created user to be specified
+
+This will require adding a new internal traits -- `host_user_uid` and
+`host_user_gid`, new allow/deny settings will be added to roles aswell
+for `host_user_uid` and `host_user_gid`.
+
+If a group does not yet exist for the specified GID, a group with that
+GID will be created with the same name as the user logging in
+
+### Example of setting the uid/gid
+
+```yaml
+kind: role
+version: v5
+metadata:
+  name: auto-user-groups
+spec:
+  options:
+    # allow auto provisioning of users.
+    create_host_user_mode: drop
+  allow:
+    logins: [ "{{internal.username}}" ]
+    # specify the host user uid/gid from the internal trait
+    host_user_uid: "{{internal.host_user_uid}}"
+    host_user_uid: "{{internal.host_user_gid}}"
+```
+
+When set like this, the user created upon login will have the `--gid`
+and `--uid` options specified when calling `useradd`
 
 ## UX Examples
 
