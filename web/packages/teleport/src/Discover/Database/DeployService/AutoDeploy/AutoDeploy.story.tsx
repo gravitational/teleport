@@ -31,6 +31,7 @@ import {
   DiscoverProvider,
   DiscoverContextState,
 } from 'teleport/Discover/useDiscover';
+import { IntegrationStatusCode } from 'teleport/services/integrations';
 
 import { AutoDeploy } from './AutoDeploy';
 
@@ -69,6 +70,15 @@ const Provider = props => {
       agentMatcherLabels: [],
       db: {} as any,
       selectedAwsRdsDb: { region: 'us-east-1' } as any,
+      integration: {
+        kind: 'aws-oidc',
+        name: 'integration/aws-oidc',
+        resourceType: 'integration',
+        spec: {
+          roleArn: 'arn-123',
+        },
+        statusCode: IntegrationStatusCode.Running,
+      },
       ...props.agentMeta,
     },
     currentStep: 0,

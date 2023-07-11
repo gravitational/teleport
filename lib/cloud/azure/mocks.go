@@ -508,6 +508,25 @@ func (m *ARMComputeMock) NewListPager(resourceGroup string, _ *armcompute.Virtua
 	})
 }
 
+func (m *ARMComputeMock) NewListAllPager(_ *armcompute.VirtualMachinesClientListAllOptions) *runtime.Pager[armcompute.VirtualMachinesClientListAllResponse] {
+	var vms []*armcompute.VirtualMachine
+	for _, resourceGroupVMs := range m.VirtualMachines {
+		vms = append(vms, resourceGroupVMs...)
+	}
+	return runtime.NewPager(runtime.PagingHandler[armcompute.VirtualMachinesClientListAllResponse]{
+		More: func(page armcompute.VirtualMachinesClientListAllResponse) bool {
+			return page.NextLink != nil && len(*page.NextLink) > 0
+		},
+		Fetcher: func(ctx context.Context, page *armcompute.VirtualMachinesClientListAllResponse) (armcompute.VirtualMachinesClientListAllResponse, error) {
+			return armcompute.VirtualMachinesClientListAllResponse{
+				VirtualMachineListResult: armcompute.VirtualMachineListResult{
+					Value: vms,
+				},
+			}, nil
+		},
+	})
+}
+
 func (m *ARMComputeMock) Get(_ context.Context, _ string, _ string, _ *armcompute.VirtualMachinesClientGetOptions) (armcompute.VirtualMachinesClientGetResponse, error) {
 	return armcompute.VirtualMachinesClientGetResponse{
 		VirtualMachine: m.GetResult,

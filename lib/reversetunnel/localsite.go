@@ -662,9 +662,8 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 			logger.Info("Closing")
 			return
 		case <-proxyResyncTicker.Chan():
-			req := discoveryRequest{
-				Proxies: s.srv.proxyWatcher.GetCurrent(),
-			}
+			var req discoveryRequest
+			req.SetProxies(s.srv.proxyWatcher.GetCurrent())
 
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Marking connection invalid on error")
@@ -672,9 +671,8 @@ func (s *localSite) handleHeartbeat(rconn *remoteConn, ch ssh.Channel, reqC <-ch
 				return
 			}
 		case proxies := <-rconn.newProxiesC:
-			req := discoveryRequest{
-				Proxies: proxies,
-			}
+			var req discoveryRequest
+			req.SetProxies(proxies)
 
 			if err := rconn.sendDiscoveryRequest(req); err != nil {
 				logger.WithError(err).Debug("Failed to send discovery request to agent")
