@@ -140,8 +140,17 @@ function AgentSetup() {
   ]);
 
   useEffect(() => {
-    runSteps();
-  }, [runSteps]);
+    if (
+      [
+        setUpRolesAttempt,
+        downloadAgentAttempt,
+        generateConfigFileAttempt,
+        joinClusterAttempt,
+      ].every(attempt => attempt.status === '')
+    ) {
+      runSteps();
+    }
+  }, [downloadAgentAttempt, generateConfigFileAttempt, joinClusterAttempt, setUpRolesAttempt, runSteps]);
 
   const hasSetupFailed = steps.some(s => s.attempt.status === 'error');
 
