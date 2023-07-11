@@ -68,6 +68,14 @@ export default class MainProcess {
   private configFileStorage: FileStorage;
   private resolvedChildProcessAddresses: Promise<ChildProcessAddresses>;
   private windowsManager: WindowsManager;
+  // this function can be safely called concurrently
+  private downloadAgentShared = sharePromise(() =>
+    downloadAgent(
+      new FileDownloader(this.windowsManager.getWindow()),
+      this.settings,
+      process.env
+    )
+  );
 
   private constructor(opts: Options) {
     this.settings = opts.settings;
@@ -293,11 +301,7 @@ export default class MainProcess {
     });
 
     ipcMain.handle('main-process-connect-my-computer-download-agent', () =>
-      downloadAgent(
-        new FileDownloader(this.windowsManager.getWindow()),
-        this.settings,
-        process.env
-      )
+      this.downloadAgentShared()
     );
 
     subscribeToTerminalContextMenuEvent();
@@ -406,4 +410,21 @@ function openDocsUrl() {
 
 function promisifyProcessExit(childProcess: ChildProcess) {
   return new Promise(resolve => childProcess.once('exit', resolve));
+}
+
+/** Shares promise returned from `promiseFn` across multiple concurrent callers. */
+function sharePromise<Return extends Promise<any>>(
+  promiseFn: () => Return
+): () => Return {
+  let pending: Return | undefined = undefined;
+
+  return () => {
+    if (!pending) {
+      pending = promiseFn();
+      pending.finally(() => {
+        pending = undefined;
+      });
+    }
+    return pending;
+  };
 }
