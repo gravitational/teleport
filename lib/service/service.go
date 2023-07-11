@@ -5318,7 +5318,7 @@ func initSelfSignedHTTPSCert(cfg *servicecfg.Config) (err error) {
 		}
 	}
 
-	creds, err := cert.GenerateSelfSignedCert(hosts, ips...)
+	creds, err := cert.GenerateSelfSignedCert(hosts, ips)
 	if err != nil {
 		return trace.Wrap(err)
 	}

@@ -108,7 +108,7 @@ func generateAndSaveCert(targetPath string) (tls.Certificate, error) {
 	}
 	defer os.Remove(tempFile.Name())
 
-	cert, err := cert.GenerateSelfSignedCert([]string{"localhost"})
+	cert, err := cert.GenerateSelfSignedCert([]string{"localhost"}, []string{})
 	if err != nil {
 		return tls.Certificate{}, trace.Wrap(err, "failed to generate the certificate")
 	}

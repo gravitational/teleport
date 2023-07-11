@@ -50,7 +50,7 @@ type Credentials struct {
 
 // GenerateSelfSignedCert generates a self-signed certificate that
 // is valid for given domain names and ips, returns PEM-encoded bytes with key and cert
-func GenerateSelfSignedCert(hostNames []string, ipAddresses ...string) (*Credentials, error) {
+func GenerateSelfSignedCert(hostNames []string, ipAddresses []string) (*Credentials, error) {
 	priv, err := native.GenerateRSAPrivateKey()
 	if err != nil {
 		return nil, trace.Wrap(err)

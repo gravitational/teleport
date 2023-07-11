@@ -1853,7 +1853,7 @@ func (c *testContext) createUserAndRole(ctx context.Context, t *testing.T, userN
 
 // makeTLSConfig returns tls configuration for the test's tls listener.
 func (c *testContext) makeTLSConfig(t *testing.T) *tls.Config {
-	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"})
+	creds, err := cert.GenerateSelfSignedCert([]string{"localhost"}, []string{})
 	require.NoError(t, err)
 	cert, err := tls.X509KeyPair(creds.Cert, creds.PrivateKey)
 	require.NoError(t, err)
