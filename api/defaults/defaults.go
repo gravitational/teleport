@@ -78,9 +78,9 @@ const (
 	// will consider examining the request pass rate
 	BreakerRatioMinExecutions = 10
 
-	// CommandExecutionWorkers is the number of workers that will
+	// AssistCommandExecutionWorkers is the number of workers that will
 	// execute arbitrary remote commands on servers in parallel
-	CommandExecutionWorkers = 30
+	AssistCommandExecutionWorkers = 30
 )
 
 var (

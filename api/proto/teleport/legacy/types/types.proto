@@ -1579,9 +1579,9 @@ message ClusterNetworkingConfigSpecV2 {
     (gogoproto.casttype) = "Duration"
   ];
 
-  // CommandExecutionWorkers determines the number of workers that will
+  // AssistCommandExecutionWorkers determines the number of workers that will
   // execute arbitrary remote commands on servers (e.g. through Assist) in parallel
-  int64 CommandExecutionWorkers = 11 [(gogoproto.jsontag) = "command_execution_workers,omitempty"];
+  int64 AssistCommandExecutionWorkers = 11 [(gogoproto.jsontag) = "assist_command_execution_workers,omitempty"];
 }
 
 // TunnelStrategyV1 defines possible tunnel strategy types.

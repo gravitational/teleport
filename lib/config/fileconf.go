@@ -1006,10 +1006,6 @@ type Auth struct {
 	// connections, regular TLS routing connections are not affected.
 	ProxyPingInterval types.Duration `yaml:"proxy_ping_interval,omitempty"`
 
-	// CommandExecutionWorkers determines the number of workers that will
-	// execute arbitrary remote commands on servers (e.g. through Assist) in parallel
-	CommandExecutionWorkers int64 `yaml:"command_execution_workers,omitempty"`
-
 	// LoadAllCAs tells tsh to load the CAs for all clusters when trying
 	// to ssh into a node, instead of just the CA for the current cluster.
 	LoadAllCAs bool `yaml:"load_all_cas,omitempty"`
@@ -1019,7 +1015,7 @@ type Auth struct {
 	HostedPlugins HostedPlugins `yaml:"hosted_plugins,omitempty"`
 
 	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *AssistOptions `yaml:"assist,omitempty"`
+	Assist *AuthAssistOptions `yaml:"assist,omitempty"`
 }
 
 // PluginService represents the configuration for the plugin service.
@@ -1049,7 +1045,7 @@ func (a *Auth) hasCustomNetworkingConfig() bool {
 		a.RoutingStrategy != empty.RoutingStrategy ||
 		a.TunnelStrategy != empty.TunnelStrategy ||
 		a.ProxyPingInterval != empty.ProxyPingInterval ||
-		a.CommandExecutionWorkers != empty.CommandExecutionWorkers
+		(a.Assist != nil && a.Assist.CommandExecutionWorkers != 0)
 }
 
 // hasCustomSessionRecording returns true if any of the session recording
@@ -1384,10 +1380,23 @@ func (dt *DeviceTrust) Parse() (*types.DeviceTrust, error) {
 	}, nil
 }
 
-// AssistOptions is a set of options related to the Teleport Assist feature.
+// AssistOptions is a set of options common to both Auth and Proxy related to the Teleport Assist feature.
 type AssistOptions struct {
 	// OpenAI is a set of options related to the OpenAI assist backend.
 	OpenAI *OpenAIOptions `yaml:"openai,omitempty"`
+}
+
+// ProxyAssistOptions is a set of proxy service options related to the Assist feature
+type ProxyAssistOptions struct {
+	AssistOptions `yaml:",inline"`
+}
+
+// AuthAssistOptions is a set of auth service options related to the Assist feature
+type AuthAssistOptions struct {
+	AssistOptions `yaml:",inline"`
+	// CommandExecutionWorkers determines the number of workers that will
+	// execute arbitrary remote commands on servers (e.g. through Assist) in parallel
+	CommandExecutionWorkers int64 `yaml:"command_execution_workers,omitempty"`
 }
 
 // OpenAIOptions stores options related to the OpenAI assist backend.
@@ -2125,7 +2134,7 @@ type Proxy struct {
 	UI *UIConfig `yaml:"ui,omitempty"`
 
 	// Assist is a set of options related to the Teleport Assist feature.
-	Assist *AssistOptions `yaml:"assist,omitempty"`
+	Assist *ProxyAssistOptions `yaml:"assist,omitempty"`
 
 	// TrustXForwardedFor enables the service to take client source IPs from
 	// the "X-Forwarded-For" headers for web APIs received from layer 7 load

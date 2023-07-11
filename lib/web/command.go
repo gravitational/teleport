@@ -284,7 +284,7 @@ func (h *Handler) executeCommand(
 		return trace.Wrap(err)
 	}
 
-	runCommands(hosts, runCmd, netConfig.GetCommandExecutionWorkers(), h.log)
+	runCommands(hosts, runCmd, netConfig.GetAssistCommandExecutionWorkers(), h.log)
 
 	// Optionally, try to compute the command summary.
 	if output, valid := buffer.Export(); valid {
