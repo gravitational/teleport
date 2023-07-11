@@ -911,7 +911,8 @@ package_list() {
     # (warning): This expression is constant. Did you forget the $ on a variable?
     # Disabling the warning above because expression is templated.
     # shellcheck disable=SC2050
-    if [[ "{{.installUpdater}}" == "true" ]]; then
+    if is_using_systemd && [[ "{{.installUpdater}}" == "true" ]]; then
+        # Teleport Updater requires systemd.
         PACKAGE_LIST+=" ${TELEPORT_UPDATER_PIN_VERSION}"
     fi
     echo ${PACKAGE_LIST}
