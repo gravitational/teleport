@@ -34,6 +34,7 @@ import (
 	"github.com/gravitational/teleport"
 	"github.com/gravitational/teleport/api/types"
 	"github.com/gravitational/teleport/lib/config"
+	"github.com/gravitational/teleport/lib/configurators"
 	awsconfigurators "github.com/gravitational/teleport/lib/configurators/aws"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/modules"
@@ -513,13 +514,12 @@ func Run(options Options) (app *kingpin.Application, executedCommand string, con
 	case dbConfigureAWSCreateIAM.FullCommand():
 		err = onConfigureDatabasesAWSCreate(configureDatabaseAWSCreateFlags)
 	case dbConfigureBootstrap.FullCommand():
-		configureDiscoveryBootstrapFlags.config.DiscoveryService = false
+		configureDiscoveryBootstrapFlags.config.Service = configurators.DatabaseService
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
 	case systemdInstall.FullCommand():
 		err = onDumpSystemdUnitFile(systemdInstallFlags)
 	case discoveryBootstrapCmd.FullCommand():
-		configureDiscoveryBootstrapFlags.config.DiscoveryService = true
-		configureDiscoveryBootstrapFlags.config.DiscoveryServiceConfig = true
+		configureDiscoveryBootstrapFlags.config.Service = configurators.DiscoveryService
 		err = onConfigureDiscoveryBootstrap(configureDiscoveryBootstrapFlags)
 	case joinOpenSSH.FullCommand():
 		err = onJoinOpenSSH(ccf, conf)

@@ -52,7 +52,7 @@ const (
 	// DatabaseAccessPolicyName is the policy name for database access.
 	DatabaseAccessPolicyName = "DatabaseAccess"
 	// databasePolicyDescription description used on the policy created.
-	databasePolicyDescription = "Used by Teleport database agents for discovering AWS-hosted databases."
+	databasePolicyDescription = "Used by Teleport database agents for accessing AWS-hosted databases."
 	// discoveryServicePolicyDescription description used on the policy created.
 	discoveryServicePolicyDescription = "Used by Teleport the discovery service to discover AWS-hosted services."
 	// boundarySuffix boundary policies will have this suffix.
@@ -112,15 +112,13 @@ type databaseActionsBuildOption struct {
 }
 
 func makeDatabaseActionsBuildOption(flags configurators.BootstrapFlags, targetCfg targetConfig, boundary bool) databaseActionsBuildOption {
-	switch {
-	// Bootstrap discovery service.
-	case flags.DiscoveryService:
+	switch flags.Service {
+	case configurators.DiscoveryService:
 		return databaseActionsBuildOption{
 			withDiscovery: true,
 		}
 
-	// Bootstrap database service using discovery service config.
-	case flags.DiscoveryServiceConfig:
+	case configurators.DatabaseServiceByDiscoveryServiceConfig:
 		return databaseActionsBuildOption{
 			withDiscovery:    false,
 			withMetadata:     false, // Discovered databases should have correct metadata.
@@ -128,14 +126,16 @@ func makeDatabaseActionsBuildOption(flags configurators.BootstrapFlags, targetCf
 			withAuthBoundary: boundary,
 		}
 
-	// Default is database service.
-	default:
+	case configurators.DatabaseService:
 		return databaseActionsBuildOption{
 			withDiscovery:    true,
 			withMetadata:     true,
 			withAuth:         true,
 			withAuthBoundary: boundary,
 		}
+
+	default:
+		return databaseActionsBuildOption{}
 	}
 }
 
@@ -362,11 +362,7 @@ func (a *awsConfigurator) Name() string {
 
 // Description returns a brief description of the configurator.
 func (a *awsConfigurator) Description() string {
-	serviceName := "Database Service"
-	if a.config.Flags.DiscoveryService {
-		serviceName = "Discovery Service"
-	}
-	return "Configure AWS for " + serviceName
+	return "Configure AWS for " + a.config.Flags.Service.Name()
 }
 
 // Actions list of configurator actions.
@@ -550,7 +546,7 @@ func buildActions(config ConfiguratorConfig) ([]configurators.ConfiguratorAction
 		return nil, trace.Wrap(err)
 	}
 
-	if config.Flags.DiscoveryService {
+	if config.Flags.Service.IsDiscovery() {
 		return buildDiscoveryActions(config, targetCfg)
 	}
 	return buildCommonActions(config, targetCfg)
@@ -640,7 +636,7 @@ func buildPolicyDocument(flags configurators.BootstrapFlags, targetCfg targetCon
 		policyName += boundarySuffix
 	}
 
-	if flags.DiscoveryService {
+	if flags.Service.IsDiscovery() {
 		policyDescription = discoveryServicePolicyDescription
 
 		if isEC2AutoDiscoveryEnabled(flags, targetCfg.awsMatchers) {
@@ -822,7 +818,7 @@ func hasAWSKeyspacesDatabases(flags configurators.BootstrapFlags, targetCfg targ
 		return true
 	}
 	// There is no auto discovery for AWS Keyspaces.
-	if flags.DiscoveryService {
+	if flags.Service.IsDiscovery() {
 		return false
 	}
 	return findDatabaseIs(targetCfg.databases, func(database *servicecfg.Database) bool {
@@ -836,7 +832,7 @@ func hasDynamoDBDatabases(flags configurators.BootstrapFlags, targetCfg targetCo
 		return true
 	}
 	// There is no auto discovery for AWS DynamoDB.
-	if flags.DiscoveryService {
+	if flags.Service.IsDiscovery() {
 		return false
 	}
 	return findDatabaseIs(targetCfg.databases, func(database *servicecfg.Database) bool {
@@ -1117,7 +1113,7 @@ func getTargetConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config,
 // awsMatchersFromConfig is a helper function that extracts database AWS matchers
 // from the service configuration based on cli flags.
 func awsMatchersFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config) []types.AWSMatcher {
-	if flags.DiscoveryService || flags.DiscoveryServiceConfig {
+	if flags.Service.UseDiscoveryServiceConfig() {
 		return cfg.Discovery.AWSMatchers
 	}
 	return cfg.Databases.AWSMatchers
@@ -1126,7 +1122,7 @@ func awsMatchersFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.C
 // databasesFromConfig is a helper function that extracts databases
 // from the service configuration based on cli flags.
 func databasesFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config) []*servicecfg.Database {
-	if flags.DiscoveryService || flags.DiscoveryServiceConfig {
+	if flags.Service.UseDiscoveryServiceConfig() {
 		return nil
 	}
 	databases := make([]*servicecfg.Database, 0, len(cfg.Databases.Databases))
@@ -1137,7 +1133,7 @@ func databasesFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Con
 }
 
 func resourceMatchersFromConfig(flags configurators.BootstrapFlags, cfg *servicecfg.Config) []services.ResourceMatcher {
-	if flags.DiscoveryService || flags.DiscoveryServiceConfig {
+	if flags.Service.UseDiscoveryServiceConfig() {
 		return nil
 	}
 	return cfg.Databases.ResourceMatchers
