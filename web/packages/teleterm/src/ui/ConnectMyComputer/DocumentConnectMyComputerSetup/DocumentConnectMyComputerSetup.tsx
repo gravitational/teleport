@@ -150,7 +150,13 @@ function AgentSetup() {
     ) {
       runSteps();
     }
-  }, [downloadAgentAttempt, generateConfigFileAttempt, joinClusterAttempt, setUpRolesAttempt, runSteps]);
+  }, [
+    downloadAgentAttempt,
+    generateConfigFileAttempt,
+    joinClusterAttempt,
+    setUpRolesAttempt,
+    runSteps,
+  ]);
 
   const hasSetupFailed = steps.some(s => s.attempt.status === 'error');
 
