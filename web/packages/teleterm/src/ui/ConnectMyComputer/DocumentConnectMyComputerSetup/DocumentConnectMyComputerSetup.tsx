@@ -123,7 +123,7 @@ function AgentSetup() {
     const actions = [
       // runSetUpRolesAttempt,
       runDownloadAgentAttempt,
-      runGenerateConfigFileAttempt,
+      // runGenerateConfigFileAttempt,
       // runJoinClusterAttempt,
     ];
     for (const action of actions) {
