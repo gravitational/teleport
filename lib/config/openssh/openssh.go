@@ -44,6 +44,9 @@ Host *.{{ $clusterName }} {{ $dot.ProxyHost }}
     IdentityFile "{{ $dot.IdentityFilePath }}"
     CertificateFile "{{ $dot.CertificateFilePath }}"
     HostKeyAlgorithms {{ if $dot.NewerHostKeyAlgorithmsSupported }}rsa-sha2-512-cert-v01@openssh.com,rsa-sha2-256-cert-v01@openssh.com,{{ end }}ssh-rsa-cert-v01@openssh.com
+    {{- if ne $dot.Username "" }}
+    User "{{ $dot.Username }}"
+{{- end }}
 
 # Flags for all {{ $clusterName }} hosts except the proxy
 Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
@@ -53,6 +56,9 @@ Host *.{{ $clusterName }} !{{ $dot.ProxyHost }}
 {{- end }}{{- if eq $dot.AppName "tbot" }}
     ProxyCommand "{{ $dot.ExecutablePath }}" proxy --destination-dir={{ $dot.DestinationDir }} --proxy={{ $dot.ProxyHost }}:{{ $dot.ProxyPort }} ssh --cluster={{ $clusterName }}  %r@%h:%p
 {{- end }}
+{{- end }}
+    {{- if ne $dot.Username "" }}
+    User "{{ $dot.Username }}"
 {{- end }}
 
 # End generated Teleport configuration
@@ -68,6 +74,7 @@ type SSHConfigParameters struct {
 	ProxyHost           string
 	ProxyPort           string
 	ExecutablePath      string
+	Username            string
 	DestinationDir      string
 }
 
