@@ -71,6 +71,12 @@ the Teleport Proxy Service.
 There are three supported options when using AWS. You must choose only one of
 these options:
 
+| Approach | AWS Load Balancer Type | Kubernetes Traffic Destination | Can use an existing AWS LB? | Caveats |
+| - | - | - | - | - |
+| [Using `cert-manager`](#using-cert-manager) | Network Load Balancer (NLB) | `LoadBalancer` | No | Requires a Route 53 domain and an `Issuer` configured with IAM permissions to change DNS records for your domain |
+| [Using AWS Certificate Manager](#using-aws-certificate-manager) | Application Load Balancer (ALB) | `Ingress` | Yes | Requires a working instance of the AWS Load Balancer controller installed in your Kubernetes cluster |
+| [Using your own TLS credentials](#using-your-own-tls-credentials) | Network Load Balancer (NLB) | `LoadBalancer` | No | Requires you to manage the maintainance, renewal and trust of the TLS certificates securing Teleport's web listener independently |
+
 #### Using `cert-manager`
 
 You can use `cert-manager` to provision and automatically renew TLS credentials
@@ -87,7 +93,7 @@ This method uses a Kubernetes `Ingress`, which can provision an underlying AWS A
 Balancer (ALB) to handle incoming traffic if one does not already exist. It also requires the
 installation and setup of the AWS Load Balancer controller.
 
-You should be aware of these potential limitations when using Layer 7 load balancers with Teleport:
+You should be aware of these potential limitations and differences when using Layer 7 load balancers with Teleport:
 
 - Connecting to Kubernetes clusters at the command line requires the use of the `tsh proxy kube` or
   `tsh kubectl` commands and `tsh proxy db`/`tsh db connect` commands respectively. It is not
@@ -96,6 +102,10 @@ You should be aware of these potential limitations when using Layer 7 load balan
 - Connecting to databases at the command line requires the use of the `tsh proxy db` or `tsh db connect`
   commands. It is not possible to connect database clients directly to Teleport listeners without the use of `tsh`
   as a proxy client in this mode.
+- The reason for both of these requirements is that Teleport uses X509 certificates for authentication, which requires
+  that it terminate all inbound TLS traffic itself on the Teleport proxy. This is not directly possible when using
+  a Layer 7 load balancer, so the `tsh` client implements this flow itself
+  [using ALPN connection upgrades](../../architecture/tls-routing.mdx/#working-with-layer-7-load-balancers-or-reverse-proxies-preview).
 - The use of Teleport and `tsh` v13 or higher is required.
 
 <Admonition type="warning">
@@ -111,6 +121,10 @@ credentials periodically. Use this approach if you would like to use a trusted
 internal certificate authority instead of Let's Encrypt or AWS Certificate
 Manager. This method uses a Kubernetes `LoadBalancer` and will provision an
 underlying AWS NLB.
+
+### Steps to follow
+
+Once you have chosen an approach based on the details above, select the correct tab below for instructions.
 
 <Tabs>
 <TabItem label="cert-manager">
