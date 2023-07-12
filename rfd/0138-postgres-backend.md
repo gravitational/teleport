@@ -33,12 +33,13 @@ The Teleport backend abstraction consists of a key-value store (where both key a
 As such, the schema consists of a single `kv` table, defined as such:
 ```pgsql
 CREATE TABLE kv (
-    key bytea PRIMARY KEY,
+    key bytea NOT NULL,
     value bytea NOT NULL,
     expires timestamptz,
-    revision uuid NOT NULL
+    revision uuid NOT NULL,
+    CONSTRAINT kv_pkey PRIMARY KEY (key)
 );
-CREATE INDEX kv_expires ON kv (expires) WHERE expires IS NOT NULL;
+CREATE INDEX kv_expires_idx ON kv (expires) WHERE expires IS NOT NULL;
 ```
 
 Each item in the backend is represented by a row in the `kv` table, with a `NULL` value for `expires` representing no expiration. To efficiently delete expired items, we keep a (partial) index on the expiration time. The `revision` column contains the revision for the upcoming opportunistic locking, and shall be set to a new unique value by the application code for every write (unfortunately, it's not a constraint that's expressible in SQL).
@@ -112,8 +113,6 @@ teleport:
     expiry_interval: "30s"
     expiry_batch_size: 1000
 
-    delete_batch_size: 1000
-
     audit_events_uri:
       - postgresql://teleport_auth@testdb.postgres.database.azure.com:5432/teleport_events?sslmode=verify-full&auth_mode=azure&disable_cleanup=false&cleanup_interval=1h&retention_period=8766h
 ```
@@ -122,9 +121,9 @@ The `conn_string` used by the backend is a [`libpq`-compatible Postgres connecti
 
 The `auth_mode: azure` field for the backend and the `auth_mode=azure` query parameter enable authentication to the database via Azure AD. The optional `azure_client_id` field (for both the backend and the audit log) override the default azure credential selection and the selection in the `AZURE_CLIENT_ID` envvar, so it's possible to select two different managed identities for backend and audit log. A blank (or unset) `auth_mode` will use the default Postgres authentication methods.
 
-The `change_feed_*` options regulate the internal behavior of the change feed polling, the `expiry_*` and `disable_expiry` regulate the behavior of the TTL deletions. `delete_batch_size` defines the maximum batch size for the `DeleteRange` operation. We're not expecting users to have to tweak these options (except maybe `disable_expiry` if TTL deletion is going to be run with `pg_cron` or similar methods), they're just exposed for performance tuning.
+The `change_feed_*` options regulate the internal behavior of the change feed polling, the `expiry_*` and `disable_expiry` regulate the behavior of the TTL deletions. We're not expecting users to have to tweak these options (except maybe `disable_expiry` if TTL deletion is going to be run externally with `pg_cron` or similar methods), they're just exposed for performance tuning.
 
-The `disable_cleanup`, `cleanup_interval` and `retention_period` options to the audit log are optional, and can be set and changed to support manual cleanup of old events, or to change the data retention period for the audit log.
+The `disable_cleanup`, `cleanup_interval` and `retention_period` options to the audit log are optional, and can be set and changed to support manual cleanup of old events, or to change the data retention period for the audit log. The default `retention_period` is one year (365.25 days).
 
 ### Rejected alternatives and future work
 
