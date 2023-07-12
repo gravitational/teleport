@@ -153,7 +153,7 @@ outputs:
       path: ./tbot-user
 ```
 
-## Outputs
+### Outputs
 
 Outputs define what actions `tbot` should take when it runs. They describe
 the format of the certificates to be generated, the roles used to generate the certificates, and the
@@ -162,7 +162,7 @@ destination where they should be written.
 There are multiple types of output. Select the one that is most appropriate for
 your intended use-case.
 
-### `identity`
+#### `identity`
 
 The `identity` output can be used to authenticate:
 
@@ -203,7 +203,7 @@ app_name: grafana
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
-### `database`
+#### `database`
 
 The `database` output is used to generate credentials that can be used to
 access databases that have been configured with Teleport.
@@ -234,7 +234,7 @@ format: tls
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
-#### Supported formats
+##### Supported formats
 
 You can provide the following values to the `format` configuration field in
 the `database` output type:
@@ -246,7 +246,7 @@ the `database` output type:
 | `cockroach`   | Provides `cockroach/node.key`, `cockroach/node.crt`, and `cockroach/ca.crt`. This is designed to be used with CockroachDB clients. |
 | `tls`         | Provides `tls.key`, `tls.crt`, and `tls.cas`. This is for generic clients that require the specific file extensions. |
 
-### `kubernetes`
+#### `kubernetes`
 
 The `kubernetes` output is used to generate credentials that can be used to
 access Kubernetes clusters that have been configured with Teleport.
@@ -269,7 +269,7 @@ kubernetes_cluster: my-cluster
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
-### `ssh_host`
+#### `ssh_host`
 
 The `ssh_host` output is used to generate the artifacts required to configure
 an OpenSSH server with Teleport in order to allow Teleport users to connect to
@@ -296,7 +296,7 @@ principals:
 (!docs/pages/includes/machine-id/common-output-config.yaml!)
 ```
 
-## Destinations
+### Destinations
 
 A destination is somewhere that `tbot` can read and write artifacts.
 
@@ -308,7 +308,7 @@ Destinations are used in two places in the `tbot` configuration:
 Destinations come in multiple types. Usually, the `directory` type is the most
 appropriate.
 
-### `directory`
+#### `directory`
 
 The `directory` destination type stores artifacts as files in a specified
 directory. 
@@ -345,7 +345,7 @@ symlinks: try-secure
 acls: try
 ```
 
-### `memory`
+#### `memory`
 
 The `memory` destination type stores artifacts in the process memory. When
 the process exits, nothing is persisted. This destination type
