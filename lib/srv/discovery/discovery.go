@@ -127,6 +127,9 @@ type Server struct {
 	databaseFetchers []common.Fetcher
 	// caRotationCh receives nodes that need to have their CAs rotated.
 	caRotationCh chan []types.Server
+	// reconciler periodically reconciles the labels of discovered instances
+	// with the auth server.
+	reconciler *labelReconciler
 }
 
 // New initializes a discovery Server
@@ -181,6 +184,14 @@ func (s *Server) initAWSWatchers(matchers []types.AWSMatcher) error {
 		s.ec2Installer = server.NewSSMInstaller(server.SSMInstallerConfig{
 			Emitter: s.Emitter,
 		})
+		lr, err := newLabelReconciler(&labelReconcilerConfig{
+			log:         s.Log,
+			accessPoint: s.AccessPoint,
+		})
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		s.reconciler = lr
 	}
 
 	// Add database fetchers.
@@ -391,6 +402,13 @@ func (s *Server) handleEC2Instances(instances *server.EC2Instances) error {
 	if err != nil {
 		return trace.Wrap(err)
 	}
+
+	serverInfos, err := instances.ServerInfos()
+	if err != nil {
+		return trace.Wrap(err)
+	}
+	s.reconciler.queueServerInfos(serverInfos)
+
 	// instances.Rotation is true whenever the instances received need
 	// to be rotated, we don't want to filter out existing OpenSSH nodes as
 	// they all need to have the command run on them
@@ -607,6 +625,7 @@ func (s *Server) handleAzureDiscovery() {
 func (s *Server) Start() error {
 	if s.ec2Watcher != nil {
 		go s.handleEC2Discovery()
+		go s.reconciler.run(s.ctx)
 	}
 	if s.azureWatcher != nil {
 		go s.handleAzureDiscovery()
