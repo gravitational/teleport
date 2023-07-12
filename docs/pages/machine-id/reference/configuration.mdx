@@ -96,7 +96,7 @@ onboarding:
 # internal state. This state is sensitive, and you should ensure that the
 # destination you specify here can only be accessed by `tbot`.
 #
-# If unspecified, storage will be set to a directory destination with a path
+# If unspecified, storage is set to a directory destination with a path
 # of `/var/lib/teleport/bot`.
 #
 # See the full list of supported destinations and their configuration options
@@ -154,17 +154,17 @@ outputs:
 ## Outputs
 
 Outputs define what actions `tbot` should take when it runs. They describe
-what format of certificates should be generated, with what roles and to what
-destination they should be written.
+the format of the certificates to be generated, the roles used to generate the certificates, and the
+destination where they should be written.
 
-There are multiple types of output, select the one that is most appropriate for
+There are multiple types of output. Select the one that is most appropriate for
 your intended use-case.
 
 ### `identity`
 
 The `identity` output can be used to authenticate:
 
-- SSH access to your Teleport nodes, using `tsh`, openssh and tools like
+- SSH access to your Teleport servers, using `tsh`, openssh and tools like
   ansible.
 - Administrative actions against your cluster using tools like `tsh` or `tctl`.
 - Management of Teleport resources using the Teleport Terraform provider.
