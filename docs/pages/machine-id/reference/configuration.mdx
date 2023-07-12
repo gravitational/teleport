@@ -32,7 +32,7 @@ version: v2
 # false.
 debug: true
 
-# auth_server specifies the Proxy or Auth Server that `tbot` should connect
+# auth_server specifies the address of the Proxy or Auth Service that `tbot` should connect
 # to. It is recommended to use the address of your Teleport Proxy, or, if using
 # Teleport Cloud, the address of your Teleport Cloud instance.
 auth_server: "teleport.example.com:443" # or "example.teleport.sh:443" for Teleport Cloud
@@ -50,7 +50,7 @@ certificate_ttl: "1h"
 renewal_interval: "20m"
 
 # oneshot configures `tbot` to exit immediately after generating the outputs.
-# The default value is `false`. This is useful in ephemeral environments, like
+# The default value is `false`. A value of `true` is useful in ephemeral environments, like
 # CI/CD.
 oneshot: false
 
@@ -66,8 +66,8 @@ onboarding:
   # token: /var/lib/teleport/tokenjoin
   token: "00000000000000000000000000000000"
 
-  # join_method must b the join method associated with the specified token
-  # above. This should match the value output when creating the bot using
+  # join_method must be the join method associated with the specified token
+  # above. This setting should match the value output when creating the bot using
   # `tctl`.
   #
   # Support values include:
@@ -79,16 +79,16 @@ onboarding:
   # - `iam`
   join_method: "token"
 
-  # ca_pins are used to validate the identity of the Teleport Auth Server on
+  # ca_pins are used to validate the identity of the Teleport Auth Service on
   # first connect. This should not be specified when using Teleport Cloud or
-  # connecting via a Teleport Proxy.
+  # connecting through a Teleport Proxy.
   ca_pins:
     - "(=presets.ca_pin=)"
     - "(=presets.ca_pin=)"
 
   # ca_path is used to specify where a CA file can be found that can be used to
-  # validate the identity of the Teleport Auth Server on first connect.
-  # This should not be specified when using Teleport Cloud or connecting via a
+  # validate the identity of the Teleport Auth Service on first connect.
+  # This should not be specified when using Teleport Cloud or connecting through a
   # Teleport Proxy. The ca_pins option should be preferred over ca_path.
   ca_path: "/path/to/ca.pem"
 
