@@ -32,7 +32,6 @@ import (
 	"github.com/gravitational/teleport/api/client"
 	"github.com/gravitational/teleport/api/client/proto"
 	"github.com/gravitational/teleport/api/types"
-	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/access/common/teleport"
 	"github.com/gravitational/teleport/integrations/lib"
 	"github.com/gravitational/teleport/integrations/lib/backoff"
@@ -63,25 +62,25 @@ var errMissingAnnotation = errors.New("")
 
 // App is a wrapper around the base app to allow for extra functionality.
 type App struct {
-	common.BaseApp
+	*lib.Process
 
-	teleport teleport.Client
-	opsgenie *Client
-	mainJob  lib.ServiceJob
-	conf     Config
+	PluginName string
+	teleport   teleport.Client
+	opsgenie   *Client
+	mainJob    lib.ServiceJob
+	conf       Config
 }
 
 // NewOpsgenieApp initializes a new teleport-opsgenie app and returns it.
 func NewOpsgenieApp(conf *Config) (*App, error) {
-	app := common.NewApp(conf, pluginName)
 	teleportClient, err := conf.GetTeleportClient(conf.Ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 	opsgenieApp := &App{
-		BaseApp:  *app,
-		teleport: teleportClient,
-		conf:     *conf,
+		PluginName: pluginName,
+		teleport:   teleportClient,
+		conf:       *conf,
 	}
 	opsgenieApp.mainJob = lib.NewServiceJob(opsgenieApp.run)
 	return opsgenieApp, nil
