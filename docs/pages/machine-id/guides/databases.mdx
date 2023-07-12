@@ -93,7 +93,6 @@ credentials.
 
 Start by creating a configuration file for Machine ID at `/etc/tbot.yaml`:
 
-<ScopedBlock scope={["cloud"]}>
 ```yaml
 version: v2
 auth_server: "example.teleport.sh:443"
@@ -120,34 +119,6 @@ outputs:
     # format: mongo
 
 ```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
-```yaml
-version: v2
-auth_server: "teleport.example.com:443"
-onboarding:
-  join_method: "token"
-  token: "(=presets.tokens.first=)"
-  ca_pins:
-  - "(=presets.ca_pin=)"
-storage:
-  type: directory
-  path: /var/lib/teleport/bot
-outputs:
-  - type: database
-    destination:
-      type: directory
-      path: /opt/machine-id
-    # Specify the details of the database you wish to connect to.
-    service: example-server
-    username: alice
-    database: example
-    # Specify a format to use for the output credentials. For most databases,
-    # this configuration field can be omitted. See the table below for what
-    # databases require a value specified here.
-    # format: mongo
-```
-</ScopedBlock>
 
 The `format` field in the database output controls the format of the generated
 credentials. This setting allows the credentials to work with database clients that require a

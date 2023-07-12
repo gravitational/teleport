@@ -129,47 +129,25 @@ $ sudo tbot init \
 
 Next, you need to start Machine ID in the background of each Jenkins worker.
 
-<ScopedBlock scope={["cloud"]}>
-  First create a configuration file for Machine ID at `/etc/tbot.yaml`.
-
-  ```yaml
-  version: v2
-  auth_server: "example.teleport.sh:443"
-  onboarding:
-    join_method: "token"
-    token: "00000000000000000000000000000000"
-    ca_pins:
-    - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-  storage:
-    type: directory
-    path: /var/lib/teleport/bot
-  outputs:
-    - type: identity
-      destination:
-        type: directory
-        path: /opt/machine-id
-  ```
-</ScopedBlock>
-<ScopedBlock scope={["oss","enterprise"]}>
 First create a configuration file for Machine ID at `/etc/tbot.yaml`.
-  ```yaml
-  version: v2
-  auth_server: "auth.example.com:3025"
-  onboarding:
-    join_method: "token"
-    token: "00000000000000000000000000000000"
-    ca_pins:
-    - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
-  storage:
-    type: directory
-    path: /var/lib/teleport/bot
-  outputs:
-    - type: identity
-      destination:
-        type: directory
-        path: /opt/machine-id
-  ```
-</ScopedBlock>
+
+```yaml
+version: v2
+auth_server: "example.teleport.sh:443"
+onboarding:
+  join_method: "token"
+  token: "00000000000000000000000000000000"
+  ca_pins:
+  - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
+storage:
+  type: directory
+  path: /var/lib/teleport/bot
+outputs:
+  - type: identity
+    destination:
+      type: directory
+      path: /opt/machine-id
+```
 
 Next, create a systemd.unit file at `/etc/systemd/system/machine-id.service`.
 
