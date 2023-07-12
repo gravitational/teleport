@@ -29,17 +29,17 @@ import (
 
 // FromProto converts a v1 access list into an internal access list object.
 func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
-	owners := make([]accesslist.AccessListOwner, len(msg.Spec.Owners))
+	owners := make([]accesslist.Owner, len(msg.Spec.Owners))
 	for i, owner := range msg.Spec.Owners {
-		owners[i] = accesslist.AccessListOwner{
+		owners[i] = accesslist.Owner{
 			Name:        owner.Name,
 			Description: owner.Description,
 		}
 	}
 
-	members := make([]accesslist.AccessListMember, len(msg.Spec.Members))
+	members := make([]accesslist.Member, len(msg.Spec.Members))
 	for i, member := range msg.Spec.Members {
-		members[i] = accesslist.AccessListMember{
+		members[i] = accesslist.Member{
 			Name:    member.Name,
 			Joined:  member.Joined.AsTime(),
 			Expires: member.Expires.AsTime(),
@@ -48,21 +48,21 @@ func FromProto(msg *accesslistv1.AccessList) (*accesslist.AccessList, error) {
 		}
 	}
 
-	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.AccessListSpec{
+	accessList, err := accesslist.NewAccessList(headerv1.FromMetadataProto(msg.Header.Metadata), accesslist.Spec{
 		Description: msg.Spec.Description,
 		Owners:      owners,
-		Audit: accesslist.AccessListAudit{
+		Audit: accesslist.Audit{
 			Frequency: msg.Spec.Audit.Frequency.AsDuration(),
 		},
-		MembershipRequires: accesslist.AccessListRequires{
+		MembershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.MembershipRequires.Roles,
 			Traits: traitv1.FromProto(msg.Spec.MembershipRequires.Traits),
 		},
-		OwnershipRequires: accesslist.AccessListRequires{
+		OwnershipRequires: accesslist.Requires{
 			Roles:  msg.Spec.OwnershipRequires.Roles,
 			Traits: traitv1.FromProto(msg.Spec.OwnershipRequires.Traits),
 		},
-		Grants: accesslist.AccessListGrants{
+		Grants: accesslist.Grants{
 			Roles:  msg.Spec.Grants.Roles,
 			Traits: traitv1.FromProto(msg.Spec.Grants.Traits),
 		},

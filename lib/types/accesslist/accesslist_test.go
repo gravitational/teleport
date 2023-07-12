@@ -25,7 +25,7 @@ import (
 )
 
 func TestAuditMarshaling(t *testing.T) {
-	audit := AccessListAudit{
+	audit := Audit{
 		Frequency: time.Hour,
 	}
 
@@ -46,7 +46,7 @@ func TestAuditUnmarshaling(t *testing.T) {
 	data, err := json.Marshal(&raw)
 	require.NoError(t, err)
 
-	var audit AccessListAudit
+	var audit Audit
 	require.NoError(t, json.Unmarshal(data, &audit))
 
 	require.Equal(t, time.Hour, audit.Frequency)

@@ -33,9 +33,9 @@ func TestAccessListUnmarshal(t *testing.T) {
 		header.Metadata{
 			Name: "test-access-list",
 		},
-		accesslist.AccessListSpec{
+		accesslist.Spec{
 			Description: "test access list",
-			Owners: []accesslist.AccessListOwner{
+			Owners: []accesslist.Owner{
 				{
 					Name:        "test-user1",
 					Description: "test user 1",
@@ -45,31 +45,31 @@ func TestAccessListUnmarshal(t *testing.T) {
 					Description: "test user 2",
 				},
 			},
-			Audit: accesslist.AccessListAudit{
+			Audit: accesslist.Audit{
 				Frequency: time.Hour,
 			},
-			MembershipRequires: accesslist.AccessListRequires{
+			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			OwnershipRequires: accesslist.AccessListRequires{
+			OwnershipRequires: accesslist.Requires{
 				Roles: []string{"orole1", "orole2"},
 				Traits: map[string][]string{
 					"otrait1": {"ovalue1", "ovalue2"},
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			Grants: accesslist.AccessListGrants{
+			Grants: accesslist.Grants{
 				Roles: []string{"grole1", "grole2"},
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
-			Members: []accesslist.AccessListMember{
+			Members: []accesslist.Member{
 				{
 					Name:    "member1",
 					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
@@ -101,9 +101,9 @@ func TestAccessListMarshal(t *testing.T) {
 		header.Metadata{
 			Name: "test-rule",
 		},
-		accesslist.AccessListSpec{
+		accesslist.Spec{
 			Description: "test access list",
-			Owners: []accesslist.AccessListOwner{
+			Owners: []accesslist.Owner{
 				{
 					Name:        "test-user1",
 					Description: "test user 1",
@@ -113,31 +113,31 @@ func TestAccessListMarshal(t *testing.T) {
 					Description: "test user 2",
 				},
 			},
-			Audit: accesslist.AccessListAudit{
+			Audit: accesslist.Audit{
 				Frequency: time.Hour,
 			},
-			MembershipRequires: accesslist.AccessListRequires{
+			MembershipRequires: accesslist.Requires{
 				Roles: []string{"mrole1", "mrole2"},
 				Traits: map[string][]string{
 					"mtrait1": {"mvalue1", "mvalue2"},
 					"mtrait2": {"mvalue3", "mvalue4"},
 				},
 			},
-			OwnershipRequires: accesslist.AccessListRequires{
+			OwnershipRequires: accesslist.Requires{
 				Roles: []string{"orole1", "orole2"},
 				Traits: map[string][]string{
 					"otrait1": {"ovalue1", "ovalue2"},
 					"otrait2": {"ovalue3", "ovalue4"},
 				},
 			},
-			Grants: accesslist.AccessListGrants{
+			Grants: accesslist.Grants{
 				Roles: []string{"grole1", "grole2"},
 				Traits: map[string][]string{
 					"gtrait1": {"gvalue1", "gvalue2"},
 					"gtrait2": {"gvalue3", "gvalue4"},
 				},
 			},
-			Members: []accesslist.AccessListMember{
+			Members: []accesslist.Member{
 				{
 					Name:    "member1",
 					Joined:  time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC),
