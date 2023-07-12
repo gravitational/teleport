@@ -1,5 +1,45 @@
 # Changelog
 
+## 12.4.11 (07/12/23)
+
+* Application Access
+  * Fixed issue with original URL query not being preserved after authentication redirect. [#28219](https://github.com/gravitational/teleport/pull/28219)
+* Server Access
+  * Added ability to keep automatically created Linux users. [#28433](https://github.com/gravitational/teleport/pull/28433)
+  * Fixed issue Teleport sessions terminating ungracefully on process group SIGQUIT. [#29019](https://github.com/gravitational/teleport/pull/29019)
+  * Fixed issue with `SSH_*` environment variables not being respected in headless mode. [#28921](https://github.com/gravitational/teleport/pull/28921)
+  * Fixed unbound variable issue in auto-discovery installation script. [#28409](https://github.com/gravitational/teleport/pull/28409)
+  * Updated headless `tsh` login to not automatically add agent keys. [#28235](https://github.com/gravitational/teleport/pull/28235)
+* Kubernetes Access
+  * Fixed issue with recreating a bot that was previously partially removed. [#28544](https://github.com/gravitational/teleport/pull/28544), [#29014](https://github.com/gravitational/teleport/pull/29014)
+  * Updated `kubernetes_resources` deny rules to be greedy and not require label match. [#28286](https://github.com/gravitational/teleport/pull/28286)
+* Database Access
+  * Updated `tsh db connect` to prefer `sqlcmd` client when connecting to SQL Server. [#28943](https://github.com/gravitational/teleport/pull/28943)
+  * Updated `tsh db connect` to prefer `mongosh` client when connecting to MongoDB. [#28670](https://github.com/gravitational/teleport/pull/28670)
+* Desktop Access
+  * Improved LDAP connection errors handling. [#28976](https://github.com/gravitational/teleport/pull/28976)
+* Installation
+  * Fixed issue with RPM packages failing to install on FIPS-enabled RHEL 8 systems. [#28795](https://github.com/gravitational/teleport/pull/28795)
+* Authentication
+  * Updated cluster auth preferences to support setting default session TTL. [#28185](https://github.com/gravitational/teleport/pull/28185)
+* CLI
+  * Fixed issue with `tsh login` not displaying cluster alerts. [#28982](https://github.com/gravitational/teleport/pull/28982)
+  * Added ability to provide GitHub API endpoint URL to `tctl sso configure github` command. [#28969](https://github.com/gravitational/teleport/pull/28969)
+  * Updated `tctl alerts ack` to make `--reason` flag optional. [#28954](https://github.com/gravitational/teleport/pull/28954)
+  * Updated `tctl alerts ls` to always show alert ID. [#28905](https://github.com/gravitational/teleport/pull/28905)
+  * Updated `tsh request search` to deduplicate resources. [#28900](https://github.com/gravitational/teleport/pull/28900)
+* Azure
+  * Fixed Azure joining for identities across resource groups. [#28962](https://github.com/gravitational/teleport/pull/28962)
+* Stability & Reliability
+  * Improved Firestore backend handling for cases when same collection is used for backend data and audit events.  [#28738](https://github.com/gravitational/teleport/pull/28738)
+  * Fixed issue with invalid database objects preventing cache initialization. [#28640](https://github.com/gravitational/teleport/pull/28640)
+  * Fixed issue with client idle timeout not always being respected. [#28224](https://github.com/gravitational/teleport/pull/28224)
+* Tooling
+  * Updated OpenSSL to 3.0. [#28437](https://github.com/gravitational/teleport/pull/28437)
+* Web UI
+  * Fixed issue with newlines not being displayed properly in message of the day. [#28936](https://github.com/gravitational/teleport/pull/28936)
+  * Added Machine ID guides to the Enroll Integration page in the web UI. [#28887](https://github.com/gravitational/teleport/pull/28887)
+
 ## 12.4.10 (06/23/23)
 
 * Web UI

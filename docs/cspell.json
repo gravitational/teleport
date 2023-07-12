@@ -692,6 +692,8 @@
     "sudoer",
     "syscalls",
     "sysvinit",
+    "SIGQUIT",
+    "sqlcmd",
     "tadmin",
     "tbot",
     "tbotrole",
@@ -786,5 +788,7 @@
     "zxvf",
     "zztop"
   ],
-  "flagWords": ["hte"]
+  "flagWords": [
+    "hte"
+  ]
 }
