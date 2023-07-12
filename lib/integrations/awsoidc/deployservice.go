@@ -58,9 +58,6 @@ var (
 )
 
 const (
-	// teleportContainerImageFmt is the Teleport Container Image to be used
-	teleportContainerImageFmt = "public.ecr.aws/gravitational/%s-distroless:%s"
-
 	// teleportOSS is the prefix for the image name when deploying the OSS version of Teleport
 	teleportOSS = "teleport"
 
@@ -436,8 +433,7 @@ func upsertTask(ctx context.Context, clt DeployServiceClient, req DeployServiceR
 	if modules.GetModules().BuildType() == modules.BuildEnterprise {
 		teleportFlavor = teleportEnt
 	}
-
-	taskAgentContainerImage := fmt.Sprintf(teleportContainerImageFmt, teleportFlavor, req.TeleportVersionTag)
+	taskAgentContainerImage := fmt.Sprintf("public.ecr.aws/gravitational/%s-distroless:%s", teleportFlavor, req.TeleportVersionTag)
 
 	taskDefOut, err := clt.RegisterTaskDefinition(ctx, &ecs.RegisterTaskDefinitionInput{
 		Family: req.TaskName,
