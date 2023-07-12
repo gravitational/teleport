@@ -171,11 +171,16 @@ The Teleport SSH Service also creates a file in `/etc/sudoers.d` with the
 contents of the `host_sudoers` file written with one entry per line, each
 prefixed with the username of the user that has logged in.
 
-The session can then proceed as usual, however once the SSH session ends, the user
-will be automatically removed and their home directory will be deleted, as the
-matching role specified they should be dropped. Files owned by the deleted user,
-created outside the home directory, will remain in place. Groups that were created
-will remain on the system after the session ends.
+The session can then proceed as usual. When a user's SSH session ends, Teleport
+automatically removes that user and their home directory, as specified by their
+role. However, any files created outside of their home directory, or any groups
+that were formed, will still remain.
+
+If Teleport is managing other active sessions or if there are any running
+processes that belong to the user, it will delay the cleanup. Teleport will then
+try again every five minutes until it's successful. Once it can delete the user,
+it also removes any sudoers entries that were made for them. Teleport uses a
+specific pattern when it creates and deletes these sudoers entries.
 
 Should a Teleport SSH instance be restarted while a session is in progress, the user
 will be cleaned up at the next Teleport restart.
