@@ -251,9 +251,9 @@ type GetDatabasesResponse struct {
 	TotalCount int
 }
 
-// NewcmdCLICmdBuilder creates a dbcmd.MakeDbcmdCLICmdBuilder with provided
-// cluster, db route, and options.
-func NewDbcmdCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, options ...dbcmd.ConnectCommandFunc) *dbcmd.CLICommandBuilder {
+// NewDBCLICmdBuilder creates a dbcmd.CLICommandBuilder with provided cluster,
+// db route, and options.
+func NewDBCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, options ...dbcmd.ConnectCommandFunc) *dbcmd.CLICommandBuilder {
 	return dbcmd.NewCmdBuilder(
 		cluster.clusterClient,
 		&cluster.status,

@@ -25,7 +25,7 @@ import (
 )
 
 type fakeKubeGatewayReader struct {
-	gateway.GatewayReader
+	gateway.Kube
 }
 
 func (m fakeKubeGatewayReader) KubeconfigPath() string { return "test.kubeconfig" }

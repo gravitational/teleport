@@ -34,7 +34,7 @@ import (
 )
 
 func TestCLICommandPreviewReturnsRelativeCommandWithEnv(t *testing.T) {
-	gateway := gatewayImpl{
+	gateway := base{
 		cfg: &Config{
 			TargetName:            "foo",
 			TargetSubresourceName: "bar",
@@ -148,7 +148,7 @@ func TestNewWithLocalPortReturnsErrorIfNewPortEqualsOldPort(t *testing.T) {
 
 type mockCLICommandProvider struct{}
 
-func (m mockCLICommandProvider) GetCommand(gateway GatewayReader) (*exec.Cmd, error) {
+func (m mockCLICommandProvider) GetCommand(gateway Gateway) (*exec.Cmd, error) {
 	absPath, err := filepath.Abs(gateway.Protocol())
 	if err != nil {
 		return nil, err

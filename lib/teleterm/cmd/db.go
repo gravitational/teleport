@@ -25,21 +25,21 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-// DbcmdCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
+// DBCLICommandProvider provides CLI commands for database gateways. It needs Storage to read
 // fresh profile state from the disk.
-type DbcmdCLICommandProvider struct {
+type DBCLICommandProvider struct {
 	storage StorageByResourceURI
 	execer  dbcmd.Execer
 }
 
-func NewDbcmdCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Execer) DbcmdCLICommandProvider {
-	return DbcmdCLICommandProvider{
+func NewDBCLICommandProvider(storage StorageByResourceURI, execer dbcmd.Execer) DBCLICommandProvider {
+	return DBCLICommandProvider{
 		storage: storage,
 		execer:  execer,
 	}
 }
 
-func (d DbcmdCLICommandProvider) GetCommand(gateway gateway.GatewayReader) (*exec.Cmd, error) {
+func (d DBCLICommandProvider) GetCommand(gateway gateway.Gateway) (*exec.Cmd, error) {
 	cluster, err := d.storage.GetByResourceURI(gateway.TargetURI())
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -52,7 +52,7 @@ func (d DbcmdCLICommandProvider) GetCommand(gateway gateway.GatewayReader) (*exe
 		Database:    gateway.TargetSubresourceName(),
 	}
 
-	cmd, err := clusters.NewDbcmdCLICmdBuilder(cluster, routeToDb,
+	cmd, err := clusters.NewDBCLICmdBuilder(cluster, routeToDb,
 		dbcmd.WithLogger(gateway.Log()),
 		dbcmd.WithLocalProxy(gateway.LocalAddress(), gateway.LocalPortInt(), ""),
 		dbcmd.WithNoTLS(),

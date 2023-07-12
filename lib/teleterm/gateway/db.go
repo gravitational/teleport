@@ -18,7 +18,6 @@ package gateway
 
 import (
 	"crypto/tls"
-	"net"
 
 	"github.com/gravitational/trace"
 
@@ -27,62 +26,78 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
+type db struct {
+	*base
+}
+
 // RouteToDatabase returns tlsca.RouteToDatabase based on the config of the gateway.
 //
 // The tlsca.RouteToDatabase.Database field is skipped, as it's an optional field and gateways can
 // change their Config.TargetSubresourceName at any moment.
-func (g *gatewayImpl) RouteToDatabase() tlsca.RouteToDatabase {
-	return g.cfg.RouteToDatabase()
+func (d *db) RouteToDatabase() tlsca.RouteToDatabase {
+	return d.cfg.RouteToDatabase()
 }
 
-func (g *gatewayImpl) makeLocalProxyForDB(listener net.Listener) error {
-	tlsCert, err := keys.LoadX509KeyPair(g.cfg.CertPath, g.cfg.KeyPath)
+func makeDatabaseGateway(cfg Config) (Database, error) {
+	base, err := newBase(cfg)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.Wrap(err)
 	}
 
-	if err := checkCertSubject(tlsCert, g.RouteToDatabase()); err != nil {
-		return trace.Wrap(err,
+	d := &db{base}
+
+	tlsCert, err := keys.LoadX509KeyPair(d.cfg.CertPath, d.cfg.KeyPath)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	if err := checkCertSubject(tlsCert, d.RouteToDatabase()); err != nil {
+		return nil, trace.Wrap(err,
 			"database certificate check failed, try restarting the database connection")
 	}
 
-	localProxyConfig := alpnproxy.LocalProxyConfig{
-		InsecureSkipVerify:      g.cfg.Insecure,
-		RemoteProxyAddr:         g.cfg.WebProxyAddr,
-		Listener:                listener,
-		ParentContext:           g.closeContext,
-		Certs:                   []tls.Certificate{tlsCert},
-		Clock:                   g.cfg.Clock,
-		ALPNConnUpgradeRequired: g.cfg.TLSRoutingConnUpgradeRequired,
+	listener, err := d.cfg.makeListener()
+	if err != nil {
+		return nil, trace.Wrap(err)
 	}
 
-	if g.cfg.OnExpiredCert != nil {
+	localProxyConfig := alpnproxy.LocalProxyConfig{
+		InsecureSkipVerify:      d.cfg.Insecure,
+		RemoteProxyAddr:         d.cfg.WebProxyAddr,
+		Listener:                listener,
+		ParentContext:           d.closeContext,
+		Certs:                   []tls.Certificate{tlsCert},
+		Clock:                   d.cfg.Clock,
+		ALPNConnUpgradeRequired: d.cfg.TLSRoutingConnUpgradeRequired,
+	}
+
+	if d.cfg.OnExpiredCert != nil {
 		localProxyConfig.Middleware = &dbMiddleware{
-			log:           g.cfg.Log,
-			dbRoute:       g.cfg.RouteToDatabase(),
-			onExpiredCert: g.onExpiredCert,
+			log:           d.cfg.Log,
+			dbRoute:       d.cfg.RouteToDatabase(),
+			onExpiredCert: d.onExpiredCert,
 		}
 	}
 
 	localProxy, err := alpnproxy.NewLocalProxy(localProxyConfig,
-		alpnproxy.WithDatabaseProtocol(g.cfg.Protocol),
-		alpnproxy.WithClusterCAsIfConnUpgrade(g.closeContext, g.cfg.RootClusterCACertPoolFunc),
+		alpnproxy.WithDatabaseProtocol(d.cfg.Protocol),
+		alpnproxy.WithClusterCAsIfConnUpgrade(d.closeContext, d.cfg.RootClusterCACertPoolFunc),
 	)
 	if err != nil {
-		return trace.Wrap(err)
+		return nil, trace.NewAggregate(err, listener.Close())
 	}
 
-	g.localProxy = localProxy
-	g.onNewCertFuncs = append(g.onNewCertFuncs, g.setDBCert)
-	return nil
+	d.localProxy = localProxy
+	d.onNewCertFuncs = append(d.onNewCertFuncs, d.setDBCert)
+	return d, nil
 }
 
-func (g *gatewayImpl) setDBCert(newCert tls.Certificate) error {
-	if err := checkCertSubject(newCert, g.RouteToDatabase()); err != nil {
+func (d *db) setDBCert(newCert tls.Certificate) error {
+	if err := checkCertSubject(newCert, d.RouteToDatabase()); err != nil {
 		return trace.Wrap(err,
 			"database certificate check failed, try restarting the database connection")
 	}
 
-	g.localProxy.SetCerts([]tls.Certificate{newCert})
+	d.localProxy.SetCerts([]tls.Certificate{newCert})
 	return nil
 }

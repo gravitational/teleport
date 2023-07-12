@@ -37,7 +37,7 @@ func TestProviderManager(t *testing.T) {
 	// Database gateway.
 	provider, err := manager.Get(uri.NewClusterURI("foo").AppendDB("db"))
 	require.NoError(t, err)
-	require.IsType(t, DbcmdCLICommandProvider{}, provider)
+	require.IsType(t, DBCLICommandProvider{}, provider)
 
 	// Kube gateway.
 	provider, err = manager.Get(uri.NewClusterURI("foo").AppendKube("kube"))

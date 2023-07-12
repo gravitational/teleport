@@ -17,6 +17,7 @@ limitations under the License.
 package gateway
 
 import (
+	"github.com/gravitational/trace"
 	"github.com/sirupsen/logrus"
 
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
@@ -26,37 +27,62 @@ import (
 
 // Gateway is a interface defines all gateway functions.
 type Gateway interface {
-	GatewayReader
-	GatewaySetter
-
+	// Serve starts the underlying ALPN proxy. Blocks until closeContext is
+	// canceled.
 	Serve() error
+	// Close terminates gateway connection.
 	Close() error
+	// ReloadCert loads the key pair from cfg.CertPath & cfg.KeyPath and
+	// updates the cert of the running local proxy.
 	ReloadCert() error
-}
+	// CLICommand returns a command which launches a CLI client pointed at the gateway.
+	CLICommand() (*api.GatewayCLICommand, error)
 
-// GatewayReader defines getter functions for the gateway.
-type GatewayReader interface {
 	URI() uri.ResourceURI
 	TargetURI() uri.ResourceURI
 	TargetName() string
 	Protocol() string
 	TargetUser() string
 	TargetSubresourceName() string
+	SetTargetSubresourceName(value string)
 	Log() *logrus.Entry
 	LocalAddress() string
 	LocalPort() string
 	LocalPortInt() int
-	CLICommand() (*api.GatewayCLICommand, error)
-
-	// Database-specific functions.
-	RouteToDatabase() tlsca.RouteToDatabase
-
-	// Kube-specific functions.
-	KubeconfigPath() string
 }
 
-// GatewaySetter defines setter functions for the gateway.
-type GatewaySetter interface {
-	SetURI(newURI uri.ResourceURI)
-	SetTargetSubresourceName(value string)
+// AsDatabase converts provided gateway to a database gateway.
+func AsDatabase(g Gateway) (Database, error) {
+	if db, ok := g.(Database); ok {
+		return db, nil
+	}
+	return nil, trace.BadParameter("expecting database gateway but got %T", g)
+}
+
+// AsKube converts provided gateway to a kube gateway.
+func AsKube(g Gateway) (Kube, error) {
+	if kube, ok := g.(Kube); ok {
+		return kube, nil
+	}
+	return nil, trace.BadParameter("expecting kube gateway but got %T", g)
+}
+
+// Database defines a database gateway.
+type Database interface {
+	Gateway
+
+	// RouteToDatabase returns tlsca.RouteToDatabase based on the config of the gateway.
+	//
+	// The tlsca.RouteToDatabase.Database field is skipped, as it's an optional field and gateways can
+	// change their Config.TargetSubresourceName at any moment.
+	RouteToDatabase() tlsca.RouteToDatabase
+}
+
+// Kube defines a kube gateway.
+type Kube interface {
+	Gateway
+
+	// KubeconfigPath returns the path to the kubeconfig used to connect the
+	// local proxy.
+	KubeconfigPath() string
 }

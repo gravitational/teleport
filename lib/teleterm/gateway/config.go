@@ -19,6 +19,7 @@ package gateway
 import (
 	"context"
 	"crypto/x509"
+	"net"
 	"runtime"
 
 	"github.com/google/uuid"
@@ -168,4 +169,20 @@ func (c *Config) RouteToDatabase() tlsca.RouteToDatabase {
 		Protocol:    c.Protocol,
 		Username:    c.TargetUser,
 	}
+}
+
+func (c *Config) makeListener() (net.Listener, error) {
+	listener, err := c.TCPPortAllocator.Listen(c.LocalAddress, c.LocalPort)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	// retrieve automatically assigned port number
+	_, port, err := net.SplitHostPort(listener.Addr().String())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	c.LocalPort = port
+	return listener, nil
 }

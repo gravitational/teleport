@@ -74,7 +74,7 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 	return &api.EmptyResponse{}, nil
 }
 
-func newAPIGateway(gateway gateway.GatewayReader) (*api.Gateway, error) {
+func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
 	command, err := gateway.CLICommand()
 	if err != nil {
 		return nil, trace.Wrap(err)

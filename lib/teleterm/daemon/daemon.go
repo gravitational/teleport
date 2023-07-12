@@ -299,7 +299,12 @@ func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) er
 			return trace.Wrap(err)
 		}
 
-		if err := cluster.ReissueDBCerts(ctx, g.RouteToDatabase()); err != nil {
+		// TODO(greedy52) move cluster.ReissueDBCerts to cluster.ReissueGatewayCerts
+		db, err := gateway.AsDatabase(g)
+		if err != nil {
+			return trace.Wrap(err)
+		}
+		if err := cluster.ReissueDBCerts(ctx, db.RouteToDatabase()); err != nil {
 			return trace.Wrap(err)
 		}
 
@@ -373,11 +378,11 @@ func (s *Service) findGateway(gatewayURI string) (gateway.Gateway, error) {
 }
 
 // ListGateways lists gateways
-func (s *Service) ListGateways() []gateway.GatewayReader {
+func (s *Service) ListGateways() []gateway.Gateway {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	gws := make([]gateway.GatewayReader, 0, len(s.gateways))
+	gws := make([]gateway.Gateway, 0, len(s.gateways))
 	for _, gateway := range s.gateways {
 		gws = append(gws, gateway)
 	}

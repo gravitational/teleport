@@ -84,7 +84,7 @@ func (m *ProviderManager) Get(targetURI uri.ResourceURI) (gateway.CLICommandProv
 
 func (m *ProviderManager) getDBProvider() gateway.CLICommandProvider {
 	m.dbProviderOnce.Do(func() {
-		m.dbProvider = NewDbcmdCLICommandProvider(m.cfg.Storage, m.cfg.Execer)
+		m.dbProvider = NewDBCLICommandProvider(m.cfg.Storage, m.cfg.Execer)
 	})
 	return m.dbProvider
 }
