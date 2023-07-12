@@ -3,22 +3,22 @@ title: Machine ID Configuration Reference
 description: Configuration reference for Teleport Machine ID.
 ---
 
-This reference documents the various options that can be configured in `tbot`'s
+This reference documents the various options that can be configured in the `tbot`
 configuration file. This configuration file offers more control than
 configuring `tbot` using CLI parameters alone.
 
 To configure `tbot` to use a configuration file, specify the path with the `-c`
-flag, e.g `tbot -c ./tbot.yaml`.
+flag, for example, `tbot -c ./tbot.yaml`.
 
 Certain terms are used in this reference and hold a specific meaning:
 
-- **Artifact**: an item that `tbot` will write to a destination as part of the
+- **Artifact**: an item that `tbot` writes to a destination as part of the
   process of generating an output. Examples of artifacts include configuration
-  files, certificates and cryptographic key material. Usually these will be
-  files, but this term is explicitly avoided as a destination may not be a
+  files, certificates, and cryptographic key material. Usually, artifacts are
+  files, but this term is explicitly avoided because a destination isn't required to be a
   filesystem.
 
-# Configuration v2
+## Configuration v2
 
 From Teleport 14, `tbot` supports the v2 configuration version.
 
