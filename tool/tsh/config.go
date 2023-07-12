@@ -91,6 +91,7 @@ func onConfig(cf *CLIConf) error {
 		ProxyHost:      proxyHost,
 		ProxyPort:      proxyPort,
 		ExecutablePath: cf.executablePath,
+		Username:       cf.NodeLogin,
 	}, nil); err != nil {
 		return trace.Wrap(err)
 	}
