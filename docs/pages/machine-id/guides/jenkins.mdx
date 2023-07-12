@@ -133,12 +133,14 @@ First create a configuration file for Machine ID at `/etc/tbot.yaml`.
 
 ```yaml
 version: v2
+# Replace "example.teleport.sh:443" with the address of your Teleport Proxy or
+# Teleport Cloud tenant.
 auth_server: "example.teleport.sh:443"
 onboarding:
   join_method: "token"
+  # Replace the token field with the name of the token that was output when you
+  # ran `tctl bots add`.
   token: "00000000000000000000000000000000"
-  ca_pins:
-  - "sha256:1111111111111111111111111111111111111111111111111111111111111111"
 storage:
   type: directory
   path: /var/lib/teleport/bot
