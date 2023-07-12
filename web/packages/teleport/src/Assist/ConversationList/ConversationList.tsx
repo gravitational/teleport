@@ -41,18 +41,44 @@ const Container = styled.div.attrs({ 'data-scrollbar': 'default' })`
 
 export function ConversationList(props: ConversationListProps) {
   const ref = useRef<HTMLDivElement>();
+  const scrollRef = useRef<HTMLDivElement>();
 
+  const shouldScroll = useRef(true);
   const scrolling = useRef<boolean>(false);
 
   const { conversations, selectedConversationMessages } = useAssist();
 
   function scroll() {
+    if (!shouldScroll.current) {
+      return;
+    }
+
     scrolling.current = true;
 
     ref.current.scrollIntoView({ behavior: 'smooth' });
 
     window.setTimeout(() => (scrolling.current = false), 1000);
   }
+
+  useEffect(() => {
+    if (!scrollRef.current) {
+      return;
+    }
+
+    function onscroll() {
+      const scrollPosition = scrollRef.current.scrollTop;
+      const maxScrollPosition =
+        scrollRef.current.scrollHeight - scrollRef.current.clientHeight;
+
+      // if the user has scrolled more than 50px from the bottom of the chat, assume they don't want the message list
+      // to auto scroll.
+      shouldScroll.current = scrollPosition > maxScrollPosition - 50;
+    }
+
+    scrollRef.current.addEventListener('wheel', onscroll);
+
+    return () => scrollRef.current.removeEventListener('wheel', onscroll);
+  }, [scrollRef.current]);
 
   useEffect(() => {
     if (!ref.current || scrolling.current) {
@@ -78,7 +104,7 @@ export function ConversationList(props: ConversationListProps) {
 
   return (
     <>
-      <Container>
+      <Container ref={scrollRef}>
         <Conversation />
 
         <div ref={ref} />
