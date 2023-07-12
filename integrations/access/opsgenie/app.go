@@ -58,8 +58,8 @@ const (
 	modifyPluginDataBackoffMax = time.Second
 )
 
-// Special kind of error that can be ignored.
-var errSkip = errors.New("")
+// errMissingAnnotation is used for cases where request annotations are not set
+var errMissingAnnotation = errors.New("")
 
 // App is a wrapper around the base app to allow for extra functionality.
 type App struct {
@@ -261,13 +261,13 @@ func (a *App) onPendingRequest(ctx context.Context, req types.AccessRequest) err
 	// First, try to create a notification alert.
 	isNew, notifyErr := a.tryNotifyService(ctx, req)
 
-	// To minimize the count of auto-approval tries, lets attempt it only when we just created an alert.
+	// To minimize the count of auto-approval tries, let's only attempt it only when we have just created an alert.
 	// But if there's an error, we can't really know is the alert new or not so lets just try.
 	if !isNew && notifyErr == nil {
 		return nil
 	}
 	// Don't show the error if the annotation is just missing.
-	if trace.Unwrap(notifyErr) == errSkip {
+	if trace.Unwrap(notifyErr) == errMissingAnnotation {
 		notifyErr = nil
 	}
 
@@ -319,7 +319,7 @@ func (a *App) tryNotifyService(ctx context.Context, req types.AccessRequest) (bo
 	serviceNames, err := a.getNotifyServiceNames(req)
 	if err != nil {
 		log.Debugf("Skipping the notification: %s", err)
-		return false, trace.Wrap(errSkip)
+		return false, trace.Wrap(errMissingAnnotation)
 	}
 
 	reqID := req.GetName()
