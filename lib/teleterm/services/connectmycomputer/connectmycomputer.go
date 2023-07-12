@@ -165,8 +165,7 @@ func (s *RoleSetup) Run(ctx context.Context, accessAndIdentity AccessAndIdentity
 	// TODO(ravicious): Expand [auth.ServerWithRoles.GenerateUserCerts] to support refreshing role
 	// list without having to send a bogus request ID.
 	err = certManager.ReissueUserCerts(ctx, client.CertCacheDrop, client.ReissueParams{
-		RouteToCluster: cluster.Name,
-		// AccessRequests:     cluster.GetLoggedInUser().ActiveRequests,
+		RouteToCluster:     cluster.Name,
 		DropAccessRequests: []string{fmt.Sprintf("bogus-request-id-%v", uuid.NewString())},
 	})
 	return RoleSetupResult{CertsReloaded: true}, trace.Wrap(err)
