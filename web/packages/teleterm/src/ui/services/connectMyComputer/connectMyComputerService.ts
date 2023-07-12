@@ -15,7 +15,10 @@
  */
 
 import { MainProcessClient } from 'teleterm/mainProcess/types';
-import { TshClient } from 'teleterm/services/tshd/types';
+import {
+  CreateConnectMyComputerRoleResponse,
+  TshClient,
+} from 'teleterm/services/tshd/types';
 
 import type * as uri from 'teleterm/ui/uri';
 
@@ -29,7 +32,9 @@ export class ConnectMyComputerService {
     await this.mainProcessClient.downloadAgent();
   }
 
-  createRole(rootClusterUri: uri.RootClusterUri) {
+  createRole(
+    rootClusterUri: uri.RootClusterUri
+  ): Promise<CreateConnectMyComputerRoleResponse> {
     return this.tshClient.createConnectMyComputerRole(rootClusterUri);
   }
 }
