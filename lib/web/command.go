@@ -409,7 +409,7 @@ func runCommands(hosts []hostInfo, runCmd func(host *hostInfo) error, numParalle
 
 	// Wait for all commands to finish.
 	if err := group.Wait(); err != nil {
-		log.Warn(err)
+		log.WithError(err).Debug("Assist command execution failed")
 	}
 }
 
