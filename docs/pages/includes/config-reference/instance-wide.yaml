@@ -55,10 +55,23 @@ teleport:
         # token_name: /var/lib/teleport/tokenjoin
         token_name: "token-name"
 
-    # Optional CA pin of the auth server. This enables a more secure way of
-    # adding new nodes to a cluster. See "Adding Nodes to your Cluster"
-    # (https://goteleport.com/docs/setup/admin/adding-nodes).
-    ca_pin: "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
+    # Optional CA pin of the Auth Service. Specifying a CA pin enables new
+    # agents to trust a Teleport cluster when joining via the Auth Service
+    # directly. You can assign the ca_pin field to the literal value of the CA
+    # pin or an absolute path to a file. If you specify a file, the file should
+    # only contain the CA pin.
+    #
+    # You can also specify the value of the ca_pin key as a YAML list of CA pins
+    # or file paths, e.g.:
+    #
+    # ca_pin:
+    #   - /var/lib/teleport/pin1
+    #   - /var/lib/teleport/pin2
+    #
+    # See the documentation on using CA pins:
+    # https://goteleport.com/docs/management/join-services-to-your-cluster/join-token/#connecting-directly-to-the-auth-service.
+    ca_pin:
+      "sha256:7e12c17c20d9cb504bbcb3f0236be3f446861f1396dcbb44425fe28ec1c108f1"
 
     # When running in multi-homed or NATed environments Teleport Nodes need
     # to know which IP it will be reachable at by other Nodes.

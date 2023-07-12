@@ -159,6 +159,10 @@ func ToOneOf(in AuditEvent) (*OneOf, error) {
 		out.Event = &OneOf_TrustedClusterTokenCreate{
 			TrustedClusterTokenCreate: e,
 		}
+	case *ProvisionTokenCreate:
+		out.Event = &OneOf_ProvisionTokenCreate{
+			ProvisionTokenCreate: e,
+		}
 	case *GithubConnectorCreate:
 		out.Event = &OneOf_GithubConnectorCreate{
 			GithubConnectorCreate: e,

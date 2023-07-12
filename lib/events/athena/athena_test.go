@@ -105,6 +105,24 @@ func TestConfig_SetFromURL(t *testing.T) {
 			url:     "athena://db.tbl/?limiterRefillAmount=abc",
 			wantErr: "invalid limiterRefillAmount value (it must be int)",
 		},
+		{
+			name: "region param",
+			url:  "athena://db.tbl/?region=fake-region",
+			want: Config{
+				TableName: "tbl",
+				Database:  "db",
+				Region:    "fake-region",
+			},
+		},
+		{
+			name: "no region param",
+			url:  "athena://db.tbl",
+			want: Config{
+				TableName: "tbl",
+				Database:  "db",
+				Region:    "",
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

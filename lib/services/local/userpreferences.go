@@ -23,6 +23,7 @@ import (
 	"encoding/json"
 
 	"github.com/gravitational/trace"
+	"google.golang.org/protobuf/reflect/protoreflect"
 
 	userpreferencesv1 "github.com/gravitational/teleport/api/gen/proto/go/userpreferences/v1"
 	"github.com/gravitational/teleport/lib/backend"
@@ -36,12 +37,12 @@ type UserPreferencesService struct {
 func DefaultUserPreferences() *userpreferencesv1.UserPreferences {
 	return &userpreferencesv1.UserPreferences{
 		Assist: &userpreferencesv1.AssistUserPreferences{
-			PreferredLogins: nil,
+			PreferredLogins: []string{},
 			ViewMode:        userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_DOCKED,
 		},
 		Theme: userpreferencesv1.Theme_THEME_LIGHT,
 		Onboard: &userpreferencesv1.OnboardUserPreferences{
-			PreferredResources: nil,
+			PreferredResources: []userpreferencesv1.Resource{},
 		},
 	}
 }
@@ -84,7 +85,9 @@ func (u *UserPreferencesService) UpsertUserPreferences(ctx context.Context, req 
 		preferences = DefaultUserPreferences()
 	}
 
-	mergePreferences(preferences, req.Preferences)
+	if err := overwriteValues(preferences, req.Preferences); err != nil {
+		return trace.Wrap(err)
+	}
 
 	item, err := createBackendItem(req.Username, preferences)
 	if err != nil {
@@ -108,7 +111,15 @@ func (u *UserPreferencesService) getUserPreferences(ctx context.Context, usernam
 		return nil, trace.Wrap(err)
 	}
 
-	return &p, nil
+	// Appy the default values to the existing preferences.
+	// This allows updating the preferences schema without returning empty values
+	// for new fields in the existing preferences.
+	df := DefaultUserPreferences()
+	if err := overwriteValues(df, &p); err != nil {
+		return nil, trace.Wrap(err)
+	}
+
+	return df, nil
 }
 
 // backendKey returns the backend key for the user preferences for the given username.
@@ -142,36 +153,36 @@ func createBackendItem(username string, preferences *userpreferencesv1.UserPrefe
 	return item, nil
 }
 
-// mergePreferences merges the values from src into dest.
-func mergePreferences(dest, src *userpreferencesv1.UserPreferences) {
-	if src.Theme != userpreferencesv1.Theme_THEME_UNSPECIFIED {
-		dest.Theme = src.Theme
+// overwriteValues overwrites the values in dst with the values in src.
+// This function uses proto.Ranges internally to iterate over the fields in src.
+// Because of this, only non-nil/empty fields in src will overwrite the values in dst.
+func overwriteValues(dst, src protoreflect.ProtoMessage) error {
+	d := dst.ProtoReflect()
+	s := src.ProtoReflect()
+
+	dName := d.Descriptor().FullName().Name()
+	sName := s.Descriptor().FullName().Name()
+	// If the names don't match, then the types don't match, so we can't overwrite.
+	if dName != sName {
+		return trace.BadParameter("dst and src must be the same type")
 	}
 
-	if src.Assist != nil {
-		mergeAssistUserPreferences(dest.Assist, src.Assist)
-	}
+	overwriteValuesRecursive(d, s)
 
-	if src.Onboard != nil {
-		mergeOnboardUserPreferences(dest.Onboard, src.Onboard)
-	}
-
+	return nil
 }
 
-// mergeAssistUserPreferences merges src preferences into the given dest assist user preferences.
-func mergeAssistUserPreferences(dest, src *userpreferencesv1.AssistUserPreferences) {
-	if src.PreferredLogins != nil {
-		dest.PreferredLogins = src.PreferredLogins
-	}
+// overwriteValuesRecursive recursively overwrites the values in dst with the values in src.
+// It's a helper function for overwriteValues.
+func overwriteValuesRecursive(dst, src protoreflect.Message) {
+	src.Range(func(fd protoreflect.FieldDescriptor, v protoreflect.Value) bool {
+		switch {
+		case fd.Message() != nil:
+			overwriteValuesRecursive(dst.Mutable(fd).Message(), src.Get(fd).Message())
+		default:
+			dst.Set(fd, src.Get(fd))
+		}
 
-	if src.ViewMode != userpreferencesv1.AssistViewMode_ASSIST_VIEW_MODE_UNSPECIFIED {
-		dest.ViewMode = src.ViewMode
-	}
-}
-
-// mergeOnboardUserPreferences merges src preferences into the given dest onboard user preferences.
-func mergeOnboardUserPreferences(dest, src *userpreferencesv1.OnboardUserPreferences) {
-	if src.PreferredResources != nil {
-		dest.PreferredResources = src.PreferredResources
-	}
+		return true
+	})
 }
