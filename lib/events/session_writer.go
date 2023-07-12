@@ -27,15 +27,13 @@ import (
 	"github.com/jonboulle/clockwork"
 	logrus "github.com/sirupsen/logrus"
 
-	apidefaults "github.com/gravitational/teleport/api/defaults"
 	apievents "github.com/gravitational/teleport/api/types/events"
 	"github.com/gravitational/teleport/api/utils/retryutils"
 	"github.com/gravitational/teleport/lib/session"
-	"github.com/gravitational/teleport/lib/utils"
 )
 
-// NewAuditWriter returns a new instance of session writer
-func NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {
+// NewSessionWriter returns a new instance of session writer
+func NewSessionWriter(cfg SessionWriterConfig) (*SessionWriter, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -46,47 +44,41 @@ func NewAuditWriter(cfg AuditWriterConfig) (*AuditWriter, error) {
 	}
 
 	ctx, cancel := context.WithCancel(cfg.Context)
-	writer := &AuditWriter{
-		mtx:    sync.Mutex{},
+	writer := &SessionWriter{
 		cfg:    cfg,
-		stream: NewCheckingStream(stream, cfg.Clock, cfg.ClusterName),
+		stream: stream,
 		log: logrus.WithFields(logrus.Fields{
 			trace.Component: cfg.Component,
 		}),
 		cancel:   cancel,
 		closeCtx: ctx,
-		eventsCh: make(chan apievents.AuditEvent),
+		eventsCh: make(chan apievents.PreparedSessionEvent),
 		doneCh:   make(chan struct{}),
 	}
 	go func() {
 		writer.processEvents()
 		close(writer.doneCh)
 	}()
+
 	return writer, nil
 }
 
-// AuditWriterConfig configures audit writer
-type AuditWriterConfig struct {
+// SessionWriterConfig configures session writer
+type SessionWriterConfig struct {
 	// SessionID defines the session to record.
 	SessionID session.ID
-
-	// ServerID is a server ID to write
-	ServerID string
-
-	// Namespace is the session namespace.
-	Namespace string
-
-	// RecordOutput stores info on whether to record session output
-	RecordOutput bool
 
 	// Component is a component used for logging
 	Component string
 
 	// MakeEvents converts bytes written via the io.Writer interface
 	// into AuditEvents that are written to the stream.
-	// For backwards compatibility, AuditWriter will convert bytes to
+	// For backwards compatibility, SessionWriter will convert bytes to
 	// SessionPrint events when MakeEvents is not provided.
 	MakeEvents func([]byte) []apievents.AuditEvent
+
+	// Preparer will set necessary fields of events created by Write.
+	Preparer SessionEventPreparer
 
 	// Streamer is used to create and resume audit streams
 	Streamer Streamer
@@ -98,43 +90,31 @@ type AuditWriterConfig struct {
 	// Clock is used to override time in tests
 	Clock clockwork.Clock
 
-	// UID is UID generator
-	UID utils.UID
-
 	// BackoffTimeout is a backoff timeout
 	// if set, failed audit write events will be lost
-	// if audit writer fails to write events after this timeout
+	// if session writer fails to write events after this timeout
 	BackoffTimeout time.Duration
 
 	// BackoffDuration is a duration of the backoff before the next try
 	BackoffDuration time.Duration
-
-	// ClusterName defines the name of this teleport cluster.
-	ClusterName string
 }
 
 // CheckAndSetDefaults checks and sets defaults
-func (cfg *AuditWriterConfig) CheckAndSetDefaults() error {
+func (cfg *SessionWriterConfig) CheckAndSetDefaults() error {
 	if cfg.SessionID.IsZero() {
-		return trace.BadParameter("audit writer config: missing parameter SessionID")
+		return trace.BadParameter("session writer config: missing parameter SessionID")
 	}
 	if cfg.Streamer == nil {
-		return trace.BadParameter("audit writer config: missing parameter Streamer")
+		return trace.BadParameter("session writer config: missing parameter Streamer")
+	}
+	if cfg.Preparer == nil {
+		return trace.BadParameter("session writer config: missing parameter Preparer")
 	}
 	if cfg.Context == nil {
-		return trace.BadParameter("audit writer config: missing parameter Context")
-	}
-	if cfg.ClusterName == "" {
-		return trace.BadParameter("audit writer config: missing parameter ClusterName")
-	}
-	if cfg.Namespace == "" {
-		cfg.Namespace = apidefaults.Namespace
+		return trace.BadParameter("session writer config: missing parameter Context")
 	}
 	if cfg.Clock == nil {
 		cfg.Clock = clockwork.NewRealClock()
-	}
-	if cfg.UID == nil {
-		cfg.UID = utils.NewRealUID()
 	}
 	if cfg.BackoffTimeout == 0 {
 		cfg.BackoffTimeout = AuditBackoffTimeout
@@ -173,20 +153,17 @@ func bytesToSessionPrintEvents(b []byte) []apievents.AuditEvent {
 	return result
 }
 
-// AuditWriter wraps session stream
-// and writes audit events to it
-type AuditWriter struct {
-	mtx            sync.Mutex
-	cfg            AuditWriterConfig
-	log            *logrus.Entry
-	lastPrintEvent *apievents.SessionPrint
-	eventIndex     int64
-	buffer         []apievents.AuditEvent
-	eventsCh       chan apievents.AuditEvent
-	lastStatus     *apievents.StreamStatus
-	stream         apievents.Stream
-	cancel         context.CancelFunc
-	closeCtx       context.Context
+// SessionWriter wraps session stream and writes session events to it
+type SessionWriter struct {
+	mtx        sync.Mutex
+	cfg        SessionWriterConfig
+	log        *logrus.Entry
+	buffer     []apievents.PreparedSessionEvent
+	eventsCh   chan apievents.PreparedSessionEvent
+	lastStatus *apievents.StreamStatus
+	stream     apievents.Stream
+	cancel     context.CancelFunc
+	closeCtx   context.Context
 	// doneCh is closed when all internal processes have exited
 	doneCh chan struct{}
 
@@ -196,8 +173,8 @@ type AuditWriter struct {
 	slowWrites     atomic.Int64
 }
 
-// AuditWriterStats provides stats about lost events and slow writes
-type AuditWriterStats struct {
+// SessionWriterStats provides stats about lost events and slow writes
+type SessionWriterStats struct {
 	// AcceptedEvents is a total amount of events accepted for writes
 	AcceptedEvents int64
 	// LostEvents provides stats about lost events due to timeouts
@@ -210,22 +187,25 @@ type AuditWriterStats struct {
 
 // Status returns channel receiving updates about stream status
 // last event index that was uploaded and upload ID
-func (a *AuditWriter) Status() <-chan apievents.StreamStatus {
+func (a *SessionWriter) Status() <-chan apievents.StreamStatus {
 	return nil
 }
 
 // Done returns channel closed when streamer is closed
 // should be used to detect sending errors
-func (a *AuditWriter) Done() <-chan struct{} {
+func (a *SessionWriter) Done() <-chan struct{} {
 	return a.closeCtx.Done()
 }
 
-// Write takes a chunk and writes it into the audit log
-func (a *AuditWriter) Write(data []byte) (int, error) {
-	if !a.cfg.RecordOutput {
-		return len(data), nil
-	}
+// PrepareSessionEvent will set necessary event fields for session-related
+// events and must be called before the event is recorded, regardless
+// of whether the event will be recorded, emitted, or both.
+func (a *SessionWriter) PrepareSessionEvent(event apievents.AuditEvent) (apievents.PreparedSessionEvent, error) {
+	return a.cfg.Preparer.PrepareSessionEvent(event)
+}
 
+// Write takes a chunk and writes it into the audit log
+func (a *SessionWriter) Write(data []byte) (int, error) {
 	// buffer is copied here to prevent data corruption:
 	// io.Copy allocates single buffer and calls multiple writes in a loop
 	// Write is async, this can lead to cases when the buffer is re-used
@@ -235,7 +215,11 @@ func (a *AuditWriter) Write(data []byte) (int, error) {
 
 	events := a.cfg.MakeEvents(dataCopy)
 	for _, event := range events {
-		if err := a.EmitAuditEvent(a.cfg.Context, event); err != nil {
+		event, err := a.cfg.Preparer.PrepareSessionEvent(event)
+		if err != nil {
+			a.log.WithError(err).Errorf("failed to setup %T event", event)
+		}
+		if err := a.RecordEvent(a.cfg.Context, event); err != nil {
 			a.log.WithError(err).Errorf("failed to emit %T event", event)
 			return 0, trace.Wrap(err)
 		}
@@ -247,7 +231,7 @@ func (a *AuditWriter) Write(data []byte) (int, error) {
 // checkAndResetBackoff checks whether the backoff is in place,
 // also resets it if the time has passed. If the state is backoff,
 // returns true
-func (a *AuditWriter) checkAndResetBackoff(now time.Time) bool {
+func (a *SessionWriter) checkAndResetBackoff(now time.Time) bool {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	switch {
@@ -269,7 +253,7 @@ func (a *AuditWriter) checkAndResetBackoff(now time.Time) bool {
 // overriding the backoff timer.
 //
 // Returns true if this call sets the backoff.
-func (a *AuditWriter) maybeSetBackoff(backoffUntil time.Time) bool {
+func (a *SessionWriter) maybeSetBackoff(backoffUntil time.Time) bool {
 	a.mtx.Lock()
 	defer a.mtx.Unlock()
 	switch {
@@ -281,17 +265,22 @@ func (a *AuditWriter) maybeSetBackoff(backoffUntil time.Time) bool {
 	}
 }
 
-// EmitAuditEvent emits audit event
-func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditEvent) error {
-	// Event modification is done under lock and in the same goroutine
-	// as the caller to avoid data races and event copying
-	if err := a.setupEvent(event); err != nil {
+// RecordEvent emits audit event
+func (a *SessionWriter) RecordEvent(ctx context.Context, pe apievents.PreparedSessionEvent) error {
+	event := pe.GetAuditEvent()
+	if err := checkBasicEventFields(event); err != nil {
 		return trace.Wrap(err)
+	}
+
+	// the index starts at 0, so we'll only know if the index is invalid
+	// if we've seen at least one event already
+	if event.GetIndex() == 0 && a.acceptedEvents.Load() > 0 {
+		return trace.BadParameter("missing mandatory event index field")
 	}
 
 	a.acceptedEvents.Add(1)
 
-	// Without serialization, EmitAuditEvent will call grpc's method directly.
+	// Without serialization, RecordEvent will call grpc's method directly.
 	// When BPF callback is emitting events concurrently with session data to the grpc stream,
 	// it becomes deadlocked (not just blocked temporarily, but permanently)
 	// in flowcontrol.go, trying to get quota:
@@ -305,12 +294,12 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 
 	// This fast path will be used all the time during normal operation.
 	select {
-	case a.eventsCh <- event:
+	case a.eventsCh <- pe:
 		return nil
 	case <-ctx.Done():
 		return trace.ConnectionProblem(ctx.Err(), "context canceled or timed out")
 	case <-a.closeCtx.Done():
-		return trace.ConnectionProblem(a.closeCtx.Err(), "audit writer is closed")
+		return trace.ConnectionProblem(a.closeCtx.Err(), "session writer is closed")
 	default:
 		a.slowWrites.Add(1)
 	}
@@ -342,7 +331,7 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 	defer timerPool.Put(t)
 
 	select {
-	case a.eventsCh <- event:
+	case a.eventsCh <- pe:
 		stopped := t.Stop()
 		if !stopped {
 			// Here and below, consume triggered (but not yet received) timer event
@@ -377,9 +366,9 @@ func (a *AuditWriter) EmitAuditEvent(ctx context.Context, event apievents.AuditE
 
 var timerPool sync.Pool
 
-// Stats returns up to date stats from this audit writer
-func (a *AuditWriter) Stats() AuditWriterStats {
-	return AuditWriterStats{
+// Stats returns up to date stats from this session writer
+func (a *SessionWriter) Stats() SessionWriterStats {
+	return SessionWriterStats{
 		AcceptedEvents: a.acceptedEvents.Load(),
 		LostEvents:     a.lostEvents.Load(),
 		SlowWrites:     a.slowWrites.Load(),
@@ -390,7 +379,7 @@ func (a *AuditWriter) Stats() AuditWriterStats {
 // note that this behavior is different from Stream.Close,
 // that aborts it, because of the way the writer is usually used
 // the interface - io.WriteCloser has only close method
-func (a *AuditWriter) Close(ctx context.Context) error {
+func (a *SessionWriter) Close(ctx context.Context) error {
 	a.cancel()
 	<-a.doneCh
 	stats := a.Stats()
@@ -408,11 +397,11 @@ func (a *AuditWriter) Close(ctx context.Context) error {
 // Complete closes the stream and marks it finalized,
 // releases associated resources, in case of failure,
 // closes this stream on the client side
-func (a *AuditWriter) Complete(ctx context.Context) error {
+func (a *SessionWriter) Complete(ctx context.Context) error {
 	return a.Close(ctx)
 }
 
-func (a *AuditWriter) processEvents() {
+func (a *SessionWriter) processEvents() {
 	defer a.cancel()
 
 	for {
@@ -439,7 +428,7 @@ func (a *AuditWriter) processEvents() {
 			a.updateStatus(status)
 		case event := <-a.eventsCh:
 			a.buffer = append(a.buffer, event)
-			err := a.stream.EmitAuditEvent(a.cfg.Context, event)
+			err := a.stream.RecordEvent(a.cfg.Context, event)
 			if err != nil {
 				if IsPermanentEmitError(err) {
 					a.log.WithError(err).WithField("event", event).Warning("Failed to emit audit event due to permanent emit audit event error. Event will be omitted.")
@@ -506,7 +495,7 @@ func IsPermanentEmitError(err error) bool {
 	return isPerErrRecurCheck(err)
 }
 
-func (a *AuditWriter) recoverStream() error {
+func (a *SessionWriter) recoverStream() error {
 	a.closeStream(a.stream)
 	stream, err := a.tryResumeStream()
 	if err != nil {
@@ -516,7 +505,7 @@ func (a *AuditWriter) recoverStream() error {
 	// replay all non-confirmed audit events to the resumed stream
 	start := time.Now()
 	for i := range a.buffer {
-		err := a.stream.EmitAuditEvent(a.cfg.Context, a.buffer[i])
+		err := a.stream.RecordEvent(a.cfg.Context, a.buffer[i])
 		if err != nil {
 			a.closeStream(a.stream)
 			return trace.Wrap(err)
@@ -526,7 +515,7 @@ func (a *AuditWriter) recoverStream() error {
 	return nil
 }
 
-func (a *AuditWriter) closeStream(stream apievents.Stream) {
+func (a *SessionWriter) closeStream(stream apievents.Stream) {
 	ctx, cancel := context.WithTimeout(a.cfg.Context, NetworkRetryDuration)
 	defer cancel()
 	if err := stream.Close(ctx); err != nil {
@@ -534,7 +523,7 @@ func (a *AuditWriter) closeStream(stream apievents.Stream) {
 	}
 }
 
-func (a *AuditWriter) completeStream(stream apievents.Stream) {
+func (a *SessionWriter) completeStream(stream apievents.Stream) {
 	// Cannot use the configured context because it's the server's and when the server
 	// is requested to close (and hence the context is canceled), the stream will not be able
 	// to complete
@@ -545,7 +534,7 @@ func (a *AuditWriter) completeStream(stream apievents.Stream) {
 	}
 }
 
-func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
+func (a *SessionWriter) tryResumeStream() (apievents.Stream, error) {
 	retry, err := retryutils.NewLinear(retryutils.LinearConfig{
 		Step: NetworkRetryDuration,
 		Max:  NetworkBackoffDuration,
@@ -603,14 +592,14 @@ func (a *AuditWriter) tryResumeStream() (apievents.Stream, error) {
 	return nil, trace.LimitExceeded("audit stream resume attempts exhausted, last error: %v", err)
 }
 
-func (a *AuditWriter) updateStatus(status apievents.StreamStatus) {
+func (a *SessionWriter) updateStatus(status apievents.StreamStatus) {
 	a.lastStatus = &status
 	if status.LastEventIndex < 0 {
 		return
 	}
 	lastIndex := -1
 	for i := 0; i < len(a.buffer); i++ {
-		if status.LastEventIndex < a.buffer[i].GetIndex() {
+		if status.LastEventIndex < a.buffer[i].GetAuditEvent().GetIndex() {
 			break
 		}
 		lastIndex = i
@@ -620,42 +609,6 @@ func (a *AuditWriter) updateStatus(status apievents.StreamStatus) {
 		a.buffer = a.buffer[lastIndex+1:]
 		a.log.Debugf("Removed %v saved events, current buffer size: %v.", before-len(a.buffer), len(a.buffer))
 	}
-}
-
-func (a *AuditWriter) setupEvent(event apievents.AuditEvent) error {
-	a.mtx.Lock()
-	defer a.mtx.Unlock()
-
-	if err := checkAndSetEventFields(event, a.cfg.Clock, a.cfg.UID, a.cfg.ClusterName); err != nil {
-		return trace.Wrap(err)
-	}
-
-	sess, ok := event.(SessionMetadataSetter)
-	if ok {
-		sess.SetSessionID(string(a.cfg.SessionID))
-	}
-
-	srv, ok := event.(ServerMetadataSetter)
-	if ok {
-		srv.SetServerNamespace(a.cfg.Namespace)
-		srv.SetServerID(a.cfg.ServerID)
-	}
-
-	event.SetIndex(a.eventIndex)
-	a.eventIndex++
-
-	printEvent, ok := event.(*apievents.SessionPrint)
-	if !ok {
-		return nil
-	}
-
-	if a.lastPrintEvent != nil {
-		printEvent.Offset = a.lastPrintEvent.Offset + int64(len(a.lastPrintEvent.Data))
-		printEvent.DelayMilliseconds = diff(a.lastPrintEvent.Time, printEvent.Time) + a.lastPrintEvent.DelayMilliseconds
-		printEvent.ChunkIndex = a.lastPrintEvent.ChunkIndex + 1
-	}
-	a.lastPrintEvent = printEvent
-	return nil
 }
 
 func diff(before, after time.Time) int64 {

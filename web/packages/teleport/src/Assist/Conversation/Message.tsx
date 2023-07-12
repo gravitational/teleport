@@ -108,7 +108,12 @@ function createComponentForEntry(
     case ServerMessageType.Assist:
     case ServerMessageType.User:
     case ServerMessageType.Error:
-      return <MessageEntry content={entry.message} />;
+      return (
+        <MessageEntry
+          content={entry.message}
+          markdown={entry.type === ServerMessageType.Assist}
+        />
+      );
 
     case ServerMessageType.Command:
       return (

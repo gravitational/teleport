@@ -89,7 +89,6 @@ import (
 	"github.com/gravitational/teleport/lib/release"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/services/local"
-	"github.com/gravitational/teleport/lib/session"
 	"github.com/gravitational/teleport/lib/srv/db/common/role"
 	"github.com/gravitational/teleport/lib/sshca"
 	"github.com/gravitational/teleport/lib/sshutils"
@@ -185,7 +184,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cfg.Emitter = events.NewDiscardEmitter()
 	}
 	if cfg.Streamer == nil {
-		cfg.Streamer = events.NewDiscardEmitter()
+		cfg.Streamer = events.NewDiscardStreamer()
 	}
 	if cfg.WindowsDesktops == nil {
 		cfg.WindowsDesktops = local.NewWindowsDesktopService(cfg.Backend)
@@ -307,7 +306,7 @@ func NewServer(cfg *InitConfig, opts ...ServerOption) (*Server, error) {
 		cancelFunc:          cancelFunc,
 		closeCtx:            closeCtx,
 		emitter:             cfg.Emitter,
-		streamer:            cfg.Streamer,
+		Streamer:            cfg.Streamer,
 		Unstable:            local.NewUnstableService(cfg.Backend, cfg.AssertionReplayService),
 		Services:            services,
 		Cache:               services,
@@ -566,9 +565,9 @@ type Server struct {
 	// Emitter is events emitter, used to submit discrete events
 	emitter apievents.Emitter
 
-	// streamer is events sessionstreamer, used to create continuous
+	// Streamer is an events session streamer, used to create continuous
 	// session related streams
-	streamer events.Streamer
+	events.Streamer
 
 	// keyStore manages all CA private keys, which  may or may not be backed by
 	// HSMs
@@ -3241,21 +3240,6 @@ func (a *Server) GenerateToken(ctx context.Context, req *proto.GenerateTokenRequ
 		return "", trace.Wrap(err)
 	}
 
-	userMetadata := authz.ClientUserMetadata(ctx)
-	for _, role := range req.Roles {
-		if role == types.RoleTrustedCluster {
-			if err := a.emitter.EmitAuditEvent(ctx, &apievents.TrustedClusterTokenCreate{
-				Metadata: apievents.Metadata{
-					Type: events.TrustedClusterTokenCreateEvent,
-					Code: events.TrustedClusterTokenCreateCode,
-				},
-				UserMetadata: userMetadata,
-			}); err != nil {
-				log.WithError(err).Warn("Failed to emit trusted cluster token create event.")
-			}
-		}
-	}
-
 	return req.Token, nil
 }
 
@@ -4342,42 +4326,6 @@ func (a *Server) IterateResources(ctx context.Context, req proto.ListResourcesRe
 
 		req.StartKey = resp.NextKey
 	}
-}
-
-// CreateAuditStream creates audit event stream
-func (a *Server) CreateAuditStream(ctx context.Context, sid session.ID) (apievents.Stream, error) {
-	streamer, err := a.modeStreamer(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return streamer.CreateAuditStream(ctx, sid)
-}
-
-// ResumeAuditStream resumes the stream that has been created
-func (a *Server) ResumeAuditStream(ctx context.Context, sid session.ID, uploadID string) (apievents.Stream, error) {
-	streamer, err := a.modeStreamer(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	return streamer.ResumeAuditStream(ctx, sid, uploadID)
-}
-
-// modeStreamer creates streamer based on the event mode
-func (a *Server) modeStreamer(ctx context.Context) (events.Streamer, error) {
-	recConfig, err := a.GetSessionRecordingConfig(ctx)
-	if err != nil {
-		return nil, trace.Wrap(err)
-	}
-	// In sync mode, auth server forwards session control to the event log
-	// in addition to sending them and data events to the record storage.
-	if services.IsRecordSync(recConfig.GetMode()) {
-		return events.NewTeeStreamer(a.streamer, a.emitter), nil
-	}
-	// In async mode, clients submit session control events
-	// during the session in addition to writing a local
-	// session recording to be uploaded at the end of the session,
-	// so forwarding events here will result in duplicate events.
-	return a.streamer, nil
 }
 
 // CreateApp creates a new application resource.
