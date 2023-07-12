@@ -73,7 +73,7 @@ func TestGatewayStart(t *testing.T) {
 	gateway, err := New(
 		Config{
 			TargetName:         "foo",
-			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo").String(),
+			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo"),
 			TargetUser:         "alice",
 			Protocol:           defaults.ProtocolPostgres,
 			CertPath:           keyPairPaths.CertPath,
@@ -193,7 +193,7 @@ func createGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
 	gateway, err := New(
 		Config{
 			TargetName:         "foo",
-			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo").String(),
+			TargetURI:          uri.NewClusterURI("bar").AppendDB("foo"),
 			TargetUser:         "alice",
 			Protocol:           defaults.ProtocolPostgres,
 			CertPath:           keyPairPaths.CertPath,
