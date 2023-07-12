@@ -16,7 +16,7 @@
 
 import { pipeline } from 'node:stream/promises';
 import { createReadStream } from 'node:fs';
-import { rm } from 'node:fs/promises';
+import { rm, mkdtemp } from 'node:fs/promises';
 import { join } from 'node:path';
 import { createUnzip } from 'node:zlib';
 import { execFile } from 'node:child_process';
@@ -74,11 +74,14 @@ export async function downloadAgent(
     version,
   });
   const url = `${TELEPORT_CDN_ADDRESS}/${binaryName}`;
-  await fileDownloader.run(url, settings.tempDataDir);
 
-  const binaryPath = join(settings.tempDataDir, binaryName);
+  const agentTempDirectory = await mkdtemp(
+    join(settings.tempDataDir, 'connect-my-computer-'),
+  );
+  await fileDownloader.run(url, agentTempDirectory);
+  const binaryPath = join(agentTempDirectory, binaryName);
   await unpack(binaryPath, settings.sessionDataDir);
-  await rm(binaryPath);
+  await rm(agentTempDirectory, { recursive: true });
 
   logger.info(`Downloaded agent v${version}.`);
 }

@@ -147,24 +147,27 @@ test.each(testCases)(
     jest.spyOn(zlib, 'createUnzip').mockImplementation(getStreamMock);
     jest.spyOn(tarFs, 'extract').mockImplementation(getStreamMock);
 
+    const agentTempDir = `${runtimeSettings.tempDataDir}/connect-my-computer-abc`;
+    jest.spyOn(fsPromises, 'mkdtemp').mockResolvedValue(agentTempDir);
+
     const call = downloadAgent(fileDownloader, runtimeSettings, env);
     await expect(call).resolves.toBeUndefined();
 
     if (shouldDownloadBinary) {
       expect(fileDownloader.run).toHaveBeenCalledWith(
         `https://cdn.teleport.dev/${shouldDownloadBinary}`,
-        runtimeSettings.tempDataDir
+        agentTempDir
       );
       expect(fs.createReadStream).toHaveBeenCalledWith(
-        `${runtimeSettings.tempDataDir}/${shouldDownloadBinary}`
+        `${agentTempDir}/${shouldDownloadBinary}`
       );
       expect(tarFs.extract).toHaveBeenCalledWith(
         runtimeSettings.sessionDataDir,
         expect.anything()
       );
-      expect(fsPromises.rm).toHaveBeenCalledWith(
-        `${runtimeSettings.tempDataDir}/${shouldDownloadBinary}`
-      );
+      expect(fsPromises.rm).toHaveBeenCalledWith(agentTempDir, {
+        recursive: true,
+      });
     } else {
       expect(fileDownloader.run).not.toHaveBeenCalled();
       expect(fs.createReadStream).not.toHaveBeenCalled();
