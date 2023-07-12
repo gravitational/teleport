@@ -66,13 +66,13 @@ CREATE TABLE events (
     session_id uuid NOT NULL,
     event_data json NOT NULL,
     creation_time timestamptz NOT NULL DEFAULT now(),
-    PRIMARY KEY (event_time, event_id)
+    CONSTRAINT events_pkey PRIMARY KEY (event_time, event_id)
 );
 CREATE INDEX events_creation_time_idx ON events (creation_time);
-CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id) WHERE session_id != '00000000-0000-0000-0000-000000000000'
+CREATE INDEX events_search_session_events_idx ON events (session_id, event_time, event_id) WHERE session_id != '00000000-0000-0000-0000-000000000000';
 ```
 
-The database schema is made to be compatible with the one for the backend, although we are going to recommend storing the backend and the audit log in two different databases (having both on the same database cluster is going to be fine), because logical decoding is applied per-database, and keeping both in the same database will require the logical decoding plugin to do extra work to filter out the changes to the audit log.
+While the database schema is compatible with the one for the backend, we are going to strongly discourage running the backend and the audit log in the same database (using two different databases in the same instance of Postgres is ok), because logical decoding is per-database, not per-table, and keeping both in the same database will require extra work to filter out the changes to the audit log - especially when sifting through the transactions deleting events that are past the retention period.
 
 The `event_id` column is a UUID chosen at random at insert time, unrelated to the event data, only used to disambiguate events for the purpose of pagination; `creation_time`, likewise, is only used for deleting events after some retention period (defaulting to one year).
 
@@ -90,7 +90,7 @@ For self-managed Postgres setups we recommend the use of [certificate authentica
 
 Teleport will attempt to create the databases specified in the configuration for itself, and set them up with the correct schema (as well as apply any future migrations, if needed). It's possible to create the databases manually and not give Teleport permissions to create databases, and technically it's even possible to manually set up the database schemas (to avoid granting Teleport the ability to create tables, for instance), but we recommend giving Teleport its own database for the backend - and since Teleport will need read-write access to all the data in it anyway, we also recommend letting Teleport manage the schema automatically.
 
-It's possible to only grant `INSERT` and `SELECT` privileges to the Teleport db user on the table that stores audit events, but not UPDATE or DELETE privileges; such a setup couldn't be automatically managed by Teleport, however, and thus would require detailed documentation on how to set up the schema, and some care.
+It's possible to only grant `INSERT` and `SELECT` privileges to the Teleport db user on the table that stores audit events, but not UPDATE or DELETE privileges; such a setup couldn't be automatically managed by Teleport, however, and thus will require detailed documentation on how to set up the schema, and some care when upgrading - Teleport will refuse to start if the schema version is outdated and can't be fixed by Teleport itself.
 
 For reliability, it's recommended to run a standby server with failover and synchronous replication (by setting `synchronous_standby_names`). The details on how to do this vary depending on the way Postgres is deployed; for instance, on Azure it's sufficient to enable ["High availability" mode](https://learn.microsoft.com/en-us/azure/postgresql/flexible-server/concepts-high-availability).
 
