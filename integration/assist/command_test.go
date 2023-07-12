@@ -20,14 +20,13 @@ package assist
 
 import (
 	"context"
-	"crypto/rand"
-	"crypto/rsa"
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
+	"io/fs"
 	"net"
 	"net/http/httptest"
 	"net/url"
@@ -41,6 +40,7 @@ import (
 	"github.com/gorilla/websocket"
 	"github.com/gravitational/trace"
 	"github.com/sashabaranov/go-openai"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -57,6 +57,7 @@ import (
 	"github.com/gravitational/teleport/integration/helpers"
 	"github.com/gravitational/teleport/lib/ai/testutils"
 	libauth "github.com/gravitational/teleport/lib/auth"
+	"github.com/gravitational/teleport/lib/auth/native"
 	"github.com/gravitational/teleport/lib/config"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/service"
@@ -74,8 +75,8 @@ const (
 	testClusterName   = "teleport.example.com"
 )
 
-// TestIntegrationCRUD starts a Teleport cluster and using its Proxy Web server,
-// tests the CRUD operations over the Integration resource.
+// TestAssistCommandOpenSSH tests that command output is properly recorded when
+// executing commands through assist on OpenSSH nodes.
 func TestAssistCommandOpenSSH(t *testing.T) {
 	// Setup section: starting Teleport, creating the user and starting a mock SSH server
 	testDir := t.TempDir()
@@ -128,13 +129,13 @@ func TestAssistCommandOpenSSH(t *testing.T) {
 
 	execSocket := executionWebsocketReader{ws}
 
-	// First message
+	// First message: session metadata
 	envelope, err := execSocket.Read()
 	require.NoError(t, err)
 	var sessionMetadata sessionMetadataResponse
 	require.NoError(t, json.Unmarshal([]byte(envelope.Payload), &sessionMetadata))
 
-	// Second message
+	// Second message: command output
 	envelope, err = execSocket.Read()
 	require.NoError(t, err)
 	perNodeEnvelope := struct {
@@ -143,12 +144,15 @@ func TestAssistCommandOpenSSH(t *testing.T) {
 		Payload string `json:"payload"`
 	}{}
 	require.NoError(t, json.Unmarshal([]byte(envelope.Payload), &perNodeEnvelope))
-	require.Equal(t, "stdout", perNodeEnvelope.MsgType)
+	// Assert the command executed properly. If the execution failed, we will
+	// receive a web.envelopeTypeError message instead
+	require.Equal(t, web.EnvelopeTypeStdout, perNodeEnvelope.MsgType)
 	output, err := base64.StdEncoding.DecodeString(perNodeEnvelope.Payload)
 	require.NoError(t, err)
+	// Assert the streamed command output content is the one expected
 	require.Equal(t, testCommandOutput, string(output))
 
-	// Third message
+	// Third message: session close
 	envelope, err = execSocket.Read()
 	require.NoError(t, err)
 	require.Equal(t, defaults.WebsocketClose, envelope.Type)
@@ -161,9 +165,9 @@ func TestAssistCommandOpenSSH(t *testing.T) {
 			if trace.IsNotFound(err) {
 				return false
 			}
-			require.Fail(t, "error should be nil or not found, is %s", err)
+			assert.Fail(t, "error should be nil or not found, is %s", err)
 		}
-		require.NotNil(t, chunk)
+		assert.NotNil(t, chunk)
 		return true
 	}, 10*time.Second, 200*time.Millisecond)
 
@@ -256,22 +260,7 @@ func setupTestUser(t *testing.T, ctx context.Context, rc *helpers.TeleInstance) 
 	userPassword := uuid.NewString()
 	require.NoError(t, auth.UpsertPassword(testUser, []byte(userPassword)))
 
-	// Get user certs and build a client
-	userKey, err := rsa.GenerateKey(rand.Reader, 2048)
-	require.NoError(t, err)
-	userPubKey, err := ssh.NewPublicKey(&userKey.PublicKey)
-	require.NoError(t, err)
-	testCertsReq := libauth.GenerateUserTestCertsRequest{
-		Key:            ssh.MarshalAuthorizedKey(userPubKey),
-		Username:       user.GetName(),
-		TTL:            time.Hour,
-		Compatibility:  constants.CertificateFormatStandard,
-		RouteToCluster: testClusterName,
-	}
-	_, tlsCert, err := auth.GenerateUserTestCerts(testCertsReq)
-	require.NoError(t, err)
-
-	creds, err := newTestCredentials(userKey, tlsCert, rc.Secrets.TLSCACert)
+	creds, err := newTestCredentials(t, rc, user)
 	require.NoError(t, err)
 	clientConfig := client.Config{
 		Addrs:       []string{rc.Auth},
@@ -285,13 +274,31 @@ func setupTestUser(t *testing.T, ctx context.Context, rc *helpers.TeleInstance) 
 	return userClient, userPassword
 }
 
-// newTestCredentials builds Teleport credentials from TLS certificates.
+// newTestCredentials builds Teleport credentials for the testUser.
 // Those credentials can only be used for auth connection.
-func newTestCredentials(key *rsa.PrivateKey, tlsCert, tlsCACert []byte) (client.Credentials, error) {
+func newTestCredentials(t *testing.T, rc *helpers.TeleInstance, user types.User) (client.Credentials, error) {
+	auth := rc.Process.GetAuthServer()
+
+	// Get user certs
+	userKey, err := native.GenerateRSAPrivateKey()
+	require.NoError(t, err)
+	userPubKey, err := ssh.NewPublicKey(&userKey.PublicKey)
+	require.NoError(t, err)
+	testCertsReq := libauth.GenerateUserTestCertsRequest{
+		Key:            ssh.MarshalAuthorizedKey(userPubKey),
+		Username:       user.GetName(),
+		TTL:            time.Hour,
+		Compatibility:  constants.CertificateFormatStandard,
+		RouteToCluster: testClusterName,
+	}
+	_, tlsCert, err := auth.GenerateUserTestCerts(testCertsReq)
+	require.NoError(t, err)
+
+	// Build credentials from the certs
 	pemKey := pem.EncodeToMemory(
 		&pem.Block{
 			Type:  "RSA PRIVATE KEY",
-			Bytes: x509.MarshalPKCS1PrivateKey(key),
+			Bytes: x509.MarshalPKCS1PrivateKey(userKey),
 		},
 	)
 	cert, err := keys.X509KeyPair(tlsCert, pemKey)
@@ -300,7 +307,7 @@ func newTestCredentials(key *rsa.PrivateKey, tlsCert, tlsCACert []byte) (client.
 	}
 
 	pool := x509.NewCertPool()
-	pool.AppendCertsFromPEM(tlsCACert)
+	pool.AppendCertsFromPEM(rc.Secrets.TLSCACert)
 
 	tlsConf := &tls.Config{
 		Certificates: []tls.Certificate{cert},
@@ -312,8 +319,10 @@ func newTestCredentials(key *rsa.PrivateKey, tlsCert, tlsCACert []byte) (client.
 // registerAndSetupMockSSHNode registers an agentless SSH node in Teleport and
 // starts a mock SSH server.
 func registerAndSetupMockSSHNode(t *testing.T, ctx context.Context, testDir string, rc *helpers.TeleInstance) types.Server {
-	// Reserve the listener for the SSH server. We can't start the SSH server right now because we need to get a valid certificate.
-	// The certificate needs proper principals, whichj implies knowing the node ID. This only happens after the node has joined.
+	// Reserve the listener for the SSH server. We can't start the SSH server
+	// right now because we need to get a valid certificate. The certificate
+	// needs proper principals, which implies knowing the node ID. This only
+	// happens after the node has joined.
 	var sshListenerFds []servicecfg.FileDescriptor
 	sshAddr := helpers.NewListenerOn(t, "localhost", service.ListenerNodeSSH, &sshListenerFds)
 
@@ -331,15 +340,13 @@ func registerMockSSHNode(t *testing.T, ctx context.Context, sshAddr, testDir str
 	// Setup: running a one-shot Teleport instance to register our mock SSH node
 	// into the cluster and allow agentless execution.
 	opensshConfigPath := filepath.Join(testDir, "sshd_config")
-	f, err := os.Create(opensshConfigPath)
-	require.NoError(t, err)
-	require.NoError(t, f.Close())
+	require.NoError(t, os.WriteFile(opensshConfigPath, []byte{}, fs.FileMode(0644)))
 	teleportDataDir := filepath.Join(testDir, "teleport_openssh")
 
 	openSSHCfg := servicecfg.MakeDefaultConfig()
 
 	openSSHCfg.OpenSSH.Enabled = true
-	err = config.ConfigureOpenSSH(&config.CommandLineFlags{
+	err := config.ConfigureOpenSSH(&config.CommandLineFlags{
 		DataDir:           teleportDataDir,
 		ProxyServer:       rc.Web,
 		AuthToken:         testToken,

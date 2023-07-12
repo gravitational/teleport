@@ -480,7 +480,7 @@ func FindNodeWithLabel(t *testing.T, ctx context.Context, cl services.ResourceLi
 			Labels:       map[string]string{key: value},
 			Limit:        1,
 		})
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		return len(servers.Resources) >= 1
 	}
 }
