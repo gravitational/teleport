@@ -281,13 +281,13 @@ func isDNSError(err error) bool {
 // setAWSDBName sets database name, overriding the first part if the database
 // override label for AWS is present.
 func setAWSDBName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
-	return setResourceName(types.AWSDatabaseNameOverrideLabel, meta, firstNamePart, extraNameParts...)
+	return setResourceName(types.AWSDatabaseNameOverrideLabels, meta, firstNamePart, extraNameParts...)
 }
 
 // setDBName sets database name, overriding the first part if the Azure database
 // override label for Azure is present.
 func setAzureDBName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
-	return setResourceName(types.AzureDatabaseNameOverrideLabel, meta, firstNamePart, extraNameParts...)
+	return setResourceName([]string{types.AzureDatabaseNameOverrideLabel}, meta, firstNamePart, extraNameParts...)
 }
 
 // NewDatabaseFromAzureServer creates a database resource from an AzureDB server.
@@ -461,7 +461,7 @@ func NewDatabaseFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server)
 	}
 
 	var description string
-	if replicaRole, ok := labels[types.DiscoveryLabelReplicationRole]; ok {
+	if replicaRole, ok := labels[types.DiscoveryLabelAzureReplicationRole]; ok {
 		description = fmt.Sprintf("Azure MySQL Flexible server in %v (%v endpoint)",
 			azure.StringVal(server.Location), strings.ToLower(replicaRole))
 	} else {
@@ -1363,7 +1363,7 @@ func withLabelsFromAzureResourceID(labels map[string]string, resourceID string) 
 		return nil, trace.Wrap(err)
 	}
 	labels[types.DiscoveryLabelEngine] = rid.ResourceType.String()
-	labels[types.DiscoveryLabelResourceGroup] = rid.ResourceGroupName
+	labels[types.DiscoveryLabelAzureResourceGroup] = rid.ResourceGroupName
 	labels[types.DiscoveryLabelAzureSubscriptionID] = rid.SubscriptionID
 	return labels, nil
 }
@@ -1413,14 +1413,14 @@ func labelsFromAzureMySQLFlexServer(server *armmysqlflexibleservers.Server) (map
 	case armmysqlflexibleservers.ReplicationRoleNone:
 		// don't add a label if this server has 'None' replication.
 	case armmysqlflexibleservers.ReplicationRoleSource:
-		labels[types.DiscoveryLabelReplicationRole] = role
+		labels[types.DiscoveryLabelAzureReplicationRole] = role
 	case armmysqlflexibleservers.ReplicationRoleReplica:
-		labels[types.DiscoveryLabelReplicationRole] = role
+		labels[types.DiscoveryLabelAzureReplicationRole] = role
 		ssrid, err := arm.ParseResourceID(azure.StringVal(server.Properties.SourceServerResourceID))
 		if err != nil {
-			log.WithError(err).Debugf("Skipping malformed %q label for Azure MySQL Flexible server replica.", types.DiscoveryLabelSourceServer)
+			log.WithError(err).Debugf("Skipping malformed %q label for Azure MySQL Flexible server replica.", types.DiscoveryLabelAzureSourceServer)
 		} else {
-			labels[types.DiscoveryLabelSourceServer] = ssrid.Name
+			labels[types.DiscoveryLabelAzureSourceServer] = ssrid.Name
 		}
 	}
 	return withLabelsFromAzureResourceID(labels, azure.StringVal(server.ID))
@@ -1503,6 +1503,8 @@ func labelsFromAWSMetadata(meta *types.AWS) map[string]string {
 		labels[types.DiscoveryLabelAccountID] = meta.AccountID
 		labels[types.DiscoveryLabelRegion] = meta.Region
 	}
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[types.CloudLabel] = types.CloudAWS
 	return labels
 }
 
@@ -1522,6 +1524,8 @@ func labelsFromMetaAndEndpointType(meta *types.AWS, endpointType string, extraLa
 // azureTagsToLabels converts Azure tags to a labels map.
 func azureTagsToLabels(tags map[string]string) map[string]string {
 	labels := make(map[string]string)
+	labels[types.OriginLabel] = types.OriginCloud
+	labels[types.CloudLabel] = types.CloudAzure
 	return addLabels(labels, tags)
 }
 

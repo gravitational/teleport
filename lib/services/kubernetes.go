@@ -179,21 +179,21 @@ func UnmarshalKubeCluster(data []byte, opts ...MarshalOption) (types.KubeCluster
 // part if the kube cluster override label for AWS is present, and setting the
 // kube cluster name.
 func setAWSKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
-	return setResourceName(types.AWSKubeClusterNameOverrideLabel, meta, firstNamePart, extraNameParts...)
+	return setResourceName(types.AWSKubeClusterNameOverrideLabels, meta, firstNamePart, extraNameParts...)
 }
 
 // setAzureKubeName modifies the types.Metadata in place, overriding the first
 // part if the AKS kube cluster override label is present, and setting the kube
 // cluster name.
 func setAzureKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
-	return setResourceName(types.AzureKubeClusterNameOverrideLabel, meta, firstNamePart, extraNameParts...)
+	return setResourceName([]string{types.AzureKubeClusterNameOverrideLabel}, meta, firstNamePart, extraNameParts...)
 }
 
 // setGCPKubeName modifies the types.Metadata in place, overriding the first
 // part if the GKE kube cluster override label is present, and setting the kube
 // cluster name.
 func setGCPKubeName(meta types.Metadata, firstNamePart string, extraNameParts ...string) types.Metadata {
-	return setResourceName(types.GCPKubeClusterNameOverrideLabel, meta, firstNamePart, extraNameParts...)
+	return setResourceName([]string{types.GCPKubeClusterNameOverrideLabel}, meta, firstNamePart, extraNameParts...)
 }
 
 // NewKubeClusterFromAzureAKS creates a kube_cluster resource from an AKSCluster.
@@ -223,7 +223,7 @@ func labelsFromAzureKubeCluster(cluster *azure.AKSCluster) map[string]string {
 	labels[types.CloudLabel] = types.CloudAzure
 	labels[types.DiscoveryLabelRegion] = cluster.Location
 
-	labels[types.DiscoveryLabelResourceGroup] = cluster.GroupName
+	labels[types.DiscoveryLabelAzureResourceGroup] = cluster.GroupName
 	labels[types.DiscoveryLabelAzureSubscriptionID] = cluster.SubscriptionID
 	return labels
 }
