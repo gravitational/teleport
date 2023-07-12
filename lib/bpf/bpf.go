@@ -186,7 +186,7 @@ func New(config *servicecfg.BPFConfig, restrictedSession *servicecfg.RestrictedS
 		"disk=%v, network=%v), restricted session (bufferSize=%v) "+
 		"and cgroup mount path: %v. Took %v.",
 		*s.CommandBufferSize, *s.DiskBufferSize, *s.NetworkBufferSize,
-		restrictedSession.EventsBufferSize,
+		*restrictedSession.EventsBufferSize,
 		s.CgroupPath, time.Since(start))
 
 	go s.processNetworkEvents()
