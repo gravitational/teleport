@@ -217,15 +217,15 @@ type: database
 # the output should generate credentials for. This field must be specified.
 service: my-postgres-server
 # database is the name of the specific database on the specified database
-# server to generate credentials for. This field may not need to be specified
-# when using database types that do not have individual databases.
+# server to generate credentials for. This field doesn't need to be specified
+# for database types that don't support multiple individual databases.
 database: my-database
 # username is the name of the user on the specified database server to
-# generate credentials for. This field may not need to be specified
-# when using database types that do not have users.
+# generate credentials for. This field doesn't need to be specified
+# for database types that don't have users.
 username: my-user
-# format specifies what format the output artifacts should take. If
-# unspecified, a sensible default is used. See the table titled "Supported
+# format specifies the format to use for output artifacts. If
+# unspecified, a default format is used. See the table titled "Supported
 # formats" below for the full list of supported values.
 format: tls
 
@@ -234,8 +234,8 @@ format: tls
 
 #### Supported formats
 
-The following values may be provided to the `format` configuration field in
-the `database` output type.
+You can provide the following values to the `format` configuration field in
+the `database` output type:
 
 | `format`      | Description                          |
 |---------------|--------------------------------------|
@@ -273,12 +273,12 @@ The `ssh_host` output is used to generate the artifacts required to configure
 an OpenSSH server with Teleport in order to allow Teleport users to connect to
 it.
 
-The artifacts it generates includes:
-- `ssh_host-cert.pub`: a SSH certificate signed by Teleport's host CA.
+The output generates the following artifacts:
+- `ssh_host-cert.pub`: an SSH certificate signed by the Teleport host certificate authority.
 - `ssh_host`: the private key associated with the SSH host certificate.
-- `ssh_host-user-ca.pub`: an export of the Teleport user CA in an OpenSSH compatible format.
+- `ssh_host-user-ca.pub`: an export of the Teleport user certificate authority in an OpenSSH compatible format.
 
-See the [Generating Short-Lived Host Certificates with Machine ID guide](../guides/host-certificate.mdx)
+See [Generating Short-Lived Host Certificates with Machine ID](../guides/host-certificate.mdx)
 to see the `ssh_host` output used in context.
 
 
@@ -287,7 +287,7 @@ to see the `ssh_host` output used in context.
 # always be `ssh_host`.
 type: ssh_host
 # principals is the list of host names to include in the host certificates.
-# These should match the names that clients will use to connect to the host.
+# These names should match the names that clients use to connect to the host.
 principals:
   - host.example.com
 
@@ -301,15 +301,15 @@ A destination is somewhere that `tbot` can read and write artifacts.
 Destinations are used in two places in the `tbot` configuration:
 
 - Specifying where `tbot` should store its internal state.
-- Specifying where an output should write the generated artifacts to.
+- Specifying where an output should write its generated artifacts.
 
-Destinations come in multiple types, usually the `directory` type will be most
+Destinations come in multiple types. Usually, the `directory` type is the most
 appropriate.
 
 ### `directory`
 
-The `directory` destination type stores artifacts as files within a specified
-directory. This is usually the correct destination type to use.
+The `directory` destination type stores artifacts as files in a specified
+directory. 
 
 ```yaml
 # type specifies the type of the destination. For the directory destination,
@@ -345,8 +345,8 @@ acls: try
 
 ### `memory`
 
-The `memory` destination type stores artifacts within the process memory. This
-means when the process exits, nothing will be persisted. This destination type
+The `memory` destination type stores artifacts in the process memory. When
+the process exits, nothing is persisted. This destination type
 is most suitable for ephemeral environments, but can also be used for testing.
 
 Configuration:
