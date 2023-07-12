@@ -76,7 +76,7 @@ Choose `on` if you would like to require MFA for all users while letting them ch
 - Adjusting the Teleport signup page so a user must enroll an MFA device of the kind you have selected. If the value of `second_factor` is `on`, users will have the option to select from multiple device types.
 - Presenting the user with an MFA challenge when they run `tsh login`.
 
-If you have enabled SSO in your Teleport environment, Teleport will conduct its own MFA challenge before sending a request to the identity provider. This means that, even if an attacker has managed to compromise your organization's SSO provider (e.g., by impersonating an administrator), a malicious user will still need to authenticate using valid credentials.
+If you have enabled SSO in your Teleport environment, mfa challenges at login will only apply to Teleport local users. The IDP will be responsible for implementing any second factor challenges at login time.
 
 <Admonition type="warning">
 If your `second_factor` configuration is set to `off` and a user creates an account without a second factor, changing `second_factor` to a value that requires MFA will force that user to authenticate with a credential they have not registered. This will lock them out of their account. You have two ways to avoid this scenario:
@@ -114,6 +114,8 @@ spec:
 Create your dynamic resource using `tctl create -f <path to your YAML file>`.
 </TabItem>
 </Tabs>
+
+If you have SSO users, they will need to add an MFA device to Teleport to be able to take advantage of per-session MFA.
 
 ## Require dual authorization for role requests
 Even if an attacker gains access to a user's credentials and successfully signs into your Teleport cluster, you can still prevent the user from escalating their privileges. If you enable dual authorization, users who request to assume a particular role must obtain permission to do so from two or more reviewers. This way, if a malicious user manages to impersonate a legitimate one, reviewers can contact the real user before granting the new role.
