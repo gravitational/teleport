@@ -38,7 +38,7 @@ import (
 
 // New creates an instance of Gateway. It starts a listener on the specified port but it doesn't
 // start the proxy – that's the job of Serve.
-func New(cfg Config) (*Gateway, error) {
+func New(cfg Config) (Gateway, error) {
 	if err := cfg.CheckAndSetDefaults(); err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -70,7 +70,7 @@ func New(cfg Config) (*Gateway, error) {
 
 	cfg.LocalPort = port
 
-	gateway := &Gateway{
+	gateway := &gatewayImpl{
 		cfg:          &cfg,
 		closeContext: closeContext,
 		closeCancel:  closeCancel,
@@ -97,12 +97,17 @@ func New(cfg Config) (*Gateway, error) {
 
 // NewWithLocalPort initializes a copy of an existing gateway which has all config fields identical
 // to the existing gateway with the exception of the local port.
-func NewWithLocalPort(gateway *Gateway, port string) (*Gateway, error) {
+func NewWithLocalPort(gateway Gateway, port string) (Gateway, error) {
 	if port == gateway.LocalPort() {
 		return nil, trace.BadParameter("port is already set to %s", port)
 	}
 
-	cfg := *gateway.cfg
+	impl, ok := gateway.(*gatewayImpl)
+	if !ok {
+		return nil, trace.BadParameter("failed to convert gateway to *gatewayImpl")
+	}
+
+	cfg := *impl.cfg
 	cfg.LocalPort = port
 
 	newGateway, err := New(cfg)
@@ -110,7 +115,7 @@ func NewWithLocalPort(gateway *Gateway, port string) (*Gateway, error) {
 }
 
 // Close terminates gateway connection. Fails if called on an already closed gateway.
-func (g *Gateway) Close() error {
+func (g *gatewayImpl) Close() error {
 	g.closeCancel()
 
 	var errs []error
@@ -128,7 +133,7 @@ func (g *Gateway) Close() error {
 }
 
 // Serve starts the underlying ALPN proxy. Blocks until closeContext is canceled.
-func (g *Gateway) Serve() error {
+func (g *gatewayImpl) Serve() error {
 	g.cfg.Log.Info("Gateway is open.")
 	defer g.cfg.Log.Info("Gateway has closed.")
 
@@ -138,7 +143,7 @@ func (g *Gateway) Serve() error {
 	return trace.Wrap(g.localProxy.Start(g.closeContext))
 }
 
-func (g *Gateway) serveWithForwardProxy() error {
+func (g *gatewayImpl) serveWithForwardProxy() error {
 	errChan := make(chan error, 2)
 	go func() {
 		if err := g.forwardProxy.Start(); err != nil {
@@ -159,52 +164,52 @@ func (g *Gateway) serveWithForwardProxy() error {
 	}
 }
 
-func (g *Gateway) URI() uri.ResourceURI {
+func (g *gatewayImpl) URI() uri.ResourceURI {
 	return g.cfg.URI
 }
 
-func (g *Gateway) SetURI(newURI uri.ResourceURI) {
+func (g *gatewayImpl) SetURI(newURI uri.ResourceURI) {
 	g.cfg.URI = newURI
 }
 
-func (g *Gateway) TargetURI() uri.ResourceURI {
+func (g *gatewayImpl) TargetURI() uri.ResourceURI {
 	return g.cfg.TargetURI
 }
 
-func (g *Gateway) TargetName() string {
+func (g *gatewayImpl) TargetName() string {
 	return g.cfg.TargetName
 }
 
-func (g *Gateway) Protocol() string {
+func (g *gatewayImpl) Protocol() string {
 	return g.cfg.Protocol
 }
 
-func (g *Gateway) TargetUser() string {
+func (g *gatewayImpl) TargetUser() string {
 	return g.cfg.TargetUser
 }
 
-func (g *Gateway) TargetSubresourceName() string {
+func (g *gatewayImpl) TargetSubresourceName() string {
 	return g.cfg.TargetSubresourceName
 }
 
-func (g *Gateway) SetTargetSubresourceName(value string) {
+func (g *gatewayImpl) SetTargetSubresourceName(value string) {
 	g.cfg.TargetSubresourceName = value
 }
 
-func (g *Gateway) Log() *logrus.Entry {
+func (g *gatewayImpl) Log() *logrus.Entry {
 	return g.cfg.Log
 }
 
-func (g *Gateway) LocalAddress() string {
+func (g *gatewayImpl) LocalAddress() string {
 	return g.cfg.LocalAddress
 }
 
-func (g *Gateway) LocalPort() string {
+func (g *gatewayImpl) LocalPort() string {
 	return g.cfg.LocalPort
 }
 
 // LocalPortInt returns the port of a gateway as an integer rather than a string.
-func (g *Gateway) LocalPortInt() int {
+func (g *gatewayImpl) LocalPortInt() int {
 	// Ignoring the error here as Teleterm allows the user to pick only integer values for the port,
 	// so the string itself will never be a service name that needs actual lookup.
 	// For more details, see https://stackoverflow.com/questions/47992477/why-is-port-a-string-and-not-an-integer
@@ -213,7 +218,7 @@ func (g *Gateway) LocalPortInt() int {
 }
 
 // CLICommand returns a command which launches a CLI client pointed at the gateway.
-func (g *Gateway) CLICommand() (*api.GatewayCLICommand, error) {
+func (g *gatewayImpl) CLICommand() (*api.GatewayCLICommand, error) {
 	cmd, err := g.cfg.CLICommandProvider.GetCommand(g)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -237,7 +242,7 @@ func (g *Gateway) CLICommand() (*api.GatewayCLICommand, error) {
 //
 // In the future, we're probably going to make this method accept the cert as an arg rather than
 // reading from disk.
-func (g *Gateway) ReloadCert() error {
+func (g *gatewayImpl) ReloadCert() error {
 	if len(g.onNewCertFuncs) == 0 {
 		return nil
 	}
@@ -256,7 +261,7 @@ func (g *Gateway) ReloadCert() error {
 	return trace.NewAggregate(errs...)
 }
 
-func (g *Gateway) onExpiredCert(ctx context.Context) error {
+func (g *gatewayImpl) onExpiredCert(ctx context.Context) error {
 	if g.cfg.OnExpiredCert == nil {
 		return nil
 	}
@@ -285,7 +290,7 @@ func checkCertSubject(tlsCert tls.Certificate, dbRoute tlsca.RouteToDatabase) er
 // daemon.Service which obtains a lock for any operation pertaining to gateways.
 //
 // In the future if Gateway becomes more complex it might be worthwhile to add an RWMutex to it.
-type Gateway struct {
+type gatewayImpl struct {
 	cfg          *Config
 	localProxy   *alpn.LocalProxy
 	forwardProxy *alpn.ForwardProxy
@@ -302,7 +307,7 @@ type Gateway struct {
 
 // CLICommandProvider provides a CLI command for gateways which support CLI clients.
 type CLICommandProvider interface {
-	GetCommand(gateway *Gateway) (*exec.Cmd, error)
+	GetCommand(gateway GatewayReader) (*exec.Cmd, error)
 }
 
 type TCPPortAllocator interface {

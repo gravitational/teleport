@@ -34,7 +34,7 @@ import (
 
 // KubeconfigPath returns the kubeconfig path that can be used for clients to
 // connect to the local proxy.
-func (g *Gateway) KubeconfigPath() string {
+func (g *gatewayImpl) KubeconfigPath() string {
 	return keypaths.KubeConfigPath(
 		g.cfg.ProfileDir,
 		g.cfg.TargetURI.GetProfileName(),
@@ -44,7 +44,7 @@ func (g *Gateway) KubeconfigPath() string {
 	)
 }
 
-func (g *Gateway) makeLocalProxiesForKube(listener net.Listener) error {
+func (g *gatewayImpl) makeLocalProxiesForKube(listener net.Listener) error {
 	// A key is required here for generating local CAs. It can be any key.
 	// Reading the provided key path to avoid generating a new one.
 	key, err := keys.LoadPrivateKey(g.cfg.KeyPath)
@@ -76,7 +76,7 @@ func (g *Gateway) makeLocalProxiesForKube(listener net.Listener) error {
 	return nil
 }
 
-func (g *Gateway) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
+func (g *gatewayImpl) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) error {
 	// ALPN local proxy can use a random port as it receives requests from the
 	// forward proxy so there should be no requests coming from users' clients
 	// directly.
@@ -108,7 +108,7 @@ func (g *Gateway) makeALPNLocalProxyForKube(cas map[string]tls.Certificate) erro
 	return nil
 }
 
-func (g *Gateway) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) {
+func (g *gatewayImpl) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, error) {
 	cert, err := keys.LoadX509KeyPair(g.cfg.CertPath, g.cfg.KeyPath)
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -122,7 +122,7 @@ func (g *Gateway) makeKubeMiddleware() (alpnproxy.LocalProxyHTTPMiddleware, erro
 	return alpnproxy.NewKubeMiddleware(certs, certReissuer.reissueCert, g.cfg.Clock, g.cfg.Log), nil
 }
 
-func (g *Gateway) makeForwardProxyForKube(listener net.Listener) (err error) {
+func (g *gatewayImpl) makeForwardProxyForKube(listener net.Listener) (err error) {
 	// Use provided listener with user configured port for the forward proxy.
 	g.forwardProxy, err = alpnproxy.NewKubeForwardProxy(alpnproxy.KubeForwardProxyConfig{
 		CloseContext: g.closeContext,
@@ -132,7 +132,7 @@ func (g *Gateway) makeForwardProxyForKube(listener net.Listener) (err error) {
 	return trace.Wrap(err)
 }
 
-func (g *Gateway) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certificate) error {
+func (g *gatewayImpl) writeKubeconfig(key *keys.PrivateKey, cas map[string]tls.Certificate) error {
 	ca, ok := cas[g.cfg.ClusterName]
 	if !ok {
 		return trace.BadParameter("CA for teleport cluster %q is missing", g.cfg.ClusterName)

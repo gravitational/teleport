@@ -34,7 +34,7 @@ import (
 )
 
 func TestCLICommandPreviewReturnsRelativeCommandWithEnv(t *testing.T) {
-	gateway := Gateway{
+	gateway := gatewayImpl{
 		cfg: &Config{
 			TargetName:            "foo",
 			TargetSubresourceName: "bar",
@@ -148,7 +148,7 @@ func TestNewWithLocalPortReturnsErrorIfNewPortEqualsOldPort(t *testing.T) {
 
 type mockCLICommandProvider struct{}
 
-func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (*exec.Cmd, error) {
+func (m mockCLICommandProvider) GetCommand(gateway GatewayReader) (*exec.Cmd, error) {
 	absPath, err := filepath.Abs(gateway.Protocol())
 	if err != nil {
 		return nil, err
@@ -167,14 +167,14 @@ func (m mockCLICommandProvider) GetCommand(gateway *Gateway) (*exec.Cmd, error) 
 	return cmd, nil
 }
 
-func createAndServeGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
+func createAndServeGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) Gateway {
 	gateway := createGateway(t, tcpPortAllocator)
 	gatewayAddress := net.JoinHostPort(gateway.LocalAddress(), gateway.LocalPort())
 	serveGatewayAndBlockUntilItAcceptsConnections(t, gateway, gatewayAddress)
 	return gateway
 }
 
-func createGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
+func createGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) Gateway {
 	hs := httptest.NewTLSServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {}))
 	t.Cleanup(func() {
 		hs.Close()
@@ -210,7 +210,7 @@ func createGateway(t *testing.T, tcpPortAllocator TCPPortAllocator) *Gateway {
 }
 
 // serveGateway starts a gateway and blocks until it accepts connections.
-func serveGatewayAndBlockUntilItAcceptsConnections(t *testing.T, gateway *Gateway, address string) {
+func serveGatewayAndBlockUntilItAcceptsConnections(t *testing.T, gateway Gateway, address string) {
 	serveErr := make(chan error)
 	go func() {
 		err := gateway.Serve()

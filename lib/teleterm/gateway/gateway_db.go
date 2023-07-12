@@ -31,11 +31,11 @@ import (
 //
 // The tlsca.RouteToDatabase.Database field is skipped, as it's an optional field and gateways can
 // change their Config.TargetSubresourceName at any moment.
-func (g *Gateway) RouteToDatabase() tlsca.RouteToDatabase {
+func (g *gatewayImpl) RouteToDatabase() tlsca.RouteToDatabase {
 	return g.cfg.RouteToDatabase()
 }
 
-func (g *Gateway) makeLocalProxyForDB(listener net.Listener) error {
+func (g *gatewayImpl) makeLocalProxyForDB(listener net.Listener) error {
 	tlsCert, err := keys.LoadX509KeyPair(g.cfg.CertPath, g.cfg.KeyPath)
 	if err != nil {
 		return trace.Wrap(err)
@@ -77,7 +77,7 @@ func (g *Gateway) makeLocalProxyForDB(listener net.Listener) error {
 	return nil
 }
 
-func (g *Gateway) setDBCert(newCert tls.Certificate) error {
+func (g *gatewayImpl) setDBCert(newCert tls.Certificate) error {
 	if err := checkCertSubject(newCert, g.RouteToDatabase()); err != nil {
 		return trace.Wrap(err,
 			"database certificate check failed, try restarting the database connection")

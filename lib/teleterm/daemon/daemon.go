@@ -27,7 +27,6 @@ import (
 	"github.com/gravitational/teleport/api/types"
 	api "github.com/gravitational/teleport/gen/proto/go/teleport/lib/teleterm/v1"
 	"github.com/gravitational/teleport/lib/client"
-	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
@@ -62,7 +61,7 @@ func New(cfg Config) (*Service, error) {
 		cfg:           &cfg,
 		closeContext:  closeContext,
 		cancel:        cancel,
-		gateways:      make(map[string]*gateway.Gateway),
+		gateways:      make(map[string]gateway.Gateway),
 		usageReporter: connectUsageReporter,
 	}, nil
 }
@@ -228,7 +227,7 @@ func (s *Service) ClusterLogout(ctx context.Context, uri string) error {
 }
 
 // CreateGateway creates a gateway to given targetURI
-func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -241,17 +240,21 @@ func (s *Service) CreateGateway(ctx context.Context, params CreateGatewayParams)
 }
 
 type GatewayCreator interface {
-	CreateGateway(context.Context, clusters.CreateGatewayParams) (*gateway.Gateway, error)
+	CreateGateway(context.Context, clusters.CreateGatewayParams) (gateway.Gateway, error)
 }
 
 // createGateway assumes that mu is already held by a public method.
-func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (*gateway.Gateway, error) {
+func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams) (gateway.Gateway, error) {
 	targetURI, err := uri.ParseGatewayTargetURI(params.TargetURI)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	cliCommandProvider := clusters.NewDbcmdCLICommandProvider(s.cfg.Storage, dbcmd.SystemExecer{})
+	cliCommandProvider, err := s.cfg.CLICommandProviderManager.Get(uri.New(params.TargetURI))
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	clusterCreateGatewayParams := clusters.CreateGatewayParams{
 		TargetURI:             targetURI,
 		TargetUser:            params.TargetUser,
@@ -279,7 +282,7 @@ func (s *Service) createGateway(ctx context.Context, params CreateGatewayParams)
 }
 
 // reissueGatewayCerts tries to reissue gateway certs.
-func (s *Service) reissueGatewayCerts(ctx context.Context, g *gateway.Gateway) error {
+func (s *Service) reissueGatewayCerts(ctx context.Context, g gateway.Gateway) error {
 	reloginReq := &api.ReloginRequest{
 		RootClusterUri: g.TargetURI().GetClusterURI().String(),
 		Reason: &api.ReloginRequest_GatewayCertExpired{
@@ -348,7 +351,7 @@ func (s *Service) RemoveGateway(gatewayURI string) error {
 }
 
 // removeGateway assumes that mu is already held by a public method.
-func (s *Service) removeGateway(gateway *gateway.Gateway) error {
+func (s *Service) removeGateway(gateway gateway.Gateway) error {
 	// If gateway.Close() fails it most likely means it was called on a gateway that was already
 	// closed and that we have a race condition. Let's return an error in that case.
 	if err := gateway.Close(); err != nil {
@@ -361,7 +364,7 @@ func (s *Service) removeGateway(gateway *gateway.Gateway) error {
 }
 
 // findGateway assumes that mu is already held by a public method.
-func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
+func (s *Service) findGateway(gatewayURI string) (gateway.Gateway, error) {
 	if gateway, ok := s.gateways[gatewayURI]; ok {
 		return gateway, nil
 	}
@@ -370,13 +373,13 @@ func (s *Service) findGateway(gatewayURI string) (*gateway.Gateway, error) {
 }
 
 // ListGateways lists gateways
-func (s *Service) ListGateways() []gateway.Gateway {
+func (s *Service) ListGateways() []gateway.GatewayReader {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	gws := make([]gateway.Gateway, 0, len(s.gateways))
+	gws := make([]gateway.GatewayReader, 0, len(s.gateways))
 	for _, gateway := range s.gateways {
-		gws = append(gws, *gateway)
+		gws = append(gws, gateway)
 	}
 
 	return gws
@@ -384,7 +387,7 @@ func (s *Service) ListGateways() []gateway.Gateway {
 
 // SetGatewayTargetSubresourceName updates the TargetSubresourceName field of a gateway stored in
 // s.gateways.
-func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (*gateway.Gateway, error) {
+func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceName string) (gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -407,7 +410,7 @@ func (s *Service) SetGatewayTargetSubresourceName(gatewayURI, targetSubresourceN
 // correct that mistake and choose a different port.
 //
 // SetGatewayLocalPort is a noop if port is equal to the existing port.
-func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (*gateway.Gateway, error) {
+func (s *Service) SetGatewayLocalPort(gatewayURI, localPort string) (gateway.Gateway, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -682,7 +685,7 @@ type Service struct {
 	cancel       context.CancelFunc
 	// gateways holds the long-running gateways for resources on different clusters. So far it's been
 	// used mostly for database gateways but it has potential to be used for app access as well.
-	gateways map[string]*gateway.Gateway
+	gateways map[string]gateway.Gateway
 	// tshdEventsClient is a client to send events to the Electron App.
 	tshdEventsClient api.TshdEventsServiceClient
 	// usageReporter batches the events and sends them to prehog

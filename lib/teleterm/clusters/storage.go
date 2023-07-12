@@ -228,15 +228,21 @@ func (s *Storage) fromProfile(profileName, leafClusterName string) (*Cluster, er
 		}
 	}
 
+	rootClusterName, err := clusterClient.RootClusterName(context.TODO())
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+
 	return &Cluster{
-		URI:           clusterURI,
-		Name:          clusterClient.SiteName,
-		ProfileName:   profileName,
-		clusterClient: clusterClient,
-		dir:           s.Dir,
-		clock:         s.Clock,
-		status:        *status,
-		Log:           s.Log.WithField("cluster", clusterURI),
+		URI:             clusterURI,
+		Name:            clusterClient.SiteName,
+		ProfileName:     profileName,
+		RootClusterName: rootClusterName,
+		clusterClient:   clusterClient,
+		dir:             s.Dir,
+		clock:           s.Clock,
+		status:          *status,
+		Log:             s.Log.WithField("cluster", clusterURI),
 	}, nil
 }
 

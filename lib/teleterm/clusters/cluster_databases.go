@@ -29,6 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/auth"
 	"github.com/gravitational/teleport/lib/client"
 	dbprofile "github.com/gravitational/teleport/lib/client/db"
+	"github.com/gravitational/teleport/lib/client/db/dbcmd"
 	libdefaults "github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/services"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
@@ -248,4 +249,16 @@ type GetDatabasesResponse struct {
 	StartKey string
 	// // TotalCount is the total number of resources available as a whole.
 	TotalCount int
+}
+
+// NewcmdCLICmdBuilder creates a dbcmd.MakeDbcmdCLICmdBuilder with provided
+// cluster, db route, and options.
+func NewDbcmdCLICmdBuilder(cluster *Cluster, routeToDb tlsca.RouteToDatabase, options ...dbcmd.ConnectCommandFunc) *dbcmd.CLICommandBuilder {
+	return dbcmd.NewCmdBuilder(
+		cluster.clusterClient,
+		&cluster.status,
+		routeToDb,
+		cluster.RootClusterName,
+		options...,
+	)
 }

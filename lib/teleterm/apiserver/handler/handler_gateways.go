@@ -38,7 +38,7 @@ func (s *Handler) CreateGateway(ctx context.Context, req *api.CreateGatewayReque
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -74,7 +74,7 @@ func (s *Handler) RemoveGateway(ctx context.Context, req *api.RemoveGatewayReque
 	return &api.EmptyResponse{}, nil
 }
 
-func newAPIGateway(gateway gateway.Gateway) (*api.Gateway, error) {
+func newAPIGateway(gateway gateway.GatewayReader) (*api.Gateway, error) {
 	command, err := gateway.CLICommand()
 	if err != nil {
 		return nil, trace.Wrap(err)
@@ -103,7 +103,7 @@ func (s *Handler) SetGatewayTargetSubresourceName(ctx context.Context, req *api.
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
@@ -118,7 +118,7 @@ func (s *Handler) SetGatewayLocalPort(ctx context.Context, req *api.SetGatewayLo
 		return nil, trace.Wrap(err)
 	}
 
-	apiGateway, err := newAPIGateway(*gateway)
+	apiGateway, err := newAPIGateway(gateway)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

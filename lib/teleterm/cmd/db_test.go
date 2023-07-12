@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package clusters
+package cmd
 
 import (
 	"os/exec"
@@ -21,11 +21,12 @@ import (
 	"testing"
 
 	"github.com/gravitational/trace"
+	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
 
-	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/defaults"
 	"github.com/gravitational/teleport/lib/teleterm/api/uri"
+	"github.com/gravitational/teleport/lib/teleterm/clusters"
 	"github.com/gravitational/teleport/lib/teleterm/gateway"
 	"github.com/gravitational/teleport/lib/teleterm/gatewaytest"
 	"github.com/gravitational/teleport/lib/tlsca"
@@ -48,10 +49,10 @@ func (f fakeExec) Command(name string, arg ...string) *exec.Cmd {
 }
 
 type fakeStorage struct {
-	clusters []*Cluster
+	clusters []*clusters.Cluster
 }
 
-func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*Cluster, error) {
+func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*clusters.Cluster, error) {
 	for _, cluster := range f.clusters {
 		if strings.HasPrefix(resourceURI.String(), cluster.URI.String()) {
 			return cluster, nil
@@ -60,6 +61,22 @@ func (f fakeStorage) GetByResourceURI(resourceURI uri.ResourceURI) (*Cluster, er
 
 	return nil, trace.NotFound("not found")
 }
+
+type fakeDatabaseGatewayReader struct {
+	gateway.GatewayReader
+	targetURI       uri.ResourceURI
+	subresourceName string
+}
+
+func (m fakeDatabaseGatewayReader) TargetURI() uri.ResourceURI    { return m.targetURI }
+func (m fakeDatabaseGatewayReader) TargetName() string            { return m.targetURI.GetDbName() }
+func (m fakeDatabaseGatewayReader) TargetUser() string            { return "alice" }
+func (m fakeDatabaseGatewayReader) TargetSubresourceName() string { return m.subresourceName }
+func (m fakeDatabaseGatewayReader) Protocol() string              { return defaults.ProtocolMongoDB }
+func (m fakeDatabaseGatewayReader) Log() *logrus.Entry            { return nil }
+func (m fakeDatabaseGatewayReader) LocalAddress() string          { return "localhost" }
+func (m fakeDatabaseGatewayReader) LocalPortInt() int             { return 8888 }
+func (m fakeDatabaseGatewayReader) LocalPort() string             { return "8888" }
 
 func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 	testCases := []struct {
@@ -78,62 +95,32 @@ func TestDbcmdCLICommandProviderGetCommand(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			cluster := Cluster{
+			cluster := clusters.Cluster{
 				URI:  uri.NewClusterURI("quux"),
 				Name: "quux",
-				clusterClient: &client.TeleportClient{
-					Config: client.Config{
-						SiteName: "",
-					},
-				},
 			}
 			fakeStorage := fakeStorage{
-				clusters: []*Cluster{&cluster},
+				clusters: []*clusters.Cluster{&cluster},
 			}
+			mockGateway := fakeDatabaseGatewayReader{
+				targetURI:       cluster.URI.AppendDB("foo"),
+				subresourceName: tc.targetSubresourceName,
+			}
+
 			dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
-
-			keyPairPaths := gatewaytest.MustGenAndSaveCert(t, tlsca.Identity{
-				Username: "alice",
-				Groups:   []string{"test-group"},
-				RouteToDatabase: tlsca.RouteToDatabase{
-					ServiceName: "foo",
-					Protocol:    defaults.ProtocolPostgres,
-					Username:    "alice",
-				},
-			})
-
-			gateway, err := gateway.New(
-				gateway.Config{
-					TargetURI:             cluster.URI.AppendDB("foo"),
-					TargetName:            "foo",
-					TargetUser:            "alice",
-					TargetSubresourceName: tc.targetSubresourceName,
-					Protocol:              defaults.ProtocolPostgres,
-					LocalAddress:          "localhost",
-					WebProxyAddr:          "localhost:1337",
-					Insecure:              true,
-					CertPath:              keyPairPaths.CertPath,
-					KeyPath:               keyPairPaths.KeyPath,
-					CLICommandProvider:    dbcmdCLICommandProvider,
-					TCPPortAllocator:      gateway.NetTCPPortAllocator{},
-				},
-			)
-			require.NoError(t, err)
-			t.Cleanup(func() { gateway.Close() })
-
-			command, err := dbcmdCLICommandProvider.GetCommand(gateway)
+			command, err := dbcmdCLICommandProvider.GetCommand(mockGateway)
 
 			require.NoError(t, err)
 			require.NotEmpty(t, command.Args)
 			require.Contains(t, command.Args[1], tc.targetSubresourceName)
-			require.Contains(t, command.Args[1], gateway.LocalPort())
+			require.Contains(t, command.Args[1], mockGateway.LocalPort())
 		})
 	}
 }
 
 func TestDbcmdCLICommandProviderGetCommand_ReturnsErrorIfClusterIsNotFound(t *testing.T) {
 	fakeStorage := fakeStorage{
-		clusters: []*Cluster{},
+		clusters: []*clusters.Cluster{},
 	}
 	dbcmdCLICommandProvider := NewDbcmdCLICommandProvider(fakeStorage, fakeExec{})
 
