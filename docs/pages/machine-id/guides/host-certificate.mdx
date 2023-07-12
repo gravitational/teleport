@@ -193,7 +193,7 @@ First, create a basic configuration file using the following parameters:
 
 Replace the following fields with values from your own cluster:
 
-- `token` is the token output by the `tctl bots add` command or the name of your IAM method token.
+- `token` is the token output by the `tctl bots add` command or the name of your IAM join token.
 - `ca-pin` is the CA Pin for your Teleport cluster, and is output by the `tctl bots add` command.
 - `data-dir` is where Machine ID writes its private data, including its own short-lived renewable certificates. These should not be used by applications and tools.
 - `certificate-ttl` is the option that will determine the time until expiration for any `tbot` issued certificates, including host certificates. The default TTL is for one hour, meaning that all generated certificates will expire after one hour's time.
