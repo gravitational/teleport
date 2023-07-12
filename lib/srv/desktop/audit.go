@@ -29,7 +29,7 @@ import (
 	"github.com/gravitational/teleport/lib/tlsca"
 )
 
-func (s *WindowsService) onSessionStart(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
+func (s *WindowsService) onSessionStart(ctx context.Context, recorder libevents.SessionPreparerRecorder, id *tlsca.Identity, startTime time.Time, windowsUser, sessionID string, desktop types.WindowsDesktop, err error) {
 	userMetadata := id.GetUserMetadata()
 	userMetadata.Login = windowsUser
 
@@ -65,10 +65,11 @@ func (s *WindowsService) onSessionStart(ctx context.Context, emitter events.Emit
 		event.Error = trace.Unwrap(err).Error()
 		event.UserMessage = err.Error()
 	}
-	s.emit(ctx, emitter, event)
+	s.record(ctx, recorder, event)
+	s.emit(ctx, event)
 }
 
-func (s *WindowsService) onSessionEnd(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sid string, desktop types.WindowsDesktop) {
+func (s *WindowsService) onSessionEnd(ctx context.Context, recorder libevents.SessionPreparerRecorder, id *tlsca.Identity, startedAt time.Time, recorded bool, windowsUser, sid string, desktop types.WindowsDesktop) {
 	// Ensure audit cache gets cleaned up
 	s.auditCache.Delete(sessionID(sid))
 
@@ -99,10 +100,11 @@ func (s *WindowsService) onSessionEnd(ctx context.Context, emitter events.Emitte
 		// There can only be 1 participant, desktop sessions are not join-able.
 		Participants: []string{userMetadata.User},
 	}
-	s.emit(ctx, emitter, event)
+	s.record(ctx, recorder, event)
+	s.emit(ctx, event)
 }
 
-func (s *WindowsService) onClipboardSend(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
+func (s *WindowsService) onClipboardSend(ctx context.Context, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
 	event := &events.DesktopClipboardSend{
 		Metadata: events.Metadata{
 			Type:        libevents.DesktopClipboardSendEvent,
@@ -123,10 +125,10 @@ func (s *WindowsService) onClipboardSend(ctx context.Context, emitter events.Emi
 		DesktopAddr: desktopAddr,
 		Length:      length,
 	}
-	s.emit(ctx, emitter, event)
+	s.emit(ctx, event)
 }
 
-func (s *WindowsService) onClipboardReceive(ctx context.Context, emitter events.Emitter, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
+func (s *WindowsService) onClipboardReceive(ctx context.Context, id *tlsca.Identity, sessionID string, desktopAddr string, length int32) {
 	event := &events.DesktopClipboardReceive{
 		Metadata: events.Metadata{
 			Type:        libevents.DesktopClipboardReceiveEvent,
@@ -147,13 +149,12 @@ func (s *WindowsService) onClipboardReceive(ctx context.Context, emitter events.
 		DesktopAddr: desktopAddr,
 		Length:      length,
 	}
-	s.emit(ctx, emitter, event)
+	s.emit(ctx, event)
 }
 
 // onSharedDirectoryAnnounce adds the shared directory's name to the auditCache.
 func (s *WindowsService) onSharedDirectoryAnnounce(
 	ctx context.Context,
-	emitter events.Emitter,
 	id *tlsca.Identity,
 	sid string,
 	desktopAddr string,
@@ -196,7 +197,7 @@ func (s *WindowsService) onSharedDirectoryAnnounce(
 			DirectoryID:   m.DirectoryID,
 		}
 
-		s.emit(ctx, emitter, event)
+		s.emit(ctx, event)
 	}
 }
 
@@ -204,7 +205,6 @@ func (s *WindowsService) onSharedDirectoryAnnounce(
 // successful tdp.SharedDirectoryAcknowledge.
 func (s *WindowsService) onSharedDirectoryAcknowledge(
 	ctx context.Context,
-	emitter events.Emitter,
 	id *tlsca.Identity,
 	sid string,
 	desktopAddr string,
@@ -245,13 +245,12 @@ func (s *WindowsService) onSharedDirectoryAcknowledge(
 		DirectoryID:   m.DirectoryID,
 	}
 
-	s.emit(ctx, emitter, event)
+	s.emit(ctx, event)
 }
 
 // onSharedDirectoryReadRequest adds ReadRequestInfo to the auditCache.
 func (s *WindowsService) onSharedDirectoryReadRequest(
 	ctx context.Context,
-	emitter events.Emitter,
 	id *tlsca.Identity,
 	sid string,
 	desktopAddr string,
@@ -311,14 +310,13 @@ func (s *WindowsService) onSharedDirectoryReadRequest(
 			Offset:        offset,
 		}
 
-		s.emit(ctx, emitter, event)
+		s.emit(ctx, event)
 	}
 }
 
 // onSharedDirectoryReadResponse emits a DesktopSharedDirectoryRead audit event.
 func (s *WindowsService) onSharedDirectoryReadResponse(
 	ctx context.Context,
-	emitter events.Emitter,
 	id *tlsca.Identity,
 	sid string,
 	desktopAddr string,
@@ -379,13 +377,12 @@ func (s *WindowsService) onSharedDirectoryReadResponse(
 		Offset:        offset,
 	}
 
-	s.emit(ctx, emitter, event)
+	s.emit(ctx, event)
 }
 
 // onSharedDirectoryWriteRequest adds WriteRequestInfo to the auditCache.
 func (s *WindowsService) onSharedDirectoryWriteRequest(
 	ctx context.Context,
-	emitter events.Emitter,
 	id *tlsca.Identity,
 	sid string,
 	desktopAddr string,
@@ -445,14 +442,13 @@ func (s *WindowsService) onSharedDirectoryWriteRequest(
 			Offset:        offset,
 		}
 
-		s.emit(ctx, emitter, event)
+		s.emit(ctx, event)
 	}
 }
 
 // onSharedDirectoryWriteResponse emits a DesktopSharedDirectoryWrite audit event.
 func (s *WindowsService) onSharedDirectoryWriteResponse(
 	ctx context.Context,
-	emitter events.Emitter,
 	id *tlsca.Identity,
 	sid string,
 	desktopAddr string,
@@ -513,12 +509,18 @@ func (s *WindowsService) onSharedDirectoryWriteResponse(
 		Offset:        offset,
 	}
 
-	s.emit(ctx, emitter, event)
+	s.emit(ctx, event)
 }
 
-func (s *WindowsService) emit(ctx context.Context, emitter events.Emitter, event events.AuditEvent) {
-	if err := emitter.EmitAuditEvent(ctx, event); err != nil {
+func (s *WindowsService) emit(ctx context.Context, event events.AuditEvent) {
+	if err := s.cfg.Emitter.EmitAuditEvent(ctx, event); err != nil {
 		s.cfg.Log.WithError(err).Errorf("Failed to emit audit event %v", event)
+	}
+}
+
+func (s *WindowsService) record(ctx context.Context, recorder libevents.SessionPreparerRecorder, event events.AuditEvent) {
+	if err := libevents.SetupAndRecordEvent(ctx, recorder, event); err != nil {
+		s.cfg.Log.WithError(err).Errorf("Failed to record session event %v", event)
 	}
 }
 
@@ -547,7 +549,6 @@ func statusFromErrCode(errCode uint32) events.Status {
 		Error:       msg,
 		UserMessage: msg,
 	}
-
 }
 
 const (

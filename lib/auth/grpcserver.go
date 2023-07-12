@@ -322,8 +322,14 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 				g.WithError(err).Debugf("Failed to decode event.")
 				return trace.Wrap(err)
 			}
+			// Currently only api/client.auditStreamer calls with an event
+			// and it always sends an events.PreparedSessionEvent, so
+			// this event can safely be assumed to be prepared. Use a
+			// events.NoOpPreparer to simply convert the event.
+			setter := &events.NoOpPreparer{}
 			start := time.Now()
-			err = eventStream.EmitAuditEvent(stream.Context(), event)
+			preparedEvent, _ := setter.PrepareSessionEvent(event)
+			err = eventStream.RecordEvent(stream.Context(), preparedEvent)
 			if err != nil {
 				switch {
 				case events.IsPermanentEmitError(err):
@@ -346,7 +352,7 @@ func (g *GRPCServer) CreateAuditStream(stream proto.AuthService_CreateAuditStrea
 			}
 			diff := time.Since(start)
 			if diff > 100*time.Millisecond {
-				log.Warningf("EmitAuditEvent(%v) took longer than 100ms: %v", event.GetType(), time.Since(event.GetTime()))
+				log.Warningf("RecordEvent(%v) took longer than 100ms: %v", event.GetType(), time.Since(event.GetTime()))
 			}
 		} else {
 			g.Errorf("Rejecting unsupported stream request: %v.", request)

@@ -29,7 +29,6 @@ import (
 	"github.com/gravitational/teleport/lib/client"
 	"github.com/gravitational/teleport/lib/kube/kubeconfig"
 	"github.com/gravitational/teleport/lib/srv/alpnproxy"
-	"github.com/gravitational/teleport/lib/teleterm/api/uri"
 	"github.com/gravitational/teleport/lib/utils"
 )
 
@@ -38,7 +37,7 @@ import (
 func (g *Gateway) KubeconfigPath() string {
 	return keypaths.KubeConfigPath(
 		g.cfg.ProfileDir,
-		uri.New(g.cfg.TargetURI).GetProfileName(),
+		g.cfg.TargetURI.GetProfileName(),
 		g.cfg.Username,
 		g.cfg.ClusterName,
 		g.cfg.TargetName,
