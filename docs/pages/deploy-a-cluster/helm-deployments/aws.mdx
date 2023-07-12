@@ -235,6 +235,24 @@ to provision your Teleport instances with TLS credentials.
 <Admonition type="warning" title="Prerequisite: Install and configure the AWS Load Balancer controller">
   You must either follow the [AWS-maintained documentation on installing the AWS Load Balancer Controller](https://docs.aws.amazon.com/eks/latest/userguide/aws-load-balancer-controller.html)
   or already have a working installation of the AWS LB controller before continuing with these instructions. Failure to do this will result in an unusable Teleport cluster.
+
+  Assuming you follow the AWS guide linked above, you can check whether the AWS LB controller is running in your cluster by looking
+  for pods with the `app.kubernetes.io/name=aws-load-balancer-controller` label:
+
+  ```code
+  $ kubectl get pods -A -l app.kubernetes.io/name=aws-load-balancer-controller
+  NAMESPACE     NAME                                            READY   STATUS    RESTARTS   AGE
+  kube-system   aws-load-balancer-controller-655f647b95-5vz56   1/1     Running   0          109d
+  kube-system   aws-load-balancer-controller-655f647b95-b4brx   1/1     Running   0          109d
+  ```
+
+  You can also check whether `alb` is registered as an `IngressClass` in your cluster:
+
+  ```code
+  $ kubectl get ingressclass
+  NAME    CONTROLLER             PARAMETERS   AGE
+  alb     ingress.k8s.aws/alb    <none>       109d
+  ```
 </Admonition>
 
 To use ACM to handle TLS, we will add annotations to the chart values in the section below specifying
