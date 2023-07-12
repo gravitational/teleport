@@ -104,6 +104,8 @@ func TestNewKubeClusterFromAWSEKS(t *testing.T) {
 					AccountID: "123456789012",
 				},
 			})
+			require.NoError(t, err)
+
 			cluster := &eks.Cluster{
 				Name:   aws.String("cluster1"),
 				Arn:    aws.String("arn:aws:eks:eu-west-1:123456789012:cluster/cluster1"),
@@ -146,6 +148,8 @@ func TestNewKubeClusterFromAzureAKS(t *testing.T) {
 			SubscriptionID: "subID",
 		},
 	})
+	require.NoError(t, err)
+
 	cluster := &azure.AKSCluster{
 		Name:           "aks-cluster1",
 		GroupName:      "group1",
@@ -187,6 +191,8 @@ func TestNewKubeClusterFromGCPGKE(t *testing.T) {
 			Location:  "central-1",
 		},
 	})
+	require.NoError(t, err)
+
 	cluster := gcp.GKECluster{
 		Name:   "cluster1",
 		Status: containerpb.Cluster_RUNNING,
