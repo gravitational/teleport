@@ -123,19 +123,6 @@ func TestValidateDatabase(t *testing.T) {
 		expectError bool
 	}{
 		{
-			// Captured error:
-			// a DNS-1035 label must consist of lower case alphanumeric
-			// characters or '-', start with an alphabetic character, and end
-			// with an alphanumeric character (e.g. 'my-name',  or 'abc-123',
-			// regex used for validation is '[a-z]([-a-z0-9]*[a-z0-9])?')
-			inputName: "invalid-database-name-",
-			inputSpec: types.DatabaseSpecV3{
-				Protocol: defaults.ProtocolPostgres,
-				URI:      "localhost:5432",
-			},
-			expectError: true,
-		},
-		{
 			inputName: "invalid-database-protocol",
 			inputSpec: types.DatabaseSpecV3{
 				Protocol: "unknown",

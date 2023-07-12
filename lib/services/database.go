@@ -43,7 +43,6 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/readpref"
 	"go.mongodb.org/mongo-driver/x/mongo/driver/connstring"
 	"golang.org/x/exp/slices"
-	"k8s.io/apimachinery/pkg/util/validation"
 
 	"github.com/gravitational/teleport/api/types"
 	awsutils "github.com/gravitational/teleport/api/utils/aws"
@@ -145,11 +144,11 @@ func ValidateDatabase(db types.Database) error {
 		return trace.Wrap(err)
 	}
 
-	// Unlike application access proxy, database proxy name doesn't necessarily
-	// need to be a valid subdomain but use the same validation logic for the
-	// simplicity and consistency.
-	if errs := validation.IsDNS1035Label(db.GetName()); len(errs) > 0 {
-		return trace.BadParameter("invalid database %q name: %v", db.GetName(), errs)
+	// This was added in v14 and backported, except that it's intentionally
+	// called here instead of in CheckAndSetDefaults for backwards
+	// compatibility.
+	if err := types.ValidateDatabaseName(db.GetName()); err != nil {
+		return trace.Wrap(err, "invalid database name")
 	}
 
 	if !slices.Contains(defaults.DatabaseProtocols, db.GetProtocol()) {
