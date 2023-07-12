@@ -1,5 +1,49 @@
 # Changelog
 
+## 13.2.1 (07/12/23)
+
+* Kubernetes Operator
+  * Fixed regression issue with Kube operator crashing on first startup. [#29013](https://github.com/gravitational/teleport/pull/29013)
+* Installation
+  * Fixed issue with the install script not working on non-systemd systems. [#28987](https://github.com/gravitational/teleport/pull/28987)
+  * Fixed issue with RPM packages failing to install on FIPS-enabled RHEL 8 systems. [#28794](https://github.com/gravitational/teleport/pull/28794)
+* CLI
+  * Fixed issue with `tsh login` not displaying cluster alerts. [#28983](https://github.com/gravitational/teleport/pull/28983)
+  * Added ability to provide GitHub API endpoint URL to `tctl sso configure github` command. [#28968](https://github.com/gravitational/teleport/pull/28968)
+  * Updated `tctl alerts ack` to make `--reason` flag optional. [#28955](https://github.com/gravitational/teleport/pull/28955)
+  * Updated `tctl alerts ls` to always show alert ID. [#28906](https://github.com/gravitational/teleport/pull/28906)
+* Desktop Access
+  * Improved LDAP connection errors handling. [#28974](https://github.com/gravitational/teleport/pull/28974)
+* Access Controls
+  * Fixed issue with locking servers via web UI. [#28963](https://github.com/gravitational/teleport/pull/28963)
+* Azure
+  * Fixed Azure joining for identities across resource groups. [#28961](https://github.com/gravitational/teleport/pull/28961)
+* Teleport Assist
+  * Updated Assist bot to produce more consistent responses. [#28959](https://github.com/gravitational/teleport/pull/28959)
+* Database Access
+  * Updated default SQL Server database client to `sqlcmd`. [#28944](https://github.com/gravitational/teleport/pull/28944)
+* Web UI
+  * Fixed issue with newlines not being displayed properly in message of the day. [#28937](https://github.com/gravitational/teleport/pull/28937)
+  * Added Machine ID guides to the Enroll Integration page in the web UI. [#28888](https://github.com/gravitational/teleport/pull/28888)
+* Server Access
+  * Fixed issue with `SSH_*` environment variables not being respected in headless mode. [#28922](https://github.com/gravitational/teleport/pull/28922)
+* Access Plugins
+  * Added PagerDuty hosted plugin for Teleport Cloud. [#28883](https://github.com/gravitational/teleport/pull/28883)
+* Audit
+  * Added ID token attributes to GCP `bot.join` audit event. [#28882](https://github.com/gravitational/teleport/pull/28882)
+* Automatic Upgrades
+  * Updated `tctl inventory ls` command to show agent auto-upgrade status on Teleport Cloud. [#28847](https://github.com/gravitational/teleport/pull/28847)
+* Kubernetes Access
+  * Added support for specifying `assume_role_arn` for Kube cluster matchers in auto-discovery. [#28832](https://github.com/gravitational/teleport/pull/28832)
+* Machine ID
+  * Added GCP delegated joining support. [#28762](https://github.com/gravitational/teleport/pull/28762)
+* GCP
+  * Fixed issue with GCP joining not working with GKE workload identity. [#28759](https://github.com/gravitational/teleport/pull/28759)
+* Stability & Reliability
+  * Improved Firestore backend handling for cases when same collection is used for backend data and audit events. [#28737](https://github.com/gravitational/teleport/pull/28737)
+* Okta
+  * Updated Okta group access requests to automatically include list of the group's applications. [#28603](https://github.com/gravitational/teleport/pull/28603)
+
 ## 13.2.0 (07/05/23)
 
 * Teleport Assist
