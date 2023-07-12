@@ -155,21 +155,6 @@ func NewFakeMattermost(botUser User, concurrency int) *FakeMattermost {
 		panicIf(err)
 	})
 
-	router.GET("/api/v4/users/:id", func(rw http.ResponseWriter, r *http.Request, ps httprouter.Params) {
-		rw.Header().Add("Content-Type", "application/json")
-
-		id := ps.ByName("id")
-		user, found := mattermost.GetUser(id)
-		if !found {
-			rw.WriteHeader(http.StatusNotFound)
-			err := json.NewEncoder(rw).Encode(ErrorResult{StatusCode: http.StatusNotFound, Message: "Unable to find the user."})
-			panicIf(err)
-			return
-		}
-		err := json.NewEncoder(rw).Encode(user)
-		panicIf(err)
-	})
-
 	router.POST("/api/v4/posts", func(rw http.ResponseWriter, r *http.Request, _ httprouter.Params) {
 		rw.Header().Add("Content-Type", "application/json")
 

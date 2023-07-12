@@ -46,7 +46,7 @@ var resolutionReasonRegexp = regexp.MustCompile("(?im)^\\*\\*Resolution reason\\
 
 type MattermostSuite struct {
 	integration.Suite
-	appConfig Config
+	appConfig *Config
 	userNames struct {
 		ruler     string
 		requestor string
@@ -201,7 +201,7 @@ func (s *MattermostSuite) SetupTest() {
 	conf.Mattermost.Token = "000000"
 	conf.Mattermost.URL = s.fakeMattermost.URL()
 
-	s.appConfig = conf
+	s.appConfig = &conf
 	s.SetContextTimeout(5 * time.Second)
 }
 
@@ -209,9 +209,7 @@ func (s *MattermostSuite) startApp() {
 	t := s.T()
 	t.Helper()
 
-	app, err := NewApp(s.appConfig)
-	require.NoError(t, err)
-
+	app := NewMattermostApp(s.appConfig)
 	s.StartApp(app)
 }
 

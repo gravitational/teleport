@@ -26,33 +26,37 @@ import (
 
 	"github.com/go-resty/resty/v2"
 	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
+	"github.com/gravitational/teleport/integrations/lib/logger"
+	pd "github.com/gravitational/teleport/integrations/lib/plugindata"
 	"github.com/gravitational/trace"
 	"github.com/mailgun/holster/v3/collections"
 )
 
 const (
-	mmMaxConns    = 100
-	mmHTTPTimeout = 10 * time.Second
-	mmCacheSize   = 1024
+	mmMaxConns          = 100
+	mmHTTPTimeout       = 10 * time.Second
+	mmStatusEmitTimeout = 10 * time.Second
+	mmCacheSize         = 1024
 )
 
 var postTextTemplate = template.Must(template.New("description").Parse(
 	`{{if eq .Status "PENDING"}}*You have new pending request to review!*{{end}}
- **User**: {{.User}}
- **Roles**: {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}}
- **Request ID**: {{.ID}}
- {{if .RequestReason}}**Reason**: {{.RequestReason}}{{end}}
- **Status**: {{.StatusEmoji}} {{.Status}}
- {{if .Resolution.Reason}}**Resolution reason**: {{.Resolution.Reason}}{{end}}
- {{if .RequestLink}}**Link**: [{{.RequestLink}}]({{.RequestLink}})
- {{else if eq .Status "PENDING"}}**Approve**: ` + "`tsh request review --approve {{.ID}}`" + `
- **Deny**: ` + "`tsh request review --deny {{.ID}}`" + `{{end}}`,
+**User**: {{.User}}
+**Roles**: {{range $index, $element := .Roles}}{{if $index}}, {{end}}{{ . }}{{end}}
+**Request ID**: {{.ID}}
+{{if .RequestReason}}**Reason**: {{.RequestReason}}{{end}}
+**Status**: {{.StatusEmoji}} {{.Status}}
+{{if .ResolutionReason}}**Resolution reason**: {{.ResolutionReason}}{{end}}
+{{if .RequestLink}}**Link**: [{{.RequestLink}}]({{.RequestLink}})
+{{else if eq .Status "PENDING"}}**Approve**: ` + "`tsh request review --approve {{.ID}}`" + `
+**Deny**: ` + "`tsh request review --deny {{.ID}}`" + `{{end}}`,
 ))
 var reviewCommentTemplate = template.Must(template.New("review comment").Parse(
 	`{{.Author}} reviewed the request at {{.Created.Format .TimeFormat}}.
- Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
- {{if .Reason}}Reason: {{.Reason}}.{{end}}`,
+Resolution: {{.ProposedStateEmoji}} {{.ProposedState}}.
+{{if .Reason}}Reason: {{.Reason}}.{{end}}`,
 ))
 
 // Mattermost has a 4000 or 16k character limit for posts (depending on the
@@ -87,7 +91,7 @@ type etagCacheEntry struct {
 	value interface{}
 }
 
-func NewBot(conf MattermostConfig, clusterName, webProxyAddr string) (Bot, error) {
+func NewBot(conf Config, clusterName, webProxyAddr string) (Bot, error) {
 	var (
 		webProxyURL *url.URL
 		err         error
@@ -108,10 +112,10 @@ func NewBot(conf MattermostConfig, clusterName, webProxyAddr string) (Bot, error
 				MaxIdleConnsPerHost: mmMaxConns,
 			},
 		}).
-		SetBaseURL(conf.URL).
+		SetBaseURL(conf.Mattermost.URL).
 		SetHeader("Content-Type", "application/json").
 		SetHeader("Accept", "application/json").
-		SetHeader("Authorization", "BEARER "+conf.Token)
+		SetHeader("Authorization", "BEARER "+conf.Mattermost.Token)
 
 	// Error response parsing.
 	client.OnBeforeRequest(func(_ *resty.Client, req *resty.Request) error {
@@ -119,6 +123,23 @@ func NewBot(conf MattermostConfig, clusterName, webProxyAddr string) (Bot, error
 		return nil
 	})
 	client.OnAfterResponse(func(_ *resty.Client, resp *resty.Response) error {
+		log := logger.Get(resp.Request.Context())
+
+		status := common.StatusFromStatusCode(resp.StatusCode())
+		sink := conf.StatusSink
+		defer func() {
+			if sink == nil {
+				return
+			}
+
+			// No context in scope, use background with a reasonable timeout
+			ctx, cancel := context.WithTimeout(context.Background(), mmStatusEmitTimeout)
+			defer cancel()
+			if err := sink.Emit(ctx, status); err != nil {
+				log.Errorf("Error while emitting plugin status: %v", err)
+			}
+		}()
+
 		if !resp.IsError() {
 			return nil
 		}
@@ -190,7 +211,7 @@ func NewBot(conf MattermostConfig, clusterName, webProxyAddr string) (Bot, error
 	}, nil
 }
 
-func (b Bot) HealthCheck(ctx context.Context) error {
+func (b Bot) CheckHealth(ctx context.Context) error {
 	_, err := b.GetMe(ctx)
 	return err
 }
@@ -207,18 +228,18 @@ func (b Bot) GetMe(ctx context.Context) (User, error) {
 }
 
 // Broadcast posts request info to Mattermost.
-func (b Bot) Broadcast(ctx context.Context, channels []string, reqID string, reqData RequestData) (MattermostData, error) {
+func (b Bot) Broadcast(ctx context.Context, recipients []common.Recipient, reqID string, reqData pd.AccessRequestData) (common.SentMessages, error) {
 	text, err := b.buildPostText(reqID, reqData)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}
 
-	var data MattermostData
+	var data common.SentMessages
 	var errors []error
 
-	for _, channel := range channels {
+	for _, recipient := range recipients {
 		post := Post{
-			ChannelID: channel,
+			ChannelID: recipient.ID,
 			Message:   text,
 		}
 		_, err = b.client.NewRequest().
@@ -231,13 +252,13 @@ func (b Bot) Broadcast(ctx context.Context, channels []string, reqID string, req
 			continue
 		}
 
-		data = append(data, MattermostDataPost{ChannelID: channel, PostID: post.ID})
+		data = append(data, common.MessageData{ChannelID: post.ChannelID, MessageID: post.ID})
 	}
 
 	return data, trace.NewAggregate(errors...)
 }
 
-func (b Bot) PostReviewComment(ctx context.Context, channelID, rootID string, review types.AccessReview) error {
+func (b Bot) PostReviewReply(ctx context.Context, channelID, rootID string, review types.AccessReview) error {
 	if review.Reason != "" {
 		review.Reason = lib.MarkdownEscape(review.Reason, reviewReasonLimit)
 	}
@@ -333,7 +354,7 @@ func (b Bot) LookupDirectChannel(ctx context.Context, email string) (string, err
 	return channel.ID, nil
 }
 
-func (b Bot) UpdatePosts(ctx context.Context, reqID string, reqData RequestData, mmData MattermostData) error {
+func (b Bot) UpdateMessages(ctx context.Context, reqID string, reqData pd.AccessRequestData, mmData common.SentMessages, reviews []types.AccessReview) error {
 	text, err := b.buildPostText(reqID, reqData)
 	if err != nil {
 		return trace.Wrap(err)
@@ -343,13 +364,13 @@ func (b Bot) UpdatePosts(ctx context.Context, reqID string, reqData RequestData,
 	for _, msg := range mmData {
 		post := Post{
 			ChannelID: msg.ChannelID,
-			ID:        msg.PostID,
+			ID:        msg.MessageID,
 			Message:   text,
 		}
 		_, err := b.client.NewRequest().
 			SetContext(ctx).
 			SetBody(post).
-			SetPathParams(map[string]string{"postID": msg.PostID}).
+			SetPathParams(map[string]string{"postID": msg.MessageID}).
 			Put("api/v4/posts/{postID}")
 		if err != nil {
 			errors = append(errors, trace.Wrap(err))
@@ -359,27 +380,27 @@ func (b Bot) UpdatePosts(ctx context.Context, reqID string, reqData RequestData,
 	return trace.NewAggregate(errors...)
 }
 
-func (b Bot) buildPostText(reqID string, reqData RequestData) (string, error) {
-	resolutionTag := reqData.Resolution.Tag
+func (b Bot) buildPostText(reqID string, reqData pd.AccessRequestData) (string, error) {
+	resolutionTag := reqData.ResolutionTag
 
 	if reqData.RequestReason != "" {
 		reqData.RequestReason = lib.MarkdownEscape(reqData.RequestReason, requestReasonLimit)
 	}
-	if reqData.Resolution.Reason != "" {
-		reqData.Resolution.Reason = lib.MarkdownEscape(reqData.Resolution.Reason, resolutionReasonLimit)
+	if reqData.ResolutionReason != "" {
+		reqData.ResolutionReason = lib.MarkdownEscape(reqData.ResolutionReason, resolutionReasonLimit)
 	}
 
 	var statusEmoji string
 	status := string(resolutionTag)
 	switch resolutionTag {
-	case Unresolved:
+	case pd.Unresolved:
 		status = "PENDING"
 		statusEmoji = "⏳"
-	case ResolvedApproved:
+	case pd.ResolvedApproved:
 		statusEmoji = "✅"
-	case ResolvedDenied:
+	case pd.ResolvedDenied:
 		statusEmoji = "❌"
-	case ResolvedExpired:
+	case pd.ResolvedExpired:
 		statusEmoji = "⌛"
 	}
 
@@ -400,7 +421,7 @@ func (b Bot) buildPostText(reqID string, reqData RequestData) (string, error) {
 		Status      string
 		StatusEmoji string
 		RequestLink string
-		RequestData
+		pd.AccessRequestData
 	}{
 		reqID,
 		status,
@@ -413,6 +434,62 @@ func (b Bot) buildPostText(reqID string, reqData RequestData) (string, error) {
 	}
 
 	return builder.String(), nil
+}
+
+func (b Bot) tryLookupDirectChannel(ctx context.Context, userEmail string) string {
+	log := logger.Get(ctx).WithField("mm_user_email", userEmail)
+	channel, err := b.LookupDirectChannel(ctx, userEmail)
+	if err != nil {
+		if errResult, ok := trace.Unwrap(err).(*ErrorResult); ok {
+			log.Warningf("Failed to lookup direct channel info: %q", errResult.Message)
+		} else {
+			log.WithError(err).Error("Failed to lookup direct channel info")
+		}
+		return ""
+	}
+	return channel
+}
+
+func (b Bot) tryLookupChannel(ctx context.Context, team, name string) string {
+	log := logger.Get(ctx).WithFields(logger.Fields{
+		"mm_team":    team,
+		"mm_channel": name,
+	})
+	channel, err := b.LookupChannel(ctx, team, name)
+	if err != nil {
+		if errResult, ok := trace.Unwrap(err).(*ErrorResult); ok {
+			log.Warningf("Failed to lookup channel info: %q", errResult.Message)
+		} else {
+			log.WithError(err).Error("Failed to lookup channel info")
+		}
+		return ""
+	}
+	return channel
+}
+
+// FetchRecipient returns the recipient for the given raw recipient.
+func (b Bot) FetchRecipient(ctx context.Context, recipient string) (*common.Recipient, error) {
+	var channel string
+
+	// Recipients from config file could contain either email or team and
+	// channel names separated by '/' symbol. It's up to user what format to use.
+	if lib.IsEmail(recipient) {
+		channel = b.tryLookupDirectChannel(ctx, recipient)
+	} else {
+		parts := strings.Split(recipient, "/")
+		if len(parts) == 2 {
+			channel = b.tryLookupChannel(ctx, parts[0], parts[1])
+		} else {
+			return nil, trace.BadParameter("Recipient must be either a user email or a channel in the format \"team/channel\" but got %q", recipient)
+		}
+	}
+
+	return &common.Recipient{
+		Name: recipient,
+		ID:   channel,
+		Kind: "Channel",
+		Data: nil,
+	}, nil
 }
 
 func userResult(resp *resty.Response) (User, error) {

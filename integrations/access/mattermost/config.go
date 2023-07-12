@@ -19,16 +19,17 @@ package mattermost
 import (
 	"strings"
 
+	"github.com/gravitational/teleport/api/types"
+	"github.com/gravitational/teleport/integrations/access/common"
 	"github.com/gravitational/teleport/integrations/lib"
-	"github.com/gravitational/teleport/integrations/lib/logger"
 	"github.com/gravitational/trace"
 	"github.com/pelletier/go-toml"
 )
 
 type Config struct {
-	Teleport   lib.TeleportConfig `toml:"teleport"`
-	Mattermost MattermostConfig   `toml:"mattermost"`
-	Log        logger.Config      `toml:"log"`
+	common.BaseConfig
+	Mattermost MattermostConfig
+	StatusSink common.StatusSink
 }
 
 type MattermostConfig struct {
@@ -58,6 +59,18 @@ const exampleConfig = `# example mattermost configuration TOML file
  [mattermost]
  url = "https://mattermost.example.com" # Mattermost Server URL
  token = "api-token"                    # Mattermost Bot OAuth token
+
+ # Notify recipients
+ #
+ # The value is an array of strings, where each element is either:
+ # - A channel name in the format 'team/channel', where / separates the 
+ #   name of the team and the name of the channel
+ # - The email address of a Mattermost user to notify via a direct message 
+ #   when the plugin receives an Access Request event
+ recipients = [
+  "my-team-name/channel-name",
+  "first.last@example.com"
+ ]
  
  [log]
  output = "stderr" # Logger output. Could be "stdout", "stderr" or "/var/lib/teleport/mattermost.log"
@@ -101,5 +114,19 @@ func (c *Config) CheckAndSetDefaults() error {
 	if c.Log.Severity == "" {
 		c.Log.Severity = "info"
 	}
+
+	if len(c.Recipients) == 0 {
+		return trace.BadParameter("missing required value mattermost.recipients")
+	}
+
+	c.PluginType = types.PluginTypeMattermost
 	return nil
+}
+
+func (c *Config) NewBot(clusterName, webProxyAddr string) (common.MessagingBot, error) {
+	bot, err := NewBot(*c, clusterName, webProxyAddr)
+	if err != nil {
+		return nil, trace.Wrap(err)
+	}
+	return bot, nil
 }
