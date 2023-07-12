@@ -25,7 +25,8 @@ known as a `destination` is now an `output`. Unlike a `destination`, an
 `output` has a specific type. The concept of `destination` remains, but this now
 just refers to where artifacts should be read from and written to.
 
-**Example of previous configuration**
+Here is an example of the v1 configuration:
+
 ```yaml
 destinations:
 - directory:
@@ -35,7 +36,7 @@ destinations:
   app: grafana
 ```
 
-**Example of new configuration**
+Here is an example of the v2 configuration:
 ```yaml
 version: v2
 outputs:
@@ -57,13 +58,13 @@ v2 to continue operating without disruption. This migration is ephemeral and
 is not written to disk.
 
 We strongly recommend converting your configuration file from v1 to v2
-permanently. A warning will be emitted when starting `tbot` until you do so.
+permanently. `tbot` will emit a warning when it starts until you do so.
 
 Determine the path of your current configuration file and the path you wish to
 write the migrated configuration file to. Then run:
 
-```
-tbot migrate -c /config.yaml -o /config.migrated.yaml
+```code
+$ tbot migrate -c /config.yaml -o /config.migrated.yaml
 ```
 
 Inspect the migrated configuration file to ensure it meets your expectations,
@@ -78,6 +79,6 @@ original configuration contains invalid or conflicting entries and that previous
 versions of `tbot` might not have validated for these.
 
 If you are still unable to determine why your configuration will not migrate,
-seek guidance. For those with a support contract, submit a ticket, and for
-those using open source Teleport, join our
-[community slack](https://goteleport.com/community-slack/).
+seek guidance. If you have a support contract, submit a ticket. If you are using
+open source Teleport, join our
+[community Slack](https://goteleport.com/community-slack/).
