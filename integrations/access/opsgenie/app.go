@@ -74,7 +74,7 @@ type App struct {
 // NewOpsgenieApp initializes a new teleport-opsgenie app and returns it.
 func NewOpsgenieApp(conf *Config) (*App, error) {
 	app := common.NewApp(conf, pluginName)
-	teleportClient, err := conf.GetTeleportClient(context.Background())
+	teleportClient, err := conf.GetTeleportClient(conf.Ctx)
 	if err != nil {
 		return nil, trace.Wrap(err)
 	}

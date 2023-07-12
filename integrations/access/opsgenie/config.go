@@ -17,6 +17,7 @@ limitations under the License.
 package opsgenie
 
 import (
+	"context"
 	"net/url"
 
 	"github.com/gravitational/trace"
@@ -38,6 +39,8 @@ type Config struct {
 	AccessTokenProvider auth.AccessTokenProvider
 	// StatusSink defines a destination for PluginStatus
 	StatusSink common.StatusSink
+	// Ctx is the context used for the lifetime of the opsgenie plugin.
+	Ctx context.Context
 }
 
 // CheckAndSetDefaults checks the config struct for any logical errors, and sets default values
