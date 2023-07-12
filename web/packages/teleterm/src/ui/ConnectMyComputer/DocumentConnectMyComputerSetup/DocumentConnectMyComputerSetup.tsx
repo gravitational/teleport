@@ -25,6 +25,7 @@ import * as types from 'teleterm/ui/services/workspacesService';
 import { useAppContext } from 'teleterm/ui/appContextProvider';
 import Document from 'teleterm/ui/Document';
 import { useWorkspaceContext } from 'teleterm/ui/Documents';
+import { useRetryWithRelogin } from 'teleterm/ui/utils';
 
 interface DocumentConnectMyComputerSetupProps {
   visible: boolean;
@@ -87,29 +88,33 @@ function AgentSetup() {
   const { rootClusterUri } = useWorkspaceContext();
 
   const [setUpRolesAttempt, runSetUpRolesAttempt] = useAsync(
-    useCallback(async () => {
-      let certsReloaded = false;
+    useRetryWithRelogin(
+      ctx,
+      rootClusterUri,
+      useCallback(async () => {
+        let certsReloaded = false;
 
-      try {
-        const response = await ctx.connectMyComputerService.createRole(
-          rootClusterUri
-        );
-        certsReloaded = response.certsReloaded;
-      } catch (error) {
-        if ((error.message as string)?.includes('access denied')) {
-          throw new Error(
-            'Access denied. Contact your administrator for permissions to manage users and roles.'
+        try {
+          const response = await ctx.connectMyComputerService.createRole(
+            rootClusterUri
           );
+          certsReloaded = response.certsReloaded;
+        } catch (error) {
+          if ((error.message as string)?.includes('access denied')) {
+            throw new Error(
+              'Access denied. Contact your administrator for permissions to manage users and roles.'
+            );
+          }
+          throw error;
         }
-        throw error;
-      }
 
-      // If tshd reloaded the certs to refresh the role list, the Electron app must resync details
-      // of the cluster to also update the role list in the UI.
-      if (certsReloaded) {
-        await ctx.clustersService.syncRootCluster(rootClusterUri);
-      }
-    }, [ctx.connectMyComputerService, ctx.clustersService, rootClusterUri])
+        // If tshd reloaded the certs to refresh the role list, the Electron app must resync details
+        // of the cluster to also update the role list in the UI.
+        if (certsReloaded) {
+          await ctx.clustersService.syncRootCluster(rootClusterUri);
+        }
+      }, [ctx.connectMyComputerService, ctx.clustersService, rootClusterUri])
+    )
   );
   const [downloadAgentAttempt, runDownloadAgentAttempt] = useAsync(
     useCallback(
