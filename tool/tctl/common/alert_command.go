@@ -76,9 +76,12 @@ func (c *AlertCommand) Initialize(app *kingpin.Application, config *service.Conf
 	c.alertCreate.Flag("labels", "List of labels to attach to the alert. For example: key1=value1,key2=value2").StringVar(&c.labels)
 
 	c.alertAck = alert.Command("ack", "Acknowledge cluster alerts.")
+	// Be wary of making any of these flags required. Because `tctl alerts ack ls` is not an actual
+	// command but is handled by alertAck, any flag that is required for `tctl alerts ack` will be
+	// required for `tctl alerts ack ls` as well.
 	c.alertAck.Flag("ttl", "Time duration to acknowledge the cluster alert for.").DurationVar(&c.ttl)
 	c.alertAck.Flag("clear", "Clear the acknowledgment for the cluster alert.").BoolVar(&c.clear)
-	c.alertAck.Flag("reason", "The reason for acknowledging the cluster alert.").Required().StringVar(&c.reason)
+	c.alertAck.Flag("reason", "The reason for acknowledging the cluster alert.").StringVar(&c.reason)
 	c.alertAck.Arg("id", "The cluster alert ID.").Required().StringVar(&c.alertID)
 
 	// We add "ack ls" as a command so kingpin shows it in the help dialog - as there is a space, `tctl ack xyz` will always be
