@@ -58,19 +58,19 @@ func TestGetClusterURI(t *testing.T) {
 		out uri.ResourceURI
 	}{
 		{
-			uri.New("/clusters/cluster.sh"),
+			uri.NewClusterURI("cluster.sh"),
 			uri.NewClusterURI("cluster.sh"),
 		},
 		{
-			uri.New("/clusters/cluster.sh/servers/server1"),
+			uri.NewClusterURI("cluster.sh").AppendServer("server1"),
 			uri.NewClusterURI("cluster.sh"),
 		},
 		{
-			uri.New("/clusters/cluster.sh/leaves/leaf.sh"),
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
 			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
 		},
 		{
-			uri.New("/clusters/cluster.sh/leaves/leaf.sh/dbs/postgres"),
+			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh").AppendDB("postgres"),
 			uri.NewClusterURI("cluster.sh").AppendLeafCluster("leaf.sh"),
 		},
 	}

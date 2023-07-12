@@ -42,16 +42,29 @@ func ParseGatewayTargetURI(path string) (ResourceURI, error) {
 	return r, trace.Wrap(err)
 }
 
+// ParseDBURI parses the provided path as a database URI.
+func ParseDBURI(path string) (ResourceURI, error) {
+	r, err := Parse(path, validateDBResource)
+	return r, trace.Wrap(err)
+}
+
 func validateProfileName(r ResourceURI) error {
 	if r.GetProfileName() == "" {
-		return trace.BadParameter("missing root cluster name")
+		return trace.BadParameter("malformed URI %q, missing profile name", r)
 	}
 	return nil
 }
 
 func validateGatewayTargetResource(r ResourceURI) error {
 	if r.GetDbName() == "" && r.GetKubeName() == "" {
-		return trace.BadParameter("missing target resource name")
+		return trace.BadParameter("malformed gateway target URI %q, expecting a database or kube resource", r)
+	}
+	return nil
+}
+
+func validateDBResource(r ResourceURI) error {
+	if r.GetDbName() == "" {
+		return trace.BadParameter("malformed database URI %q, missing database name", r)
 	}
 	return nil
 }

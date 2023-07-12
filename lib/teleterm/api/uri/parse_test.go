@@ -98,3 +98,38 @@ func TestParseGatewayTargetURI(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDBURI(t *testing.T) {
+	tests := []struct {
+		in         string
+		out        uri.ResourceURI
+		checkError require.ErrorAssertionFunc
+	}{
+		{
+			in:         uri.NewClusterURI("foo").AppendKube("kube").String(),
+			checkError: require.Error,
+		},
+		{
+			in:         uri.NewClusterURI("foo").AppendLeafCluster("bar").String(),
+			checkError: require.Error,
+		},
+		{
+			in:         uri.NewClusterURI("foo").AppendDB("db").String(),
+			out:        uri.NewClusterURI("foo").AppendDB("db"),
+			checkError: require.NoError,
+		},
+		{
+			in:         uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("db").String(),
+			out:        uri.NewClusterURI("foo").AppendLeafCluster("bar").AppendDB("db"),
+			checkError: require.NoError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.in, func(t *testing.T) {
+			out, err := uri.ParseDBURI(tt.in)
+			tt.checkError(t, err)
+			require.Equal(t, tt.out, out)
+		})
+	}
+}
