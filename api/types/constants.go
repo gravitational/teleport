@@ -516,27 +516,31 @@ const (
 	// discovered databases.
 	DatabaseAdminLabel = TeleportNamespace + "/db-admin"
 
-	// AWSDatabaseNameOverrideLabel is the label key containing the database
-	// name override for discovered AWS databases.
-	AWSDatabaseNameOverrideLabel = TeleportNamespace + "/database_name"
+	// cloudKubeClusterNameOverrideLabel is a cloud agnostic label key for
+	// overriding kubernetes cluster name in discovered cloud kube clusters.
+	// It's used for AWS, GCP, and Azure, but not exported to decouple the
+	// cloud-specific labels from eachother.
+	cloudKubeClusterNameOverrideLabel = "TeleportKubernetesName"
 
-	// AWSKubeClusterNameOverrideLabel is the label key containing the
-	// kubernetes cluster name override for disocvered AWS kube clusters.
-	AWSKubeClusterNameOverrideLabel = TeleportNamespace + "/kubernetes-name"
+	// cloudDatabaseNameOverrideLabel is a cloud agnostic label key for
+	// overriding the database name in discovered cloud databases.
+	// It's used for AWS, GCP, and Azure, but not exported to decouple the
+	// cloud-specific labels from eachother.
+	cloudDatabaseNameOverrideLabel = "TeleportDatabaseName"
 
 	// AzureDatabaseNameOverrideLabel is the label key containing the database
 	// name override for discovered Azure databases.
-	// Azure tags connot contain these characters: "<>%&\?/", so it doesn't
+	// Azure tags cannot contain these characters: "<>%&\?/", so it doesn't
 	// start with the namespace prefix.
-	AzureDatabaseNameOverrideLabel = "TeleportDatabaseName"
+	AzureDatabaseNameOverrideLabel = cloudDatabaseNameOverrideLabel
 
 	// AzureKubeClusterNameOverrideLabel is the label key containing the
 	// kubernetes cluster name override for discovered Azure kube clusters.
-	AzureKubeClusterNameOverrideLabel = "TeleportKubernetesName"
+	AzureKubeClusterNameOverrideLabel = cloudKubeClusterNameOverrideLabel
 
 	// GCPKubeClusterNameOverrideLabel is the label key containing the
 	// kubernetes cluster name override for discovered GCP kube clusters.
-	GCPKubeClusterNameOverrideLabel = "TeleportKubernetesName"
+	GCPKubeClusterNameOverrideLabel = cloudKubeClusterNameOverrideLabel
 
 	// ReqAnnotationSchedulesLabel is the request annotation key at which schedules are stored for access plugins.
 	ReqAnnotationSchedulesLabel = "/schedules"
@@ -550,6 +554,40 @@ const (
 
 	// TeleportAzureMSIEndpoint is a special URL intercepted by TSH local proxy, serving Azure credentials.
 	TeleportAzureMSIEndpoint = "azure-msi." + TeleportNamespace
+)
+
+var (
+	// AWSKubeClusterNameOverrideLabels are the label keys that Teleport
+	// supports to override the kubernetes cluster name of discovered AWS kube
+	// clusters.
+	// Originally Teleport supported just the namespaced label
+	// "teleport.dev/kubernetes-name", but this was an invalid label key in
+	// other clouds.
+	// For consistency and backwards compatibility, Teleport now supports both
+	// the generic cloud kube cluster name override label and the original
+	// namespaced label.
+	AWSKubeClusterNameOverrideLabels = []string{
+		cloudKubeClusterNameOverrideLabel,
+		// This is a legacy label that should continue to be supported, but
+		// don't reference it in documentation or error messages anymore.
+		// The generic label takes precedence.
+		TeleportNamespace + "/kubernetes-name",
+	}
+	// AWSDatabaseNameOverrideLabels are the label keys that Teleport
+	// supports to override the database name of discovered AWS databases.
+	// Originally Teleport supported just the namespaced label
+	// "teleport.dev/database_name", but this was an invalid label key in
+	// other clouds.
+	// For consistency and backwards compatibility, Teleport now supports both
+	// the generic cloud database name override label and the original
+	// namespaced label.
+	AWSDatabaseNameOverrideLabels = []string{
+		cloudDatabaseNameOverrideLabel,
+		// This is a legacy label that should continue to be supported, but
+		// don't reference it in documentation or error messages anymore.
+		// The generic label takes precedence.
+		TeleportNamespace + "/database_name",
+	}
 )
 
 // Labels added by the discovery service to discovered databases,
@@ -576,13 +614,13 @@ const (
 
 	// DiscoveryLabelAzureSubscriptionID is the label key for Azure subscription ID.
 	DiscoveryLabelAzureSubscriptionID = "subscription-id"
-	// DiscoveryLabelResourceGroup is the label key for the Azure resource group name.
-	DiscoveryLabelResourceGroup = "resource-group"
-	// DiscoveryLabelReplicationRole is the replication role of an Azure DB Flexible server, e.g. "Source" or "Replica".
-	DiscoveryLabelReplicationRole = "replication-role"
-	// DiscoveryLabelSourceServer is the source server for replica Azure DB Flexible servers.
+	// DiscoveryLabelAzureResourceGroup is the label key for the Azure resource group name.
+	DiscoveryLabelAzureResourceGroup = "resource-group"
+	// DiscoveryLabelAzureReplicationRole is the replication role of an Azure DB Flexible server, e.g. "Source" or "Replica".
+	DiscoveryLabelAzureReplicationRole = "replication-role"
+	// DiscoveryLabelAzureSourceServer is the source server for replica Azure DB Flexible servers.
 	// This is the source (primary) database resource name.
-	DiscoveryLabelSourceServer = "source-server"
+	DiscoveryLabelAzureSourceServer = "source-server"
 
 	// DiscoveryLabelGCPProjectID is the label key for GCP project ID.
 	DiscoveryLabelGCPProjectID = "project-id"
