@@ -30,8 +30,6 @@ Before you get started you’ll need:
 
 - (!docs/pages/includes/tctl.mdx!)
 
-(!docs/pages/includes/enterprise/samlauthentication.mdx!)
-
 ## Configure Azure AD
 
 1. Select **Azure AD -> Enterprise Applications**
@@ -48,9 +46,11 @@ Before you get started you’ll need:
 
    ![Select Non-gallery application](../../../img/azuread/azuread-3-createnongalleryapp.png)
 
-4. Select **Properties** under **Manage** and set **User assignment required?** to **No**
+4. Select **Properties** under **Manage** and set **Assignment required?** to **No**
 
-![Turn off user assignment](../../../img/azuread/azuread-4-turnoffuserassign.png)
+   ![Turn off user assignment](../../../img/azuread/azuread-4-turnoffuserassign.png)
+
+   Click **Save** before proceeding to the next step.
 
 5. Select **Single sign-on** under **Manage** and choose **SAML**
 
@@ -60,104 +60,106 @@ Before you get started you’ll need:
 
    ![Edit Basic SAML Configuration](../../../img/azuread/azuread-6-editbasicsaml.png)
 
-7. For **Entity ID** and **Reply URL**, enter the following, assigning <Var
+7. For **Entity ID** and **Reply URL** enter the following, assigning <Var
    name="mytenant.teleport.sh:443" /> to the host and HTTPS port of your
    Teleport Proxy Service (or Teleport Team/Enterprise Cloud tenant):
 
-   ```var
-   https://<Var name="mytenant.teleport.sh:443" />/v1/webapi/saml/acs/azure-saml
+   ```code
+   https://<Var name="mytenant.teleport.sh:443" />/v1/webapi/saml/acs/ad
    ```
 
    ![Put in Entity ID and Reply URL](../../../img/azuread/azuread-7-entityandreplyurl.png)
 
-8. Edit **User Attributes & Claims**
+   Click **Save** before proceeding to the next step.
 
-   - Edit the claim name.
-   - Change the name identifier format to **Default**. Make sure the source
+8. Edit **Attributes & Claims**
+
+   - Click on **Unique User Identifier (Name ID)** under **Required claim**.
+   - Change the "name identifier format" to **Default**. Make sure the source
      attribute is `user.userprincipalname`.
 
-   ![Confirm Name Identifier](../../../img/azuread/azuread-8a-nameidentifier.png)
+     ![Confirm Name Identifier](../../../img/azuread/azuread-8a-nameidentifier.png)
 
-   - Add a group claim to make user security groups available to the connector
+   - Add a group claim to make user security groups available to the connector:
 
-   ![Put in Security group claim](../../../img/azuread/azuread-8b-groupclaim.png)
+     ![Put in Security group claim](../../../img/azuread/azuread-8b-groupclaim.png)
 
-   - Add a claim that transforms an Azure AD username in order to pass it to Teleport.
+   - Add a claim that transforms an Azure AD username in order to pass it to
+     Teleport. Set the Source to "Transformation". In the new panel:
+      - Set the Transformation value to "Extract()"
+      - Set the Attribute name to `user.userprincipalname`.
+      - Set the Value to `ToLowercase()`.
 
-   ![Add a transformed username](../../../img/azuread/azuread-8c-usernameclaim.png)
+     ![Add a transformed username](../../../img/azuread/azuread-8c-usernameclaim.png)
 
-9. In **SAML Signing Certificate**, click the link to download the **Federation
-   Metadata XML**.
+9. In **SAML Certificates** section, copy the **App Federation
+   Metadata URL** link and save it for the next step:
 
    ![Download Federation Metadata XML](../../../img/azuread/azuread-9-fedmeatadataxml.png)
 
-<Admonition
-type="warning"
-title="Important"
->
-This is an important document. The Federation Metadata XML file sets the SSO
-location and other important values. Transmit the Federation Metadata XML file
-securely so it is not malformed. Using the `entity_descriptor_url` setting
-allows for loading from the source.
-</Admonition>
-
 ## Create a SAML Connector
 
-Now, create a SAML connector resource. Write the following to `azure-connector.yaml`:
+Now, create a SAML connector resource using `tctl`.
+
+```code
+$ tctl sso configure saml --preset ad \
+--entity-descriptor https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml\?appid\=b8d06e01... \
+--attributes-to-roles http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,41c94563...,dev \
+--attributes-to-roles http://schemas.microsoft.com/ws/2008/06/identity/claims/groups,8adac502...,access > azure-connector.yaml
+```
+
+In the example above:
+
+- `--entity-descriptor` is give the app federation metadata URL saved in the
+  previous step.
+- Each `--attributes-to-roles` is give the name of the schema definition for
+  groups, the UUID of an AD group, and the Teleport role members of that group
+  will be assigned.
+
+The file `azure-connector.yaml` should now resemble:
 
 ```yaml
 kind: saml
-version: v2
 metadata:
-  # the name of the connector
-  name: azure-saml
+  name: ad
 spec:
-  display: "Microsoft"
-
-  # enables/disables idp-initiated saml login
-  allow_idp_initiated: false
-
-  # acs is the Assertion Consumer Service URL. This should be the address of
-  # the Teleport proxy that your identity provider will communicate with.
-  # The last segment of the URL must be identical to the connector metadata name.
-  acs: https://teleport.example.com:3080/v1/webapi/saml/acs/azure-saml
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/ad
   attributes_to_roles:
-    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "930210...", roles: ["editor"]}
-    - {name: "http://schemas.microsoft.com/ws/2008/06/identity/claims/groups", value: "93b110...", roles: ["dev"]}
-  # Populate entity_descriptor with the federator data xml or set entity_descriptor_url to automatically load from the SSO
-  entity_descriptor: |
-    <federationmedata.xml contents>
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - dev
+    value: 41c94563...
+  - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
+    roles:
+    - access
+    value: 8adac502...
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/ad
+  cert: ""
+  display: Microsoft
+  entity_descriptor: ""
+  entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
+  issuer: ""
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/ad
+  sso: ""
+version: v2
+
 ```
-
-(!docs/pages/includes/sso/idp-initiated.mdx!)
-
-Replace the `acs` field with your Teleport address, update the group IDs in the
-`attributes_to_roles` field with the actual Azure AD group ID values, and insert
-the downloaded Federation Metadata XML into the `entity_descriptor` field.
 
 Create the connector using `tctl`:
 
 ```code
-$ tctl create azure-connector.yaml
+$ tctl create -f azure-connector.yaml
 ```
 
-<Admonition
-type="tip"
-title="Automatic signing key pair"
->
-Teleport will generate a signing key pair and update the SAML connector with
-the `signing_key_pair` property.
-
-![Sample Connector Transform](../../../img/azuread/azuread-12-sampleconnector.png)
-
-Alternatively, you can generate your own keypair when creating a connector using
-`openssl`:
+With the connector in place on the cluster, you can test it with `tctl`:
 
 ```code
-$ openssl req -nodes -new -x509 -keyout server.key -out server.cer
+$ cat azure-connector.yaml | tctl sso test
 ```
 
-</Admonition>
+Your browser should open and log you in to the Teleport cluster through your
+Azure AD credentials. If there are any problems, the CLI output will help you
+debug the connector configuration.
 
 ## Create a new Teleport role
 
@@ -189,26 +191,7 @@ Replace `ubuntu` with the Linux login available on your servers.
 $ tctl create dev.yaml
 ```
 
-## Testing
-
-![Login with Microsoft](../../../img/azuread/azure-11-loginwithmsft.png)
-
-The CLI is the same as before:
-
-```code
-$ tsh --proxy=proxy.example.com login
-```
-
-This command will print the SSO login URL and will try to open it
-automatically in a browser.
-
-<Admonition
-  type="tip"
-  title="Tip"
->
-  Teleport can use multiple SAML connectors. In this case a connector name
-  can be passed via `tsh login --auth=connector_name`
-</Admonition>
+(!docs/pages/includes/enterprise/samlauthentication.mdx!)
 
 ## Token encryption (Optional)
 
@@ -242,9 +225,9 @@ is used to sign responses.
 ```yaml
 kind: saml
 metadata:
-  name: azure-saml
+  name: ad
 spec:
-  acs: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
     roles:
@@ -252,14 +235,13 @@ spec:
     - access
     - auditor
     value: '*'
-  audience: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
   cert: ""
   display: Microsoft
-  entity_descriptor: |
-    <?xml ...
-  entity_descriptor_url: ""
+  entity_descriptor:
+  entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
   issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -280,7 +262,7 @@ kind: saml
 metadata:
   name: azure-saml
 spec:
-  acs: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
     roles:
@@ -288,14 +270,13 @@ spec:
     - access
     - auditor
     value: '*'
-  audience: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
   cert: ""
   display: Microsoft
-  entity_descriptor: |
-    <?xml ...
-  entity_descriptor_url: ""
+  entity_descriptor:
+  entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
   issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
   signing_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -324,7 +305,7 @@ kind: saml
 metadata:
   name: azure-saml
 spec:
-  acs: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
+  acs: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
   attributes_to_roles:
   - name: http://schemas.microsoft.com/ws/2008/06/identity/claims/groups
     roles:
@@ -332,14 +313,13 @@ spec:
     - access
     - auditor
     value: '*'
-  audience: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
+  audience: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
   cert: ""
   display: Microsoft
-  entity_descriptor: |
-    <?xml ...
-  entity_descriptor_url: ""
+  entity_descriptor:
+  entity_descriptor_url: https://login.microsoftonline.com/ff882432.../federationmetadata/2007-06/federationmetadata.xml?appid=b8d06e01...
   issuer: https://sts.windows.net/your-id-here/
-  service_provider_issuer: https://teleport.example.com/v1/webapi/saml/acs/azure-saml
+  service_provider_issuer: https://mytenant.teleport.sh/v1/webapi/saml/acs/azure-saml
   assertion_key_pair:
     cert: |
       -----BEGIN CERTIFICATE-----
@@ -365,12 +345,12 @@ version: v2
 Update the connector:
 
 ```code
-$ tctl create -f azure-out.yaml
+$ tctl create -f azure-connector.yaml
 ```
 
 ### Activate token encryption
 
-- Navigate to **Token Encryption**
+- Navigate to **Token Encryption**:
 
 ![Navigate to token encryption](../../../img/azuread/azuread-token-encryption-0.png)
 
