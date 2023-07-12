@@ -12,17 +12,20 @@ You do not need to take any action if:
 - You do not use Machine ID.
 - You configure `tbot` using only the CLI parameters.
 
-## Overview
+## Summary of breaking changes
 
 Previously, the `tbot` configuration contained a list of destinations. A
 `destination` described what should be written, where it should be written, and
 which credential attributes should be used.
 
-Because each `destination` had a large number of configuration fields, the fields sometimes combined to produce unusable certificates.
+Because each `destination` had a large number of configuration fields, the
+fields sometimes combined to produce unusable certificates.
 
-To address this issue and simplify the configuration for Machine ID, Teleport 14 provides a new version of the configuration schema. The field previously
-known as a `destination` is now an `output`. Unlike a `destination`, an
-`output` has a specific type. The concept of `destination` remains, but now refers to where artifacts should be read from and written to.
+To address this issue and simplify the configuration for Machine ID, Teleport 14
+provides a new version of the configuration schema. The field previously known
+as a `destination` is now an `output`. Unlike a `destination`, an `output` has
+a specific type. The concept of `destination` remains, but now refers to where
+artifacts should be read from and written to.
 
 Here is an example of the v1 configuration:
 
@@ -72,10 +75,11 @@ original configuration file with the migrated one.
 
 ### Migration failure
 
-If migration fails, review the error logged by the migration command. In most cases, the error will indicate where a problem was found or why
-your original configuration can't be migrated. It might be that your
-original configuration contains invalid or conflicting entries and that previous
-versions of `tbot` might not have validated for these.
+If migration fails, review the error logged by the migration command. In most
+cases, the error will indicate where a problem was found or why your original
+configuration can't be migrated. It might be that your original configuration
+contains invalid or conflicting entries and that previous versions of `tbot`
+might not have validated for these.
 
 If you are still unable to determine why your configuration will not migrate,
 seek guidance. If you have a support contract, submit a ticket. If you are using
