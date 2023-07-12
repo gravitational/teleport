@@ -1,5 +1,5 @@
 ---
-title: Machine ID V14 Upgrade Guide
+title: Machine ID v14 Upgrade Guide
 description: Upgrade instructions for Machine ID in Teleport 14.0
 ---
 
@@ -22,8 +22,7 @@ Because each `destination` had a large number of configuration fields, the field
 
 To address this issue and simplify the configuration for Machine ID, Teleport 14 provides a new version of the configuration schema. The field previously
 known as a `destination` is now an `output`. Unlike a `destination`, an
-`output` has a specific type. The concept of `destination` remains, but this now
-just refers to where artifacts should be read from and written to.
+`output` has a specific type. The concept of `destination` remains, but now refers to where artifacts should be read from and written to.
 
 Here is an example of the v1 configuration:
 
