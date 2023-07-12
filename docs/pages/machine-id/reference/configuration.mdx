@@ -333,8 +333,8 @@ path: /opt/machine-id
 #     if unsupported.
 #   * insecure: Quietly allow symlinks in paths.
 symlinks: try-secure
-# acls configures ACL setup when `tbot init` is run and revalidation of them
-# when the destination is written to.
+# acls configures whether Linux Access Control List (ACL) setup should occur for
+# this destination.
 # Requires Linux with a file system that supports ACLs.
 # Supported values:
 #   * try (default on Linux): Attempt to use ACLs, warn at runtime if ACLs
