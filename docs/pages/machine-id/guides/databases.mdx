@@ -120,11 +120,14 @@ outputs:
 
 ```
 
+The `outputs` field controls the what certificates `tbot` will produce when it
+runs and where these certificates should be written.
+
 The `format` field in the database output controls the format of the generated
-credentials. This setting allows the credentials to work with database clients that require a
-specific format. When this field is not specified, a sensible default option is
-used that is compatible with most clients. The full list of supported `format`
-options is below:
+credentials. This setting allows the credentials to work with database clients
+that require a specific format. When this field is not specified, a sensible
+default option is used that is compatible with most clients. The full list of
+supported `format` options is below:
 
 | Client        | `format`      | Description                          |
 |---------------|---------------|--------------------------------------|
