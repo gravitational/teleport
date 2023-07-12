@@ -43,7 +43,7 @@ func TestShowClusterAlerts(t *testing.T) {
 		alerts  []types.ClusterAlert
 		wantOut string
 	}{
-		"No filtered severities": {
+		"Single message": {
 			alerts: []types.ClusterAlert{
 				{
 					Spec: types.ClusterAlertSpec{
@@ -54,7 +54,7 @@ func TestShowClusterAlerts(t *testing.T) {
 			},
 			wantOut: "\x1b[33msomeMessage\x1b[0m\n\n",
 		},
-		"Filtered severities": {
+		"Sorted messages": {
 			alerts: []types.ClusterAlert{
 				{
 					ResourceHeader: types.ResourceHeader{
@@ -65,18 +65,18 @@ func TestShowClusterAlerts(t *testing.T) {
 						},
 					},
 					Spec: types.ClusterAlertSpec{
-						Severity: types.AlertSeverity_HIGH,
+						Severity: types.AlertSeverity_MEDIUM,
 						Message:  "someOtherMessage",
 					},
 				}, {
 					Spec: types.ClusterAlertSpec{
-						Severity: types.AlertSeverity_MEDIUM,
+						Severity: types.AlertSeverity_HIGH,
 						Message:  "someMessage",
 					},
 				},
 			},
 
-			wantOut: "\x1b[33msomeMessage\x1b[0m\n\n",
+			wantOut: "\x1b[31msomeMessage\x1b[0m\n\n\x1b[33msomeOtherMessage\x1b[0m\n\n",
 		},
 	}
 
@@ -84,7 +84,7 @@ func TestShowClusterAlerts(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			alertGetter := mockAlertGetter(test.alerts)
 			var got bytes.Buffer
-			err := ShowClusterAlerts(context.Background(), alertGetter, &got, nil, types.AlertSeverity_LOW, types.AlertSeverity_MEDIUM)
+			err := ShowClusterAlerts(context.Background(), alertGetter, &got, nil, types.AlertSeverity_LOW)
 			require.NoError(t, err)
 			require.Equal(t, test.wantOut, got.String())
 		})

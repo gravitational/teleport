@@ -1810,17 +1810,9 @@ func onLogin(cf *CLIConf) error {
 		return trace.Wrap(err)
 	}
 
-	// Show on-login alerts, all high severity alerts are shown by onStatus
-	// so can be excluded here, except when Hardware Key Touch is required
-	// which skips on-status alerts.
-	alertSeverityMax := types.AlertSeverity_MEDIUM
-	if tc.PrivateKeyPolicy == keys.PrivateKeyPolicyHardwareKeyTouch {
-		alertSeverityMax = types.AlertSeverity_HIGH
-	}
-
 	if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, map[string]string{
 		types.AlertOnLogin: "yes",
-	}, types.AlertSeverity_LOW, alertSeverityMax); err != nil {
+	}, types.AlertSeverity_LOW); err != nil {
 		log.WithError(err).Warn("Failed to display cluster alerts.")
 	}
 
@@ -3957,7 +3949,7 @@ func onStatus(cf *CLIConf) error {
 		log.Debug("Skipping cluster alerts due to Hardware Key Touch requirement.")
 	} else {
 		if err := common.ShowClusterAlerts(cf.Context, tc, os.Stderr, nil,
-			types.AlertSeverity_HIGH, types.AlertSeverity_HIGH); err != nil {
+			types.AlertSeverity_HIGH); err != nil {
 			log.WithError(err).Warn("Failed to display cluster alerts.")
 		}
 	}

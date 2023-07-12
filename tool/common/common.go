@@ -106,12 +106,12 @@ type ClusterAlertGetter interface {
 	GetClusterAlerts(ctx context.Context, query types.GetClusterAlertsRequest) ([]types.ClusterAlert, error)
 }
 
-// ShowClusterAlerts shows cluster alerts with the given labels and severity.
-func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writer, labels map[string]string, minSeverity, maxSeverity types.AlertSeverity) error {
+// ShowClusterAlerts shows cluster alerts matching the given labels and minimum severity.
+func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writer, labels map[string]string, severity types.AlertSeverity) error {
 	// get any "on login" alerts
 	alerts, err := client.GetClusterAlerts(ctx, types.GetClusterAlertsRequest{
 		Labels:   labels,
-		Severity: minSeverity,
+		Severity: severity,
 	})
 	if err != nil && !trace.IsNotImplemented(err) {
 		return trace.Wrap(err)
@@ -124,9 +124,7 @@ func ShowClusterAlerts(ctx context.Context, client ClusterAlertGetter, w io.Writ
 			errs = append(errs, trace.Errorf("invalid alert %q: %w", alert.Metadata.Name, err))
 			continue
 		}
-		if alert.Spec.Severity <= maxSeverity {
-			fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
-		}
+		fmt.Fprintf(w, "%s\n\n", utils.FormatAlert(alert))
 	}
 	return trace.NewAggregate(errs...)
 }
