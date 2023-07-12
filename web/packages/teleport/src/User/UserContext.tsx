@@ -120,7 +120,7 @@ export function UserContextProvider(props: PropsWithChildren<unknown>) {
     setPreferences(nextPreferences);
     storage.setUserPreferences(nextPreferences);
 
-    return service.updateUserPreferences(newPreferences);
+    return service.updateUserPreferences(nextPreferences);
   }
 
   useEffect(() => {
